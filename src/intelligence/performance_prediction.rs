@@ -8,6 +8,7 @@ use crate::errors::AppError;
 use crate::intelligence::algorithms::VdotAlgorithm;
 use crate::models::Activity;
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 use std::collections::HashMap;
 
 /// Standard race distances in meters
@@ -190,9 +191,7 @@ impl PerformancePredictor {
                 let pace_b = b
                     .distance_meters
                     .map_or(0.0, |d| d / b.duration_seconds as f64);
-                pace_a
-                    .partial_cmp(&pace_b)
-                    .unwrap_or(std::cmp::Ordering::Equal)
+                pace_a.partial_cmp(&pace_b).unwrap_or(Ordering::Equal)
             })
     }
 

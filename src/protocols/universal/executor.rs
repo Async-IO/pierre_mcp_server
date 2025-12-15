@@ -24,7 +24,16 @@ use super::handlers::{
     handle_save_recipe, handle_search_recipes, handle_validate_recipe,
 };
 use super::tool_registry::{ToolId, ToolInfo, ToolRegistry};
+use crate::constants::time_constants::SECONDS_PER_HOUR_F64;
+use crate::intelligence::physiological_constants::business_thresholds::{
+    DEFAULT_HR_EFFORT_SCORE, DISTANCE_SCORE_DIVISOR, DURATION_SCORE_FACTOR, MAX_SCORE,
+    MIN_VALID_DISTANCE,
+};
+use crate::intelligence::physiological_constants::efficiency_defaults::{
+    DEFAULT_EFFICIENCY_SCORE, DEFAULT_EFFICIENCY_WITH_DISTANCE,
+};
 use crate::mcp::resources::ServerResources;
+use crate::models::Activity;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
 use crate::protocols::ProtocolError;
 use std::sync::Arc;
@@ -44,35 +53,39 @@ impl IntelligenceService {
     ///
     /// # Errors
     /// Returns error if intelligence analysis fails
-    pub fn analyze_activity(
-        &self,
-        activity: &crate::models::Activity,
-    ) -> Result<serde_json::Value, String> {
+    pub fn analyze_activity(&self, activity: &Activity) -> Result<serde_json::Value, String> {
         // Calculate basic efficiency score
-        let efficiency_score = activity.distance_meters.map_or(crate::intelligence::physiological_constants::efficiency_defaults::DEFAULT_EFFICIENCY_WITH_DISTANCE, |distance| if activity.duration_seconds > 0 && distance > f64::from(crate::intelligence::physiological_constants::business_thresholds::MIN_VALID_DISTANCE) {
-                let duration_f64 = f64::from(u32::try_from(activity.duration_seconds.min(u64::from(u32::MAX))).unwrap_or(u32::MAX));
-                let speed_ms = distance / duration_f64;
-                (speed_ms * f64::from(crate::intelligence::physiological_constants::business_thresholds::MAX_SCORE))
-                    .min(f64::from(crate::intelligence::physiological_constants::business_thresholds::MAX_SCORE))
-            } else {
-                crate::intelligence::physiological_constants::efficiency_defaults::DEFAULT_EFFICIENCY_SCORE
-            });
+        let efficiency_score =
+            activity
+                .distance_meters
+                .map_or(DEFAULT_EFFICIENCY_WITH_DISTANCE, |distance| {
+                    if activity.duration_seconds > 0 && distance > f64::from(MIN_VALID_DISTANCE) {
+                        let duration_f64 = f64::from(
+                            u32::try_from(activity.duration_seconds.min(u64::from(u32::MAX)))
+                                .unwrap_or(u32::MAX),
+                        );
+                        let speed_ms = distance / duration_f64;
+                        (speed_ms * f64::from(MAX_SCORE)).min(f64::from(MAX_SCORE))
+                    } else {
+                        DEFAULT_EFFICIENCY_SCORE
+                    }
+                });
 
         // Calculate effort score based on duration and distance
         let effort_score = if activity.duration_seconds > 0 {
             let duration_hours = f64::from(
                 u32::try_from(activity.duration_seconds.min(u64::from(u32::MAX)))
                     .unwrap_or(u32::MAX),
-            ) / crate::constants::time_constants::SECONDS_PER_HOUR_F64;
-            let base_effort = duration_hours * f64::from(crate::intelligence::physiological_constants::business_thresholds::DURATION_SCORE_FACTOR);
+            ) / SECONDS_PER_HOUR_F64;
+            let base_effort = duration_hours * f64::from(DURATION_SCORE_FACTOR);
 
             // Add distance component if available
             activity.distance_meters.map_or(base_effort, |d| {
                 let distance_km = d / 1000.0;
-                base_effort + (distance_km / f64::from(crate::intelligence::physiological_constants::business_thresholds::DISTANCE_SCORE_DIVISOR))
+                base_effort + (distance_km / f64::from(DISTANCE_SCORE_DIVISOR))
             })
         } else {
-            f64::from(crate::intelligence::physiological_constants::business_thresholds::DEFAULT_HR_EFFORT_SCORE)
+            f64::from(DEFAULT_HR_EFFORT_SCORE)
         };
 
         Ok(serde_json::json!({
@@ -80,7 +93,7 @@ impl IntelligenceService {
             "analysis_type": "intelligence_engine",
             "timestamp": chrono::Utc::now().to_rfc3339(),
             "efficiency_score": efficiency_score,
-            "effort_score": effort_score.min(f64::from(crate::intelligence::physiological_constants::business_thresholds::MAX_SCORE)),
+            "effort_score": effort_score.min(f64::from(MAX_SCORE)),
             "performance_insights": {
                 "efficiency_rating": if efficiency_score > 75.0 { "excellent" } else if efficiency_score > 50.0 { "good" } else { "needs_improvement" },
                 "effort_level": if effort_score > 80.0 { "high" } else if effort_score > 40.0 { "moderate" } else { "low" }
@@ -91,7 +104,7 @@ impl IntelligenceService {
 
     /// Generate recommendations based on activity analysis
     fn generate_activity_recommendations(
-        activity: &crate::models::Activity,
+        activity: &Activity,
         efficiency_score: f64,
         effort_score: f64,
     ) -> Vec<String> {

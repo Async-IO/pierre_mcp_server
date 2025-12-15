@@ -8,6 +8,7 @@ use super::Database;
 use crate::errors::{AppError, AppResult};
 use crate::permissions::impersonation::ImpersonationSession;
 use chrono::{DateTime, Utc};
+use sqlx::sqlite::SqliteRow;
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -201,9 +202,7 @@ impl Database {
     }
 
     /// Convert database row to `ImpersonationSession`
-    fn row_to_impersonation_session(
-        row: &sqlx::sqlite::SqliteRow,
-    ) -> AppResult<ImpersonationSession> {
+    fn row_to_impersonation_session(row: &SqliteRow) -> AppResult<ImpersonationSession> {
         let id: String = row.get("id");
         let impersonator_id: String = row.get("impersonator_id");
         let target_user_id: String = row.get("target_user_id");

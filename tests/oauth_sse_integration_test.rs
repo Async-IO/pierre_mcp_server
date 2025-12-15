@@ -8,7 +8,10 @@
 #![allow(missing_docs)]
 
 use anyhow::Result;
-use pierre_mcp_server::{database_plugins::DatabaseProvider, sse::manager::SseManager};
+use pierre_mcp_server::{
+    database::oauth_notifications::OAuthNotification, database_plugins::DatabaseProvider,
+    sse::manager::SseManager,
+};
 use reqwest::Client;
 use serde_json::json;
 use std::sync::Arc;
@@ -72,7 +75,7 @@ async fn test_oauth_strava_with_sse_notifications() -> Result<()> {
     println!("📞 Testing OAuth callback with SSE notification");
 
     // Create a mock OAuth notification
-    let oauth_notification = pierre_mcp_server::database::oauth_notifications::OAuthNotification {
+    let oauth_notification = OAuthNotification {
         id: "test-oauth-notification".to_owned(),
         user_id: user_id.to_string(),
         provider: "strava".to_owned(),
@@ -186,7 +189,7 @@ async fn test_mcp_client_oauth_notification_flow() -> Result<()> {
     println!("✅ MCP client SSE connection established");
 
     // Simulate OAuth completion notification
-    let notification = pierre_mcp_server::database::oauth_notifications::OAuthNotification {
+    let notification = OAuthNotification {
         id: "mcp-client-notification".to_owned(),
         user_id: user_id.to_string(),
         provider: "strava".to_owned(),
@@ -232,7 +235,7 @@ async fn test_oauth_sse_error_scenarios() -> Result<()> {
     let sse_manager = Arc::new(SseManager::new(100));
 
     // Test notification to non-existent SSE connection
-    let notification = pierre_mcp_server::database::oauth_notifications::OAuthNotification {
+    let notification = OAuthNotification {
         id: "error-test".to_owned(),
         user_id: user_id.to_string(),
         provider: "strava".to_owned(),

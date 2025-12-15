@@ -10,9 +10,15 @@
 mod common;
 
 use anyhow::Result;
-use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
-use pierre_mcp_server::key_management::KeyManager;
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
+use pierre_mcp_server::{
+    admin::{jwt::AdminJwtManager, models::CreateAdminTokenRequest},
+    database_plugins::{factory::Database, DatabaseProvider},
+    key_management::KeyManager,
+};
 use serial_test::serial;
+use std::env;
 use tempfile::TempDir;
 
 #[tokio::test]
@@ -24,7 +30,7 @@ async fn test_jwt_secret_persistence_across_restarts() -> Result<()> {
     let db_url = format!("sqlite:{}", db_path.display());
 
     // Set consistent MEK for test (32 bytes base64 encoded) - required for KeyManager::bootstrap()
-    std::env::set_var(
+    env::set_var(
         "PIERRE_MASTER_ENCRYPTION_KEY",
         "YmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmI=",
     );
@@ -39,7 +45,7 @@ async fn test_jwt_secret_persistence_across_restarts() -> Result<()> {
         let mut database = Database::new(
             &db_url,
             database_key.to_vec(),
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await?;
         #[cfg(not(feature = "postgresql"))]
@@ -52,7 +58,7 @@ async fn test_jwt_secret_persistence_across_restarts() -> Result<()> {
             .await?;
 
         // Create admin token with this secret
-        let request = pierre_mcp_server::admin::models::CreateAdminTokenRequest {
+        let request = CreateAdminTokenRequest {
             service_name: "test_service".into(),
             service_description: Some("Test token".into()),
             permissions: None,
@@ -75,7 +81,7 @@ async fn test_jwt_secret_persistence_across_restarts() -> Result<()> {
         let mut database = Database::new(
             &db_url,
             database_key.to_vec(),
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await?;
         #[cfg(not(feature = "postgresql"))]
@@ -95,7 +101,7 @@ async fn test_jwt_secret_persistence_across_restarts() -> Result<()> {
     );
 
     // Step 4: Verify admin token can be validated with persistent secret using RS256
-    let jwt_manager = pierre_mcp_server::admin::jwt::AdminJwtManager::new();
+    let jwt_manager = AdminJwtManager::new();
 
     // This should NOT fail with InvalidSignature (using RS256 validation)
     let validation_result = jwt_manager.validate_token(&jwt_secret_1.1, &jwks_manager);
@@ -106,7 +112,7 @@ async fn test_jwt_secret_persistence_across_restarts() -> Result<()> {
     );
 
     // Clean up test environment variable
-    std::env::remove_var("PIERRE_MASTER_ENCRYPTION_KEY");
+    env::remove_var("PIERRE_MASTER_ENCRYPTION_KEY");
 
     println!(" JWT secret persistence test PASSED");
     println!(" Admin tokens survive server restarts");
@@ -126,7 +132,7 @@ async fn test_mek_ensures_consistent_jwt_storage() -> Result<()> {
     let db_url = format!("sqlite:{}", db_path.display());
 
     // Set consistent MEK for test (32 bytes base64 encoded)
-    std::env::set_var(
+    env::set_var(
         "PIERRE_MASTER_ENCRYPTION_KEY",
         "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE=",
     );
@@ -137,7 +143,7 @@ async fn test_mek_ensures_consistent_jwt_storage() -> Result<()> {
         let mut database = Database::new(
             &db_url,
             database_key.to_vec(),
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await?;
         #[cfg(not(feature = "postgresql"))]
@@ -154,7 +160,7 @@ async fn test_mek_ensures_consistent_jwt_storage() -> Result<()> {
         let mut database = Database::new(
             &db_url,
             database_key.to_vec(),
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await?;
         #[cfg(not(feature = "postgresql"))]
@@ -171,7 +177,7 @@ async fn test_mek_ensures_consistent_jwt_storage() -> Result<()> {
     );
 
     // Clean up test environment variable
-    std::env::remove_var("PIERRE_MASTER_ENCRYPTION_KEY");
+    env::remove_var("PIERRE_MASTER_ENCRYPTION_KEY");
 
     println!(" MEK-based JWT secret storage test PASSED");
 

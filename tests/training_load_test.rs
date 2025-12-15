@@ -11,7 +11,7 @@ use chrono::{DateTime, Duration, Utc};
 use pierre_mcp_server::intelligence::{
     RiskLevel, TrainingLoad, TrainingLoadCalculator, TrainingStatus,
 };
-use pierre_mcp_server::models::Activity;
+use pierre_mcp_server::models::{Activity, SportType};
 
 fn create_test_activity(
     date: DateTime<Utc>,
@@ -22,7 +22,7 @@ fn create_test_activity(
     Activity {
         id: format!("test_{}", date.timestamp()),
         name: "Test Activity".to_owned(),
-        sport_type: pierre_mcp_server::models::SportType::Run,
+        sport_type: SportType::Run,
         start_date: date,
         duration_seconds: u64::from(duration_seconds),
         distance_meters: Some(10000.0),

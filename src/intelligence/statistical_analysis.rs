@@ -8,6 +8,7 @@
 use super::{TrendDataPoint, TrendDirection};
 use crate::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
+use std::cmp::{min, Ordering};
 
 /// Complete linear regression analysis results
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -252,7 +253,7 @@ impl StatisticalAnalyzer {
 
         for i in 0..data_points.len() {
             let start = i.saturating_sub(window_size / 2);
-            let end = std::cmp::min(start + window_size, data_points.len());
+            let end = min(start + window_size, data_points.len());
 
             let window_sum: f64 = data_points[start..end].iter().map(|p| p.value).sum();
             let window_avg = window_sum / (end - start) as f64;
@@ -297,7 +298,7 @@ impl StatisticalAnalyzer {
         }
 
         let mut sorted = values.to_vec();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
 
         let len = sorted.len();
         if len.is_multiple_of(2) {

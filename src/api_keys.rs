@@ -9,6 +9,10 @@
 //! Provides B2B API key generation, validation, and usage tracking
 //! for the Pierre MCP Fitness API platform.
 
+use std::fmt::{self, Display, Formatter};
+use std::result::Result;
+use std::str::FromStr;
+
 use crate::constants::{
     key_prefixes,
     system_config::{
@@ -41,8 +45,8 @@ pub enum ApiKeyTier {
     Enterprise,
 }
 
-impl std::fmt::Display for ApiKeyTier {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for ApiKeyTier {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::Trial => write!(f, "Trial"),
             Self::Starter => write!(f, "Starter"),
@@ -97,10 +101,10 @@ impl ApiKeyTier {
     }
 }
 
-impl std::str::FromStr for ApiKeyTier {
+impl FromStr for ApiKeyTier {
     type Err = AppError;
 
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             tiers::TRIAL => Ok(Self::Trial),
             tiers::STARTER => Ok(Self::Starter),

@@ -11,12 +11,19 @@
 //! accept standard user authentication for users with `is_admin: true`.
 
 use crate::{
-    database::CreateUserMcpTokenRequest, database_plugins::DatabaseProvider, errors::AppError,
-    errors::ErrorCode, mcp::resources::ServerResources, models::UserStatus,
+    admin::{models::CreateAdminTokenRequest, AdminPermission},
+    auth::AuthResult,
+    database::CreateUserMcpTokenRequest,
+    database_plugins::DatabaseProvider,
+    errors::{AppError, ErrorCode},
+    mcp::resources::ServerResources,
+    models::UserStatus,
+    rate_limiting::UnifiedRateLimitCalculator,
+    security::cookies::get_cookie_value,
 };
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
@@ -223,16 +230,14 @@ impl WebAdminRoutes {
 
     /// Authenticate user from authorization header or cookie, requiring admin privileges
     async fn authenticate_admin(
-        headers: &axum::http::HeaderMap,
+        headers: &HeaderMap,
         resources: &Arc<ServerResources>,
-    ) -> Result<crate::auth::AuthResult, AppError> {
+    ) -> Result<AuthResult, AppError> {
         // Try Authorization header first, then fall back to auth_token cookie
         let auth_value =
             if let Some(auth_header) = headers.get("authorization").and_then(|h| h.to_str().ok()) {
                 auth_header.to_owned()
-            } else if let Some(token) =
-                crate::security::cookies::get_cookie_value(headers, "auth_token")
-            {
+            } else if let Some(token) = get_cookie_value(headers, "auth_token") {
                 format!("Bearer {token}")
             } else {
                 return Err(AppError::auth_invalid(
@@ -267,7 +272,7 @@ impl WebAdminRoutes {
     /// Handle pending users listing for web admin users
     async fn handle_pending_users(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
     ) -> Result<Response, AppError> {
         // Authenticate and verify admin status
         let auth = Self::authenticate_admin(&headers, &resources).await?;
@@ -317,7 +322,7 @@ impl WebAdminRoutes {
     /// Handle listing all users for web admin users
     async fn handle_all_users(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
     ) -> Result<Response, AppError> {
         // Authenticate and verify admin status
         let auth = Self::authenticate_admin(&headers, &resources).await?;
@@ -378,7 +383,7 @@ impl WebAdminRoutes {
     /// Handle listing admin tokens for web admin users
     async fn handle_admin_tokens(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
     ) -> Result<Response, AppError> {
         // Authenticate and verify admin status
         let auth = Self::authenticate_admin(&headers, &resources).await?;
@@ -431,7 +436,7 @@ impl WebAdminRoutes {
     /// Handle approving a user via web admin (cookie auth)
     async fn handle_approve_user(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Path(user_id): Path<String>,
         Json(request): Json<ApproveUserRequest>,
     ) -> Result<Response, AppError> {
@@ -511,7 +516,7 @@ impl WebAdminRoutes {
     /// Handle suspending a user via web admin (cookie auth)
     async fn handle_suspend_user(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Path(user_id): Path<String>,
         Json(request): Json<SuspendUserRequest>,
     ) -> Result<Response, AppError> {
@@ -591,7 +596,7 @@ impl WebAdminRoutes {
     /// Handle creating an admin token via web admin (cookie auth)
     async fn handle_create_admin_token(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Json(request): Json<CreateAdminTokenWebRequest>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate_admin(&headers, &resources).await?;
@@ -606,12 +611,12 @@ impl WebAdminRoutes {
         let permissions = request.permissions.map(|perms| {
             perms
                 .iter()
-                .filter_map(|p| p.parse::<crate::admin::AdminPermission>().ok())
+                .filter_map(|p| p.parse::<AdminPermission>().ok())
                 .collect::<Vec<_>>()
         });
 
         // Create the token request
-        let token_request = crate::admin::models::CreateAdminTokenRequest {
+        let token_request = CreateAdminTokenRequest {
             service_name: request.service_name,
             service_description: request.service_description,
             permissions,
@@ -656,7 +661,7 @@ impl WebAdminRoutes {
     /// Handle getting a specific admin token via web admin (cookie auth)
     async fn handle_get_admin_token(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Path(token_id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate_admin(&headers, &resources).await?;
@@ -697,7 +702,7 @@ impl WebAdminRoutes {
     /// Handle revoking an admin token via web admin (cookie auth)
     async fn handle_revoke_admin_token(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Path(token_id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate_admin(&headers, &resources).await?;
@@ -736,7 +741,7 @@ impl WebAdminRoutes {
     /// Handle password reset via web admin
     async fn handle_reset_user_password(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Path(user_id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate_admin(&headers, &resources).await?;
@@ -795,7 +800,7 @@ impl WebAdminRoutes {
     /// Handle getting rate limit info for a user via web admin
     async fn handle_get_user_rate_limit(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Path(user_id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate_admin(&headers, &resources).await?;
@@ -854,8 +859,7 @@ impl WebAdminRoutes {
             .map_or(now, |t| {
                 chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(t, chrono::Utc)
             });
-        let monthly_reset =
-            crate::rate_limiting::UnifiedRateLimitCalculator::calculate_monthly_reset();
+        let monthly_reset = UnifiedRateLimitCalculator::calculate_monthly_reset();
 
         Ok((
             StatusCode::OK,
@@ -890,7 +894,7 @@ impl WebAdminRoutes {
     /// Handle getting user activity via web admin
     async fn handle_get_user_activity(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Path(user_id): Path<String>,
         Query(params): Query<UserActivityQuery>,
     ) -> Result<Response, AppError> {
@@ -963,7 +967,7 @@ impl WebAdminRoutes {
 
     /// Handle getting auto-approval setting
     async fn handle_get_auto_approval(
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         State(resources): State<Arc<ServerResources>>,
     ) -> Result<impl IntoResponse, AppError> {
         Self::authenticate_admin(&headers, &resources).await?;
@@ -996,7 +1000,7 @@ impl WebAdminRoutes {
 
     /// Handle setting auto-approval
     async fn handle_set_auto_approval(
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         State(resources): State<Arc<ServerResources>>,
         Json(request): Json<serde_json::Value>,
     ) -> Result<impl IntoResponse, AppError> {

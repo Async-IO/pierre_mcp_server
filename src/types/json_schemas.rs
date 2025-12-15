@@ -31,6 +31,10 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::config::runtime::ConfigValue;
+use crate::errors::AppResult;
+use crate::intelligence::{FitnessLevel, TimeAvailability, UserFitnessProfile, UserPreferences};
+
 // ============================================================================
 // Configuration Types
 // ============================================================================
@@ -57,8 +61,7 @@ impl ConfigValueInput {
     ///
     /// This is a helper for migrating from the old `HashMap`<String, Value> pattern
     #[must_use]
-    pub fn to_config_value(self) -> crate::config::runtime::ConfigValue {
-        use crate::config::runtime::ConfigValue;
+    pub fn to_config_value(self) -> ConfigValue {
         match self {
             Self::Float(v) => ConfigValue::Float(v),
             Self::Integer(v) => ConfigValue::Integer(v),
@@ -320,11 +323,7 @@ impl UserFitnessProfileData {
     ///
     /// # Errors
     /// Returns error if `fitness_level` string cannot be parsed
-    pub fn to_user_fitness_profile(
-        self,
-    ) -> crate::errors::AppResult<crate::intelligence::UserFitnessProfile> {
-        use crate::intelligence::{FitnessLevel, UserFitnessProfile, UserPreferences};
-
+    pub fn to_user_fitness_profile(self) -> AppResult<UserFitnessProfile> {
         let fitness_level = self
             .fitness_level
             .as_deref()
@@ -350,7 +349,7 @@ impl UserFitnessProfileData {
                 preferred_units: "metric".to_owned(),
                 training_focus: vec![],
                 injury_history: vec![],
-                time_availability: crate::intelligence::TimeAvailability {
+                time_availability: TimeAvailability {
                     hours_per_week: 5.0,
                     preferred_days: vec![],
                     preferred_duration_minutes: None,
@@ -361,7 +360,7 @@ impl UserFitnessProfileData {
 
     /// Create from internal `UserFitnessProfile` type
     #[must_use]
-    pub fn from_user_fitness_profile(profile: &crate::intelligence::UserFitnessProfile) -> Self {
+    pub fn from_user_fitness_profile(profile: &UserFitnessProfile) -> Self {
         Self {
             user_id: profile.user_id.clone(),
             age: profile.age,

@@ -11,6 +11,7 @@
 use crate::errors::AppError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::sync::LazyLock;
 use uuid::Uuid;
 
 /// Standard response wrapper for all APIs
@@ -289,8 +290,8 @@ impl ResponseFormatter {
 }
 
 /// Global response formatter instance
-pub static RESPONSE_FORMATTER: std::sync::LazyLock<ResponseFormatter> =
-    std::sync::LazyLock::new(ResponseFormatter::default);
+pub static RESPONSE_FORMATTER: LazyLock<ResponseFormatter> =
+    LazyLock::new(ResponseFormatter::default);
 
 /// Convenience functions for common response patterns
 pub mod helpers {

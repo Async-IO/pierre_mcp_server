@@ -7,6 +7,8 @@
 use super::models::{
     ClientRegistrationRequest, ClientRegistrationResponse, OAuth2Client, OAuth2Error,
 };
+use crate::constants::try_get_server_config;
+use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult};
 use argon2::{
@@ -22,13 +24,13 @@ use uuid::Uuid;
 
 /// OAuth 2.0 Client Registration Manager
 pub struct ClientRegistrationManager {
-    database: Arc<crate::database_plugins::factory::Database>,
+    database: Arc<Database>,
 }
 
 impl ClientRegistrationManager {
     /// Creates a new client registration manager
     #[must_use]
-    pub const fn new(database: Arc<crate::database_plugins::factory::Database>) -> Self {
+    pub const fn new(database: Arc<Database>) -> Self {
         Self { database }
     }
 
@@ -324,7 +326,7 @@ impl ClientRegistrationManager {
     ///
     /// Uses server config if initialized (production), falls back to localhost:8081 (tests)
     fn get_default_client_uri() -> String {
-        crate::constants::try_get_server_config().map_or_else(
+        try_get_server_config().map_or_else(
             || "http://localhost:8081".to_owned(),
             |config| format!("http://{}:{}", config.host, config.http_port),
         )

@@ -13,8 +13,13 @@ use super::{
 };
 use crate::errors::{AppError, AppResult};
 use serde_json::Value;
+use std::error::Error;
+use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::io::Result as IoResult;
 use std::sync::Arc;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{stdin, stdout, AsyncWriteExt, Stdout};
+use tokio::sync::broadcast::Receiver;
+use tokio::sync::Mutex;
 use tracing::{debug, error, info, warn};
 
 /// Manages server lifecycle, startup, and transport coordination
@@ -94,7 +99,7 @@ impl ServerLifecycle {
     async fn route_mcp_request(
         message: Value,
         resources: &Arc<ServerResources>,
-        stdout: &Arc<tokio::sync::Mutex<tokio::io::Stdout>>,
+        stdout: &Arc<Mutex<Stdout>>,
         sampling_peer: &Arc<SamplingPeer>,
     ) {
         match serde_json::from_value::<McpRequest>(message.clone()) {
@@ -115,7 +120,7 @@ impl ServerLifecycle {
     async fn process_stdio_message(
         message: Value,
         resources: &Arc<ServerResources>,
-        stdout: &Arc<tokio::sync::Mutex<tokio::io::Stdout>>,
+        stdout: &Arc<Mutex<Stdout>>,
         sampling_peer: &Arc<SamplingPeer>,
     ) {
         if Self::is_sampling_response(&message) {
@@ -131,13 +136,13 @@ impl ServerLifecycle {
     /// Returns an error if stdio processing or I/O operations fail
     pub async fn run_stdio_transport(
         self,
-        notification_receiver: tokio::sync::broadcast::Receiver<OAuthCompletedNotification>,
+        notification_receiver: Receiver<OAuthCompletedNotification>,
     ) -> AppResult<()> {
         use tokio::io::{AsyncBufReadExt, BufReader};
 
-        let stdin = tokio::io::stdin();
-        let mut reader = BufReader::new(stdin).lines();
-        let stdout = Arc::new(tokio::sync::Mutex::new(tokio::io::stdout()));
+        let reader_stdin = stdin();
+        let mut reader = BufReader::new(reader_stdin).lines();
+        let stdout = Arc::new(Mutex::new(stdout()));
         let sampling_peer = Arc::new(SamplingPeer::new(stdout.clone()));
 
         Self::spawn_notification_handler(notification_receiver, stdout.clone());
@@ -166,8 +171,8 @@ impl ServerLifecycle {
 
     /// Spawn notification handler for OAuth completion events
     fn spawn_notification_handler(
-        notification_receiver: tokio::sync::broadcast::Receiver<OAuthCompletedNotification>,
-        stdout: Arc<tokio::sync::Mutex<tokio::io::Stdout>>,
+        notification_receiver: Receiver<OAuthCompletedNotification>,
+        stdout: Arc<Mutex<Stdout>>,
     ) {
         let mut notification_rx = notification_receiver;
         tokio::spawn(async move {
@@ -183,7 +188,7 @@ impl ServerLifecycle {
     /// Returns an error if notification forwarding fails
     pub async fn run_sse_notification_forwarder(
         &self,
-        mut notification_receiver: tokio::sync::broadcast::Receiver<OAuthCompletedNotification>,
+        mut notification_receiver: Receiver<OAuthCompletedNotification>,
     ) -> AppResult<()> {
         info!("Starting SSE notification forwarder");
 
@@ -212,7 +217,7 @@ impl ServerLifecycle {
     }
 
     /// Write JSON message to stdout with newline and flush
-    async fn write_json_to_stdout(json: &str, stdout: &Arc<tokio::sync::Mutex<tokio::io::Stdout>>) {
+    async fn write_json_to_stdout(json: &str, stdout: &Arc<Mutex<Stdout>>) {
         let mut stdout_lock = stdout.lock().await;
 
         if let Err(e) = Self::write_json_data(&mut stdout_lock, json).await {
@@ -220,7 +225,7 @@ impl ServerLifecycle {
         }
     }
 
-    async fn write_json_data(stdout: &mut tokio::io::Stdout, json: &str) -> std::io::Result<()> {
+    async fn write_json_data(stdout: &mut Stdout, json: &str) -> IoResult<()> {
         stdout.write_all(json.as_bytes()).await?;
         stdout.write_all(b"\n").await?;
         stdout.flush().await?;
@@ -230,7 +235,7 @@ impl ServerLifecycle {
     /// Handle OAuth completion notification
     async fn handle_oauth_notification(
         notification: OAuthCompletedNotification,
-        stdout: &Arc<tokio::sync::Mutex<tokio::io::Stdout>>,
+        stdout: &Arc<Mutex<Stdout>>,
     ) {
         let notification_msg = Self::build_oauth_notification_json(&notification);
 
@@ -242,7 +247,7 @@ impl ServerLifecycle {
     /// Write MCP response to stdout
     async fn write_response_to_stdout(
         response: &McpResponse,
-        stdout: &Arc<tokio::sync::Mutex<tokio::io::Stdout>>,
+        stdout: &Arc<Mutex<Stdout>>,
     ) -> AppResult<()> {
         let response_json = serde_json::to_string(response)
             .map_err(|e| AppError::internal(format!("JSON serialization failed: {e}")))?;
@@ -270,9 +275,9 @@ impl ServerLifecycle {
     async fn process_mcp_request(
         request: McpRequest,
         resources: &Arc<ServerResources>,
-        stdout: &Arc<tokio::sync::Mutex<tokio::io::Stdout>>,
+        stdout: &Arc<Mutex<Stdout>>,
         _sampling_peer: &Arc<SamplingPeer>,
-    ) -> crate::errors::AppResult<()> {
+    ) -> AppResult<()> {
         debug!(
             "Processing MCP request: method={}, id={:?}",
             request.method, request.id
@@ -297,8 +302,8 @@ pub enum ServerError {
     SerializationError(serde_json::Error),
 }
 
-impl std::fmt::Display for ServerError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for ServerError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Self::InvalidRequest(msg) => write!(f, "Invalid request: {msg}"),
             Self::SerializationError(e) => write!(f, "Serialization error: {e}"),
@@ -306,4 +311,4 @@ impl std::fmt::Display for ServerError {
     }
 }
 
-impl std::error::Error for ServerError {}
+impl Error for ServerError {}

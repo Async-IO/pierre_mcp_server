@@ -10,19 +10,21 @@
 //! sending messages, and streaming AI responses. All handlers require JWT authentication.
 
 use crate::{
-    database::ChatManager,
+    auth::AuthResult,
+    database::{ChatManager, MessageRecord},
     database_plugins::DatabaseProvider,
     errors::AppError,
     llm::{
         get_pierre_system_prompt, ChatMessage, ChatProvider, ChatRequest, FunctionCall,
-        FunctionDeclaration, FunctionResponse, Tool,
+        FunctionDeclaration, FunctionResponse, MessageRole, TokenUsage, Tool,
     },
     mcp::resources::ServerResources,
     protocols::universal::{UniversalExecutor, UniversalRequest, UniversalResponse},
+    security::cookies::get_cookie_value,
 };
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{
         sse::{Event, KeepAlive, Sse},
         IntoResponse, Response,
@@ -32,9 +34,11 @@ use axum::{
 };
 use futures_util::stream::Stream;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::{borrow::Cow, convert::Infallible, sync::Arc};
 use tokio_stream::StreamExt;
 use tracing::info;
+use uuid::Uuid;
 
 // ============================================================================
 // Constants
@@ -52,7 +56,7 @@ struct ToolLoopResult {
     /// Final text content from LLM
     content: String,
     /// Token usage statistics if available
-    usage: Option<crate::llm::TokenUsage>,
+    usage: Option<TokenUsage>,
     /// Finish reason if available
     finish_reason: Option<String>,
 }
@@ -231,15 +235,13 @@ impl ChatRoutes {
 
     /// Extract and authenticate user from authorization header or cookie
     async fn authenticate(
-        headers: &axum::http::HeaderMap,
+        headers: &HeaderMap,
         resources: &Arc<ServerResources>,
-    ) -> Result<crate::auth::AuthResult, AppError> {
+    ) -> Result<AuthResult, AppError> {
         let auth_value =
             if let Some(auth_header) = headers.get("authorization").and_then(|h| h.to_str().ok()) {
                 auth_header.to_owned()
-            } else if let Some(token) =
-                crate::security::cookies::get_cookie_value(headers, "auth_token")
-            {
+            } else if let Some(token) = get_cookie_value(headers, "auth_token") {
                 format!("Bearer {token}")
             } else {
                 return Err(AppError::auth_invalid(
@@ -256,7 +258,7 @@ impl ChatRoutes {
 
     /// Get user's `tenant_id` (defaults to `user_id` if no tenant)
     async fn get_tenant_id(
-        user_id: uuid::Uuid,
+        user_id: Uuid,
         resources: &Arc<ServerResources>,
     ) -> Result<String, AppError> {
         let user = resources.database.get_user(user_id).await?;
@@ -283,7 +285,7 @@ impl ChatRoutes {
     /// Build LLM messages from conversation history and optional system prompt
     fn build_llm_messages(
         system_prompt: Option<&str>,
-        history: &[crate::database::MessageRecord],
+        history: &[MessageRecord],
     ) -> Vec<ChatMessage> {
         let mut messages = Vec::with_capacity(history.len() + 1);
 
@@ -644,7 +646,7 @@ impl ChatRoutes {
     /// Create a new conversation
     async fn create_conversation(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Json(request): Json<CreateConversationRequest>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
@@ -679,7 +681,7 @@ impl ChatRoutes {
     /// List user's conversations
     async fn list_conversations(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Query(query): Query<ListConversationsQuery>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
@@ -719,7 +721,7 @@ impl ChatRoutes {
     /// Get a specific conversation
     async fn get_conversation(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Path(conversation_id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
@@ -748,7 +750,7 @@ impl ChatRoutes {
     /// Update a conversation title
     async fn update_conversation(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Path(conversation_id): Path<String>,
         Json(request): Json<UpdateConversationRequest>,
     ) -> Result<Response, AppError> {
@@ -770,13 +772,13 @@ impl ChatRoutes {
             return Err(AppError::not_found("Conversation not found"));
         }
 
-        Ok((StatusCode::OK, Json(serde_json::json!({"success": true}))).into_response())
+        Ok((StatusCode::OK, Json(json!({"success": true}))).into_response())
     }
 
     /// Delete a conversation
     async fn delete_conversation(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Path(conversation_id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
@@ -802,7 +804,7 @@ impl ChatRoutes {
     /// Get messages for a conversation
     async fn get_messages(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Path(conversation_id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
@@ -839,7 +841,7 @@ impl ChatRoutes {
     /// Send a message and get a response (non-streaming) with MCP tool execution
     async fn send_message(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Path(conversation_id): Path<String>,
         Json(request): Json<SendMessageRequest>,
     ) -> Result<Response, AppError> {
@@ -858,7 +860,7 @@ impl ChatRoutes {
         let user_msg = chat_manager
             .add_message(
                 &conversation_id,
-                crate::llm::MessageRole::User,
+                MessageRole::User,
                 &request.content,
                 None,
                 None,
@@ -901,7 +903,7 @@ impl ChatRoutes {
         let assistant_msg = chat_manager
             .add_message(
                 &conversation_id,
-                crate::llm::MessageRole::Assistant,
+                MessageRole::Assistant,
                 &result.content,
                 token_count,
                 result.finish_reason.as_deref(),
@@ -938,7 +940,7 @@ impl ChatRoutes {
     /// Send a message and stream the response via SSE
     async fn send_message_stream(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Path(conversation_id): Path<String>,
         Json(request): Json<SendMessageRequest>,
     ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
@@ -957,7 +959,7 @@ impl ChatRoutes {
         let user_msg = chat_manager
             .add_message(
                 &conversation_id,
-                crate::llm::MessageRole::User,
+                MessageRole::User,
                 &request.content,
                 None,
                 None,
@@ -990,7 +992,7 @@ impl ChatRoutes {
             let mut finish_reason = None;
 
             // Send user message event first
-            let user_event = serde_json::json!({
+            let user_event = json!({
                 "type": "user_message",
                 "message": {
                     "id": user_msg.id,
@@ -1007,7 +1009,7 @@ impl ChatRoutes {
                     Ok(chunk) => {
                         full_content.push_str(&chunk.delta);
 
-                        let chunk_event = serde_json::json!({
+                        let chunk_event = json!({
                             "type": "chunk",
                             "delta": chunk.delta,
                             "is_final": chunk.is_final
@@ -1019,7 +1021,7 @@ impl ChatRoutes {
                         }
                     }
                     Err(e) => {
-                        let error_event = serde_json::json!({
+                        let error_event = json!({
                             "type": "error",
                             "message": e.to_string()
                         });
@@ -1033,13 +1035,13 @@ impl ChatRoutes {
             let chat_mgr = ChatManager::new(pool);
             match chat_mgr.add_message(
                 &conv_id,
-                crate::llm::MessageRole::Assistant,
+                MessageRole::Assistant,
                 &full_content,
                 None, // We don't have token count from streaming
                 finish_reason.as_deref(),
             ).await {
                 Ok(assistant_msg) => {
-                    let done_event = serde_json::json!({
+                    let done_event = json!({
                         "type": "done",
                         "message": {
                             "id": assistant_msg.id,
@@ -1051,7 +1053,7 @@ impl ChatRoutes {
                     yield Ok(Event::default().data(done_event.to_string()));
                 }
                 Err(e) => {
-                    let error_event = serde_json::json!({
+                    let error_event = json!({
                         "type": "error",
                         "message": format!("Failed to save message: {e}")
                     });

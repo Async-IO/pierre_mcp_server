@@ -9,10 +9,15 @@
 // - Required field cloning for database entity creation
 
 use crate::{
+    admin::jwks::JwksManager,
     auth::{AuthManager, AuthResult},
-    constants::oauth_providers,
+    constants::{
+        oauth_providers,
+        time::{DAY_SECONDS, HOUR_SECONDS},
+    },
     database_plugins::{factory::Database, DatabaseProvider},
-    errors::{AppError, AppResult},
+    errors::{AppError, AppResult, ErrorCode},
+    models::{OAuthApp, Tenant},
     tenant::TenantOAuthCredentials,
 };
 use serde::{Deserialize, Serialize};
@@ -263,7 +268,7 @@ pub async fn create_tenant(
     }
 
     // Create tenant in database
-    let tenant_data = crate::models::Tenant {
+    let tenant_data = Tenant {
         id: tenant_id,
         name: tenant_request.name.clone(), // Safe: String ownership for tenant struct
         slug: slug.clone(),                // Safe: String ownership for tenant struct
@@ -383,7 +388,7 @@ pub async fn configure_tenant_oauth(
 
     if tenant.owner_user_id != auth_result.user_id {
         return Err(AppError::new(
-            crate::errors::ErrorCode::PermissionDenied,
+            ErrorCode::PermissionDenied,
             "Access denied to this tenant",
         ));
     }
@@ -460,7 +465,7 @@ pub async fn get_tenant_oauth(
 
     if tenant.owner_user_id != auth_result.user_id {
         return Err(AppError::new(
-            crate::errors::ErrorCode::PermissionDenied,
+            ErrorCode::PermissionDenied,
             "Access denied to this tenant",
         ));
     }
@@ -505,7 +510,7 @@ pub async fn register_oauth_app(
     let client_secret = format!("secret_{}", Uuid::new_v4().simple());
 
     // Store OAuth app in database
-    let oauth_app = crate::models::OAuthApp {
+    let oauth_app = OAuthApp {
         id: Uuid::new_v4(),
         client_id: client_id.clone(), // Safe: String ownership for OAuth app struct
         client_secret: client_secret.clone(), // Safe: String ownership for OAuth app struct
@@ -614,7 +619,7 @@ pub async fn oauth_token(
     token_request: OAuthTokenRequest,
     database: Arc<Database>,
     auth_manager: Arc<AuthManager>,
-    jwks_manager: Arc<crate::admin::jwks::JwksManager>,
+    jwks_manager: Arc<JwksManager>,
 ) -> AppResult<OAuthTokenResponse> {
     info!(
         "OAuth token request for client: {}",
@@ -637,7 +642,7 @@ pub async fn oauth_token(
 
     if oauth_app.client_secret != token_request.client_secret {
         return Err(AppError::new(
-            crate::errors::ErrorCode::AuthInvalid,
+            ErrorCode::AuthInvalid,
             "Invalid client_secret",
         ));
     }
@@ -683,7 +688,7 @@ pub async fn oauth_token(
             Ok(OAuthTokenResponse {
                 access_token,
                 token_type: "Bearer".to_owned(),
-                expires_in: crate::constants::time::DAY_SECONDS as u64, // 24 hours
+                expires_in: DAY_SECONDS as u64, // 24 hours
                 scope: oauth_app.scopes.join(" "),
             })
         }
@@ -705,7 +710,7 @@ pub async fn oauth_token(
             Ok(OAuthTokenResponse {
                 access_token,
                 token_type: "Bearer".to_owned(),
-                expires_in: crate::constants::time::HOUR_SECONDS as u64, // 1 hour for client credentials
+                expires_in: HOUR_SECONDS as u64, // 1 hour for client credentials
                 scope: oauth_app.scopes.join(" "),
             })
         }

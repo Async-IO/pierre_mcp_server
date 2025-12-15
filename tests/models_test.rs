@@ -12,6 +12,7 @@ use pierre_mcp_server::models::{
     Activity, Athlete, AuthorizationCode, EncryptedToken, HeartRateZone, PersonalRecord, PowerZone,
     PrMetric, SegmentEffort, SportType, Stats, Tenant, User, UserStatus, UserTier,
 };
+use pierre_mcp_server::permissions::UserRole;
 use uuid::Uuid;
 
 /// Test data for creating sample activities
@@ -362,7 +363,7 @@ fn test_user_creation_with_required_fields() {
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         approved_by: None,
         approved_at: Some(now),
         created_at: now,
@@ -405,7 +406,7 @@ fn test_user_serialization_roundtrip() {
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: true,
-        role: pierre_mcp_server::permissions::UserRole::Admin,
+        role: UserRole::Admin,
         approved_by: Some(Uuid::new_v4()),
         approved_at: Some(now),
         created_at: now,
@@ -572,7 +573,7 @@ fn test_user_with_encrypted_tokens() {
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         approved_by: Some(Uuid::new_v4()),
         approved_at: Some(now),
         created_at: now,

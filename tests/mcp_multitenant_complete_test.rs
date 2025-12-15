@@ -14,15 +14,27 @@ mod common;
 use anyhow::Result;
 use pierre_mcp_server::{
     auth::AuthManager,
+    cache::{factory::Cache, CacheConfig},
+    config::environment::{
+        AppBehaviorConfig, AuthConfig, BackupConfig, DatabaseConfig, DatabaseUrl, Environment,
+        ExternalServicesConfig, FitbitApiConfig, GarminApiConfig, GeocodingServiceConfig,
+        HttpClientConfig, LogLevel, LoggingConfig, OAuth2ServerConfig, OAuthConfig,
+        OAuthProviderConfig, PostgresPoolConfig, ProtocolConfig, RouteTimeoutConfig,
+        SecurityConfig, SecurityHeadersConfig, ServerConfig, SseConfig, StravaApiConfig, TlsConfig,
+        WeatherServiceConfig,
+    },
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
-    mcp::multitenant::MultiTenantMcpServer,
+    mcp::{multitenant::MultiTenantMcpServer, resources::ServerResources},
+    models::{Tenant, User, UserStatus, UserTier},
+    permissions::UserRole,
+    tenant::TenantOAuthCredentials,
 };
 use rand::Rng;
-use reqwest::Client;
+use reqwest::{redirect::Policy, Client};
 use serde_json::{json, Value};
 use serial_test::serial;
-use std::{net::TcpListener, sync::Arc, time::Duration};
+use std::{borrow::ToOwned, env, net::TcpListener, path::PathBuf, sync::Arc, time::Duration};
 use tempfile::TempDir;
 use tokio::time::{sleep, timeout};
 use uuid::Uuid;
@@ -47,59 +59,59 @@ fn find_available_port() -> u16 {
 }
 
 /// Test configuration for multi-tenant MCP server
-fn create_test_config(port: u16) -> Arc<pierre_mcp_server::config::environment::ServerConfig> {
-    Arc::new(pierre_mcp_server::config::environment::ServerConfig {
+fn create_test_config(port: u16) -> Arc<ServerConfig> {
+    Arc::new(ServerConfig {
         http_port: port,
         oauth_callback_port: 35535,
-        log_level: pierre_mcp_server::config::environment::LogLevel::Info,
-        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
-        http_client: pierre_mcp_server::config::environment::HttpClientConfig::default(),
-        database: pierre_mcp_server::config::environment::DatabaseConfig {
-            url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
+        log_level: LogLevel::Info,
+        logging: LoggingConfig::default(),
+        http_client: HttpClientConfig::default(),
+        database: DatabaseConfig {
+            url: DatabaseUrl::Memory,
             auto_migrate: true,
-            backup: pierre_mcp_server::config::environment::BackupConfig {
+            backup: BackupConfig {
                 enabled: false,
                 interval_seconds: 3600,
                 retention_count: 7,
-                directory: std::path::PathBuf::from("test_backups"),
+                directory: PathBuf::from("test_backups"),
             },
-            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            postgres_pool: PostgresPoolConfig::default(),
         },
-        auth: pierre_mcp_server::config::environment::AuthConfig {
+        auth: AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
-            ..pierre_mcp_server::config::environment::AuthConfig::default()
+            ..AuthConfig::default()
         },
-        oauth: pierre_mcp_server::config::environment::OAuthConfig {
-            strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
+        oauth: OAuthConfig {
+            strava: OAuthProviderConfig {
                 client_id: Some("test_client_id".to_owned()),
                 client_secret: Some("test_client_secret".to_owned()),
                 redirect_uri: Some("http://localhost:8081/oauth/callback/strava".to_owned()),
                 scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
                 enabled: true,
             },
-            fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig {
+            fitbit: OAuthProviderConfig {
                 client_id: None,
                 client_secret: None,
                 redirect_uri: Some("http://localhost:8081/oauth/callback/fitbit".to_owned()),
                 scopes: vec!["activity".to_owned()],
                 enabled: false,
             },
-            garmin: pierre_mcp_server::config::environment::OAuthProviderConfig {
+            garmin: OAuthProviderConfig {
                 client_id: None,
                 client_secret: None,
                 redirect_uri: None,
                 scopes: vec![],
                 enabled: false,
             },
-            whoop: pierre_mcp_server::config::environment::OAuthProviderConfig {
+            whoop: OAuthProviderConfig {
                 client_id: None,
                 client_secret: None,
                 redirect_uri: None,
                 scopes: vec![],
                 enabled: false,
             },
-            terra: pierre_mcp_server::config::environment::OAuthProviderConfig {
+            terra: OAuthProviderConfig {
                 client_id: None,
                 client_secret: None,
                 redirect_uri: None,
@@ -107,60 +119,60 @@ fn create_test_config(port: u16) -> Arc<pierre_mcp_server::config::environment::
                 enabled: false,
             },
         },
-        security: pierre_mcp_server::config::environment::SecurityConfig {
+        security: SecurityConfig {
             cors_origins: vec!["*".to_owned()],
-            tls: pierre_mcp_server::config::environment::TlsConfig {
+            tls: TlsConfig {
                 enabled: false,
                 cert_path: None,
                 key_path: None,
             },
-            headers: pierre_mcp_server::config::environment::SecurityHeadersConfig {
-                environment: pierre_mcp_server::config::environment::Environment::Testing,
+            headers: SecurityHeadersConfig {
+                environment: Environment::Testing,
             },
         },
-        external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
-            weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
+        external_services: ExternalServicesConfig {
+            weather: WeatherServiceConfig {
                 api_key: None,
                 base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                 enabled: false,
             },
-            geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
+            geocoding: GeocodingServiceConfig {
                 base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: true,
             },
-            strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
+            strava_api: StravaApiConfig {
                 base_url: "https://www.strava.com/api/v3".to_owned(),
                 auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
                 token_url: "https://www.strava.com/oauth/token".to_owned(),
                 deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
-            fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
+            fitbit_api: FitbitApiConfig {
                 base_url: "https://api.fitbit.com".to_owned(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
                 token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
                 revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
-            garmin_api: pierre_mcp_server::config::environment::GarminApiConfig {
+            garmin_api: GarminApiConfig {
                 base_url: "https://apis.garmin.com".to_owned(),
                 auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
                 token_url: "https://connect.garmin.com/oauth-service/oauth/access_token".to_owned(),
                 revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_owned(),
             },
         },
-        app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
+        app_behavior: AppBehaviorConfig {
             max_activities_fetch: 100,
             default_activities_limit: 20,
             ci_mode: true,
             auto_approve_users: false,
-            protocol: pierre_mcp_server::config::environment::ProtocolConfig {
+            protocol: ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
                 server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
-        sse: pierre_mcp_server::config::environment::SseConfig::default(),
-        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
-        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        sse: SseConfig::default(),
+        oauth2_server: OAuth2ServerConfig::default(),
+        route_timeouts: RouteTimeoutConfig::default(),
         ..Default::default()
     })
 }
@@ -176,10 +188,7 @@ struct MultiTenantMcpClient {
 impl MultiTenantMcpClient {
     fn new(port: u16) -> Self {
         Self {
-            http_client: Client::builder()
-                .redirect(reqwest::redirect::Policy::none())
-                .build()
-                .unwrap(),
+            http_client: Client::builder().redirect(Policy::none()).build().unwrap(),
             base_url: format!("http://127.0.0.1:{port}"),
             jwt_token: None,
             csrf_token: None,
@@ -200,19 +209,19 @@ impl MultiTenantMcpClient {
         // Create the actual test user first (will be tenant owner)
         let user_id = uuid::Uuid::new_v4();
         let password_hash = bcrypt::hash(password, bcrypt::DEFAULT_COST)?;
-        let test_user = pierre_mcp_server::models::User {
+        let test_user = User {
             id: user_id,
             email: email.to_owned(),
             display_name: Some(display_name.to_owned()),
             password_hash,
-            tier: pierre_mcp_server::models::UserTier::Starter,
+            tier: UserTier::Starter,
             tenant_id: Some(tenant_uuid.to_string()), // Associate with the tenant that has OAuth credentials
             strava_token: None,
             fitbit_token: None,
             is_active: true,
-            user_status: pierre_mcp_server::models::UserStatus::Active, // Already active
+            user_status: UserStatus::Active, // Already active
             is_admin: false,
-            role: pierre_mcp_server::permissions::UserRole::User,
+            role: UserRole::User,
             approved_by: Some(user_id), // Self-approved for test
             approved_at: Some(chrono::Utc::now()),
             created_at: chrono::Utc::now(),
@@ -223,7 +232,7 @@ impl MultiTenantMcpClient {
         database.create_user(&test_user).await?;
 
         // Create a test tenant for OAuth credentials with test user as owner
-        let test_tenant = pierre_mcp_server::models::Tenant {
+        let test_tenant = Tenant {
             id: tenant_uuid,
             name: "Test Tenant".to_owned(),
             slug: "test-tenant".to_owned(),
@@ -235,7 +244,7 @@ impl MultiTenantMcpClient {
         };
         database.create_tenant(&test_tenant).await?;
 
-        let strava_credentials = pierre_mcp_server::tenant::TenantOAuthCredentials {
+        let strava_credentials = TenantOAuthCredentials {
             tenant_id: tenant_uuid,
             provider: "strava".to_owned(),
             client_id: "test_client_id".to_owned(),
@@ -248,7 +257,7 @@ impl MultiTenantMcpClient {
             .store_tenant_oauth_credentials(&strava_credentials)
             .await?;
 
-        let fitbit_credentials = pierre_mcp_server::tenant::TenantOAuthCredentials {
+        let fitbit_credentials = TenantOAuthCredentials {
             tenant_id: tenant_uuid,
             provider: "fitbit".to_owned(),
             client_id: "test_fitbit_client_id".to_owned(),
@@ -294,7 +303,7 @@ impl MultiTenantMcpClient {
                         .next()
                         .and_then(|pair| pair.strip_prefix("auth_token="))
                 })
-                .map(std::borrow::ToOwned::to_owned);
+                .map(ToOwned::to_owned);
 
             let data: Value = response.json().await?;
             // Extract CSRF token (required for state-changing requests)
@@ -444,7 +453,7 @@ async fn setup_test_environment() -> Result<(Database, AuthManager, u16, TempDir
     let database = Database::new(
         "sqlite::memory:",
         encryption_key.clone(),
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -487,10 +496,10 @@ async fn setup_test_environment() -> Result<(Database, AuthManager, u16, TempDir
 #[serial]
 async fn test_complete_multitenant_workflow() -> Result<()> {
     // Set required environment variables for OAuth
-    std::env::set_var("STRAVA_CLIENT_ID", "test_client_id");
-    std::env::set_var("STRAVA_CLIENT_SECRET", "test_client_secret");
-    std::env::set_var("FITBIT_CLIENT_ID", "test_fitbit_client_id");
-    std::env::set_var("FITBIT_CLIENT_SECRET", "test_fitbit_client_secret");
+    env::set_var("STRAVA_CLIENT_ID", "test_client_id");
+    env::set_var("STRAVA_CLIENT_SECRET", "test_client_secret");
+    env::set_var("FITBIT_CLIENT_ID", "test_fitbit_client_id");
+    env::set_var("FITBIT_CLIENT_SECRET", "test_fitbit_client_secret");
 
     let (database, auth_manager, server_port, _temp_dir, stored_jwt_secret) =
         setup_test_environment().await?;
@@ -500,17 +509,16 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
 
     // Start the server
     // Create cache
-    let cache =
-        pierre_mcp_server::cache::factory::Cache::new(pierre_mcp_server::cache::CacheConfig {
-            max_entries: 1000,
-            redis_url: None,
-            cleanup_interval: std::time::Duration::from_secs(60),
-            enable_background_cleanup: false,
-            ..Default::default()
-        })
-        .await?;
+    let cache = Cache::new(CacheConfig {
+        max_entries: 1000,
+        redis_url: None,
+        cleanup_interval: Duration::from_secs(60),
+        enable_background_cleanup: false,
+        ..Default::default()
+    })
+    .await?;
 
-    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let resources = Arc::new(ServerResources::new(
         database,
         auth_manager,
         &stored_jwt_secret,
@@ -527,7 +535,7 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
                     eprintln!("Server failed to start: {e}");
                 }
             }
-            () = tokio::time::sleep(Duration::from_secs(30)) => {
+            () = sleep(Duration::from_secs(30)) => {
                 eprintln!("Server startup timed out after 30 seconds");
             }
         }
@@ -677,17 +685,16 @@ async fn test_mcp_authentication_required() -> Result<()> {
 
     // Start the server
     // Create cache
-    let cache =
-        pierre_mcp_server::cache::factory::Cache::new(pierre_mcp_server::cache::CacheConfig {
-            max_entries: 1000,
-            redis_url: None,
-            cleanup_interval: std::time::Duration::from_secs(60),
-            enable_background_cleanup: false,
-            ..Default::default()
-        })
-        .await?;
+    let cache = Cache::new(CacheConfig {
+        max_entries: 1000,
+        redis_url: None,
+        cleanup_interval: Duration::from_secs(60),
+        enable_background_cleanup: false,
+        ..Default::default()
+    })
+    .await?;
 
-    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let resources = Arc::new(ServerResources::new(
         database,
         auth_manager,
         &stored_jwt_secret,
@@ -704,7 +711,7 @@ async fn test_mcp_authentication_required() -> Result<()> {
                     eprintln!("Server failed to start: {e}");
                 }
             }
-            () = tokio::time::sleep(Duration::from_secs(30)) => {
+            () = sleep(Duration::from_secs(30)) => {
                 eprintln!("Server startup timed out after 30 seconds");
             }
         }
@@ -769,17 +776,16 @@ async fn test_mcp_initialization_no_auth() -> Result<()> {
 
     // Start the server
     // Create cache
-    let cache =
-        pierre_mcp_server::cache::factory::Cache::new(pierre_mcp_server::cache::CacheConfig {
-            max_entries: 1000,
-            redis_url: None,
-            cleanup_interval: std::time::Duration::from_secs(60),
-            enable_background_cleanup: false,
-            ..Default::default()
-        })
-        .await?;
+    let cache = Cache::new(CacheConfig {
+        max_entries: 1000,
+        redis_url: None,
+        cleanup_interval: Duration::from_secs(60),
+        enable_background_cleanup: false,
+        ..Default::default()
+    })
+    .await?;
 
-    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let resources = Arc::new(ServerResources::new(
         database,
         auth_manager,
         &stored_jwt_secret,
@@ -796,7 +802,7 @@ async fn test_mcp_initialization_no_auth() -> Result<()> {
                     eprintln!("Server failed to start: {e}");
                 }
             }
-            () = tokio::time::sleep(Duration::from_secs(30)) => {
+            () = sleep(Duration::from_secs(30)) => {
                 eprintln!("Server startup timed out after 30 seconds");
             }
         }
@@ -852,17 +858,16 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
 
     // Start the server
     // Create cache
-    let cache =
-        pierre_mcp_server::cache::factory::Cache::new(pierre_mcp_server::cache::CacheConfig {
-            max_entries: 1000,
-            redis_url: None,
-            cleanup_interval: std::time::Duration::from_secs(60),
-            enable_background_cleanup: false,
-            ..Default::default()
-        })
-        .await?;
+    let cache = Cache::new(CacheConfig {
+        max_entries: 1000,
+        redis_url: None,
+        cleanup_interval: Duration::from_secs(60),
+        enable_background_cleanup: false,
+        ..Default::default()
+    })
+    .await?;
 
-    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let resources = Arc::new(ServerResources::new(
         database,
         auth_manager,
         &stored_jwt_secret,
@@ -879,7 +884,7 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
                     eprintln!("Server failed to start: {e}");
                 }
             }
-            () = tokio::time::sleep(Duration::from_secs(30)) => {
+            () = sleep(Duration::from_secs(30)) => {
                 eprintln!("Server startup timed out after 30 seconds");
             }
         }
@@ -959,18 +964,17 @@ async fn test_multitenant_server_config() -> Result<()> {
     let config = create_test_config(find_available_port());
 
     // Create cache
-    let cache =
-        pierre_mcp_server::cache::factory::Cache::new(pierre_mcp_server::cache::CacheConfig {
-            max_entries: 1000,
-            redis_url: None,
-            cleanup_interval: std::time::Duration::from_secs(60),
-            enable_background_cleanup: false,
-            ..Default::default()
-        })
-        .await?;
+    let cache = Cache::new(CacheConfig {
+        max_entries: 1000,
+        redis_url: None,
+        cleanup_interval: Duration::from_secs(60),
+        enable_background_cleanup: false,
+        ..Default::default()
+    })
+    .await?;
 
     // Test server creation
-    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let resources = Arc::new(ServerResources::new(
         database,
         auth_manager,
         &stored_jwt_secret,

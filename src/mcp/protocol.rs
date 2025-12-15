@@ -13,20 +13,25 @@
 //! Core MCP protocol message handling for initialization, tools listing,
 //! and authentication operations.
 
+use crate::admin::jwks::JwksManager;
 use crate::auth::AuthManager;
 use crate::constants::{
     errors::{
         ERROR_AUTHENTICATION, ERROR_INVALID_PARAMS, ERROR_METHOD_NOT_FOUND, ERROR_SERIALIZATION,
         ERROR_VERSION_MISMATCH, MSG_AUTHENTICATION, MSG_SERIALIZATION, MSG_VERSION_MISMATCH,
     },
-    protocol::SERVER_VERSION,
+    protocol::{server_name_multitenant, SERVER_VERSION},
 };
 use crate::database_plugins::DatabaseProvider;
 use crate::mcp::resources::ServerResources;
-use crate::mcp::schema::{get_tools, InitializeRequest, InitializeResponse};
+use crate::mcp::schema::{
+    get_tools, CompleteRequest, CompleteResult, Completion, InitializeRequest, InitializeResponse,
+    OAuthAppCredentials, Root,
+};
 use crate::models::AuthRequest;
 use crate::types::json_schemas;
 use serde_json::Value;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{error, info, warn};
 use uuid::Uuid;
@@ -215,7 +220,7 @@ impl ProtocolHandler {
             // Use dynamic HTTP port from server configuration
             InitializeResponse::new_with_ports(
                 negotiated_version,
-                crate::constants::protocol::server_name_multitenant(),
+                server_name_multitenant(),
                 SERVER_VERSION.to_owned(),
                 resources.config.http_port,
             )
@@ -223,7 +228,7 @@ impl ProtocolHandler {
             // Fallback to default (hardcoded port)
             InitializeResponse::new(
                 negotiated_version,
-                crate::constants::protocol::server_name_multitenant(),
+                server_name_multitenant(),
                 SERVER_VERSION.to_owned(),
             )
         };
@@ -376,7 +381,7 @@ impl ProtocolHandler {
     pub fn handle_authenticate(
         request: McpRequest,
         auth_manager: &Arc<AuthManager>,
-        jwks_manager: &Arc<crate::admin::jwks::JwksManager>,
+        jwks_manager: &Arc<JwksManager>,
     ) -> McpResponse {
         let request_id = request.id.unwrap_or_else(default_request_id);
 
@@ -417,7 +422,7 @@ impl ProtocolHandler {
     fn authenticate_request(
         request: &McpRequest,
         resources: &Arc<ServerResources>,
-    ) -> Result<uuid::Uuid, Box<McpResponse>> {
+    ) -> Result<Uuid, Box<McpResponse>> {
         let request_id = request.id.clone().unwrap_or_else(default_request_id);
 
         // Extract auth token from request
@@ -434,7 +439,7 @@ impl ProtocolHandler {
             .auth_manager
             .validate_token(auth_token, &resources.jwks_manager)
         {
-            Ok(claims) => uuid::Uuid::parse_str(&claims.sub).map_or_else(
+            Ok(claims) => Uuid::parse_str(&claims.sub).map_or_else(
                 |_| {
                     Err(Box::new(McpResponse::error(
                         Some(request_id.clone()),
@@ -454,8 +459,8 @@ impl ProtocolHandler {
 
     /// Store OAuth credentials provided during initialization
     async fn store_oauth_credentials(
-        oauth_creds: std::collections::HashMap<String, crate::mcp::schema::OAuthAppCredentials>,
-        user_id: &uuid::Uuid,
+        oauth_creds: HashMap<String, OAuthAppCredentials>,
+        user_id: &Uuid,
         resources: &Arc<ServerResources>,
     ) -> Result<(), String> {
         for (provider, creds) in oauth_creds {
@@ -508,7 +513,7 @@ impl ProtocolHandler {
         let request_id = request.id.unwrap_or_else(default_request_id);
 
         // Parse the completion request
-        let complete_request: Result<crate::mcp::schema::CompleteRequest, _> = request
+        let complete_request: Result<CompleteRequest, _> = request
             .params
             .ok_or("Missing parameters")
             .and_then(|p| serde_json::from_value(p).map_err(|_| "Invalid parameters"));
@@ -518,7 +523,7 @@ impl ProtocolHandler {
                 // Generate completions based on the reference type
                 let completion = Self::generate_completions(&req);
 
-                let result = crate::mcp::schema::CompleteResult { completion };
+                let result = CompleteResult { completion };
 
                 match serde_json::to_value(&result) {
                     Ok(result_value) => McpResponse::success(Some(request_id), result_value),
@@ -541,11 +546,7 @@ impl ProtocolHandler {
     }
 
     /// Generate completion suggestions based on the request
-    fn generate_completions(
-        req: &crate::mcp::schema::CompleteRequest,
-    ) -> crate::mcp::schema::Completion {
-        use crate::mcp::schema::Completion;
-
+    fn generate_completions(req: &CompleteRequest) -> Completion {
         // Match on the reference type
         match req.ref_.type_.as_str() {
             "ref/prompt" => {
@@ -630,7 +631,7 @@ impl ProtocolHandler {
         // For now, return an empty list of roots
         // In a full implementation, this would return filesystem roots
         // that the MCP client has access to
-        let roots: Vec<crate::mcp::schema::Root> = vec![];
+        let roots: Vec<Root> = vec![];
 
         let result = serde_json::json!({
             "roots": roots

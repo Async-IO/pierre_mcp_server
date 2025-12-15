@@ -18,7 +18,7 @@
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use pierre_mcp_server::database::Database;
 use pierre_mcp_server::models::{User, UserStatus, UserTier};
-use pierre_mcp_server::pagination::PaginationParams;
+use pierre_mcp_server::pagination::{PaginationDirection, PaginationParams};
 use pierre_mcp_server::permissions::UserRole;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::runtime::Runtime;
@@ -173,7 +173,7 @@ fn bench_pagination(c: &mut Criterion) {
                 let params = PaginationParams {
                     cursor: None,
                     limit: page_size,
-                    direction: pierre_mcp_server::pagination::PaginationDirection::Forward,
+                    direction: PaginationDirection::Forward,
                 };
                 b.iter(|| {
                     rt.block_on(async {
@@ -194,7 +194,7 @@ fn bench_pagination(c: &mut Criterion) {
                 let params = PaginationParams {
                     cursor: cursor.clone(),
                     limit: 50,
-                    direction: pierre_mcp_server::pagination::PaginationDirection::Forward,
+                    direction: PaginationDirection::Forward,
                 };
                 let page = db
                     .get_users_by_status_cursor("active", &params)
@@ -208,7 +208,7 @@ fn bench_pagination(c: &mut Criterion) {
         let params = PaginationParams {
             cursor,
             limit: 50,
-            direction: pierre_mcp_server::pagination::PaginationDirection::Forward,
+            direction: PaginationDirection::Forward,
         };
         b.iter(|| {
             rt.block_on(async {

@@ -4,11 +4,24 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use crate::config::environment::TrainingZonesConfig;
 use crate::config::{catalog::CatalogBuilder, profiles::ProfileTemplates};
+use crate::constants::configuration_system::AVAILABLE_PARAMETERS_COUNT;
+use crate::constants::limits::METERS_PER_KILOMETER;
 use crate::database_plugins::DatabaseProvider;
-use crate::protocols::universal::{UniversalRequest, UniversalResponse};
+use crate::intelligence::physiological_constants::configuration_validation;
+use crate::intelligence::physiological_constants::heart_rate_zones::{
+    AEROBIC_THRESHOLD_PERMILLE, LACTATE_THRESHOLD_PERMILLE, PERMILLE_DIVISOR, ZONE_1_MAX_PERMILLE,
+    ZONE_1_MIN_PERMILLE, ZONE_2_MAX_PERMILLE, ZONE_3_MAX_PERMILLE, ZONE_4_MAX_PERMILLE,
+};
+use crate::intelligence::physiological_constants::physiological_defaults::{
+    DEFAULT_ESTIMATED_FTP, DEFAULT_LACTATE_THRESHOLD, DEFAULT_MAX_HR, DEFAULT_RESTING_HR,
+    DEFAULT_SPORT_EFFICIENCY, TRAINING_ZONE_COUNT,
+};
+use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalToolExecutor};
 use crate::protocols::ProtocolError;
 use crate::utils::uuid::parse_user_id_for_protocol;
+use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use tracing::warn;
@@ -18,7 +31,7 @@ use tracing::warn;
 /// # Errors
 /// Returns `ProtocolError` if catalog serialization fails
 pub fn handle_get_configuration_catalog(
-    _executor: &crate::protocols::universal::UniversalToolExecutor,
+    _executor: &UniversalToolExecutor,
     _request: &UniversalRequest,
 ) -> Result<UniversalResponse, ProtocolError> {
     // Build configuration catalog
@@ -31,7 +44,7 @@ pub fn handle_get_configuration_catalog(
         })),
         error: None,
         metadata: Some({
-            let mut map = std::collections::HashMap::new();
+            let mut map = HashMap::new();
             map.insert(
                 "catalog_type".to_owned(),
                 serde_json::Value::String("complete".to_owned()),
@@ -50,7 +63,7 @@ pub fn handle_get_configuration_catalog(
 /// # Errors
 /// Returns `ProtocolError` if profiles serialization fails
 pub fn handle_get_configuration_profiles(
-    _executor: &crate::protocols::universal::UniversalToolExecutor,
+    _executor: &UniversalToolExecutor,
     _request: &UniversalRequest,
 ) -> Result<UniversalResponse, ProtocolError> {
     // Get available profile templates and transform to expected structure
@@ -75,7 +88,7 @@ pub fn handle_get_configuration_profiles(
         })),
         error: None,
         metadata: Some({
-            let mut map = std::collections::HashMap::new();
+            let mut map = HashMap::new();
             map.insert(
                 "profile_count".to_owned(),
                 serde_json::Value::Number(profiles.len().into()),
@@ -142,11 +155,11 @@ fn build_configuration_response(
             "user_id": user_uuid.to_string(),
             "active_profile": if has_overrides { "custom" } else { "default" },
             "configuration": configuration,
-            "available_parameters": crate::constants::configuration_system::AVAILABLE_PARAMETERS_COUNT
+            "available_parameters": AVAILABLE_PARAMETERS_COUNT
         })),
         error: None,
         metadata: Some({
-            let mut map = std::collections::HashMap::new();
+            let mut map = HashMap::new();
             map.insert(
                 "user_id".to_owned(),
                 serde_json::Value::String(user_uuid.to_string()),
@@ -160,7 +173,7 @@ fn build_configuration_response(
 /// Handles retrieving user configuration from the database
 #[must_use]
 pub fn handle_get_user_configuration(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -228,7 +241,7 @@ pub fn handle_get_user_configuration(
 /// Handle `update_user_configuration` tool - update user's configuration settings
 #[must_use]
 pub fn handle_update_user_configuration(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -290,7 +303,7 @@ pub fn handle_update_user_configuration(
                     })),
                     error: None,
                     metadata: Some({
-                        let mut map = std::collections::HashMap::new();
+                        let mut map = HashMap::new();
                         map.insert(
                             "user_id".to_owned(),
                             serde_json::Value::String(user_uuid.to_string()),
@@ -318,7 +331,7 @@ pub fn handle_update_user_configuration(
 /// Returns pace zones in format "min:sec/km" based on training intensities
 fn calculate_pace_zones_from_vo2max(
     vo2_max: f64,
-    config: &crate::config::environment::TrainingZonesConfig,
+    config: &TrainingZonesConfig,
 ) -> serde_json::Value {
     // Jack Daniels VDOT pace calculations
     // Formula: pace (min/km) = 1000 / (velocity_m_per_min)
@@ -335,8 +348,7 @@ fn calculate_pace_zones_from_vo2max(
 
     // Convert to min:sec per km
     let format_pace = |velocity_m_per_min: f64| -> String {
-        let seconds_per_km =
-            crate::constants::limits::METERS_PER_KILOMETER / velocity_m_per_min.max(1.0);
+        let seconds_per_km = METERS_PER_KILOMETER / velocity_m_per_min.max(1.0);
 
         // Saturating conversion from f64 to u32 with explicit bounds checking
         // Cast is safe: validated finite, non-negative, and within u32::MAX range before conversion
@@ -366,10 +378,7 @@ fn calculate_pace_zones_from_vo2max(
 /// Calculate power zones from FTP (Functional Threshold Power)
 ///
 /// Returns power zones in watts based on standard FTP percentages
-fn calculate_power_zones_from_ftp(
-    ftp: u32,
-    config: &crate::config::environment::TrainingZonesConfig,
-) -> serde_json::Value {
+fn calculate_power_zones_from_ftp(ftp: u32, config: &TrainingZonesConfig) -> serde_json::Value {
     // Use integer arithmetic to avoid f64→u32 cast warnings
     // Standard FTP-based power zones using percentage multiplication with try_from
     // Note: All these calculations should succeed since ftp is u32 and multipliers are <2
@@ -414,7 +423,7 @@ fn calculate_power_zones_from_ftp(
 /// # Errors
 /// Returns `ProtocolError` if VO2 max parameter is missing or zones serialization fails
 pub fn handle_calculate_personalized_zones(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: &UniversalRequest,
 ) -> Result<UniversalResponse, ProtocolError> {
     let params = extract_zone_parameters(request)?;
@@ -431,7 +440,7 @@ pub fn handle_calculate_personalized_zones(
         .get("ftp")
         .and_then(serde_json::Value::as_u64)
         .and_then(|f| u32::try_from(f).ok())
-        .unwrap_or(crate::intelligence::physiological_constants::physiological_defaults::DEFAULT_ESTIMATED_FTP);
+        .unwrap_or(DEFAULT_ESTIMATED_FTP);
 
     // Calculate power zones using FTP (either provided or default estimate)
     let power_zones_result =
@@ -451,7 +460,7 @@ pub fn handle_calculate_personalized_zones(
         })),
         error: None,
         metadata: Some({
-            let mut map = std::collections::HashMap::new();
+            let mut map = HashMap::new();
             // Only include vo2_max if it's a valid f64 value
             if let Some(vo2_number) = serde_json::Number::from_f64(params.vo2_max) {
                 map.insert("vo2_max".to_owned(), serde_json::Value::Number(vo2_number));
@@ -463,7 +472,7 @@ pub fn handle_calculate_personalized_zones(
             }
             map.insert(
                 "zone_count".to_owned(),
-                serde_json::Value::Number(crate::intelligence::physiological_constants::physiological_defaults::TRAINING_ZONE_COUNT.into()),
+                serde_json::Value::Number(TRAINING_ZONE_COUNT.into()),
             );
             map.insert("ftp_used".to_owned(), serde_json::Value::Number(ftp.into()));
             map.insert(
@@ -500,27 +509,25 @@ fn extract_zone_parameters(request: &UniversalRequest) -> Result<ZoneParams, Pro
         .parameters
         .get("resting_hr")
         .and_then(serde_json::Value::as_u64)
-        .unwrap_or(crate::intelligence::physiological_constants::physiological_defaults::DEFAULT_RESTING_HR);
+        .unwrap_or(DEFAULT_RESTING_HR);
 
     let max_hr = request
         .parameters
         .get("max_hr")
         .and_then(serde_json::Value::as_u64)
-        .unwrap_or(
-            crate::intelligence::physiological_constants::physiological_defaults::DEFAULT_MAX_HR,
-        );
+        .unwrap_or(DEFAULT_MAX_HR);
 
     let lactate_threshold = request
         .parameters
         .get("lactate_threshold")
         .and_then(serde_json::Value::as_f64)
-        .unwrap_or(crate::intelligence::physiological_constants::physiological_defaults::DEFAULT_LACTATE_THRESHOLD);
+        .unwrap_or(DEFAULT_LACTATE_THRESHOLD);
 
     let sport_efficiency = request
         .parameters
         .get("sport_efficiency")
         .and_then(serde_json::Value::as_f64)
-        .unwrap_or(crate::intelligence::physiological_constants::physiological_defaults::DEFAULT_SPORT_EFFICIENCY);
+        .unwrap_or(DEFAULT_SPORT_EFFICIENCY);
 
     Ok(ZoneParams {
         vo2_max,
@@ -546,8 +553,7 @@ fn create_user_profile(params: &ZoneParams) -> serde_json::Value {
 fn calculate_zone_offset(hr_range: u64, percentage: u32) -> u64 {
     // Use integer arithmetic: (hr_range * percentage) / 1000
     // percentage represents the zone percentage in permille (thousandths)
-    hr_range.saturating_mul(u64::from(percentage))
-        / crate::intelligence::physiological_constants::heart_rate_zones::PERMILLE_DIVISOR
+    hr_range.saturating_mul(u64::from(percentage)) / PERMILLE_DIVISOR
 }
 
 /// Calculate heart rate zones using integer arithmetic to avoid casting warnings
@@ -555,55 +561,21 @@ fn calculate_heart_rate_zones(params: &ZoneParams) -> (serde_json::Value, serde_
     let hr_range = params.max_hr.saturating_sub(params.resting_hr);
 
     // Calculate zone boundaries using integer arithmetic with permille constants
-    let zone_1_min = params.resting_hr
-        + calculate_zone_offset(
-            hr_range,
-            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_1_MIN_PERMILLE,
-        );
-    let zone_1_max = params.resting_hr
-        + calculate_zone_offset(
-            hr_range,
-            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_1_MAX_PERMILLE,
-        );
-    let zone_2_min = params.resting_hr
-        + calculate_zone_offset(
-            hr_range,
-            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_1_MAX_PERMILLE,
-        );
-    let zone_2_max = params.resting_hr
-        + calculate_zone_offset(
-            hr_range,
-            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_2_MAX_PERMILLE,
-        );
-    let zone_3_min = params.resting_hr
-        + calculate_zone_offset(
-            hr_range,
-            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_2_MAX_PERMILLE,
-        );
-    let zone_3_max = params.resting_hr
-        + calculate_zone_offset(
-            hr_range,
-            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_3_MAX_PERMILLE,
-        );
-    let zone_4_min = params.resting_hr
-        + calculate_zone_offset(
-            hr_range,
-            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_3_MAX_PERMILLE,
-        );
-    let zone_4_max = params.resting_hr
-        + calculate_zone_offset(
-            hr_range,
-            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_4_MAX_PERMILLE,
-        );
-    let zone_5_min = params.resting_hr
-        + calculate_zone_offset(
-            hr_range,
-            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_4_MAX_PERMILLE,
-        );
+    let zone_1_min = params.resting_hr + calculate_zone_offset(hr_range, ZONE_1_MIN_PERMILLE);
+    let zone_1_max = params.resting_hr + calculate_zone_offset(hr_range, ZONE_1_MAX_PERMILLE);
+    let zone_2_min = params.resting_hr + calculate_zone_offset(hr_range, ZONE_1_MAX_PERMILLE);
+    let zone_2_max = params.resting_hr + calculate_zone_offset(hr_range, ZONE_2_MAX_PERMILLE);
+    let zone_3_min = params.resting_hr + calculate_zone_offset(hr_range, ZONE_2_MAX_PERMILLE);
+    let zone_3_max = params.resting_hr + calculate_zone_offset(hr_range, ZONE_3_MAX_PERMILLE);
+    let zone_4_min = params.resting_hr + calculate_zone_offset(hr_range, ZONE_3_MAX_PERMILLE);
+    let zone_4_max = params.resting_hr + calculate_zone_offset(hr_range, ZONE_4_MAX_PERMILLE);
+    let zone_5_min = params.resting_hr + calculate_zone_offset(hr_range, ZONE_4_MAX_PERMILLE);
 
     // Use lactate and aerobic threshold constants
-    let lactate_threshold_hr = params.resting_hr + calculate_zone_offset(hr_range, crate::intelligence::physiological_constants::heart_rate_zones::LACTATE_THRESHOLD_PERMILLE);
-    let aerobic_threshold_hr = params.resting_hr + calculate_zone_offset(hr_range, crate::intelligence::physiological_constants::heart_rate_zones::AEROBIC_THRESHOLD_PERMILLE);
+    let lactate_threshold_hr =
+        params.resting_hr + calculate_zone_offset(hr_range, LACTATE_THRESHOLD_PERMILLE);
+    let aerobic_threshold_hr =
+        params.resting_hr + calculate_zone_offset(hr_range, AEROBIC_THRESHOLD_PERMILLE);
 
     let zones = serde_json::json!({
         "zone_1": {
@@ -650,8 +622,6 @@ fn validate_parameter_ranges(
     obj: &serde_json::Map<String, serde_json::Value>,
     errors: &mut Vec<String>,
 ) -> bool {
-    use crate::intelligence::physiological_constants::configuration_validation;
-
     let mut all_valid = true;
 
     // Extract parameter values
@@ -788,7 +758,7 @@ fn validate_parameter_relationships(
 /// # Errors
 /// Returns `ProtocolError` if configuration parameter is missing
 pub fn handle_validate_configuration(
-    _executor: &crate::protocols::universal::UniversalToolExecutor,
+    _executor: &UniversalToolExecutor,
     request: &UniversalRequest,
 ) -> Result<UniversalResponse, ProtocolError> {
     // Extract parameters to validate
@@ -865,7 +835,7 @@ pub fn handle_validate_configuration(
             })),
             error: Some("Validation failed: Parameters must be a JSON object".to_owned()),
             metadata: Some({
-                let mut map = std::collections::HashMap::new();
+                let mut map = HashMap::new();
                 map.insert(
                     "error_count".to_owned(),
                     serde_json::Value::Number(1.into()),

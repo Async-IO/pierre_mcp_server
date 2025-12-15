@@ -13,22 +13,24 @@
 //! Provides real-time updates for API key usage, rate limit status,
 //! and system metrics via `WebSocket` connections.
 
-use crate::auth::{AuthManager, AuthResult};
-use crate::database_plugins::{factory::Database, DatabaseProvider};
-use crate::errors::{AppError, AppResult};
-use crate::middleware::McpAuthMiddleware;
+use crate::{
+    admin::jwks::JwksManager,
+    auth::{AuthManager, AuthResult},
+    config::environment::RateLimitConfig,
+    constants::rate_limits::WEBSOCKET_CHANNEL_CAPACITY,
+    database_plugins::{factory::Database, DatabaseProvider},
+    errors::{AppError, AppResult},
+    middleware::McpAuthMiddleware,
+};
+use axum::extract::ws::{Message, WebSocket};
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::{broadcast, RwLock};
+use std::{collections::HashMap, sync::Arc};
+use tokio::sync::{broadcast, mpsc::unbounded_channel, mpsc::UnboundedSender, RwLock};
 use tokio::time::{interval, Duration};
 use tracing::{debug, trace, warn};
 use uuid::Uuid;
-
-// WebSocket message type alias for Axum
-type Message = axum::extract::ws::Message;
 
 /// WebSocket message types for real-time communication
 #[non_exhaustive]
@@ -96,7 +98,7 @@ pub struct WebSocketManager {
 struct ClientConnection {
     user_id: Uuid,
     subscriptions: Vec<String>,
-    tx: tokio::sync::mpsc::UnboundedSender<Message>,
+    tx: UnboundedSender<Message>,
 }
 
 impl WebSocketManager {
@@ -105,11 +107,10 @@ impl WebSocketManager {
     pub fn new(
         database: Arc<Database>,
         auth_manager: &Arc<AuthManager>,
-        jwks_manager: &Arc<crate::admin::jwks::JwksManager>,
-        rate_limit_config: crate::config::environment::RateLimitConfig,
+        jwks_manager: &Arc<JwksManager>,
+        rate_limit_config: RateLimitConfig,
     ) -> Self {
-        let (broadcast_tx, _) =
-            broadcast::channel(crate::constants::rate_limits::WEBSOCKET_CHANNEL_CAPACITY);
+        let (broadcast_tx, _) = broadcast::channel(WEBSOCKET_CHANNEL_CAPACITY);
         let auth_middleware = McpAuthMiddleware::new(
             (**auth_manager).clone(),
             database.clone(),
@@ -129,7 +130,7 @@ impl WebSocketManager {
     async fn handle_auth_message(
         &self,
         token: &str,
-        tx: &tokio::sync::mpsc::UnboundedSender<Message>,
+        tx: &UnboundedSender<Message>,
     ) -> Option<Uuid> {
         match self.authenticate_user(token).await {
             Ok(auth_result) => {
@@ -169,7 +170,7 @@ impl WebSocketManager {
     fn handle_subscribe_message(
         topics: Vec<String>,
         authenticated_user: Option<Uuid>,
-        tx: &tokio::sync::mpsc::UnboundedSender<Message>,
+        tx: &UnboundedSender<Message>,
     ) -> Vec<String> {
         if authenticated_user.is_some() {
             let success_msg = WebSocketMessage::Success {
@@ -203,9 +204,9 @@ impl WebSocketManager {
     }
 
     /// Handle incoming WebSocket connection
-    pub async fn handle_connection(&self, ws: axum::extract::ws::WebSocket) {
+    pub async fn handle_connection(&self, ws: WebSocket) {
         let (mut ws_tx, mut ws_rx) = ws.split();
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let (tx, mut rx) = unbounded_channel();
 
         let connection_id = Uuid::new_v4();
         let mut authenticated_user: Option<Uuid> = None;

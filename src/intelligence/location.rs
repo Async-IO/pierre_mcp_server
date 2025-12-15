@@ -8,6 +8,7 @@
 // - HTTP client Arc sharing for geocoding requests
 // - Cache key and data ownership transfers for async operations
 // - Address field Option chains for comprehensive location parsing
+use crate::constants::project::user_agent;
 use crate::errors::{AppError, AppResult};
 use crate::utils::http_client::shared_client;
 use reqwest::Client;
@@ -99,7 +100,7 @@ impl LocationService {
     #[must_use]
     pub fn with_config(base_url: String, enabled: bool) -> Self {
         let client = Client::builder()
-            .user_agent(crate::constants::project::user_agent())
+            .user_agent(user_agent())
             .timeout(Duration::from_secs(10))
             .build()
             .unwrap_or_else(|e| {

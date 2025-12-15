@@ -13,6 +13,7 @@ use anyhow::Result;
 use pierre_mcp_server::cache::{factory::Cache, CacheConfig, CacheKey, CacheResource};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
+use tokio::time;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -80,7 +81,7 @@ async fn test_cache_expiration() -> Result<()> {
     assert!(cache.exists(&key).await?);
 
     // Wait for expiration
-    tokio::time::sleep(Duration::from_millis(1100)).await;
+    time::sleep(Duration::from_millis(1100)).await;
 
     // Should be expired
     let retrieved: Option<TestData> = cache.get(&key).await?;
@@ -307,7 +308,7 @@ async fn test_cache_background_cleanup() -> Result<()> {
     }
 
     // Wait for expiration + cleanup cycles (1s TTL + 1s cleanup interval + margin)
-    tokio::time::sleep(Duration::from_millis(2500)).await;
+    time::sleep(Duration::from_millis(2500)).await;
 
     // All should be cleaned up by background task
     for key in &keys {

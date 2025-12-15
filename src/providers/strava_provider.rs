@@ -9,6 +9,7 @@
 
 use super::core::{ActivityQueryParams, FitnessProvider, OAuth2Credentials, ProviderConfig};
 use super::errors::ProviderError;
+use crate::constants::oauth::STRAVA_DEFAULT_SCOPES;
 use crate::constants::{api_provider_limits, oauth_providers};
 use crate::errors::{AppError, AppResult};
 use crate::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
@@ -18,6 +19,8 @@ use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
 use reqwest::Client;
 use serde::Deserialize;
+use std::fmt::Write;
+use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
 /// Strava API error response format
@@ -220,7 +223,7 @@ struct PaginationContext {
 /// Clean Strava provider implementation
 pub struct StravaProvider {
     config: ProviderConfig,
-    credentials: tokio::sync::RwLock<Option<OAuth2Credentials>>,
+    credentials: RwLock<Option<OAuth2Credentials>>,
     client: Client,
 }
 
@@ -242,7 +245,7 @@ impl StravaProvider {
             token_url: "https://www.strava.com/oauth/token".to_owned(),
             api_base_url: "https://www.strava.com/api/v3".to_owned(),
             revoke_url: Some("https://www.strava.com/oauth/deauthorize".to_owned()),
-            default_scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+            default_scopes: STRAVA_DEFAULT_SCOPES
                 .split(',')
                 .map(str::to_owned)
                 .collect(),
@@ -250,7 +253,7 @@ impl StravaProvider {
 
         Self {
             config,
-            credentials: tokio::sync::RwLock::new(None),
+            credentials: RwLock::new(None),
             client: shared_client().clone(),
         }
     }
@@ -260,7 +263,7 @@ impl StravaProvider {
     pub fn with_config(config: ProviderConfig) -> Self {
         Self {
             config,
-            credentials: tokio::sync::RwLock::new(None),
+            credentials: RwLock::new(None),
             client: shared_client().clone(),
         }
     }
@@ -282,7 +285,7 @@ impl StravaProvider {
         debug!(
             "Strava 404 error: {} (errors: {})",
             error_response.message,
-            error_response.errors.as_ref().map_or(0, std::vec::Vec::len)
+            error_response.errors.as_ref().map_or(0, Vec::len)
         );
 
         let first_error = error_response.errors?.into_iter().next()?;
@@ -772,7 +775,6 @@ impl FitnessProvider for StravaProvider {
         // If cursor provided, decode and use for filtering
         if let Some(cursor) = &params.cursor {
             if let Some((timestamp, id)) = cursor.decode() {
-                use std::fmt::Write;
                 // Strava filters by before/after timestamp
                 match params.direction {
                     PaginationDirection::Forward => {
@@ -941,11 +943,9 @@ impl StravaProvider {
     ) -> String {
         let mut endpoint = format!("athlete/activities?per_page={page_limit}&page={page_number}");
         if let Some(before_ts) = before {
-            use std::fmt::Write;
             let _ = write!(endpoint, "&before={before_ts}");
         }
         if let Some(after_ts) = after {
-            use std::fmt::Write;
             let _ = write!(endpoint, "&after={after_ts}");
         }
         endpoint

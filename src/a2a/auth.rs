@@ -9,10 +9,15 @@
 //! Implements authentication and authorization for A2A protocol,
 //! supporting API keys and `OAuth2` for agent-to-agent communication.
 
+use crate::a2a::{client::ClientRegistrationRequest, A2AError};
 use crate::auth::{AuthMethod, AuthResult};
+use crate::constants::rate_limits::DEFAULT_BURST_LIMIT;
+use crate::constants::time::HOUR_SECONDS;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult};
+use crate::mcp::resources::ServerResources;
 use crate::providers::errors::ProviderError;
+use crate::rate_limiting::UnifiedRateLimitInfo;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::debug;
@@ -73,23 +78,23 @@ fn default_permissions() -> Vec<String> {
 }
 
 const fn default_rate_limit_requests() -> u32 {
-    crate::constants::rate_limits::DEFAULT_BURST_LIMIT * 10
+    DEFAULT_BURST_LIMIT * 10
 }
 
 #[allow(clippy::cast_possible_truncation)] // Safe: HOUR_SECONDS is 3600, well within u32 range
 const fn default_rate_limit_window() -> u32 {
-    crate::constants::time::HOUR_SECONDS as u32
+    HOUR_SECONDS as u32
 }
 
 /// A2A Authenticator
 pub struct A2AAuthenticator {
-    resources: Arc<crate::mcp::resources::ServerResources>,
+    resources: Arc<ServerResources>,
 }
 
 impl A2AAuthenticator {
     /// Creates a new A2A authenticator instance
     #[must_use]
-    pub const fn new(resources: Arc<crate::mcp::resources::ServerResources>) -> Self {
+    pub const fn new(resources: Arc<ServerResources>) -> Self {
         Self { resources }
     }
 
@@ -195,10 +200,7 @@ impl A2AAuthenticator {
     ///
     /// # Errors
     /// Returns an error if database query fails
-    async fn get_a2a_client_by_api_key(
-        &self,
-        api_key_id: &str,
-    ) -> crate::errors::AppResult<Option<A2AClient>> {
+    async fn get_a2a_client_by_api_key(&self, api_key_id: &str) -> AppResult<Option<A2AClient>> {
         self.resources
             .database
             .get_a2a_client_by_api_key_id(api_key_id)
@@ -218,7 +220,7 @@ impl A2AAuthenticator {
     /// # Panics
     ///
     /// Panics if the token subject has `a2a_client_` prefix but cannot be stripped (should never happen)
-    pub async fn authenticate_oauth2(&self, token: &str) -> crate::errors::AppResult<AuthResult> {
+    pub async fn authenticate_oauth2(&self, token: &str) -> AppResult<AuthResult> {
         // OAuth2 token validation for A2A using JWT tokens
 
         // Try to decode the JWT token using RS256
@@ -267,7 +269,7 @@ impl A2AAuthenticator {
                 key_id: format!("oauth2_a2a_{client_id}"),
                 tier: "A2A-OAuth2".into(),
             },
-            rate_limit: crate::rate_limiting::UnifiedRateLimitInfo {
+            rate_limit: UnifiedRateLimitInfo {
                 is_rate_limited: false,
                 limit: Some(1000),     // Default A2A OAuth2 limit
                 remaining: Some(1000), // Start with full limit
@@ -283,11 +285,11 @@ impl A2AAuthenticator {
     /// # Errors
     ///
     /// Returns an error if client registration fails
-    pub async fn register_client(&self, client: A2AClient) -> Result<String, crate::a2a::A2AError> {
+    pub async fn register_client(&self, client: A2AClient) -> Result<String, A2AError> {
         // Use the client manager to handle registration
         let client_manager = &*self.resources.a2a_client_manager;
 
-        let request = crate::a2a::client::ClientRegistrationRequest {
+        let request = ClientRegistrationRequest {
             name: client.name,
             description: client.description,
             capabilities: client.capabilities,
@@ -307,17 +309,12 @@ impl A2AAuthenticator {
     /// # Errors
     ///
     /// Returns an error if database query fails
-    pub async fn get_client(
-        &self,
-        client_id: &str,
-    ) -> Result<Option<A2AClient>, crate::a2a::A2AError> {
+    pub async fn get_client(&self, client_id: &str) -> Result<Option<A2AClient>, A2AError> {
         self.resources
             .database
             .get_a2a_client(client_id)
             .await
-            .map_err(|e| {
-                crate::a2a::A2AError::InternalError(format!("Failed to get A2A client: {e}"))
-            })
+            .map_err(|e| A2AError::InternalError(format!("Failed to get A2A client: {e}")))
     }
 
     /// Validate client capabilities
@@ -345,7 +342,7 @@ impl A2AAuthenticator {
     /// # Errors
     ///
     /// Returns an error if token validation fails
-    pub fn validate_token(&self, token: &A2AToken) -> Result<bool, crate::a2a::A2AError> {
+    pub fn validate_token(&self, token: &A2AToken) -> Result<bool, A2AError> {
         // Check if token is expired
         if token.expires_at < chrono::Utc::now() {
             return Ok(false);

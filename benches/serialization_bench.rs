@@ -21,9 +21,10 @@ use chrono::{Duration, Utc};
 use common::fixtures::{generate_activities, ActivityBatchSize};
 use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
 use pierre_mcp_server::intelligence::metrics::AdvancedMetrics;
-use pierre_mcp_server::intelligence::training_load::TrainingLoad;
+use pierre_mcp_server::intelligence::training_load::{TrainingLoad, TssDataPoint};
 use pierre_mcp_server::models::{Activity, SleepSession, SleepStage, SleepStageType};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// MCP-style tool result for benchmarking
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -328,12 +329,10 @@ fn bench_intelligence_serialization(c: &mut Criterion) {
         atl: 82.3,
         tsb: -6.8,
         tss_history: (0..42)
-            .map(
-                |i| pierre_mcp_server::intelligence::training_load::TssDataPoint {
-                    date: chrono::Utc::now() - chrono::Duration::days(i),
-                    tss: (i as f64).mul_add(1.5, 50.0),
-                },
-            )
+            .map(|i| TssDataPoint {
+                date: chrono::Utc::now() - chrono::Duration::days(i),
+                tss: (i as f64).mul_add(1.5, 50.0),
+            })
             .collect(),
     };
 
@@ -365,7 +364,7 @@ fn bench_intelligence_serialization(c: &mut Criterion) {
         aerobic_contribution: Some(85.0),
         temperature_stress: Some(1.05),
         altitude_adjustment: Some(0.98),
-        custom_metrics: std::collections::HashMap::new(),
+        custom_metrics: HashMap::new(),
     };
 
     let serialized_metrics = serde_json::to_vec(&metrics).unwrap();

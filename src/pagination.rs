@@ -4,6 +4,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use std::fmt::{self, Display, Formatter};
+
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -20,10 +23,7 @@ impl Cursor {
     #[must_use]
     pub fn new(timestamp: DateTime<Utc>, id: &str) -> Self {
         let cursor_data = format!("{}:{}", timestamp.timestamp_millis(), id);
-        let encoded = base64::Engine::encode(
-            &base64::engine::general_purpose::URL_SAFE_NO_PAD,
-            cursor_data.as_bytes(),
-        );
+        let encoded = base64::Engine::encode(&URL_SAFE_NO_PAD, cursor_data.as_bytes());
         Self(encoded)
     }
 
@@ -32,9 +32,7 @@ impl Cursor {
     /// Returns `None` if cursor is invalid or malformed
     #[must_use]
     pub fn decode(&self) -> Option<(DateTime<Utc>, String)> {
-        let decoded =
-            base64::Engine::decode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, &self.0)
-                .ok()?;
+        let decoded = base64::Engine::decode(&URL_SAFE_NO_PAD, &self.0).ok()?;
         let decoded_str = String::from_utf8(decoded).ok()?;
         let parts: Vec<&str> = decoded_str.split(':').collect();
 
@@ -62,8 +60,8 @@ impl Cursor {
     }
 }
 
-impl std::fmt::Display for Cursor {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for Cursor {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }

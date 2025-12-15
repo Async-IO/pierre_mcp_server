@@ -10,6 +10,7 @@ use crate::protocols::ProtocolError;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
 use tracing::info;
 
 /// Plugin metadata for discovery and registration
@@ -241,7 +242,7 @@ pub fn plugin_success(result: Value, credits: u32, execution_time: u64) -> Plugi
             success: true,
             result: Some(result),
             error: None,
-            metadata: Some(std::collections::HashMap::from([
+            metadata: Some(HashMap::from([
                 ("credits_consumed".into(), Value::Number(credits.into())),
                 (
                     "execution_time_ms".into(),
@@ -262,7 +263,7 @@ pub fn plugin_error(error: String, credits: u32, execution_time: u64) -> PluginR
             success: false,
             result: None,
             error: Some(error),
-            metadata: Some(std::collections::HashMap::from([
+            metadata: Some(HashMap::from([
                 ("credits_consumed".into(), Value::Number(credits.into())),
                 (
                     "execution_time_ms".into(),

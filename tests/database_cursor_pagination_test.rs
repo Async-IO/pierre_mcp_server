@@ -8,11 +8,15 @@
 #![allow(missing_docs)]
 
 use anyhow::Result;
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
 use pierre_mcp_server::{
     database_plugins::{factory::Database, DatabaseProvider},
     models::{User, UserStatus, UserTier},
     pagination::PaginationParams,
+    permissions::UserRole,
 };
+use tokio::time::{sleep, Duration};
 use uuid::Uuid;
 
 /// Test cursor pagination for users by status
@@ -25,7 +29,7 @@ async fn test_get_users_by_status_cursor() -> Result<()> {
     let database = Database::new(
         database_url,
         b"test_encryption_key_32_bytes_long".to_vec(),
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -47,7 +51,7 @@ async fn test_get_users_by_status_cursor() -> Result<()> {
             is_active: true,
             user_status: UserStatus::Pending,
             is_admin: false,
-            role: pierre_mcp_server::permissions::UserRole::User,
+            role: UserRole::User,
             approved_by: None,
             approved_at: None,
             created_at: chrono::Utc::now(),
@@ -59,7 +63,7 @@ async fn test_get_users_by_status_cursor() -> Result<()> {
         database.create_user(&user).await?;
 
         // Small delay to ensure different timestamps
-        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        sleep(Duration::from_millis(10)).await;
     }
 
     // Test first page (limit 2)
@@ -120,7 +124,7 @@ async fn test_cursor_pagination_empty_results() -> Result<()> {
     let database = Database::new(
         database_url,
         b"test_encryption_key_32_bytes_long".to_vec(),
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -149,7 +153,7 @@ async fn test_cursor_pagination_consistency() -> Result<()> {
     let database = Database::new(
         database_url,
         b"test_encryption_key_32_bytes_long".to_vec(),
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -171,7 +175,7 @@ async fn test_cursor_pagination_consistency() -> Result<()> {
             is_active: true,
             user_status: UserStatus::Pending,
             is_admin: false,
-            role: pierre_mcp_server::permissions::UserRole::User,
+            role: UserRole::User,
             approved_by: None,
             approved_at: None,
             created_at: chrono::Utc::now(),
@@ -180,7 +184,7 @@ async fn test_cursor_pagination_consistency() -> Result<()> {
             auth_provider: String::new(),
         };
         database.create_user(&user).await?;
-        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        sleep(Duration::from_millis(10)).await;
     }
 
     // Get first page
@@ -205,7 +209,7 @@ async fn test_cursor_pagination_consistency() -> Result<()> {
         is_active: true,
         user_status: UserStatus::Pending,
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         approved_by: None,
         approved_at: None,
         created_at: chrono::Utc::now(),

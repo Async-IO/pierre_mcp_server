@@ -8,6 +8,8 @@
 #![allow(missing_docs)]
 
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
 use pierre_mcp_server::{
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
@@ -27,7 +29,7 @@ async fn test_redirect_uri_https_enforcement() {
         Database::new(
             "sqlite::memory:",
             encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await
         .unwrap(),
@@ -119,7 +121,7 @@ async fn test_redirect_uri_fragment_rejection() {
         Database::new(
             "sqlite::memory:",
             encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await
         .unwrap(),
@@ -166,7 +168,7 @@ async fn test_redirect_uri_wildcard_rejection() {
         Database::new(
             "sqlite::memory:",
             encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await
         .unwrap(),
@@ -213,7 +215,7 @@ async fn test_redirect_uri_oob_urn() {
         Database::new(
             "sqlite::memory:",
             encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await
         .unwrap(),
@@ -253,7 +255,7 @@ async fn test_argon2id_client_secret_hashing() {
         Database::new(
             "sqlite::memory:",
             encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await
         .unwrap(),
@@ -319,7 +321,7 @@ async fn test_client_secret_validation() {
         Database::new(
             "sqlite::memory:",
             encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await
         .unwrap(),
@@ -383,7 +385,7 @@ async fn test_empty_redirect_uri_rejection() {
         Database::new(
             "sqlite::memory:",
             encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await
         .unwrap(),
@@ -429,7 +431,7 @@ async fn test_malformed_uri_rejection() {
         Database::new(
             "sqlite::memory:",
             encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await
         .unwrap(),
@@ -475,7 +477,7 @@ async fn test_unsupported_grant_type_rejection() {
         Database::new(
             "sqlite::memory:",
             encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await
         .unwrap(),
@@ -521,7 +523,7 @@ async fn test_unsupported_response_type_rejection() {
         Database::new(
             "sqlite::memory:",
             encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await
         .unwrap(),

@@ -10,10 +10,30 @@
 //! It defines standard error types, error codes, and HTTP response formatting to ensure
 //! consistent error handling across all modules and APIs.
 
+use std::array::TryFromSliceError;
+use std::error::Error;
+use std::fmt::{self, Display};
+use std::io;
+use std::num::TryFromIntError;
+
+use ring::error::Unspecified as RingUnspecified;
+use serde::de::Error as SerdeDeError;
 use serde::{Deserialize, Serialize};
-use std::fmt;
-use thiserror::Error;
+use serde_json::Error as JsonError;
+use thiserror::Error as ThisError;
 use tracing::warn;
+use uuid::Error as UuidError;
+
+use axum::response::{IntoResponse, Response};
+use chrono::{ParseError as ChronoParseError, Utc};
+
+use crate::constants::http_status::{
+    BAD_GATEWAY, BAD_REQUEST, CONFLICT, FORBIDDEN, INTERNAL_SERVER_ERROR, NOT_FOUND,
+    SERVICE_UNAVAILABLE, TOO_MANY_REQUESTS, UNAUTHORIZED,
+};
+use crate::database::DatabaseError;
+use crate::protocols::ProtocolError;
+use crate::providers::errors::ProviderError;
 
 /// Standard error codes used throughout the application
 #[non_exhaustive]
@@ -95,37 +115,29 @@ impl ErrorCode {
             Self::InvalidInput
             | Self::MissingRequiredField
             | Self::InvalidFormat
-            | Self::ValueOutOfRange => crate::constants::http_status::BAD_REQUEST,
+            | Self::ValueOutOfRange => BAD_REQUEST,
 
             // 401 Unauthorized - Authentication issues (missing or invalid credentials)
-            Self::AuthRequired | Self::AuthInvalid => crate::constants::http_status::UNAUTHORIZED,
+            Self::AuthRequired | Self::AuthInvalid => UNAUTHORIZED,
 
             // 403 Forbidden - Authorization issues (expired/malformed tokens, permission denied)
-            Self::AuthExpired | Self::AuthMalformed | Self::PermissionDenied => {
-                crate::constants::http_status::FORBIDDEN
-            }
+            Self::AuthExpired | Self::AuthMalformed | Self::PermissionDenied => FORBIDDEN,
 
             // 404 Not Found
-            Self::ResourceNotFound => crate::constants::http_status::NOT_FOUND,
+            Self::ResourceNotFound => NOT_FOUND,
 
             // 409 Conflict
-            Self::ResourceAlreadyExists | Self::ResourceLocked => {
-                crate::constants::http_status::CONFLICT
-            }
+            Self::ResourceAlreadyExists | Self::ResourceLocked => CONFLICT,
 
             // 429 Too Many Requests
-            Self::RateLimitExceeded | Self::QuotaExceeded => {
-                crate::constants::http_status::TOO_MANY_REQUESTS
-            }
+            Self::RateLimitExceeded | Self::QuotaExceeded => TOO_MANY_REQUESTS,
 
             // 502 Bad Gateway
-            Self::ExternalServiceError | Self::ExternalServiceUnavailable => {
-                crate::constants::http_status::BAD_GATEWAY
-            }
+            Self::ExternalServiceError | Self::ExternalServiceUnavailable => BAD_GATEWAY,
 
             // 503 Service Unavailable
             Self::ResourceUnavailable | Self::ExternalAuthFailed | Self::ExternalRateLimited => {
-                crate::constants::http_status::SERVICE_UNAVAILABLE
+                SERVICE_UNAVAILABLE
             }
 
             // 500 Internal Server Error
@@ -135,7 +147,7 @@ impl ErrorCode {
             | Self::SerializationError
             | Self::ConfigError
             | Self::ConfigMissing
-            | Self::ConfigInvalid => crate::constants::http_status::INTERNAL_SERVER_ERROR,
+            | Self::ConfigInvalid => INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -216,13 +228,13 @@ impl<'de> Deserialize<'de> for ErrorCode {
             "DatabaseError" => Ok(Self::DatabaseError),
             "StorageError" => Ok(Self::StorageError),
             "SerializationError" => Ok(Self::SerializationError),
-            _ => Err(serde::de::Error::unknown_variant(&s, &[])),
+            _ => Err(SerdeDeError::unknown_variant(&s, &[])),
         }
     }
 }
 
 /// Simplified error type for the application
-#[derive(Debug, Clone, Error)]
+#[derive(Debug, Clone, ThisError)]
 pub struct AppError {
     /// Error code
     pub code: ErrorCode,
@@ -289,14 +301,17 @@ impl fmt::Display for AppError {
 }
 
 /// Convert `AppError` to Axum `Response` for `HTTP` responses
-impl axum::response::IntoResponse for AppError {
-    fn into_response(self) -> axum::response::Response {
-        let status = axum::http::StatusCode::from_u16(self.code.http_status())
-            .unwrap_or(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        use axum::http::StatusCode;
+        use axum::Json;
+
+        let status = StatusCode::from_u16(self.code.http_status())
+            .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
 
         let response = ErrorResponse::from(self);
 
-        (status, axum::Json(response)).into_response()
+        (status, Json(response)).into_response()
     }
 }
 
@@ -326,7 +341,7 @@ impl From<AppError> for ErrorResponse {
             code: error.code,
             message: error.sanitized_message(), // Use sanitized message for client
             request_id: error.request_id,
-            timestamp: chrono::Utc::now().to_rfc3339(),
+            timestamp: Utc::now().to_rfc3339(),
         }
     }
 }
@@ -432,15 +447,15 @@ impl AppError {
 }
 
 /// Conversion from `std::io::Error` to `AppError`
-impl From<std::io::Error> for AppError {
-    fn from(error: std::io::Error) -> Self {
+impl From<io::Error> for AppError {
+    fn from(error: io::Error) -> Self {
         Self::new(ErrorCode::InternalError, format!("IO error: {error}"))
     }
 }
 
 /// Conversion from `serde_json::Error` to `AppError`
-impl From<serde_json::Error> for AppError {
-    fn from(error: serde_json::Error) -> Self {
+impl From<JsonError> for AppError {
+    fn from(error: JsonError) -> Self {
         Self::new(ErrorCode::InvalidInput, format!("JSON error: {error}"))
     }
 }
@@ -453,22 +468,22 @@ impl From<sqlx::Error> for AppError {
 }
 
 /// Conversion from `DatabaseError` to `AppError`
-impl From<crate::database::DatabaseError> for AppError {
-    fn from(error: crate::database::DatabaseError) -> Self {
+impl From<DatabaseError> for AppError {
+    fn from(error: DatabaseError) -> Self {
         Self::database(format!("Database error: {error}"))
     }
 }
 
 /// Conversion from `uuid::Error` to `AppError`
-impl From<uuid::Error> for AppError {
-    fn from(error: uuid::Error) -> Self {
+impl From<UuidError> for AppError {
+    fn from(error: UuidError) -> Self {
         Self::new(ErrorCode::InvalidInput, format!("UUID error: {error}"))
     }
 }
 
 /// Conversion from `chrono::ParseError` to `AppError`
-impl From<chrono::ParseError> for AppError {
-    fn from(error: chrono::ParseError) -> Self {
+impl From<ChronoParseError> for AppError {
+    fn from(error: ChronoParseError) -> Self {
         Self::new(
             ErrorCode::InvalidInput,
             format!("Date parse error: {error}"),
@@ -477,8 +492,8 @@ impl From<chrono::ParseError> for AppError {
 }
 
 /// Conversion from `TryFromIntError` to `AppError`
-impl From<std::num::TryFromIntError> for AppError {
-    fn from(error: std::num::TryFromIntError) -> Self {
+impl From<TryFromIntError> for AppError {
+    fn from(error: TryFromIntError) -> Self {
         Self::new(
             ErrorCode::InvalidInput,
             format!("Integer conversion error: {error}"),
@@ -487,8 +502,8 @@ impl From<std::num::TryFromIntError> for AppError {
 }
 
 /// Conversion from `ring::error::Unspecified` to `AppError`
-impl From<ring::error::Unspecified> for AppError {
-    fn from(_error: ring::error::Unspecified) -> Self {
+impl From<RingUnspecified> for AppError {
+    fn from(_error: RingUnspecified) -> Self {
         Self::new(
             ErrorCode::InternalError,
             "Cryptographic operation failed".to_owned(),
@@ -507,8 +522,8 @@ impl From<base64::DecodeError> for AppError {
 }
 
 /// Conversion from `TryFromSliceError` to `AppError`
-impl From<std::array::TryFromSliceError> for AppError {
-    fn from(error: std::array::TryFromSliceError) -> Self {
+impl From<TryFromSliceError> for AppError {
+    fn from(error: TryFromSliceError) -> Self {
         Self::new(
             ErrorCode::InvalidInput,
             format!("Array conversion error: {error}"),
@@ -517,82 +532,71 @@ impl From<std::array::TryFromSliceError> for AppError {
 }
 
 /// Protocol error conversion helper
-impl From<crate::protocols::ProtocolError> for AppError {
-    fn from(error: crate::protocols::ProtocolError) -> Self {
+impl From<ProtocolError> for AppError {
+    fn from(error: ProtocolError) -> Self {
         match error {
-            crate::protocols::ProtocolError::UnsupportedProtocol { protocol } => {
+            ProtocolError::UnsupportedProtocol { protocol } => {
                 Self::invalid_input(format!("Unsupported protocol: {protocol:?}"))
             }
-            crate::protocols::ProtocolError::ToolNotFound { tool_id, .. } => {
+            ProtocolError::ToolNotFound { tool_id, .. } => {
                 Self::not_found(format!("tool '{tool_id}'"))
             }
-            crate::protocols::ProtocolError::InvalidParameter {
+            ProtocolError::InvalidParameter {
                 tool_id,
                 parameter,
                 reason,
             } => Self::invalid_input(format!(
                 "Invalid parameter '{parameter}' for tool '{tool_id}': {reason}"
             )),
-            crate::protocols::ProtocolError::MissingParameter { tool_id, parameter } => {
-                Self::invalid_input(format!(
-                    "Missing required parameter '{parameter}' for tool '{tool_id}'"
-                ))
-            }
-            crate::protocols::ProtocolError::InvalidParameters(message) => {
-                Self::invalid_input(message)
-            }
-            crate::protocols::ProtocolError::InvalidRequestDetailed { reason, .. } => {
-                Self::invalid_input(reason)
-            }
-            crate::protocols::ProtocolError::InvalidRequest(reason) => Self::invalid_input(reason),
-            crate::protocols::ProtocolError::ConfigMissing { key } => {
+            ProtocolError::MissingParameter { tool_id, parameter } => Self::invalid_input(format!(
+                "Missing required parameter '{parameter}' for tool '{tool_id}'"
+            )),
+            ProtocolError::InvalidParameters(message) => Self::invalid_input(message),
+            ProtocolError::InvalidRequestDetailed { reason, .. }
+            | ProtocolError::InvalidRequest(reason) => Self::invalid_input(reason),
+            ProtocolError::ConfigMissing { key } => {
                 Self::config(format!("Missing configuration: {key}"))
             }
-            crate::protocols::ProtocolError::ConfigurationErrorDetailed { message } => {
-                Self::config(message)
-            }
-            crate::protocols::ProtocolError::ConfigurationError(message) => Self::config(message),
-            crate::protocols::ProtocolError::ExecutionFailedDetailed { tool_id, .. } => {
+            ProtocolError::ConfigurationErrorDetailed { message }
+            | ProtocolError::ConfigurationError(message) => Self::config(message),
+            ProtocolError::ExecutionFailedDetailed { tool_id, .. } => {
                 Self::internal(format!("Tool '{tool_id}' execution failed"))
             }
-            crate::protocols::ProtocolError::ExecutionFailed(message)
-            | crate::protocols::ProtocolError::InternalError(message) => Self::internal(message),
-            crate::protocols::ProtocolError::ConversionFailed { from, to, reason } => {
-                Self::internal(format!(
-                    "Protocol conversion failed from {from:?} to {to:?}: {reason}"
-                ))
+            ProtocolError::ExecutionFailed(message) | ProtocolError::InternalError(message) => {
+                Self::internal(message)
             }
-            crate::protocols::ProtocolError::Serialization { context, .. } => {
+            ProtocolError::ConversionFailed { from, to, reason } => Self::internal(format!(
+                "Protocol conversion failed from {from:?} to {to:?}: {reason}"
+            )),
+            ProtocolError::Serialization { context, .. } => {
                 Self::internal(format!("Serialization failed for {context}"))
             }
-            crate::protocols::ProtocolError::SerializationErrorDetailed { message }
-            | crate::protocols::ProtocolError::SerializationError(message) => {
+            ProtocolError::SerializationErrorDetailed { message }
+            | ProtocolError::SerializationError(message) => {
                 Self::internal(format!("Serialization failed: {message}"))
             }
-            crate::protocols::ProtocolError::Database { source } => {
+            ProtocolError::Database { source } => {
                 Self::internal(format!("Database error: {source}"))
             }
-            crate::protocols::ProtocolError::PluginNotFound { plugin_id } => {
+            ProtocolError::PluginNotFound { plugin_id } => {
                 Self::not_found(format!("plugin '{plugin_id}'"))
             }
-            crate::protocols::ProtocolError::PluginError { plugin_id, details } => {
+            ProtocolError::PluginError { plugin_id, details } => {
                 Self::internal(format!("Plugin '{plugin_id}' error: {details}"))
             }
-            crate::protocols::ProtocolError::InvalidSchema { entity, reason } => {
+            ProtocolError::InvalidSchema { entity, reason } => {
                 Self::invalid_input(format!("Invalid schema for {entity}: {reason}"))
             }
-            crate::protocols::ProtocolError::InsufficientSubscription { required, current } => {
-                Self::auth_invalid(format!(
-                    "Insufficient subscription tier: requires {required}, has {current}"
-                ))
-            }
-            crate::protocols::ProtocolError::RateLimitExceeded {
+            ProtocolError::InsufficientSubscription { required, current } => Self::auth_invalid(
+                format!("Insufficient subscription tier: requires {required}, has {current}"),
+            ),
+            ProtocolError::RateLimitExceeded {
                 requests,
                 window_secs,
             } => Self::invalid_input(format!(
                 "Rate limit exceeded: {requests} requests in {window_secs}s"
             )),
-            crate::protocols::ProtocolError::OperationCancelled(message) => {
+            ProtocolError::OperationCancelled(message) => {
                 Self::invalid_input(format!("Operation cancelled: {message}"))
             }
         }
@@ -600,9 +604,8 @@ impl From<crate::protocols::ProtocolError> for AppError {
 }
 
 /// Convert `ProviderError` to `AppError`
-impl From<crate::providers::errors::ProviderError> for AppError {
-    fn from(error: crate::providers::errors::ProviderError) -> Self {
-        use crate::providers::errors::ProviderError;
+impl From<ProviderError> for AppError {
+    fn from(error: ProviderError) -> Self {
         match error {
             ProviderError::ApiError {
                 provider, message, ..
@@ -672,8 +675,8 @@ impl From<crate::providers::errors::ProviderError> for AppError {
 /// Database error conversion helper
 /// Note: This is conditional on whether `SQLx` is actually used in the database plugins
 #[cfg(any(feature = "postgresql", feature = "sqlite"))]
-impl From<Box<dyn std::error::Error + Send + Sync>> for AppError {
-    fn from(error: Box<dyn std::error::Error + Send + Sync>) -> Self {
+impl From<Box<dyn Error + Send + Sync>> for AppError {
+    fn from(error: Box<dyn Error + Send + Sync>) -> Self {
         Self::database(error.to_string())
     }
 }
@@ -702,7 +705,7 @@ impl AppError {
     /// # }
     /// ```
     #[must_use]
-    pub fn json_parse_error<E: std::fmt::Display>(context: &str, error: E) -> Self {
+    pub fn json_parse_error<E: Display>(context: &str, error: E) -> Self {
         Self::new(
             ErrorCode::InvalidInput,
             format!("Failed to parse JSON in {context}: {error}"),
@@ -779,7 +782,7 @@ pub trait JsonResultExt<T> {
     fn json_context(self, context: &str) -> Result<T, AppError>;
 }
 
-impl<T> JsonResultExt<T> for Result<T, serde_json::Error> {
+impl<T> JsonResultExt<T> for Result<T, JsonError> {
     fn json_context(self, context: &str) -> Result<T, AppError> {
         self.map_err(|e| AppError::json_parse_error(context, e))
     }

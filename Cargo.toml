@@ -273,3 +273,7 @@ uninlined_format_args = "warn"
 
 # Warn on .map().unwrap_or() - should use map_or() or is_some_and() instead
 map_unwrap_or = "warn"
+
+# Enforce `use` imports over inline qualified paths (crate::foo::bar)
+# Idiomatic Rust prefers imports at top of file for readability
+absolute_paths = "deny"

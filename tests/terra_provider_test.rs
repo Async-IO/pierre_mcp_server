@@ -17,7 +17,9 @@
 #![allow(missing_docs)]
 
 use chrono::{Duration, Utc};
-use pierre_mcp_server::models::{MealType, SportType};
+use pierre_mcp_server::models::{
+    Activity, HealthMetrics, MealType, RecoveryMetrics, SleepSession, SportType,
+};
 use pierre_mcp_server::pagination::{PaginationDirection, PaginationParams};
 use pierre_mcp_server::providers::core::FitnessProvider;
 use pierre_mcp_server::providers::spi::ProviderDescriptor;
@@ -47,8 +49,8 @@ fn make_test_user() -> TerraUser {
     }
 }
 
-fn make_test_activity(id: &str, hours_ago: i64) -> pierre_mcp_server::models::Activity {
-    pierre_mcp_server::models::Activity {
+fn make_test_activity(id: &str, hours_ago: i64) -> Activity {
+    Activity {
         id: id.to_owned(),
         name: format!("Test Activity {id}"),
         sport_type: SportType::Run,
@@ -275,7 +277,7 @@ async fn test_stats_calculation() {
     provider.set_terra_user_id("test_user").await;
 
     // Add test activities to cache
-    let activity = pierre_mcp_server::models::Activity {
+    let activity = Activity {
         id: "act1".to_owned(),
         name: "Test Run".to_owned(),
         sport_type: SportType::Run,
@@ -308,7 +310,7 @@ async fn test_get_sleep_sessions() {
     provider.set_terra_user_id(user_id).await;
 
     // Create test sleep session
-    let sleep_session = pierre_mcp_server::models::SleepSession {
+    let sleep_session = SleepSession {
         id: "sleep_001".to_owned(),
         start_time: Utc::now() - Duration::hours(8),
         end_time: Utc::now(),
@@ -346,7 +348,7 @@ async fn test_get_recovery_metrics() {
     provider.set_terra_user_id(user_id).await;
 
     // Create test recovery metrics
-    let recovery = pierre_mcp_server::models::RecoveryMetrics {
+    let recovery = RecoveryMetrics {
         date: Utc::now(),
         recovery_score: Some(78.0),
         readiness_score: Some(82.0),
@@ -381,7 +383,7 @@ async fn test_get_health_metrics() {
     provider.set_terra_user_id(user_id).await;
 
     // Create test health metrics
-    let health = pierre_mcp_server::models::HealthMetrics {
+    let health = HealthMetrics {
         date: Utc::now(),
         weight: Some(75.5),
         body_fat_percentage: Some(15.2),
@@ -417,7 +419,7 @@ async fn test_get_activities_cursor_pagination() {
 
     // Add 10 activities with different timestamps
     for i in 0..10 {
-        let activity = pierre_mcp_server::models::Activity {
+        let activity = Activity {
             id: format!("act_{i:02}"),
             name: format!("Activity {i}"),
             sport_type: SportType::Run,
@@ -473,7 +475,7 @@ async fn test_get_latest_sleep_session() {
     provider.set_terra_user_id(user_id).await;
 
     // Create two sleep sessions at different times
-    let older_sleep = pierre_mcp_server::models::SleepSession {
+    let older_sleep = SleepSession {
         id: "sleep_old".to_owned(),
         start_time: Utc::now() - Duration::hours(32),
         end_time: Utc::now() - Duration::hours(24),
@@ -490,7 +492,7 @@ async fn test_get_latest_sleep_session() {
         provider: "terra:garmin".to_owned(),
     };
 
-    let newer_sleep = pierre_mcp_server::models::SleepSession {
+    let newer_sleep = SleepSession {
         id: "sleep_new".to_owned(),
         start_time: Utc::now() - Duration::hours(8),
         end_time: Utc::now(),

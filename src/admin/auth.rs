@@ -11,27 +11,33 @@
 //!
 //! This module provides authentication and authorization functionality for admin services.
 
-use crate::admin::{
-    jwt::AdminJwtManager,
-    models::{AdminPermission, AdminTokenUsage, ValidatedAdminToken},
-};
-use crate::database_plugins::{factory::Database, DatabaseProvider};
-use crate::errors::{AppError, AppResult};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+use serde_json::json;
+use tokio::sync::RwLock;
 use tracing::{debug, info};
+
+use crate::admin::{
+    jwks::JwksManager,
+    jwt::AdminJwtManager,
+    models::{AdminAction, AdminPermission, AdminTokenUsage, ValidatedAdminToken},
+};
+use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::errors::{AppError, AppResult, ErrorCode};
+use crate::utils::auth::extract_bearer_token_owned;
 
 /// Admin authentication service
 #[derive(Clone)]
 pub struct AdminAuthService {
     database: Database,
     jwt_manager: AdminJwtManager,
-    jwks_manager: Arc<crate::admin::jwks::JwksManager>,
+    jwks_manager: Arc<JwksManager>,
     // TTL cache for validated tokens with automatic expiration
-    token_cache:
-        Arc<tokio::sync::RwLock<HashMap<String, (ValidatedAdminToken, std::time::Instant)>>>,
+    token_cache: Arc<RwLock<HashMap<String, (ValidatedAdminToken, Instant)>>>,
     // Cache TTL in seconds (default: 300 seconds = 5 minutes)
-    cache_ttl: std::time::Duration,
+    cache_ttl: Duration,
 }
 
 impl AdminAuthService {
@@ -42,17 +48,13 @@ impl AdminAuthService {
     ///
     /// The `cache_ttl_secs` parameter should come from `ServerConfig.auth.admin_token_cache_ttl_secs`.
     #[must_use]
-    pub fn new(
-        database: Database,
-        jwks_manager: Arc<crate::admin::jwks::JwksManager>,
-        cache_ttl_secs: u64,
-    ) -> Self {
+    pub fn new(database: Database, jwks_manager: Arc<JwksManager>, cache_ttl_secs: u64) -> Self {
         Self {
             database,
             jwt_manager: AdminJwtManager::new(),
             jwks_manager,
-            token_cache: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
-            cache_ttl: std::time::Duration::from_secs(cache_ttl_secs),
+            token_cache: Arc::new(RwLock::new(HashMap::new())),
+            cache_ttl: Duration::from_secs(cache_ttl_secs),
         }
     }
 
@@ -84,7 +86,7 @@ impl AdminAuthService {
                     Ok(validated_token)
                 } else {
                     Err(AppError::new(
-                        crate::errors::ErrorCode::PermissionDenied,
+                        ErrorCode::PermissionDenied,
                         format!(
                             "Required permission: {:?}, token has: {:?}",
                             required_permission, stored_token.permissions
@@ -153,7 +155,7 @@ impl AdminAuthService {
             let mut cache = self.token_cache.write().await;
             cache.insert(
                 validated_token.token_id.clone(),
-                (validated_token.clone(), std::time::Instant::now()),
+                (validated_token.clone(), Instant::now()),
             );
         }
 
@@ -227,9 +229,7 @@ impl AdminAuthService {
             id: None,
             admin_token_id: admin_token_id.to_owned(),
             timestamp: chrono::Utc::now(),
-            action: action
-                .parse()
-                .unwrap_or(crate::admin::models::AdminAction::ProvisionKey),
+            action: action.parse().unwrap_or(AdminAction::ProvisionKey),
             target_resource: target_resource.map(str::to_owned),
             ip_address: ip_address.map(str::to_owned),
             user_agent: None, // Optional user agent information
@@ -270,8 +270,6 @@ impl AdminAuthService {
 
 /// Admin authentication middleware for Axum
 pub mod middleware {
-    use super::AdminAuthService;
-    use crate::utils::auth::extract_bearer_token_owned;
     use axum::{
         body::Body,
         extract::State,
@@ -280,8 +278,9 @@ pub mod middleware {
         response::{IntoResponse, Response},
         Json,
     };
-    use serde_json::json;
     use tracing::warn;
+
+    use super::{extract_bearer_token_owned, json, AdminAuthService};
 
     /// Axum middleware for admin authentication
     ///

@@ -7,6 +7,8 @@
 #![allow(clippy::cast_precision_loss)] // Safe: fitness data conversions
 #![allow(clippy::cast_possible_truncation)] // Safe: controlled ranges
 
+use std::cmp::min;
+
 use super::{
     AdvancedInsight, Confidence, Deserialize, InsightSeverity, Serialize, TimeFrame, TrendAnalysis,
     TrendDataPoint, TrendDirection, UserFitnessProfile, FITNESS_IMPROVING_THRESHOLD,
@@ -14,7 +16,7 @@ use super::{
     STATISTICAL_SIGNIFICANCE_THRESHOLD, STRENGTH_ENDURANCE_DIVISOR,
 };
 use crate::config::intelligence::{
-    IntelligenceConfig, IntelligenceStrategy, PerformanceAnalyzerConfig,
+    DefaultStrategy, IntelligenceConfig, IntelligenceStrategy, PerformanceAnalyzerConfig,
 };
 use crate::errors::{AppError, AppResult};
 use crate::intelligence::physiological_constants::{
@@ -31,6 +33,7 @@ use crate::intelligence::physiological_constants::{
 };
 use crate::models::Activity;
 use chrono::{DateTime, Utc};
+use std::cmp::Ordering;
 use std::collections::HashMap;
 
 /// Safe casting helper functions  
@@ -44,8 +47,6 @@ fn safe_u32_to_f32(value: u32) -> f32 {
 /// Safe cast from f64 to f32 using `total_cmp` for comparison
 #[inline]
 fn safe_f64_to_f32(value: f64) -> f32 {
-    use std::cmp::Ordering;
-
     // Handle special cases
     if value.is_nan() {
         return 0.0_f32;
@@ -111,9 +112,7 @@ pub trait PerformanceAnalyzerTrait {
 }
 
 /// Advanced performance analyzer implementation with configurable strategy
-pub struct AdvancedPerformanceAnalyzer<
-    S: IntelligenceStrategy = crate::config::intelligence::DefaultStrategy,
-> {
+pub struct AdvancedPerformanceAnalyzer<S: IntelligenceStrategy = DefaultStrategy> {
     strategy: S,
     config: PerformanceAnalyzerConfig,
     user_profile: Option<UserFitnessProfile>,
@@ -131,7 +130,7 @@ impl AdvancedPerformanceAnalyzer {
     pub fn new() -> Self {
         let global_config = IntelligenceConfig::global();
         Self {
-            strategy: crate::config::intelligence::DefaultStrategy,
+            strategy: DefaultStrategy,
             config: global_config.performance_analyzer.clone(),
             user_profile: None,
         }
@@ -165,7 +164,7 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
     pub fn with_profile(profile: UserFitnessProfile) -> AdvancedPerformanceAnalyzer {
         let global_config = IntelligenceConfig::global();
         AdvancedPerformanceAnalyzer {
-            strategy: crate::config::intelligence::DefaultStrategy,
+            strategy: DefaultStrategy,
             config: global_config.performance_analyzer.clone(),
             user_profile: Some(profile),
         }
@@ -225,7 +224,7 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
 
         for i in 0..data_points.len() {
             let start = i.saturating_sub(window_size / 2);
-            let end = std::cmp::min(start + window_size, data_points.len());
+            let end = min(start + window_size, data_points.len());
 
             let window_sum: f64 = data_points[start..end].iter().map(|p| p.value).sum();
             let window_avg = window_sum / f64::from(u32::try_from(end - start).unwrap_or(u32::MAX));

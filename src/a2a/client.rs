@@ -15,15 +15,22 @@
 
 use crate::a2a::auth::A2AClient;
 use crate::a2a::system_user::A2ASystemUserService;
+use crate::a2a::{map_db_error, A2AError};
+use crate::api_keys::{ApiKeyManager, ApiKeyTier, CreateApiKeyRequest};
+use crate::constants::rate_limits::DEFAULT_BURST_LIMIT;
 use crate::constants::tiers;
+use crate::constants::time::HOUR_SECONDS;
 use crate::crypto::A2AKeyManager;
+use crate::database::A2AUsage;
+use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use chrono::Timelike;
 use chrono::{DateTime, Datelike, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
@@ -184,22 +191,19 @@ pub struct A2AUsageParams {
 
 /// A2A Client Manager
 pub struct A2AClientManager {
-    database: Arc<crate::database_plugins::factory::Database>,
+    database: Arc<Database>,
     system_user_service: Arc<A2ASystemUserService>,
-    active_sessions: Arc<tokio::sync::RwLock<HashMap<String, A2ASession>>>,
+    active_sessions: Arc<RwLock<HashMap<String, A2ASession>>>,
 }
 
 impl A2AClientManager {
     /// Creates a new A2A client manager instance
     #[must_use]
-    pub fn new(
-        database: Arc<crate::database_plugins::factory::Database>,
-        system_user_service: Arc<A2ASystemUserService>,
-    ) -> Self {
+    pub fn new(database: Arc<Database>, system_user_service: Arc<A2ASystemUserService>) -> Self {
         Self {
             database,
             system_user_service,
-            active_sessions: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
+            active_sessions: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -222,7 +226,7 @@ impl A2AClientManager {
         &self,
         request: ClientRegistrationRequest,
         user_id: Uuid,
-    ) -> Result<ClientCredentials, crate::a2a::A2AError> {
+    ) -> Result<ClientCredentials, A2AError> {
         // Validate registration request
         Self::validate_registration_request(&request)?;
 
@@ -232,18 +236,15 @@ impl A2AClientManager {
         let api_key = format!("a2a_{}", uuid::Uuid::new_v4());
 
         // Generate Ed25519 keypair for the client
-        let keypair = A2AKeyManager::generate_keypair().map_err(|e| {
-            crate::a2a::A2AError::InternalError(format!("Failed to generate keypair: {e}"))
-        })?;
+        let keypair = A2AKeyManager::generate_keypair()
+            .map_err(|e| A2AError::InternalError(format!("Failed to generate keypair: {e}")))?;
 
         // Create proper system user (not dummy user)
         let system_user_id = self
             .system_user_service
             .create_or_get_system_user(&client_id, &request.contact_email)
             .await
-            .map_err(|e| {
-                crate::a2a::A2AError::InternalError(format!("Failed to create system user: {e}"))
-            })?;
+            .map_err(|e| A2AError::InternalError(format!("Failed to create system user: {e}")))?;
 
         // Create client record with real public key
         let client = A2AClient {
@@ -257,8 +258,8 @@ impl A2AClientManager {
             is_active: true,
             created_at: chrono::Utc::now(),
             permissions: vec!["read_activities".into()], // Default permissions
-            rate_limit_requests: crate::constants::rate_limits::DEFAULT_BURST_LIMIT * 10,
-            rate_limit_window_seconds: crate::constants::time::HOUR_SECONDS as u32,
+            rate_limit_requests: DEFAULT_BURST_LIMIT * 10,
+            rate_limit_window_seconds: HOUR_SECONDS as u32,
             updated_at: chrono::Utc::now(),
         };
 
@@ -284,17 +285,13 @@ impl A2AClientManager {
     }
 
     /// Validate client registration request
-    fn validate_registration_request(
-        request: &ClientRegistrationRequest,
-    ) -> Result<(), crate::a2a::A2AError> {
+    fn validate_registration_request(request: &ClientRegistrationRequest) -> Result<(), A2AError> {
         if request.name.is_empty() {
-            return Err(crate::a2a::A2AError::InvalidRequest(
-                "Client name is required".into(),
-            ));
+            return Err(A2AError::InvalidRequest("Client name is required".into()));
         }
 
         if request.capabilities.is_empty() {
-            return Err(crate::a2a::A2AError::InvalidRequest(
+            return Err(A2AError::InvalidRequest(
                 "At least one capability is required".into(),
             ));
         }
@@ -311,7 +308,7 @@ impl A2AClientManager {
 
         for capability in &request.capabilities {
             if !valid_capabilities.contains(&capability.as_str()) {
-                return Err(crate::a2a::A2AError::InvalidRequest(format!(
+                return Err(A2AError::InvalidRequest(format!(
                     "Unknown capability: {capability}"
                 )));
             }
@@ -327,31 +324,27 @@ impl A2AClientManager {
         client_secret: &str,
         api_key_for_link: &str,
         system_user_id: Uuid,
-    ) -> Result<(), crate::a2a::A2AError> {
+    ) -> Result<(), A2AError> {
         // Create API key using the proper system user
-        let api_key_manager = crate::api_keys::ApiKeyManager::new();
+        let api_key_manager = ApiKeyManager::new();
 
-        let request = crate::api_keys::CreateApiKeyRequest {
+        let request = CreateApiKeyRequest {
             name: format!("A2A Client: {}", client.name),
             description: Some(format!("API key for A2A client: {}", client.description)),
-            tier: crate::api_keys::ApiKeyTier::Professional, // Default tier for A2A clients
-            rate_limit_requests: None,                       // Use tier default
-            expires_in_days: None,                           // No expiration
+            tier: ApiKeyTier::Professional, // Default tier for A2A clients
+            rate_limit_requests: None,      // Use tier default
+            expires_in_days: None,          // No expiration
         };
 
         let (api_key_obj, generated_key) = api_key_manager
             .create_api_key(system_user_id, request)
-            .map_err(|e| {
-                crate::a2a::A2AError::InternalError(format!("Failed to create API key: {e}"))
-            })?;
+            .map_err(|e| A2AError::InternalError(format!("Failed to create API key: {e}")))?;
 
         // Store the API key in database
         self.database
             .create_api_key(&api_key_obj)
             .await
-            .map_err(|e| {
-                crate::a2a::A2AError::InternalError(format!("Failed to store API key: {e}"))
-            })?;
+            .map_err(|e| A2AError::InternalError(format!("Failed to store API key: {e}")))?;
 
         // Log the generated API key for audit purposes
         debug!(
@@ -367,9 +360,7 @@ impl A2AClientManager {
         self.database
             .create_a2a_client(client, client_secret, &api_key_obj.id)
             .await
-            .map_err(|e| {
-                crate::a2a::A2AError::InternalError(format!("Failed to create A2A client: {e}"))
-            })?;
+            .map_err(|e| A2AError::InternalError(format!("Failed to create A2A client: {e}")))?;
 
         info!(
             client_id = %client.id,
@@ -386,14 +377,11 @@ impl A2AClientManager {
     /// # Errors
     ///
     /// Returns an error if database query fails
-    pub async fn get_client(
-        &self,
-        client_id: &str,
-    ) -> Result<Option<A2AClient>, crate::a2a::A2AError> {
+    pub async fn get_client(&self, client_id: &str) -> Result<Option<A2AClient>, A2AError> {
         self.database
             .get_a2a_client(client_id)
             .await
-            .map_err(crate::a2a::map_db_error("Failed to get A2A client"))
+            .map_err(map_db_error("Failed to get A2A client"))
     }
 
     /// List all registered clients for a specific user
@@ -404,11 +392,11 @@ impl A2AClientManager {
     pub async fn list_clients_for_user(
         &self,
         user_id: &uuid::Uuid,
-    ) -> Result<Vec<A2AClient>, crate::a2a::A2AError> {
+    ) -> Result<Vec<A2AClient>, A2AError> {
         self.database
             .list_a2a_clients(user_id)
             .await
-            .map_err(crate::a2a::map_db_error("Failed to list A2A clients"))
+            .map_err(map_db_error("Failed to list A2A clients"))
     }
 
     /// List all registered clients (system-wide - admin only)
@@ -416,13 +404,13 @@ impl A2AClientManager {
     /// # Errors
     ///
     /// Returns an error if database query fails
-    pub async fn list_all_clients(&self) -> Result<Vec<A2AClient>, crate::a2a::A2AError> {
+    pub async fn list_all_clients(&self) -> Result<Vec<A2AClient>, A2AError> {
         // For system-wide listing, we use nil UUID to get all clients
         let system_user_id = uuid::Uuid::nil();
         self.database
             .list_a2a_clients(&system_user_id)
             .await
-            .map_err(crate::a2a::map_db_error("Failed to list all A2A clients"))
+            .map_err(map_db_error("Failed to list all A2A clients"))
     }
 
     /// Deactivate a client
@@ -432,17 +420,17 @@ impl A2AClientManager {
     /// Returns an error if:
     /// - Client does not exist
     /// - Database deactivation fails
-    pub async fn deactivate_client(&self, client_id: &str) -> Result<(), crate::a2a::A2AError> {
+    pub async fn deactivate_client(&self, client_id: &str) -> Result<(), A2AError> {
         // First verify the client exists
         self.get_client(client_id)
             .await?
-            .ok_or_else(|| crate::a2a::A2AError::ClientNotRegistered(client_id.to_owned()))?;
+            .ok_or_else(|| A2AError::ClientNotRegistered(client_id.to_owned()))?;
 
         // Deactivate the client in the database
         self.database
             .deactivate_a2a_client(client_id)
             .await
-            .map_err(crate::a2a::map_db_error("Failed to deactivate A2A client"))?;
+            .map_err(map_db_error("Failed to deactivate A2A client"))?;
 
         // Invalidate all active sessions for this client
         if let Err(e) = self
@@ -478,50 +466,37 @@ impl A2AClientManager {
     /// # Panics
     ///
     /// Panics if time manipulation operations fail (should not happen in practice)
-    pub async fn get_client_usage(
-        &self,
-        client_id: &str,
-    ) -> Result<ClientUsageStats, crate::a2a::A2AError> {
+    pub async fn get_client_usage(&self, client_id: &str) -> Result<ClientUsageStats, A2AError> {
         // Get current month usage
         let requests_this_month = u64::from(
             self.database
                 .get_a2a_client_current_usage(client_id)
                 .await
-                .map_err(crate::a2a::map_db_error("Failed to get current usage"))?,
+                .map_err(map_db_error("Failed to get current usage"))?,
         );
 
         // Get today's usage
         let start_of_day = chrono::Utc::now()
             .with_hour(0)
-            .ok_or_else(|| {
-                crate::a2a::A2AError::InternalError("Failed to set hour to 0".to_owned())
-            })?
+            .ok_or_else(|| A2AError::InternalError("Failed to set hour to 0".to_owned()))?
             .with_minute(0)
-            .ok_or_else(|| {
-                crate::a2a::A2AError::InternalError("Failed to set minute to 0".to_owned())
-            })?
+            .ok_or_else(|| A2AError::InternalError("Failed to set minute to 0".to_owned()))?
             .with_second(0)
-            .ok_or_else(|| {
-                crate::a2a::A2AError::InternalError("Failed to set second to 0".to_owned())
-            })?;
+            .ok_or_else(|| A2AError::InternalError("Failed to set second to 0".to_owned()))?;
         let end_of_day = chrono::Utc::now();
 
         let today_stats = self
             .database
             .get_a2a_usage_stats(client_id, start_of_day, end_of_day)
             .await
-            .map_err(|e| {
-                crate::a2a::A2AError::InternalError(format!("Failed to get today's stats: {e}"))
-            })?;
+            .map_err(|e| A2AError::InternalError(format!("Failed to get today's stats: {e}")))?;
 
         // Get last request from recent usage history
         let recent_usage = self
             .database
             .get_a2a_client_usage_history(client_id, 1)
             .await
-            .map_err(|e| {
-                crate::a2a::A2AError::InternalError(format!("Failed to get recent usage: {e}"))
-            })?;
+            .map_err(|e| A2AError::InternalError(format!("Failed to get recent usage: {e}")))?;
 
         let last_request_at = recent_usage.first().map(|usage| usage.0);
 
@@ -531,9 +506,7 @@ impl A2AClientManager {
             .database
             .get_a2a_usage_stats(client_id, total_start, chrono::Utc::now())
             .await
-            .map_err(|e| {
-                crate::a2a::A2AError::InternalError(format!("Failed to get total stats: {e}"))
-            })?;
+            .map_err(|e| A2AError::InternalError(format!("Failed to get total stats: {e}")))?;
 
         Ok(ClientUsageStats {
             client_id: client_id.to_owned(),
@@ -554,7 +527,7 @@ impl A2AClientManager {
         &self,
         client_id: &str,
         user_id: Option<&str>,
-    ) -> Result<String, crate::a2a::A2AError> {
+    ) -> Result<String, A2AError> {
         let user_uuid = user_id.and_then(|id| uuid::Uuid::parse_str(id).ok());
         let granted_scopes = vec!["fitness:read".into(), "analytics:read".into()];
 
@@ -562,9 +535,7 @@ impl A2AClientManager {
             .database
             .create_a2a_session(client_id, user_uuid.as_ref(), &granted_scopes, 24)
             .await
-            .map_err(|e| {
-                crate::a2a::A2AError::InternalError(format!("Failed to create A2A session: {e}"))
-            })?;
+            .map_err(|e| A2AError::InternalError(format!("Failed to create A2A session: {e}")))?;
 
         // Cache the session for quick access
         let session = A2ASession {
@@ -591,18 +562,11 @@ impl A2AClientManager {
     /// # Errors
     ///
     /// Returns an error if database update fails
-    pub async fn update_session_activity(
-        &self,
-        session_token: &str,
-    ) -> Result<(), crate::a2a::A2AError> {
+    pub async fn update_session_activity(&self, session_token: &str) -> Result<(), A2AError> {
         self.database
             .update_a2a_session_activity(session_token)
             .await
-            .map_err(|e| {
-                crate::a2a::A2AError::InternalError(format!(
-                    "Failed to update session activity: {e}"
-                ))
-            })
+            .map_err(|e| A2AError::InternalError(format!("Failed to update session activity: {e}")))
     }
 
     /// Get active sessions for a client
@@ -658,7 +622,7 @@ impl A2AClientManager {
         client_id: &str,
         method: &str,
         success: bool,
-    ) -> Result<(), crate::a2a::A2AError> {
+    ) -> Result<(), A2AError> {
         let params = A2AUsageParams {
             client_id: client_id.to_owned(),
             session_token: None,
@@ -681,11 +645,8 @@ impl A2AClientManager {
     /// # Errors
     ///
     /// Returns an error if database storage fails
-    pub async fn record_detailed_usage(
-        &self,
-        params: A2AUsageParams,
-    ) -> Result<(), crate::a2a::A2AError> {
-        let usage = crate::database::A2AUsage {
+    pub async fn record_detailed_usage(&self, params: A2AUsageParams) -> Result<(), A2AError> {
+        let usage = A2AUsage {
             id: None,
             client_id: params.client_id.clone(),
             session_token: params.session_token,
@@ -703,9 +664,10 @@ impl A2AClientManager {
             granted_scopes: params.granted_scopes,
         };
 
-        self.database.record_a2a_usage(&usage).await.map_err(|e| {
-            crate::a2a::A2AError::InternalError(format!("Failed to record A2A usage: {e}"))
-        })?;
+        self.database
+            .record_a2a_usage(&usage)
+            .await
+            .map_err(|e| A2AError::InternalError(format!("Failed to record A2A usage: {e}")))?;
 
         debug!(
             "A2A usage recorded - Client: {}, Tool: {}, Status: {}",
@@ -723,7 +685,7 @@ impl A2AClientManager {
         &self,
         client_id: &str,
         tier: A2AClientTier,
-    ) -> Result<A2ARateLimitStatus, crate::a2a::A2AError> {
+    ) -> Result<A2ARateLimitStatus, A2AError> {
         if tier == A2AClientTier::Enterprise {
             Ok(A2ARateLimitStatus {
                 is_rate_limited: false,
@@ -738,7 +700,7 @@ impl A2AClientManager {
                 .get_a2a_client_current_usage(client_id)
                 .await
                 .map_err(|e| {
-                    crate::a2a::A2AError::InternalError(format!("Failed to get current usage: {e}"))
+                    A2AError::InternalError(format!("Failed to get current usage: {e}"))
                 })?;
 
             let limit = tier.monthly_limit().unwrap_or(0);
@@ -747,7 +709,7 @@ impl A2AClientManager {
 
             // Calculate reset time (beginning of next month)
             let reset_at = Self::calculate_next_month_start().map_err(|e| {
-                crate::a2a::A2AError::InternalError(format!("Failed to calculate reset time: {e}"))
+                A2AError::InternalError(format!("Failed to calculate reset time: {e}"))
             })?;
 
             Ok(A2ARateLimitStatus {
@@ -769,7 +731,7 @@ impl A2AClientManager {
         &self,
         client_id: &str,
         tier: A2AClientTier,
-    ) -> Result<bool, crate::a2a::A2AError> {
+    ) -> Result<bool, A2AError> {
         let status = self.calculate_rate_limit_status(client_id, tier).await?;
         Ok(status.is_rate_limited)
     }
@@ -782,14 +744,14 @@ impl A2AClientManager {
     pub async fn get_client_rate_limit_status(
         &self,
         client_id: &str,
-    ) -> Result<A2ARateLimitStatus, crate::a2a::A2AError> {
+    ) -> Result<A2ARateLimitStatus, A2AError> {
         // Default to trial tier - tier information stored in database
         let tier = A2AClientTier::Trial;
         self.calculate_rate_limit_status(client_id, tier).await
     }
 
     /// Calculate the start of next month for rate limit reset
-    fn calculate_next_month_start() -> crate::errors::AppResult<DateTime<Utc>> {
+    fn calculate_next_month_start() -> AppResult<DateTime<Utc>> {
         let now = Utc::now();
 
         // Use chrono's built-in date construction to avoid edge cases
@@ -812,13 +774,13 @@ impl A2AClientManager {
     pub async fn get_client_credentials(
         &self,
         client_id: &str,
-    ) -> Result<Option<ClientCredentials>, crate::a2a::A2AError> {
+    ) -> Result<Option<ClientCredentials>, A2AError> {
         // Fetch credentials from database
         let creds = self
             .database
             .get_a2a_client_credentials(client_id)
             .await
-            .map_err(|e| crate::a2a::A2AError::InternalError(format!("Database error: {e}")))?;
+            .map_err(|e| A2AError::InternalError(format!("Database error: {e}")))?;
 
         if let Some((id, secret)) = creds {
             // Get the actual public key from the client record

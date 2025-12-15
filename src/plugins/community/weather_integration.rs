@@ -11,6 +11,7 @@ use crate::protocols::ProtocolError;
 use crate::{impl_static_plugin, plugin_info};
 use async_trait::async_trait;
 use serde_json::Value;
+use std::collections::HashMap;
 use tracing::info;
 
 /// Weather integration plugin for environmental analysis
@@ -100,7 +101,7 @@ impl PluginImplementation for WeatherIntegrationPlugin {
                 }
             })),
             error: None,
-            metadata: Some(std::collections::HashMap::from([
+            metadata: Some(HashMap::from([
                 ("analysis_type".into(), Value::String("weather".into())),
                 ("external_api_used".into(), Value::Bool(true)),
                 ("forecast_included".into(), Value::Bool(include_forecast)),

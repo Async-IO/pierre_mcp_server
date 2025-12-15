@@ -6,14 +6,14 @@
 
 //! VO2 max-based physiological calculations for personalized thresholds
 
+use super::catalog::CatalogBuilder;
+use super::runtime::ConfigValue;
 use crate::intelligence::algorithms::{FtpAlgorithm, TrimpAlgorithm};
+use crate::models::SportType;
 use serde::{Deserialize, Serialize};
 
 /// Helper function to get configuration values with fallback
 fn get_config_value(key: &str, fallback: f64) -> f64 {
-    use super::catalog::CatalogBuilder;
-    use super::runtime::ConfigValue;
-
     CatalogBuilder::get_parameter(key)
         .and_then(|param| match param.default_value {
             ConfigValue::Float(v) => Some(v),
@@ -339,7 +339,7 @@ pub trait SportEfficiency {
     fn sport_efficiency_factor(&self) -> f64;
 }
 
-impl SportEfficiency for crate::models::SportType {
+impl SportEfficiency for SportType {
     fn sport_efficiency_factor(&self) -> f64 {
         match self {
             Self::Run => 1.0,

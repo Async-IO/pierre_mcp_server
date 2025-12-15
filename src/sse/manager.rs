@@ -7,11 +7,13 @@
 use super::{
     a2a_task_stream::A2ATaskStream, notifications::NotificationStream, protocol::McpProtocolStream,
 };
-use crate::{
-    database::oauth_notifications::OAuthNotification,
-    errors::AppError,
-    mcp::{protocol::McpRequest, resources::ServerResources},
-};
+use crate::constants::network_config::SSE_BROADCAST_CHANNEL_SIZE;
+use crate::database::oauth_notifications::OAuthNotification;
+use crate::errors::AppError;
+use crate::mcp::protocol::McpRequest;
+use crate::mcp::resources::ServerResources;
+use crate::mcp::tenant_isolation::validate_jwt_token_for_mcp;
+use chrono::{Duration, Utc};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{broadcast, RwLock};
 use tracing::{info, warn};
@@ -81,7 +83,7 @@ impl SseManager {
 impl Default for SseManager {
     fn default() -> Self {
         // Use default buffer size from constants
-        Self::new(crate::constants::network_config::SSE_BROADCAST_CHANNEL_SIZE)
+        Self::new(SSE_BROADCAST_CHANNEL_SIZE)
     }
 }
 
@@ -99,8 +101,8 @@ impl SseManager {
         let connection_id = format!("notification_{user_id}");
         let metadata = ConnectionMetadata {
             connection_type: ConnectionType::Notification { user_id },
-            created_at: chrono::Utc::now(),
-            last_activity: chrono::Utc::now(),
+            created_at: Utc::now(),
+            last_activity: Utc::now(),
         };
 
         {
@@ -130,7 +132,7 @@ impl SseManager {
         // Extract user_id from JWT token if provided
         let user_id = if let Some(auth) = authorization {
             if let Some(token) = auth.strip_prefix("Bearer ") {
-                if let Ok(jwt_result) = crate::mcp::tenant_isolation::validate_jwt_token_for_mcp(
+                if let Ok(jwt_result) = validate_jwt_token_for_mcp(
                     token,
                     &resources.auth_manager,
                     &resources.jwks_manager,
@@ -170,8 +172,8 @@ impl SseManager {
             connection_type: ConnectionType::Protocol {
                 session_id: session_id.clone(),
             },
-            created_at: chrono::Utc::now(),
-            last_activity: chrono::Utc::now(),
+            created_at: Utc::now(),
+            last_activity: Utc::now(),
         };
 
         {
@@ -204,7 +206,7 @@ impl SseManager {
             {
                 let mut metadata_map = self.connection_metadata.write().await;
                 if let Some(metadata) = metadata_map.get_mut(&connection_id) {
-                    metadata.last_activity = chrono::Utc::now();
+                    metadata.last_activity = Utc::now();
                 }
             }
 
@@ -287,7 +289,7 @@ impl SseManager {
             {
                 let mut metadata_map = self.connection_metadata.write().await;
                 if let Some(metadata) = metadata_map.get_mut(&connection_id) {
-                    metadata.last_activity = chrono::Utc::now();
+                    metadata.last_activity = Utc::now();
                 }
             }
 
@@ -362,7 +364,7 @@ impl SseManager {
     /// Clean up inactive connections based on timeout
     pub async fn cleanup_inactive_connections(&self, timeout_seconds: u64) {
         let timeout_seconds = i64::try_from(timeout_seconds).unwrap_or(i64::MAX);
-        let cutoff = chrono::Utc::now() - chrono::Duration::seconds(timeout_seconds);
+        let cutoff = Utc::now() - Duration::seconds(timeout_seconds);
         let mut to_remove = Vec::new();
 
         {
@@ -410,8 +412,8 @@ impl SseManager {
                 task_id: task_id.clone(),
                 client_id,
             },
-            created_at: chrono::Utc::now(),
-            last_activity: chrono::Utc::now(),
+            created_at: Utc::now(),
+            last_activity: Utc::now(),
         };
 
         {
@@ -447,7 +449,7 @@ impl SseManager {
             {
                 let mut metadata_map = self.connection_metadata.write().await;
                 if let Some(metadata) = metadata_map.get_mut(&connection_id) {
-                    metadata.last_activity = chrono::Utc::now();
+                    metadata.last_activity = Utc::now();
                 }
             }
 

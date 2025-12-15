@@ -13,17 +13,21 @@
 
 use anyhow::Result;
 use pierre_mcp_server::{
-    config::environment::*,
+    auth::AuthManager,
+    cache::{factory::Cache, CacheConfig},
+    config::environment::{self, *},
     database_plugins::DatabaseProvider,
     intelligence::insights::{Insight, InsightType},
     intelligence::{
         ActivityIntelligence, ContextualFactors, ContextualWeeklyLoad, PerformanceMetrics,
         TimeOfDay, TrendDirection, TrendIndicators,
     },
+    mcp::resources::ServerResources,
+    models::{Tenant, User},
     protocols::universal::{UniversalRequest, UniversalToolExecutor},
 };
 use serde_json::json;
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 use uuid::Uuid;
 
 mod common;
@@ -84,12 +88,12 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
                 retention_count: 7,
                 directory: PathBuf::from("test_backups"),
             },
-            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            postgres_pool: PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
-            ..pierre_mcp_server::config::environment::AuthConfig::default()
+            ..AuthConfig::default()
         },
         oauth: OAuthConfig {
             strava: OAuthProviderConfig {
@@ -179,50 +183,50 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
                 server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
-        sse: pierre_mcp_server::config::environment::SseConfig::default(),
-        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
-        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        sse: SseConfig::default(),
+        oauth2_server: OAuth2ServerConfig::default(),
+        route_timeouts: RouteTimeoutConfig::default(),
         host: "localhost".to_owned(),
         base_url: "http://localhost:8081".to_owned(),
-        mcp: pierre_mcp_server::config::environment::McpConfig {
+        mcp: McpConfig {
             protocol_version: "2025-06-18".to_owned(),
             server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
         },
-        cors: pierre_mcp_server::config::environment::CorsConfig {
+        cors: CorsConfig {
             allowed_origins: "*".to_owned(),
             allow_localhost_dev: true,
         },
-        cache: pierre_mcp_server::config::environment::CacheConfig {
+        cache: environment::CacheConfig {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
             ..Default::default()
         },
         usda_api_key: None,
-        rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
-        sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
-        goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
-        training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
-        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
+        rate_limiting: RateLimitConfig::default(),
+        sleep_recovery: SleepRecoveryConfig::default(),
+        goal_management: GoalManagementConfig::default(),
+        training_zones: TrainingZonesConfig::default(),
+        firebase: FirebaseConfig::default(),
     });
 
     // Create ServerResources for the test
-    let auth_manager = pierre_mcp_server::auth::AuthManager::new(24);
+    let auth_manager = AuthManager::new(24);
 
     // Create test cache with background cleanup disabled
-    let cache_config = pierre_mcp_server::cache::CacheConfig {
+    let cache_config = CacheConfig {
         max_entries: 1000,
         redis_url: None,
-        cleanup_interval: std::time::Duration::from_secs(60),
+        cleanup_interval: Duration::from_secs(60),
         enable_background_cleanup: false,
         ..Default::default()
     };
-    let cache = pierre_mcp_server::cache::factory::Cache::new(cache_config)
+    let cache = Cache::new(cache_config)
         .await
         .expect("Failed to create test cache");
 
-    let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let server_resources = Arc::new(ServerResources::new(
         (*database).clone(),
         auth_manager,
         "test_secret",
@@ -350,7 +354,7 @@ async fn test_connect_strava_tool() -> Result<()> {
 
     // Create tenant and user for testing (user first, then tenant)
     let user_id = Uuid::new_v4();
-    let mut user = pierre_mcp_server::models::User::new(
+    let mut user = User::new(
         "test@example.com".to_owned(),
         "password_hash".to_owned(),
         Some("Test User".to_owned()),
@@ -360,7 +364,7 @@ async fn test_connect_strava_tool() -> Result<()> {
     executor.resources.database.create_user(&user).await?;
 
     // Create tenant with user as owner
-    let tenant = pierre_mcp_server::models::Tenant::new(
+    let tenant = Tenant::new(
         "Test Tenant".to_owned(),
         "test-tenant".to_owned(),
         Some("test.example.com".to_owned()),
@@ -482,12 +486,12 @@ async fn test_set_goal_tool() -> Result<()> {
                 retention_count: 7,
                 directory: PathBuf::from("test_backups"),
             },
-            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            postgres_pool: PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
-            ..pierre_mcp_server::config::environment::AuthConfig::default()
+            ..AuthConfig::default()
         },
         oauth: OAuthConfig {
             strava: OAuthProviderConfig {
@@ -577,50 +581,50 @@ async fn test_set_goal_tool() -> Result<()> {
                 server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
-        sse: pierre_mcp_server::config::environment::SseConfig::default(),
-        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
-        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        sse: SseConfig::default(),
+        oauth2_server: OAuth2ServerConfig::default(),
+        route_timeouts: RouteTimeoutConfig::default(),
         host: "localhost".to_owned(),
         base_url: "http://localhost:8081".to_owned(),
-        mcp: pierre_mcp_server::config::environment::McpConfig {
+        mcp: McpConfig {
             protocol_version: "2025-06-18".to_owned(),
             server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
         },
-        cors: pierre_mcp_server::config::environment::CorsConfig {
+        cors: CorsConfig {
             allowed_origins: "*".to_owned(),
             allow_localhost_dev: true,
         },
-        cache: pierre_mcp_server::config::environment::CacheConfig {
+        cache: environment::CacheConfig {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
             ..Default::default()
         },
         usda_api_key: None,
-        rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
-        sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
-        goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
-        training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
-        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
+        rate_limiting: RateLimitConfig::default(),
+        sleep_recovery: SleepRecoveryConfig::default(),
+        goal_management: GoalManagementConfig::default(),
+        training_zones: TrainingZonesConfig::default(),
+        firebase: FirebaseConfig::default(),
     });
 
     // Create ServerResources for the test
-    let auth_manager = pierre_mcp_server::auth::AuthManager::new(24);
+    let auth_manager = AuthManager::new(24);
 
     // Create test cache with background cleanup disabled
-    let cache_config = pierre_mcp_server::cache::CacheConfig {
+    let cache_config = CacheConfig {
         max_entries: 1000,
         redis_url: None,
-        cleanup_interval: std::time::Duration::from_secs(60),
+        cleanup_interval: Duration::from_secs(60),
         enable_background_cleanup: false,
         ..Default::default()
     };
-    let cache = pierre_mcp_server::cache::factory::Cache::new(cache_config)
+    let cache = Cache::new(cache_config)
         .await
         .expect("Failed to create test cache");
 
-    let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let server_resources = Arc::new(ServerResources::new(
         (*database).clone(),
         auth_manager,
         "test_secret",
@@ -749,7 +753,7 @@ async fn test_compare_activities_tool() -> Result<()> {
 
     // Create tenant and user for testing (user first, then tenant)
     let user_id = Uuid::new_v4();
-    let mut user = pierre_mcp_server::models::User::new(
+    let mut user = User::new(
         "test@example.com".to_owned(),
         "password_hash".to_owned(),
         Some("Test User".to_owned()),
@@ -759,7 +763,7 @@ async fn test_compare_activities_tool() -> Result<()> {
     executor.resources.database.create_user(&user).await?;
 
     // Create tenant with user as owner
-    let tenant = pierre_mcp_server::models::Tenant::new(
+    let tenant = Tenant::new(
         "Test Tenant".to_owned(),
         "test-tenant".to_owned(),
         Some("test.example.com".to_owned()),
@@ -1185,12 +1189,12 @@ async fn test_disconnect_provider_tool() -> Result<()> {
                 retention_count: 7,
                 directory: PathBuf::from("test_backups"),
             },
-            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            postgres_pool: PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
-            ..pierre_mcp_server::config::environment::AuthConfig::default()
+            ..AuthConfig::default()
         },
         oauth: OAuthConfig {
             strava: OAuthProviderConfig {
@@ -1280,50 +1284,50 @@ async fn test_disconnect_provider_tool() -> Result<()> {
                 server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
-        sse: pierre_mcp_server::config::environment::SseConfig::default(),
-        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
-        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        sse: SseConfig::default(),
+        oauth2_server: OAuth2ServerConfig::default(),
+        route_timeouts: RouteTimeoutConfig::default(),
         host: "localhost".to_owned(),
         base_url: "http://localhost:8081".to_owned(),
-        mcp: pierre_mcp_server::config::environment::McpConfig {
+        mcp: McpConfig {
             protocol_version: "2025-06-18".to_owned(),
             server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
         },
-        cors: pierre_mcp_server::config::environment::CorsConfig {
+        cors: CorsConfig {
             allowed_origins: "*".to_owned(),
             allow_localhost_dev: true,
         },
-        cache: pierre_mcp_server::config::environment::CacheConfig {
+        cache: environment::CacheConfig {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
             ..Default::default()
         },
         usda_api_key: None,
-        rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
-        sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
-        goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
-        training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
-        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
+        rate_limiting: RateLimitConfig::default(),
+        sleep_recovery: SleepRecoveryConfig::default(),
+        goal_management: GoalManagementConfig::default(),
+        training_zones: TrainingZonesConfig::default(),
+        firebase: FirebaseConfig::default(),
     });
 
     // Create ServerResources for the test
-    let auth_manager = pierre_mcp_server::auth::AuthManager::new(24);
+    let auth_manager = AuthManager::new(24);
 
     // Create test cache with background cleanup disabled
-    let cache_config = pierre_mcp_server::cache::CacheConfig {
+    let cache_config = CacheConfig {
         max_entries: 1000,
         redis_url: None,
-        cleanup_interval: std::time::Duration::from_secs(60),
+        cleanup_interval: Duration::from_secs(60),
         enable_background_cleanup: false,
         ..Default::default()
     };
-    let cache = pierre_mcp_server::cache::factory::Cache::new(cache_config)
+    let cache = Cache::new(cache_config)
         .await
         .expect("Failed to create test cache");
 
-    let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let server_resources = Arc::new(ServerResources::new(
         (*database).clone(),
         auth_manager,
         "test_secret",
@@ -1365,7 +1369,7 @@ async fn test_get_activities_async_no_token() -> Result<()> {
 
     // Create tenant and user for testing (user first, then tenant)
     let user_id = Uuid::new_v4();
-    let mut user = pierre_mcp_server::models::User::new(
+    let mut user = User::new(
         "test@example.com".to_owned(),
         "password_hash".to_owned(),
         Some("Test User".to_owned()),
@@ -1375,7 +1379,7 @@ async fn test_get_activities_async_no_token() -> Result<()> {
     executor.resources.database.create_user(&user).await?;
 
     // Create tenant with user as owner
-    let tenant = pierre_mcp_server::models::Tenant::new(
+    let tenant = Tenant::new(
         "Test Tenant".to_owned(),
         "test-tenant".to_owned(),
         Some("test.example.com".to_owned()),
@@ -1417,7 +1421,7 @@ async fn test_get_athlete_async_no_token() -> Result<()> {
 
     // Create tenant and user for testing (user first, then tenant)
     let user_id = Uuid::new_v4();
-    let mut user = pierre_mcp_server::models::User::new(
+    let mut user = User::new(
         "test@example.com".to_owned(),
         "password_hash".to_owned(),
         Some("Test User".to_owned()),
@@ -1427,7 +1431,7 @@ async fn test_get_athlete_async_no_token() -> Result<()> {
     executor.resources.database.create_user(&user).await?;
 
     // Create tenant with user as owner
-    let tenant = pierre_mcp_server::models::Tenant::new(
+    let tenant = Tenant::new(
         "Test Tenant".to_owned(),
         "test-tenant".to_owned(),
         Some("test.example.com".to_owned()),
@@ -1470,7 +1474,7 @@ async fn test_get_stats_async_no_token() -> Result<()> {
 
     // Create tenant and user for testing (user first, then tenant)
     let user_id = Uuid::new_v4();
-    let mut user = pierre_mcp_server::models::User::new(
+    let mut user = User::new(
         "test@example.com".to_owned(),
         "password_hash".to_owned(),
         Some("Test User".to_owned()),
@@ -1480,7 +1484,7 @@ async fn test_get_stats_async_no_token() -> Result<()> {
     executor.resources.database.create_user(&user).await?;
 
     // Create tenant with user as owner
-    let tenant = pierre_mcp_server::models::Tenant::new(
+    let tenant = Tenant::new(
         "Test Tenant".to_owned(),
         "test-tenant".to_owned(),
         Some("test.example.com".to_owned()),

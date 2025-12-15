@@ -5,6 +5,8 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 #![allow(clippy::cast_precision_loss)] // Safe: fitness data conversions
 
+use std::cmp::Ordering;
+
 use crate::errors::{AppError, AppResult};
 use crate::models::Activity;
 use chrono::{DateTime, Utc};
@@ -152,13 +154,13 @@ impl SafeMetricExtractor {
 
         let min = metric_values
             .iter()
-            .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
             .copied()
             .unwrap_or(0.0);
 
         let max = metric_values
             .iter()
-            .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
             .copied()
             .unwrap_or(0.0);
 
@@ -172,7 +174,7 @@ impl SafeMetricExtractor {
 
         // Calculate median
         let mut sorted_values = metric_values;
-        sorted_values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        sorted_values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
         let median = if count.is_multiple_of(2) {
             let left = sorted_values[count / 2 - 1];
             let right = sorted_values[count / 2];

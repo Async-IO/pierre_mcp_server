@@ -10,17 +10,25 @@
 
 use crate::a2a::{
     agent_card::AgentCard,
-    auth::A2AAuthenticator,
-    client::{A2AClientManager, ClientRegistrationRequest},
+    auth::{A2AAuthenticator, A2AClient},
+    client::{
+        A2AClientManager, A2ARateLimitStatus, ClientCredentials, ClientRegistrationRequest,
+        ClientUsageStats,
+    },
     protocol::A2AError,
 };
+use crate::constants::time::DAY_SECONDS;
 use crate::database_plugins::DatabaseProvider;
+use crate::mcp::resources::ServerResources;
 use crate::protocols::universal::{UniversalRequest, UniversalToolExecutor};
 use crate::utils::auth::extract_bearer_token;
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use std::sync::Arc;
 use subtle::ConstantTimeEq;
 use tracing::warn;
+use uuid::Uuid;
 
 /// A2A dashboard overview statistics
 #[derive(Debug, Serialize)]
@@ -79,7 +87,7 @@ pub struct A2AClientRequest {
 
 /// A2A Routes handler
 pub struct A2ARoutes {
-    resources: Arc<crate::mcp::resources::ServerResources>,
+    resources: Arc<ServerResources>,
     client_manager: Arc<A2AClientManager>,
     authenticator: Arc<A2AAuthenticator>,
     tool_executor: UniversalToolExecutor,
@@ -87,9 +95,9 @@ pub struct A2ARoutes {
 
 impl A2ARoutes {
     /// Extract and validate JWT token from Authorization header
-    fn extract_jwt_token(auth_header: Option<&str>) -> Result<String, serde_json::Value> {
+    fn extract_jwt_token(auth_header: Option<&str>) -> Result<String, Value> {
         let auth = auth_header.ok_or_else(|| {
-            serde_json::json!({
+            json!({
                 "code": -32001,
                 "message": "Missing Authorization header"
             })
@@ -100,7 +108,7 @@ impl A2ARoutes {
                 error = %e,
                 "Failed to extract bearer token from A2A authorization header"
             );
-            serde_json::json!({
+            json!({
                 "code": -32001,
                 "message": "Invalid authorization header format"
             })
@@ -110,7 +118,7 @@ impl A2ARoutes {
     }
 
     /// Validate JWT token and return user ID
-    fn validate_jwt_and_get_user_id(&self, token: &str) -> Result<String, serde_json::Value> {
+    fn validate_jwt_and_get_user_id(&self, token: &str) -> Result<String, Value> {
         self.resources
             .auth_manager
             .validate_token(token, &self.resources.jwks_manager)
@@ -120,7 +128,7 @@ impl A2ARoutes {
                     error = %e,
                     "A2A authentication token validation failed"
                 );
-                serde_json::json!({
+                json!({
                     "code": -32001,
                     "message": "Invalid or expired authentication token"
                 })
@@ -129,7 +137,7 @@ impl A2ARoutes {
 
     /// Creates a new A2A routes instance
     #[must_use]
-    pub fn new(resources: Arc<crate::mcp::resources::ServerResources>) -> Self {
+    pub fn new(resources: Arc<ServerResources>) -> Self {
         let client_manager = resources.a2a_client_manager.clone(); // Safe: Arc clone for shared client manager
         let authenticator = Arc::new(A2AAuthenticator::new(resources.clone())); // Safe: Arc clone for authenticator creation
 
@@ -222,14 +230,14 @@ impl A2ARoutes {
         &self,
         auth_header: Option<&str>,
         request: A2AClientRequest,
-    ) -> Result<crate::a2a::client::ClientCredentials, A2AError> {
+    ) -> Result<ClientCredentials, A2AError> {
         // Extract and validate JWT to get the authenticated user's ID
         let token = Self::extract_jwt_token(auth_header)
             .map_err(|e| A2AError::AuthenticationFailed(format!("JWT extraction failed: {e}")))?;
         let user_id_str = self
             .validate_jwt_and_get_user_id(&token)
             .map_err(|e| A2AError::AuthenticationFailed(format!("JWT validation failed: {e}")))?;
-        let user_id = uuid::Uuid::parse_str(&user_id_str)
+        let user_id = Uuid::parse_str(&user_id_str)
             .map_err(|e| A2AError::InternalError(format!("Invalid user ID format: {e}")))?;
 
         let registration = ClientRegistrationRequest {
@@ -255,7 +263,7 @@ impl A2ARoutes {
     pub async fn list_clients(
         &self,
         _auth_header: Option<&str>,
-    ) -> Result<Vec<crate::a2a::auth::A2AClient>, A2AError> {
+    ) -> Result<Vec<A2AClient>, A2AError> {
         self.client_manager.list_all_clients().await
     }
 
@@ -270,7 +278,7 @@ impl A2ARoutes {
         &self,
         _auth_header: Option<&str>,
         client_id: &str,
-    ) -> Result<crate::a2a::client::ClientUsageStats, A2AError> {
+    ) -> Result<ClientUsageStats, A2AError> {
         self.client_manager.get_client_usage(client_id).await
     }
 
@@ -285,7 +293,7 @@ impl A2ARoutes {
         &self,
         _auth_header: Option<&str>,
         client_id: &str,
-    ) -> Result<crate::a2a::client::A2ARateLimitStatus, A2AError> {
+    ) -> Result<A2ARateLimitStatus, A2AError> {
         self.client_manager
             .get_client_rate_limit_status(client_id)
             .await
@@ -314,10 +322,7 @@ impl A2ARoutes {
     /// - Required fields are missing from the request
     /// - Client authentication fails
     /// - Session creation fails
-    pub async fn authenticate(
-        &self,
-        request: serde_json::Value,
-    ) -> Result<serde_json::Value, A2AError> {
+    pub async fn authenticate(&self, request: Value) -> Result<Value, A2AError> {
         // Parse authentication request
         let client_id = request
             .get("client_id")
@@ -384,10 +389,10 @@ impl A2ARoutes {
             .await
             .map_err(|e| A2AError::InternalError(format!("Failed to create session: {e}")))?;
 
-        Ok(serde_json::json!({
+        Ok(json!({
             "status": "authenticated",
             "session_token": session_token,
-            "expires_in": crate::constants::time::DAY_SECONDS,
+            "expires_in": DAY_SECONDS,
             "token_type": "Bearer",
             "scope": scopes.join(" ")
         }))
@@ -397,9 +402,9 @@ impl A2ARoutes {
     async fn handle_tools_execute(
         &self,
         auth_header: Option<&str>,
-        params: &serde_json::Value,
-        id: &serde_json::Value,
-    ) -> Result<serde_json::Value, A2AError> {
+        params: &Value,
+        id: &Value,
+    ) -> Result<Value, A2AError> {
         let tool_name = params
             .get("tool_name")
             .and_then(|t| t.as_str())
@@ -408,13 +413,13 @@ impl A2ARoutes {
         let parameters = params
             .get("parameters")
             .cloned()
-            .unwrap_or_else(|| serde_json::json!({}));
+            .unwrap_or_else(|| json!({}));
 
         // Extract and validate JWT token
         let token = match Self::extract_jwt_token(auth_header) {
             Ok(token) => token,
             Err(error) => {
-                return Ok(serde_json::json!({
+                return Ok(json!({
                     "jsonrpc": "2.0",
                     "id": id,
                     "error": error
@@ -425,7 +430,7 @@ impl A2ARoutes {
         let user_id = match self.validate_jwt_and_get_user_id(&token) {
             Ok(user_id) => user_id,
             Err(error) => {
-                return Ok(serde_json::json!({
+                return Ok(json!({
                     "jsonrpc": "2.0",
                     "id": id,
                     "error": error
@@ -448,15 +453,15 @@ impl A2ARoutes {
         // Execute the tool
         match self.tool_executor.execute_tool(universal_request).await {
             Ok(universal_response) => {
-                let response = serde_json::json!({
+                let response = json!({
                     "jsonrpc": "2.0",
                     "id": id,
-                    "result": universal_response.result.unwrap_or_else(|| serde_json::json!({}))
+                    "result": universal_response.result.unwrap_or_else(|| json!({}))
                 });
                 Ok(response)
             }
             Err(e) => {
-                let error_response = serde_json::json!({
+                let error_response = json!({
                     "jsonrpc": "2.0",
                     "id": id,
                     "error": {
@@ -471,8 +476,8 @@ impl A2ARoutes {
     }
 
     /// Handle client info method
-    fn handle_client_info(id: &serde_json::Value) -> serde_json::Value {
-        serde_json::json!({
+    fn handle_client_info(id: &Value) -> Value {
+        json!({
             "jsonrpc": "2.0",
             "id": id,
             "result": {
@@ -494,12 +499,12 @@ impl A2ARoutes {
     async fn handle_session_heartbeat(
         &self,
         auth_header: Option<&str>,
-        id: &serde_json::Value,
-    ) -> Result<serde_json::Value, A2AError> {
+        id: &Value,
+    ) -> Result<Value, A2AError> {
         let token = match Self::extract_jwt_token(auth_header) {
             Ok(token) => token,
             Err(error) => {
-                return Ok(serde_json::json!({
+                return Ok(json!({
                     "jsonrpc": "2.0",
                     "id": id,
                     "error": error
@@ -513,15 +518,15 @@ impl A2ARoutes {
             .update_a2a_session_activity(&token)
             .await
         {
-            Ok(()) => Ok(serde_json::json!({
+            Ok(()) => Ok(json!({
                 "jsonrpc": "2.0",
                 "id": id,
                 "result": {
                     "status": "alive",
-                    "timestamp": chrono::Utc::now().to_rfc3339()
+                    "timestamp": Utc::now().to_rfc3339()
                 }
             })),
-            Err(e) => Ok(serde_json::json!({
+            Err(e) => Ok(json!({
                 "jsonrpc": "2.0",
                 "id": id,
                 "error": {
@@ -533,8 +538,8 @@ impl A2ARoutes {
     }
 
     /// Handle capabilities list method
-    fn handle_capabilities_list(id: &serde_json::Value) -> serde_json::Value {
-        serde_json::json!({
+    fn handle_capabilities_list(id: &Value) -> Value {
+        json!({
             "jsonrpc": "2.0",
             "id": id,
             "result": {
@@ -575,8 +580,8 @@ impl A2ARoutes {
     pub async fn execute_tool(
         &self,
         auth_header: Option<&str>,
-        request: serde_json::Value,
-    ) -> Result<serde_json::Value, A2AError> {
+        request: Value,
+    ) -> Result<Value, A2AError> {
         // Parse the JSON-RPC request
         let method = request
             .get("method")
@@ -587,17 +592,14 @@ impl A2ARoutes {
             .get("params")
             .ok_or_else(|| A2AError::InvalidRequest("Missing params field".into()))?;
 
-        let id = request
-            .get("id")
-            .cloned()
-            .unwrap_or_else(|| serde_json::json!(1));
+        let id = request.get("id").cloned().unwrap_or_else(|| json!(1));
 
         match method {
             "tools.execute" => self.handle_tools_execute(auth_header, params, &id).await,
             "client.info" => Ok(Self::handle_client_info(&id)),
             "session.heartbeat" => self.handle_session_heartbeat(auth_header, &id).await,
             "capabilities.list" => Ok(Self::handle_capabilities_list(&id)),
-            _ => Ok(serde_json::json!({
+            _ => Ok(json!({
                 "jsonrpc": "2.0",
                 "id": id,
                 "error": {

@@ -14,6 +14,7 @@
 
 use pierre_mcp_server::a2a::protocol::{A2ARequest, A2AServer};
 use serde_json::json;
+use std::collections::HashMap;
 
 #[tokio::test]
 async fn test_jsonrpc_2_0_compliance() {
@@ -27,7 +28,7 @@ async fn test_jsonrpc_2_0_compliance() {
         id: Some(json!(1)),
         auth_token: None,
         headers: None,
-        metadata: std::collections::HashMap::new(),
+        metadata: HashMap::new(),
     };
 
     let _response = server.handle_request(request).await;
@@ -58,7 +59,7 @@ async fn test_required_methods_implemented() {
             id: Some(json!(1)),
             auth_token: None,
             headers: None,
-            metadata: std::collections::HashMap::new(),
+            metadata: HashMap::new(),
         };
 
         let response = server.handle_request(request).await;
@@ -82,7 +83,7 @@ async fn test_error_code_compliance() {
         id: Some(json!(1)),
         auth_token: None,
         headers: None,
-        metadata: std::collections::HashMap::new(),
+        metadata: HashMap::new(),
     };
 
     let response = server.handle_request(request).await;
@@ -153,7 +154,7 @@ async fn test_task_management_compliance() {
         id: Some(json!(1)),
         auth_token: None,
         headers: None,
-        metadata: std::collections::HashMap::new(),
+        metadata: HashMap::new(),
     };
 
     let response = server.handle_request(request).await;
@@ -179,7 +180,7 @@ async fn test_tools_schema_compliance() {
         id: Some(json!(1)),
         auth_token: None,
         headers: None,
-        metadata: std::collections::HashMap::new(),
+        metadata: HashMap::new(),
     };
 
     let response = server.handle_request(request).await;
@@ -208,7 +209,7 @@ async fn test_streaming_requirements() {
         id: Some(json!(1)),
         auth_token: None,
         headers: None,
-        metadata: std::collections::HashMap::new(),
+        metadata: HashMap::new(),
     };
 
     let response = server.handle_request(request).await;
@@ -261,7 +262,7 @@ async fn test_id_preservation() {
             id: Some(test_id.clone()),
             auth_token: None,
             headers: None,
-            metadata: std::collections::HashMap::new(),
+            metadata: HashMap::new(),
         };
 
         let response = server.handle_request(request).await;
@@ -286,7 +287,7 @@ async fn test_parameter_validation() {
         id: Some(json!(1)),
         auth_token: None,
         headers: None,
-        metadata: std::collections::HashMap::new(),
+        metadata: HashMap::new(),
     };
 
     let response = server.handle_request(request).await;
@@ -310,7 +311,7 @@ async fn test_task_cancellation() {
         id: Some(json!(1)),
         auth_token: None,
         headers: None,
-        metadata: std::collections::HashMap::new(),
+        metadata: HashMap::new(),
     };
 
     let response = server.handle_request(request).await;
@@ -340,7 +341,7 @@ async fn test_push_notification_config() {
         id: Some(json!(1)),
         auth_token: None,
         headers: None,
-        metadata: std::collections::HashMap::new(),
+        metadata: HashMap::new(),
     };
 
     let response = server.handle_request(request).await;

@@ -12,19 +12,47 @@ use super::{shared, DatabaseProvider};
 use crate::a2a::auth::A2AClient;
 use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
-use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
+use crate::admin::jwks::JwksManager;
+use crate::admin::jwt::AdminJwtManager;
+use crate::admin::models::{
+    AdminAction, AdminPermissions, AdminToken, AdminTokenUsage, CreateAdminTokenRequest,
+    GeneratedAdminToken,
+};
+use crate::api_keys::{ApiKey, ApiKeyTier, ApiKeyUsage, ApiKeyUsageStats};
+use crate::config::environment::PostgresPoolConfig;
+use crate::config::fitness::FitnessConfig;
+use crate::constants::http_status::{BAD_REQUEST, SUCCESS_MAX, SUCCESS_MIN};
 use crate::constants::tiers;
-use crate::database::A2AUsage;
+use crate::dashboard_routes::{RequestLog, ToolUsage};
+use crate::database::oauth_notifications::OAuthNotification;
+use crate::database::{
+    A2AUsage, A2AUsageStats, CreateUserMcpTokenRequest, UserMcpToken, UserMcpTokenCreated,
+    UserMcpTokenInfo,
+};
 use crate::database_plugins::shared::encryption::HasEncryption;
 use crate::errors::{AppError, AppResult};
-use crate::models::{User, UserTier};
+use crate::models::{
+    AuthorizationCode, OAuthApp, Tenant, User, UserOAuthApp, UserOAuthToken, UserStatus, UserTier,
+};
+use crate::oauth2_server::models::{OAuth2AuthCode, OAuth2Client, OAuth2RefreshToken, OAuth2State};
+use crate::pagination::{Cursor, CursorPage, PaginationParams};
+use crate::permissions::impersonation::ImpersonationSession;
+use crate::permissions::UserRole;
 use crate::rate_limiting::JwtUsage;
+use crate::security::audit::{AuditEvent, AuditEventType, AuditSeverity};
+use crate::security::key_rotation::KeyVersion;
+use crate::tenant::TenantOAuthCredentials;
+use crate::utils::uuid::parse_uuid;
 use async_trait::async_trait;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::Engine as Base64Engine;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
-use sqlx::{postgres::PgPoolOptions, Pool, Postgres, Row};
+use sqlx::postgres::{PgPoolOptions, PgRow};
+use sqlx::{Pool, Postgres, Row};
 use std::fmt::Write;
 use std::time::Duration;
+use tokio::time::sleep;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
@@ -54,7 +82,7 @@ impl PostgresDatabase {
     }
 
     /// Helper function to parse User from database row
-    fn parse_user_from_row(row: &sqlx::postgres::PgRow) -> AppResult<User> {
+    fn parse_user_from_row(row: &PgRow) -> AppResult<User> {
         shared::mappers::parse_user_from_row(row)
     }
 
@@ -112,7 +140,7 @@ impl PostgresDatabase {
     }
 
     /// Helper function to parse A2A task from database row
-    fn parse_a2a_task_from_row(row: &sqlx::postgres::PgRow) -> AppResult<A2ATask> {
+    fn parse_a2a_task_from_row(row: &PgRow) -> AppResult<A2ATask> {
         shared::mappers::parse_a2a_task_from_row(row)
     }
 }
@@ -127,7 +155,7 @@ impl PostgresDatabase {
     async fn new_impl(
         database_url: &str,
         encryption_key: Vec<u8>,
-        pool_config: &crate::config::environment::PostgresPoolConfig,
+        pool_config: &PostgresPoolConfig,
     ) -> AppResult<Self> {
         // Use pool configuration from ServerConfig (read once at startup)
         let max_connections = pool_config.max_connections;
@@ -212,7 +240,7 @@ impl PostgresDatabase {
                                 .as_database_error()
                                 .map_or("connection error", |de| de.message()))
                         );
-                        tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+                        sleep(Duration::from_millis(delay_ms)).await;
                         // Exponential backoff with cap
                         delay_ms = (delay_ms * 2).min(max_delay_ms);
                     }
@@ -237,7 +265,7 @@ impl PostgresDatabase {
     pub async fn new(
         database_url: &str,
         encryption_key: Vec<u8>,
-        pool_config: &crate::config::environment::PostgresPoolConfig,
+        pool_config: &PostgresPoolConfig,
     ) -> AppResult<Self> {
         Self::new_impl(database_url, encryption_key, pool_config).await
     }
@@ -248,7 +276,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn new(database_url: &str, encryption_key: Vec<u8>) -> AppResult<Self> {
         // Use default pool configuration when called through trait
         // In practice, the Database factory calls the inherent impl's new() directly with config
-        let pool_config = crate::config::environment::PostgresPoolConfig::default();
+        let pool_config = PostgresPoolConfig::default();
         Self::new_impl(database_url, encryption_key, &pool_config).await
     }
 
@@ -340,9 +368,7 @@ impl DatabaseProvider for PostgresDatabase {
                     is_admin: row.get("is_admin"),
                     role: {
                         let role_str: Option<String> = row.try_get("role").ok().flatten();
-                        role_str.map_or(crate::permissions::UserRole::User, |s| {
-                            shared::enums::str_to_user_role(&s)
-                        })
+                        role_str.map_or(UserRole::User, |s| shared::enums::str_to_user_role(&s))
                     },
                     approved_by: row.get("approved_by"),
                     approved_at: row.get("approved_at"),
@@ -399,9 +425,7 @@ impl DatabaseProvider for PostgresDatabase {
                     is_admin: row.get("is_admin"),
                     role: {
                         let role_str: Option<String> = row.try_get("role").ok().flatten();
-                        role_str.map_or(crate::permissions::UserRole::User, |s| {
-                            shared::enums::str_to_user_role(&s)
-                        })
+                        role_str.map_or(UserRole::User, |s| shared::enums::str_to_user_role(&s))
                     },
                     approved_by: row.get("approved_by"),
                     approved_at: row.get("approved_at"),
@@ -464,9 +488,7 @@ impl DatabaseProvider for PostgresDatabase {
                     is_admin: row.get("is_admin"),
                     role: {
                         let role_str: Option<String> = row.try_get("role").ok().flatten();
-                        role_str.map_or(crate::permissions::UserRole::User, |s| {
-                            shared::enums::str_to_user_role(&s)
-                        })
+                        role_str.map_or(UserRole::User, |s| shared::enums::str_to_user_role(&s))
                     },
                     approved_by: row.get("approved_by"),
                     approved_at: row.get("approved_at"),
@@ -538,9 +560,9 @@ impl DatabaseProvider for PostgresDatabase {
         for row in rows {
             let user_status_str: String = row.get("user_status");
             let user_status = match user_status_str.as_str() {
-                "pending" => crate::models::UserStatus::Pending,
-                "suspended" => crate::models::UserStatus::Suspended,
-                _ => crate::models::UserStatus::Active,
+                "pending" => UserStatus::Pending,
+                "suspended" => UserStatus::Suspended,
+                _ => UserStatus::Active,
             };
 
             users.push(User {
@@ -564,9 +586,7 @@ impl DatabaseProvider for PostgresDatabase {
                 is_admin: row.try_get("is_admin").unwrap_or(false), // Default to false for existing users
                 role: {
                     let role_str: Option<String> = row.try_get("role").ok().flatten();
-                    role_str.map_or(crate::permissions::UserRole::User, |s| {
-                        shared::enums::str_to_user_role(&s)
-                    })
+                    role_str.map_or(UserRole::User, |s| shared::enums::str_to_user_role(&s))
                 },
                 approved_by: row.get("approved_by"),
                 approved_at: row.get("approved_at"),
@@ -585,10 +605,8 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_users_by_status_cursor(
         &self,
         status: &str,
-        params: &crate::pagination::PaginationParams,
-    ) -> AppResult<crate::pagination::CursorPage<User>> {
-        use crate::pagination::{Cursor, CursorPage};
-
+        params: &PaginationParams,
+    ) -> AppResult<CursorPage<User>> {
         const QUERY_WITH_CURSOR: &str = r"
             SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
                    COALESCE(user_status, 'active') as user_status, approved_by, approved_at,
@@ -687,19 +705,18 @@ impl DatabaseProvider for PostgresDatabase {
     async fn update_user_status(
         &self,
         user_id: Uuid,
-        new_status: crate::models::UserStatus,
+        new_status: UserStatus,
         admin_token_id: &str,
     ) -> AppResult<User> {
         let status_str = shared::enums::user_status_to_str(&new_status);
 
-        let admin_uuid =
-            if new_status == crate::models::UserStatus::Active && !admin_token_id.is_empty() {
-                Some(admin_token_id)
-            } else {
-                None
-            };
+        let admin_uuid = if new_status == UserStatus::Active && !admin_token_id.is_empty() {
+            Some(admin_token_id)
+        } else {
+            None
+        };
 
-        let approved_at = if new_status == crate::models::UserStatus::Active {
+        let approved_at = if new_status == UserStatus::Active {
             Some(chrono::Utc::now())
         } else {
             None
@@ -1058,10 +1075,10 @@ impl DatabaseProvider for PostgresDatabase {
                     key_hash: row.get("key_hash"),
                     description: row.get("description"),
                     tier: match row.get::<String, _>("tier").to_lowercase().as_str() {
-                        tiers::TRIAL | tiers::STARTER => crate::api_keys::ApiKeyTier::Starter,
-                        tiers::PROFESSIONAL => crate::api_keys::ApiKeyTier::Professional,
-                        tiers::ENTERPRISE => crate::api_keys::ApiKeyTier::Enterprise,
-                        _ => crate::api_keys::ApiKeyTier::Trial,
+                        tiers::TRIAL | tiers::STARTER => ApiKeyTier::Starter,
+                        tiers::PROFESSIONAL => ApiKeyTier::Professional,
+                        tiers::ENTERPRISE => ApiKeyTier::Enterprise,
+                        _ => ApiKeyTier::Trial,
                     },
                     is_active: row.get("is_active"),
                     rate_limit_requests: u32::try_from(
@@ -1107,10 +1124,10 @@ impl DatabaseProvider for PostgresDatabase {
                 key_hash: row.get("key_hash"),
                 description: row.get("description"),
                 tier: match row.get::<String, _>("tier").to_lowercase().as_str() {
-                    tiers::TRIAL | tiers::STARTER => crate::api_keys::ApiKeyTier::Starter,
-                    tiers::PROFESSIONAL => crate::api_keys::ApiKeyTier::Professional,
-                    tiers::ENTERPRISE => crate::api_keys::ApiKeyTier::Enterprise,
-                    _ => crate::api_keys::ApiKeyTier::Trial,
+                    tiers::TRIAL | tiers::STARTER => ApiKeyTier::Starter,
+                    tiers::PROFESSIONAL => ApiKeyTier::Professional,
+                    tiers::ENTERPRISE => ApiKeyTier::Enterprise,
+                    _ => ApiKeyTier::Trial,
                 },
                 is_active: row.get("is_active"),
                 rate_limit_requests: u32::try_from(row.get::<i32, _>("rate_limit_requests").max(0))
@@ -1180,10 +1197,10 @@ impl DatabaseProvider for PostgresDatabase {
                 use sqlx::Row;
                 let tier_str: String = row.get("tier");
                 let tier = match tier_str.as_str() {
-                    tiers::STARTER => crate::api_keys::ApiKeyTier::Starter,
-                    tiers::PROFESSIONAL => crate::api_keys::ApiKeyTier::Professional,
-                    tiers::ENTERPRISE => crate::api_keys::ApiKeyTier::Enterprise,
-                    _ => crate::api_keys::ApiKeyTier::Trial, // Default to trial for unknown values (including "trial")
+                    tiers::STARTER => ApiKeyTier::Starter,
+                    tiers::PROFESSIONAL => ApiKeyTier::Professional,
+                    tiers::ENTERPRISE => ApiKeyTier::Enterprise,
+                    _ => ApiKeyTier::Trial, // Default to trial for unknown values (including "trial")
                 };
 
                 Ok(Some(ApiKey {
@@ -1274,10 +1291,10 @@ impl DatabaseProvider for PostgresDatabase {
         for row in rows {
             let tier_str: String = row.get("tier");
             let tier = match tier_str.as_str() {
-                tiers::STARTER => crate::api_keys::ApiKeyTier::Starter,
-                tiers::PROFESSIONAL => crate::api_keys::ApiKeyTier::Professional,
-                tiers::ENTERPRISE => crate::api_keys::ApiKeyTier::Enterprise,
-                _ => crate::api_keys::ApiKeyTier::Trial, // Default to trial for unknown values (including "trial")
+                tiers::STARTER => ApiKeyTier::Starter,
+                tiers::PROFESSIONAL => ApiKeyTier::Professional,
+                tiers::ENTERPRISE => ApiKeyTier::Enterprise,
+                _ => ApiKeyTier::Trial, // Default to trial for unknown values (including "trial")
             };
 
             api_keys.push(ApiKey {
@@ -1343,10 +1360,10 @@ impl DatabaseProvider for PostgresDatabase {
                 key_hash: row.get("key_hash"),
                 description: row.get("description"),
                 tier: match row.get::<String, _>("tier").to_lowercase().as_str() {
-                    tiers::TRIAL | tiers::STARTER => crate::api_keys::ApiKeyTier::Starter,
-                    tiers::PROFESSIONAL => crate::api_keys::ApiKeyTier::Professional,
-                    tiers::ENTERPRISE => crate::api_keys::ApiKeyTier::Enterprise,
-                    _ => crate::api_keys::ApiKeyTier::Trial,
+                    tiers::TRIAL | tiers::STARTER => ApiKeyTier::Starter,
+                    tiers::PROFESSIONAL => ApiKeyTier::Professional,
+                    tiers::ENTERPRISE => ApiKeyTier::Enterprise,
+                    _ => ApiKeyTier::Trial,
                 },
                 is_active: row.get("is_active"),
                 rate_limit_requests: u32::try_from(row.get::<i32, _>("rate_limit_requests").max(0))
@@ -1422,9 +1439,9 @@ impl DatabaseProvider for PostgresDatabase {
             WHERE api_key_id = $4 AND timestamp >= $5 AND timestamp <= $6
             "
         )
-        .bind(i32::from(crate::constants::http_status::SUCCESS_MIN))
-        .bind(i32::from(crate::constants::http_status::SUCCESS_MAX))
-        .bind(i32::from(crate::constants::http_status::BAD_REQUEST))
+        .bind(i32::from(SUCCESS_MIN))
+        .bind(i32::from(SUCCESS_MAX))
+        .bind(i32::from(BAD_REQUEST))
         .bind(api_key_id)
         .bind(start_date)
         .bind(end_date)
@@ -1445,8 +1462,8 @@ impl DatabaseProvider for PostgresDatabase {
             ORDER BY tool_count DESC
             "
         )
-        .bind(i32::from(crate::constants::http_status::SUCCESS_MIN))
-        .bind(i32::from(crate::constants::http_status::SUCCESS_MAX))
+        .bind(i32::from(SUCCESS_MIN))
+        .bind(i32::from(SUCCESS_MAX))
         .bind(api_key_id)
         .bind(start_date)
         .bind(end_date)
@@ -1543,7 +1560,7 @@ impl DatabaseProvider for PostgresDatabase {
         end_time: Option<DateTime<Utc>>,
         status_filter: Option<&str>,
         tool_filter: Option<&str>,
-    ) -> AppResult<Vec<crate::dashboard_routes::RequestLog>> {
+    ) -> AppResult<Vec<RequestLog>> {
         // Build query with proper column mapping for RequestLog struct
         let base_query = r"
             SELECT 
@@ -1597,8 +1614,7 @@ impl DatabaseProvider for PostgresDatabase {
         );
 
         // Build query with proper parameter binding
-        let mut query_builder =
-            sqlx::query_as::<_, crate::dashboard_routes::RequestLog>(&full_query);
+        let mut query_builder = sqlx::query_as::<_, RequestLog>(&full_query);
 
         if let Some(key_id) = api_key_id {
             query_builder = query_builder.bind(key_id);
@@ -2309,7 +2325,7 @@ impl DatabaseProvider for PostgresDatabase {
         client_id: &str,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
-    ) -> AppResult<crate::database::A2AUsageStats> {
+    ) -> AppResult<A2AUsageStats> {
         use sqlx::Row;
 
         let row = sqlx::query(
@@ -2360,7 +2376,7 @@ impl DatabaseProvider for PostgresDatabase {
             );
         }
 
-        Ok(crate::database::A2AUsageStats {
+        Ok(A2AUsageStats {
             client_id: client_id.to_owned(),
             period_start: start_date,
             period_end: end_date,
@@ -2473,7 +2489,7 @@ impl DatabaseProvider for PostgresDatabase {
         user_id: Uuid,
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
-    ) -> AppResult<Vec<crate::dashboard_routes::ToolUsage>> {
+    ) -> AppResult<Vec<ToolUsage>> {
         let rows = sqlx::query(
             r"
             SELECT endpoint, COUNT(*) as usage_count,
@@ -2520,7 +2536,7 @@ impl DatabaseProvider for PostgresDatabase {
                 }
             }
 
-            tool_usage.push(crate::dashboard_routes::ToolUsage {
+            tool_usage.push(ToolUsage {
                 tool_name: endpoint,
                 request_count: u64::try_from(usage_count.max(0)).unwrap_or(0),
                 success_rate: if usage_count > 0 {
@@ -2542,14 +2558,10 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn create_admin_token(
         &self,
-        request: &crate::admin::models::CreateAdminTokenRequest,
+        request: &CreateAdminTokenRequest,
         admin_jwt_secret: &str,
-        jwks_manager: &crate::admin::jwks::JwksManager,
-    ) -> AppResult<crate::admin::models::GeneratedAdminToken> {
-        use crate::admin::{
-            jwt::AdminJwtManager,
-            models::{AdminPermissions, GeneratedAdminToken},
-        };
+        jwks_manager: &JwksManager,
+    ) -> AppResult<GeneratedAdminToken> {
         use uuid::Uuid;
 
         // Generate unique token ID
@@ -2635,10 +2647,7 @@ impl DatabaseProvider for PostgresDatabase {
         })
     }
 
-    async fn get_admin_token_by_id(
-        &self,
-        token_id: &str,
-    ) -> AppResult<Option<crate::admin::models::AdminToken>> {
+    async fn get_admin_token_by_id(&self, token_id: &str) -> AppResult<Option<AdminToken>> {
         let query = r"
             SELECT id, service_name, service_description, token_hash, token_prefix,
                    jwt_secret_hash, permissions, is_super_admin, is_active,
@@ -2659,10 +2668,7 @@ impl DatabaseProvider for PostgresDatabase {
         }
     }
 
-    async fn get_admin_token_by_prefix(
-        &self,
-        token_prefix: &str,
-    ) -> AppResult<Option<crate::admin::models::AdminToken>> {
+    async fn get_admin_token_by_prefix(&self, token_prefix: &str) -> AppResult<Option<AdminToken>> {
         let query = r"
             SELECT id, service_name, service_description, token_hash, token_prefix,
                    jwt_secret_hash, permissions, is_super_admin, is_active,
@@ -2683,10 +2689,7 @@ impl DatabaseProvider for PostgresDatabase {
         }
     }
 
-    async fn list_admin_tokens(
-        &self,
-        include_inactive: bool,
-    ) -> AppResult<Vec<crate::admin::models::AdminToken>> {
+    async fn list_admin_tokens(&self, include_inactive: bool) -> AppResult<Vec<AdminToken>> {
         let query = if include_inactive {
             r"
                 SELECT id, service_name, service_description, token_hash, token_prefix,
@@ -2749,10 +2752,7 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(())
     }
 
-    async fn record_admin_token_usage(
-        &self,
-        usage: &crate::admin::models::AdminTokenUsage,
-    ) -> AppResult<()> {
+    async fn record_admin_token_usage(&self, usage: &AdminTokenUsage) -> AppResult<()> {
         let query = r"
             INSERT INTO admin_token_usage (
                 admin_token_id, timestamp, action, target_resource,
@@ -2792,7 +2792,7 @@ impl DatabaseProvider for PostgresDatabase {
         token_id: &str,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
-    ) -> AppResult<Vec<crate::admin::models::AdminTokenUsage>> {
+    ) -> AppResult<Vec<AdminTokenUsage>> {
         let query = r"
             SELECT id, admin_token_id, timestamp, action, target_resource,
                    ip_address, user_agent, request_size_bytes, success,
@@ -3017,7 +3017,7 @@ impl DatabaseProvider for PostgresDatabase {
     // ================================
 
     /// Create a new tenant
-    async fn create_tenant(&self, tenant: &crate::models::Tenant) -> AppResult<()> {
+    async fn create_tenant(&self, tenant: &Tenant) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO tenants (id, name, slug, domain, subscription_tier, is_active, created_at, updated_at)
@@ -3060,7 +3060,7 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     /// Get tenant by ID
-    async fn get_tenant_by_id(&self, tenant_id: Uuid) -> AppResult<crate::models::Tenant> {
+    async fn get_tenant_by_id(&self, tenant_id: Uuid) -> AppResult<Tenant> {
         let row = sqlx::query_as::<_, (Uuid, String, String, Option<String>, String, Uuid, DateTime<Utc>, DateTime<Utc>)>(
             r"
             SELECT t.id, t.name, t.slug, t.domain, t.subscription_tier, tu.user_id, t.created_at, t.updated_at
@@ -3074,7 +3074,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         match row {
             Some((id, name, slug, domain, plan, owner_user_id, created_at, updated_at)) => {
-                Ok(crate::models::Tenant {
+                Ok(Tenant {
                     id,
                     name,
                     slug,
@@ -3090,7 +3090,7 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     /// Get tenant by slug
-    async fn get_tenant_by_slug(&self, slug: &str) -> AppResult<crate::models::Tenant> {
+    async fn get_tenant_by_slug(&self, slug: &str) -> AppResult<Tenant> {
         let row = sqlx::query_as::<_, (Uuid, String, String, Option<String>, String, Uuid, DateTime<Utc>, DateTime<Utc>)>(
             r"
             SELECT t.id, t.name, t.slug, t.domain, t.subscription_tier, tu.user_id, t.created_at, t.updated_at
@@ -3104,7 +3104,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         match row {
             Some((id, name, slug, domain, plan, owner_user_id, created_at, updated_at)) => {
-                Ok(crate::models::Tenant {
+                Ok(Tenant {
                     id,
                     name,
                     slug,
@@ -3120,7 +3120,7 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     /// List tenants for a user
-    async fn list_tenants_for_user(&self, user_id: Uuid) -> AppResult<Vec<crate::models::Tenant>> {
+    async fn list_tenants_for_user(&self, user_id: Uuid) -> AppResult<Vec<Tenant>> {
         let rows = sqlx::query_as::<
             _,
             (
@@ -3152,17 +3152,15 @@ impl DatabaseProvider for PostgresDatabase {
         let tenants = rows
             .into_iter()
             .map(
-                |(id, name, slug, domain, plan, owner_user_id, created_at, updated_at)| {
-                    crate::models::Tenant {
-                        id,
-                        name,
-                        slug,
-                        domain,
-                        plan,
-                        owner_user_id,
-                        created_at,
-                        updated_at,
-                    }
+                |(id, name, slug, domain, plan, owner_user_id, created_at, updated_at)| Tenant {
+                    id,
+                    name,
+                    slug,
+                    domain,
+                    plan,
+                    owner_user_id,
+                    created_at,
+                    updated_at,
                 },
             )
             .collect();
@@ -3173,7 +3171,7 @@ impl DatabaseProvider for PostgresDatabase {
     /// Store tenant OAuth credentials
     async fn store_tenant_oauth_credentials(
         &self,
-        credentials: &crate::tenant::TenantOAuthCredentials,
+        credentials: &TenantOAuthCredentials,
     ) -> AppResult<()> {
         // Encrypt the client secret using AES-256-GCM with AAD binding
         // AAD context format: "{tenant_id}|{provider}|tenant_oauth_credentials"
@@ -3185,11 +3183,7 @@ impl DatabaseProvider for PostgresDatabase {
             self.encrypt_data_with_aad(&credentials.client_secret, &aad_context)?;
 
         // Convert scopes Vec<String> to PostgreSQL array format
-        let scopes_array: Vec<&str> = credentials
-            .scopes
-            .iter()
-            .map(std::string::String::as_str)
-            .collect();
+        let scopes_array: Vec<&str> = credentials.scopes.iter().map(String::as_str).collect();
         let now = chrono::Utc::now().to_rfc3339();
 
         sqlx::query(
@@ -3227,7 +3221,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_tenant_oauth_providers(
         &self,
         tenant_id: Uuid,
-    ) -> AppResult<Vec<crate::tenant::TenantOAuthCredentials>> {
+    ) -> AppResult<Vec<TenantOAuthCredentials>> {
         let rows = sqlx::query_as::<_, (String, String, String, String, Vec<String>, i32)>(
             r"
             SELECT provider, client_id, client_secret_encrypted,
@@ -3252,7 +3246,7 @@ impl DatabaseProvider for PostgresDatabase {
                     let client_secret =
                         self.decrypt_data_with_aad(&encrypted_secret, &aad_context)?;
 
-                    Ok(crate::tenant::TenantOAuthCredentials {
+                    Ok(TenantOAuthCredentials {
                         tenant_id,
                         provider,
                         client_id,
@@ -3273,7 +3267,7 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         tenant_id: Uuid,
         provider: &str,
-    ) -> AppResult<Option<crate::tenant::TenantOAuthCredentials>> {
+    ) -> AppResult<Option<TenantOAuthCredentials>> {
         let row = sqlx::query_as::<_, (String, String, String, Vec<String>, i32)>(
             r"
             SELECT client_id, client_secret_encrypted,
@@ -3295,7 +3289,7 @@ impl DatabaseProvider for PostgresDatabase {
                 let aad_context = format!("{tenant_id}|{provider}|tenant_oauth_credentials");
                 let client_secret = self.decrypt_data_with_aad(&encrypted_secret, &aad_context)?;
 
-                Ok(Some(crate::tenant::TenantOAuthCredentials {
+                Ok(Some(TenantOAuthCredentials {
                     tenant_id,
                     provider: provider.to_owned(),
                     client_id,
@@ -3314,13 +3308,9 @@ impl DatabaseProvider for PostgresDatabase {
     // ================================
 
     /// Create OAuth application
-    async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> AppResult<()> {
-        let redirect_uris: Vec<&str> = app
-            .redirect_uris
-            .iter()
-            .map(std::string::String::as_str)
-            .collect();
-        let scopes: Vec<&str> = app.scopes.iter().map(std::string::String::as_str).collect();
+    async fn create_oauth_app(&self, app: &OAuthApp) -> AppResult<()> {
+        let redirect_uris: Vec<&str> = app.redirect_uris.iter().map(String::as_str).collect();
+        let scopes: Vec<&str> = app.scopes.iter().map(String::as_str).collect();
 
         sqlx::query(
             r"
@@ -3349,10 +3339,7 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     /// Get OAuth app by client ID
-    async fn get_oauth_app_by_client_id(
-        &self,
-        client_id: &str,
-    ) -> AppResult<crate::models::OAuthApp> {
+    async fn get_oauth_app_by_client_id(&self, client_id: &str) -> AppResult<OAuthApp> {
         let row = sqlx::query_as::<
             _,
             (
@@ -3394,7 +3381,7 @@ impl DatabaseProvider for PostgresDatabase {
                 owner_user_id,
                 created_at,
                 updated_at,
-            )) => Ok(crate::models::OAuthApp {
+            )) => Ok(OAuthApp {
                 id,
                 client_id,
                 client_secret,
@@ -3412,10 +3399,7 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     /// List OAuth apps for a user
-    async fn list_oauth_apps_for_user(
-        &self,
-        user_id: Uuid,
-    ) -> AppResult<Vec<crate::models::OAuthApp>> {
+    async fn list_oauth_apps_for_user(&self, user_id: Uuid) -> AppResult<Vec<OAuthApp>> {
         let rows = sqlx::query_as::<
             _,
             (
@@ -3461,7 +3445,7 @@ impl DatabaseProvider for PostgresDatabase {
                     created_at,
                     updated_at,
                 )| {
-                    crate::models::OAuthApp {
+                    OAuthApp {
                         id,
                         client_id,
                         client_secret,
@@ -3514,10 +3498,7 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     /// Get authorization code data
-    async fn get_authorization_code(
-        &self,
-        code: &str,
-    ) -> AppResult<crate::models::AuthorizationCode> {
+    async fn get_authorization_code(&self, code: &str) -> AppResult<AuthorizationCode> {
         let row = sqlx::query_as::<
             _,
             (
@@ -3543,7 +3524,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         match row {
             Some((code, client_id, user_id, redirect_uri, scope, created_at, expires_at)) => {
-                Ok(crate::models::AuthorizationCode {
+                Ok(AuthorizationCode {
                     code,
                     client_id,
                     redirect_uri,
@@ -3582,10 +3563,7 @@ impl DatabaseProvider for PostgresDatabase {
     // Key Rotation & Security - PostgreSQL implementations
     // ================================
 
-    async fn store_key_version(
-        &self,
-        version: &crate::security::key_rotation::KeyVersion,
-    ) -> AppResult<()> {
+    async fn store_key_version(&self, version: &KeyVersion) -> AppResult<()> {
         let query = r"
             INSERT INTO key_versions (tenant_id, version, created_at, expires_at, is_active, algorithm)
             VALUES ($1, $2, $3, $4, $5, $6)
@@ -3613,10 +3591,7 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(())
     }
 
-    async fn get_key_versions(
-        &self,
-        tenant_id: Option<Uuid>,
-    ) -> AppResult<Vec<crate::security::key_rotation::KeyVersion>> {
+    async fn get_key_versions(&self, tenant_id: Option<Uuid>) -> AppResult<Vec<KeyVersion>> {
         let query = match tenant_id {
             Some(_) => {
                 r"
@@ -3650,12 +3625,12 @@ impl DatabaseProvider for PostgresDatabase {
         for row in rows {
             let tenant_id_str: Option<String> = row.get("tenant_id");
             let tenant_id = if let Some(tid) = tenant_id_str {
-                Some(crate::utils::uuid::parse_uuid(&tid)?)
+                Some(parse_uuid(&tid)?)
             } else {
                 None
             };
 
-            let version = crate::security::key_rotation::KeyVersion {
+            let version = KeyVersion {
                 tenant_id,
                 version: u32::try_from(row.get::<i32, _>("version")).unwrap_or(0), // Safe: stored versions are always positive
                 created_at: row.get("created_at"),
@@ -3672,7 +3647,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_current_key_version(
         &self,
         tenant_id: Option<Uuid>,
-    ) -> AppResult<Option<crate::security::key_rotation::KeyVersion>> {
+    ) -> AppResult<Option<KeyVersion>> {
         let query = match tenant_id {
             Some(_) => {
                 r"
@@ -3707,12 +3682,12 @@ impl DatabaseProvider for PostgresDatabase {
         if let Some(row) = row {
             let tenant_id_str: Option<String> = row.get("tenant_id");
             let tenant_id = if let Some(tid) = tenant_id_str {
-                Some(crate::utils::uuid::parse_uuid(&tid)?)
+                Some(parse_uuid(&tid)?)
             } else {
                 None
             };
 
-            let version = crate::security::key_rotation::KeyVersion {
+            let version = KeyVersion {
                 tenant_id,
                 version: u32::try_from(row.get::<i32, _>("version")).unwrap_or(0), // Safe: stored versions are always positive
                 created_at: row.get("created_at"),
@@ -3835,7 +3810,7 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(deleted_count)
     }
 
-    async fn get_all_tenants(&self) -> AppResult<Vec<crate::models::Tenant>> {
+    async fn get_all_tenants(&self) -> AppResult<Vec<Tenant>> {
         let query = r"
             SELECT id, slug, name, domain, plan, owner_user_id, created_at, updated_at
             FROM tenants
@@ -3852,7 +3827,7 @@ impl DatabaseProvider for PostgresDatabase {
             .iter()
             .map(|row| {
                 use sqlx::Row;
-                Ok(crate::models::Tenant {
+                Ok(Tenant {
                     id: uuid::Uuid::parse_str(&row.try_get::<String, _>("id").map_err(|e| {
                         AppError::database(format!("Failed to parse id column: {e}"))
                     })?)
@@ -3888,7 +3863,7 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(tenants)
     }
 
-    async fn store_audit_event(&self, event: &crate::security::audit::AuditEvent) -> AppResult<()> {
+    async fn store_audit_event(&self, event: &AuditEvent) -> AppResult<()> {
         let query = r"
             INSERT INTO audit_events (
                 id, event_type, severity, message, source, result, 
@@ -3934,7 +3909,7 @@ impl DatabaseProvider for PostgresDatabase {
         tenant_id: Option<Uuid>,
         event_type: Option<&str>,
         limit: Option<u32>,
-    ) -> AppResult<Vec<crate::security::audit::AuditEvent>> {
+    ) -> AppResult<Vec<AuditEvent>> {
         use std::fmt::Write;
 
         let mut query = r"
@@ -3999,69 +3974,51 @@ impl DatabaseProvider for PostgresDatabase {
 
             let event_type_str: String = row.get("event_type");
             let event_type = match event_type_str.as_str() {
-                "UserLogin" => crate::security::audit::AuditEventType::UserLogin,
-                "UserLogout" => crate::security::audit::AuditEventType::UserLogout,
-                "AuthenticationFailed" => {
-                    crate::security::audit::AuditEventType::AuthenticationFailed
-                }
-                "ApiKeyUsed" => crate::security::audit::AuditEventType::ApiKeyUsed,
-                "OAuthCredentialsAccessed" => {
-                    crate::security::audit::AuditEventType::OAuthCredentialsAccessed
-                }
-                "OAuthCredentialsModified" => {
-                    crate::security::audit::AuditEventType::OAuthCredentialsModified
-                }
-                "OAuthCredentialsCreated" => {
-                    crate::security::audit::AuditEventType::OAuthCredentialsCreated
-                }
-                "OAuthCredentialsDeleted" => {
-                    crate::security::audit::AuditEventType::OAuthCredentialsDeleted
-                }
-                "TokenRefreshed" => crate::security::audit::AuditEventType::TokenRefreshed,
-                "TenantCreated" => crate::security::audit::AuditEventType::TenantCreated,
-                "TenantModified" => crate::security::audit::AuditEventType::TenantModified,
-                "TenantDeleted" => crate::security::audit::AuditEventType::TenantDeleted,
-                "TenantUserAdded" => crate::security::audit::AuditEventType::TenantUserAdded,
-                "TenantUserRemoved" => crate::security::audit::AuditEventType::TenantUserRemoved,
-                "TenantUserRoleChanged" => {
-                    crate::security::audit::AuditEventType::TenantUserRoleChanged
-                }
-                "DataEncrypted" => crate::security::audit::AuditEventType::DataEncrypted,
-                "DataDecrypted" => crate::security::audit::AuditEventType::DataDecrypted,
-                "KeyRotated" => crate::security::audit::AuditEventType::KeyRotated,
-                "EncryptionFailed" => crate::security::audit::AuditEventType::EncryptionFailed,
-                "ToolExecutionFailed" => {
-                    crate::security::audit::AuditEventType::ToolExecutionFailed
-                }
-                "ProviderApiCalled" => crate::security::audit::AuditEventType::ProviderApiCalled,
-                "ConfigurationChanged" => {
-                    crate::security::audit::AuditEventType::ConfigurationChanged
-                }
-                "SystemMaintenance" => crate::security::audit::AuditEventType::SystemMaintenance,
-                "SecurityPolicyViolation" => {
-                    crate::security::audit::AuditEventType::SecurityPolicyViolation
-                }
-                _ => crate::security::audit::AuditEventType::ToolExecuted, // Default fallback
+                "UserLogin" => AuditEventType::UserLogin,
+                "UserLogout" => AuditEventType::UserLogout,
+                "AuthenticationFailed" => AuditEventType::AuthenticationFailed,
+                "ApiKeyUsed" => AuditEventType::ApiKeyUsed,
+                "OAuthCredentialsAccessed" => AuditEventType::OAuthCredentialsAccessed,
+                "OAuthCredentialsModified" => AuditEventType::OAuthCredentialsModified,
+                "OAuthCredentialsCreated" => AuditEventType::OAuthCredentialsCreated,
+                "OAuthCredentialsDeleted" => AuditEventType::OAuthCredentialsDeleted,
+                "TokenRefreshed" => AuditEventType::TokenRefreshed,
+                "TenantCreated" => AuditEventType::TenantCreated,
+                "TenantModified" => AuditEventType::TenantModified,
+                "TenantDeleted" => AuditEventType::TenantDeleted,
+                "TenantUserAdded" => AuditEventType::TenantUserAdded,
+                "TenantUserRemoved" => AuditEventType::TenantUserRemoved,
+                "TenantUserRoleChanged" => AuditEventType::TenantUserRoleChanged,
+                "DataEncrypted" => AuditEventType::DataEncrypted,
+                "DataDecrypted" => AuditEventType::DataDecrypted,
+                "KeyRotated" => AuditEventType::KeyRotated,
+                "EncryptionFailed" => AuditEventType::EncryptionFailed,
+                "ToolExecutionFailed" => AuditEventType::ToolExecutionFailed,
+                "ProviderApiCalled" => AuditEventType::ProviderApiCalled,
+                "ConfigurationChanged" => AuditEventType::ConfigurationChanged,
+                "SystemMaintenance" => AuditEventType::SystemMaintenance,
+                "SecurityPolicyViolation" => AuditEventType::SecurityPolicyViolation,
+                _ => AuditEventType::ToolExecuted, // Default fallback
             };
 
             let severity_str: String = row.get("severity");
             let severity = match severity_str.as_str() {
-                "Warning" => crate::security::audit::AuditSeverity::Warning,
-                "Error" => crate::security::audit::AuditSeverity::Error,
-                "Critical" => crate::security::audit::AuditSeverity::Critical,
-                _ => crate::security::audit::AuditSeverity::Info, // Default fallback
+                "Warning" => AuditSeverity::Warning,
+                "Error" => AuditSeverity::Error,
+                "Critical" => AuditSeverity::Critical,
+                _ => AuditSeverity::Info, // Default fallback
             };
 
             let tenant_id_str: Option<String> = row.get("tenant_id");
             let tenant_id = if let Some(tid) = tenant_id_str {
-                Some(crate::utils::uuid::parse_uuid(&tid)?)
+                Some(parse_uuid(&tid)?)
             } else {
                 None
             };
 
             let user_id_str: Option<String> = row.get("user_id");
             let user_id = if let Some(uid) = user_id_str {
-                Some(crate::utils::uuid::parse_uuid(&uid)?)
+                Some(parse_uuid(&uid)?)
             } else {
                 None
             };
@@ -4070,7 +4027,7 @@ impl DatabaseProvider for PostgresDatabase {
             let metadata: serde_json::Value = serde_json::from_str(&metadata_json)
                 .unwrap_or_else(|_| serde_json::Value::Object(serde_json::Map::new()));
 
-            let event = crate::security::audit::AuditEvent {
+            let event = AuditEvent {
                 event_id,
                 event_type,
                 severity,
@@ -4095,10 +4052,7 @@ impl DatabaseProvider for PostgresDatabase {
     // UserOAuthToken Methods - PostgreSQL implementations
     // ================================
 
-    async fn upsert_user_oauth_token(
-        &self,
-        token: &crate::models::UserOAuthToken,
-    ) -> AppResult<()> {
+    async fn upsert_user_oauth_token(&self, token: &UserOAuthToken) -> AppResult<()> {
         // SECURITY: Encrypt OAuth tokens at rest with AAD binding (AES-256-GCM)
         let encrypted_access_token = shared::encryption::encrypt_oauth_token(
             self,
@@ -4162,7 +4116,7 @@ impl DatabaseProvider for PostgresDatabase {
         user_id: uuid::Uuid,
         tenant_id: &str,
         provider: &str,
-    ) -> AppResult<Option<crate::models::UserOAuthToken>> {
+    ) -> AppResult<Option<UserOAuthToken>> {
         let row = sqlx::query(
             r"
             SELECT id, user_id, tenant_id, provider, access_token, refresh_token,
@@ -4184,10 +4138,7 @@ impl DatabaseProvider for PostgresDatabase {
         )
     }
 
-    async fn get_user_oauth_tokens(
-        &self,
-        user_id: uuid::Uuid,
-    ) -> AppResult<Vec<crate::models::UserOAuthToken>> {
+    async fn get_user_oauth_tokens(&self, user_id: uuid::Uuid) -> AppResult<Vec<UserOAuthToken>> {
         let rows = sqlx::query(
             r"
             SELECT id, user_id, tenant_id, provider, access_token, refresh_token,
@@ -4213,7 +4164,7 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         tenant_id: &str,
         provider: &str,
-    ) -> AppResult<Vec<crate::models::UserOAuthToken>> {
+    ) -> AppResult<Vec<UserOAuthToken>> {
         let rows = sqlx::query(
             r"
             SELECT id, user_id, tenant_id, provider, access_token, refresh_token,
@@ -4401,7 +4352,7 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         user_id: Uuid,
         provider: &str,
-    ) -> AppResult<Option<crate::models::UserOAuthApp>> {
+    ) -> AppResult<Option<UserOAuthApp>> {
         let row = sqlx::query(
             r"
             SELECT id, user_id, provider, client_id, client_secret, redirect_uri, created_at, updated_at
@@ -4416,7 +4367,7 @@ impl DatabaseProvider for PostgresDatabase {
         row.map_or_else(
             || Ok(None),
             |row| {
-                Ok(Some(crate::models::UserOAuthApp {
+                Ok(Some(UserOAuthApp {
                     id: row.get("id"),
                     user_id: row.get("user_id"),
                     provider: row.get("provider"),
@@ -4431,10 +4382,7 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     /// List all OAuth app providers configured for a user
-    async fn list_user_oauth_apps(
-        &self,
-        user_id: Uuid,
-    ) -> AppResult<Vec<crate::models::UserOAuthApp>> {
+    async fn list_user_oauth_apps(&self, user_id: Uuid) -> AppResult<Vec<UserOAuthApp>> {
         let rows = sqlx::query(
             r"
             SELECT id, user_id, provider, client_id, client_secret, redirect_uri, created_at, updated_at
@@ -4448,7 +4396,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         let mut apps = Vec::new();
         for row in rows {
-            apps.push(crate::models::UserOAuthApp {
+            apps.push(UserOAuthApp {
                 id: row.get("id"),
                 user_id: row.get("user_id"),
                 provider: row.get("provider"),
@@ -4493,7 +4441,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         // Generate new secret
         let secret_value = match secret_type {
-            "admin_jwt_secret" => crate::admin::jwt::AdminJwtManager::generate_jwt_secret(),
+            "admin_jwt_secret" => AdminJwtManager::generate_jwt_secret(),
             _ => {
                 return Err(AppError::invalid_input(format!(
                     "Unknown secret type: {secret_type}"
@@ -4583,7 +4531,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_unread_oauth_notifications(
         &self,
         user_id: Uuid,
-    ) -> AppResult<Vec<crate::database::oauth_notifications::OAuthNotification>> {
+    ) -> AppResult<Vec<OAuthNotification>> {
         let rows = sqlx::query(
             r"
             SELECT id, user_id, provider, success, message, expires_at, created_at, read_at
@@ -4599,7 +4547,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         let mut notifications = Vec::new();
         for row in rows {
-            notifications.push(crate::database::oauth_notifications::OAuthNotification {
+            notifications.push(OAuthNotification {
                 id: row.get("id"),
                 user_id: row.get("user_id"),
                 provider: row.get("provider"),
@@ -4655,7 +4603,7 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         user_id: Uuid,
         limit: Option<i64>,
-    ) -> AppResult<Vec<crate::database::oauth_notifications::OAuthNotification>> {
+    ) -> AppResult<Vec<OAuthNotification>> {
         let mut query_str = String::from(
             r"
             SELECT id, user_id, provider, success, message, expires_at, created_at, read_at
@@ -4678,7 +4626,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         let mut notifications = Vec::new();
         for row in rows {
-            notifications.push(crate::database::oauth_notifications::OAuthNotification {
+            notifications.push(OAuthNotification {
                 id: row.get("id"),
                 user_id: row.get("user_id"),
                 provider: row.get("provider"),
@@ -4702,7 +4650,7 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         tenant_id: &str,
         configuration_name: &str,
-        config: &crate::config::fitness::FitnessConfig,
+        config: &FitnessConfig,
     ) -> AppResult<String> {
         let config_json = serde_json::to_string(config)?;
         let now = chrono::Utc::now().to_rfc3339();
@@ -4735,7 +4683,7 @@ impl DatabaseProvider for PostgresDatabase {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-        config: &crate::config::fitness::FitnessConfig,
+        config: &FitnessConfig,
     ) -> AppResult<String> {
         let config_json = serde_json::to_string(config)?;
         let now = chrono::Utc::now().to_rfc3339();
@@ -4768,7 +4716,7 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         tenant_id: &str,
         configuration_name: &str,
-    ) -> AppResult<Option<crate::config::fitness::FitnessConfig>> {
+    ) -> AppResult<Option<FitnessConfig>> {
         let result = sqlx::query(
             r"
             SELECT config_data FROM fitness_configurations
@@ -4783,7 +4731,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         if let Some(row) = result {
             let config_json: String = row.get("config_data");
-            let config: crate::config::fitness::FitnessConfig = serde_json::from_str(&config_json)?;
+            let config: FitnessConfig = serde_json::from_str(&config_json)?;
             Ok(Some(config))
         } else {
             Ok(None)
@@ -4796,7 +4744,7 @@ impl DatabaseProvider for PostgresDatabase {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-    ) -> AppResult<Option<crate::config::fitness::FitnessConfig>> {
+    ) -> AppResult<Option<FitnessConfig>> {
         // First try to get user-specific configuration
         let result = sqlx::query(
             r"
@@ -4813,7 +4761,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         if let Some(row) = result {
             let config_json: String = row.get("config_data");
-            let config: crate::config::fitness::FitnessConfig = serde_json::from_str(&config_json)?;
+            let config: FitnessConfig = serde_json::from_str(&config_json)?;
             return Ok(Some(config));
         }
 
@@ -4832,7 +4780,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         if let Some(row) = result {
             let config_json: String = row.get("config_data");
-            let config: crate::config::fitness::FitnessConfig = serde_json::from_str(&config_json)?;
+            let config: FitnessConfig = serde_json::from_str(&config_json)?;
             Ok(Some(config))
         } else {
             Ok(None)
@@ -4925,10 +4873,7 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(rows_affected.rows_affected() > 0)
     }
 
-    async fn store_oauth2_client(
-        &self,
-        client: &crate::oauth2_server::models::OAuth2Client,
-    ) -> AppResult<()> {
+    async fn store_oauth2_client(&self, client: &OAuth2Client) -> AppResult<()> {
         sqlx::query(
             "INSERT INTO oauth2_clients (id, client_id, client_secret_hash, redirect_uris, grant_types, response_types, client_name, client_uri, scope, created_at, expires_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)"
@@ -4949,10 +4894,7 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(())
     }
 
-    async fn get_oauth2_client(
-        &self,
-        client_id: &str,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2Client>> {
+    async fn get_oauth2_client(&self, client_id: &str) -> AppResult<Option<OAuth2Client>> {
         let row = sqlx::query(
             "SELECT id, client_id, client_secret_hash, redirect_uris, grant_types, response_types, client_name, client_uri, scope, created_at, expires_at
              FROM oauth2_clients WHERE client_id = $1"
@@ -4968,7 +4910,7 @@ impl DatabaseProvider for PostgresDatabase {
             let response_types: Vec<String> =
                 serde_json::from_str(&row.get::<String, _>("response_types"))?;
 
-            Ok(Some(crate::oauth2_server::models::OAuth2Client {
+            Ok(Some(OAuth2Client {
                 id: row.get("id"),
                 client_id: row.get("client_id"),
                 client_secret_hash: row.get("client_secret_hash"),
@@ -4986,10 +4928,7 @@ impl DatabaseProvider for PostgresDatabase {
         }
     }
 
-    async fn store_oauth2_auth_code(
-        &self,
-        auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> AppResult<()> {
+    async fn store_oauth2_auth_code(&self, auth_code: &OAuth2AuthCode) -> AppResult<()> {
         sqlx::query(
             "INSERT INTO oauth2_auth_codes (code, client_id, user_id, tenant_id, redirect_uri, scope, expires_at, used, state, code_challenge, code_challenge_method)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)"
@@ -5010,10 +4949,7 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(())
     }
 
-    async fn get_oauth2_auth_code(
-        &self,
-        code: &str,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
+    async fn get_oauth2_auth_code(&self, code: &str) -> AppResult<Option<OAuth2AuthCode>> {
         let row = sqlx::query(
             "SELECT code, client_id, user_id, tenant_id, redirect_uri, scope, expires_at, used, state, code_challenge, code_challenge_method
              FROM oauth2_auth_codes WHERE code = $1",
@@ -5024,7 +4960,7 @@ impl DatabaseProvider for PostgresDatabase {
         row.map_or_else(
             || Ok(None),
             |row| {
-                Ok(Some(crate::oauth2_server::models::OAuth2AuthCode {
+                Ok(Some(OAuth2AuthCode {
                     code: row.get("code"),
                     client_id: row.get("client_id"),
                     user_id: row.get("user_id"),
@@ -5041,10 +4977,7 @@ impl DatabaseProvider for PostgresDatabase {
         )
     }
 
-    async fn update_oauth2_auth_code(
-        &self,
-        auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> AppResult<()> {
+    async fn update_oauth2_auth_code(&self, auth_code: &OAuth2AuthCode) -> AppResult<()> {
         sqlx::query("UPDATE oauth2_auth_codes SET used = $1 WHERE code = $2")
             .bind(auth_code.used)
             .bind(&auth_code.code)
@@ -5058,7 +4991,7 @@ impl DatabaseProvider for PostgresDatabase {
     /// Store OAuth 2.0 refresh token
     async fn store_oauth2_refresh_token(
         &self,
-        refresh_token: &crate::oauth2_server::models::OAuth2RefreshToken,
+        refresh_token: &OAuth2RefreshToken,
     ) -> AppResult<()> {
         sqlx::query(
             "INSERT INTO oauth2_refresh_tokens (token, client_id, user_id, tenant_id, scope, expires_at, created_at, revoked)
@@ -5078,10 +5011,7 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     /// Get OAuth 2.0 refresh token
-    async fn get_oauth2_refresh_token(
-        &self,
-        token: &str,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    async fn get_oauth2_refresh_token(&self, token: &str) -> AppResult<Option<OAuth2RefreshToken>> {
         let row = sqlx::query(
             "SELECT token, client_id, user_id, tenant_id, scope, expires_at, created_at, revoked
              FROM oauth2_refresh_tokens
@@ -5094,7 +5024,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         if let Some(row) = row {
             use sqlx::Row;
-            Ok(Some(crate::oauth2_server::models::OAuth2RefreshToken {
+            Ok(Some(OAuth2RefreshToken {
                 token: row.try_get("token").map_err(|e| {
                     AppError::database(format!("Failed to parse token column: {e}"))
                 })?,
@@ -5146,7 +5076,7 @@ impl DatabaseProvider for PostgresDatabase {
         client_id: &str,
         redirect_uri: &str,
         now: DateTime<Utc>,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
+    ) -> AppResult<Option<OAuth2AuthCode>> {
         let row = sqlx::query(
             "UPDATE oauth2_auth_codes
              SET used = true
@@ -5167,7 +5097,7 @@ impl DatabaseProvider for PostgresDatabase {
             || Ok(None),
             |row| {
                 use sqlx::Row;
-                Ok(Some(crate::oauth2_server::models::OAuth2AuthCode {
+                Ok(Some(OAuth2AuthCode {
                     code: row.get("code"),
                     client_id: row.get("client_id"),
                     user_id: row.get("user_id"),
@@ -5193,7 +5123,7 @@ impl DatabaseProvider for PostgresDatabase {
         token: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    ) -> AppResult<Option<OAuth2RefreshToken>> {
         let row = sqlx::query(
             "UPDATE oauth2_refresh_tokens
              SET revoked = true
@@ -5210,7 +5140,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         if let Some(row) = row {
             use sqlx::Row;
-            Ok(Some(crate::oauth2_server::models::OAuth2RefreshToken {
+            Ok(Some(OAuth2RefreshToken {
                 token: row.try_get("token").map_err(|e| {
                     AppError::database(format!("Failed to parse token column: {e}"))
                 })?,
@@ -5244,7 +5174,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_refresh_token_by_value(
         &self,
         token: &str,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    ) -> AppResult<Option<OAuth2RefreshToken>> {
         let row = sqlx::query(
             "SELECT token, client_id, user_id, tenant_id, scope, expires_at, created_at, revoked
              FROM oauth2_refresh_tokens
@@ -5257,7 +5187,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         if let Some(row) = row {
             use sqlx::Row;
-            Ok(Some(crate::oauth2_server::models::OAuth2RefreshToken {
+            Ok(Some(OAuth2RefreshToken {
                 token: row.try_get("token").map_err(|e| {
                     AppError::database(format!("Failed to parse token column: {e}"))
                 })?,
@@ -5289,10 +5219,7 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     /// Store `OAuth2` state for CSRF protection
-    async fn store_oauth2_state(
-        &self,
-        state: &crate::oauth2_server::models::OAuth2State,
-    ) -> AppResult<()> {
+    async fn store_oauth2_state(&self, state: &OAuth2State) -> AppResult<()> {
         sqlx::query(
             "INSERT INTO oauth2_states (state, client_id, user_id, tenant_id, redirect_uri, scope, code_challenge, code_challenge_method, created_at, expires_at, used)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)"
@@ -5319,7 +5246,7 @@ impl DatabaseProvider for PostgresDatabase {
         state_value: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2State>> {
+    ) -> AppResult<Option<OAuth2State>> {
         let row = sqlx::query(
             "UPDATE oauth2_states
              SET used = true
@@ -5336,7 +5263,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         if let Some(row) = row {
             use sqlx::Row;
-            Ok(Some(crate::oauth2_server::models::OAuth2State {
+            Ok(Some(OAuth2State {
                 state: row.try_get("state").map_err(|e| {
                     AppError::database(format!("Failed to parse state column: {e}"))
                 })?,
@@ -5380,10 +5307,7 @@ impl DatabaseProvider for PostgresDatabase {
     // Impersonation Session Management
     // ================================
 
-    async fn create_impersonation_session(
-        &self,
-        session: &crate::permissions::impersonation::ImpersonationSession,
-    ) -> AppResult<()> {
+    async fn create_impersonation_session(&self, session: &ImpersonationSession) -> AppResult<()> {
         let query = r"
             INSERT INTO impersonation_sessions (
                 id, impersonator_id, target_user_id, reason,
@@ -5412,7 +5336,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_impersonation_session(
         &self,
         session_id: &str,
-    ) -> AppResult<Option<crate::permissions::impersonation::ImpersonationSession>> {
+    ) -> AppResult<Option<ImpersonationSession>> {
         let query = r"
             SELECT id, impersonator_id, target_user_id, reason,
                    started_at, ended_at, is_active, created_at
@@ -5432,7 +5356,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_active_impersonation_session(
         &self,
         impersonator_id: Uuid,
-    ) -> AppResult<Option<crate::permissions::impersonation::ImpersonationSession>> {
+    ) -> AppResult<Option<ImpersonationSession>> {
         let query = r"
             SELECT id, impersonator_id, target_user_id, reason,
                    started_at, ended_at, is_active, created_at
@@ -5497,7 +5421,7 @@ impl DatabaseProvider for PostgresDatabase {
         target_user_id: Option<Uuid>,
         active_only: bool,
         limit: u32,
-    ) -> AppResult<Vec<crate::permissions::impersonation::ImpersonationSession>> {
+    ) -> AppResult<Vec<ImpersonationSession>> {
         use std::fmt::Write;
 
         // Build dynamic query based on filters
@@ -5552,8 +5476,8 @@ impl DatabaseProvider for PostgresDatabase {
     async fn create_user_mcp_token(
         &self,
         user_id: Uuid,
-        request: &crate::database::CreateUserMcpTokenRequest,
-    ) -> AppResult<crate::database::UserMcpTokenCreated> {
+        request: &CreateUserMcpTokenRequest,
+    ) -> AppResult<UserMcpTokenCreated> {
         let token_value = Self::generate_mcp_token();
         let token_hash = Self::hash_mcp_token(&token_value);
         let token_prefix = token_value.chars().take(12).collect::<String>();
@@ -5583,7 +5507,7 @@ impl DatabaseProvider for PostgresDatabase {
         .await
         .map_err(|e| AppError::database(format!("Failed to create user MCP token: {e}")))?;
 
-        let token = crate::database::UserMcpToken {
+        let token = UserMcpToken {
             id,
             user_id,
             name: request.name.clone(),
@@ -5596,7 +5520,7 @@ impl DatabaseProvider for PostgresDatabase {
             created_at: now,
         };
 
-        Ok(crate::database::UserMcpTokenCreated { token, token_value })
+        Ok(UserMcpTokenCreated { token, token_value })
     }
 
     async fn validate_user_mcp_token(&self, token_value: &str) -> AppResult<Uuid> {
@@ -5639,10 +5563,7 @@ impl DatabaseProvider for PostgresDatabase {
             .map_err(|e| AppError::internal(format!("Failed to parse user_id UUID: {e}")))
     }
 
-    async fn list_user_mcp_tokens(
-        &self,
-        user_id: Uuid,
-    ) -> AppResult<Vec<crate::database::UserMcpTokenInfo>> {
+    async fn list_user_mcp_tokens(&self, user_id: Uuid) -> AppResult<Vec<UserMcpTokenInfo>> {
         use sqlx::Row;
 
         let rows = sqlx::query(
@@ -5660,7 +5581,7 @@ impl DatabaseProvider for PostgresDatabase {
         .map_err(|e| AppError::database(format!("Failed to list user MCP tokens: {e}")))?;
         rows.iter()
             .map(|row| {
-                Ok(crate::database::UserMcpTokenInfo {
+                Ok(UserMcpTokenInfo {
                     id: row.get("id"),
                     name: row.get("name"),
                     token_prefix: row.get("token_prefix"),
@@ -5703,7 +5624,7 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         token_id: &str,
         user_id: Uuid,
-    ) -> AppResult<Option<crate::database::UserMcpToken>> {
+    ) -> AppResult<Option<UserMcpToken>> {
         let row = sqlx::query(
             r"
             SELECT id, user_id, name, token_hash, token_prefix,
@@ -5749,10 +5670,7 @@ impl PostgresDatabase {
         let mut rng = rand::thread_rng();
         let mut bytes = [0u8; 32];
         rng.fill_bytes(&mut bytes);
-        format!(
-            "pmcp_{}",
-            base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, bytes)
-        )
+        format!("pmcp_{}", URL_SAFE_NO_PAD.encode(bytes))
     }
 
     /// Hash a token for storage
@@ -5782,11 +5700,9 @@ impl PostgresDatabase {
     }
 
     /// Convert database row to `UserMcpToken`
-    fn row_to_user_mcp_token(
-        row: &sqlx::postgres::PgRow,
-    ) -> AppResult<crate::database::UserMcpToken> {
+    fn row_to_user_mcp_token(row: &PgRow) -> AppResult<UserMcpToken> {
         use sqlx::Row;
-        Ok(crate::database::UserMcpToken {
+        Ok(UserMcpToken {
             id: row.get("id"),
             user_id: Uuid::parse_str(row.get::<String, _>("user_id").as_str())
                 .map_err(|e| AppError::internal(format!("Failed to parse user_id UUID: {e}")))?,
@@ -5804,9 +5720,7 @@ impl PostgresDatabase {
     }
 
     /// Convert database row to `ImpersonationSession`
-    fn row_to_impersonation_session(
-        row: &sqlx::postgres::PgRow,
-    ) -> AppResult<crate::permissions::impersonation::ImpersonationSession> {
+    fn row_to_impersonation_session(row: &PgRow) -> AppResult<ImpersonationSession> {
         use sqlx::Row;
 
         let id: String = row.get("id");
@@ -5818,7 +5732,7 @@ impl PostgresDatabase {
         let is_active: bool = row.get("is_active");
         let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
 
-        Ok(crate::permissions::impersonation::ImpersonationSession {
+        Ok(ImpersonationSession {
             id,
             impersonator_id: Uuid::parse_str(&impersonator_id)
                 .map_err(|e| AppError::database(format!("Invalid impersonator_id UUID: {e}")))?,
@@ -5835,10 +5749,7 @@ impl PostgresDatabase {
     /// Convert database row to `UserOAuthToken` with decryption
     ///
     /// SECURITY: Decrypts OAuth tokens from database storage (AES-256-GCM with AAD)
-    fn row_to_user_oauth_token(
-        &self,
-        row: &sqlx::postgres::PgRow,
-    ) -> AppResult<crate::models::UserOAuthToken> {
+    fn row_to_user_oauth_token(&self, row: &PgRow) -> AppResult<UserOAuthToken> {
         use sqlx::Row;
 
         let user_id: uuid::Uuid = row
@@ -5878,7 +5789,7 @@ impl PostgresDatabase {
             })
             .transpose()?;
 
-        Ok(crate::models::UserOAuthToken {
+        Ok(UserOAuthToken {
             id: row
                 .try_get("id")
                 .map_err(|e| AppError::database(format!("Failed to parse id column: {e}")))?,
@@ -5904,10 +5815,7 @@ impl PostgresDatabase {
     }
 
     /// Convert database row to `AdminToken`
-    fn row_to_admin_token(
-        row: &sqlx::postgres::PgRow,
-    ) -> AppResult<crate::admin::models::AdminToken> {
-        use crate::admin::models::{AdminPermissions, AdminToken};
+    fn row_to_admin_token(row: &PgRow) -> AppResult<AdminToken> {
         use sqlx::Row;
 
         let permissions_json: String = row
@@ -5965,10 +5873,7 @@ impl PostgresDatabase {
     }
 
     /// Convert database row to `AdminTokenUsage`
-    fn row_to_admin_token_usage(
-        row: &sqlx::postgres::PgRow,
-    ) -> AppResult<crate::admin::models::AdminTokenUsage> {
-        use crate::admin::models::{AdminAction, AdminTokenUsage};
+    fn row_to_admin_token_usage(row: &PgRow) -> AppResult<AdminTokenUsage> {
         use sqlx::Row;
 
         let action_str: String = row

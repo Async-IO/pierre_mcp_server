@@ -10,15 +10,16 @@
 use anyhow::Result;
 use pierre_mcp_server::constants::tools::*;
 use pierre_mcp_server::mcp::multitenant::McpRequest;
+use pierre_mcp_server::mcp::resources::ServerResources;
 use pierre_mcp_server::mcp::tool_handlers::ToolHandlers;
 use serde_json::{json, Value};
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 mod common;
 
 /// Mock MCP handler for in-process testing
 struct MockMcpHandler {
-    resources: Arc<pierre_mcp_server::mcp::resources::ServerResources>,
+    resources: Arc<ServerResources>,
     test_jwt_token: String,
 }
 
@@ -121,8 +122,8 @@ impl MockMcpHandler {
             })),
             id: Some(json!(1)),
             auth_token: Some(format!("Bearer {}", self.test_jwt_token)),
-            headers: Some(std::collections::HashMap::new()),
-            metadata: std::collections::HashMap::new(),
+            headers: Some(HashMap::new()),
+            metadata: HashMap::new(),
         };
 
         // Use the actual ToolHandlers implementation

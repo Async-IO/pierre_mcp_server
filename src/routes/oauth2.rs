@@ -9,18 +9,21 @@
 // - Resource Arc sharing for HTTP route handlers
 // - String ownership for OAuth protocol responses
 
-use crate::admin::jwks::JwksManager;
-use crate::auth::AuthManager;
-use crate::config::environment::ServerConfig;
-use crate::database_plugins::factory::Database;
-use crate::database_plugins::DatabaseProvider;
-use crate::errors::AppError;
-use crate::errors::AppResult;
-use crate::oauth2_server::{
-    client_registration::ClientRegistrationManager,
-    endpoints::OAuth2AuthorizationServer,
-    models::{AuthorizeRequest, ClientRegistrationRequest, OAuth2Error, TokenRequest},
-    rate_limiting::OAuth2RateLimiter,
+use crate::{
+    admin::jwks::{JsonWebKeySet, JwksManager},
+    auth::AuthManager,
+    config::environment::ServerConfig,
+    database_plugins::{factory::Database, DatabaseProvider},
+    errors::{AppError, AppResult},
+    oauth2_server::{
+        client_registration::ClientRegistrationManager,
+        endpoints::OAuth2AuthorizationServer,
+        models::{
+            AuthorizeRequest, ClientRegistrationRequest, OAuth2Error, TokenRequest,
+            ValidateRefreshRequest,
+        },
+        rate_limiting::OAuth2RateLimiter,
+    },
 };
 use axum::{
     extract::{ConnectInfo, Form, Query, State},
@@ -30,9 +33,13 @@ use axum::{
     Json, Router,
 };
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
-use std::net::SocketAddr;
-use std::sync::Arc;
+use std::{
+    cmp::min,
+    collections::HashMap,
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+};
+use tokio::task::spawn_blocking;
 use tracing::{debug, error, info, trace, warn};
 
 /// OAuth 2.0 server context shared across all handlers
@@ -112,7 +119,7 @@ impl OAuth2Routes {
         let issuer_url = context.config.oauth2_server.issuer_url.clone();
 
         // Use spawn_blocking for JSON serialization (CPU-bound operation)
-        let discovery_json = tokio::task::spawn_blocking(move || {
+        let discovery_json = spawn_blocking(move || {
             serde_json::json!({
                 "issuer": issuer_url,
                 "authorization_endpoint": format!("{issuer_url}/oauth2/authorize"),
@@ -260,7 +267,7 @@ impl OAuth2Routes {
 
     async fn execute_authorization(
         context: &OAuth2Context,
-        request: crate::oauth2_server::models::AuthorizeRequest,
+        request: AuthorizeRequest,
         authenticated_user_id: uuid::Uuid,
         tenant_id: Option<String>,
         redirect_uri: String,
@@ -326,10 +333,7 @@ impl OAuth2Routes {
         Self::execute_token_exchange(auth_server, request, &form).await
     }
 
-    fn check_token_rate_limit(
-        context: &OAuth2Context,
-        client_ip: std::net::IpAddr,
-    ) -> Option<Response> {
+    fn check_token_rate_limit(context: &OAuth2Context, client_ip: IpAddr) -> Option<Response> {
         let rate_status = context.rate_limiter.check_rate_limit("token", client_ip);
 
         if rate_status.is_limited {
@@ -350,8 +354,7 @@ impl OAuth2Routes {
 
     fn parse_and_log_token_request(
         form: &HashMap<String, String>,
-    ) -> Result<crate::oauth2_server::models::TokenRequest, crate::oauth2_server::models::OAuth2Error>
-    {
+    ) -> Result<TokenRequest, OAuth2Error> {
         debug!(
             "OAuth token request received with grant_type: {:?}, client_id: {:?}",
             form.get("grant_type"),
@@ -366,7 +369,7 @@ impl OAuth2Routes {
 
     async fn execute_token_exchange(
         auth_server: OAuth2AuthorizationServer,
-        request: crate::oauth2_server::models::TokenRequest,
+        request: TokenRequest,
         form: &HashMap<String, String>,
     ) -> Response {
         match auth_server.token(request).await {
@@ -392,7 +395,7 @@ impl OAuth2Routes {
     async fn handle_validate_and_refresh(
         State(context): State<OAuth2Context>,
         headers: HeaderMap,
-        Json(request): Json<crate::oauth2_server::models::ValidateRefreshRequest>,
+        Json(request): Json<ValidateRefreshRequest>,
     ) -> Response {
         // Extract Bearer token from Authorization header
         let access_token = match Self::extract_bearer_token(&headers) {
@@ -402,7 +405,7 @@ impl OAuth2Routes {
 
         debug!(
             "Validate-and-refresh request received with token (first 20 chars): {}...",
-            &access_token[..std::cmp::min(20, access_token.len())]
+            &access_token[..min(20, access_token.len())]
         );
 
         let auth_server = OAuth2AuthorizationServer::new(
@@ -474,10 +477,7 @@ impl OAuth2Routes {
     }
 
     /// Validate `client_id` and return appropriate response
-    async fn validate_client_id_response(
-        database: Arc<crate::database_plugins::factory::Database>,
-        client_id: &str,
-    ) -> Response {
+    async fn validate_client_id_response(database: Arc<Database>, client_id: &str) -> Response {
         let client_manager = ClientRegistrationManager::new(database);
         match client_manager.get_client(client_id).await {
             Ok(_) => {
@@ -593,7 +593,7 @@ impl OAuth2Routes {
             .unwrap_or_default();
 
         // Use spawn_blocking for HTML generation (CPU-bound string formatting)
-        let html = tokio::task::spawn_blocking(move || {
+        let html = spawn_blocking(move || {
             Self::generate_login_html(LoginHtmlParams {
                 client_id: &client_id,
                 redirect_uri: &redirect_uri,
@@ -765,10 +765,8 @@ impl OAuth2Routes {
     // ============================================================================
 
     /// Compute JWKS `ETag` from JSON content
-    async fn compute_jwks_etag(
-        jwks: crate::admin::jwks::JsonWebKeySet,
-    ) -> Result<(String, String), Response> {
-        let etag_result = tokio::task::spawn_blocking(move || {
+    async fn compute_jwks_etag(jwks: JsonWebKeySet) -> Result<(String, String), Response> {
+        let etag_result = spawn_blocking(move || {
             let jwks_json = serde_json::to_string(&jwks)?;
             let mut hasher = Sha256::new();
             hasher.update(jwks_json.as_bytes());
@@ -860,8 +858,8 @@ impl OAuth2Routes {
     /// Validate Bearer token for token-validate endpoint (returns OK with valid:false on errors)
     fn validate_bearer_token_for_validate_endpoint(
         headers: &HeaderMap,
-        auth_manager: &crate::auth::AuthManager,
-        jwks_manager: &crate::admin::jwks::JwksManager,
+        auth_manager: &AuthManager,
+        jwks_manager: &JwksManager,
     ) -> Result<bool, Box<Response>> {
         let Some(header) = headers.get(header::AUTHORIZATION) else {
             // No token provided - not an error, just return false
@@ -1122,7 +1120,7 @@ impl OAuth2Routes {
         let password = password.to_owned();
         let hash = hash.to_owned();
 
-        tokio::task::spawn_blocking(move || bcrypt::verify(&password, &hash).unwrap_or(false))
+        spawn_blocking(move || bcrypt::verify(&password, &hash).unwrap_or(false))
             .await
             .unwrap_or(false)
     }

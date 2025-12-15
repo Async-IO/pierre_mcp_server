@@ -6,10 +6,15 @@
 
 use super::core::{FitnessProvider, ProviderConfig, ProviderFactory, TenantProvider};
 use super::spi::{ProviderBundle, ProviderCapabilities, ProviderDescriptor};
+use crate::config::environment::load_provider_env_config;
+use crate::constants::oauth::GARMIN_DEFAULT_SCOPES;
 use crate::constants::oauth_providers;
 use crate::errors::{AppError, AppResult};
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    convert::AsRef,
+    sync::{Arc, OnceLock},
+};
 use tracing::info;
 use uuid::Uuid;
 
@@ -65,7 +70,7 @@ impl ProviderRegistry {
     /// Create a new provider registry with default providers
     ///
     /// Providers are configured from environment variables with fallback to hardcoded defaults.
-    /// See `crate::config::environment::load_provider_env_config()` for environment variable format.
+    /// See `load_provider_env_config()` for environment variable format.
     #[must_use]
     pub fn new() -> Self {
         let mut registry = Self {
@@ -99,7 +104,7 @@ impl ProviderRegistry {
         registry.register_factory(oauth_providers::STRAVA, Box::new(StravaProviderFactory));
         registry.register_descriptor(oauth_providers::STRAVA, Box::new(StravaDescriptor));
         let (_, _, auth_url, token_url, api_base_url, revoke_url, scopes) =
-            crate::config::environment::load_provider_env_config(
+            load_provider_env_config(
                 oauth_providers::STRAVA,
                 "https://www.strava.com/oauth/authorize",
                 "https://www.strava.com/oauth/token",
@@ -129,13 +134,13 @@ impl ProviderRegistry {
         registry.register_factory(oauth_providers::GARMIN, Box::new(GarminProviderFactory));
         registry.register_descriptor(oauth_providers::GARMIN, Box::new(GarminDescriptor));
         let (_, _, auth_url, token_url, api_base_url, revoke_url, scopes) =
-            crate::config::environment::load_provider_env_config(
+            load_provider_env_config(
                 oauth_providers::GARMIN,
                 "https://connect.garmin.com/oauthConfirm",
                 "https://connectapi.garmin.com/oauth-service/oauth/access_token",
                 "https://apis.garmin.com/wellness-api/rest",
                 Some("https://connectapi.garmin.com/oauth-service/oauth/revoke"),
-                &crate::constants::oauth::GARMIN_DEFAULT_SCOPES
+                &GARMIN_DEFAULT_SCOPES
                     .split(',')
                     .map(str::to_owned)
                     .collect::<Vec<_>>(),
@@ -162,7 +167,7 @@ impl ProviderRegistry {
         registry.register_factory(oauth_providers::FITBIT, Box::new(FitbitProviderFactory));
         registry.register_descriptor(oauth_providers::FITBIT, Box::new(FitbitDescriptor));
         let (_, _, auth_url, token_url, api_base_url, revoke_url, scopes) =
-            crate::config::environment::load_provider_env_config(
+            load_provider_env_config(
                 oauth_providers::FITBIT,
                 "https://www.fitbit.com/oauth2/authorize",
                 "https://api.fitbit.com/oauth2/token",
@@ -223,7 +228,7 @@ impl ProviderRegistry {
         registry.register_factory(oauth_providers::WHOOP, Box::new(WhoopProviderFactory));
         registry.register_descriptor(oauth_providers::WHOOP, Box::new(WhoopDescriptor));
         let (_, _, auth_url, token_url, api_base_url, revoke_url, scopes) =
-            crate::config::environment::load_provider_env_config(
+            load_provider_env_config(
                 oauth_providers::WHOOP,
                 "https://api.prod.whoop.com/oauth/oauth2/auth",
                 "https://api.prod.whoop.com/oauth/oauth2/token",
@@ -397,9 +402,7 @@ impl ProviderRegistry {
     /// Get provider descriptor for OAuth and API configuration
     #[must_use]
     pub fn get_descriptor(&self, provider_name: &str) -> Option<&dyn ProviderDescriptor> {
-        self.descriptors
-            .get(provider_name)
-            .map(std::convert::AsRef::as_ref)
+        self.descriptors.get(provider_name).map(AsRef::as_ref)
     }
 
     /// Get all providers that support OAuth
@@ -505,7 +508,7 @@ impl Default for ProviderRegistry {
 /// Note: For test isolation, prefer creating local `ProviderRegistry::new()` instances
 /// instead of using this global singleton. Tests that use the global singleton will
 /// share state and cannot customize provider configuration per-test.
-static REGISTRY: std::sync::OnceLock<Arc<ProviderRegistry>> = std::sync::OnceLock::new();
+static REGISTRY: OnceLock<Arc<ProviderRegistry>> = OnceLock::new();
 
 /// Get the global provider registry
 ///
@@ -599,7 +602,7 @@ pub fn create_registry_with_external_providers(bundles: Vec<ProviderBundle>) -> 
 /// This global cache stores webhook data and makes it available to `TerraProvider`
 /// instances for the `FitnessProvider` trait implementation.
 #[cfg(feature = "provider-terra")]
-static TERRA_CACHE: std::sync::OnceLock<Arc<TerraDataCache>> = std::sync::OnceLock::new();
+static TERRA_CACHE: OnceLock<Arc<TerraDataCache>> = OnceLock::new();
 
 /// Get the global Terra data cache
 ///

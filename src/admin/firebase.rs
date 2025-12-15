@@ -41,17 +41,23 @@
 //! # }
 //! ```
 
-use crate::config::environment::FirebaseConfig;
-use crate::errors::{AppError, AppResult};
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine;
 use chrono::{DateTime, Duration, Utc};
+use jsonwebtoken::errors::ErrorKind;
 use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::Arc;
+use serde_json::Value;
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 use x509_parser::prelude::*;
+
+use crate::config::environment::FirebaseConfig;
+use crate::errors::{AppError, AppResult};
 
 /// Google's Firebase public key endpoint
 const FIREBASE_CERTS_URL: &str =
@@ -109,7 +115,7 @@ pub struct FirebaseSpecificClaims {
     /// Sign-in provider (e.g., "google.com", "apple.com", "password")
     pub sign_in_provider: Option<String>,
     /// Identity claims from the provider
-    pub identities: Option<HashMap<String, serde_json::Value>>,
+    pub identities: Option<HashMap<String, Value>>,
 }
 
 /// Firebase Authentication handler
@@ -211,13 +217,9 @@ impl FirebaseAuth {
             decode::<FirebaseClaims>(token, &decoding_key, &validation).map_err(|e| {
                 debug!(error = %e, "Firebase token validation failed");
                 match e.kind() {
-                    jsonwebtoken::errors::ErrorKind::ExpiredSignature => AppError::auth_expired(),
-                    jsonwebtoken::errors::ErrorKind::InvalidAudience => {
-                        AppError::auth_invalid("Invalid token audience")
-                    }
-                    jsonwebtoken::errors::ErrorKind::InvalidIssuer => {
-                        AppError::auth_invalid("Invalid token issuer")
-                    }
+                    ErrorKind::ExpiredSignature => AppError::auth_expired(),
+                    ErrorKind::InvalidAudience => AppError::auth_invalid("Invalid token audience"),
+                    ErrorKind::InvalidIssuer => AppError::auth_invalid("Invalid token issuer"),
                     _ => AppError::auth_invalid("Invalid token"),
                 }
             })?;
@@ -402,7 +404,8 @@ fn extract_public_key_from_cert(cert_pem: &str) -> AppResult<String> {
     let spki_der = spki.raw;
     let pem_encoded = format!(
         "-----BEGIN PUBLIC KEY-----\n{}\n-----END PUBLIC KEY-----",
-        base64::Engine::encode(&base64::engine::general_purpose::STANDARD, spki_der)
+        STANDARD
+            .encode(spki_der)
             .chars()
             .collect::<Vec<_>>()
             .chunks(64)

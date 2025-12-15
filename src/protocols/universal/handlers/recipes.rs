@@ -4,14 +4,14 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-use crate::config::IntelligenceConfig;
+use crate::config::{IntelligenceConfig, MealTdeeProportionsConfig};
 use crate::database::recipes::RecipeManager;
 use crate::external::{UsdaClient, UsdaClientConfig};
 use crate::intelligence::recipes::{
-    convert_to_grams, IngredientUnit, MacroTargets, MealTiming, Recipe, RecipeConstraints,
-    RecipeIngredient, SkillLevel,
+    convert_to_grams, DietaryRestriction, IngredientUnit, MacroTargets, MealTiming, Recipe,
+    RecipeConstraints, RecipeIngredient, SkillLevel,
 };
-use crate::protocols::universal::{UniversalRequest, UniversalResponse};
+use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalToolExecutor};
 use crate::protocols::ProtocolError;
 use crate::utils::uuid::parse_user_id_for_protocol;
 use chrono::Utc;
@@ -30,7 +30,7 @@ struct TdeeContext<'a> {
     /// User's daily TDEE if provided
     tdee: Option<f64>,
     /// Reference to the TDEE proportion configuration
-    proportions: &'a crate::config::MealTdeeProportionsConfig,
+    proportions: &'a MealTdeeProportionsConfig,
 }
 
 /// Input parameters for saving a recipe
@@ -77,7 +77,7 @@ struct IngredientInput {
 /// Returns `ProtocolError` if parameters are invalid
 #[must_use]
 pub fn handle_get_recipe_constraints(
-    _executor: &crate::protocols::universal::UniversalToolExecutor,
+    _executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -275,7 +275,7 @@ fn build_constraints_response(
 #[must_use]
 #[allow(clippy::too_many_lines)] // Complex validation logic with USDA API calls
 pub fn handle_validate_recipe(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -514,7 +514,7 @@ pub fn handle_validate_recipe(
 /// Returns `ProtocolError` if required parameters missing or save fails
 #[must_use]
 pub fn handle_save_recipe(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -617,7 +617,7 @@ pub fn handle_save_recipe(
 /// JSON array of recipe summaries
 #[must_use]
 pub fn handle_list_recipes(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -715,7 +715,7 @@ pub fn handle_list_recipes(
 /// Full recipe details including ingredients and nutrition
 #[must_use]
 pub fn handle_get_recipe(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -807,7 +807,7 @@ pub fn handle_get_recipe(
 /// Success confirmation
 #[must_use]
 pub fn handle_delete_recipe(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -866,7 +866,7 @@ pub fn handle_delete_recipe(
 /// JSON array of matching recipes
 #[must_use]
 pub fn handle_search_recipes(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -979,10 +979,8 @@ fn parse_ingredient_unit(s: &str) -> IngredientUnit {
     }
 }
 
-fn parse_dietary_restrictions(
-    arr: Option<&Vec<Value>>,
-) -> Vec<crate::intelligence::recipes::DietaryRestriction> {
-    use crate::intelligence::recipes::DietaryRestriction;
+fn parse_dietary_restrictions(arr: Option<&Vec<Value>>) -> Vec<DietaryRestriction> {
+    use DietaryRestriction;
 
     let Some(values) = arr else {
         return Vec::new();

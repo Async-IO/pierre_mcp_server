@@ -14,12 +14,11 @@ use crate::intelligence::physiological_constants::{
 };
 use crate::models::Activity;
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 
 /// Safe casting helper functions to avoid clippy warnings
 #[inline]
 fn safe_f64_to_f32(value: f64) -> f32 {
-    use std::cmp::Ordering;
-
     // Handle special cases
     if value.is_nan() {
         return 0.0_f32;
@@ -168,7 +167,7 @@ impl InsightGenerator {
         insights.sort_by(|a, b| {
             b.confidence
                 .partial_cmp(&a.confidence)
-                .unwrap_or(std::cmp::Ordering::Equal)
+                .unwrap_or(Ordering::Equal)
         });
         insights.truncate(self.config.max_insights_per_activity);
 

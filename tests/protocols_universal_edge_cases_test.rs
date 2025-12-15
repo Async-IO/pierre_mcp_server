@@ -13,6 +13,7 @@
 
 use anyhow::Result;
 use pierre_mcp_server::{
+    auth::AuthManager,
     config::environment::*,
     constants::oauth_providers,
     database_plugins::DatabaseProvider,
@@ -20,7 +21,8 @@ use pierre_mcp_server::{
         ActivityIntelligence, ContextualFactors, PerformanceMetrics, TimeOfDay, TrendDirection,
         TrendIndicators,
     },
-    models::UserOAuthToken,
+    mcp::resources::ServerResources,
+    models::{Tenant, User, UserOAuthToken},
     protocols::universal::{UniversalRequest, UniversalToolExecutor},
 };
 use serde_json::json;
@@ -30,8 +32,8 @@ use uuid::Uuid;
 mod common;
 
 /// Create test user without saving to database (local helper)
-fn create_test_user(email: &str, display_name: Option<String>) -> pierre_mcp_server::models::User {
-    pierre_mcp_server::models::User::new(email.to_owned(), "test_hash".to_owned(), display_name)
+fn create_test_user(email: &str, display_name: Option<String>) -> User {
+    User::new(email.to_owned(), "test_hash".to_owned(), display_name)
 }
 
 /// Create test configuration
@@ -51,12 +53,12 @@ fn create_test_config() -> Arc<ServerConfig> {
                 retention_count: 7,
                 directory: PathBuf::from("test_backups"),
             },
-            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            postgres_pool: PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
-            ..pierre_mcp_server::config::environment::AuthConfig::default()
+            ..AuthConfig::default()
         },
         oauth: OAuthConfig {
             strava: OAuthProviderConfig {
@@ -124,9 +126,9 @@ fn create_test_config() -> Arc<ServerConfig> {
                 server_version: "0.1.0".to_owned(),
             },
         },
-        sse: pierre_mcp_server::config::environment::SseConfig::default(),
-        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
-        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        sse: SseConfig::default(),
+        oauth2_server: OAuth2ServerConfig::default(),
+        route_timeouts: RouteTimeoutConfig::default(),
         ..Default::default()
     })
 }
@@ -172,9 +174,9 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
 
     let config = create_test_config();
     // Create ServerResources for the test
-    let auth_manager = pierre_mcp_server::auth::AuthManager::new(24);
+    let auth_manager = AuthManager::new(24);
     let cache = common::create_test_cache().await.unwrap();
-    let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let server_resources = Arc::new(ServerResources::new(
         (*database).clone(),
         auth_manager,
         "test_secret",
@@ -218,9 +220,9 @@ async fn create_executor_no_oauth() -> Result<UniversalToolExecutor> {
     // Create config without OAuth credentials
     let config = create_test_config_no_oauth();
     // Create ServerResources for the test
-    let auth_manager = pierre_mcp_server::auth::AuthManager::new(24);
+    let auth_manager = AuthManager::new(24);
     let cache = common::create_test_cache().await.unwrap();
-    let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let server_resources = Arc::new(ServerResources::new(
         (*database).clone(),
         auth_manager,
         "test_secret",
@@ -248,7 +250,7 @@ async fn test_oauth_configuration_errors() -> Result<()> {
     executor.resources.database.create_user(&user).await?;
 
     // Create tenant with user as owner
-    let tenant = pierre_mcp_server::models::Tenant::new(
+    let tenant = Tenant::new(
         "Test Tenant".to_owned(),
         "test-tenant".to_owned(),
         Some("test.example.com".to_owned()),

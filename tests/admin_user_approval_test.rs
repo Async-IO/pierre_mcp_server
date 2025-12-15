@@ -10,13 +10,17 @@
 mod common;
 
 use anyhow::Result;
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
 use pierre_mcp_server::{
     admin::models::CreateAdminTokenRequest,
     database_plugins::{factory::Database, DatabaseProvider},
+    key_management::KeyManager,
     models::{User, UserStatus, UserTier},
     permissions::UserRole,
 };
 use serial_test::serial;
+use std::{env, fs};
 use uuid::Uuid;
 
 const TEST_JWT_SECRET: &str = "test_jwt_secret_for_admin_user_approval_tests";
@@ -27,27 +31,26 @@ async fn setup_test_database() -> Result<(Database, String, Uuid)> {
     let test_id = Uuid::new_v4().to_string();
 
     // Create test directory if it doesn't exist
-    std::fs::create_dir_all("./test_data")
+    fs::create_dir_all("./test_data")
         .map_err(|e| anyhow::anyhow!("Failed to create test directory: {e}"))?;
 
     let db_path = format!("./test_data/admin_approval_test_{test_id}.db");
     let db_url = format!("sqlite:{db_path}");
 
     // Set MEK for test (required for KeyManager::bootstrap())
-    std::env::set_var(
+    env::set_var(
         "PIERRE_MASTER_ENCRYPTION_KEY",
         "Y2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2M=",
     );
 
     // Create database with proper encryption
-    let (mut key_manager, database_key) =
-        pierre_mcp_server::key_management::KeyManager::bootstrap()?;
+    let (mut key_manager, database_key) = KeyManager::bootstrap()?;
 
     #[cfg(feature = "postgresql")]
     let mut database = Database::new(
         &db_url,
         database_key.to_vec(),
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -119,7 +122,7 @@ async fn test_get_pending_users() -> Result<()> {
         is_active: true,
         user_status: UserStatus::Pending,
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         approved_by: None,
         approved_at: None,
         created_at: chrono::Utc::now(),
@@ -141,7 +144,7 @@ async fn test_get_pending_users() -> Result<()> {
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         approved_by: Some(admin_user_id),
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
@@ -157,7 +160,7 @@ async fn test_get_pending_users() -> Result<()> {
     assert_eq!(pending_users[0].email, "pending@test.com");
 
     // Clean up test environment variable
-    std::env::remove_var("PIERRE_MASTER_ENCRYPTION_KEY");
+    env::remove_var("PIERRE_MASTER_ENCRYPTION_KEY");
 
     Ok(())
 }
@@ -180,7 +183,7 @@ async fn test_approve_user() -> Result<()> {
         is_active: true,
         user_status: UserStatus::Pending,
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         approved_by: None,
         approved_at: None,
         created_at: chrono::Utc::now(),
@@ -212,7 +215,7 @@ async fn test_approve_user() -> Result<()> {
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         approved_by: Some(admin_user_id), // Approved by admin user
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
@@ -231,7 +234,7 @@ async fn test_approve_user() -> Result<()> {
     assert!(created_user.approved_at.is_some());
 
     // Clean up test environment variable
-    std::env::remove_var("PIERRE_MASTER_ENCRYPTION_KEY");
+    env::remove_var("PIERRE_MASTER_ENCRYPTION_KEY");
 
     Ok(())
 }
@@ -254,7 +257,7 @@ async fn test_suspend_user() -> Result<()> {
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         approved_by: Some(admin_user_id),
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
@@ -275,7 +278,7 @@ async fn test_suspend_user() -> Result<()> {
     assert_eq!(updated_user.user_status, UserStatus::Suspended);
 
     // Clean up test environment variable
-    std::env::remove_var("PIERRE_MASTER_ENCRYPTION_KEY");
+    env::remove_var("PIERRE_MASTER_ENCRYPTION_KEY");
 
     Ok(())
 }
@@ -298,7 +301,7 @@ async fn test_user_status_transitions() -> Result<()> {
         is_active: true,
         user_status: UserStatus::Pending,
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         approved_by: None,
         approved_at: None,
         created_at: chrono::Utc::now(),
@@ -315,7 +318,7 @@ async fn test_user_status_transitions() -> Result<()> {
     assert!(retrieved_user.approved_by.is_none());
 
     // Clean up test environment variable
-    std::env::remove_var("PIERRE_MASTER_ENCRYPTION_KEY");
+    env::remove_var("PIERRE_MASTER_ENCRYPTION_KEY");
 
     Ok(())
 }

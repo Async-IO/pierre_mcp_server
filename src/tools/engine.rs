@@ -12,7 +12,8 @@ use crate::database_plugins::factory::Database;
 use crate::errors::{AppError, AppResult};
 use crate::intelligence::weather::WeatherService;
 use crate::intelligence::ActivityAnalyzer;
-use crate::protocols::universal::UniversalToolExecutor;
+use crate::mcp::schema::{JsonSchema, ToolSchema};
+use crate::protocols::universal::{UniversalRequest, UniversalToolExecutor};
 use serde_json::Value;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -66,7 +67,7 @@ impl ToolEngine {
         }
 
         // Convert to the universal request format that the existing infrastructure expects
-        let universal_request = crate::protocols::universal::UniversalRequest {
+        let universal_request = UniversalRequest {
             tool_name: tool_name.to_owned(),
             parameters: params,
             protocol: "mcp".into(),
@@ -228,7 +229,7 @@ impl ToolEngine {
 
     /// Get all available tools with their schemas (for MCP capabilities)
     #[must_use]
-    pub fn get_all_tool_schemas(&self) -> Vec<crate::mcp::schema::ToolSchema> {
+    pub fn get_all_tool_schemas(&self) -> Vec<ToolSchema> {
         self.list_available_tools()
             .iter()
             .filter_map(|&tool_name| {
@@ -237,10 +238,10 @@ impl ToolEngine {
                     .get_tool_schema(tool_name)
                     .unwrap_or_else(|| serde_json::json!({"type": "object", "properties": {}}));
 
-                Some(crate::mcp::schema::ToolSchema {
+                Some(ToolSchema {
                     name: tool_name.to_owned(),
                     description,
-                    input_schema: crate::mcp::schema::JsonSchema {
+                    input_schema: JsonSchema {
                         schema_type: "object".into(),
                         properties: input_schema
                             .get("properties")

@@ -9,6 +9,7 @@ use chrono::{TimeZone, Utc};
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 use std::time::Duration;
+use tokio::time::sleep;
 use tracing::{error, info, warn};
 
 use super::core::OAuth2Credentials;
@@ -193,7 +194,7 @@ where
         match check_retry_status(status, attempt, retry_config, provider_name) {
             RetryDecision::Retry { backoff_ms } => {
                 attempt += 1;
-                tokio::time::sleep(Duration::from_millis(backoff_ms)).await;
+                sleep(Duration::from_millis(backoff_ms)).await;
                 continue;
             }
             RetryDecision::MaxRetriesExceeded => {

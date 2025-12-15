@@ -8,20 +8,30 @@
 
 use anyhow::Result;
 use axum::{
-    body::Body,
+    body::{to_bytes, Body},
     http::{Request, StatusCode},
+    middleware::from_fn,
     routing::get,
     Extension, Router,
 };
-use pierre_mcp_server::middleware::{request_id_middleware, RequestId};
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
+use pierre_mcp_server::{
+    database_plugins::{factory::Database, DatabaseProvider},
+    logging::LoggingConfig,
+    middleware::{request_id_middleware, RequestId},
+    models::{User, UserStatus, UserTier},
+    permissions::UserRole,
+};
+use std::error::Error;
 use tower::ServiceExt;
 
 /// Test that request ID middleware generates unique IDs for each request
 #[tokio::test]
-async fn test_request_id_uniqueness() -> Result<(), Box<dyn std::error::Error>> {
+async fn test_request_id_uniqueness() -> Result<(), Box<dyn Error>> {
     let app = Router::new()
         .route("/test", get(|| async { "OK" }))
-        .layer(axum::middleware::from_fn(request_id_middleware));
+        .layer(from_fn(request_id_middleware));
 
     let mut request_ids = Vec::new();
 
@@ -56,7 +66,7 @@ async fn test_request_id_uniqueness() -> Result<(), Box<dyn std::error::Error>> 
 
 /// Test that request ID is available to handlers via Extension
 #[tokio::test]
-async fn test_request_id_accessible_in_handler() -> Result<(), Box<dyn std::error::Error>> {
+async fn test_request_id_accessible_in_handler() -> Result<(), Box<dyn Error>> {
     async fn handler_with_request_id(
         Extension(request_id): Extension<RequestId>,
     ) -> Result<String, StatusCode> {
@@ -65,7 +75,7 @@ async fn test_request_id_accessible_in_handler() -> Result<(), Box<dyn std::erro
 
     let app = Router::new()
         .route("/with-id", get(handler_with_request_id))
-        .layer(axum::middleware::from_fn(request_id_middleware));
+        .layer(from_fn(request_id_middleware));
 
     let request = Request::builder().uri("/with-id").body(Body::empty())?;
 
@@ -73,7 +83,7 @@ async fn test_request_id_accessible_in_handler() -> Result<(), Box<dyn std::erro
 
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await?;
+    let body = to_bytes(response.into_body(), usize::MAX).await?;
     let body_str = String::from_utf8(body.to_vec())?;
 
     assert!(
@@ -87,14 +97,14 @@ async fn test_request_id_accessible_in_handler() -> Result<(), Box<dyn std::erro
 
 /// Test that request ID header is present in all responses
 #[tokio::test]
-async fn test_request_id_header_always_present() -> Result<(), Box<dyn std::error::Error>> {
+async fn test_request_id_header_always_present() -> Result<(), Box<dyn Error>> {
     let app = Router::new()
         .route("/success", get(|| async { "OK" }))
         .route(
             "/error",
             get(|| async { StatusCode::INTERNAL_SERVER_ERROR }),
         )
-        .layer(axum::middleware::from_fn(request_id_middleware));
+        .layer(from_fn(request_id_middleware));
 
     // Test successful response
     let request = Request::builder().uri("/success").body(Body::empty())?;
@@ -130,10 +140,10 @@ fn test_request_id_display_trait() {
 
 /// Test that request IDs are valid UUID v4 format
 #[tokio::test]
-async fn test_request_id_uuid_format() -> Result<(), Box<dyn std::error::Error>> {
+async fn test_request_id_uuid_format() -> Result<(), Box<dyn Error>> {
     let app = Router::new()
         .route("/test", get(|| async { "OK" }))
-        .layer(axum::middleware::from_fn(request_id_middleware));
+        .layer(from_fn(request_id_middleware));
 
     let request = Request::builder().uri("/test").body(Body::empty())?;
 
@@ -161,8 +171,7 @@ async fn test_request_id_uuid_format() -> Result<(), Box<dyn std::error::Error>>
 
 /// Test JWT secret safety - verify no secrets in initialization
 #[tokio::test]
-async fn test_jwt_secret_not_logged() -> Result<(), Box<dyn std::error::Error>> {
-    use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
+async fn test_jwt_secret_not_logged() -> Result<(), Box<dyn Error>> {
     use tempfile::TempDir;
 
     // Create temporary database
@@ -175,12 +184,7 @@ async fn test_jwt_secret_not_logged() -> Result<(), Box<dyn std::error::Error>> 
 
     // Initialize database (which creates JWT secret)
     #[cfg(feature = "postgresql")]
-    let database = Database::new(
-        &db_url,
-        encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
-    )
-    .await?;
+    let database = Database::new(&db_url, encryption_key, &PostgresPoolConfig::default()).await?;
 
     #[cfg(not(feature = "postgresql"))]
     let database = Database::new(&db_url, encryption_key).await?;
@@ -206,9 +210,7 @@ async fn test_jwt_secret_not_logged() -> Result<(), Box<dyn std::error::Error>> 
 
 /// Test that database operations can be instrumented
 #[tokio::test]
-async fn test_database_operation_instrumentation() -> Result<(), Box<dyn std::error::Error>> {
-    use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
-    use pierre_mcp_server::models::{User, UserStatus, UserTier};
+async fn test_database_operation_instrumentation() -> Result<(), Box<dyn Error>> {
     use tempfile::TempDir;
     use uuid::Uuid;
 
@@ -220,12 +222,7 @@ async fn test_database_operation_instrumentation() -> Result<(), Box<dyn std::er
     let encryption_key = vec![0u8; 32];
 
     #[cfg(feature = "postgresql")]
-    let database = Database::new(
-        &db_url,
-        encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
-    )
-    .await?;
+    let database = Database::new(&db_url, encryption_key, &PostgresPoolConfig::default()).await?;
 
     #[cfg(not(feature = "postgresql"))]
     let database = Database::new(&db_url, encryption_key).await?;
@@ -243,7 +240,7 @@ async fn test_database_operation_instrumentation() -> Result<(), Box<dyn std::er
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         approved_by: None,
         approved_at: None,
         created_at: chrono::Utc::now(),
@@ -274,8 +271,6 @@ async fn test_database_operation_instrumentation() -> Result<(), Box<dyn std::er
 /// Test structured logging configuration
 #[test]
 fn test_logging_config_from_env() {
-    use pierre_mcp_server::logging::LoggingConfig;
-
     // Test default configuration
     let default_config = LoggingConfig::default();
     assert_eq!(default_config.level, "info");
@@ -290,8 +285,6 @@ fn test_logging_config_from_env() {
 /// Test GCP-optimized logging configuration
 #[test]
 fn test_gcp_logging_configuration() {
-    use pierre_mcp_server::logging::LoggingConfig;
-
     let gcp_config = LoggingConfig::for_gcp_cloud_run();
 
     assert_eq!(gcp_config.level, "info");
@@ -318,10 +311,10 @@ async fn test_provider_instrumentation_integration() {
 
 /// Test request ID middleware with concurrent requests
 #[tokio::test]
-async fn test_request_id_concurrency() -> Result<(), Box<dyn std::error::Error>> {
+async fn test_request_id_concurrency() -> Result<(), Box<dyn Error>> {
     let app = Router::new()
         .route("/test", get(|| async { "OK" }))
-        .layer(axum::middleware::from_fn(request_id_middleware));
+        .layer(from_fn(request_id_middleware));
 
     let mut handles = vec![];
 

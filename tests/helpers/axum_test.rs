@@ -6,10 +6,14 @@
 
 use axum::{
     body::Body,
-    http::{header, Method, Request, StatusCode},
+    http::{header, HeaderMap, Method, Request, Response, StatusCode},
+    routing::post,
     Router,
 };
+use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::time::Duration;
+use tokio::time::timeout;
 use tower::ServiceExt;
 
 /// Helper to build and execute HTTP requests against Axum routers
@@ -149,7 +153,7 @@ pub struct AxumTestResponse {
 
 impl AxumTestResponse {
     /// Create from response by eagerly reading the body
-    async fn from_response(response: axum::http::Response<Body>) -> Self {
+    async fn from_response(response: Response<Body>) -> Self {
         use axum::body::to_bytes;
         let status = response.status();
         let body = to_bytes(response.into_body(), usize::MAX)
@@ -164,15 +168,15 @@ impl AxumTestResponse {
     /// SSE streams are infinite, so we can't read the full body. This method
     /// validates the connection was established by checking the status code.
     #[allow(dead_code)]
-    async fn from_sse_response(response: axum::http::Response<Body>) -> Self {
+    async fn from_sse_response(response: Response<Body>) -> Self {
         use axum::body::to_bytes;
 
         let status = response.status();
 
         // For SSE endpoints, try to read first chunk with 1 second timeout
         // If timeout occurs, that's OK - it means the SSE stream is waiting for events
-        let body_result = tokio::time::timeout(
-            std::time::Duration::from_secs(1),
+        let body_result = timeout(
+            Duration::from_secs(1),
             to_bytes(response.into_body(), 1024), // Read up to 1KB
         )
         .await;
@@ -201,7 +205,7 @@ impl AxumTestResponse {
     }
 
     /// Get the response body as a JSON value
-    pub fn json<T: serde::de::DeserializeOwned>(self) -> T {
+    pub fn json<T: DeserializeOwned>(self) -> T {
         serde_json::from_slice(&self.body).expect("Failed to deserialize JSON response")
     }
 
@@ -238,7 +242,7 @@ mod tests {
     async fn test_axum_test_request_post_with_json() {
         let app = Router::new().route(
             "/test",
-            axum::routing::post(|Json(body): Json<serde_json::Value>| async move {
+            post(|Json(body): Json<serde_json::Value>| async move {
                 Json(serde_json::json!({"received": body}))
             }),
         );
@@ -255,7 +259,7 @@ mod tests {
     async fn test_axum_test_request_with_header() {
         let app = Router::new().route(
             "/test",
-            get(|headers: axum::http::HeaderMap| async move {
+            get(|headers: HeaderMap| async move {
                 headers
                     .get("x-custom")
                     .and_then(|v| v.to_str().ok())

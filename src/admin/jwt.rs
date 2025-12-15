@@ -12,13 +12,17 @@
 // - String ownership for JWT claims extraction and token validation
 // - Permission data cloning for validated token construction
 
-use crate::admin::models::{AdminPermissions, ValidatedAdminToken};
-use crate::constants::service_names;
-use crate::errors::{AppError, AppResult};
+use std::clone::Clone;
+
 use chrono::{DateTime, Duration, Utc};
 use rand::{distributions::Alphanumeric, Rng};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+
+use crate::admin::jwks::JwksManager;
+use crate::admin::models::{AdminPermission, AdminPermissions, ValidatedAdminToken};
+use crate::constants::service_names;
+use crate::errors::{AppError, AppResult};
 
 /// JWT token manager for admin authentication
 #[derive(Clone)]
@@ -67,7 +71,7 @@ impl AdminJwtManager {
         permissions: &AdminPermissions,
         is_super_admin: bool,
         expires_at: Option<DateTime<Utc>>,
-        jwks_manager: &crate::admin::jwks::JwksManager,
+        jwks_manager: &JwksManager,
     ) -> AppResult<String> {
         let now = Utc::now();
         let exp = expires_at.unwrap_or_else(|| now + Duration::days(365));
@@ -102,7 +106,7 @@ impl AdminJwtManager {
     pub fn validate_token(
         &self,
         token: &str,
-        jwks_manager: &crate::admin::jwks::JwksManager,
+        jwks_manager: &JwksManager,
     ) -> AppResult<ValidatedAdminToken> {
         // Verify RS256 signature and decode claims
         let claims: AdminTokenClaims = jwks_manager.verify_admin_token(token).map_err(|e| {
@@ -181,7 +185,7 @@ struct AdminTokenClaims {
 
     // Custom claims
     service_name: String,
-    permissions: Vec<crate::admin::models::AdminPermission>,
+    permissions: Vec<AdminPermission>,
     is_super_admin: bool,
     token_type: String, // Always "admin"
 }
@@ -237,7 +241,7 @@ impl TokenGenerationConfig {
                     AdminPermissions::default_admin()
                 }
             },
-            std::clone::Clone::clone,
+            Clone::clone,
         )
     }
 

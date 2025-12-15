@@ -14,6 +14,7 @@ use anyhow::Result;
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 /// MCP test client for HTTP transport
@@ -21,7 +22,7 @@ pub struct McpTestClient {
     http_client: Client,
     base_url: String,
     auth_token: String,
-    request_id: std::sync::atomic::AtomicU64,
+    request_id: AtomicU64,
 }
 
 /// MCP JSON-RPC error structure
@@ -103,14 +104,13 @@ impl McpTestClient {
                 .expect("Failed to create HTTP client"),
             base_url: base_url.to_owned(),
             auth_token: auth_token.to_owned(),
-            request_id: std::sync::atomic::AtomicU64::new(1),
+            request_id: AtomicU64::new(1),
         }
     }
 
     /// Get the next request ID
     fn next_request_id(&self) -> u64 {
-        self.request_id
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+        self.request_id.fetch_add(1, Ordering::SeqCst)
     }
 
     /// Send a raw MCP JSON-RPC request

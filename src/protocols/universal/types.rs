@@ -4,9 +4,12 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use crate::protocols::universal::executor::UniversalExecutor;
+use crate::protocols::ProtocolError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::fmt::{Debug, Formatter, Result as FmtResult};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -55,8 +58,8 @@ pub struct ProgressReporter {
     report_fn: Option<ProgressCallback>,
 }
 
-impl std::fmt::Debug for ProgressReporter {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for ProgressReporter {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         f.debug_struct("ProgressReporter")
             .field("progress_token", &self.progress_token)
             .field("report_fn", &self.report_fn.as_ref().map(|_| "<callback>"))
@@ -136,11 +139,9 @@ pub struct UniversalTool {
     /// Human-readable tool description
     pub description: String,
     /// Handler function for tool execution
-    pub handler: fn(
-        &UniversalToolExecutor,
-        UniversalRequest,
-    ) -> Result<UniversalResponse, crate::protocols::ProtocolError>,
+    pub handler:
+        fn(&UniversalToolExecutor, UniversalRequest) -> Result<UniversalResponse, ProtocolError>,
 }
 
 /// Type alias for backward compatibility - use `UniversalExecutor` directly in new code
-pub type UniversalToolExecutor = crate::protocols::universal::executor::UniversalExecutor;
+pub type UniversalToolExecutor = UniversalExecutor;

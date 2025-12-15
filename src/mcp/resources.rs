@@ -16,24 +16,35 @@
 use crate::a2a::client::A2AClientManager;
 use crate::a2a::system_user::A2ASystemUserService;
 use crate::admin::jwks::JwksManager;
+use crate::admin::FirebaseAuth;
 use crate::auth::AuthManager;
 use crate::cache::factory::Cache;
+use crate::config::environment::ServerConfig;
 use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
-use crate::errors::AppError;
-use crate::intelligence::ActivityIntelligence;
+use crate::errors::{AppError, AppResult};
+use crate::intelligence::{
+    ActivityIntelligence, ContextualFactors, PerformanceMetrics, TimeOfDay, TrendDirection,
+    TrendIndicators,
+};
 use crate::mcp::sampling_peer::SamplingPeer;
 use crate::mcp::schema::{OAuthCompletedNotification, ProgressNotification};
 use crate::middleware::redaction::RedactionConfig;
-use crate::middleware::McpAuthMiddleware;
+use crate::middleware::{CsrfMiddleware, McpAuthMiddleware};
+use crate::oauth2_server::rate_limiting::OAuth2RateLimiter;
 use crate::plugins::executor::PluginToolExecutor;
 use crate::protocols::universal::types::CancellationToken;
 use crate::providers::ProviderRegistry;
+use crate::security::csrf::CsrfTokenManager;
+use crate::sse::SseManager;
 use crate::tenant::{oauth_manager::TenantOAuthManager, TenantOAuthClient};
 use crate::websocket::WebSocketManager;
+use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::runtime::Handle;
 use tokio::sync::{broadcast, mpsc, RwLock};
+use tokio::task;
 use tracing::{error, info, warn};
 
 /// Centralized resource container for dependency injection
@@ -53,7 +64,7 @@ pub struct ServerResources {
     /// WebSocket connection manager for real-time updates
     pub websocket_manager: Arc<WebSocketManager>,
     /// Server-Sent Events manager for streaming notifications and MCP protocol
-    pub sse_manager: Arc<crate::sse::SseManager>,
+    pub sse_manager: Arc<SseManager>,
     /// OAuth client for multi-tenant authentication flows
     pub tenant_oauth_client: Arc<TenantOAuthClient>,
     /// Registry of fitness data providers (Strava, Fitbit, Garmin, WHOOP, Terra)
@@ -61,7 +72,7 @@ pub struct ServerResources {
     /// Secret key for admin JWT token generation
     pub admin_jwt_secret: Arc<str>,
     /// Server configuration loaded from environment
-    pub config: Arc<crate::config::environment::ServerConfig>,
+    pub config: Arc<ServerConfig>,
     /// AI-powered fitness activity analysis engine
     pub activity_intelligence: Arc<ActivityIntelligence>,
     /// A2A protocol client manager for agent-to-agent communication
@@ -77,11 +88,11 @@ pub struct ServerResources {
     /// Configuration for PII redaction in logs and responses
     pub redaction_config: Arc<RedactionConfig>,
     /// Rate limiter for `OAuth2` endpoints
-    pub oauth2_rate_limiter: Arc<crate::oauth2_server::rate_limiting::OAuth2RateLimiter>,
+    pub oauth2_rate_limiter: Arc<OAuth2RateLimiter>,
     /// CSRF token manager for request forgery protection
-    pub csrf_manager: Arc<crate::security::csrf::CsrfTokenManager>,
+    pub csrf_manager: Arc<CsrfTokenManager>,
     /// CSRF validation middleware
-    pub csrf_middleware: Arc<crate::middleware::CsrfMiddleware>,
+    pub csrf_middleware: Arc<CsrfMiddleware>,
     /// Optional sampling peer for server-initiated LLM requests (stdio transport only)
     pub sampling_peer: Option<Arc<SamplingPeer>>,
     /// Optional progress notification sender (stdio transport only)
@@ -89,7 +100,7 @@ pub struct ServerResources {
     /// Cancellation token registry for progress token -> cancellation token mapping
     pub cancellation_registry: Arc<RwLock<HashMap<String, CancellationToken>>>,
     /// Firebase Authentication handler for social login (Google, Apple, etc.)
-    pub firebase_auth: Option<Arc<crate::admin::FirebaseAuth>>,
+    pub firebase_auth: Option<Arc<FirebaseAuth>>,
 }
 
 impl ServerResources {
@@ -102,7 +113,7 @@ impl ServerResources {
         database: Database,
         auth_manager: AuthManager,
         admin_jwt_secret: &str,
-        config: Arc<crate::config::environment::ServerConfig>,
+        config: Arc<ServerConfig>,
         cache: Cache,
         rsa_key_size_bits: usize,
         jwks_manager: Option<Arc<JwksManager>>,
@@ -141,8 +152,8 @@ impl ServerResources {
         // Use provided JWKS manager or load/create new one for RS256 JWT signing
         let jwks_manager_arc = jwks_manager.unwrap_or_else(|| {
             // Try to load persisted keys from database, blocking on async call
-            let loaded_jwks = tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(async {
+            let loaded_jwks = task::block_in_place(|| {
+                Handle::current().block_on(async {
                     Self::load_or_create_jwks_manager(&database_arc, rsa_key_size_bits).await
                 })
             });
@@ -175,7 +186,7 @@ impl ServerResources {
         ));
 
         // Create SSE manager with configured buffer size
-        let sse_manager = Arc::new(crate::sse::SseManager::new(config.sse.max_buffer_size));
+        let sse_manager = Arc::new(SseManager::new(config.sse.max_buffer_size));
 
         // Create auth middleware after jwks_manager is initialized
         let auth_middleware = Arc::new(McpAuthMiddleware::new(
@@ -186,24 +197,19 @@ impl ServerResources {
         ));
 
         // Create OAuth2 rate limiter once for shared use
-        let oauth2_rate_limiter = Arc::new(
-            crate::oauth2_server::rate_limiting::OAuth2RateLimiter::from_rate_limit_config(
-                config.rate_limiting.clone(),
-            ),
-        );
+        let oauth2_rate_limiter = Arc::new(OAuth2RateLimiter::from_rate_limit_config(
+            config.rate_limiting.clone(),
+        ));
 
         // Create CSRF token manager for request forgery protection
-        let csrf_manager = Arc::new(crate::security::csrf::CsrfTokenManager::new());
+        let csrf_manager = Arc::new(CsrfTokenManager::new());
 
         // Create CSRF validation middleware
-        let csrf_middleware =
-            Arc::new(crate::middleware::CsrfMiddleware::new(csrf_manager.clone()));
+        let csrf_middleware = Arc::new(CsrfMiddleware::new(csrf_manager.clone()));
 
         // Create Firebase auth handler if configured
         let firebase_auth = if config.firebase.is_configured() {
-            Some(Arc::new(crate::admin::FirebaseAuth::new(
-                config.firebase.clone(),
-            )))
+            Some(Arc::new(FirebaseAuth::new(config.firebase.clone())))
         } else {
             None
         };
@@ -241,22 +247,22 @@ impl ServerResources {
         Arc::new(ActivityIntelligence::new(
             "MCP Intelligence".into(),
             vec![],
-            crate::intelligence::PerformanceMetrics {
+            PerformanceMetrics {
                 relative_effort: Some(7.5),
                 zone_distribution: None,
                 personal_records: vec![],
                 efficiency_score: Some(85.0),
-                trend_indicators: crate::intelligence::TrendIndicators {
-                    pace_trend: crate::intelligence::TrendDirection::Improving,
-                    effort_trend: crate::intelligence::TrendDirection::Stable,
-                    distance_trend: crate::intelligence::TrendDirection::Improving,
+                trend_indicators: TrendIndicators {
+                    pace_trend: TrendDirection::Improving,
+                    effort_trend: TrendDirection::Stable,
+                    distance_trend: TrendDirection::Improving,
                     consistency_score: 8.2,
                 },
             },
-            crate::intelligence::ContextualFactors {
+            ContextualFactors {
                 weather: None,
                 location: None,
-                time_of_day: crate::intelligence::TimeOfDay::Morning,
+                time_of_day: TimeOfDay::Morning,
                 days_since_last_activity: Some(1),
                 weekly_load: None,
             },
@@ -265,7 +271,7 @@ impl ServerResources {
 
     /// Generate a unique key ID based on current timestamp
     fn generate_key_id() -> String {
-        format!("key_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S"))
+        format!("key_{}", Utc::now().format("%Y%m%d_%H%M%S"))
     }
 
     /// Generate and persist a new RSA keypair
@@ -273,7 +279,7 @@ impl ServerResources {
         database: &Arc<Database>,
         jwks_manager: &mut JwksManager,
         rsa_key_size_bits: usize,
-    ) -> crate::errors::AppResult<()> {
+    ) -> AppResult<()> {
         let kid = Self::generate_key_id();
         jwks_manager.generate_rsa_key_pair_with_size(&kid, rsa_key_size_bits)?;
 
@@ -308,7 +314,7 @@ impl ServerResources {
     async fn load_or_create_jwks_manager(
         database: &Arc<Database>,
         rsa_key_size_bits: usize,
-    ) -> crate::errors::AppResult<JwksManager> {
+    ) -> AppResult<JwksManager> {
         let mut jwks_manager = JwksManager::new();
 
         match database.load_rsa_keypairs().await {
@@ -328,8 +334,8 @@ impl ServerResources {
 
     fn load_existing_keys(
         jwks_manager: &mut JwksManager,
-        keypairs: Vec<(String, String, String, chrono::DateTime<chrono::Utc>, bool)>,
-    ) -> crate::errors::AppResult<()> {
+        keypairs: Vec<(String, String, String, chrono::DateTime<Utc>, bool)>,
+    ) -> AppResult<()> {
         info!(
             "Loading {} persisted RSA keypairs from database",
             keypairs.len()
@@ -343,7 +349,7 @@ impl ServerResources {
         database: &Arc<Database>,
         jwks_manager: &mut JwksManager,
         rsa_key_size_bits: usize,
-    ) -> crate::errors::AppResult<()> {
+    ) -> AppResult<()> {
         info!("No persisted RSA keys found, generating new keypair");
         Self::generate_and_persist_keypair(database, jwks_manager, rsa_key_size_bits).await
     }
@@ -351,8 +357,8 @@ impl ServerResources {
     fn fallback_generate_keys(
         jwks_manager: &mut JwksManager,
         rsa_key_size_bits: usize,
-        error: &crate::errors::AppError,
-    ) -> crate::errors::AppResult<()> {
+        error: &AppError,
+    ) -> AppResult<()> {
         warn!(
             "Failed to load RSA keys from database: {}. Generating new keys without persistence.",
             error
@@ -433,7 +439,7 @@ pub struct ServerResourcesBuilder {
     database: Option<Database>,
     auth_manager: Option<AuthManager>,
     admin_jwt_secret: Option<String>,
-    config: Option<Arc<crate::config::environment::ServerConfig>>,
+    config: Option<Arc<ServerConfig>>,
     cache: Option<Cache>,
     rsa_key_size_bits: usize,
     jwks_manager: Option<Arc<JwksManager>>,
@@ -477,7 +483,7 @@ impl ServerResourcesBuilder {
 
     /// Set the server configuration
     #[must_use]
-    pub fn with_config(mut self, config: Arc<crate::config::environment::ServerConfig>) -> Self {
+    pub fn with_config(mut self, config: Arc<ServerConfig>) -> Self {
         self.config = Some(config);
         self
     }

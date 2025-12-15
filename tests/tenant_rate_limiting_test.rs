@@ -10,7 +10,8 @@
 use chrono::Utc;
 use pierre_mcp_server::{
     api_keys::{ApiKey, ApiKeyTier},
-    models::{Tenant, User, UserTier},
+    models::{Tenant, User, UserStatus, UserTier},
+    permissions::UserRole,
     rate_limiting::{
         TenantRateLimitConfig, TenantRateLimitTier, UnifiedRateLimitCalculator,
         TENANT_ENTERPRISE_LIMIT, TENANT_PROFESSIONAL_LIMIT, TENANT_STARTER_LIMIT,
@@ -66,9 +67,9 @@ fn create_test_user(tier: UserTier) -> User {
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_owned()),
         is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
+        user_status: UserStatus::Active,
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         approved_by: None,
         approved_at: Some(Utc::now()),
         created_at: Utc::now(),

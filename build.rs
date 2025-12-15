@@ -28,6 +28,7 @@
 //! CI workflows (`.github/workflows/ci.yml`) explicitly build the SDK before tests.
 //! This build script serves as a safety net for local development.
 
+use std::env;
 use std::path::Path;
 use std::process::Command;
 
@@ -43,7 +44,7 @@ fn main() {
 
     // Only build SDK if it doesn't exist or if we're in development
     // In CI, the SDK should already be built by the workflow
-    let should_build = !cli_js.exists() || std::env::var("CARGO_FEATURE_DEV").is_ok();
+    let should_build = !cli_js.exists() || env::var("CARGO_FEATURE_DEV").is_ok();
 
     if should_build && sdk_path.exists() {
         println!("cargo:warning=Building TypeScript SDK (required for E2E tests)...");

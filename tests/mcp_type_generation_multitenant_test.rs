@@ -8,6 +8,7 @@
 #![allow(missing_docs)]
 
 use anyhow::Result;
+use std::{fs, path::Path};
 
 mod common;
 
@@ -190,12 +191,12 @@ async fn test_generated_types_match_schemas() -> Result<()> {
     println!("✓ Fetched tool schema: {} tools", tools.len());
 
     // Read TypeScript types file
-    let types_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+    let types_path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("sdk")
         .join("src")
         .join("types.ts");
 
-    let types_content = std::fs::read_to_string(&types_path)?;
+    let types_content = fs::read_to_string(&types_path)?;
 
     println!(
         "✓ Read TypeScript types file ({} bytes)",

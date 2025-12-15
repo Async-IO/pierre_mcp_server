@@ -38,9 +38,10 @@
 //! ```
 
 use async_trait::async_trait;
-use futures_util::StreamExt;
+use futures_util::{future, StreamExt};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::env;
 use tracing::{debug, error, instrument, warn};
 
 use super::{
@@ -199,7 +200,7 @@ impl GroqProvider {
     ///
     /// Returns an error if `GROQ_API_KEY` is not set
     pub fn from_env() -> Result<Self, AppError> {
-        let api_key = std::env::var(GROQ_API_KEY_ENV).map_err(|_| {
+        let api_key = env::var(GROQ_API_KEY_ENV).map_err(|_| {
             AppError::config(format!(
                 "Missing {GROQ_API_KEY_ENV} environment variable. Get your API key from https://console.groq.com/keys"
             ))
@@ -454,7 +455,7 @@ impl LlmProvider for GroqProvider {
             })
             .filter(|result| {
                 // Filter out empty deltas unless it's the final chunk
-                futures_util::future::ready(
+                future::ready(
                     result
                         .as_ref()
                         .map_or(true, |chunk| !chunk.delta.is_empty() || chunk.is_final),

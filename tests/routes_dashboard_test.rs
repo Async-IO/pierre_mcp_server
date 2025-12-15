@@ -154,17 +154,29 @@ mod common;
 use anyhow::Result;
 use chrono::{Duration, Utc};
 use pierre_mcp_server::{
-    api_keys::{ApiKey, ApiKeyTier, ApiKeyUsage, CreateApiKeyRequest},
+    api_keys::{ApiKey, ApiKeyManager, ApiKeyTier, ApiKeyUsage, CreateApiKeyRequest},
+    auth::{AuthMethod, AuthResult},
+    config::environment::{
+        AppBehaviorConfig, AuthConfig, BackupConfig, CacheConfig, CorsConfig, DatabaseConfig,
+        DatabaseUrl, Environment, ExternalServicesConfig, FirebaseConfig, FitbitApiConfig,
+        GarminApiConfig, GeocodingServiceConfig, GoalManagementConfig, HttpClientConfig, LogLevel,
+        LoggingConfig, McpConfig, OAuth2ServerConfig, OAuthConfig, OAuthProviderConfig,
+        PostgresPoolConfig, ProtocolConfig, RateLimitConfig, RouteTimeoutConfig, SecurityConfig,
+        SecurityHeadersConfig, ServerConfig, SleepRecoveryConfig, SseConfig, StravaApiConfig,
+        TlsConfig, TrainingZonesConfig, WeatherServiceConfig,
+    },
     dashboard_routes::DashboardRoutes,
-    database_plugins::DatabaseProvider,
+    database_plugins::{factory::Database, DatabaseProvider},
+    mcp::resources::ServerResources,
+    rate_limiting::UnifiedRateLimitInfo,
 };
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 use uuid::Uuid;
 
 /// Test setup helper that creates all necessary components for dashboard route testing
 struct DashboardTestSetup {
     dashboard_routes: DashboardRoutes,
-    database: Arc<pierre_mcp_server::database_plugins::factory::Database>,
+    database: Arc<Database>,
     user_id: Uuid,
     api_keys: Vec<ApiKey>,
 }
@@ -177,59 +189,58 @@ impl DashboardTestSetup {
 
         // Create minimal config for ServerResources
         let temp_dir = tempfile::tempdir()?;
-        let config = Arc::new(pierre_mcp_server::config::environment::ServerConfig {
+        let config = Arc::new(ServerConfig {
             http_port: 8081,
             oauth_callback_port: 35535,
-            log_level: pierre_mcp_server::config::environment::LogLevel::Info,
-            logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
-            http_client: pierre_mcp_server::config::environment::HttpClientConfig::default(),
-            database: pierre_mcp_server::config::environment::DatabaseConfig {
-                url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
+            log_level: LogLevel::Info,
+            logging: LoggingConfig::default(),
+            http_client: HttpClientConfig::default(),
+            database: DatabaseConfig {
+                url: DatabaseUrl::Memory,
                 auto_migrate: true,
-                backup: pierre_mcp_server::config::environment::BackupConfig {
+                backup: BackupConfig {
                     enabled: false,
                     interval_seconds: 3600,
                     retention_count: 7,
                     directory: temp_dir.path().to_path_buf(),
                 },
-                postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(
-                ),
+                postgres_pool: PostgresPoolConfig::default(),
             },
-            auth: pierre_mcp_server::config::environment::AuthConfig {
+            auth: AuthConfig {
                 jwt_expiry_hours: 24,
                 enable_refresh_tokens: false,
-                ..pierre_mcp_server::config::environment::AuthConfig::default()
+                ..AuthConfig::default()
             },
-            oauth: pierre_mcp_server::config::environment::OAuthConfig {
-                strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
+            oauth: OAuthConfig {
+                strava: OAuthProviderConfig {
                     client_id: None,
                     client_secret: None,
                     redirect_uri: None,
                     scopes: vec![],
                     enabled: false,
                 },
-                fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                fitbit: OAuthProviderConfig {
                     client_id: None,
                     client_secret: None,
                     redirect_uri: None,
                     scopes: vec![],
                     enabled: false,
                 },
-                garmin: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                garmin: OAuthProviderConfig {
                     client_id: None,
                     client_secret: None,
                     redirect_uri: None,
                     scopes: vec![],
                     enabled: false,
                 },
-                whoop: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                whoop: OAuthProviderConfig {
                     client_id: None,
                     client_secret: None,
                     redirect_uri: None,
                     scopes: vec![],
                     enabled: false,
                 },
-                terra: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                terra: OAuthProviderConfig {
                     client_id: None,
                     client_secret: None,
                     redirect_uri: None,
@@ -237,40 +248,40 @@ impl DashboardTestSetup {
                     enabled: false,
                 },
             },
-            security: pierre_mcp_server::config::environment::SecurityConfig {
+            security: SecurityConfig {
                 cors_origins: vec!["*".to_owned()],
-                tls: pierre_mcp_server::config::environment::TlsConfig {
+                tls: TlsConfig {
                     enabled: false,
                     cert_path: None,
                     key_path: None,
                 },
-                headers: pierre_mcp_server::config::environment::SecurityHeadersConfig {
-                    environment: pierre_mcp_server::config::environment::Environment::Testing,
+                headers: SecurityHeadersConfig {
+                    environment: Environment::Testing,
                 },
             },
-            external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
-                weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
+            external_services: ExternalServicesConfig {
+                weather: WeatherServiceConfig {
                     api_key: None,
                     base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                     enabled: false,
                 },
-                geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
+                geocoding: GeocodingServiceConfig {
                     base_url: "https://nominatim.openstreetmap.org".to_owned(),
                     enabled: false,
                 },
-                strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
+                strava_api: StravaApiConfig {
                     base_url: "https://www.strava.com/api/v3".to_owned(),
                     auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
                     token_url: "https://www.strava.com/oauth/token".to_owned(),
                     deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
                 },
-                fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
+                fitbit_api: FitbitApiConfig {
                     base_url: "https://api.fitbit.com".to_owned(),
                     auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
                     token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
                     revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
                 },
-                garmin_api: pierre_mcp_server::config::environment::GarminApiConfig {
+                garmin_api: GarminApiConfig {
                     base_url: "https://apis.garmin.com".to_owned(),
                     auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
                     token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
@@ -278,51 +289,50 @@ impl DashboardTestSetup {
                     revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_owned(),
                 },
             },
-            app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
+            app_behavior: AppBehaviorConfig {
                 max_activities_fetch: 100,
                 default_activities_limit: 20,
                 ci_mode: true,
                 auto_approve_users: false,
-                protocol: pierre_mcp_server::config::environment::ProtocolConfig {
+                protocol: ProtocolConfig {
                     mcp_version: "2025-06-18".to_owned(),
                     server_name: "pierre-mcp-server-test".to_owned(),
                     server_version: env!("CARGO_PKG_VERSION").to_owned(),
                 },
             },
-            sse: pierre_mcp_server::config::environment::SseConfig::default(),
-            oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
-            route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+            sse: SseConfig::default(),
+            oauth2_server: OAuth2ServerConfig::default(),
+            route_timeouts: RouteTimeoutConfig::default(),
             host: "localhost".to_owned(),
             base_url: "http://localhost:8081".to_owned(),
-            mcp: pierre_mcp_server::config::environment::McpConfig {
+            mcp: McpConfig {
                 protocol_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
                 session_cache_size: 1000,
             },
-            cors: pierre_mcp_server::config::environment::CorsConfig {
+            cors: CorsConfig {
                 allowed_origins: "*".to_owned(),
                 allow_localhost_dev: true,
             },
-            cache: pierre_mcp_server::config::environment::CacheConfig {
+            cache: CacheConfig {
                 redis_url: None,
                 max_entries: 10000,
                 cleanup_interval_secs: 300,
                 ..Default::default()
             },
             usda_api_key: None,
-            rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
-            sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
-            goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(
-            ),
-            training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
-            firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
+            rate_limiting: RateLimitConfig::default(),
+            sleep_recovery: SleepRecoveryConfig::default(),
+            goal_management: GoalManagementConfig::default(),
+            training_zones: TrainingZonesConfig::default(),
+            firebase: FirebaseConfig::default(),
         });
 
         // Create test cache
         let cache = common::create_test_cache().await?;
 
         // Create ServerResources using proper constructor
-        let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+        let server_resources = Arc::new(ServerResources::new(
             (*database).clone(),
             (*auth_manager).clone(),
             "test_jwt_secret",
@@ -356,7 +366,7 @@ impl DashboardTestSetup {
             expires_in_days: None,
         };
 
-        let manager = pierre_mcp_server::api_keys::ApiKeyManager::new();
+        let manager = ApiKeyManager::new();
         let (pro_key, _) = manager.create_api_key(user_id, request_pro)?;
         database.create_api_key(&pro_key).await?;
         api_keys.push(pro_key);
@@ -386,9 +396,9 @@ impl DashboardTestSetup {
     }
 
     /// Create AuthResult for testing authenticated endpoints
-    fn auth_result(&self) -> pierre_mcp_server::auth::AuthResult {
+    fn auth_result(&self) -> AuthResult {
         use pierre_mcp_server::auth::{AuthMethod, AuthResult};
-        use pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo;
+        use UnifiedRateLimitInfo;
 
         AuthResult {
             user_id: self.user_id,
@@ -407,10 +417,7 @@ impl DashboardTestSetup {
     }
 
     /// Create test usage data for dashboard analytics
-    async fn create_test_usage_data(
-        database: &pierre_mcp_server::database_plugins::factory::Database,
-        api_keys: &[ApiKey],
-    ) -> Result<()> {
+    async fn create_test_usage_data(database: &Database, api_keys: &[ApiKey]) -> Result<()> {
         let now = Utc::now();
 
         // Create some API key usage records for testing
@@ -513,12 +520,12 @@ async fn test_get_dashboard_overview_invalid_auth() -> Result<()> {
     // Test with invalid token
     let result = setup
         .dashboard_routes
-        .get_dashboard_overview(pierre_mcp_server::auth::AuthResult {
+        .get_dashboard_overview(AuthResult {
             user_id: uuid::Uuid::nil(),
-            auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+            auth_method: AuthMethod::JwtToken {
                 tier: "premium".to_owned(),
             },
-            rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+            rate_limit: UnifiedRateLimitInfo {
                 is_rate_limited: false,
                 limit: Some(1000),
                 remaining: Some(1000),
@@ -533,12 +540,12 @@ async fn test_get_dashboard_overview_invalid_auth() -> Result<()> {
     // Test with no authorization header
     let result = setup
         .dashboard_routes
-        .get_dashboard_overview(pierre_mcp_server::auth::AuthResult {
+        .get_dashboard_overview(AuthResult {
             user_id: uuid::Uuid::nil(),
-            auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+            auth_method: AuthMethod::JwtToken {
                 tier: "premium".to_owned(),
             },
-            rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+            rate_limit: UnifiedRateLimitInfo {
                 is_rate_limited: false,
                 limit: Some(1000),
                 remaining: Some(1000),
@@ -553,12 +560,12 @@ async fn test_get_dashboard_overview_invalid_auth() -> Result<()> {
     // Test with malformed header
     let result = setup
         .dashboard_routes
-        .get_dashboard_overview(pierre_mcp_server::auth::AuthResult {
+        .get_dashboard_overview(AuthResult {
             user_id: uuid::Uuid::nil(),
-            auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+            auth_method: AuthMethod::JwtToken {
                 tier: "premium".to_owned(),
             },
-            rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+            rate_limit: UnifiedRateLimitInfo {
                 is_rate_limited: false,
                 limit: Some(1000),
                 remaining: Some(1000),
@@ -582,58 +589,58 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
 
     // Create ServerResources for dashboard routes
     let temp_dir = tempfile::tempdir().unwrap();
-    let config = Arc::new(pierre_mcp_server::config::environment::ServerConfig {
+    let config = Arc::new(ServerConfig {
         http_port: 8081,
         oauth_callback_port: 35535,
-        log_level: pierre_mcp_server::config::environment::LogLevel::Info,
-        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
-        http_client: pierre_mcp_server::config::environment::HttpClientConfig::default(),
-        database: pierre_mcp_server::config::environment::DatabaseConfig {
-            url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
+        log_level: LogLevel::Info,
+        logging: LoggingConfig::default(),
+        http_client: HttpClientConfig::default(),
+        database: DatabaseConfig {
+            url: DatabaseUrl::Memory,
             auto_migrate: true,
-            backup: pierre_mcp_server::config::environment::BackupConfig {
+            backup: BackupConfig {
                 enabled: false,
                 interval_seconds: 3600,
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
-            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            postgres_pool: PostgresPoolConfig::default(),
         },
-        auth: pierre_mcp_server::config::environment::AuthConfig {
+        auth: AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
-            ..pierre_mcp_server::config::environment::AuthConfig::default()
+            ..AuthConfig::default()
         },
-        oauth: pierre_mcp_server::config::environment::OAuthConfig {
-            strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
+        oauth: OAuthConfig {
+            strava: OAuthProviderConfig {
                 client_id: None,
                 client_secret: None,
                 redirect_uri: None,
                 scopes: vec![],
                 enabled: false,
             },
-            fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig {
+            fitbit: OAuthProviderConfig {
                 client_id: None,
                 client_secret: None,
                 redirect_uri: None,
                 scopes: vec![],
                 enabled: false,
             },
-            garmin: pierre_mcp_server::config::environment::OAuthProviderConfig {
+            garmin: OAuthProviderConfig {
                 client_id: None,
                 client_secret: None,
                 redirect_uri: None,
                 scopes: vec![],
                 enabled: false,
             },
-            whoop: pierre_mcp_server::config::environment::OAuthProviderConfig {
+            whoop: OAuthProviderConfig {
                 client_id: None,
                 client_secret: None,
                 redirect_uri: None,
                 scopes: vec![],
                 enabled: false,
             },
-            terra: pierre_mcp_server::config::environment::OAuthProviderConfig {
+            terra: OAuthProviderConfig {
                 client_id: None,
                 client_secret: None,
                 redirect_uri: None,
@@ -641,40 +648,40 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
                 enabled: false,
             },
         },
-        security: pierre_mcp_server::config::environment::SecurityConfig {
+        security: SecurityConfig {
             cors_origins: vec!["*".to_owned()],
-            tls: pierre_mcp_server::config::environment::TlsConfig {
+            tls: TlsConfig {
                 enabled: false,
                 cert_path: None,
                 key_path: None,
             },
-            headers: pierre_mcp_server::config::environment::SecurityHeadersConfig {
-                environment: pierre_mcp_server::config::environment::Environment::Testing,
+            headers: SecurityHeadersConfig {
+                environment: Environment::Testing,
             },
         },
-        external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
-            weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
+        external_services: ExternalServicesConfig {
+            weather: WeatherServiceConfig {
                 api_key: None,
                 base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                 enabled: false,
             },
-            geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
+            geocoding: GeocodingServiceConfig {
                 base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: false,
             },
-            strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
+            strava_api: StravaApiConfig {
                 base_url: "https://www.strava.com/api/v3".to_owned(),
                 auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
                 token_url: "https://www.strava.com/oauth/token".to_owned(),
                 deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
-            fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
+            fitbit_api: FitbitApiConfig {
                 base_url: "https://api.fitbit.com".to_owned(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
                 token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
                 revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
-            garmin_api: pierre_mcp_server::config::environment::GarminApiConfig {
+            garmin_api: GarminApiConfig {
                 base_url: "https://apis.garmin.com".to_owned(),
                 auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
                 token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
@@ -682,48 +689,48 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
                 revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_owned(),
             },
         },
-        app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
+        app_behavior: AppBehaviorConfig {
             max_activities_fetch: 100,
             default_activities_limit: 20,
             ci_mode: true,
             auto_approve_users: false,
-            protocol: pierre_mcp_server::config::environment::ProtocolConfig {
+            protocol: ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
                 server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
-        sse: pierre_mcp_server::config::environment::SseConfig::default(),
-        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
-        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        sse: SseConfig::default(),
+        oauth2_server: OAuth2ServerConfig::default(),
+        route_timeouts: RouteTimeoutConfig::default(),
         host: "localhost".to_owned(),
         base_url: "http://localhost:8081".to_owned(),
-        mcp: pierre_mcp_server::config::environment::McpConfig {
+        mcp: McpConfig {
             protocol_version: "2025-06-18".to_owned(),
             server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
         },
-        cors: pierre_mcp_server::config::environment::CorsConfig {
+        cors: CorsConfig {
             allowed_origins: "*".to_owned(),
             allow_localhost_dev: true,
         },
-        cache: pierre_mcp_server::config::environment::CacheConfig {
+        cache: CacheConfig {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
             ..Default::default()
         },
         usda_api_key: None,
-        rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
-        sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
-        goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
-        training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
-        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
+        rate_limiting: RateLimitConfig::default(),
+        sleep_recovery: SleepRecoveryConfig::default(),
+        goal_management: GoalManagementConfig::default(),
+        training_zones: TrainingZonesConfig::default(),
+        firebase: FirebaseConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
 
-    let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let server_resources = Arc::new(ServerResources::new(
         database.as_ref().clone(),
         auth_manager.as_ref().clone(),
         "test_jwt_secret",
@@ -736,12 +743,12 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
     let dashboard_routes = DashboardRoutes::new(server_resources);
 
     let (user_id, _) = common::create_test_user(&database).await?;
-    let auth_result = pierre_mcp_server::auth::AuthResult {
+    let auth_result = AuthResult {
         user_id,
-        auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+        auth_method: AuthMethod::JwtToken {
             tier: "premium".to_owned(),
         },
-        rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+        rate_limit: UnifiedRateLimitInfo {
             is_rate_limited: false,
             limit: Some(1000),
             remaining: Some(1000),
@@ -839,12 +846,12 @@ async fn test_get_usage_analytics_invalid_auth() -> Result<()> {
     let result = setup
         .dashboard_routes
         .get_usage_analytics(
-            pierre_mcp_server::auth::AuthResult {
+            AuthResult {
                 user_id: uuid::Uuid::nil(),
-                auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+                auth_method: AuthMethod::JwtToken {
                     tier: "premium".to_owned(),
                 },
-                rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+                rate_limit: UnifiedRateLimitInfo {
                     is_rate_limited: false,
                     limit: Some(1000),
                     remaining: Some(1000),
@@ -861,12 +868,12 @@ async fn test_get_usage_analytics_invalid_auth() -> Result<()> {
     let result = setup
         .dashboard_routes
         .get_usage_analytics(
-            pierre_mcp_server::auth::AuthResult {
+            AuthResult {
                 user_id: uuid::Uuid::nil(),
-                auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+                auth_method: AuthMethod::JwtToken {
                     tier: "premium".to_owned(),
                 },
-                rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+                rate_limit: UnifiedRateLimitInfo {
                     is_rate_limited: false,
                     limit: Some(1000),
                     remaining: Some(1000),
@@ -962,12 +969,12 @@ async fn test_get_rate_limit_overview_invalid_auth() -> Result<()> {
 
     let result = setup
         .dashboard_routes
-        .get_rate_limit_overview(pierre_mcp_server::auth::AuthResult {
+        .get_rate_limit_overview(AuthResult {
             user_id: uuid::Uuid::nil(),
-            auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+            auth_method: AuthMethod::JwtToken {
                 tier: "premium".to_owned(),
             },
-            rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+            rate_limit: UnifiedRateLimitInfo {
                 is_rate_limited: false,
                 limit: Some(1000),
                 remaining: Some(1000),
@@ -981,12 +988,12 @@ async fn test_get_rate_limit_overview_invalid_auth() -> Result<()> {
 
     let result = setup
         .dashboard_routes
-        .get_rate_limit_overview(pierre_mcp_server::auth::AuthResult {
+        .get_rate_limit_overview(AuthResult {
             user_id: uuid::Uuid::nil(),
-            auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+            auth_method: AuthMethod::JwtToken {
                 tier: "premium".to_owned(),
             },
-            rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+            rate_limit: UnifiedRateLimitInfo {
                 is_rate_limited: false,
                 limit: Some(1000),
                 remaining: Some(1000),
@@ -1249,12 +1256,12 @@ async fn test_get_request_stats_invalid_auth() -> Result<()> {
     let result = setup
         .dashboard_routes
         .get_request_stats(
-            pierre_mcp_server::auth::AuthResult {
+            AuthResult {
                 user_id: uuid::Uuid::nil(),
-                auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+                auth_method: AuthMethod::JwtToken {
                     tier: "premium".to_owned(),
                 },
-                rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+                rate_limit: UnifiedRateLimitInfo {
                     is_rate_limited: false,
                     limit: Some(1000),
                     remaining: Some(1000),
@@ -1272,12 +1279,12 @@ async fn test_get_request_stats_invalid_auth() -> Result<()> {
     let result = setup
         .dashboard_routes
         .get_request_stats(
-            pierre_mcp_server::auth::AuthResult {
+            AuthResult {
                 user_id: uuid::Uuid::nil(),
-                auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+                auth_method: AuthMethod::JwtToken {
                     tier: "premium".to_owned(),
                 },
-                rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+                rate_limit: UnifiedRateLimitInfo {
                     is_rate_limited: false,
                     limit: Some(1000),
                     remaining: Some(1000),
@@ -1366,12 +1373,12 @@ async fn test_get_tool_usage_breakdown_invalid_auth() -> Result<()> {
     let result = setup
         .dashboard_routes
         .get_tool_usage_breakdown(
-            pierre_mcp_server::auth::AuthResult {
+            AuthResult {
                 user_id: uuid::Uuid::nil(),
-                auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+                auth_method: AuthMethod::JwtToken {
                     tier: "premium".to_owned(),
                 },
-                rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+                rate_limit: UnifiedRateLimitInfo {
                     is_rate_limited: false,
                     limit: Some(1000),
                     remaining: Some(1000),
@@ -1389,12 +1396,12 @@ async fn test_get_tool_usage_breakdown_invalid_auth() -> Result<()> {
     let result = setup
         .dashboard_routes
         .get_tool_usage_breakdown(
-            pierre_mcp_server::auth::AuthResult {
+            AuthResult {
                 user_id: uuid::Uuid::nil(),
-                auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+                auth_method: AuthMethod::JwtToken {
                     tier: "premium".to_owned(),
                 },
-                rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+                rate_limit: UnifiedRateLimitInfo {
                     is_rate_limited: false,
                     limit: Some(1000),
                     remaining: Some(1000),
@@ -1434,12 +1441,12 @@ async fn test_dashboard_with_malformed_jwt() -> Result<()> {
     for malformed_token in malformed_tokens {
         let result = setup
             .dashboard_routes
-            .get_dashboard_overview(pierre_mcp_server::auth::AuthResult {
+            .get_dashboard_overview(AuthResult {
                 user_id: uuid::Uuid::nil(),
-                auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+                auth_method: AuthMethod::JwtToken {
                     tier: "premium".to_owned(),
                 },
-                rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+                rate_limit: UnifiedRateLimitInfo {
                     is_rate_limited: false,
                     limit: Some(1000),
                     remaining: Some(1000),
@@ -1467,12 +1474,12 @@ async fn test_dashboard_with_different_user() -> Result<()> {
     // Create another user
     let (other_user_id, _) =
         common::create_test_user_with_email(&setup.database, "other@example.com").await?;
-    let other_auth_result = pierre_mcp_server::auth::AuthResult {
+    let other_auth_result = AuthResult {
         user_id: other_user_id,
-        auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+        auth_method: AuthMethod::JwtToken {
             tier: "premium".to_owned(),
         },
-        rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+        rate_limit: UnifiedRateLimitInfo {
             is_rate_limited: false,
             limit: Some(1000),
             remaining: Some(1000),
@@ -1539,7 +1546,7 @@ async fn test_dashboard_large_dataset() -> Result<()> {
     // Our test setup already creates 30 days of data for 3 API keys
     // This should be sufficient to test performance
 
-    let start = std::time::Instant::now();
+    let start = Instant::now();
 
     let overview = setup
         .dashboard_routes

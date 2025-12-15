@@ -18,6 +18,8 @@ use pierre_mcp_server::{
     auth::AuthManager,
     database_plugins::DatabaseProvider,
 };
+use std::collections::HashSet;
+use tokio::time::{sleep, Duration as TokioDuration};
 use uuid::Uuid;
 
 /// Test JWT token security basics
@@ -203,12 +205,12 @@ async fn test_token_uniqueness() -> Result<()> {
     let user = database.get_user(user_id).await?.unwrap();
 
     // Generate multiple tokens and verify uniqueness
-    let mut tokens = std::collections::HashSet::new();
+    let mut tokens = HashSet::new();
 
     for i in 0..10 {
         // Add a small delay to ensure different timestamps in JWT
         if i > 0 {
-            tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+            sleep(TokioDuration::from_millis(1)).await;
         }
 
         let jwks_manager = common::get_shared_test_jwks();
@@ -246,7 +248,7 @@ async fn test_api_key_uniqueness() -> Result<()> {
         common::create_test_user_with_email(&database, "api_unique_test@example.com").await?;
 
     // Generate multiple API keys and verify uniqueness
-    let mut api_key_strings = std::collections::HashSet::new();
+    let mut api_key_strings = HashSet::new();
 
     for i in 0..10 {
         let create_request = CreateApiKeyRequest {

@@ -20,9 +20,13 @@ use crate::models::{
 use crate::pagination::{CursorPage, PaginationParams};
 use crate::utils::http_client::shared_client;
 use async_trait::async_trait;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use base64::Engine;
 use chrono::{DateTime, TimeZone, Utc};
 use reqwest::Client;
 use serde::Deserialize;
+use serde_json::from_str;
+use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
 /// Fitbit API base URL
@@ -212,7 +216,7 @@ struct FitbitRestingHrValue {
 /// Clean Fitbit provider implementation
 pub struct FitbitProvider {
     config: ProviderConfig,
-    credentials: tokio::sync::RwLock<Option<OAuth2Credentials>>,
+    credentials: RwLock<Option<OAuth2Credentials>>,
     client: Client,
 }
 
@@ -234,7 +238,7 @@ impl FitbitProvider {
 
         Self {
             config,
-            credentials: tokio::sync::RwLock::new(None),
+            credentials: RwLock::new(None),
             client: shared_client().clone(),
         }
     }
@@ -244,7 +248,7 @@ impl FitbitProvider {
     pub fn with_config(config: ProviderConfig) -> Self {
         Self {
             config,
-            credentials: tokio::sync::RwLock::new(None),
+            credentials: RwLock::new(None),
             client: shared_client().clone(),
         }
     }
@@ -268,7 +272,7 @@ impl FitbitProvider {
         error!("Fitbit API request failed - status: {status}, url: {url}, body: {text}");
 
         // Try to parse Fitbit error response
-        if let Ok(error_response) = serde_json::from_str::<FitbitErrorResponse>(text) {
+        if let Ok(error_response) = from_str::<FitbitErrorResponse>(text) {
             if let Some(errors) = error_response.errors {
                 if let Some(first_error) = errors.into_iter().next() {
                     let error_type = first_error.error_type.unwrap_or_default();
@@ -652,8 +656,8 @@ impl FitnessProvider for FitbitProvider {
         info!("Refreshing Fitbit access token");
 
         // Fitbit requires Basic auth for token refresh
-        let auth_value = base64::Engine::encode(
-            &base64::engine::general_purpose::STANDARD,
+        let auth_value = Engine::encode(
+            &BASE64_STANDARD,
             format!("{}:{}", credentials.client_id, credentials.client_secret),
         );
 

@@ -10,7 +10,8 @@
 use anyhow::Result;
 use pierre_mcp_server::cache::{factory::Cache, CacheConfig, CacheKey, CacheResource};
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
+use std::{env, time::Duration};
+use tokio::time;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -32,7 +33,7 @@ fn test_cache_key(resource: CacheResource) -> CacheKey {
 /// Helper: Create Redis cache from `REDIS_URL` environment variable
 /// Returns None if `REDIS_URL` is not set (allows skipping tests in non-Redis environments)
 async fn create_redis_cache() -> Result<Option<Cache>> {
-    let Ok(redis_url) = std::env::var("REDIS_URL") else {
+    let Ok(redis_url) = env::var("REDIS_URL") else {
         println!("REDIS_URL not set, skipping Redis cache tests");
         return Ok(None);
     };
@@ -132,7 +133,7 @@ async fn test_redis_cache_expiration() -> Result<()> {
     assert!(cache.exists(&key).await?);
 
     // Wait for expiration
-    tokio::time::sleep(Duration::from_millis(1500)).await;
+    time::sleep(Duration::from_millis(1500)).await;
 
     // Should be expired
     let retrieved: Option<TestData> = cache.get(&key).await?;

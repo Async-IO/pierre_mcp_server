@@ -12,6 +12,8 @@
 
 mod common;
 
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
 use pierre_mcp_server::{
     database::generate_encryption_key,
     database_plugins::factory::Database,
@@ -29,7 +31,7 @@ async fn test_basic_health_check() {
     let database = Database::new(
         "sqlite::memory:",
         encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await
     .unwrap();
@@ -60,7 +62,7 @@ async fn test_comprehensive_health_check() {
     let database = Database::new(
         "sqlite::memory:",
         encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await
     .unwrap();
@@ -93,7 +95,7 @@ async fn test_readiness_check() {
     let database = Database::new(
         "sqlite::memory:",
         encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await
     .unwrap();

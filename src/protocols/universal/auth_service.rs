@@ -4,10 +4,17 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use crate::config::environment::get_oauth_config;
 use crate::database_plugins::DatabaseProvider;
+use crate::errors::AppError;
 use crate::mcp::resources::ServerResources;
+use crate::models::UserOAuthToken;
+use crate::oauth2_client::client::fitbit::refresh_fitbit_token;
+use crate::oauth2_client::client::strava::refresh_strava_token;
 use crate::protocols::universal::UniversalResponse;
 use crate::providers::{CoreFitnessProvider, OAuth2Credentials};
+use crate::tenant::{TenantContext, TenantRole};
+use crate::utils::http_client::api_client;
 use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use tracing::{debug, info, warn};
@@ -119,11 +126,11 @@ impl AuthService {
             return;
         };
 
-        let tenant_context = crate::tenant::TenantContext {
+        let tenant_context = TenantContext {
             tenant_id: tenant_uuid,
             tenant_name: tenant.name.clone(), // Safe: String ownership needed for tenant context
             user_id,
-            user_role: crate::tenant::TenantRole::Member,
+            user_role: TenantRole::Member,
         };
 
         // Get tenant-specific OAuth credentials - result is unused but initializes context
@@ -140,7 +147,7 @@ impl AuthService {
         user_id: Uuid,
         tenant_id: &str,
         provider: &str,
-        oauth_token: crate::models::UserOAuthToken,
+        oauth_token: UserOAuthToken,
     ) -> Result<Option<TokenData>, OAuthError> {
         // Check if token is expired (with 5-minute buffer)
         if let Some(expires_at) = oauth_token.expires_at {
@@ -169,7 +176,7 @@ impl AuthService {
 
     /// Log the result of a token lookup operation
     fn log_token_lookup_result(
-        token_result: &Result<Option<crate::models::UserOAuthToken>, crate::errors::AppError>,
+        token_result: &Result<Option<UserOAuthToken>, AppError>,
         user_id: Uuid,
         tenant_id: &str,
         provider: &str,
@@ -196,7 +203,7 @@ impl AuthService {
         user_id: Uuid,
         tenant_id: &str,
         provider: &str,
-        oauth_token: &crate::models::UserOAuthToken,
+        oauth_token: &UserOAuthToken,
     ) -> Result<Option<TokenData>, OAuthError> {
         // Check if we have a valid refresh token
         let Some(ref refresh_token) = oauth_token.refresh_token else {
@@ -386,7 +393,7 @@ impl AuthService {
         provider_name: &str,
     ) -> Result<(String, String), Box<UniversalResponse>> {
         // Get OAuth config from environment (PIERRE_<PROVIDER>_* env vars)
-        let oauth_config = crate::config::environment::get_oauth_config(provider_name);
+        let oauth_config = get_oauth_config(provider_name);
 
         let client_id = oauth_config.client_id.as_ref().ok_or_else(|| {
             Box::new(UniversalResponse {
@@ -437,26 +444,16 @@ impl AuthService {
         // Call provider-specific token refresh
         let new_token = match provider.to_lowercase().as_str() {
             "strava" => {
-                let http_client = crate::utils::http_client::api_client();
-                crate::oauth2_client::client::strava::refresh_strava_token(
-                    &http_client,
-                    &client_id,
-                    &client_secret,
-                    refresh_token,
-                )
-                .await
-                .map_err(|e| OAuthError::TokenRefreshFailed(e.to_string()))?
+                let http_client = api_client();
+                refresh_strava_token(&http_client, &client_id, &client_secret, refresh_token)
+                    .await
+                    .map_err(|e| OAuthError::TokenRefreshFailed(e.to_string()))?
             }
             "fitbit" => {
-                let http_client = crate::utils::http_client::api_client();
-                crate::oauth2_client::client::fitbit::refresh_fitbit_token(
-                    &http_client,
-                    &client_id,
-                    &client_secret,
-                    refresh_token,
-                )
-                .await
-                .map_err(|e| OAuthError::TokenRefreshFailed(e.to_string()))?
+                let http_client = api_client();
+                refresh_fitbit_token(&http_client, &client_id, &client_secret, refresh_token)
+                    .await
+                    .map_err(|e| OAuthError::TokenRefreshFailed(e.to_string()))?
             }
             other => {
                 return Err(OAuthError::TokenRefreshFailed(format!(

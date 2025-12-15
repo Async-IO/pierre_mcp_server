@@ -8,11 +8,13 @@
 #![allow(missing_docs)]
 
 use chrono::Utc;
-use pierre_mcp_server::constants::oauth_providers;
+use pierre_mcp_server::config::environment::HttpClientConfig;
+use pierre_mcp_server::constants::{init_server_config, oauth_providers};
 use pierre_mcp_server::models::SportType;
 use pierre_mcp_server::providers::core::{FitnessProvider, OAuth2Credentials, ProviderConfig};
 use pierre_mcp_server::providers::registry::{get_supported_providers, global_registry};
 use pierre_mcp_server::providers::whoop_provider::WhoopProvider;
+use pierre_mcp_server::utils::http_client::initialize_http_clients;
 use std::sync::Once;
 
 /// Ensure HTTP clients and server config are initialized only once across all tests
@@ -22,13 +24,11 @@ static INIT_SERVER_CONFIG: Once = Once::new();
 fn ensure_http_clients_initialized() {
     // Initialize server config first (required for provider defaults)
     INIT_SERVER_CONFIG.call_once(|| {
-        let _ = pierre_mcp_server::constants::init_server_config();
+        let _ = init_server_config();
     });
 
     INIT_HTTP_CLIENTS.call_once(|| {
-        pierre_mcp_server::utils::http_client::initialize_http_clients(
-            pierre_mcp_server::config::environment::HttpClientConfig::default(),
-        );
+        initialize_http_clients(HttpClientConfig::default());
     });
 }
 

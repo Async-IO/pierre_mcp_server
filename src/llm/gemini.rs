@@ -38,6 +38,9 @@
 //! }
 //! ```
 
+use std::env;
+use std::fmt::{Debug, Formatter, Result as FmtResult};
+
 use async_trait::async_trait;
 use futures_util::StreamExt;
 use reqwest::Client;
@@ -257,7 +260,7 @@ impl GeminiProvider {
     ///
     /// Returns an error if the environment variable is not set.
     pub fn from_env() -> Result<Self, AppError> {
-        let api_key = std::env::var(GEMINI_API_KEY_ENV).map_err(|_| {
+        let api_key = env::var(GEMINI_API_KEY_ENV).map_err(|_| {
             AppError::config(format!("{GEMINI_API_KEY_ENV} environment variable not set"))
         })?;
         Ok(Self::new(api_key))
@@ -708,8 +711,8 @@ impl LlmProvider for GeminiProvider {
     }
 }
 
-impl std::fmt::Debug for GeminiProvider {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for GeminiProvider {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         f.debug_struct("GeminiProvider")
             .field("default_model", &self.default_model)
             .field("api_key", &"[REDACTED]")

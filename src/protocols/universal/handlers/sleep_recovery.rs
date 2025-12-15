@@ -4,17 +4,25 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-use crate::intelligence::algorithms::RecoveryAggregationAlgorithm;
-use crate::intelligence::{RecoveryCalculator, SleepAnalyzer, SleepData, TrainingLoadCalculator};
-use crate::models::{Activity, SleepSession, SleepStageType};
-use crate::protocols::universal::{UniversalRequest, UniversalResponse};
-use crate::protocols::ProtocolError;
-use chrono::{Duration, Utc};
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
+
+use chrono::{Duration, Utc};
 use tracing::{debug, warn};
 use uuid::Uuid;
+
+use crate::config::environment::ServerConfig;
+use crate::config::intelligence::IntelligenceConfig;
+use crate::constants::oauth::STRAVA_DEFAULT_SCOPES;
+use crate::intelligence::algorithms::RecoveryAggregationAlgorithm;
+use crate::intelligence::{RecoveryCalculator, SleepAnalyzer, SleepData, TrainingLoadCalculator};
+use crate::models::{Activity, SleepSession, SleepStageType};
+use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalToolExecutor};
+use crate::protocols::ProtocolError;
+use crate::providers::OAuth2Credentials;
+use crate::utils::uuid::parse_user_id_for_protocol;
 
 use super::{apply_format_to_response, extract_output_format};
 
@@ -22,7 +30,7 @@ use super::{apply_format_to_response, extract_output_format};
 ///
 /// Returns (`client_id`, `client_secret`) for the requested provider, or None if not configured.
 fn get_provider_oauth_config(
-    config: &crate::config::environment::ServerConfig,
+    config: &ServerConfig,
     provider_name: &str,
 ) -> Option<(String, String)> {
     let oauth_config = match provider_name {
@@ -47,7 +55,7 @@ fn get_provider_oauth_config(
 /// Get default OAuth scopes for a provider
 fn get_provider_default_scopes(provider_name: &str) -> Vec<String> {
     match provider_name {
-        "strava" => crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+        "strava" => STRAVA_DEFAULT_SCOPES
             .split(',')
             .map(str::to_owned)
             .collect(),
@@ -88,7 +96,7 @@ fn get_provider_default_scopes(provider_name: &str) -> Vec<String> {
 /// # Errors
 /// Returns `UniversalResponse` with error if authentication fails or activities cannot be fetched
 async fn fetch_provider_activities(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     user_uuid: Uuid,
     tenant_id: Option<&str>,
     provider_name: &str,
@@ -145,7 +153,7 @@ async fn fetch_provider_activities(
                     },
                 )?;
 
-            let credentials = crate::providers::OAuth2Credentials {
+            let credentials = OAuth2Credentials {
                 client_id,
                 client_secret,
                 access_token: Some(token_data.access_token),
@@ -214,7 +222,7 @@ async fn fetch_provider_activities(
 // Long function: Provider fetcher requires validation, auth, credential setup, API call, and conversion
 #[allow(clippy::too_many_lines)]
 pub async fn fetch_provider_sleep_data(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     user_uuid: Uuid,
     tenant_id: Option<&str>,
     provider_name: &str,
@@ -275,7 +283,7 @@ pub async fn fetch_provider_sleep_data(
                     },
                 )?;
 
-            let credentials = crate::providers::OAuth2Credentials {
+            let credentials = OAuth2Credentials {
                 client_id,
                 client_secret,
                 access_token: Some(token_data.access_token),
@@ -383,7 +391,7 @@ fn convert_sleep_session_to_data(session: &SleepSession) -> SleepData {
 ///
 /// Returns multiple sleep sessions converted to `SleepData` for trend tracking.
 async fn fetch_provider_sleep_history(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     user_uuid: Uuid,
     tenant_id: Option<&str>,
     provider_name: &str,
@@ -442,7 +450,7 @@ async fn fetch_provider_sleep_history(
                     },
                 )?;
 
-            let credentials = crate::providers::OAuth2Credentials {
+            let credentials = OAuth2Credentials {
                 client_id,
                 client_secret,
                 access_token: Some(token_data.access_token),
@@ -496,7 +504,7 @@ async fn fetch_provider_sleep_history(
 /// Checks connected providers and returns the first one that supports activities.
 /// Priority order: strava > garmin > fitbit > whoop > terra
 async fn select_activity_provider(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     user_uuid: Uuid,
     tenant_id: Option<&str>,
 ) -> Option<String> {
@@ -531,7 +539,7 @@ async fn select_activity_provider(
 /// Checks connected providers and returns the first one that supports sleep tracking.
 /// Priority order: whoop > garmin > fitbit > terra (Strava excluded - no sleep support)
 pub async fn select_sleep_provider(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     user_uuid: Uuid,
     tenant_id: Option<&str>,
 ) -> Option<String> {
@@ -581,11 +589,11 @@ pub async fn select_sleep_provider(
 // Long function: Protocol handler with async data fetching, HRV analysis, response formatting
 #[allow(clippy::too_many_lines)]
 pub fn handle_analyze_sleep_quality(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use parse_user_id_for_protocol;
 
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
@@ -635,7 +643,7 @@ pub fn handle_analyze_sleep_quality(
         };
 
         // Get sleep/recovery config
-        let config = &crate::config::intelligence::IntelligenceConfig::global().sleep_recovery;
+        let config = &IntelligenceConfig::global().sleep_recovery;
 
         // Calculate sleep quality using foundation module
         let sleep_quality =
@@ -744,11 +752,11 @@ pub fn handle_analyze_sleep_quality(
 // Long function: Protocol handler inherently long due to async auth, param extraction, calculation, response formatting
 #[allow(clippy::too_many_lines)]
 pub fn handle_calculate_recovery_score(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use parse_user_id_for_protocol;
 
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
@@ -876,7 +884,7 @@ pub fn handle_calculate_recovery_score(
         };
 
         // Get sleep/recovery config
-        let config = &crate::config::intelligence::IntelligenceConfig::global().sleep_recovery;
+        let config = &IntelligenceConfig::global().sleep_recovery;
 
         let sleep_quality =
             SleepAnalyzer::calculate_sleep_quality(&sleep_data, config).map_err(|e| {
@@ -1015,11 +1023,11 @@ pub fn handle_calculate_recovery_score(
 // Long function: Protocol handler inherently long due to async auth, param extraction, calculation, response formatting
 #[allow(clippy::too_many_lines)]
 pub fn handle_suggest_rest_day(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use parse_user_id_for_protocol;
 
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
@@ -1133,7 +1141,7 @@ pub fn handle_suggest_rest_day(
         };
 
         // Get sleep/recovery config
-        let config = &crate::config::intelligence::IntelligenceConfig::global().sleep_recovery;
+        let config = &IntelligenceConfig::global().sleep_recovery;
 
         let sleep_quality =
             SleepAnalyzer::calculate_sleep_quality(&sleep_data, config).map_err(|e| {
@@ -1278,11 +1286,11 @@ pub fn handle_suggest_rest_day(
 // Long function: Protocol handler inherently long due to trend calculation, statistics aggregation, response formatting
 #[allow(clippy::too_many_lines)]
 pub fn handle_track_sleep_trends(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use parse_user_id_for_protocol;
 
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
@@ -1390,7 +1398,7 @@ pub fn handle_track_sleep_trends(
                 .count() as f64;
 
         // Get sleep/recovery config
-        let config = &crate::config::intelligence::IntelligenceConfig::global().sleep_recovery;
+        let config = &IntelligenceConfig::global().sleep_recovery;
 
         // Calculate quality scores for each day
         let mut quality_scores = Vec::new();
@@ -1439,10 +1447,10 @@ pub fn handle_track_sleep_trends(
         // Identify best and worst nights
         let best_night = quality_scores
             .iter()
-            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(Ordering::Equal));
         let worst_night = quality_scores
             .iter()
-            .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+            .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(Ordering::Equal));
 
         // Generate insights
         let mut insights = Vec::new();
@@ -1525,11 +1533,11 @@ pub fn handle_track_sleep_trends(
 // Long function: Protocol handler inherently long due to async auth, param extraction, calculation, response formatting
 #[allow(clippy::too_many_lines)]
 pub fn handle_optimize_sleep_schedule(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use parse_user_id_for_protocol;
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
@@ -1591,7 +1599,7 @@ pub fn handle_optimize_sleep_schedule(
             })?;
 
         // Get sleep/recovery config
-        let config = &crate::config::intelligence::IntelligenceConfig::global().sleep_recovery;
+        let config = &IntelligenceConfig::global().sleep_recovery;
 
         // Get upcoming workout info (optional)
         let upcoming_workout_intensity = request

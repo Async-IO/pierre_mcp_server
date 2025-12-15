@@ -16,12 +16,18 @@ use axum::{
 use lru::LruCache;
 use serde_json::Value;
 use std::{num::NonZeroUsize, sync::Arc};
-use tokio::sync::Mutex;
+use tokio::{sync::Mutex, task::yield_now};
 use tracing::{debug, error, info, warn};
 
-use crate::database_plugins::DatabaseProvider;
-use crate::mcp::resources::ServerResources;
-use crate::mcp::tenant_isolation::validate_jwt_token_for_mcp;
+use crate::{
+    database_plugins::DatabaseProvider,
+    mcp::{
+        multitenant::{McpRequest, MultiTenantMcpServer},
+        resources::ServerResources,
+        schema::get_tools,
+        tenant_isolation::validate_jwt_token_for_mcp,
+    },
+};
 
 /// Session data for MCP requests
 #[derive(Clone)]
@@ -76,9 +82,9 @@ impl McpRoutes {
     /// before making tool call requests.
     async fn handle_tools() -> Json<Value> {
         // Yield to scheduler for cooperative multitasking
-        tokio::task::yield_now().await;
+        yield_now().await;
 
-        let tools = crate::mcp::schema::get_tools();
+        let tools = get_tools();
         Json(serde_json::json!({
             "tools": tools
         }))
@@ -278,11 +284,10 @@ impl McpRoutes {
         state: &McpRoutesState,
     ) -> Result<Response, Response> {
         // Parse JSON-RPC request
-        let mut mcp_request: crate::mcp::multitenant::McpRequest =
-            serde_json::from_value(body.clone()).map_err(|e| {
-                error!(error = %e, "Failed to parse MCP request");
-                (StatusCode::BAD_REQUEST, "Invalid MCP request format").into_response()
-            })?;
+        let mut mcp_request: McpRequest = serde_json::from_value(body.clone()).map_err(|e| {
+            error!(error = %e, "Failed to parse MCP request");
+            (StatusCode::BAD_REQUEST, "Invalid MCP request format").into_response()
+        })?;
 
         // Inject HTTP Authorization header into JSON-RPC auth_token field
         // This allows HTTP Bearer tokens to work with JSON-RPC authentication
@@ -295,11 +300,8 @@ impl McpRoutes {
         }
 
         // Process MCP request
-        let response_opt = crate::mcp::multitenant::MultiTenantMcpServer::handle_request(
-            mcp_request,
-            &state.resources,
-        )
-        .await;
+        let response_opt =
+            MultiTenantMcpServer::handle_request(mcp_request, &state.resources).await;
 
         // Convert to HTTP response
         match response_opt {

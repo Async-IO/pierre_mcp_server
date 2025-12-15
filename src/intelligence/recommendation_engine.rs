@@ -13,12 +13,13 @@ use super::{
     TrainingRecommendation, UserFitnessProfile,
 };
 use crate::config::intelligence::{
-    IntelligenceConfig, IntelligenceStrategy, RecommendationEngineConfig,
+    DefaultStrategy, IntelligenceConfig, IntelligenceStrategy, RecommendationEngineConfig,
 };
 use crate::errors::AppResult;
 use crate::intelligence::physiological_constants::{
     consistency::CONSISTENCY_SCORE_THRESHOLD,
     frequency_targets::MAX_WEEKLY_FREQUENCY,
+    heart_rate::HIGH_INTENSITY_HR_THRESHOLD,
     hr_estimation::{ASSUMED_MAX_HR, RECOVERY_HR_PERCENTAGE},
     intensity_balance::{
         HIGH_INTENSITY_UPPER_LIMIT, LOW_INTENSITY_LOWER_LIMIT, MODERATE_NUTRITION_HR_THRESHOLD,
@@ -35,10 +36,14 @@ use crate::intelligence::physiological_constants::{
         HIGH_WEEKLY_LOAD_SECONDS, HIGH_WEEKLY_VOLUME_HOURS, MAX_HIGH_INTENSITY_SESSIONS_PER_WEEK,
         MIN_WEEKLY_VOLUME_HOURS,
     },
+    zone_distributions::equipment::{SHOE_REPLACEMENT_MAX_KM, SHOE_REPLACEMENT_MIN_KM},
 };
+use std::cmp::Ordering;
+use std::collections::{HashMap, HashSet};
+
+use chrono::{naive::Days, Utc};
+
 use crate::models::Activity;
-use chrono::Utc;
-use std::collections::HashMap;
 
 /// Trait for generating training recommendations
 #[async_trait::async_trait]
@@ -71,9 +76,7 @@ pub trait RecommendationEngineTrait {
 }
 
 /// Advanced recommendation engine implementation with configurable strategy
-pub struct AdvancedRecommendationEngine<
-    S: IntelligenceStrategy = crate::config::intelligence::DefaultStrategy,
-> {
+pub struct AdvancedRecommendationEngine<S: IntelligenceStrategy = DefaultStrategy> {
     strategy: S,
     config: RecommendationEngineConfig,
     user_profile: Option<UserFitnessProfile>,
@@ -91,7 +94,7 @@ impl AdvancedRecommendationEngine {
     pub fn new() -> Self {
         let global_config = IntelligenceConfig::global();
         Self {
-            strategy: crate::config::intelligence::DefaultStrategy,
+            strategy: DefaultStrategy,
             config: global_config.recommendation_engine.clone(),
             user_profile: None,
         }
@@ -125,7 +128,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
     pub fn with_profile(profile: UserFitnessProfile) -> AdvancedRecommendationEngine {
         let global_config = IntelligenceConfig::global();
         AdvancedRecommendationEngine {
-            strategy: crate::config::intelligence::DefaultStrategy,
+            strategy: DefaultStrategy,
             config: global_config.recommendation_engine.clone(),
             user_profile: Some(profile),
         }
@@ -280,8 +283,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
         }
 
         // Check for missing training types
-        let sports: std::collections::HashSet<_> =
-            activities.iter().map(|a| &a.sport_type).collect();
+        let sports: HashSet<_> = activities.iter().map(|a| &a.sport_type).collect();
 
         if let Some(profile) = &self.user_profile {
             for primary_sport in &profile.primary_sports {
@@ -645,7 +647,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
                     b.confidence
                         .as_score()
                         .partial_cmp(&a.confidence.as_score())
-                        .unwrap_or(std::cmp::Ordering::Equal)
+                        .unwrap_or(Ordering::Equal)
                 })
         });
 
@@ -672,7 +674,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
 
         let high_intensity_sessions = recent_activities
             .iter()
-            .filter(|a| a.average_heart_rate.unwrap_or(0) > crate::intelligence::physiological_constants::heart_rate::HIGH_INTENSITY_HR_THRESHOLD)
+            .filter(|a| a.average_heart_rate.unwrap_or(0) > HIGH_INTENSITY_HR_THRESHOLD)
             .count();
 
         // Check if recovery is needed
@@ -816,8 +818,8 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
                     "Get professional gait analysis and shoe fitting".into(),
                     format!(
                         "Replace running shoes every {}-{}km",
-                        crate::intelligence::physiological_constants::zone_distributions::equipment::SHOE_REPLACEMENT_MIN_KM as u32,
-                        crate::intelligence::physiological_constants::zone_distributions::equipment::SHOE_REPLACEMENT_MAX_KM as u32
+                        SHOE_REPLACEMENT_MIN_KM as u32,
+                        SHOE_REPLACEMENT_MAX_KM as u32
                     ),
                     "Consider moisture-wicking clothing for longer runs".into(),
                     "Use GPS watch or smartphone app for pacing".into(),
@@ -885,11 +887,9 @@ impl AdvancedRecommendationEngine {
         for activity in sorted_activities {
             let activity_naive = activity.start_date.naive_utc().date();
 
-            if activity_naive == current_date
-                || activity_naive == current_date - chrono::naive::Days::new(1)
-            {
+            if activity_naive == current_date || activity_naive == current_date - Days::new(1) {
                 consecutive += 1;
-                current_date = activity_naive - chrono::naive::Days::new(1);
+                current_date = activity_naive - Days::new(1);
             } else {
                 break;
             }

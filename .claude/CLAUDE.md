@@ -219,12 +219,14 @@ cargo fmt
 # 2. Architectural validation
 ./scripts/architectural-validation.sh
 
-# 3. Clippy WITHOUT --tests flag (saves time - tests validated by CI)
-cargo clippy -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
+# 3. Clippy WITH --all-targets (REQUIRED - catches test file import errors)
+cargo clippy --all-targets -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
 
 # 4. Run TARGETED tests for changed modules
 cargo test <module_pattern> -- --nocapture
 ```
+
+**CRITICAL: Always use `--all-targets` with clippy.** Without it, clippy only checks `src/` code and misses lint errors in `tests/`, `benches/`, and binary crates. CI uses `--all-targets`, so local validation must match.
 
 #### Tier 3: Full Validation (before PR/merge only)
 Run the full suite only when preparing a PR or merging:
@@ -233,7 +235,7 @@ Run the full suite only when preparing a PR or merging:
 # OR manually:
 cargo fmt
 ./scripts/architectural-validation.sh
-cargo clippy --tests -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
+cargo clippy --all-targets -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
 cargo test
 ```
 
@@ -471,7 +473,7 @@ The codebase clone usage falls into these **approved categories**:
    ```bash
    cargo fmt
    ./scripts/architectural-validation.sh
-   cargo clippy -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
+   cargo clippy --all-targets -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
    cargo test <relevant_pattern> -- --nocapture
    ```
 
@@ -612,6 +614,31 @@ Run `cargo test` (all tests) ONLY when:
 - For binary crates (like this project):
   - USE explicit module paths for clarity (no external consumers)
   - `pub(crate)` documents intent but has no visibility effect
+
+### Import Style (Enforced by clippy::absolute_paths)
+- USE `use` imports at the top of the file for items used in the module
+- AVOID inline qualified paths like `crate::models::User` or `std::collections::HashMap`
+- Qualified paths are acceptable ONLY for:
+  - Name collisions (two types with the same name from different modules)
+  - Single-use items where the qualified path adds clarity
+- This is enforced by `clippy::absolute_paths = "deny"` in Cargo.toml
+- Example:
+  ```rust
+  // GOOD: Import at top of file
+  use crate::models::User;
+  use std::collections::HashMap;
+
+  fn example() {
+      let user = User::new();
+      let map = HashMap::new();
+  }
+
+  // BAD: Inline qualified paths
+  fn example() {
+      let user = crate::models::User::new();
+      let map = std::collections::HashMap::new();
+  }
+  ```
 
 ### Dependency Management
 - PREFER minimal dependencies

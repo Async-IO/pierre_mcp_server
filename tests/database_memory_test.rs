@@ -10,8 +10,12 @@
 #![allow(missing_docs)]
 
 use anyhow::Result;
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
 use pierre_mcp_server::database::generate_encryption_key;
 use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
+use pierre_mcp_server::models::User;
+use std::env;
 use std::fs;
 
 #[tokio::test]
@@ -23,7 +27,7 @@ async fn test_memory_database_no_physical_files() -> Result<()> {
     let database = Database::new(
         "sqlite::memory:",
         encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -31,7 +35,7 @@ async fn test_memory_database_no_physical_files() -> Result<()> {
     let database = Database::new("sqlite::memory:", encryption_key).await?;
 
     // Verify no physical files are created with memory database patterns
-    let current_dir = std::env::current_dir()?;
+    let current_dir = env::current_dir()?;
     let entries = fs::read_dir(&current_dir)?;
 
     for entry in entries {
@@ -52,7 +56,7 @@ async fn test_memory_database_no_physical_files() -> Result<()> {
     }
 
     // Test basic database functionality to ensure it works
-    let user = pierre_mcp_server::models::User::new(
+    let user = User::new(
         "test@memory.test".to_owned(),
         "password_hash".to_owned(),
         Some("Memory Test User".to_owned()),
@@ -80,7 +84,7 @@ async fn test_multiple_memory_databases_isolated() -> Result<()> {
     let database1 = Database::new(
         "sqlite::memory:",
         encryption_key1,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -91,7 +95,7 @@ async fn test_multiple_memory_databases_isolated() -> Result<()> {
     let database2 = Database::new(
         "sqlite::memory:",
         encryption_key2,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -99,13 +103,13 @@ async fn test_multiple_memory_databases_isolated() -> Result<()> {
     let database2 = Database::new("sqlite::memory:", encryption_key2).await?;
 
     // Create users in each database
-    let user1 = pierre_mcp_server::models::User::new(
+    let user1 = User::new(
         "user1@test.com".to_owned(),
         "hash1".to_owned(),
         Some("User 1".to_owned()),
     );
 
-    let user2 = pierre_mcp_server::models::User::new(
+    let user2 = User::new(
         "user2@test.com".to_owned(),
         "hash2".to_owned(),
         Some("User 2".to_owned()),

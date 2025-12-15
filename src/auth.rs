@@ -14,16 +14,32 @@
 //! This module provides JWT-based authentication and session management
 //! for the multi-tenant Pierre MCP Server.
 
-use crate::constants::{limits::USER_SESSION_EXPIRY_HOURS, time_constants::SECONDS_PER_HOUR};
+use std::cmp::min;
+use std::error::Error;
+use std::fmt::{self, Display, Formatter};
+
+use chrono::{DateTime, Duration, Utc};
+use jsonwebtoken::{
+    decode, encode,
+    errors::{Error as JwtError, ErrorKind},
+    Algorithm, Header, Validation,
+};
+use serde::{Deserialize, Serialize};
+use tracing::{debug, error, warn};
+use uuid::Uuid;
+
+use crate::admin::jwks::JwksManager;
+use crate::constants::{
+    limits::{OAUTH_ACCESS_TOKEN_EXPIRY_HOURS, USER_SESSION_EXPIRY_HOURS},
+    service_names::{MCP, PIERRE_MCP_SERVER},
+    time_constants::SECONDS_PER_HOUR,
+};
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::errors::{AppError, AppResult};
 use crate::models::{AuthRequest, AuthResponse, User, UserSession};
 use crate::rate_limiting::UnifiedRateLimitInfo;
-use chrono::{DateTime, Duration, Utc};
-use jsonwebtoken::{decode, encode, Algorithm, Header, Validation};
-use serde::{Deserialize, Serialize};
-use tracing::{debug, error, warn};
-use uuid::Uuid;
+use crate::routes::SetupStatusResponse;
+use crate::utils::uuid::parse_uuid;
 
 /// Convert a duration to a human-readable format
 fn humanize_duration(duration: Duration) -> String {
@@ -63,8 +79,8 @@ pub enum JwtValidationError {
     },
 }
 
-impl std::fmt::Display for JwtValidationError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for JwtValidationError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::TokenExpired {
                 expired_at,
@@ -104,7 +120,7 @@ impl std::fmt::Display for JwtValidationError {
     }
 }
 
-impl std::error::Error for JwtValidationError {}
+impl Error for JwtValidationError {}
 
 /// `JWT` claims for user authentication
 #[derive(Debug, Serialize, Deserialize)]
@@ -217,11 +233,7 @@ impl AuthManager {
     /// - JWT encoding fails due to invalid claims
     /// - System time is unavailable for timestamp generation
     /// - JWKS manager has no active key
-    pub fn generate_token(
-        &self,
-        user: &User,
-        jwks_manager: &crate::admin::jwks::JwksManager,
-    ) -> AppResult<String> {
+    pub fn generate_token(&self, user: &User, jwks_manager: &JwksManager) -> AppResult<String> {
         let now = Utc::now();
         let expiry = now + Duration::hours(self.token_expiry_hours);
 
@@ -230,10 +242,10 @@ impl AuthManager {
             email: user.email.clone(),
             iat: now.timestamp(),
             exp: expiry.timestamp(),
-            iss: crate::constants::service_names::PIERRE_MCP_SERVER.to_owned(),
+            iss: PIERRE_MCP_SERVER.to_owned(),
             jti: Uuid::new_v4().to_string(),
             providers: user.available_providers(),
-            aud: crate::constants::service_names::MCP.to_owned(),
+            aud: MCP.to_owned(),
             tenant_id: user.tenant_id.clone(),
             impersonator_id: None,
             impersonation_session_id: None,
@@ -266,7 +278,7 @@ impl AuthManager {
         target_user: &User,
         impersonator_id: Uuid,
         session_id: &str,
-        jwks_manager: &crate::admin::jwks::JwksManager,
+        jwks_manager: &JwksManager,
     ) -> AppResult<String> {
         let now = Utc::now();
         // Impersonation tokens have shorter expiry (1 hour)
@@ -277,10 +289,10 @@ impl AuthManager {
             email: target_user.email.clone(),
             iat: now.timestamp(),
             exp: expiry.timestamp(),
-            iss: crate::constants::service_names::PIERRE_MCP_SERVER.to_owned(),
+            iss: PIERRE_MCP_SERVER.to_owned(),
             jti: Uuid::new_v4().to_string(),
             providers: target_user.available_providers(),
-            aud: crate::constants::service_names::MCP.to_owned(),
+            aud: MCP.to_owned(),
             tenant_id: target_user.tenant_id.clone(),
             impersonator_id: Some(impersonator_id.to_string()),
             impersonation_session_id: Some(session_id.to_owned()),
@@ -312,11 +324,7 @@ impl AuthManager {
     /// - Token header doesn't contain kid (key ID)
     /// - JWKS manager doesn't have the specified key
     /// - Token claims cannot be deserialized
-    pub fn validate_token(
-        &self,
-        token: &str,
-        jwks_manager: &crate::admin::jwks::JwksManager,
-    ) -> AppResult<Claims> {
+    pub fn validate_token(&self, token: &str, jwks_manager: &JwksManager) -> AppResult<Claims> {
         // Extract kid from token header
         let header = jsonwebtoken::decode_header(token)
             .map_err(|e| AppError::auth_invalid(format!("Failed to decode token header: {e}")))?;
@@ -337,8 +345,8 @@ impl AuthManager {
 
         let mut validation = Validation::new(Algorithm::RS256);
         validation.validate_exp = true;
-        validation.set_audience(&[crate::constants::service_names::MCP]);
-        validation.set_issuer(&[crate::constants::service_names::PIERRE_MCP_SERVER]);
+        validation.set_audience(&[MCP]);
+        validation.set_issuer(&[PIERRE_MCP_SERVER]);
 
         let token_data = decode::<Claims>(token, &decoding_key, &validation).map_err(|e| {
             error!("RS256 JWT validation failed: {:?}", e);
@@ -371,8 +379,7 @@ impl AuthManager {
     }
 
     /// Convert JWT library errors to detailed validation errors
-    fn convert_jwt_error(e: &jsonwebtoken::errors::Error) -> JwtValidationError {
-        use jsonwebtoken::errors::ErrorKind;
+    fn convert_jwt_error(e: &JwtError) -> JwtValidationError {
         warn!("JWT token validation failed: {:?}", e);
 
         match e.kind() {
@@ -417,12 +424,12 @@ impl AuthManager {
     pub fn validate_token_detailed(
         &self,
         token: &str,
-        jwks_manager: &crate::admin::jwks::JwksManager,
+        jwks_manager: &JwksManager,
     ) -> Result<Claims, JwtValidationError> {
         debug!(
             "Validating RS256 JWT token (length: {} chars): {}",
             token.len(),
-            &token[..std::cmp::min(100, token.len())]
+            &token[..min(100, token.len())]
         );
 
         let claims = Self::decode_token_claims(token, jwks_manager)?;
@@ -438,7 +445,7 @@ impl AuthManager {
     /// Decode RS256 JWT token claims without expiration validation
     fn decode_token_claims(
         token: &str,
-        jwks_manager: &crate::admin::jwks::JwksManager,
+        jwks_manager: &JwksManager,
     ) -> Result<Claims, JwtValidationError> {
         // Extract kid from token header
         let header =
@@ -469,8 +476,8 @@ impl AuthManager {
 
         let mut validation_no_exp = Validation::new(Algorithm::RS256);
         validation_no_exp.validate_exp = false;
-        validation_no_exp.set_audience(&[crate::constants::service_names::MCP]);
-        validation_no_exp.set_issuer(&[crate::constants::service_names::PIERRE_MCP_SERVER]);
+        validation_no_exp.set_audience(&[MCP]);
+        validation_no_exp.set_issuer(&[PIERRE_MCP_SERVER]);
 
         decode::<Claims>(token, &decoding_key, &validation_no_exp)
             .map(|token_data| token_data.claims)
@@ -506,7 +513,7 @@ impl AuthManager {
     pub fn create_session(
         &self,
         user: &User,
-        jwks_manager: &crate::admin::jwks::JwksManager,
+        jwks_manager: &JwksManager,
     ) -> AppResult<UserSession> {
         let jwt_token = self.generate_token(user, jwks_manager)?;
         let expires_at = Utc::now() + Duration::hours(self.token_expiry_hours);
@@ -522,13 +529,9 @@ impl AuthManager {
 
     /// Validate authentication request using RS256 and return response
     #[must_use]
-    pub fn authenticate(
-        &self,
-        request: &AuthRequest,
-        jwks_manager: &crate::admin::jwks::JwksManager,
-    ) -> AuthResponse {
+    pub fn authenticate(&self, request: &AuthRequest, jwks_manager: &JwksManager) -> AuthResponse {
         match self.validate_token_detailed(&request.token, jwks_manager) {
-            Ok(claims) => match crate::utils::uuid::parse_uuid(&claims.sub) {
+            Ok(claims) => match parse_uuid(&claims.sub) {
                 Ok(user_id) => AuthResponse {
                     authenticated: true,
                     user_id: Some(user_id),
@@ -573,7 +576,7 @@ impl AuthManager {
         &self,
         old_token: &str,
         user: &User,
-        jwks_manager: &crate::admin::jwks::JwksManager,
+        jwks_manager: &JwksManager,
     ) -> AppResult<String> {
         // First validate the old token signature (even if expired)
         // This ensures the refresh request is legitimate
@@ -596,24 +599,21 @@ impl AuthManager {
     /// - Database connection fails
     /// - Database query execution fails
     /// - User data deserialization fails
-    pub async fn check_setup_status(
-        &self,
-        database: &Database,
-    ) -> AppResult<crate::routes::SetupStatusResponse> {
+    pub async fn check_setup_status(&self, database: &Database) -> AppResult<SetupStatusResponse> {
         // Check for any active user with is_admin=true (consistent with admin setup endpoint)
         match database.get_users_by_status("active").await {
             Ok(users) => {
                 let admin_exists = users.iter().any(|u| u.is_admin);
                 if admin_exists {
                     // Admin user exists, setup is complete
-                    Ok(crate::routes::SetupStatusResponse {
+                    Ok(SetupStatusResponse {
                         needs_setup: false,
                         admin_user_exists: true,
                         message: None,
                     })
                 } else {
                     // No admin user exists, setup is needed
-                    Ok(crate::routes::SetupStatusResponse {
+                    Ok(SetupStatusResponse {
                         needs_setup: true,
                         admin_user_exists: false,
                         message: Some("Run 'cargo run --bin admin-setup -- create-admin-user' to create default admin credentials".into()),
@@ -623,7 +623,7 @@ impl AuthManager {
             Err(e) => {
                 // Database error
                 error!("Error checking admin user existence: {}", e);
-                Ok(crate::routes::SetupStatusResponse {
+                Ok(SetupStatusResponse {
                     needs_setup: true,
                     admin_user_exists: false,
                     message: Some(
@@ -648,24 +648,23 @@ impl AuthManager {
     /// - JWKS manager has no active key
     pub fn generate_oauth_access_token(
         &self,
-        jwks_manager: &crate::admin::jwks::JwksManager,
+        jwks_manager: &JwksManager,
         user_id: &Uuid,
         scopes: &[String],
         tenant_id: Option<String>,
     ) -> AppResult<String> {
         let now = Utc::now();
-        let expiry =
-            now + Duration::hours(crate::constants::limits::OAUTH_ACCESS_TOKEN_EXPIRY_HOURS);
+        let expiry = now + Duration::hours(OAUTH_ACCESS_TOKEN_EXPIRY_HOURS);
 
         let claims = Claims {
             sub: user_id.to_string(),
             email: format!("oauth_{user_id}@system.local"),
             iat: now.timestamp(),
             exp: expiry.timestamp(),
-            iss: crate::constants::service_names::PIERRE_MCP_SERVER.to_owned(),
+            iss: PIERRE_MCP_SERVER.to_owned(),
             jti: Uuid::new_v4().to_string(),
             providers: scopes.to_vec(),
-            aud: crate::constants::service_names::MCP.to_owned(),
+            aud: MCP.to_owned(),
             tenant_id,
             impersonator_id: None,
             impersonation_session_id: None,
@@ -698,7 +697,7 @@ impl AuthManager {
     /// - JWKS manager has no active key
     pub fn generate_client_credentials_token(
         &self,
-        jwks_manager: &crate::admin::jwks::JwksManager,
+        jwks_manager: &JwksManager,
         client_id: &str,
         scopes: &[String],
         tenant_id: Option<String>,
@@ -711,10 +710,10 @@ impl AuthManager {
             email: "client_credentials".to_owned(),
             iat: now.timestamp(),
             exp: expiry.timestamp(),
-            iss: crate::constants::service_names::PIERRE_MCP_SERVER.to_owned(),
+            iss: PIERRE_MCP_SERVER.to_owned(),
             jti: Uuid::new_v4().to_string(),
             providers: scopes.to_vec(),
-            aud: crate::constants::service_names::MCP.to_owned(),
+            aud: MCP.to_owned(),
             tenant_id,
             impersonator_id: None,
             impersonation_session_id: None,

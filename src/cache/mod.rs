@@ -12,6 +12,10 @@ pub mod memory;
 pub mod redis;
 
 use crate::config::environment::RedisConnectionConfig;
+use crate::constants::cache::{
+    DEFAULT_CACHE_MAX_ENTRIES, DEFAULT_CLEANUP_INTERVAL_SECS, TTL_ACTIVITY_LIST_SECS,
+    TTL_ACTIVITY_SECS, TTL_PROFILE_SECS, TTL_STATS_SECS,
+};
 use crate::errors::AppResult;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -110,11 +114,9 @@ pub struct CacheConfig {
 impl Default for CacheConfig {
     fn default() -> Self {
         Self {
-            max_entries: crate::constants::cache::DEFAULT_CACHE_MAX_ENTRIES,
+            max_entries: DEFAULT_CACHE_MAX_ENTRIES,
             redis_url: None,
-            cleanup_interval: Duration::from_secs(
-                crate::constants::cache::DEFAULT_CLEANUP_INTERVAL_SECS,
-            ),
+            cleanup_interval: Duration::from_secs(DEFAULT_CLEANUP_INTERVAL_SECS),
             // Default to enabled - production code should use background cleanup
             // Tests can explicitly disable by setting to false
             enable_background_cleanup: true,
@@ -214,14 +216,12 @@ impl CacheResource {
     #[must_use]
     pub const fn recommended_ttl(&self) -> Duration {
         match self {
-            Self::AthleteProfile => Duration::from_secs(crate::constants::cache::TTL_PROFILE_SECS),
-            Self::ActivityList { .. } => {
-                Duration::from_secs(crate::constants::cache::TTL_ACTIVITY_LIST_SECS)
-            }
+            Self::AthleteProfile => Duration::from_secs(TTL_PROFILE_SECS),
+            Self::ActivityList { .. } => Duration::from_secs(TTL_ACTIVITY_LIST_SECS),
             Self::Activity { .. } | Self::DetailedActivity { .. } => {
-                Duration::from_secs(crate::constants::cache::TTL_ACTIVITY_SECS)
+                Duration::from_secs(TTL_ACTIVITY_SECS)
             }
-            Self::Stats { .. } => Duration::from_secs(crate::constants::cache::TTL_STATS_SECS),
+            Self::Stats { .. } => Duration::from_secs(TTL_STATS_SECS),
         }
     }
 }

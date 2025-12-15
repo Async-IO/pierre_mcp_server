@@ -4,10 +4,18 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use crate::config::environment::OAuthConfig;
+use crate::constants::oauth::STRAVA_DEFAULT_SCOPES;
+use crate::constants::rate_limits::{
+    FITBIT_DEFAULT_DAILY_RATE_LIMIT, GARMIN_DEFAULT_DAILY_RATE_LIMIT,
+    STRAVA_DEFAULT_DAILY_RATE_LIMIT, TERRA_DEFAULT_DAILY_RATE_LIMIT,
+    WHOOP_DEFAULT_DAILY_RATE_LIMIT,
+};
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::errors::{AppError, AppResult};
 use chrono::Utc;
 use std::collections::HashMap;
+use std::sync::Arc;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
@@ -54,13 +62,13 @@ pub struct TenantOAuthManager {
     credentials: HashMap<(Uuid, String), TenantOAuthCredentials>,
     usage_tracking: HashMap<(Uuid, String, chrono::NaiveDate), u32>,
     // Server-level OAuth configuration (read once at startup)
-    oauth_config: std::sync::Arc<crate::config::environment::OAuthConfig>,
+    oauth_config: Arc<OAuthConfig>,
 }
 
 impl TenantOAuthManager {
     /// Create new OAuth manager with server-level configuration
     #[must_use]
-    pub fn new(oauth_config: std::sync::Arc<crate::config::environment::OAuthConfig>) -> Self {
+    pub fn new(oauth_config: Arc<OAuthConfig>) -> Self {
         Self {
             credentials: HashMap::new(),
             usage_tracking: HashMap::new(),
@@ -148,7 +156,7 @@ impl TenantOAuthManager {
             client_secret: config.client_secret,
             redirect_uri: config.redirect_uri,
             scopes: config.scopes,
-            rate_limit_per_day: crate::constants::rate_limits::STRAVA_DEFAULT_DAILY_RATE_LIMIT,
+            rate_limit_per_day: STRAVA_DEFAULT_DAILY_RATE_LIMIT,
         };
 
         self.credentials
@@ -173,10 +181,7 @@ impl TenantOAuthManager {
         let daily_limit = self
             .credentials
             .get(&(tenant_id, provider.to_owned()))
-            .map_or(
-                crate::constants::rate_limits::STRAVA_DEFAULT_DAILY_RATE_LIMIT,
-                |c| c.rate_limit_per_day,
-            );
+            .map_or(STRAVA_DEFAULT_DAILY_RATE_LIMIT, |c| c.rate_limit_per_day);
 
         Ok((usage, daily_limit))
     }
@@ -242,14 +247,14 @@ impl TenantOAuthManager {
                 client_secret: client_secret.clone(),
                 redirect_uri,
                 scopes: if strava_config.scopes.is_empty() {
-                    crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+                    STRAVA_DEFAULT_SCOPES
                         .split(',')
                         .map(str::to_owned)
                         .collect()
                 } else {
                     strava_config.scopes.clone()
                 },
-                rate_limit_per_day: crate::constants::rate_limits::STRAVA_DEFAULT_DAILY_RATE_LIMIT,
+                rate_limit_per_day: STRAVA_DEFAULT_DAILY_RATE_LIMIT,
             });
         }
         warn!(
@@ -295,7 +300,7 @@ impl TenantOAuthManager {
                 } else {
                     fitbit_config.scopes.clone()
                 },
-                rate_limit_per_day: crate::constants::rate_limits::FITBIT_DEFAULT_DAILY_RATE_LIMIT,
+                rate_limit_per_day: FITBIT_DEFAULT_DAILY_RATE_LIMIT,
             });
         }
         warn!(
@@ -331,7 +336,7 @@ impl TenantOAuthManager {
                 } else {
                     garmin_config.scopes.clone()
                 },
-                rate_limit_per_day: crate::constants::rate_limits::GARMIN_DEFAULT_DAILY_RATE_LIMIT,
+                rate_limit_per_day: GARMIN_DEFAULT_DAILY_RATE_LIMIT,
             });
         }
         warn!(
@@ -375,7 +380,7 @@ impl TenantOAuthManager {
                 } else {
                     whoop_config.scopes.clone()
                 },
-                rate_limit_per_day: crate::constants::rate_limits::WHOOP_DEFAULT_DAILY_RATE_LIMIT,
+                rate_limit_per_day: WHOOP_DEFAULT_DAILY_RATE_LIMIT,
             });
         }
         warn!(
@@ -417,7 +422,7 @@ impl TenantOAuthManager {
                 } else {
                     terra_config.scopes.clone()
                 },
-                rate_limit_per_day: crate::constants::rate_limits::TERRA_DEFAULT_DAILY_RATE_LIMIT,
+                rate_limit_per_day: TERRA_DEFAULT_DAILY_RATE_LIMIT,
             });
         }
         warn!(
@@ -474,7 +479,7 @@ impl TenantOAuthManager {
     /// Get default scopes for a provider
     fn default_scopes_for_provider(provider: &str) -> Vec<String> {
         match provider.to_lowercase().as_str() {
-            "strava" => crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+            "strava" => STRAVA_DEFAULT_SCOPES
                 .split(',')
                 .map(str::to_owned)
                 .collect(),
@@ -513,11 +518,11 @@ impl TenantOAuthManager {
     /// Get default rate limit for a provider
     fn default_rate_limit_for_provider(provider: &str) -> u32 {
         match provider.to_lowercase().as_str() {
-            "strava" => crate::constants::rate_limits::STRAVA_DEFAULT_DAILY_RATE_LIMIT,
-            "fitbit" => crate::constants::rate_limits::FITBIT_DEFAULT_DAILY_RATE_LIMIT,
-            "garmin" => crate::constants::rate_limits::GARMIN_DEFAULT_DAILY_RATE_LIMIT,
-            "whoop" => crate::constants::rate_limits::WHOOP_DEFAULT_DAILY_RATE_LIMIT,
-            "terra" => crate::constants::rate_limits::TERRA_DEFAULT_DAILY_RATE_LIMIT,
+            "strava" => STRAVA_DEFAULT_DAILY_RATE_LIMIT,
+            "fitbit" => FITBIT_DEFAULT_DAILY_RATE_LIMIT,
+            "garmin" => GARMIN_DEFAULT_DAILY_RATE_LIMIT,
+            "whoop" => WHOOP_DEFAULT_DAILY_RATE_LIMIT,
+            "terra" => TERRA_DEFAULT_DAILY_RATE_LIMIT,
             _ => 1000, // Default fallback
         }
     }

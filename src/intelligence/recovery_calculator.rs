@@ -22,12 +22,14 @@
 //! - Buchheit, M. (2014). Monitoring training status with HR measures: Do all roads lead to Rome?
 //!   *Frontiers in Physiology*, 5, 73. <https://doi.org/10.3389/fphys.2014.00073>
 
+use crate::config::intelligence::SleepRecoveryConfig;
 use crate::errors::AppError;
 use crate::intelligence::algorithms::RecoveryAggregationAlgorithm;
 use crate::intelligence::sleep_analysis::{
     HrvRecoveryStatus, HrvTrendAnalysis, SleepData, SleepQualityCategory, SleepQualityScore,
 };
 use crate::intelligence::training_load::TrainingLoad;
+use crate::intelligence::TrainingLoadCalculator;
 use serde::{Deserialize, Serialize};
 
 /// Recovery recommendations and reasoning
@@ -149,7 +151,7 @@ impl RecoveryCalculator {
         training_load: &TrainingLoad,
         sleep_quality: &SleepQualityScore,
         hrv_analysis: Option<&HrvTrendAnalysis>,
-        config: &crate::config::intelligence::SleepRecoveryConfig,
+        config: &SleepRecoveryConfig,
         algorithm: &RecoveryAggregationAlgorithm,
     ) -> Result<RecoveryScore, AppError> {
         // Calculate TSB-based recovery score
@@ -225,7 +227,7 @@ impl RecoveryCalculator {
     /// - Positive TSB = fitness > fatigue (fresh)
     #[doc(hidden)]
     #[must_use]
-    pub fn score_tsb(tsb: f64, config: &crate::config::intelligence::SleepRecoveryConfig) -> f64 {
+    pub fn score_tsb(tsb: f64, config: &SleepRecoveryConfig) -> f64 {
         let detraining_tsb = config.training_stress_balance.detraining_tsb;
         let fresh_tsb_max = config.training_stress_balance.fresh_tsb_max;
         let fresh_tsb_min = config.training_stress_balance.fresh_tsb_min;
@@ -272,10 +274,7 @@ impl RecoveryCalculator {
     /// Categorize overall recovery score
     #[doc(hidden)]
     #[must_use]
-    pub fn categorize_recovery(
-        score: f64,
-        config: &crate::config::intelligence::SleepRecoveryConfig,
-    ) -> RecoveryCategory {
+    pub fn categorize_recovery(score: f64, config: &SleepRecoveryConfig) -> RecoveryCategory {
         let excellent_threshold = config.recovery_scoring.excellent_threshold;
         let good_threshold = config.recovery_scoring.good_threshold;
         let fair_threshold = config.recovery_scoring.fair_threshold;
@@ -299,7 +298,7 @@ impl RecoveryCalculator {
         tsb: f64,
         sleep_category: SleepQualityCategory,
         hrv_status: Option<HrvRecoveryStatus>,
-        config: &crate::config::intelligence::SleepRecoveryConfig,
+        config: &SleepRecoveryConfig,
     ) -> TrainingReadiness {
         let excellent_threshold = config.recovery_scoring.excellent_threshold;
         let good_threshold = config.recovery_scoring.good_threshold;
@@ -337,8 +336,7 @@ impl RecoveryCalculator {
         insights.push(format!("Recovery score: {overall_score:.1}/100"));
 
         // TSB insight
-        let tsb_status =
-            crate::intelligence::TrainingLoadCalculator::interpret_tsb(training_load.tsb);
+        let tsb_status = TrainingLoadCalculator::interpret_tsb(training_load.tsb);
         insights.push(format!(
             "Training balance: TSB {:.1} ({:?})",
             training_load.tsb, tsb_status
@@ -367,7 +365,7 @@ impl RecoveryCalculator {
         training_load: &TrainingLoad,
         sleep_quality: &SleepQualityScore,
         hrv_analysis: Option<&HrvTrendAnalysis>,
-        config: &crate::config::intelligence::SleepRecoveryConfig,
+        config: &SleepRecoveryConfig,
     ) -> RecoveryRecommendations {
         let mut recommendations = Vec::new();
         let mut reasoning = Vec::new();
@@ -448,7 +446,7 @@ impl RecoveryCalculator {
         recovery_score: &RecoveryScore,
         sleep_data: &SleepData,
         training_load: &TrainingLoad,
-        config: &crate::config::intelligence::SleepRecoveryConfig,
+        config: &SleepRecoveryConfig,
     ) -> Result<RestDayRecommendation, AppError> {
         let rest_recommended = recovery_score.rest_day_recommended;
 
@@ -533,7 +531,7 @@ impl RecoveryCalculator {
         recovery_score: &RecoveryScore,
         sleep_data: &SleepData,
         training_load: &TrainingLoad,
-        config: &crate::config::intelligence::SleepRecoveryConfig,
+        config: &SleepRecoveryConfig,
     ) -> f64 {
         let mut confidence_factors = 0;
         let mut total_factors = 0;
@@ -572,7 +570,7 @@ impl RecoveryCalculator {
     fn estimate_recovery_time(
         recovery_score: &RecoveryScore,
         training_load: &TrainingLoad,
-        config: &crate::config::intelligence::SleepRecoveryConfig,
+        config: &SleepRecoveryConfig,
     ) -> f64 {
         let fair_threshold = config.recovery_scoring.fair_threshold;
         let highly_fatigued_tsb = config.training_stress_balance.highly_fatigued_tsb;

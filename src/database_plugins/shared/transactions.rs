@@ -10,10 +10,13 @@
 //! and SQLite database operations. This module eliminates duplicate retry
 //! logic across database implementations.
 
-use crate::errors::AppResult;
+use std::future::Future;
 use std::time::Duration;
+
 use tokio::time::sleep;
 use tracing::{error, warn};
+
+use crate::errors::AppResult;
 
 /// Retry a transaction operation if it fails due to deadlock or timeout
 ///
@@ -63,7 +66,7 @@ use tracing::{error, warn};
 pub async fn retry_transaction<F, Fut, T>(mut f: F, max_retries: u32) -> AppResult<T>
 where
     F: FnMut() -> Fut,
-    Fut: std::future::Future<Output = AppResult<T>>,
+    Fut: Future<Output = AppResult<T>>,
 {
     let mut attempts = 0;
     loop {

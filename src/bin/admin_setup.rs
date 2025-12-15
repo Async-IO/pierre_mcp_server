@@ -31,19 +31,22 @@ use anyhow::Result;
 use bcrypt::{hash, DEFAULT_COST};
 use chrono::Utc;
 use clap::{Parser, Subcommand};
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
 use pierre_mcp_server::{
     admin::{
         jwks::JwksManager,
-        models::{CreateAdminTokenRequest, GeneratedAdminToken},
+        models::{AdminPermission, CreateAdminTokenRequest, GeneratedAdminToken},
     },
     constants::tiers,
     database::CreateUserMcpTokenRequest,
-    database_plugins::factory::Database,
-    database_plugins::DatabaseProvider,
+    database_plugins::{factory::Database, DatabaseProvider},
     errors::AppError,
-    models::Tenant,
+    key_management::KeyManager,
+    models::{Tenant, User, UserStatus, UserTier},
+    permissions::UserRole,
 };
-use std::env;
+use std::{collections::HashMap, env};
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
@@ -239,8 +242,7 @@ async fn main() -> Result<()> {
         .unwrap_or_else(|| "sqlite:./data/users.db".into());
 
     // Initialize two-tier key management system
-    let (mut key_manager, database_encryption_key) =
-        pierre_mcp_server::key_management::KeyManager::bootstrap()?;
+    let (mut key_manager, database_encryption_key) = KeyManager::bootstrap()?;
     info!("Two-tier key management system initialized for admin-setup");
 
     // Initialize database
@@ -249,7 +251,7 @@ async fn main() -> Result<()> {
         &database_url,
         database_encryption_key.to_vec(),
         #[cfg(feature = "postgresql")]
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -323,7 +325,7 @@ async fn main() -> Result<()> {
 /// Generate a new admin token
 async fn generate_token_command(
     database: &Database,
-    jwks_manager: &pierre_mcp_server::admin::jwks::JwksManager,
+    jwks_manager: &JwksManager,
     service: String,
     description: Option<String>,
     expires_days: u64,
@@ -416,9 +418,7 @@ fn apply_custom_permissions(
     Ok(())
 }
 
-fn parse_permissions_list(
-    permissions_str: &str,
-) -> Result<Vec<pierre_mcp_server::admin::models::AdminPermission>> {
+fn parse_permissions_list(permissions_str: &str) -> Result<Vec<AdminPermission>> {
     info!("List Parsing custom permissions: {}", permissions_str);
     let mut parsed_permissions = Vec::new();
 
@@ -431,21 +431,17 @@ fn parse_permissions_list(
     Ok(parsed_permissions)
 }
 
-fn parse_single_permission(
-    trimmed: &str,
-) -> Result<pierre_mcp_server::admin::models::AdminPermission> {
-    trimmed
-        .parse::<pierre_mcp_server::admin::models::AdminPermission>()
-        .map_err(|_| {
-            error!("Error Invalid permission: '{}'", trimmed);
-            print_valid_permissions();
-            AppError::invalid_input(format!("Invalid permission: {trimmed}")).into()
-        })
+fn parse_single_permission(trimmed: &str) -> Result<AdminPermission> {
+    trimmed.parse::<AdminPermission>().map_err(|_| {
+        error!("Error Invalid permission: '{}'", trimmed);
+        print_valid_permissions();
+        AppError::invalid_input(format!("Invalid permission: {trimmed}")).into()
+    })
 }
 
 fn apply_permissions_to_request(
     request: &mut CreateAdminTokenRequest,
-    parsed_permissions: Vec<pierre_mcp_server::admin::models::AdminPermission>,
+    parsed_permissions: Vec<AdminPermission>,
 ) {
     if !parsed_permissions.is_empty() {
         let permissions_count = parsed_permissions.len();
@@ -596,7 +592,7 @@ async fn revoke_token_command(database: &Database, token_id: String) -> Result<(
 /// Rotate an admin token (create new, revoke old)
 async fn rotate_token_command(
     database: &Database,
-    jwks_manager: &pierre_mcp_server::admin::jwks::JwksManager,
+    jwks_manager: &JwksManager,
     token_id: String,
     expires_days: Option<u64>,
 ) -> Result<()> {
@@ -707,7 +703,7 @@ async fn token_stats_command(
         });
 
         // Group by action
-        let mut action_counts = std::collections::HashMap::new();
+        let mut action_counts = HashMap::new();
         for usage in &usage_history {
             *action_counts.entry(&usage.action).or_insert(0) += 1;
         }
@@ -778,7 +774,7 @@ async fn create_admin_user_command(
 
 async fn update_existing_admin_user(
     database: &Database,
-    existing_user: pierre_mcp_server::models::User,
+    existing_user: User,
     email: &str,
     password: &str,
     name: &str,
@@ -794,28 +790,28 @@ async fn update_existing_admin_user(
     info!("Updating existing {} user...", role_str);
 
     let role = if super_admin {
-        pierre_mcp_server::permissions::UserRole::SuperAdmin
+        UserRole::SuperAdmin
     } else {
-        pierre_mcp_server::permissions::UserRole::Admin
+        UserRole::Admin
     };
 
-    let updated_user = pierre_mcp_server::models::User {
+    let updated_user = User {
         id: existing_user.id,
         email: email.to_owned(),
         display_name: Some(name.to_owned()),
         password_hash: hash(password, DEFAULT_COST)?,
-        tier: pierre_mcp_server::models::UserTier::Enterprise,
+        tier: UserTier::Enterprise,
         tenant_id: existing_user.tenant_id,
         strava_token: existing_user.strava_token,
         fitbit_token: existing_user.fitbit_token,
         is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
+        user_status: UserStatus::Active,
         is_admin: true,
         role,
         approved_by: existing_user.approved_by,
         approved_at: existing_user.approved_at,
         created_at: existing_user.created_at,
-        last_active: chrono::Utc::now(),
+        last_active: Utc::now(),
         firebase_uid: existing_user.firebase_uid,
         auth_provider: existing_user.auth_provider,
     };
@@ -824,7 +820,7 @@ async fn update_existing_admin_user(
     Ok(())
 }
 
-fn display_existing_user_error(existing_user: &pierre_mcp_server::models::User) {
+fn display_existing_user_error(existing_user: &User) {
     let details = format!(
         "Email: {}\nName: {:?}\nCreated: {}",
         existing_user.email,
@@ -906,19 +902,19 @@ fn build_admin_user(
     email: &str,
     password_hash: String,
     name: &str,
-    role: pierre_mcp_server::permissions::UserRole,
-) -> pierre_mcp_server::models::User {
-    pierre_mcp_server::models::User {
+    role: UserRole,
+) -> User {
+    User {
         id: user_id,
         email: email.to_owned(),
         display_name: Some(name.to_owned()),
         password_hash,
-        tier: pierre_mcp_server::models::UserTier::Enterprise,
+        tier: UserTier::Enterprise,
         tenant_id: None,
         strava_token: None,
         fitbit_token: None,
         is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
+        user_status: UserStatus::Active,
         is_admin: true,
         role,
         approved_by: None,
@@ -941,9 +937,9 @@ async fn create_new_admin_user(
     info!("Creating new {} user...", role_str);
 
     let role = if super_admin {
-        pierre_mcp_server::permissions::UserRole::SuperAdmin
+        UserRole::SuperAdmin
     } else {
-        pierre_mcp_server::permissions::UserRole::Admin
+        UserRole::Admin
     };
 
     let user_id = Uuid::new_v4();

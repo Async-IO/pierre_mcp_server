@@ -6,11 +6,14 @@
 
 //! Configuration validation system for ensuring safe and valid parameter changes
 
-use super::catalog::CatalogBuilder;
-use super::runtime::ConfigValue;
-use crate::models::UserPhysiologicalProfile;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+use serde::{Deserialize, Serialize};
+
+use super::catalog::{CatalogBuilder, ParameterType};
+use super::runtime::ConfigValue;
+use crate::intelligence::algorithms::MaxHrAlgorithm;
+use crate::models::UserPhysiologicalProfile;
 
 /// Configuration validator
 pub struct ConfigValidator {
@@ -140,10 +143,10 @@ impl ConfigValidator {
 
         // Validate data type
         match (&param_def.data_type, value) {
-            (crate::config::catalog::ParameterType::Float, ConfigValue::Float(_))
-            | (crate::config::catalog::ParameterType::Integer, ConfigValue::Integer(_))
-            | (crate::config::catalog::ParameterType::Boolean, ConfigValue::Boolean(_))
-            | (crate::config::catalog::ParameterType::String, ConfigValue::String(_)) => {}
+            (ParameterType::Float, ConfigValue::Float(_))
+            | (ParameterType::Integer, ConfigValue::Integer(_))
+            | (ParameterType::Boolean, ConfigValue::Boolean(_))
+            | (ParameterType::String, ConfigValue::String(_)) => {}
             _ => return Err(format!("Type mismatch for parameter {key}")),
         }
 
@@ -284,8 +287,6 @@ impl ConfigValidator {
                             // Age-based safety checks
                             if let Some(profile) = profile {
                                 if let Some(age) = profile.age {
-                                    use crate::intelligence::algorithms::MaxHrAlgorithm;
-
                                     // Use Fox formula via enum for conservative safety check
                                     let estimated_max_hr = MaxHrAlgorithm::Fox
                                         .estimate(u32::from(age), None)

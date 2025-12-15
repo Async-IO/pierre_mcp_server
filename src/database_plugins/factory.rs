@@ -12,9 +12,29 @@ use super::DatabaseProvider;
 use crate::a2a::auth::A2AClient;
 use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
+use crate::admin::jwks::JwksManager;
+use crate::admin::models::{
+    AdminToken, AdminTokenUsage, CreateAdminTokenRequest, GeneratedAdminToken,
+};
+use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
+use crate::config::fitness::FitnessConfig;
+use crate::dashboard_routes::{RequestLog, ToolUsage};
+use crate::database::oauth_notifications::OAuthNotification;
+use crate::database::{
+    A2AUsage, A2AUsageStats, CreateUserMcpTokenRequest, UserMcpToken, UserMcpTokenCreated,
+    UserMcpTokenInfo,
+};
 use crate::errors::{AppError, AppResult};
-use crate::models::UserOAuthApp;
+use crate::models::{
+    AuthorizationCode, OAuthApp, Tenant, User, UserOAuthApp, UserOAuthToken, UserStatus,
+};
+use crate::oauth2_server::models::{OAuth2AuthCode, OAuth2Client, OAuth2RefreshToken, OAuth2State};
+use crate::pagination::{CursorPage, PaginationParams};
+use crate::permissions::impersonation::ImpersonationSession;
 use crate::rate_limiting::JwtUsage;
+use crate::security::audit::AuditEvent;
+use crate::security::key_rotation::KeyVersion;
+use crate::tenant::oauth_manager::TenantOAuthCredentials;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 #[cfg(not(feature = "postgresql"))]
@@ -24,6 +44,8 @@ use uuid::Uuid;
 
 #[cfg(feature = "postgresql")]
 use super::postgres::PostgresDatabase;
+#[cfg(feature = "postgresql")]
+use crate::config::environment::PostgresPoolConfig;
 // Phase 3: Use crate::database::Database directly (eliminates sqlite.rs wrapper)
 use crate::database::Database as SqliteDatabase;
 
@@ -126,7 +148,7 @@ impl Database {
     async fn new_impl(
         database_url: &str,
         encryption_key: Vec<u8>,
-        #[cfg(feature = "postgresql")] pool_config: &crate::config::environment::PostgresPoolConfig,
+        #[cfg(feature = "postgresql")] pool_config: &PostgresPoolConfig,
     ) -> AppResult<Self> {
         debug!("Detecting database type from URL: {}", database_url);
         let db_type = detect_database_type(database_url)?;
@@ -146,7 +168,7 @@ impl Database {
         db_type: DatabaseType,
         database_url: &str,
         encryption_key: Vec<u8>,
-        #[cfg(feature = "postgresql")] pool_config: &crate::config::environment::PostgresPoolConfig,
+        #[cfg(feature = "postgresql")] pool_config: &PostgresPoolConfig,
     ) -> AppResult<Self> {
         match db_type {
             DatabaseType::SQLite => Self::initialize_sqlite(database_url, encryption_key).await,
@@ -170,7 +192,7 @@ impl Database {
     async fn initialize_postgresql(
         database_url: &str,
         encryption_key: Vec<u8>,
-        pool_config: &crate::config::environment::PostgresPoolConfig,
+        pool_config: &PostgresPoolConfig,
     ) -> AppResult<Self> {
         info!("Initializing PostgreSQL database");
         let db = PostgresDatabase::new(database_url, encryption_key, pool_config).await?;
@@ -198,7 +220,7 @@ impl Database {
     pub async fn new(
         database_url: &str,
         encryption_key: Vec<u8>,
-        #[cfg(feature = "postgresql")] pool_config: &crate::config::environment::PostgresPoolConfig,
+        #[cfg(feature = "postgresql")] pool_config: &PostgresPoolConfig,
     ) -> AppResult<Self> {
         #[cfg(feature = "postgresql")]
         {
@@ -283,7 +305,7 @@ impl DatabaseProvider for Database {
     async fn new(database_url: &str, encryption_key: Vec<u8>) -> AppResult<Self> {
         #[cfg(feature = "postgresql")]
         {
-            let pool_config = crate::config::environment::PostgresPoolConfig::default();
+            let pool_config = PostgresPoolConfig::default();
             Self::new_impl(database_url, encryption_key, &pool_config).await
         }
         #[cfg(not(feature = "postgresql"))]
@@ -319,7 +341,7 @@ impl DatabaseProvider for Database {
     /// - SQL execution fails
     /// - Database connection issues
     #[tracing::instrument(skip(self, user), fields(db_operation = "create_user", email = %user.email))]
-    async fn create_user(&self, user: &crate::models::User) -> AppResult<uuid::Uuid> {
+    async fn create_user(&self, user: &User) -> AppResult<uuid::Uuid> {
         match self {
             Self::SQLite(db) => db.create_user(user).await,
             #[cfg(feature = "postgresql")]
@@ -336,7 +358,7 @@ impl DatabaseProvider for Database {
     /// - Data deserialization fails
     /// - Database connection issues
     #[tracing::instrument(skip(self), fields(db_operation = "get_user"))]
-    async fn get_user(&self, user_id: uuid::Uuid) -> AppResult<Option<crate::models::User>> {
+    async fn get_user(&self, user_id: uuid::Uuid) -> AppResult<Option<User>> {
         match self {
             Self::SQLite(db) => db.get_user(user_id).await,
             #[cfg(feature = "postgresql")]
@@ -353,7 +375,7 @@ impl DatabaseProvider for Database {
     /// - Data deserialization fails
     /// - Database connection issues
     /// - Email format validation fails
-    async fn get_user_by_email(&self, email: &str) -> AppResult<Option<crate::models::User>> {
+    async fn get_user_by_email(&self, email: &str) -> AppResult<Option<User>> {
         match self {
             Self::SQLite(db) => db.get_user_by_email(email).await,
             #[cfg(feature = "postgresql")]
@@ -370,7 +392,7 @@ impl DatabaseProvider for Database {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
-    async fn get_user_by_email_required(&self, email: &str) -> AppResult<crate::models::User> {
+    async fn get_user_by_email_required(&self, email: &str) -> AppResult<User> {
         match self {
             Self::SQLite(db) => db.get_user_by_email_required(email).await,
             #[cfg(feature = "postgresql")]
@@ -386,10 +408,7 @@ impl DatabaseProvider for Database {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
-    async fn get_user_by_firebase_uid(
-        &self,
-        firebase_uid: &str,
-    ) -> AppResult<Option<crate::models::User>> {
+    async fn get_user_by_firebase_uid(&self, firebase_uid: &str) -> AppResult<Option<User>> {
         match self {
             Self::SQLite(db) => db.get_user_by_firebase_uid(firebase_uid).await,
             #[cfg(feature = "postgresql")]
@@ -429,7 +448,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_users_by_status(&self, status: &str) -> AppResult<Vec<crate::models::User>> {
+    async fn get_users_by_status(&self, status: &str) -> AppResult<Vec<User>> {
         match self {
             Self::SQLite(db) => db.get_users_by_status(status).await,
             #[cfg(feature = "postgresql")]
@@ -440,8 +459,8 @@ impl DatabaseProvider for Database {
     async fn get_users_by_status_cursor(
         &self,
         status: &str,
-        params: &crate::pagination::PaginationParams,
-    ) -> AppResult<crate::pagination::CursorPage<crate::models::User>> {
+        params: &PaginationParams,
+    ) -> AppResult<CursorPage<User>> {
         match self {
             Self::SQLite(db) => db.get_users_by_status_cursor(status, params).await,
             #[cfg(feature = "postgresql")]
@@ -452,9 +471,9 @@ impl DatabaseProvider for Database {
     async fn update_user_status(
         &self,
         user_id: uuid::Uuid,
-        new_status: crate::models::UserStatus,
+        new_status: UserStatus,
         admin_token_id: &str,
-    ) -> AppResult<crate::models::User> {
+    ) -> AppResult<User> {
         match self {
             Self::SQLite(db) => {
                 db.update_user_status(user_id, new_status, admin_token_id)
@@ -658,7 +677,7 @@ impl DatabaseProvider for Database {
     /// - Database constraint violations (e.g., duplicate key)
     /// - SQL execution fails
     /// - Database connection issues
-    async fn create_api_key(&self, api_key: &crate::api_keys::ApiKey) -> AppResult<()> {
+    async fn create_api_key(&self, api_key: &ApiKey) -> AppResult<()> {
         match self {
             Self::SQLite(db) => db.create_api_key(api_key).await,
             #[cfg(feature = "postgresql")]
@@ -674,11 +693,7 @@ impl DatabaseProvider for Database {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
-    async fn get_api_key_by_prefix(
-        &self,
-        prefix: &str,
-        hash: &str,
-    ) -> AppResult<Option<crate::api_keys::ApiKey>> {
+    async fn get_api_key_by_prefix(&self, prefix: &str, hash: &str) -> AppResult<Option<ApiKey>> {
         match self {
             Self::SQLite(db) => db.get_api_key_by_prefix(prefix, hash).await,
             #[cfg(feature = "postgresql")]
@@ -694,10 +709,7 @@ impl DatabaseProvider for Database {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
-    async fn get_user_api_keys(
-        &self,
-        user_id: uuid::Uuid,
-    ) -> AppResult<Vec<crate::api_keys::ApiKey>> {
+    async fn get_user_api_keys(&self, user_id: uuid::Uuid) -> AppResult<Vec<ApiKey>> {
         match self {
             Self::SQLite(db) => db.get_user_api_keys(user_id).await,
             #[cfg(feature = "postgresql")]
@@ -745,10 +757,7 @@ impl DatabaseProvider for Database {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
-    async fn get_api_key_by_id(
-        &self,
-        api_key_id: &str,
-    ) -> AppResult<Option<crate::api_keys::ApiKey>> {
+    async fn get_api_key_by_id(&self, api_key_id: &str) -> AppResult<Option<ApiKey>> {
         match self {
             Self::SQLite(db) => db.get_api_key_by_id(api_key_id).await,
             #[cfg(feature = "postgresql")]
@@ -770,7 +779,7 @@ impl DatabaseProvider for Database {
         active_only: bool,
         limit: Option<i32>,
         offset: Option<i32>,
-    ) -> AppResult<Vec<crate::api_keys::ApiKey>> {
+    ) -> AppResult<Vec<ApiKey>> {
         match self {
             Self::SQLite(db) => {
                 DatabaseProvider::get_api_keys_filtered(db, user_email, active_only, limit, offset)
@@ -792,7 +801,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_expired_api_keys(&self) -> AppResult<Vec<crate::api_keys::ApiKey>> {
+    async fn get_expired_api_keys(&self) -> AppResult<Vec<ApiKey>> {
         match self {
             Self::SQLite(db) => db.get_expired_api_keys().await,
             #[cfg(feature = "postgresql")]
@@ -800,7 +809,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn record_api_key_usage(&self, usage: &crate::api_keys::ApiKeyUsage) -> AppResult<()> {
+    async fn record_api_key_usage(&self, usage: &ApiKeyUsage) -> AppResult<()> {
         match self {
             Self::SQLite(db) => db.record_api_key_usage(usage).await,
             #[cfg(feature = "postgresql")]
@@ -821,7 +830,7 @@ impl DatabaseProvider for Database {
         api_key_id: &str,
         start_date: chrono::DateTime<chrono::Utc>,
         end_date: chrono::DateTime<chrono::Utc>,
-    ) -> AppResult<crate::api_keys::ApiKeyUsageStats> {
+    ) -> AppResult<ApiKeyUsageStats> {
         match self {
             Self::SQLite(db) => {
                 db.get_api_key_usage_stats(api_key_id, start_date, end_date)
@@ -858,7 +867,7 @@ impl DatabaseProvider for Database {
         end_time: Option<chrono::DateTime<chrono::Utc>>,
         status_filter: Option<&str>,
         tool_filter: Option<&str>,
-    ) -> AppResult<Vec<crate::dashboard_routes::RequestLog>> {
+    ) -> AppResult<Vec<RequestLog>> {
         match self {
             Self::SQLite(db) => {
                 DatabaseProvider::get_request_logs(
@@ -1103,7 +1112,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn record_a2a_usage(&self, usage: &crate::database::A2AUsage) -> AppResult<()> {
+    async fn record_a2a_usage(&self, usage: &A2AUsage) -> AppResult<()> {
         match self {
             Self::SQLite(db) => db.record_a2a_usage(usage).await,
             #[cfg(feature = "postgresql")]
@@ -1124,7 +1133,7 @@ impl DatabaseProvider for Database {
         client_id: &str,
         start_date: chrono::DateTime<chrono::Utc>,
         end_date: chrono::DateTime<chrono::Utc>,
-    ) -> AppResult<crate::database::A2AUsageStats> {
+    ) -> AppResult<A2AUsageStats> {
         match self {
             Self::SQLite(db) => {
                 db.get_a2a_usage_stats(client_id, start_date, end_date)
@@ -1186,7 +1195,7 @@ impl DatabaseProvider for Database {
         user_id: uuid::Uuid,
         start_time: chrono::DateTime<chrono::Utc>,
         end_time: chrono::DateTime<chrono::Utc>,
-    ) -> AppResult<Vec<crate::dashboard_routes::ToolUsage>> {
+    ) -> AppResult<Vec<ToolUsage>> {
         match self {
             Self::SQLite(db) => {
                 db.get_top_tools_analysis(user_id, start_time, end_time)
@@ -1216,10 +1225,10 @@ impl DatabaseProvider for Database {
     /// - Database connection issues
     async fn create_admin_token(
         &self,
-        request: &crate::admin::models::CreateAdminTokenRequest,
+        request: &CreateAdminTokenRequest,
         admin_jwt_secret: &str,
-        jwks_manager: &crate::admin::jwks::JwksManager,
-    ) -> AppResult<crate::admin::models::GeneratedAdminToken> {
+        jwks_manager: &JwksManager,
+    ) -> AppResult<GeneratedAdminToken> {
         match self {
             Self::SQLite(db) => {
                 db.create_admin_token(request, admin_jwt_secret, jwks_manager)
@@ -1233,10 +1242,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_admin_token_by_id(
-        &self,
-        token_id: &str,
-    ) -> AppResult<Option<crate::admin::models::AdminToken>> {
+    async fn get_admin_token_by_id(&self, token_id: &str) -> AppResult<Option<AdminToken>> {
         match self {
             Self::SQLite(db) => db.get_admin_token_by_id(token_id).await,
             #[cfg(feature = "postgresql")]
@@ -1244,10 +1250,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_admin_token_by_prefix(
-        &self,
-        token_prefix: &str,
-    ) -> AppResult<Option<crate::admin::models::AdminToken>> {
+    async fn get_admin_token_by_prefix(&self, token_prefix: &str) -> AppResult<Option<AdminToken>> {
         match self {
             Self::SQLite(db) => db.get_admin_token_by_prefix(token_prefix).await,
             #[cfg(feature = "postgresql")]
@@ -1255,10 +1258,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn list_admin_tokens(
-        &self,
-        include_inactive: bool,
-    ) -> AppResult<Vec<crate::admin::models::AdminToken>> {
+    async fn list_admin_tokens(&self, include_inactive: bool) -> AppResult<Vec<AdminToken>> {
         match self {
             Self::SQLite(db) => db.list_admin_tokens(include_inactive).await,
             #[cfg(feature = "postgresql")]
@@ -1286,10 +1286,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn record_admin_token_usage(
-        &self,
-        usage: &crate::admin::models::AdminTokenUsage,
-    ) -> AppResult<()> {
+    async fn record_admin_token_usage(&self, usage: &AdminTokenUsage) -> AppResult<()> {
         match self {
             Self::SQLite(db) => db.record_admin_token_usage(usage).await,
             #[cfg(feature = "postgresql")]
@@ -1302,7 +1299,7 @@ impl DatabaseProvider for Database {
         token_id: &str,
         start_date: chrono::DateTime<chrono::Utc>,
         end_date: chrono::DateTime<chrono::Utc>,
-    ) -> AppResult<Vec<crate::admin::models::AdminTokenUsage>> {
+    ) -> AppResult<Vec<AdminTokenUsage>> {
         match self {
             Self::SQLite(db) => {
                 db.get_admin_token_usage_history(token_id, start_date, end_date)
@@ -1372,7 +1369,7 @@ impl DatabaseProvider for Database {
     }
 
     // Multi-tenant management implementations
-    async fn create_tenant(&self, tenant: &crate::models::Tenant) -> AppResult<()> {
+    async fn create_tenant(&self, tenant: &Tenant) -> AppResult<()> {
         match self {
             Self::SQLite(db) => db.create_tenant(tenant).await,
             #[cfg(feature = "postgresql")]
@@ -1380,7 +1377,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_tenant_by_id(&self, tenant_id: uuid::Uuid) -> AppResult<crate::models::Tenant> {
+    async fn get_tenant_by_id(&self, tenant_id: uuid::Uuid) -> AppResult<Tenant> {
         match self {
             Self::SQLite(db) => db.get_tenant_by_id(tenant_id).await,
             #[cfg(feature = "postgresql")]
@@ -1388,7 +1385,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_tenant_by_slug(&self, slug: &str) -> AppResult<crate::models::Tenant> {
+    async fn get_tenant_by_slug(&self, slug: &str) -> AppResult<Tenant> {
         match self {
             Self::SQLite(db) => db.get_tenant_by_slug(slug).await,
             #[cfg(feature = "postgresql")]
@@ -1396,10 +1393,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn list_tenants_for_user(
-        &self,
-        user_id: uuid::Uuid,
-    ) -> AppResult<Vec<crate::models::Tenant>> {
+    async fn list_tenants_for_user(&self, user_id: uuid::Uuid) -> AppResult<Vec<Tenant>> {
         match self {
             Self::SQLite(db) => db.list_tenants_for_user(user_id).await,
             #[cfg(feature = "postgresql")]
@@ -1409,7 +1403,7 @@ impl DatabaseProvider for Database {
 
     async fn store_tenant_oauth_credentials(
         &self,
-        credentials: &crate::tenant::TenantOAuthCredentials,
+        credentials: &TenantOAuthCredentials,
     ) -> AppResult<()> {
         match self {
             Self::SQLite(db) => db.store_tenant_oauth_credentials(credentials).await,
@@ -1421,7 +1415,7 @@ impl DatabaseProvider for Database {
     async fn get_tenant_oauth_providers(
         &self,
         tenant_id: uuid::Uuid,
-    ) -> AppResult<Vec<crate::tenant::TenantOAuthCredentials>> {
+    ) -> AppResult<Vec<TenantOAuthCredentials>> {
         match self {
             Self::SQLite(db) => db.get_tenant_oauth_providers(tenant_id).await,
             #[cfg(feature = "postgresql")]
@@ -1433,7 +1427,7 @@ impl DatabaseProvider for Database {
         &self,
         tenant_id: uuid::Uuid,
         provider: &str,
-    ) -> AppResult<Option<crate::tenant::TenantOAuthCredentials>> {
+    ) -> AppResult<Option<TenantOAuthCredentials>> {
         match self {
             Self::SQLite(db) => db.get_tenant_oauth_credentials(tenant_id, provider).await,
             #[cfg(feature = "postgresql")]
@@ -1442,7 +1436,7 @@ impl DatabaseProvider for Database {
     }
 
     // OAuth app registration implementations
-    async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> AppResult<()> {
+    async fn create_oauth_app(&self, app: &OAuthApp) -> AppResult<()> {
         match self {
             Self::SQLite(db) => db.create_oauth_app(app).await,
             #[cfg(feature = "postgresql")]
@@ -1450,10 +1444,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_oauth_app_by_client_id(
-        &self,
-        client_id: &str,
-    ) -> AppResult<crate::models::OAuthApp> {
+    async fn get_oauth_app_by_client_id(&self, client_id: &str) -> AppResult<OAuthApp> {
         match self {
             Self::SQLite(db) => db.get_oauth_app_by_client_id(client_id).await,
             #[cfg(feature = "postgresql")]
@@ -1461,10 +1452,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn list_oauth_apps_for_user(
-        &self,
-        user_id: uuid::Uuid,
-    ) -> AppResult<Vec<crate::models::OAuthApp>> {
+    async fn list_oauth_apps_for_user(&self, user_id: uuid::Uuid) -> AppResult<Vec<OAuthApp>> {
         match self {
             Self::SQLite(db) => db.list_oauth_apps_for_user(user_id).await,
             #[cfg(feature = "postgresql")]
@@ -1476,10 +1464,7 @@ impl DatabaseProvider for Database {
     // OAuth 2.0 Server (RFC 7591)
     // ================================
 
-    async fn store_oauth2_client(
-        &self,
-        client: &crate::oauth2_server::models::OAuth2Client,
-    ) -> AppResult<()> {
+    async fn store_oauth2_client(&self, client: &OAuth2Client) -> AppResult<()> {
         match self {
             Self::SQLite(db) => db.store_oauth2_client(client).await,
             #[cfg(feature = "postgresql")]
@@ -1487,10 +1472,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_oauth2_client(
-        &self,
-        client_id: &str,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2Client>> {
+    async fn get_oauth2_client(&self, client_id: &str) -> AppResult<Option<OAuth2Client>> {
         match self {
             Self::SQLite(db) => db.get_oauth2_client(client_id).await,
             #[cfg(feature = "postgresql")]
@@ -1498,10 +1480,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn store_oauth2_auth_code(
-        &self,
-        auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> AppResult<()> {
+    async fn store_oauth2_auth_code(&self, auth_code: &OAuth2AuthCode) -> AppResult<()> {
         match self {
             Self::SQLite(db) => db.store_oauth2_auth_code(auth_code).await,
             #[cfg(feature = "postgresql")]
@@ -1509,10 +1488,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_oauth2_auth_code(
-        &self,
-        code: &str,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
+    async fn get_oauth2_auth_code(&self, code: &str) -> AppResult<Option<OAuth2AuthCode>> {
         match self {
             Self::SQLite(db) => db.get_oauth2_auth_code(code).await,
             #[cfg(feature = "postgresql")]
@@ -1520,10 +1496,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn update_oauth2_auth_code(
-        &self,
-        auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> AppResult<()> {
+    async fn update_oauth2_auth_code(&self, auth_code: &OAuth2AuthCode) -> AppResult<()> {
         match self {
             Self::SQLite(db) => db.update_oauth2_auth_code(auth_code).await,
             #[cfg(feature = "postgresql")]
@@ -1533,7 +1506,7 @@ impl DatabaseProvider for Database {
 
     async fn store_oauth2_refresh_token(
         &self,
-        refresh_token: &crate::oauth2_server::models::OAuth2RefreshToken,
+        refresh_token: &OAuth2RefreshToken,
     ) -> AppResult<()> {
         match self {
             Self::SQLite(db) => db.store_oauth2_refresh_token(refresh_token).await,
@@ -1542,10 +1515,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_oauth2_refresh_token(
-        &self,
-        token: &str,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    async fn get_oauth2_refresh_token(&self, token: &str) -> AppResult<Option<OAuth2RefreshToken>> {
         match self {
             Self::SQLite(db) => db.get_oauth2_refresh_token(token).await,
             #[cfg(feature = "postgresql")]
@@ -1567,7 +1537,7 @@ impl DatabaseProvider for Database {
         client_id: &str,
         redirect_uri: &str,
         now: DateTime<Utc>,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
+    ) -> AppResult<Option<OAuth2AuthCode>> {
         match self {
             Self::SQLite(db) => {
                 db.consume_auth_code(code, client_id, redirect_uri, now)
@@ -1586,7 +1556,7 @@ impl DatabaseProvider for Database {
         token: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    ) -> AppResult<Option<OAuth2RefreshToken>> {
         match self {
             Self::SQLite(db) => db.consume_refresh_token(token, client_id, now).await,
             #[cfg(feature = "postgresql")]
@@ -1597,7 +1567,7 @@ impl DatabaseProvider for Database {
     async fn get_refresh_token_by_value(
         &self,
         token: &str,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    ) -> AppResult<Option<OAuth2RefreshToken>> {
         match self {
             Self::SQLite(db) => db.get_refresh_token_by_value(token).await,
             #[cfg(feature = "postgresql")]
@@ -1626,10 +1596,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_authorization_code(
-        &self,
-        code: &str,
-    ) -> AppResult<crate::models::AuthorizationCode> {
+    async fn get_authorization_code(&self, code: &str) -> AppResult<AuthorizationCode> {
         match self {
             Self::SQLite(db) => db.get_authorization_code(code).await,
             #[cfg(feature = "postgresql")]
@@ -1645,10 +1612,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn store_oauth2_state(
-        &self,
-        state: &crate::oauth2_server::models::OAuth2State,
-    ) -> AppResult<()> {
+    async fn store_oauth2_state(&self, state: &OAuth2State) -> AppResult<()> {
         match self {
             Self::SQLite(db) => db.store_oauth2_state(state).await,
             #[cfg(feature = "postgresql")]
@@ -1661,7 +1625,7 @@ impl DatabaseProvider for Database {
         state_value: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2State>> {
+    ) -> AppResult<Option<OAuth2State>> {
         match self {
             Self::SQLite(db) => db.consume_oauth2_state(state_value, client_id, now).await,
             #[cfg(feature = "postgresql")]
@@ -1673,10 +1637,7 @@ impl DatabaseProvider for Database {
     // Key Rotation & Security
     // ================================
 
-    async fn store_key_version(
-        &self,
-        version: &crate::security::key_rotation::KeyVersion,
-    ) -> AppResult<()> {
+    async fn store_key_version(&self, version: &KeyVersion) -> AppResult<()> {
         match self {
             Self::SQLite(db) => db.store_key_version(version).await,
             #[cfg(feature = "postgresql")]
@@ -1684,10 +1645,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_key_versions(
-        &self,
-        tenant_id: Option<uuid::Uuid>,
-    ) -> AppResult<Vec<crate::security::key_rotation::KeyVersion>> {
+    async fn get_key_versions(&self, tenant_id: Option<uuid::Uuid>) -> AppResult<Vec<KeyVersion>> {
         match self {
             Self::SQLite(db) => db.get_key_versions(tenant_id).await,
             #[cfg(feature = "postgresql")]
@@ -1698,7 +1656,7 @@ impl DatabaseProvider for Database {
     async fn get_current_key_version(
         &self,
         tenant_id: Option<uuid::Uuid>,
-    ) -> AppResult<Option<crate::security::key_rotation::KeyVersion>> {
+    ) -> AppResult<Option<KeyVersion>> {
         match self {
             Self::SQLite(db) => db.get_current_key_version(tenant_id).await,
             #[cfg(feature = "postgresql")]
@@ -1737,7 +1695,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_all_tenants(&self) -> AppResult<Vec<crate::models::Tenant>> {
+    async fn get_all_tenants(&self) -> AppResult<Vec<Tenant>> {
         match self {
             Self::SQLite(db) => db.get_all_tenants().await,
             #[cfg(feature = "postgresql")]
@@ -1745,7 +1703,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn store_audit_event(&self, event: &crate::security::audit::AuditEvent) -> AppResult<()> {
+    async fn store_audit_event(&self, event: &AuditEvent) -> AppResult<()> {
         match self {
             Self::SQLite(db) => db.store_audit_event(event).await,
             #[cfg(feature = "postgresql")]
@@ -1758,7 +1716,7 @@ impl DatabaseProvider for Database {
         tenant_id: Option<uuid::Uuid>,
         event_type: Option<&str>,
         limit: Option<u32>,
-    ) -> AppResult<Vec<crate::security::audit::AuditEvent>> {
+    ) -> AppResult<Vec<AuditEvent>> {
         match self {
             Self::SQLite(db) => db.get_audit_events(tenant_id, event_type, limit).await,
             #[cfg(feature = "postgresql")]
@@ -1770,10 +1728,7 @@ impl DatabaseProvider for Database {
     // User OAuth Tokens (Multi-Tenant)
     // ================================
 
-    async fn upsert_user_oauth_token(
-        &self,
-        token: &crate::models::UserOAuthToken,
-    ) -> AppResult<()> {
+    async fn upsert_user_oauth_token(&self, token: &UserOAuthToken) -> AppResult<()> {
         match self {
             Self::SQLite(db) => DatabaseProvider::upsert_user_oauth_token(db, token).await,
             #[cfg(feature = "postgresql")]
@@ -1786,7 +1741,7 @@ impl DatabaseProvider for Database {
         user_id: Uuid,
         tenant_id: &str,
         provider: &str,
-    ) -> AppResult<Option<crate::models::UserOAuthToken>> {
+    ) -> AppResult<Option<UserOAuthToken>> {
         match self {
             Self::SQLite(db) => db.get_user_oauth_token(user_id, tenant_id, provider).await,
             #[cfg(feature = "postgresql")]
@@ -1794,10 +1749,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_user_oauth_tokens(
-        &self,
-        user_id: Uuid,
-    ) -> AppResult<Vec<crate::models::UserOAuthToken>> {
+    async fn get_user_oauth_tokens(&self, user_id: Uuid) -> AppResult<Vec<UserOAuthToken>> {
         match self {
             Self::SQLite(db) => db.get_user_oauth_tokens(user_id).await,
             #[cfg(feature = "postgresql")]
@@ -1809,7 +1761,7 @@ impl DatabaseProvider for Database {
         &self,
         tenant_id: &str,
         provider: &str,
-    ) -> AppResult<Vec<crate::models::UserOAuthToken>> {
+    ) -> AppResult<Vec<UserOAuthToken>> {
         match self {
             Self::SQLite(db) => db.get_tenant_provider_tokens(tenant_id, provider).await,
             #[cfg(feature = "postgresql")]
@@ -2013,7 +1965,7 @@ impl DatabaseProvider for Database {
     async fn get_unread_oauth_notifications(
         &self,
         user_id: Uuid,
-    ) -> AppResult<Vec<crate::database::oauth_notifications::OAuthNotification>> {
+    ) -> AppResult<Vec<OAuthNotification>> {
         match self {
             Self::SQLite(db) => db.get_unread_oauth_notifications(user_id).await,
             #[cfg(feature = "postgresql")]
@@ -2054,7 +2006,7 @@ impl DatabaseProvider for Database {
         &self,
         user_id: Uuid,
         limit: Option<i64>,
-    ) -> AppResult<Vec<crate::database::oauth_notifications::OAuthNotification>> {
+    ) -> AppResult<Vec<OAuthNotification>> {
         match self {
             Self::SQLite(db) => db.get_all_oauth_notifications(user_id, limit).await,
             #[cfg(feature = "postgresql")]
@@ -2071,7 +2023,7 @@ impl DatabaseProvider for Database {
         &self,
         tenant_id: &str,
         configuration_name: &str,
-        config: &crate::config::fitness::FitnessConfig,
+        config: &FitnessConfig,
     ) -> AppResult<String> {
         match self {
             Self::SQLite(db) => {
@@ -2092,7 +2044,7 @@ impl DatabaseProvider for Database {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-        config: &crate::config::fitness::FitnessConfig,
+        config: &FitnessConfig,
     ) -> AppResult<String> {
         match self {
             Self::SQLite(db) => {
@@ -2112,7 +2064,7 @@ impl DatabaseProvider for Database {
         &self,
         tenant_id: &str,
         configuration_name: &str,
-    ) -> AppResult<Option<crate::config::fitness::FitnessConfig>> {
+    ) -> AppResult<Option<FitnessConfig>> {
         match self {
             Self::SQLite(db) => {
                 db.get_tenant_fitness_config(tenant_id, configuration_name)
@@ -2132,7 +2084,7 @@ impl DatabaseProvider for Database {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-    ) -> AppResult<Option<crate::config::fitness::FitnessConfig>> {
+    ) -> AppResult<Option<FitnessConfig>> {
         match self {
             Self::SQLite(db) => {
                 db.get_user_fitness_config(tenant_id, user_id, configuration_name)
@@ -2259,8 +2211,8 @@ impl DatabaseProvider for Database {
     async fn create_user_mcp_token(
         &self,
         user_id: Uuid,
-        request: &crate::database::CreateUserMcpTokenRequest,
-    ) -> AppResult<crate::database::UserMcpTokenCreated> {
+        request: &CreateUserMcpTokenRequest,
+    ) -> AppResult<UserMcpTokenCreated> {
         match self {
             Self::SQLite(db) => db.create_user_mcp_token(user_id, request).await,
             #[cfg(feature = "postgresql")]
@@ -2278,10 +2230,7 @@ impl DatabaseProvider for Database {
     }
 
     /// List all MCP tokens for a user
-    async fn list_user_mcp_tokens(
-        &self,
-        user_id: Uuid,
-    ) -> AppResult<Vec<crate::database::UserMcpTokenInfo>> {
+    async fn list_user_mcp_tokens(&self, user_id: Uuid) -> AppResult<Vec<UserMcpTokenInfo>> {
         match self {
             Self::SQLite(db) => db.list_user_mcp_tokens(user_id).await,
             #[cfg(feature = "postgresql")]
@@ -2303,7 +2252,7 @@ impl DatabaseProvider for Database {
         &self,
         token_id: &str,
         user_id: Uuid,
-    ) -> AppResult<Option<crate::database::UserMcpToken>> {
+    ) -> AppResult<Option<UserMcpToken>> {
         match self {
             Self::SQLite(db) => db.get_user_mcp_token(token_id, user_id).await,
             #[cfg(feature = "postgresql")]
@@ -2325,10 +2274,7 @@ impl DatabaseProvider for Database {
     // ================================
 
     /// Create a new impersonation session for audit trail
-    async fn create_impersonation_session(
-        &self,
-        session: &crate::permissions::impersonation::ImpersonationSession,
-    ) -> AppResult<()> {
+    async fn create_impersonation_session(&self, session: &ImpersonationSession) -> AppResult<()> {
         match self {
             Self::SQLite(db) => db.create_impersonation_session(session).await,
             #[cfg(feature = "postgresql")]
@@ -2340,7 +2286,7 @@ impl DatabaseProvider for Database {
     async fn get_impersonation_session(
         &self,
         session_id: &str,
-    ) -> AppResult<Option<crate::permissions::impersonation::ImpersonationSession>> {
+    ) -> AppResult<Option<ImpersonationSession>> {
         match self {
             Self::SQLite(db) => db.get_impersonation_session(session_id).await,
             #[cfg(feature = "postgresql")]
@@ -2352,7 +2298,7 @@ impl DatabaseProvider for Database {
     async fn get_active_impersonation_session(
         &self,
         impersonator_id: Uuid,
-    ) -> AppResult<Option<crate::permissions::impersonation::ImpersonationSession>> {
+    ) -> AppResult<Option<ImpersonationSession>> {
         match self {
             Self::SQLite(db) => db.get_active_impersonation_session(impersonator_id).await,
             #[cfg(feature = "postgresql")]
@@ -2385,7 +2331,7 @@ impl DatabaseProvider for Database {
         target_user_id: Option<Uuid>,
         active_only: bool,
         limit: u32,
-    ) -> AppResult<Vec<crate::permissions::impersonation::ImpersonationSession>> {
+    ) -> AppResult<Vec<ImpersonationSession>> {
         match self {
             Self::SQLite(db) => {
                 db.list_impersonation_sessions(impersonator_id, target_user_id, active_only, limit)

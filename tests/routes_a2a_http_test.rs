@@ -17,7 +17,14 @@ mod common;
 mod helpers;
 
 use helpers::axum_test::AxumTestRequest;
-use pierre_mcp_server::mcp::resources::ServerResources;
+use pierre_mcp_server::{
+    config::environment::{
+        AppBehaviorConfig, BackupConfig, DatabaseConfig, DatabaseUrl, Environment, SecurityConfig,
+        SecurityHeadersConfig, ServerConfig,
+    },
+    mcp::resources::ServerResources,
+    routes::a2a::A2ARoutes,
+};
 use std::sync::Arc;
 
 /// Create test resources for A2A route testing
@@ -28,24 +35,24 @@ async fn create_a2a_test_resources() -> Arc<ServerResources> {
     let cache = common::create_test_cache().await.unwrap();
     let temp_dir = tempfile::tempdir().unwrap();
 
-    let config = Arc::new(pierre_mcp_server::config::environment::ServerConfig {
+    let config = Arc::new(ServerConfig {
         http_port: 8081,
-        database: pierre_mcp_server::config::environment::DatabaseConfig {
-            url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
-            backup: pierre_mcp_server::config::environment::BackupConfig {
+        database: DatabaseConfig {
+            url: DatabaseUrl::Memory,
+            backup: BackupConfig {
                 directory: temp_dir.path().to_path_buf(),
                 ..Default::default()
             },
             ..Default::default()
         },
-        app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
+        app_behavior: AppBehaviorConfig {
             ci_mode: true,
             auto_approve_users: false,
             ..Default::default()
         },
-        security: pierre_mcp_server::config::environment::SecurityConfig {
-            headers: pierre_mcp_server::config::environment::SecurityHeadersConfig {
-                environment: pierre_mcp_server::config::environment::Environment::Testing,
+        security: SecurityConfig {
+            headers: SecurityHeadersConfig {
+                environment: Environment::Testing,
             },
             ..Default::default()
         },
@@ -66,7 +73,7 @@ async fn create_a2a_test_resources() -> Arc<ServerResources> {
 /// Get A2A routes for testing
 async fn a2a_routes() -> axum::Router {
     let resources = create_a2a_test_resources().await;
-    pierre_mcp_server::routes::a2a::A2ARoutes::routes(resources)
+    A2ARoutes::routes(resources)
 }
 
 // ============================================================================

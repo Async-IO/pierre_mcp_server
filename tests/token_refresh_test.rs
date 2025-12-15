@@ -9,10 +9,11 @@
 
 use anyhow::Result;
 use base64::{engine::general_purpose, Engine as _};
+use chrono::DateTime;
 use reqwest::Client;
 use serde_json::json;
 use serial_test::serial;
-use std::time::Duration;
+use std::{env, time::Duration};
 
 mod common;
 
@@ -62,7 +63,7 @@ async fn test_token_refresh_endpoint() -> Result<()> {
                 .get("jwt_token")
                 .and_then(|v| v.as_str())
                 .unwrap_or("none");
-            let preview_len = std::cmp::min(50, token_preview.len());
+            let preview_len = 50.min(token_preview.len());
             println!(
                 "   New token received: {}...",
                 &token_preview[..preview_len]
@@ -139,7 +140,7 @@ async fn test_jwt_token_parsing() -> Result<()> {
     println!("   User ID: {}", claims.sub);
     println!(
         "   Expires at: {}",
-        chrono::DateTime::from_timestamp(claims.exp, 0).unwrap()
+        DateTime::from_timestamp(claims.exp, 0).unwrap()
     );
 
     Ok(())
@@ -151,16 +152,16 @@ fn test_token_refresh_environment_variables() {
     println!("🔧 Testing token refresh environment variables");
 
     // Test default values
-    std::env::remove_var("PIERRE_AUTO_REFRESH");
-    std::env::remove_var("PIERRE_REFRESH_THRESHOLD_MINUTES");
+    env::remove_var("PIERRE_AUTO_REFRESH");
+    env::remove_var("PIERRE_REFRESH_THRESHOLD_MINUTES");
 
     // These would normally be tested in the MCP client, but we can test the logic
-    let auto_refresh_default = std::env::var("PIERRE_AUTO_REFRESH")
+    let auto_refresh_default = env::var("PIERRE_AUTO_REFRESH")
         .unwrap_or_else(|_| "true".to_owned())
         .parse::<bool>()
         .unwrap_or(true);
 
-    let threshold_default = std::env::var("PIERRE_REFRESH_THRESHOLD_MINUTES")
+    let threshold_default = env::var("PIERRE_REFRESH_THRESHOLD_MINUTES")
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(5);
@@ -175,15 +176,15 @@ fn test_token_refresh_environment_variables() {
     );
 
     // Test custom values
-    std::env::set_var("PIERRE_AUTO_REFRESH", "false");
-    std::env::set_var("PIERRE_REFRESH_THRESHOLD_MINUTES", "10");
+    env::set_var("PIERRE_AUTO_REFRESH", "false");
+    env::set_var("PIERRE_REFRESH_THRESHOLD_MINUTES", "10");
 
-    let auto_refresh_custom = std::env::var("PIERRE_AUTO_REFRESH")
+    let auto_refresh_custom = env::var("PIERRE_AUTO_REFRESH")
         .unwrap_or_else(|_| "true".to_owned())
         .parse::<bool>()
         .unwrap_or(true);
 
-    let threshold_custom = std::env::var("PIERRE_REFRESH_THRESHOLD_MINUTES")
+    let threshold_custom = env::var("PIERRE_REFRESH_THRESHOLD_MINUTES")
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(5);
@@ -198,8 +199,8 @@ fn test_token_refresh_environment_variables() {
     );
 
     // Clean up
-    std::env::remove_var("PIERRE_AUTO_REFRESH");
-    std::env::remove_var("PIERRE_REFRESH_THRESHOLD_MINUTES");
+    env::remove_var("PIERRE_AUTO_REFRESH");
+    env::remove_var("PIERRE_REFRESH_THRESHOLD_MINUTES");
 
     println!(" Environment variable tests passed");
 }

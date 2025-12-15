@@ -4,12 +4,14 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use std::collections::HashMap;
+
 use crate::errors::{AppError, AppResult};
 use crate::intelligence::recipes::{
     IngredientUnit, MealTiming, Recipe, RecipeIngredient, ValidatedNutrition,
 };
 use chrono::{DateTime, Utc};
-use sqlx::{Row, SqlitePool};
+use sqlx::{sqlite::SqliteRow, Row, SqlitePool};
 use uuid::Uuid;
 
 /// Database representation of a recipe ingredient for storage
@@ -534,9 +536,7 @@ impl RecipeManager {
     async fn get_ingredients_batch(
         &self,
         recipe_ids: &[String],
-    ) -> AppResult<std::collections::HashMap<String, Vec<RecipeIngredient>>> {
-        use std::collections::HashMap;
-
+    ) -> AppResult<HashMap<String, Vec<RecipeIngredient>>> {
         if recipe_ids.is_empty() {
             return Ok(HashMap::new());
         }
@@ -638,10 +638,7 @@ fn string_to_unit(s: &str) -> IngredientUnit {
     }
 }
 
-fn row_to_recipe(
-    row: &sqlx::sqlite::SqliteRow,
-    ingredients: Vec<RecipeIngredient>,
-) -> AppResult<Recipe> {
+fn row_to_recipe(row: &SqliteRow, ingredients: Vec<RecipeIngredient>) -> AppResult<Recipe> {
     let id_str: String = row.get("id");
     let user_id_str: String = row.get("user_id");
     let meal_timing_str: String = row.get("meal_timing");

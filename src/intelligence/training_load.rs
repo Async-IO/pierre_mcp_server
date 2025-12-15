@@ -9,6 +9,7 @@ use crate::intelligence::metrics::MetricsCalculator;
 use crate::models::Activity;
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Standard CTL (Chronic Training Load) window - 42 days for long-term fitness
 const CTL_WINDOW_DAYS: i64 = 42;
@@ -230,7 +231,7 @@ impl TrainingLoadCalculator {
         }
 
         // Create a map of date -> TSS for quick lookup
-        let mut tss_map = std::collections::HashMap::new();
+        let mut tss_map = HashMap::new();
         for point in tss_data {
             let date_key = point.date.date_naive();
             *tss_map.entry(date_key).or_insert(0.0) += point.tss;

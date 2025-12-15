@@ -15,8 +15,10 @@ mod common;
 
 use anyhow::Result;
 use pierre_mcp_server::{
-    config::environment::ServerConfig, database_plugins::DatabaseProvider,
-    mcp::multitenant::MultiTenantMcpServer, models::User,
+    config::environment::ServerConfig,
+    database_plugins::DatabaseProvider,
+    mcp::{multitenant::MultiTenantMcpServer, resources::ServerResources, schema::get_tools},
+    models::User,
 };
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -54,7 +56,7 @@ async fn test_mcp_initialize_request() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
 
     let cache = common::create_test_cache().await.unwrap();
-    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let resources = Arc::new(ServerResources::new(
         (*database).clone(),
         (*auth_manager).clone(),
         TEST_JWT_SECRET,
@@ -84,7 +86,7 @@ async fn test_mcp_ping_request() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
 
     let cache = common::create_test_cache().await.unwrap();
-    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let resources = Arc::new(ServerResources::new(
         (*database).clone(),
         (*auth_manager).clone(),
         TEST_JWT_SECRET,
@@ -111,7 +113,7 @@ async fn test_mcp_tools_list_request() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
 
     let cache = common::create_test_cache().await.unwrap();
-    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let resources = Arc::new(ServerResources::new(
         (*database).clone(),
         (*auth_manager).clone(),
         TEST_JWT_SECRET,
@@ -127,7 +129,7 @@ async fn test_mcp_tools_list_request() -> Result<()> {
     assert_eq!(request["method"], "tools/list");
 
     // Verify tools are available through schema
-    let tools = pierre_mcp_server::mcp::schema::get_tools();
+    let tools = get_tools();
     assert!(!tools.is_empty());
     assert!(tools.iter().any(|t| t.name == "get_activities"));
 
@@ -142,7 +144,7 @@ async fn test_mcp_authenticate_request() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
 
     let cache = common::create_test_cache().await.unwrap();
-    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let resources = Arc::new(ServerResources::new(
         (*database).clone(),
         (*auth_manager).clone(),
         TEST_JWT_SECRET,
@@ -182,7 +184,7 @@ async fn test_mcp_tools_call_without_auth() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
 
     let cache = common::create_test_cache().await.unwrap();
-    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let resources = Arc::new(ServerResources::new(
         (*database).clone(),
         (*auth_manager).clone(),
         TEST_JWT_SECRET,
@@ -217,7 +219,7 @@ async fn test_mcp_tools_call_with_expired_token() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
 
     let cache = common::create_test_cache().await.unwrap();
-    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let resources = Arc::new(ServerResources::new(
         (*database).clone(),
         (*auth_manager).clone(),
         TEST_JWT_SECRET,
@@ -258,7 +260,7 @@ async fn test_mcp_tools_call_malformed_token() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
 
     let cache = common::create_test_cache().await.unwrap();
-    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let resources = Arc::new(ServerResources::new(
         (*database).clone(),
         (*auth_manager).clone(),
         TEST_JWT_SECRET,
@@ -299,7 +301,7 @@ async fn test_mcp_unknown_method() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
 
     let cache = common::create_test_cache().await.unwrap();
-    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let resources = Arc::new(ServerResources::new(
         (*database).clone(),
         (*auth_manager).clone(),
         TEST_JWT_SECRET,
@@ -326,7 +328,7 @@ async fn test_mcp_oauth_tool_calls() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
 
     let cache = common::create_test_cache().await.unwrap();
-    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let resources = Arc::new(ServerResources::new(
         (*database).clone(),
         (*auth_manager).clone(),
         TEST_JWT_SECRET,
@@ -415,7 +417,7 @@ async fn test_mcp_intelligence_tool_calls() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
 
     let cache = common::create_test_cache().await.unwrap();
-    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let resources = Arc::new(ServerResources::new(
         (*database).clone(),
         (*auth_manager).clone(),
         TEST_JWT_SECRET,
@@ -479,7 +481,7 @@ async fn test_mcp_provider_required_tools() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
 
     let cache = common::create_test_cache().await.unwrap();
-    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let resources = Arc::new(ServerResources::new(
         (*database).clone(),
         (*auth_manager).clone(),
         TEST_JWT_SECRET,
@@ -554,7 +556,7 @@ async fn test_mcp_unknown_tool() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
 
     let cache = common::create_test_cache().await.unwrap();
-    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let resources = Arc::new(ServerResources::new(
         (*database).clone(),
         (*auth_manager).clone(),
         TEST_JWT_SECRET,
@@ -603,7 +605,7 @@ async fn test_mcp_api_key_authentication() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
 
     let cache = common::create_test_cache().await.unwrap();
-    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let resources = Arc::new(ServerResources::new(
         (*database).clone(),
         (*auth_manager).clone(),
         TEST_JWT_SECRET,
@@ -652,7 +654,7 @@ async fn test_mcp_request_id_variations() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
 
     let cache = common::create_test_cache().await.unwrap();
-    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let resources = Arc::new(ServerResources::new(
         (*database).clone(),
         (*auth_manager).clone(),
         TEST_JWT_SECRET,
@@ -688,7 +690,7 @@ async fn test_mcp_error_scenarios() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
 
     let cache = common::create_test_cache().await.unwrap();
-    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let resources = Arc::new(ServerResources::new(
         (*database).clone(),
         (*auth_manager).clone(),
         TEST_JWT_SECRET,
@@ -735,7 +737,7 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
 
     let cache = common::create_test_cache().await.unwrap();
-    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let resources = Arc::new(ServerResources::new(
         (*database).clone(),
         (*auth_manager).clone(),
         TEST_JWT_SECRET,

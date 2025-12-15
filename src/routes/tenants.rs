@@ -9,10 +9,10 @@
 //! This module handles tenant CRUD operations for multi-tenant functionality.
 //! All handlers require valid JWT authentication.
 
-use crate::{errors::AppError, mcp::resources::ServerResources, tenant_routes};
+use crate::{auth::AuthResult, errors::AppError, mcp::resources::ServerResources, tenant_routes};
 use axum::{
     extract::State,
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
@@ -33,9 +33,9 @@ impl TenantRoutes {
 
     /// Extract and authenticate user from authorization header
     async fn authenticate(
-        headers: &axum::http::HeaderMap,
+        headers: &HeaderMap,
         resources: &Arc<ServerResources>,
-    ) -> Result<crate::auth::AuthResult, AppError> {
+    ) -> Result<AuthResult, AppError> {
         let auth_header = headers
             .get("authorization")
             .and_then(|h| h.to_str().ok())
@@ -51,7 +51,7 @@ impl TenantRoutes {
     /// Handle tenant creation
     async fn handle_create_tenant(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Json(request): Json<tenant_routes::CreateTenantRequest>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
@@ -65,7 +65,7 @@ impl TenantRoutes {
     /// Handle listing tenants
     async fn handle_list_tenants(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
 

@@ -9,6 +9,7 @@
 //! Implements the A2A Agent Card specification for Pierre,
 //! enabling agent discovery and capability negotiation.
 
+use crate::constants::api_tier_limits::{STARTER_REQUESTS_PER_MONTH, TRIAL_REQUESTS_PER_MONTH};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -370,8 +371,8 @@ impl AgentCard {
         metadata.insert(
             "rate_limits".into(),
             serde_json::json!({
-                "trial": {"requests_per_month": crate::constants::api_tier_limits::TRIAL_REQUESTS_PER_MONTH},
-                "starter": {"requests_per_month": crate::constants::api_tier_limits::STARTER_REQUESTS_PER_MONTH},
+                "trial": {"requests_per_month": TRIAL_REQUESTS_PER_MONTH},
+                "starter": {"requests_per_month": STARTER_REQUESTS_PER_MONTH},
                 "professional": {"requests_per_month": 100_000},
                 "enterprise": {"requests_per_month": -1}
             }),

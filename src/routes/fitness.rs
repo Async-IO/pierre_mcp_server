@@ -10,12 +10,16 @@
 //! thresholds, and workout parameters. All handlers require valid JWT authentication.
 
 use crate::{
-    config::routes::fitness::FitnessConfigurationRoutes as FitnessService, errors::AppError,
+    auth::AuthResult,
+    config::routes::fitness::{
+        FitnessConfigurationRoutes as FitnessService, SaveFitnessConfigRequest,
+    },
+    errors::AppError,
     mcp::resources::ServerResources,
 };
 use axum::{
     extract::{Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{delete, get, put},
     Json, Router,
@@ -51,9 +55,9 @@ impl FitnessConfigurationRoutes {
 
     /// Extract and authenticate user from authorization header
     async fn authenticate(
-        headers: &axum::http::HeaderMap,
+        headers: &HeaderMap,
         resources: &Arc<ServerResources>,
-    ) -> Result<crate::auth::AuthResult, AppError> {
+    ) -> Result<AuthResult, AppError> {
         let auth_header = headers
             .get("authorization")
             .and_then(|h| h.to_str().ok())
@@ -69,7 +73,7 @@ impl FitnessConfigurationRoutes {
     /// Handle get fitness configuration
     async fn handle_get_config(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Query(params): Query<ConfigurationQuery>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
@@ -85,8 +89,8 @@ impl FitnessConfigurationRoutes {
     /// Handle save fitness configuration
     async fn handle_save_config(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
-        Json(request): Json<crate::config::routes::fitness::SaveFitnessConfigRequest>,
+        headers: HeaderMap,
+        Json(request): Json<SaveFitnessConfigRequest>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
 
@@ -99,7 +103,7 @@ impl FitnessConfigurationRoutes {
     /// Handle delete fitness configuration
     async fn handle_delete_config(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Query(params): Query<ConfigurationQuery>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;

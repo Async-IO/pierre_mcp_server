@@ -31,8 +31,12 @@
 //! // masked will be "t***@d***.com"
 //! ```
 
+use crate::constants::get_server_config;
 use bitflags::bitflags;
 use regex::Regex;
+use std::collections::hash_map::DefaultHasher;
+use std::fmt::{self, Display, Formatter};
+use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
 
 bitflags! {
@@ -75,7 +79,7 @@ impl RedactionConfig {
     /// Create redaction config from environment
     #[must_use]
     pub fn from_env() -> Self {
-        let config = crate::constants::get_server_config();
+        let config = get_server_config();
         let enabled = config.is_none_or(|c| c.logging.redact_pii);
 
         let features = if enabled {
@@ -333,9 +337,6 @@ impl BoundedTenantLabel {
     /// Bounded label that hashes tenant to one of `MAX_BUCKETS` values
     #[must_use]
     pub fn new(tenant_id: &str) -> Self {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-
         let mut hasher = DefaultHasher::new();
         tenant_id.hash(&mut hasher);
         let hash = hasher.finish();
@@ -353,8 +354,8 @@ impl BoundedTenantLabel {
     }
 }
 
-impl std::fmt::Display for BoundedTenantLabel {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for BoundedTenantLabel {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.bucket)
     }
 }
@@ -372,9 +373,6 @@ impl BoundedUserLabel {
     /// Create bounded label from user ID
     #[must_use]
     pub fn new(user_id: &str) -> Self {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-
         let mut hasher = DefaultHasher::new();
         user_id.hash(&mut hasher);
         let hash = hasher.finish();
@@ -392,8 +390,8 @@ impl BoundedUserLabel {
     }
 }
 
-impl std::fmt::Display for BoundedUserLabel {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for BoundedUserLabel {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.bucket)
     }
 }

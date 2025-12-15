@@ -12,8 +12,10 @@
 //! - Comprehensive encryption for all sensitive data
 //! - Security audit logging
 
+use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult};
+use crate::security::key_rotation::KeyVersion;
 use ring::{
     aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM},
     hkdf::{Salt, HKDF_SHA256},
@@ -21,6 +23,8 @@ use ring::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::hash::BuildHasher;
+use std::sync::{Arc, RwLock};
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
@@ -34,9 +38,7 @@ pub mod csrf;
 pub mod key_rotation;
 
 /// Security audit helper function
-pub fn audit_security_headers<S: ::std::hash::BuildHasher>(
-    headers: &std::collections::HashMap<String, String, S>,
-) -> bool {
+pub fn audit_security_headers<S: BuildHasher>(headers: &HashMap<String, String, S>) -> bool {
     let required_headers = [
         "Content-Security-Policy",
         "X-Frame-Options",
@@ -55,6 +57,7 @@ pub fn audit_security_headers<S: ::std::hash::BuildHasher>(
 
 /// Security header configuration and validation
 pub mod headers {
+    use crate::constants::time_constants;
     use serde::{Deserialize, Serialize};
     use std::collections::HashMap;
 
@@ -106,7 +109,7 @@ pub mod headers {
                 "Strict-Transport-Security".to_owned(),
                 format!(
                     "max-age={}; includeSubDomains",
-                    crate::constants::time_constants::SECONDS_PER_YEAR
+                    time_constants::SECONDS_PER_YEAR
                 ),
             );
             headers.insert(
@@ -142,13 +145,13 @@ pub struct TenantEncryptionManager {
     /// Master encryption key (32 bytes for AES-256)
     master_key: [u8; 32],
     /// Cached derived keys for performance
-    derived_keys_cache: std::sync::RwLock<HashMap<Uuid, [u8; 32]>>,
+    derived_keys_cache: RwLock<HashMap<Uuid, [u8; 32]>>,
     /// Random number generator
     rng: SystemRandom,
     /// Database connection for key versioning
-    database: Option<std::sync::Arc<crate::database_plugins::factory::Database>>,
+    database: Option<Arc<Database>>,
     /// Current key version (global)
-    current_version: std::sync::RwLock<u32>,
+    current_version: RwLock<u32>,
 }
 
 /// Metadata for encrypted data including key version and tenant info
@@ -183,25 +186,22 @@ impl TenantEncryptionManager {
     pub fn new(master_key: [u8; 32]) -> Self {
         Self {
             master_key,
-            derived_keys_cache: std::sync::RwLock::new(HashMap::new()),
+            derived_keys_cache: RwLock::new(HashMap::new()),
             rng: SystemRandom::new(),
             database: None,
-            current_version: std::sync::RwLock::new(1),
+            current_version: RwLock::new(1),
         }
     }
 
     /// Create new encryption manager with database connection for key versioning
     #[must_use]
-    pub fn new_with_database(
-        master_key: [u8; 32],
-        database: std::sync::Arc<crate::database_plugins::factory::Database>,
-    ) -> Self {
+    pub fn new_with_database(master_key: [u8; 32], database: Arc<Database>) -> Self {
         Self {
             master_key,
-            derived_keys_cache: std::sync::RwLock::new(HashMap::new()),
+            derived_keys_cache: RwLock::new(HashMap::new()),
             rng: SystemRandom::new(),
             database: Some(database),
-            current_version: std::sync::RwLock::new(1),
+            current_version: RwLock::new(1),
         }
     }
 
@@ -431,7 +431,7 @@ impl TenantEncryptionManager {
         // Update key version in database if available
         if let Some(database) = &self.database {
             // Create new key version record
-            let key_version = crate::security::key_rotation::KeyVersion {
+            let key_version = KeyVersion {
                 tenant_id: Some(tenant_id),
                 version: new_version,
                 created_at: chrono::Utc::now(),

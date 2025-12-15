@@ -10,12 +10,12 @@
 //! for authenticated users. All handlers require valid JWT authentication.
 
 use crate::{
-    database::CreateUserMcpTokenRequest, database_plugins::DatabaseProvider, errors::AppError,
-    mcp::resources::ServerResources,
+    auth::AuthResult, database::CreateUserMcpTokenRequest, database_plugins::DatabaseProvider,
+    errors::AppError, mcp::resources::ServerResources, security::cookies::get_cookie_value,
 };
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{delete, get, post},
     Json, Router,
@@ -95,16 +95,14 @@ impl UserMcpTokenRoutes {
 
     /// Extract and authenticate user from authorization header or cookie
     async fn authenticate(
-        headers: &axum::http::HeaderMap,
+        headers: &HeaderMap,
         resources: &Arc<ServerResources>,
-    ) -> Result<crate::auth::AuthResult, AppError> {
+    ) -> Result<AuthResult, AppError> {
         // Try Authorization header first, then fall back to auth_token cookie
         let auth_value =
             if let Some(auth_header) = headers.get("authorization").and_then(|h| h.to_str().ok()) {
                 auth_header.to_owned()
-            } else if let Some(token) =
-                crate::security::cookies::get_cookie_value(headers, "auth_token")
-            {
+            } else if let Some(token) = get_cookie_value(headers, "auth_token") {
                 // Fall back to auth_token cookie, format as Bearer token
                 format!("Bearer {token}")
             } else {
@@ -123,7 +121,7 @@ impl UserMcpTokenRoutes {
     /// Handle token creation
     async fn handle_create_token(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Json(request): Json<CreateTokenRequest>,
     ) -> Result<Response, AppError> {
         // Authenticate user from JWT token
@@ -155,7 +153,7 @@ impl UserMcpTokenRoutes {
     /// Handle listing user's tokens
     async fn handle_list_tokens(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
     ) -> Result<Response, AppError> {
         // Authenticate user from JWT token
         let auth = Self::authenticate(&headers, &resources).await?;
@@ -188,7 +186,7 @@ impl UserMcpTokenRoutes {
     /// Handle token revocation
     async fn handle_revoke_token(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Path(token_id): Path<String>,
     ) -> Result<Response, AppError> {
         // Authenticate user from JWT token

@@ -7,6 +7,7 @@
 //! System user management for A2A clients
 // NOTE: All `.clone()` calls in this file are Safe - Arc/String ownership for A2A operations
 
+use crate::constants::get_server_config;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::errors::{AppError, AppResult};
 use crate::models::User;
@@ -60,7 +61,7 @@ impl A2ASystemUserService {
 
         // Use lower bcrypt cost in test/CI environments for performance (cost 4 is ~60x faster than default 12)
         // Check for test environment via CI variable or debug profile
-        let ci_mode = crate::constants::get_server_config().is_some_and(|c| c.app_behavior.ci_mode);
+        let ci_mode = get_server_config().is_some_and(|c| c.app_behavior.ci_mode);
         let bcrypt_cost = if ci_mode || cfg!(debug_assertions) {
             4 // Fast hashing for tests and development
         } else {

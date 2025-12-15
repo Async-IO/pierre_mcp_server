@@ -23,7 +23,10 @@ use pierre_mcp_server::{
     admin::{
         auth::AdminAuthService,
         jwt::AdminJwtManager,
-        models::{AdminAction, AdminPermission, AdminPermissions, CreateAdminTokenRequest},
+        models::{
+            AdminAction, AdminPermission, AdminPermissions, AdminTokenUsage,
+            CreateAdminTokenRequest,
+        },
     },
     database_plugins::DatabaseProvider,
 };
@@ -213,7 +216,7 @@ async fn test_admin_token_usage_tracking() -> Result<()> {
     assert!(token.usage_count > 0);
 
     // Record usage
-    let usage = pierre_mcp_server::admin::models::AdminTokenUsage {
+    let usage = AdminTokenUsage {
         id: None,
         admin_token_id: generated_token.token_id.clone(),
         timestamp: Utc::now(),

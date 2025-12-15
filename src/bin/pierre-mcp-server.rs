@@ -13,18 +13,21 @@
 //! secure token storage, and database management.
 
 use anyhow::Result;
-use clap::Parser;
+use clap::{error::ErrorKind, Parser};
 use pierre_mcp_server::{
     auth::AuthManager,
     cache::factory::Cache,
     config::environment::ServerConfig,
-    database_plugins::factory::Database,
-    database_plugins::DatabaseProvider,
+    constants::init_server_config,
+    database_plugins::{factory::Database, DatabaseProvider},
     errors::AppError,
+    key_management::KeyManager,
     logging,
     mcp::{multitenant::MultiTenantMcpServer, resources::ServerResources},
+    plugins::executor::PluginToolExecutor,
+    utils::{http_client::initialize_http_clients, route_timeout::initialize_route_timeouts},
 };
-use std::sync::Arc;
+use std::{env, sync::Arc};
 use tracing::{error, info};
 
 /// Command-line arguments for the Pierre MCP server
@@ -55,9 +58,7 @@ fn parse_args_or_default() -> Args {
         Ok(args) => args,
         Err(e) => {
             // Handle --version and --help specially - they should print and exit
-            if e.kind() == clap::error::ErrorKind::DisplayVersion
-                || e.kind() == clap::error::ErrorKind::DisplayHelp
-            {
+            if e.kind() == ErrorKind::DisplayVersion || e.kind() == ErrorKind::DisplayHelp {
                 e.exit();
             }
             // For actual errors, use defaults
@@ -107,26 +108,26 @@ fn validate_required_environment() -> Result<()> {
     let validations = vec![
         EnvValidation {
             name: "DATABASE_URL",
-            value: std::env::var("DATABASE_URL").ok(),
+            value: env::var("DATABASE_URL").ok(),
             required: true,
             description: "Database connection string (e.g., sqlite:./data/users.db)",
         },
         EnvValidation {
             name: "PIERRE_MASTER_ENCRYPTION_KEY",
-            value: std::env::var("PIERRE_MASTER_ENCRYPTION_KEY").ok(),
+            value: env::var("PIERRE_MASTER_ENCRYPTION_KEY").ok(),
             required: false, // Warning only - server generates temp key for dev
             description:
                 "Base64-encoded 32-byte master encryption key (generate: openssl rand -base64 32)",
         },
         EnvValidation {
             name: "STRAVA_CLIENT_ID",
-            value: std::env::var("STRAVA_CLIENT_ID").ok(),
+            value: env::var("STRAVA_CLIENT_ID").ok(),
             required: false,
             description: "Strava OAuth application client ID",
         },
         EnvValidation {
             name: "STRAVA_CLIENT_SECRET",
-            value: std::env::var("STRAVA_CLIENT_SECRET").ok(),
+            value: env::var("STRAVA_CLIENT_SECRET").ok(),
             required: false,
             description: "Strava OAuth application client secret",
         },
@@ -154,7 +155,7 @@ fn validate_required_environment() -> Result<()> {
     }
 
     // Special handling for MEK - explain consequences
-    if std::env::var("PIERRE_MASTER_ENCRYPTION_KEY").is_err() {
+    if env::var("PIERRE_MASTER_ENCRYPTION_KEY").is_err() {
         eprintln!();
         eprintln!("IMPORTANT: PIERRE_MASTER_ENCRYPTION_KEY is not set!");
         eprintln!("A temporary key will be generated, but:");
@@ -225,15 +226,13 @@ async fn bootstrap_server(config: ServerConfig) -> Result<()> {
 }
 
 fn initialize_global_configs(config: &ServerConfig) -> Result<()> {
-    pierre_mcp_server::utils::http_client::initialize_http_clients(config.http_client.clone());
+    initialize_http_clients(config.http_client.clone());
     info!("HTTP client configuration initialized");
 
-    pierre_mcp_server::utils::route_timeout::initialize_route_timeouts(
-        config.route_timeouts.clone(),
-    );
+    initialize_route_timeouts(config.route_timeouts.clone());
     info!("Route timeout configuration initialized");
 
-    pierre_mcp_server::constants::init_server_config()?;
+    init_server_config()?;
     info!("Static server configuration initialized");
 
     Ok(())
@@ -258,9 +257,8 @@ async fn initialize_core_systems(config: &ServerConfig) -> Result<(Database, Aut
     Ok((database, auth_manager, jwt_secret_string))
 }
 
-fn bootstrap_key_management() -> Result<(pierre_mcp_server::key_management::KeyManager, [u8; 32])> {
-    let (key_manager, database_encryption_key) =
-        pierre_mcp_server::key_management::KeyManager::bootstrap()?;
+fn bootstrap_key_management() -> Result<(KeyManager, [u8; 32])> {
+    let (key_manager, database_encryption_key) = KeyManager::bootstrap()?;
     info!("Two-tier key management system bootstrapped");
     Ok((key_manager, database_encryption_key))
 }
@@ -371,8 +369,7 @@ fn create_server(
     let resources_arc = Arc::new(resources_instance.clone());
 
     // Initialize plugin system with resources
-    let plugin_executor =
-        pierre_mcp_server::plugins::executor::PluginToolExecutor::new(resources_arc);
+    let plugin_executor = PluginToolExecutor::new(resources_arc);
     info!(
         "Plugin system initialized: {} core tools, {} plugin tools",
         plugin_executor.get_statistics().core_tools,
@@ -389,7 +386,7 @@ fn create_server(
 
 /// Get RSA key size from environment or use production default
 fn get_rsa_key_size() -> usize {
-    std::env::var("PIERRE_RSA_KEY_SIZE")
+    env::var("PIERRE_RSA_KEY_SIZE")
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(4096)

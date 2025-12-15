@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use crate::config::environment::ServerConfig;
 use http::{header::HeaderName, HeaderValue, Method};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
@@ -37,7 +38,7 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 /// # Allow specific origins (production)
 /// export CORS_ALLOWED_ORIGINS="https://app.example.com,https://admin.example.com"
 /// ```
-pub fn setup_cors(config: &crate::config::environment::ServerConfig) -> CorsLayer {
+pub fn setup_cors(config: &ServerConfig) -> CorsLayer {
     // Parse allowed origins from configuration
     let allow_origin =
         if config.cors.allowed_origins.is_empty() || config.cors.allowed_origins == "*" {

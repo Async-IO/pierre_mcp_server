@@ -7,6 +7,8 @@
 #![allow(clippy::cast_possible_truncation)] // Safe: controlled ranges for fitness metrics
 
 use crate::config::intelligence::IntelligenceConfig;
+use crate::constants::physiology::{MAX_GOOD_GCT_MS, MIN_GOOD_GCT_MS, OPTIMAL_GCT_MS};
+use crate::constants::time_constants::SECONDS_PER_HOUR_F64;
 use crate::errors::{AppError, AppResult};
 use crate::intelligence::algorithms::{TrimpAlgorithm, TssAlgorithm};
 use crate::intelligence::physiological_constants::{
@@ -17,7 +19,7 @@ use crate::intelligence::physiological_constants::{
         POWER_ZONE4_UPPER_LIMIT,
     },
 };
-use crate::models::Activity;
+use crate::models::{Activity, SportType};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::{debug, warn};
@@ -192,12 +194,10 @@ impl MetricsCalculator {
     fn calculate_tss_from_data(&self, activity: &Activity) -> Option<f64> {
         // Helper to calculate duration in hours
         let duration_hours = if activity.duration_seconds > u64::from(u32::MAX) {
-            f64::from(u32::MAX) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+            f64::from(u32::MAX) / SECONDS_PER_HOUR_F64
         } else {
             match u32::try_from(activity.duration_seconds) {
-                Ok(duration_u32) => {
-                    f64::from(duration_u32) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
-                }
+                Ok(duration_u32) => f64::from(duration_u32) / SECONDS_PER_HOUR_F64,
                 Err(e) => {
                     debug!(
                         activity_id = activity.id,
@@ -205,7 +205,7 @@ impl MetricsCalculator {
                         error = %e,
                         "Duration conversion to u32 failed during TSS calculation, using u32::MAX"
                     );
-                    f64::from(u32::MAX) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+                    f64::from(u32::MAX) / SECONDS_PER_HOUR_F64
                 }
             }
         };
@@ -296,13 +296,10 @@ impl MetricsCalculator {
         // Calculate work (energy) if power is available
         if let Some(avg_power) = activity.average_power {
             let duration_hours = if activity.duration_seconds > u64::from(u32::MAX) {
-                f64::from(u32::MAX) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+                f64::from(u32::MAX) / SECONDS_PER_HOUR_F64
             } else {
                 match u32::try_from(activity.duration_seconds) {
-                    Ok(duration_u32) => {
-                        f64::from(duration_u32)
-                            / crate::constants::time_constants::SECONDS_PER_HOUR_F64
-                    }
+                    Ok(duration_u32) => f64::from(duration_u32) / SECONDS_PER_HOUR_F64,
                     Err(e) => {
                         debug!(
                             activity_id = activity.id,
@@ -310,7 +307,7 @@ impl MetricsCalculator {
                             error = %e,
                             "Duration conversion to u32 failed during work calculation, using u32::MAX"
                         );
-                        f64::from(u32::MAX) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+                        f64::from(u32::MAX) / SECONDS_PER_HOUR_F64
                     }
                 }
             };
@@ -330,7 +327,7 @@ impl MetricsCalculator {
     fn calculate_running_metrics(activity: &Activity, metrics: &mut AdvancedMetrics) {
         if !matches!(
             activity.sport_type,
-            crate::models::SportType::Run | crate::models::SportType::TrailRunning
+            SportType::Run | SportType::TrailRunning
         ) {
             return;
         }
@@ -693,23 +690,18 @@ impl MetricsCalculator {
         // Estimate balance based on contact time patterns
         // This is a simplified calculation that would ideally use left/right foot data
         match gct_ms {
-            gct if (crate::constants::physiology::MIN_GOOD_GCT_MS
-                ..=crate::constants::physiology::MAX_GOOD_GCT_MS)
-                .contains(&gct) =>
-            {
+            gct if (MIN_GOOD_GCT_MS..=MAX_GOOD_GCT_MS).contains(&gct) => {
                 // Good contact time range suggests better balance
-                ((crate::constants::physiology::OPTIMAL_GCT_MS
-                    - (gct - crate::constants::physiology::OPTIMAL_GCT_MS).abs())
-                    / crate::constants::physiology::OPTIMAL_GCT_MS)
+                ((OPTIMAL_GCT_MS - (gct - OPTIMAL_GCT_MS).abs()) / OPTIMAL_GCT_MS)
                     .mul_add(5.0, 50.0)
             }
-            gct if gct < crate::constants::physiology::MIN_GOOD_GCT_MS => {
+            gct if gct < MIN_GOOD_GCT_MS => {
                 // Very short contact time - might indicate imbalance
-                (gct / crate::constants::physiology::MIN_GOOD_GCT_MS).mul_add(5.0, 45.0)
+                (gct / MIN_GOOD_GCT_MS).mul_add(5.0, 45.0)
             }
             gct => {
                 // Long contact time - might indicate fatigue or imbalance
-                55.0 - ((gct - crate::constants::physiology::MAX_GOOD_GCT_MS) / 100.0).min(10.0)
+                55.0 - ((gct - MAX_GOOD_GCT_MS) / 100.0).min(10.0)
             }
         }
     }

@@ -6,14 +6,33 @@
 
 //! Health check endpoints and monitoring utilities
 
-use crate::constants::service_names;
-use crate::database_plugins::{factory::Database, DatabaseProvider};
-use crate::errors::AppResult;
-use serde::{Deserialize, Serialize};
+use std::env;
+use std::error::Error;
+#[cfg(target_os = "linux")]
+use std::fs;
+use std::path::Path;
+#[cfg(unix)]
+use std::process::Command;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tokio::sync::RwLock;
+use tokio::time::interval;
 use tracing::{error, info};
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+use crate::constants::system_monitoring::BYTES_TO_MB_DIVISOR;
+#[cfg(target_os = "linux")]
+use crate::constants::system_monitoring::KB_TO_MB_DIVISOR;
+use crate::constants::{
+    get_server_config, http_status::UNAUTHORIZED, service_names::PIERRE_MCP_SERVER,
+    time::HOUR_SECONDS,
+};
+use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::errors::AppResult;
+use crate::utils::http_client::get_health_check_timeout_secs;
 
 /// Overall health status
 #[non_exhaustive]
@@ -72,7 +91,7 @@ pub struct ComponentHealth {
     /// Check duration in milliseconds
     pub duration_ms: u64,
     /// Additional metadata
-    pub metadata: Option<serde_json::Value>,
+    pub metadata: Option<Value>,
 }
 
 /// Health checker for the Pierre MCP Server
@@ -111,12 +130,10 @@ impl HealthChecker {
 
     /// Periodic task to clean up expired API keys
     async fn periodic_cleanup_task(database: Arc<Database>) {
-        let mut interval = tokio::time::interval(Duration::from_secs(
-            crate::constants::time::HOUR_SECONDS as u64,
-        )); // Run every hour
+        let mut ticker = interval(Duration::from_secs(HOUR_SECONDS as u64)); // Run every hour
 
         loop {
-            interval.tick().await;
+            ticker.tick().await;
 
             match database.cleanup_expired_api_keys().await {
                 Ok(count) => {
@@ -138,9 +155,9 @@ impl HealthChecker {
 
         // Basic service info
         let service = ServiceInfo {
-            name: service_names::PIERRE_MCP_SERVER.into(),
+            name: PIERRE_MCP_SERVER.into(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
-            environment: crate::constants::get_server_config().map_or_else(
+            environment: get_server_config().map_or_else(
                 || "unknown".to_owned(),
                 |c| c.security.headers.environment.to_string(),
             ),
@@ -188,9 +205,9 @@ impl HealthChecker {
 
         // Service info
         let service = ServiceInfo {
-            name: service_names::PIERRE_MCP_SERVER.into(),
+            name: PIERRE_MCP_SERVER.into(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
-            environment: crate::constants::get_server_config().map_or_else(
+            environment: get_server_config().map_or_else(
                 || "unknown".to_owned(),
                 |c| c.security.headers.environment.to_string(),
             ),
@@ -363,7 +380,7 @@ impl HealthChecker {
 
         // Check if we can reach external APIs with configured timeout
         // Configuration must be initialized via initialize_http_clients() at server startup
-        let timeout_secs = crate::utils::http_client::get_health_check_timeout_secs();
+        let timeout_secs = get_health_check_timeout_secs();
         let client = match reqwest::Client::builder()
             .timeout(Duration::from_secs(timeout_secs))
             .build()
@@ -387,9 +404,7 @@ impl HealthChecker {
         // Check Strava API
         total_apis += 1;
         if let Ok(response) = client.get(&self.strava_api_base_url).send().await {
-            if response.status().is_success()
-                || response.status().as_u16() == crate::constants::http_status::UNAUTHORIZED
-            {
+            if response.status().is_success() || response.status().as_u16() == UNAUTHORIZED {
                 // 401 is expected without auth
                 healthy_apis += 1;
             }
@@ -418,7 +433,7 @@ impl HealthChecker {
     }
 
     /// Perform database-specific health checks
-    async fn database_health_check(&self) -> AppResult<serde_json::Value> {
+    async fn database_health_check(&self) -> AppResult<Value> {
         // Try a simple query to ensure database is responsive
         let start = Instant::now();
 
@@ -463,7 +478,7 @@ impl HealthChecker {
     }
 
     /// Get system memory information
-    fn get_memory_info() -> Result<MemoryInfo, Box<dyn std::error::Error>> {
+    fn get_memory_info() -> Result<MemoryInfo, Box<dyn Error>> {
         // Cross-platform memory information retrieval
         #[cfg(target_os = "linux")]
         {
@@ -484,8 +499,8 @@ impl HealthChecker {
     }
 
     /// Get disk space information
-    fn get_disk_info(&self) -> Result<DiskInfo, Box<dyn std::error::Error>> {
-        let current_dir = std::env::current_dir().unwrap_or_else(|_| "/".into());
+    fn get_disk_info(&self) -> Result<DiskInfo, Box<dyn Error>> {
+        let current_dir = env::current_dir().unwrap_or_else(|_| "/".into());
 
         #[cfg(unix)]
         {
@@ -502,8 +517,8 @@ impl HealthChecker {
     }
 
     #[cfg(target_os = "linux")]
-    fn get_memory_info_linux() -> Result<MemoryInfo, Box<dyn std::error::Error>> {
-        let meminfo = std::fs::read_to_string("/proc/meminfo")?;
+    fn get_memory_info_linux() -> Result<MemoryInfo, Box<dyn Error>> {
+        let meminfo = fs::read_to_string("/proc/meminfo")?;
         let mut total_kilobytes = 0;
         let mut available_kilobytes = 0;
 
@@ -523,10 +538,8 @@ impl HealthChecker {
             }
         }
 
-        let total_megabytes =
-            total_kilobytes / crate::constants::system_monitoring::KB_TO_MB_DIVISOR;
-        let available_megabytes =
-            available_kilobytes / crate::constants::system_monitoring::KB_TO_MB_DIVISOR;
+        let total_megabytes = total_kilobytes / KB_TO_MB_DIVISOR;
+        let available_megabytes = available_kilobytes / KB_TO_MB_DIVISOR;
         let used_megabytes = total_megabytes - available_megabytes;
         let used_percent = if total_megabytes > 0 {
             // Use integer division for percentage calculation
@@ -546,9 +559,8 @@ impl HealthChecker {
     }
 
     #[cfg(target_os = "macos")]
-    fn get_memory_info_macos() -> Result<MemoryInfo, Box<dyn std::error::Error>> {
+    fn get_memory_info_macos() -> Result<MemoryInfo, Box<dyn Error>> {
         // Use sysctl for macOS memory information
-        use std::process::Command;
 
         let output = Command::new("sysctl").args(["hw.memsize"]).output()?;
         let total_bytes = String::from_utf8(output.stdout)?
@@ -558,7 +570,7 @@ impl HealthChecker {
             .unwrap_or("0")
             .parse::<u64>()?;
 
-        let total_mb = total_bytes / crate::constants::system_monitoring::BYTES_TO_MB_DIVISOR;
+        let total_mb = total_bytes / BYTES_TO_MB_DIVISOR;
         // Get detailed memory statistics using vm_stat for accurate usage
         let vm_output = Command::new("vm_stat").output()?;
         let vm_stats = String::from_utf8(vm_output.stdout)?;
@@ -590,9 +602,8 @@ impl HealthChecker {
             (pages_active + pages_inactive + pages_wired + pages_compressed) * page_size;
         let available_bytes = pages_free * page_size;
 
-        let used_mb = used_bytes / crate::constants::system_monitoring::BYTES_TO_MB_DIVISOR;
-        let available_mb =
-            available_bytes / crate::constants::system_monitoring::BYTES_TO_MB_DIVISOR;
+        let used_mb = used_bytes / BYTES_TO_MB_DIVISOR;
+        let available_mb = available_bytes / BYTES_TO_MB_DIVISOR;
         let used_percent = if total_mb > 0 {
             (f64::from(u32::try_from(used_mb).unwrap_or(u32::MAX))
                 / f64::from(u32::try_from(total_mb).unwrap_or(u32::MAX)))
@@ -627,7 +638,7 @@ const fn bytes_to_gb_safe(value: u64) -> f64 {
 impl HealthChecker {
     #[cfg(target_os = "windows")]
     #[allow(unsafe_code)] // Windows FFI requires unsafe for GlobalMemoryStatusEx call
-    fn get_memory_info_windows() -> Result<MemoryInfo, Box<dyn std::error::Error>> {
+    fn get_memory_info_windows() -> Result<MemoryInfo, Box<dyn Error>> {
         // Use Windows API GlobalMemoryStatusEx for accurate memory information
         use std::mem;
 
@@ -668,10 +679,8 @@ impl HealthChecker {
             return Err("Failed to get Windows memory status".into());
         }
 
-        let total_mb =
-            mem_status.ull_total_phys / crate::constants::system_monitoring::BYTES_TO_MB_DIVISOR;
-        let available_mb =
-            mem_status.ull_avail_phys / crate::constants::system_monitoring::BYTES_TO_MB_DIVISOR;
+        let total_mb = mem_status.ull_total_phys / BYTES_TO_MB_DIVISOR;
+        let available_mb = mem_status.ull_avail_phys / BYTES_TO_MB_DIVISOR;
         let used_mb = total_mb - available_mb;
         let used_percent = f64::from(mem_status.dw_memory_load);
 
@@ -684,12 +693,7 @@ impl HealthChecker {
     }
 
     #[cfg(unix)]
-    fn get_disk_info_unix(
-        _: &Self,
-        path: &std::path::Path,
-    ) -> Result<DiskInfo, Box<dyn std::error::Error>> {
-        use std::process::Command;
-
+    fn get_disk_info_unix(_: &Self, path: &Path) -> Result<DiskInfo, Box<dyn Error>> {
         let output = Command::new("df")
             .args(["-h", path.to_str().unwrap_or("/")])
             .output()?;
@@ -732,12 +736,10 @@ impl HealthChecker {
 
     #[cfg(windows)]
     #[allow(unsafe_code)] // Windows FFI requires unsafe for GetDiskFreeSpaceExW call
-    fn get_disk_info_windows(
-        _: &Self,
-        path: &std::path::Path,
-    ) -> Result<DiskInfo, Box<dyn std::error::Error>> {
+    fn get_disk_info_windows(_: &Self, path: &Path) -> Result<DiskInfo, Box<dyn Error>> {
         // Use Windows API GetDiskFreeSpaceEx for accurate disk information
         use std::ffi::OsStr;
+        use std::iter;
         use std::os::windows::ffi::OsStrExt;
 
         extern "system" {
@@ -754,7 +756,7 @@ impl HealthChecker {
         // Convert path to wide string for Windows API
         let wide_path: Vec<u16> = OsStr::new(path)
             .encode_wide()
-            .chain(std::iter::once(0))
+            .chain(iter::once(0))
             .collect();
 
         let mut free_bytes_available = 0u64;

@@ -12,6 +12,7 @@
 //! - API key usage and authentication events
 //! - Encryption/decryption operations
 
+use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::AppResult;
 use serde::{Deserialize, Serialize};
@@ -214,13 +215,13 @@ impl AuditEvent {
 /// Audit logger for security events
 pub struct SecurityAuditor {
     /// Database connection for storing audit events
-    database: Arc<crate::database_plugins::factory::Database>,
+    database: Arc<Database>,
 }
 
 impl SecurityAuditor {
     /// Create new security auditor
     #[must_use]
-    pub const fn new(database: Arc<crate::database_plugins::factory::Database>) -> Self {
+    pub const fn new(database: Arc<Database>) -> Self {
         Self { database }
     }
 

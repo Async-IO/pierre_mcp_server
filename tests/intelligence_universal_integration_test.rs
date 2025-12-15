@@ -19,7 +19,7 @@ use pierre_mcp_server::{
         insights::ActivityContext, ActivityAnalyzer, FitnessLevel, MetricsCalculator,
         TimeAvailability, UserFitnessProfile, UserPreferences,
     },
-    models::{Activity, SportType},
+    models::{Activity, SportType, User},
 };
 
 mod common;
@@ -32,7 +32,7 @@ async fn test_activity_analysis_through_universal_tools() -> Result<()> {
     let database = create_test_database().await?;
 
     // Create user first
-    let user = pierre_mcp_server::models::User::new(
+    let user = User::new(
         "test@example.com".to_owned(),
         "password_hash".to_owned(),
         Some("Test User".to_owned()),
@@ -206,7 +206,7 @@ async fn test_recommendation_engine_integration() -> Result<()> {
     let database = create_test_database().await?;
 
     // Create user first
-    let user = pierre_mcp_server::models::User::new(
+    let user = User::new(
         "test2@example.com".to_owned(),
         "password_hash".to_owned(),
         Some("Test User 2".to_owned()),
@@ -337,7 +337,7 @@ async fn test_goal_tracking_integration() -> Result<()> {
     let database = create_test_database().await?;
 
     // Create user first
-    let user = pierre_mcp_server::models::User::new(
+    let user = User::new(
         "test3@example.com".to_owned(),
         "password_hash".to_owned(),
         Some("Test User 3".to_owned()),

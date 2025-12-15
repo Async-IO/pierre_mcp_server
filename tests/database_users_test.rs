@@ -8,8 +8,11 @@
 #![allow(missing_docs)]
 
 use chrono::Utc;
-use pierre_mcp_server::database::Database;
-use pierre_mcp_server::models::{User, UserStatus, UserTier};
+use pierre_mcp_server::{
+    database::Database,
+    models::{User, UserStatus, UserTier},
+    permissions::UserRole,
+};
 use uuid::Uuid;
 
 #[tokio::test]
@@ -28,9 +31,9 @@ async fn test_create_and_get_user() {
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_owned()),
         is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
+        user_status: UserStatus::Active,
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
@@ -79,9 +82,9 @@ async fn test_last_active_update() {
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_owned()),
         is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
+        user_status: UserStatus::Active,
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
@@ -129,7 +132,7 @@ fn create_test_user(email: &str, display_name: Option<String>) -> User {
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         approved_by: None,
         approved_at: Some(now),
         created_at: now,

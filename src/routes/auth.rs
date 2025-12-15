@@ -10,20 +10,45 @@
 //! for fitness providers like Strava. All handlers are thin wrappers that
 //! delegate business logic to service layers.
 
-use crate::{
-    constants::{error_messages, limits},
-    context::{AuthContext, ConfigContext, DataContext, NotificationContext},
-    database_plugins::DatabaseProvider,
-    errors::{AppError, AppResult, ErrorCode},
-    mcp::resources::ServerResources,
-    models::{Tenant, User, UserStatus},
-    utils::errors::{auth_error, user_state_error, validation_error},
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Write,
+    sync::Arc,
+    time::Duration as StdDuration,
+};
+
+use axum::{
+    extract::{Form, Path, Query, State},
+    http::{header, HeaderMap, StatusCode},
+    response::{IntoResponse, Response},
+    Json, Router,
 };
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use serde_json::{json, Value as JsonValue};
+use tokio::task;
 use tracing::{debug, error, info, warn};
 use urlencoding::encode;
+
+use crate::{
+    admin::{AdminAuthService, FirebaseAuth, FirebaseClaims},
+    config::environment::get_oauth_config,
+    constants::{error_messages, limits, tiers},
+    context::{AuthContext, ConfigContext, DataContext, NotificationContext, ServerContext},
+    database_plugins::{factory::Database, DatabaseProvider},
+    errors::{AppError, AppResult, ErrorCode},
+    mcp::{oauth_flow_manager::OAuthTemplateRenderer, resources::ServerResources},
+    models::{Tenant, User, UserOAuthToken, UserStatus, UserTier},
+    oauth2_client::{OAuth2Client, OAuth2Config, OAuth2Token},
+    permissions::UserRole,
+    security::cookies::{clear_auth_cookie, set_auth_cookie, set_csrf_cookie},
+    utils::{
+        auth::extract_bearer_token_owned,
+        errors::{auth_error, user_state_error, validation_error},
+        http_client::get_oauth_callback_notification_timeout_secs,
+        uuid::parse_user_id,
+    },
+};
 
 /// User registration request
 #[derive(Debug, Clone, Deserialize)]
@@ -269,7 +294,7 @@ impl AuthService {
             .unwrap_or_else(|| request.email.split('@').next().unwrap_or("user"));
 
         let tenant_id = self
-            .create_personal_tenant(user_id, display_name, crate::constants::tiers::STARTER)
+            .create_personal_tenant(user_id, display_name, tiers::STARTER)
             .await?;
 
         // Assign user to their personal tenant
@@ -318,11 +343,10 @@ impl AuthService {
         // Verify password using spawn_blocking to avoid blocking async executor
         let password = request.password.clone();
         let password_hash = user.password_hash.clone();
-        let is_valid =
-            tokio::task::spawn_blocking(move || bcrypt::verify(&password, &password_hash))
-                .await
-                .map_err(|e| AppError::internal(format!("Password verification task failed: {e}")))?
-                .map_err(|_| AppError::auth_invalid("Invalid email or password"))?;
+        let is_valid = task::spawn_blocking(move || bcrypt::verify(&password, &password_hash))
+            .await
+            .map_err(|e| AppError::internal(format!("Password verification task failed: {e}")))?
+            .map_err(|_| AppError::auth_invalid("Invalid email or password"))?;
 
         if !is_valid {
             error!("Invalid password for user: {}", request.email);
@@ -384,7 +408,7 @@ impl AuthService {
     pub async fn login_with_firebase(
         &self,
         request: FirebaseLoginRequest,
-        firebase_auth: &crate::admin::FirebaseAuth,
+        firebase_auth: &FirebaseAuth,
     ) -> AppResult<LoginResponse> {
         tracing::info!("Firebase login attempt");
 
@@ -410,7 +434,7 @@ impl AuthService {
     /// Find existing user or create new one from Firebase claims
     async fn find_or_create_firebase_user(
         &self,
-        claims: &crate::admin::FirebaseClaims,
+        claims: &FirebaseClaims,
         email: &str,
     ) -> AppResult<User> {
         // Try to find user by Firebase UID first
@@ -505,11 +529,7 @@ impl AuthService {
     }
 
     /// Create a new user from Firebase claims
-    async fn create_firebase_user(
-        &self,
-        claims: &crate::admin::FirebaseClaims,
-        email: &str,
-    ) -> AppResult<User> {
+    async fn create_firebase_user(&self, claims: &FirebaseClaims, email: &str) -> AppResult<User> {
         tracing::info!(firebase_uid = %claims.sub, email = %email, "Creating new Firebase user");
 
         let (user_status, approved_at) = self.determine_approval_status().await;
@@ -526,7 +546,7 @@ impl AuthService {
             email: email.to_owned(),
             display_name: claims.name.clone(),
             password_hash: "!firebase-auth-only!".to_owned(),
-            tier: crate::models::UserTier::Starter,
+            tier: UserTier::Starter,
             tenant_id: None,
             strava_token: None,
             fitbit_token: None,
@@ -535,7 +555,7 @@ impl AuthService {
             is_active: true,
             user_status,
             is_admin: false,
-            role: crate::permissions::UserRole::User,
+            role: UserRole::User,
             approved_by: None,
             approved_at,
             firebase_uid: Some(claims.sub.clone()),
@@ -546,7 +566,7 @@ impl AuthService {
 
         // Step 2: Create personal tenant (owner_user_id FK now satisfied)
         let tenant_id = self
-            .create_personal_tenant(user_id, display_name, crate::constants::tiers::STARTER)
+            .create_personal_tenant(user_id, display_name, tiers::STARTER)
             .await?;
 
         // Step 3: Link user to tenant
@@ -739,7 +759,7 @@ impl OAuthService {
         provider: &str,
     ) -> AppResult<OAuthCallbackResponse> {
         // Use async block to satisfy clippy
-        tokio::task::yield_now().await;
+        task::yield_now().await;
 
         // Validate state and extract user ID
         let user_id = Self::validate_oauth_state(state)?;
@@ -800,7 +820,7 @@ impl OAuthService {
             return Err(AppError::invalid_input("Invalid OAuth state parameter"));
         }
 
-        crate::utils::uuid::parse_user_id(user_id_str)
+        parse_user_id(user_id_str)
             .map_err(|e| AppError::invalid_input(format!("Invalid user ID in state: {e}")))
     }
 
@@ -820,7 +840,7 @@ impl OAuthService {
         &self,
         user_id: uuid::Uuid,
         provider: &str,
-    ) -> AppResult<(crate::models::User, String)> {
+    ) -> AppResult<(User, String)> {
         let database = self.data.database();
         let user = database
             .get_user(user_id)
@@ -855,10 +875,10 @@ impl OAuthService {
         code: &str,
         provider: &str,
         user_id: uuid::Uuid,
-        user: &crate::models::User,
-    ) -> AppResult<crate::oauth2_client::OAuth2Token> {
+        user: &User,
+    ) -> AppResult<OAuth2Token> {
         let oauth_config = self.create_oauth_config(provider)?;
-        let oauth_client = crate::oauth2_client::OAuth2Client::new(oauth_config.clone());
+        let oauth_client = OAuth2Client::new(oauth_config.clone());
 
         let token = oauth_client.exchange_code(code).await.map_err(|e| {
             error!(
@@ -875,7 +895,7 @@ impl OAuthService {
     ///
     /// # Errors
     /// Returns error if provider is unsupported or required credentials are not configured
-    fn create_oauth_config(&self, provider: &str) -> AppResult<crate::oauth2_client::OAuth2Config> {
+    fn create_oauth_config(&self, provider: &str) -> AppResult<OAuth2Config> {
         // Get provider descriptor from registry
         let descriptor = self
             .data
@@ -894,7 +914,7 @@ impl OAuthService {
         })?;
 
         // Get credentials from environment/config
-        let env_config = crate::config::environment::get_oauth_config(provider);
+        let env_config = get_oauth_config(provider);
         let client_id = env_config.client_id.ok_or_else(|| {
             AppError::invalid_input(format!(
                 "{provider} client_id not configured for token exchange"
@@ -923,7 +943,7 @@ impl OAuthService {
             .collect::<Vec<_>>()
             .join(params.scope_separator);
 
-        Ok(crate::oauth2_client::OAuth2Config {
+        Ok(OAuth2Config {
             client_id,
             client_secret,
             auth_url: endpoints.auth_url.to_owned(),
@@ -940,13 +960,13 @@ impl OAuthService {
         user_id: uuid::Uuid,
         tenant_id: String,
         provider: &str,
-        token: &crate::oauth2_client::OAuth2Token,
+        token: &OAuth2Token,
     ) -> AppResult<chrono::DateTime<chrono::Utc>> {
         let expires_at = token
             .expires_at
             .unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::hours(1));
 
-        let user_oauth_token = crate::models::UserOAuthToken {
+        let user_oauth_token = UserOAuthToken {
             id: uuid::Uuid::new_v4().to_string(),
             user_id,
             tenant_id,
@@ -1006,14 +1026,14 @@ impl OAuthService {
     }
 
     /// Build OAuth token data for bridge notification
-    fn build_bridge_token_data(token: &crate::oauth2_client::OAuth2Token) -> serde_json::Value {
+    fn build_bridge_token_data(token: &OAuth2Token) -> JsonValue {
         // Calculate expires_in from expires_at if available
         let expires_in = token.expires_at.map(|expires_at| {
             let duration = expires_at - chrono::Utc::now();
             duration.num_seconds().max(0)
         });
 
-        serde_json::json!({
+        json!({
             "access_token": token.access_token,
             "refresh_token": token.refresh_token,
             "expires_in": expires_in,
@@ -1051,11 +1071,7 @@ impl OAuthService {
     }
 
     /// Notify bridge about successful OAuth (for client-side token storage and focus recovery)
-    async fn notify_bridge_oauth_success(
-        &self,
-        provider: &str,
-        token: &crate::oauth2_client::OAuth2Token,
-    ) {
+    async fn notify_bridge_oauth_success(&self, provider: &str, token: &OAuth2Token) {
         let oauth_callback_port = self.config.config().oauth_callback_port;
         let callback_url =
             format!("http://localhost:{oauth_callback_port}/oauth/provider-callback/{provider}");
@@ -1069,12 +1085,11 @@ impl OAuthService {
 
         // Best-effort notification with configured timeout - don't fail OAuth flow if bridge notification fails
         // Configuration must be initialized via initialize_http_clients() at server startup
-        let timeout_secs =
-            crate::utils::http_client::get_oauth_callback_notification_timeout_secs();
+        let timeout_secs = get_oauth_callback_notification_timeout_secs();
         let result = reqwest::Client::new()
             .post(&callback_url)
             .json(&token_data)
-            .timeout(std::time::Duration::from_secs(timeout_secs))
+            .timeout(StdDuration::from_secs(timeout_secs))
             .send()
             .await;
 
@@ -1170,7 +1185,7 @@ impl OAuthService {
             (creds.client_id, scope)
         } else {
             // Single-tenant: use environment configuration
-            let env_config = crate::config::environment::get_oauth_config(provider);
+            let env_config = get_oauth_config(provider);
             let client_id = env_config.client_id.ok_or_else(|| {
                 AppError::invalid_input(format!(
                     "{provider} client_id not configured (set in environment or database)"
@@ -1190,7 +1205,7 @@ impl OAuthService {
 
         // Add provider-specific additional parameters
         for (key, value) in params.additional_auth_params {
-            use std::fmt::Write;
+            use Write;
             // Writing to String cannot fail
             let _ = write!(&mut auth_url, "&{}={}", encode(key), encode(value));
         }
@@ -1229,7 +1244,7 @@ impl OAuthService {
             .map_err(|e| AppError::database(format!("Failed to get user OAuth tokens: {e}")))?;
 
         // Create a set of connected providers
-        let mut providers_seen = std::collections::HashSet::new();
+        let mut providers_seen = HashSet::new();
         let mut statuses = Vec::new();
 
         // Add status for each connected provider
@@ -1286,7 +1301,7 @@ pub struct AuthRoutes;
 
 impl AuthRoutes {
     /// Create all authentication routes (Axum)
-    pub fn routes(resources: Arc<ServerResources>) -> axum::Router {
+    pub fn routes(resources: Arc<ServerResources>) -> Router {
         use axum::{
             routing::{get, post},
             Router,
@@ -1319,12 +1334,10 @@ impl AuthRoutes {
     /// Security: Only administrators can create new users to prevent
     /// unauthorized user creation, database pollution, and `DoS` attacks.
     async fn handle_register(
-        axum::extract::State(resources): axum::extract::State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
-        axum::Json(request): axum::Json<RegisterRequest>,
-    ) -> Result<axum::response::Response, AppError> {
-        use axum::response::IntoResponse;
-
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Json(request): Json<RegisterRequest>,
+    ) -> Result<Response, AppError> {
         // Extract and validate admin token
         let auth_header = headers
             .get("authorization")
@@ -1335,11 +1348,11 @@ impl AuthRoutes {
                 )
             })?;
 
-        let token = crate::utils::auth::extract_bearer_token_owned(auth_header)
+        let token = extract_bearer_token_owned(auth_header)
             .map_err(|_| AppError::auth_invalid("Invalid Authorization header format"))?;
 
         // Validate admin token
-        let admin_auth_service = crate::admin::AdminAuthService::new(
+        let admin_auth_service = AdminAuthService::new(
             resources.database.as_ref().clone(),
             resources.jwks_manager.clone(),
             resources.config.auth.admin_token_cache_ttl_secs,
@@ -1359,7 +1372,7 @@ impl AuthRoutes {
             request.email
         );
 
-        let server_context = crate::context::ServerContext::from(resources.as_ref());
+        let server_context = ServerContext::from(resources.as_ref());
         let auth_routes = AuthService::new(
             server_context.auth().clone(),
             server_context.config().clone(),
@@ -1367,9 +1380,7 @@ impl AuthRoutes {
         );
 
         match auth_routes.register(request).await {
-            Ok(response) => {
-                Ok((axum::http::StatusCode::CREATED, axum::Json(response)).into_response())
-            }
+            Ok(response) => Ok((StatusCode::CREATED, Json(response)).into_response()),
             Err(e) => {
                 error!("Registration failed: {}", e);
                 Err(e)
@@ -1383,17 +1394,15 @@ impl AuthRoutes {
     /// New users are created in "Pending" status by default and require admin approval,
     /// unless `AUTO_APPROVE_USERS` environment variable is set to true.
     async fn handle_public_register(
-        axum::extract::State(resources): axum::extract::State<Arc<ServerResources>>,
-        axum::Json(request): axum::Json<RegisterRequest>,
-    ) -> Result<axum::response::Response, AppError> {
-        use axum::response::IntoResponse;
-
+        State(resources): State<Arc<ServerResources>>,
+        Json(request): Json<RegisterRequest>,
+    ) -> Result<Response, AppError> {
         info!(
             "Public self-registration attempt for email: {}",
             request.email
         );
 
-        let server_context = crate::context::ServerContext::from(resources.as_ref());
+        let server_context = ServerContext::from(resources.as_ref());
         let auth_routes = AuthService::new(
             server_context.auth().clone(),
             server_context.config().clone(),
@@ -1401,9 +1410,7 @@ impl AuthRoutes {
         );
 
         match auth_routes.register(request).await {
-            Ok(response) => {
-                Ok((axum::http::StatusCode::CREATED, axum::Json(response)).into_response())
-            }
+            Ok(response) => Ok((StatusCode::CREATED, Json(response)).into_response()),
             Err(e) => {
                 error!("Public registration failed: {}", e);
                 Err(e)
@@ -1415,17 +1422,15 @@ impl AuthRoutes {
     ///
     /// Authenticates users via Firebase ID tokens (Google Sign-In, Apple, etc.)
     async fn handle_firebase_login(
-        axum::extract::State(resources): axum::extract::State<Arc<ServerResources>>,
-        axum::Json(request): axum::Json<FirebaseLoginRequest>,
-    ) -> Result<axum::response::Response, AppError> {
-        use axum::response::IntoResponse;
-
+        State(resources): State<Arc<ServerResources>>,
+        Json(request): Json<FirebaseLoginRequest>,
+    ) -> Result<Response, AppError> {
         // Check if Firebase is configured
         let firebase_auth = resources.firebase_auth.as_ref().ok_or_else(|| {
             AppError::invalid_input("Firebase authentication is not configured on this server")
         })?;
 
-        let server_context = crate::context::ServerContext::from(resources.as_ref());
+        let server_context = ServerContext::from(resources.as_ref());
         let auth_service = AuthService::new(
             server_context.auth().clone(),
             server_context.config().clone(),
@@ -1460,15 +1465,15 @@ impl AuthRoutes {
                 response.csrf_token.clone_from(&csrf_token);
 
                 // Build response with secure cookies
-                let mut headers = axum::http::HeaderMap::new();
+                let mut headers = HeaderMap::new();
 
                 // Set httpOnly auth cookie (24 hour expiry to match JWT)
-                crate::security::cookies::set_auth_cookie(&mut headers, &jwt_token, 24 * 60 * 60);
+                set_auth_cookie(&mut headers, &jwt_token, 24 * 60 * 60);
 
                 // Set CSRF cookie (30 minute expiry to match CSRF token)
-                crate::security::cookies::set_csrf_cookie(&mut headers, &csrf_token, 30 * 60);
+                set_csrf_cookie(&mut headers, &csrf_token, 30 * 60);
 
-                Ok((axum::http::StatusCode::OK, headers, axum::Json(response)).into_response())
+                Ok((StatusCode::OK, headers, Json(response)).into_response())
             }
             Err(e) => {
                 tracing::error!("Firebase login failed: {}", e);
@@ -1479,12 +1484,10 @@ impl AuthRoutes {
 
     /// Handle token refresh (Axum)
     async fn handle_refresh(
-        axum::extract::State(resources): axum::extract::State<Arc<ServerResources>>,
-        axum::Json(request): axum::Json<RefreshTokenRequest>,
-    ) -> Result<axum::response::Response, AppError> {
-        use axum::response::IntoResponse;
-
-        let server_context = crate::context::ServerContext::from(resources.as_ref());
+        State(resources): State<Arc<ServerResources>>,
+        Json(request): Json<RefreshTokenRequest>,
+    ) -> Result<Response, AppError> {
+        let server_context = ServerContext::from(resources.as_ref());
         let auth_service = AuthService::new(
             server_context.auth().clone(),
             server_context.config().clone(),
@@ -1516,15 +1519,15 @@ impl AuthRoutes {
                 response.csrf_token.clone_from(&csrf_token);
 
                 // Build response with secure cookies
-                let mut headers = axum::http::HeaderMap::new();
+                let mut headers = HeaderMap::new();
 
                 // Set httpOnly auth cookie (24 hour expiry to match JWT)
-                crate::security::cookies::set_auth_cookie(&mut headers, &jwt_token, 24 * 60 * 60);
+                set_auth_cookie(&mut headers, &jwt_token, 24 * 60 * 60);
 
                 // Set CSRF cookie (30 minute expiry to match CSRF token)
-                crate::security::cookies::set_csrf_cookie(&mut headers, &csrf_token, 30 * 60);
+                set_csrf_cookie(&mut headers, &csrf_token, 30 * 60);
 
-                Ok((axum::http::StatusCode::OK, headers, axum::Json(response)).into_response())
+                Ok((StatusCode::OK, headers, Json(response)).into_response())
             }
             Err(e) => {
                 error!("Token refresh failed: {}", e);
@@ -1534,23 +1537,21 @@ impl AuthRoutes {
     }
 
     /// Handle user logout (Axum)
-    async fn handle_logout() -> Result<axum::response::Response, AppError> {
-        use axum::response::IntoResponse;
-
+    async fn handle_logout() -> Result<Response, AppError> {
         // Yield to allow async context (required for Axum handler)
-        tokio::task::yield_now().await;
+        task::yield_now().await;
 
         // Build response with cleared cookies
-        let mut headers = axum::http::HeaderMap::new();
+        let mut headers = HeaderMap::new();
 
         // Clear auth cookie
-        crate::security::cookies::clear_auth_cookie(&mut headers);
+        clear_auth_cookie(&mut headers);
 
         // Return success response
         Ok((
-            axum::http::StatusCode::OK,
+            StatusCode::OK,
             headers,
-            axum::Json(serde_json::json!({
+            Json(json!({
                 "message": "Logged out successfully"
             })),
         )
@@ -1569,11 +1570,9 @@ impl AuthRoutes {
     ///
     /// Response format: RFC 6749 Section 5.1 compliant JSON
     async fn handle_oauth2_token(
-        axum::extract::State(resources): axum::extract::State<Arc<ServerResources>>,
-        axum::extract::Form(request): axum::extract::Form<OAuth2TokenRequest>,
-    ) -> Result<axum::response::Response, AppError> {
-        use axum::response::IntoResponse;
-
+        State(resources): State<Arc<ServerResources>>,
+        Form(request): Form<OAuth2TokenRequest>,
+    ) -> Result<Response, AppError> {
         // Validate grant_type
         if request.grant_type != "password" {
             let error_response = OAuth2ErrorResponse {
@@ -1583,11 +1582,7 @@ impl AuthRoutes {
                     request.grant_type
                 )),
             };
-            return Ok((
-                axum::http::StatusCode::BAD_REQUEST,
-                axum::Json(error_response),
-            )
-                .into_response());
+            return Ok((StatusCode::BAD_REQUEST, Json(error_response)).into_response());
         }
 
         // Delegate to existing login logic
@@ -1596,7 +1591,7 @@ impl AuthRoutes {
             password: request.password,
         };
 
-        let server_context = crate::context::ServerContext::from(resources.as_ref());
+        let server_context = ServerContext::from(resources.as_ref());
         let auth_service = AuthService::new(
             server_context.auth().clone(),
             server_context.config().clone(),
@@ -1641,16 +1636,11 @@ impl AuthRoutes {
                 };
 
                 // Build response with secure cookies for web clients
-                let mut headers = axum::http::HeaderMap::new();
-                crate::security::cookies::set_auth_cookie(&mut headers, &jwt_token, 24 * 60 * 60);
-                crate::security::cookies::set_csrf_cookie(&mut headers, &csrf_token, 30 * 60);
+                let mut headers = HeaderMap::new();
+                set_auth_cookie(&mut headers, &jwt_token, 24 * 60 * 60);
+                set_csrf_cookie(&mut headers, &csrf_token, 30 * 60);
 
-                Ok((
-                    axum::http::StatusCode::OK,
-                    headers,
-                    axum::Json(oauth2_response),
-                )
-                    .into_response())
+                Ok((StatusCode::OK, headers, Json(oauth2_response)).into_response())
             }
             Err(e) => {
                 // Map to OAuth2 error format based on error code
@@ -1671,27 +1661,23 @@ impl AuthRoutes {
 
                 // OAuth2 spec: invalid_grant returns 400, server_error returns 500
                 let status = if error_code == "server_error" {
-                    axum::http::StatusCode::INTERNAL_SERVER_ERROR
+                    StatusCode::INTERNAL_SERVER_ERROR
                 } else {
-                    axum::http::StatusCode::BAD_REQUEST
+                    StatusCode::BAD_REQUEST
                 };
 
-                Ok((status, axum::Json(error_response)).into_response())
+                Ok((status, Json(error_response)).into_response())
             }
         }
     }
 
     /// Handle OAuth callback (Axum)
     async fn handle_oauth_callback(
-        axum::extract::State(resources): axum::extract::State<Arc<ServerResources>>,
-        axum::extract::Path(provider): axum::extract::Path<String>,
-        axum::extract::Query(params): axum::extract::Query<
-            std::collections::HashMap<String, String>,
-        >,
-    ) -> Result<axum::response::Response, AppError> {
-        use axum::response::IntoResponse;
-
-        let server_context = crate::context::ServerContext::from(resources.as_ref());
+        State(resources): State<Arc<ServerResources>>,
+        Path(provider): Path<String>,
+        Query(params): Query<HashMap<String, String>>,
+    ) -> Result<Response, AppError> {
+        let server_context = ServerContext::from(resources.as_ref());
         let oauth_routes = OAuthService::new(
             server_context.data().clone(),
             server_context.config().clone(),
@@ -1708,21 +1694,13 @@ impl AuthRoutes {
 
         match oauth_routes.handle_callback(code, state, &provider).await {
             Ok(response) => {
-                let html =
-                    crate::mcp::oauth_flow_manager::OAuthTemplateRenderer::render_success_template(
-                        &provider, &response,
-                    )
+                let html = OAuthTemplateRenderer::render_success_template(&provider, &response)
                     .map_err(|e| {
                         error!("Failed to render OAuth success template: {}", e);
                         AppError::internal("Template rendering failed")
                     })?;
 
-                Ok((
-                    axum::http::StatusCode::OK,
-                    [(axum::http::header::CONTENT_TYPE, "text/html")],
-                    html,
-                )
-                    .into_response())
+                Ok((StatusCode::OK, [(header::CONTENT_TYPE, "text/html")], html).into_response())
             }
             Err(e) => {
                 error!("OAuth callback failed: {}", e);
@@ -1731,22 +1709,18 @@ impl AuthRoutes {
                 let (error_msg, description) = Self::categorize_oauth_error(&e);
 
                 let html =
-                    crate::mcp::oauth_flow_manager::OAuthTemplateRenderer::render_error_template(
-                        &provider,
-                        error_msg,
-                        description,
-                    )
-                    .map_err(|template_err| {
-                        error!(
-                            "Critical: Failed to render OAuth error template: {}",
-                            template_err
-                        );
-                        AppError::internal("Template rendering failed")
-                    })?;
+                    OAuthTemplateRenderer::render_error_template(&provider, error_msg, description)
+                        .map_err(|template_err| {
+                            error!(
+                                "Critical: Failed to render OAuth error template: {}",
+                                template_err
+                            );
+                            AppError::internal("Template rendering failed")
+                        })?;
 
                 Ok((
-                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    [(axum::http::header::CONTENT_TYPE, "text/html")],
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    [(header::CONTENT_TYPE, "text/html")],
                     html,
                 )
                     .into_response())
@@ -1756,11 +1730,9 @@ impl AuthRoutes {
 
     /// Handle OAuth status check (Axum)
     async fn handle_oauth_status(
-        axum::extract::State(resources): axum::extract::State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
-    ) -> Result<axum::response::Response, AppError> {
-        use axum::response::IntoResponse;
-
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+    ) -> Result<Response, AppError> {
         // Authenticate using middleware (supports both cookies and Authorization header)
         let auth_result = resources
             .auth_middleware
@@ -1792,7 +1764,7 @@ impl AuthRoutes {
                 |tokens| {
                     // Convert tokens to status objects
                     let mut statuses = vec![];
-                    let mut providers_seen = std::collections::HashSet::new();
+                    let mut providers_seen = HashSet::new();
 
                     for token in tokens {
                         if providers_seen.insert(token.provider.clone()) {
@@ -1819,7 +1791,7 @@ impl AuthRoutes {
                 },
             );
 
-        Ok((axum::http::StatusCode::OK, axum::Json(provider_statuses)).into_response())
+        Ok((StatusCode::OK, Json(provider_statuses)).into_response())
     }
 
     /// Parse a user ID string to UUID
@@ -1832,9 +1804,9 @@ impl AuthRoutes {
 
     /// Retrieve user from database with proper error handling
     async fn get_user_for_oauth(
-        database: &crate::database_plugins::factory::Database,
+        database: &Database,
         user_id: uuid::Uuid,
-    ) -> Result<crate::models::User, AppError> {
+    ) -> Result<User, AppError> {
         match database.get_user(user_id).await {
             Ok(Some(user)) => Ok(user),
             Ok(None) => {
@@ -1851,10 +1823,7 @@ impl AuthRoutes {
     }
 
     /// Extract tenant ID from user, falling back to `user_id` if no tenant
-    fn extract_tenant_id(
-        user: &crate::models::User,
-        user_id: uuid::Uuid,
-    ) -> Result<uuid::Uuid, AppError> {
+    fn extract_tenant_id(user: &User, user_id: uuid::Uuid) -> Result<uuid::Uuid, AppError> {
         let Some(tid) = &user.tenant_id else {
             debug!(user_id = %user_id, "User has no tenant_id - using user_id as tenant");
             return Ok(user_id);
@@ -1873,11 +1842,9 @@ impl AuthRoutes {
 
     /// Handle OAuth authorization initiation (Axum)
     async fn handle_oauth_auth_initiate(
-        axum::extract::State(resources): axum::extract::State<Arc<ServerResources>>,
-        axum::extract::Path((provider, user_id_str)): axum::extract::Path<(String, String)>,
-    ) -> Result<axum::response::Response, AppError> {
-        use axum::response::IntoResponse;
-
+        State(resources): State<Arc<ServerResources>>,
+        Path((provider, user_id_str)): Path<(String, String)>,
+    ) -> Result<Response, AppError> {
         info!(
             "OAuth authorization initiation for provider: {} user: {}",
             provider, user_id_str
@@ -1887,7 +1854,7 @@ impl AuthRoutes {
         let user = Self::get_user_for_oauth(&resources.database, user_id).await?;
         let tenant_id = Self::extract_tenant_id(&user, user_id)?;
 
-        let server_context = crate::context::ServerContext::from(resources.as_ref());
+        let server_context = ServerContext::from(resources.as_ref());
         let oauth_service = OAuthService::new(
             server_context.data().clone(),
             server_context.config().clone(),
@@ -1911,11 +1878,8 @@ impl AuthRoutes {
         );
 
         Ok((
-            axum::http::StatusCode::FOUND,
-            [(
-                axum::http::header::LOCATION,
-                auth_response.authorization_url,
-            )],
+            StatusCode::FOUND,
+            [(header::LOCATION, auth_response.authorization_url)],
         )
             .into_response())
     }

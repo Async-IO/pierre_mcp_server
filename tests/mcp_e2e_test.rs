@@ -9,6 +9,7 @@
 
 use futures_util::future;
 use serde_json::{json, Value};
+use tokio::time::{sleep, Duration};
 
 #[tokio::test]
 async fn test_sse_message_streaming() {
@@ -56,7 +57,7 @@ async fn test_concurrent_mcp_requests() {
             });
 
             // Simulate processing
-            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+            sleep(Duration::from_millis(10)).await;
             request["id"].as_u64().unwrap()
         });
 

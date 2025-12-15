@@ -8,6 +8,7 @@ use super::Database;
 use crate::errors::{AppError, AppResult};
 use crate::models::UserOAuthToken;
 use chrono::{DateTime, Utc};
+use sqlx::sqlite::SqliteRow;
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -309,7 +310,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if decryption fails (possibly due to tampered data or AAD mismatch)
-    fn row_to_user_oauth_token(&self, row: &sqlx::sqlite::SqliteRow) -> AppResult<UserOAuthToken> {
+    fn row_to_user_oauth_token(&self, row: &SqliteRow) -> AppResult<UserOAuthToken> {
         let user_id_str: String = row.get("user_id");
         let user_id = Uuid::parse_str(&user_id_str)?;
         let tenant_id: String = row.get("tenant_id");

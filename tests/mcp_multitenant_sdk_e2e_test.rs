@@ -9,6 +9,8 @@
 
 use anyhow::Result;
 use serial_test::serial;
+use std::{env, time::Duration};
+use tokio::{task::spawn_blocking, time::sleep};
 use uuid::Uuid;
 
 mod common;
@@ -81,18 +83,18 @@ async fn test_concurrent_multitenant_get_activities() -> Result<()> {
     println!("✓ Spawned 3 SDK bridges (one per tenant)");
 
     // Give SDK bridges time to initialize
-    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(500)).await;
 
     // Create concurrent get_activities requests for all tenants via SDK
-    let tenant1_request = tokio::task::spawn_blocking(move || {
+    let tenant1_request = spawn_blocking(move || {
         make_tenant_sdk_get_activities_request(sdk_bridge1, user1.id, "Tenant 1 (SDK)")
     });
 
-    let tenant2_request = tokio::task::spawn_blocking(move || {
+    let tenant2_request = spawn_blocking(move || {
         make_tenant_sdk_get_activities_request(sdk_bridge2, user2.id, "Tenant 2 (SDK)")
     });
 
-    let tenant3_request = tokio::task::spawn_blocking(move || {
+    let tenant3_request = spawn_blocking(move || {
         make_tenant_sdk_get_activities_request(sdk_bridge3, user3.id, "Tenant 3 (SDK)")
     });
 
@@ -215,7 +217,7 @@ async fn test_http_transport_tools_list_parity() -> Result<()> {
     println!("✓ SDK bridge process spawned successfully");
 
     // Give SDK bridge time to initialize
-    tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+    sleep(Duration::from_millis(1000)).await;
 
     // Test SDK stdio communication - call tools/list
     println!("\n=== Testing SDK stdio Protocol ===");
@@ -484,8 +486,8 @@ async fn test_rate_limiting_per_tenant_isolation() -> Result<()> {
 
     // TRY to configure low rate limits for testing
     // NOTE: Due to Once initialization, this only works if this test runs first
-    std::env::set_var("RATE_LIMIT_FREE_TIER_BURST", "5");
-    std::env::set_var("RATE_LIMIT_FREE_TIER_PER_MINUTE", "10");
+    env::set_var("RATE_LIMIT_FREE_TIER_BURST", "5");
+    env::set_var("RATE_LIMIT_FREE_TIER_PER_MINUTE", "10");
 
     common::init_server_config();
     print_rate_limit_config();

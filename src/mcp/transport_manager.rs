@@ -12,8 +12,14 @@ use super::resources::ServerResources;
 use crate::errors::{AppError, AppResult};
 use crate::mcp::schema::OAuthCompletedNotification;
 use std::sync::Arc;
+use tokio::io::{stdin, stdout, AsyncBufReadExt, BufReader};
 use tokio::sync::broadcast;
+use tokio::sync::broadcast::error::RecvError;
+use tokio::sync::mpsc;
+use tokio::sync::Mutex;
+use tokio::time::{sleep, Duration};
 use tracing::{error, info, warn};
+use uuid::Uuid;
 
 /// Manages multiple transport methods for MCP communication
 pub struct TransportManager {
@@ -48,7 +54,7 @@ impl TransportManager {
 
     /// Spawn progress notification handler
     fn spawn_progress_handler(resources: &mut ServerResources) {
-        let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (progress_tx, mut progress_rx) = mpsc::unbounded_channel();
         resources.set_progress_notification_sender(progress_tx);
 
         tokio::spawn(async move {
@@ -112,11 +118,11 @@ impl TransportManager {
         match result {
             Ok(()) => {
                 error!("HTTP server unexpectedly completed - restarting in 5 seconds...");
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                sleep(Duration::from_secs(5)).await;
             }
             Err(e) => {
                 error!("HTTP server failed: {} - restarting in 10 seconds...", e);
-                tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+                sleep(Duration::from_secs(10)).await;
             }
         }
     }
@@ -131,8 +137,8 @@ impl TransportManager {
         let mut resources_clone = (*self.resources).clone();
         resources_clone.set_oauth_notification_sender(self.notification_sender.clone());
 
-        let stdout = Arc::new(tokio::sync::Mutex::new(tokio::io::stdout()));
-        let sampling_peer = Arc::new(super::sampling_peer::SamplingPeer::new(stdout));
+        let stdout_handle = Arc::new(Mutex::new(stdout()));
+        let sampling_peer = Arc::new(super::sampling_peer::SamplingPeer::new(stdout_handle));
         resources_clone.set_sampling_peer(sampling_peer);
 
         Self::spawn_progress_handler(&mut resources_clone);
@@ -243,13 +249,11 @@ impl StdioTransport {
     pub async fn run(
         &self,
         notification_receiver: broadcast::Receiver<OAuthCompletedNotification>,
-    ) -> crate::errors::AppResult<()> {
-        use tokio::io::{AsyncBufReadExt, BufReader};
-
+    ) -> AppResult<()> {
         info!("MCP stdio transport ready - listening on stdin/stdout with sampling support");
 
-        let stdin = tokio::io::stdin();
-        let mut lines = BufReader::new(stdin).lines();
+        let stdin_handle = stdin();
+        let mut lines = BufReader::new(stdin_handle).lines();
         let sampling_peer = self.resources.sampling_peer.clone();
 
         let resources_for_notifications = self.resources.clone();
@@ -324,7 +328,7 @@ impl SseNotificationForwarder {
             return;
         };
 
-        match uuid::Uuid::parse_str(user_id_str) {
+        match Uuid::parse_str(user_id_str) {
             Ok(user_id) => {
                 info!(
                     user_id = %user_id,
@@ -343,9 +347,7 @@ impl SseNotificationForwarder {
     }
 
     /// Handle the result of receiving a notification
-    fn handle_recv_result(
-        result: Result<OAuthCompletedNotification, broadcast::error::RecvError>,
-    ) -> bool {
+    fn handle_recv_result(result: Result<OAuthCompletedNotification, RecvError>) -> bool {
         match result {
             Ok(notification) => {
                 info!(
@@ -355,11 +357,11 @@ impl SseNotificationForwarder {
                 Self::process_notification(&notification);
                 true
             }
-            Err(broadcast::error::RecvError::Closed) => {
+            Err(RecvError::Closed) => {
                 info!("OAuth notification channel closed, shutting down SSE forwarder");
                 false
             }
-            Err(broadcast::error::RecvError::Lagged(skipped)) => {
+            Err(RecvError::Lagged(skipped)) => {
                 warn!(
                     "SSE notification forwarder lagged, skipped {} notifications",
                     skipped

@@ -17,7 +17,9 @@
 #![allow(missing_docs)]
 
 use anyhow::Result;
-use pierre_mcp_server::protocols::universal::{UniversalRequest, UniversalToolExecutor};
+use pierre_mcp_server::protocols::universal::{
+    UniversalRequest, UniversalResponse, UniversalToolExecutor,
+};
 use pierre_mcp_server::protocols::ProtocolError;
 use serde_json::json;
 use std::sync::Arc;
@@ -53,10 +55,7 @@ fn create_request(tool_name: &str, parameters: serde_json::Value) -> UniversalRe
 }
 
 /// Assert that the error contains expected text
-fn assert_error_contains(
-    result: &Result<pierre_mcp_server::protocols::universal::UniversalResponse, ProtocolError>,
-    expected: &str,
-) {
+fn assert_error_contains(result: &Result<UniversalResponse, ProtocolError>, expected: &str) {
     match result {
         Ok(response) => {
             assert!(!response.success, "Expected failure response");

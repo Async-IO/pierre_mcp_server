@@ -5,20 +5,27 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::cache::{factory::Cache, CacheKey, CacheResource};
+use crate::config::environment::default_provider;
 use crate::formatters::{format_output, OutputFormat};
 use crate::intelligence::physiological_constants::api_limits::{
     DEFAULT_ACTIVITY_LIMIT_U32, MAX_ACTIVITY_LIMIT, SAFE_LIMIT_JSON_DETAILED,
     SAFE_LIMIT_JSON_SUMMARY, SAFE_LIMIT_TOON_DETAILED, SAFE_LIMIT_TOON_SUMMARY,
 };
-use crate::protocols::universal::{UniversalRequest, UniversalResponse};
+use crate::models::{Activity, Athlete, SportType, Stats};
+use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalToolExecutor};
 use crate::protocols::ProtocolError;
 use crate::providers::core::{ActivityQueryParams, FitnessProvider};
 use crate::utils::uuid::parse_user_id_for_protocol;
 use serde::Serialize;
+use serde_json::{json, to_value, Value};
+use std::collections::HashMap;
 use std::future::Future;
+use std::hash::BuildHasher;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
 use tracing::{debug, info, warn};
+use uuid::Uuid;
 
 /// Activity summary with minimal fields for efficient list queries
 /// Used when mode=summary to reduce payload size and preserve LLM context
@@ -29,7 +36,7 @@ pub struct ActivitySummary {
     /// Activity name/title
     pub name: String,
     /// Activity sport type (e.g., "run", "ride", "cross\_country\_skiing")
-    pub sport_type: crate::models::SportType,
+    pub sport_type: SportType,
     /// Start date/time in ISO 8601 format
     pub start_date: String,
     /// Distance in meters (0.0 if not available)
@@ -38,8 +45,8 @@ pub struct ActivitySummary {
     pub duration_seconds: u64,
 }
 
-impl From<&crate::models::Activity> for ActivitySummary {
-    fn from(activity: &crate::models::Activity) -> Self {
+impl From<&Activity> for ActivitySummary {
+    fn from(activity: &Activity) -> Self {
         Self {
             id: activity.id.clone(),
             name: activity.name.clone(),
@@ -81,22 +88,19 @@ struct CachedActivitiesParams<'a> {
 /// Create metadata for activity analysis responses
 fn create_activity_metadata(
     activity_id: &str,
-    user_uuid: uuid::Uuid,
+    user_uuid: Uuid,
     tenant_id: Option<&String>,
-) -> std::collections::HashMap<String, serde_json::Value> {
-    let mut map = std::collections::HashMap::new();
+) -> HashMap<String, Value> {
+    let mut map = HashMap::new();
     map.insert(
         "activity_id".to_owned(),
-        serde_json::Value::String(activity_id.to_owned()),
+        Value::String(activity_id.to_owned()),
     );
-    map.insert(
-        "user_id".to_owned(),
-        serde_json::Value::String(user_uuid.to_string()),
-    );
+    map.insert("user_id".to_owned(), Value::String(user_uuid.to_string()));
     map.insert(
         "tenant_id".to_owned(),
-        tenant_id.map_or(serde_json::Value::Null, |id| {
-            serde_json::Value::String(id.clone()) // Safe: String ownership for JSON value
+        tenant_id.map_or(Value::Null, |id| {
+            Value::String(id.clone()) // Safe: String ownership for JSON value
         }),
     );
     map
@@ -130,10 +134,7 @@ pub fn apply_format_to_response(
     if matches!(output_format, OutputFormat::Json) {
         // Add format metadata
         if let Some(ref mut metadata) = response.metadata {
-            metadata.insert(
-                "format".to_owned(),
-                serde_json::Value::String("json".to_owned()),
-            );
+            metadata.insert("format".to_owned(), Value::String("json".to_owned()));
         }
         return response;
     }
@@ -147,32 +148,26 @@ pub fn apply_format_to_response(
     match format_output(&result_value, OutputFormat::Toon) {
         Ok(formatted) => {
             let toon_key = format!("{data_key}_toon");
-            response.result = Some(serde_json::json!({
+            response.result = Some(json!({
                 toon_key: formatted.data,
                 "format": "toon"
             }));
             if let Some(ref mut metadata) = response.metadata {
-                metadata.insert(
-                    "format".to_owned(),
-                    serde_json::Value::String("toon".to_owned()),
-                );
+                metadata.insert("format".to_owned(), Value::String("toon".to_owned()));
             }
         }
         Err(e) => {
             // Fall back to JSON on encoding error
             warn!("TOON encoding failed, falling back to JSON: {}", e);
-            response.result = Some(serde_json::json!({
+            response.result = Some(json!({
                 data_key: result_value,
                 "format": "json",
                 "format_fallback": true,
                 "format_error": e.to_string()
             }));
             if let Some(ref mut metadata) = response.metadata {
-                metadata.insert(
-                    "format".to_owned(),
-                    serde_json::Value::String("json".to_owned()),
-                );
-                metadata.insert("format_fallback".to_owned(), serde_json::Value::Bool(true));
+                metadata.insert("format".to_owned(), Value::String("json".to_owned()));
+                metadata.insert("format_fallback".to_owned(), Value::Bool(true));
             }
         }
     }
@@ -193,26 +188,25 @@ pub fn build_formatted_response<T, S>(
     data: &T,
     data_key: &str,
     output_format: OutputFormat,
-    metadata: std::collections::HashMap<String, serde_json::Value, S>,
+    metadata: HashMap<String, Value, S>,
 ) -> Result<UniversalResponse, ProtocolError>
 where
     T: Serialize,
-    S: std::hash::BuildHasher,
+    S: BuildHasher,
 {
     // Convert to standard HashMap for UniversalResponse compatibility
-    let mut metadata: std::collections::HashMap<String, serde_json::Value> =
-        metadata.into_iter().collect();
+    let mut metadata: HashMap<String, Value> = metadata.into_iter().collect();
 
     // Add format to metadata
     metadata.insert(
         "format".to_owned(),
-        serde_json::Value::String(output_format.as_str().to_owned()),
+        Value::String(output_format.as_str().to_owned()),
     );
 
     let result_json = match output_format {
         OutputFormat::Toon => {
             // Convert data to JSON value first for TOON encoding
-            let data_value = serde_json::to_value(data).map_err(|e| {
+            let data_value = to_value(data).map_err(|e| {
                 ProtocolError::SerializationError(format!("Failed to serialize data: {e}"))
             })?;
 
@@ -220,7 +214,7 @@ where
                 Ok(formatted) => {
                     // Use _toon suffix for the data key to indicate TOON format
                     let toon_key = format!("{data_key}_toon");
-                    serde_json::json!({
+                    json!({
                         toon_key: formatted.data,
                         "format": "toon"
                     })
@@ -228,17 +222,11 @@ where
                 Err(e) => {
                     // Fall back to JSON if TOON serialization fails
                     warn!("TOON serialization failed, falling back to JSON: {}", e);
-                    metadata.insert(
-                        "format".to_owned(),
-                        serde_json::Value::String("json".to_owned()),
-                    );
-                    metadata.insert("format_fallback".to_owned(), serde_json::Value::Bool(true));
-                    metadata.insert(
-                        "format_error".to_owned(),
-                        serde_json::Value::String(e.to_string()),
-                    );
-                    serde_json::json!({
-                        data_key: serde_json::to_value(data).map_err(|e| {
+                    metadata.insert("format".to_owned(), Value::String("json".to_owned()));
+                    metadata.insert("format_fallback".to_owned(), Value::Bool(true));
+                    metadata.insert("format_error".to_owned(), Value::String(e.to_string()));
+                    json!({
+                        data_key: to_value(data).map_err(|e| {
                             ProtocolError::SerializationError(format!("Failed to serialize data: {e}"))
                         })?,
                         "format": "json"
@@ -247,8 +235,8 @@ where
             }
         }
         OutputFormat::Json => {
-            serde_json::json!({
-                data_key: serde_json::to_value(data).map_err(|e| {
+            json!({
+                data_key: to_value(data).map_err(|e| {
                     ProtocolError::SerializationError(format!("Failed to serialize data: {e}"))
                 })?,
                 "format": "json"
@@ -268,11 +256,7 @@ where
 async fn try_get_cached_activities(
     params: CachedActivitiesParams<'_>,
 ) -> Option<UniversalResponse> {
-    if let Ok(Some(cached_activities)) = params
-        .cache
-        .get::<Vec<crate::models::Activity>>(params.cache_key)
-        .await
-    {
+    if let Ok(Some(cached_activities)) = params.cache.get::<Vec<Activity>>(params.cache_key).await {
         info!(
             "Cache hit for activities (count={}, mode={}, format={:?})",
             cached_activities.len(),
@@ -298,7 +282,7 @@ async fn try_get_cached_activities(
         );
         // Mark as cached in metadata
         if let Some(ref mut metadata) = response.metadata {
-            metadata.insert("cached".to_owned(), serde_json::Value::Bool(true));
+            metadata.insert("cached".to_owned(), Value::Bool(true));
         }
         return Some(response);
     }
@@ -310,7 +294,7 @@ async fn try_get_cached_activities(
 async fn cache_activities_result(
     cache: &Arc<Cache>,
     cache_key: &CacheKey,
-    activities: &Vec<crate::models::Activity>,
+    activities: &Vec<Activity>,
     per_page: u32,
 ) {
     let ttl = CacheResource::ActivityList {
@@ -331,9 +315,9 @@ async fn cache_activities_result(
 /// Handles both standard sport types (serialized as strings like "run")
 /// and Other variants (serialized as {"other":"NordicSki"})
 fn filter_activities_by_sport_type(
-    activities: Vec<crate::models::Activity>,
+    activities: Vec<Activity>,
     sport_type_filter: Option<&str>,
-) -> Vec<crate::models::Activity> {
+) -> Vec<Activity> {
     match sport_type_filter {
         Some(filter) => {
             let filter_lower = filter.to_lowercase();
@@ -341,7 +325,7 @@ fn filter_activities_by_sport_type(
                 .into_iter()
                 .filter(|a| {
                     // Serialize sport_type to JSON and compare case-insensitively
-                    let Ok(v) = serde_json::to_value(&a.sport_type) else {
+                    let Ok(v) = to_value(&a.sport_type) else {
                         return false;
                     };
 
@@ -368,48 +352,27 @@ fn filter_activities_by_sport_type(
 /// Build metadata for activities response
 fn build_activities_metadata(
     count: usize,
-    user_uuid: uuid::Uuid,
+    user_uuid: Uuid,
     tenant_id: Option<String>,
     mode_used: &str,
     format_used: &str,
     pagination: Option<&PaginationInfo>,
-) -> std::collections::HashMap<String, serde_json::Value> {
-    let mut map = std::collections::HashMap::new();
-    map.insert(
-        "returned_count".to_owned(),
-        serde_json::Value::Number(count.into()),
-    );
-    map.insert(
-        "user_id".to_owned(),
-        serde_json::Value::String(user_uuid.to_string()),
-    );
+) -> HashMap<String, Value> {
+    let mut map = HashMap::new();
+    map.insert("returned_count".to_owned(), Value::Number(count.into()));
+    map.insert("user_id".to_owned(), Value::String(user_uuid.to_string()));
     map.insert(
         "tenant_id".to_owned(),
-        tenant_id.map_or(serde_json::Value::Null, serde_json::Value::String),
+        tenant_id.map_or(Value::Null, Value::String),
     );
-    map.insert("cached".to_owned(), serde_json::Value::Bool(false));
-    map.insert(
-        "mode".to_owned(),
-        serde_json::Value::String(mode_used.to_owned()),
-    );
-    map.insert(
-        "format".to_owned(),
-        serde_json::Value::String(format_used.to_owned()),
-    );
+    map.insert("cached".to_owned(), Value::Bool(false));
+    map.insert("mode".to_owned(), Value::String(mode_used.to_owned()));
+    map.insert("format".to_owned(), Value::String(format_used.to_owned()));
     // Add pagination metadata when available
     if let Some(page_info) = pagination {
-        map.insert(
-            "offset".to_owned(),
-            serde_json::Value::Number(page_info.offset.into()),
-        );
-        map.insert(
-            "limit".to_owned(),
-            serde_json::Value::Number(page_info.limit.into()),
-        );
-        map.insert(
-            "has_more".to_owned(),
-            serde_json::Value::Bool(page_info.has_more),
-        );
+        map.insert("offset".to_owned(), Value::Number(page_info.offset.into()));
+        map.insert("limit".to_owned(), Value::Number(page_info.limit.into()));
+        map.insert("has_more".to_owned(), Value::Bool(page_info.has_more));
     }
     map
 }
@@ -420,8 +383,8 @@ fn build_activities_metadata(
 /// `format="json"` (default) or `format="toon"` for token-efficient LLM output
 /// `pagination` enables clients to paginate through large result sets
 fn build_activities_success_response(
-    activities: &[crate::models::Activity],
-    user_uuid: uuid::Uuid,
+    activities: &[Activity],
+    user_uuid: Uuid,
     tenant_id: Option<String>,
     provider_name: &str,
     mode: &str,
@@ -432,7 +395,7 @@ fn build_activities_success_response(
     let (data_value, mode_used) = if mode == "summary" {
         let summaries: Vec<ActivitySummary> =
             activities.iter().map(ActivitySummary::from).collect();
-        match serde_json::to_value(&summaries) {
+        match to_value(&summaries) {
             Ok(value) => (value, "summary"),
             Err(e) => {
                 return UniversalResponse {
@@ -444,7 +407,8 @@ fn build_activities_success_response(
             }
         }
     } else {
-        match serde_json::to_value(activities) {
+        // Detailed mode: return full activity data
+        match to_value(activities) {
             Ok(value) => (value, "detailed"),
             Err(e) => {
                 return UniversalResponse {
@@ -461,7 +425,7 @@ fn build_activities_success_response(
     let (result_json, format_used) = match output_format {
         OutputFormat::Toon => match format_output(&data_value, OutputFormat::Toon) {
             Ok(formatted) => {
-                let mut json = serde_json::json!({
+                let mut json_val = json!({
                     "activities_toon": formatted.data,
                     "provider": provider_name,
                     "count": activities.len(),
@@ -470,15 +434,15 @@ fn build_activities_success_response(
                 });
                 // Add pagination fields directly to result for MCP clients
                 if let Some(page_info) = pagination {
-                    json["offset"] = serde_json::json!(page_info.offset);
-                    json["limit"] = serde_json::json!(page_info.limit);
-                    json["has_more"] = serde_json::json!(page_info.has_more);
+                    json_val["offset"] = json!(page_info.offset);
+                    json_val["limit"] = json!(page_info.limit);
+                    json_val["has_more"] = json!(page_info.has_more);
                 }
-                (json, "toon")
+                (json_val, "toon")
             }
             Err(e) => {
                 warn!("TOON serialization failed, falling back to JSON: {}", e);
-                let mut json = serde_json::json!({
+                let mut json_val = json!({
                     "activities": data_value,
                     "provider": provider_name,
                     "count": activities.len(),
@@ -489,15 +453,15 @@ fn build_activities_success_response(
                 });
                 // Add pagination fields to fallback response too
                 if let Some(page_info) = pagination {
-                    json["offset"] = serde_json::json!(page_info.offset);
-                    json["limit"] = serde_json::json!(page_info.limit);
-                    json["has_more"] = serde_json::json!(page_info.has_more);
+                    json_val["offset"] = json!(page_info.offset);
+                    json_val["limit"] = json!(page_info.limit);
+                    json_val["has_more"] = json!(page_info.has_more);
                 }
-                (json, "json")
+                (json_val, "json")
             }
         },
         OutputFormat::Json => {
-            let mut json = serde_json::json!({
+            let mut json_val = json!({
                 "activities": data_value,
                 "provider": provider_name,
                 "count": activities.len(),
@@ -506,11 +470,11 @@ fn build_activities_success_response(
             });
             // Add pagination fields directly to result for MCP clients
             if let Some(page_info) = pagination {
-                json["offset"] = serde_json::json!(page_info.offset);
-                json["limit"] = serde_json::json!(page_info.limit);
-                json["has_more"] = serde_json::json!(page_info.has_more);
+                json_val["offset"] = json!(page_info.offset);
+                json_val["limit"] = json!(page_info.limit);
+                json_val["has_more"] = json!(page_info.has_more);
             }
-            (json, "json")
+            (json_val, "json")
         }
     };
 
@@ -534,24 +498,19 @@ fn build_activities_success_response(
 async fn try_get_cached_athlete(
     cache: &Arc<Cache>,
     cache_key: &CacheKey,
-    user_uuid: uuid::Uuid,
+    user_uuid: Uuid,
     tenant_id: Option<&String>,
     output_format: OutputFormat,
 ) -> Result<Option<UniversalResponse>, ProtocolError> {
-    if let Ok(Some(cached_athlete)) = cache.get::<crate::models::Athlete>(cache_key).await {
+    if let Ok(Some(cached_athlete)) = cache.get::<Athlete>(cache_key).await {
         info!("Cache hit for athlete profile");
-        let mut metadata = std::collections::HashMap::new();
-        metadata.insert(
-            "user_id".to_owned(),
-            serde_json::Value::String(user_uuid.to_string()),
-        );
+        let mut metadata = HashMap::new();
+        metadata.insert("user_id".to_owned(), Value::String(user_uuid.to_string()));
         metadata.insert(
             "tenant_id".to_owned(),
-            tenant_id.map_or(serde_json::Value::Null, |id| {
-                serde_json::Value::String(id.clone())
-            }),
+            tenant_id.map_or(Value::Null, |id| Value::String(id.clone())),
         );
-        metadata.insert("cached".to_owned(), serde_json::Value::Bool(true));
+        metadata.insert("cached".to_owned(), Value::Bool(true));
 
         return Ok(Some(build_formatted_response(
             &cached_athlete,
@@ -565,11 +524,7 @@ async fn try_get_cached_athlete(
 }
 
 /// Cache athlete profile after fetching from API
-async fn cache_athlete_result(
-    cache: &Arc<Cache>,
-    cache_key: &CacheKey,
-    athlete: &crate::models::Athlete,
-) {
+async fn cache_athlete_result(cache: &Arc<Cache>, cache_key: &CacheKey, athlete: &Athlete) {
     let ttl = CacheResource::AthleteProfile.recommended_ttl();
     if let Err(e) = cache.set(cache_key, athlete, ttl).await {
         warn!("Failed to cache athlete profile: {}", e);
@@ -583,7 +538,7 @@ async fn fetch_and_cache_athlete(
     provider: &dyn FitnessProvider,
     cache: &Arc<Cache>,
     cache_key: &CacheKey,
-    user_uuid: uuid::Uuid,
+    user_uuid: Uuid,
     tenant_id: Option<String>,
     output_format: OutputFormat,
 ) -> Result<UniversalResponse, ProtocolError> {
@@ -591,16 +546,13 @@ async fn fetch_and_cache_athlete(
         Ok(athlete) => {
             cache_athlete_result(cache, cache_key, &athlete).await;
 
-            let mut metadata = std::collections::HashMap::new();
-            metadata.insert(
-                "user_id".to_owned(),
-                serde_json::Value::String(user_uuid.to_string()),
-            );
+            let mut metadata = HashMap::new();
+            metadata.insert("user_id".to_owned(), Value::String(user_uuid.to_string()));
             metadata.insert(
                 "tenant_id".to_owned(),
-                tenant_id.map_or(serde_json::Value::Null, serde_json::Value::String),
+                tenant_id.map_or(Value::Null, Value::String),
             );
-            metadata.insert("cached".to_owned(), serde_json::Value::Bool(false));
+            metadata.insert("cached".to_owned(), Value::Bool(false));
 
             build_formatted_response(&athlete, "athlete", output_format, metadata)
         }
@@ -615,20 +567,18 @@ async fn fetch_and_cache_athlete(
 
 /// Process activity analysis when activity is found
 async fn process_activity_analysis(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
     activity_id: &str,
-    user_uuid: uuid::Uuid,
+    user_uuid: Uuid,
 ) -> Result<UniversalResponse, ProtocolError> {
     let analysis_response =
         super::intelligence::handle_get_activity_intelligence(executor, request).await?;
-    let analysis = analysis_response
-        .result
-        .unwrap_or_else(|| serde_json::json!({}));
+    let analysis = analysis_response.result.unwrap_or_else(|| json!({}));
 
     Ok(UniversalResponse {
         success: true,
-        result: Some(serde_json::to_value(analysis).map_err(|e| {
+        result: Some(to_value(analysis).map_err(|e| {
             ProtocolError::SerializationError(format!("Failed to serialize analysis: {e}"))
         })?),
         error: None,
@@ -638,11 +588,7 @@ async fn process_activity_analysis(
             analysis_response
                 .metadata
                 .as_ref()
-                .and_then(|m| {
-                    m.get("tenant_id")
-                        .and_then(serde_json::Value::as_str)
-                        .map(String::from)
-                })
+                .and_then(|m| m.get("tenant_id").and_then(Value::as_str).map(String::from))
                 .as_ref(),
         )),
     })
@@ -652,7 +598,7 @@ async fn process_activity_analysis(
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn handle_get_activities(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -673,7 +619,7 @@ pub fn handle_get_activities(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
+            .map_or_else(default_provider, String::from);
 
         // Extract mode parameter: "summary" (default) or "detailed"
         // Parse mode/format FIRST to determine format-aware default limit
@@ -700,10 +646,7 @@ pub fn handle_get_activities(
         };
 
         // Extract limit parameter - use format-aware default if not specified
-        let user_limit = request
-            .parameters
-            .get("limit")
-            .and_then(serde_json::Value::as_u64);
+        let user_limit = request.parameters.get("limit").and_then(Value::as_u64);
 
         let limit = user_limit
             .and_then(|v| usize::try_from(v).ok())
@@ -720,15 +663,9 @@ pub fn handle_get_activities(
         });
 
         // Extract optional before/after timestamp parameters for time-based filtering
-        let before = request
-            .parameters
-            .get("before")
-            .and_then(serde_json::Value::as_i64);
+        let before = request.parameters.get("before").and_then(Value::as_i64);
 
-        let after = request
-            .parameters
-            .get("after")
-            .and_then(serde_json::Value::as_i64);
+        let after = request.parameters.get("after").and_then(Value::as_i64);
 
         // Extract sport_type filter parameter (case-insensitive)
         let sport_type_filter = request
@@ -750,7 +687,7 @@ pub fn handle_get_activities(
             .tenant_id
             .as_ref()
             .and_then(|t| {
-                uuid::Uuid::parse_str(t)
+                Uuid::parse_str(t)
                     .inspect_err(|e| {
                         debug!(
                             tenant_id_str = %t,
@@ -760,7 +697,7 @@ pub fn handle_get_activities(
                     })
                     .ok()
             })
-            .unwrap_or_else(uuid::Uuid::nil);
+            .unwrap_or_else(Uuid::nil);
 
         // For caching activities, include time filters in cache key to avoid
         // returning cached results that don't match the requested time range
@@ -928,7 +865,7 @@ pub fn handle_get_activities(
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn handle_get_athlete(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -949,7 +886,7 @@ pub fn handle_get_athlete(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
+            .map_or_else(default_provider, String::from);
 
         // Extract output format parameter: "json" (default) or "toon"
         let output_format = extract_output_format(&request);
@@ -959,7 +896,7 @@ pub fn handle_get_athlete(
             .tenant_id
             .as_ref()
             .and_then(|t| {
-                uuid::Uuid::parse_str(t)
+                Uuid::parse_str(t)
                     .inspect_err(|e| {
                         debug!(
                             tenant_id_str = %t,
@@ -969,7 +906,7 @@ pub fn handle_get_athlete(
                     })
                     .ok()
             })
-            .unwrap_or_else(uuid::Uuid::nil);
+            .unwrap_or_else(Uuid::nil);
 
         let cache_key = CacheKey::new(
             tenant_uuid,
@@ -1075,7 +1012,7 @@ async fn try_get_athlete_id_from_cache(
     cache: &Arc<Cache>,
     athlete_cache_key: &CacheKey,
 ) -> Option<u64> {
-    if let Ok(Some(athlete)) = cache.get::<crate::models::Athlete>(athlete_cache_key).await {
+    if let Ok(Some(athlete)) = cache.get::<Athlete>(athlete_cache_key).await {
         return athlete
             .id
             .parse::<u64>()
@@ -1095,24 +1032,19 @@ async fn try_get_athlete_id_from_cache(
 async fn try_get_cached_stats(
     cache: &Arc<Cache>,
     stats_cache_key: &CacheKey,
-    user_uuid: uuid::Uuid,
+    user_uuid: Uuid,
     tenant_id: Option<&String>,
     output_format: OutputFormat,
 ) -> Result<Option<UniversalResponse>, ProtocolError> {
-    if let Ok(Some(cached_stats)) = cache.get::<crate::models::Stats>(stats_cache_key).await {
+    if let Ok(Some(cached_stats)) = cache.get::<Stats>(stats_cache_key).await {
         info!("Cache hit for stats");
-        let mut metadata = std::collections::HashMap::new();
-        metadata.insert(
-            "user_id".to_owned(),
-            serde_json::Value::String(user_uuid.to_string()),
-        );
+        let mut metadata = HashMap::new();
+        metadata.insert("user_id".to_owned(), Value::String(user_uuid.to_string()));
         metadata.insert(
             "tenant_id".to_owned(),
-            tenant_id.map_or(serde_json::Value::Null, |id| {
-                serde_json::Value::String(id.clone())
-            }),
+            tenant_id.map_or(Value::Null, |id| Value::String(id.clone())),
         );
-        metadata.insert("cached".to_owned(), serde_json::Value::Bool(true));
+        metadata.insert("cached".to_owned(), Value::Bool(true));
 
         return Ok(Some(build_formatted_response(
             &cached_stats,
@@ -1127,20 +1059,17 @@ async fn try_get_cached_stats(
 
 /// Create metadata for stats responses
 fn create_stats_metadata(
-    user_uuid: uuid::Uuid,
-    tenant_uuid: uuid::Uuid,
+    user_uuid: Uuid,
+    tenant_uuid: Uuid,
     cached: bool,
-) -> std::collections::HashMap<String, serde_json::Value> {
-    let mut map = std::collections::HashMap::new();
-    map.insert(
-        "user_id".to_owned(),
-        serde_json::Value::String(user_uuid.to_string()),
-    );
+) -> HashMap<String, Value> {
+    let mut map = HashMap::new();
+    map.insert("user_id".to_owned(), Value::String(user_uuid.to_string()));
     map.insert(
         "tenant_id".to_owned(),
-        serde_json::Value::String(tenant_uuid.to_string()),
+        Value::String(tenant_uuid.to_string()),
     );
-    map.insert("cached".to_owned(), serde_json::Value::Bool(cached));
+    map.insert("cached".to_owned(), Value::Bool(cached));
     map
 }
 
@@ -1149,7 +1078,7 @@ async fn cache_item<T: serde::Serialize + Send + Sync>(
     cache: &Arc<Cache>,
     key: &CacheKey,
     item: &T,
-    ttl: std::time::Duration,
+    ttl: Duration,
     item_name: &str,
 ) {
     if let Err(e) = cache.set(key, item, ttl).await {
@@ -1161,10 +1090,10 @@ async fn cache_item<T: serde::Serialize + Send + Sync>(
 async fn cache_athlete_and_stats(
     cache: &Arc<Cache>,
     athlete_cache_key: &CacheKey,
-    athlete: &crate::models::Athlete,
-    stats: &crate::models::Stats,
-    tenant_uuid: uuid::Uuid,
-    user_uuid: uuid::Uuid,
+    athlete: &Athlete,
+    stats: &Stats,
+    tenant_uuid: Uuid,
+    user_uuid: Uuid,
     provider_name: &str,
 ) {
     let Some(athlete_id) = athlete
@@ -1197,8 +1126,8 @@ async fn fetch_and_cache_stats(
     provider: &dyn FitnessProvider,
     cache: &Arc<Cache>,
     athlete_cache_key: &CacheKey,
-    tenant_uuid: uuid::Uuid,
-    user_uuid: uuid::Uuid,
+    tenant_uuid: Uuid,
+    user_uuid: Uuid,
     provider_name: &str,
     output_format: OutputFormat,
 ) -> Result<UniversalResponse, ProtocolError> {
@@ -1236,7 +1165,7 @@ async fn fetch_and_cache_stats(
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn handle_get_stats(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -1257,7 +1186,7 @@ pub fn handle_get_stats(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
+            .map_or_else(default_provider, String::from);
 
         // Extract output format parameter: "json" (default) or "toon"
         let output_format = extract_output_format(&request);
@@ -1267,7 +1196,7 @@ pub fn handle_get_stats(
             .tenant_id
             .as_ref()
             .and_then(|t| {
-                uuid::Uuid::parse_str(t)
+                Uuid::parse_str(t)
                     .inspect_err(|e| {
                         debug!(
                             tenant_id_str = %t,
@@ -1277,7 +1206,7 @@ pub fn handle_get_stats(
                     })
                     .ok()
             })
-            .unwrap_or_else(uuid::Uuid::nil);
+            .unwrap_or_else(Uuid::nil);
 
         let athlete_cache_key = CacheKey::new(
             tenant_uuid,
@@ -1394,7 +1323,7 @@ pub fn handle_get_stats(
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn handle_analyze_activity(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -1415,12 +1344,12 @@ pub fn handle_analyze_activity(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
+            .map_or_else(default_provider, String::from);
 
         let activity_id = request
             .parameters
             .get("activity_id")
-            .and_then(serde_json::Value::as_str)
+            .and_then(Value::as_str)
             .map(str::to_owned) // Safe: String ownership needed to avoid borrowing issues
             .ok_or_else(|| {
                 ProtocolError::InvalidRequest("activity_id parameter required".to_owned())
@@ -1492,14 +1421,14 @@ pub fn handle_analyze_activity(
                             result: None,
                             error: Some(format!("Activity {activity_id} not found: {e}")),
                             metadata: Some({
-                                let mut map = std::collections::HashMap::new();
+                                let mut map = HashMap::new();
                                 map.insert(
                                     "activity_id".to_owned(),
-                                    serde_json::Value::String(activity_id.clone()),
+                                    Value::String(activity_id.clone()),
                                 );
                                 map.insert(
                                     "provider".to_owned(),
-                                    serde_json::Value::String(provider_name.clone()),
+                                    Value::String(provider_name.clone()),
                                 );
                                 map
                             }),

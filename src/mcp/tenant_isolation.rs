@@ -5,10 +5,13 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use super::resources::ServerResources;
+use crate::admin::jwks::JwksManager;
 use crate::auth::AuthManager;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::errors::{AppError, AppResult};
-use crate::tenant::{TenantContext, TenantRole};
+use crate::models::{User, UserOAuthToken};
+use crate::tenant::{oauth_manager::TenantOAuthCredentials, TenantContext, TenantRole};
+use crate::utils::uuid::parse_uuid;
 use http::HeaderMap;
 use std::sync::Arc;
 use tracing::warn;
@@ -38,7 +41,7 @@ impl TenantIsolation {
             .map_err(|e| AppError::auth_invalid(format!("Failed to validate token: {e}")))?;
 
         // Parse user ID from claims
-        let user_id = crate::utils::uuid::parse_uuid(&auth_result.sub).map_err(|e| {
+        let user_id = parse_uuid(&auth_result.sub).map_err(|e| {
             warn!(sub = %auth_result.sub, error = %e, "Invalid user ID in JWT token claims");
             AppError::auth_invalid("Invalid user ID in token")
         })?;
@@ -60,7 +63,7 @@ impl TenantIsolation {
     ///
     /// # Errors
     /// Returns an error if user lookup fails
-    pub async fn get_user_with_tenant(&self, user_id: Uuid) -> AppResult<crate::models::User> {
+    pub async fn get_user_with_tenant(&self, user_id: Uuid) -> AppResult<User> {
         self.resources
             .database
             .get_user(user_id)
@@ -73,7 +76,7 @@ impl TenantIsolation {
     ///
     /// # Errors
     /// Returns an error if tenant ID is missing or invalid
-    pub fn extract_tenant_id(&self, user: &crate::models::User) -> AppResult<Uuid> {
+    pub fn extract_tenant_id(&self, user: &User) -> AppResult<Uuid> {
         user.tenant_id
             .clone() // Safe: Option<String> ownership for UUID parsing
             .ok_or_else(|| AppError::auth_invalid("User does not belong to any tenant"))?
@@ -287,7 +290,7 @@ impl TenantResources {
     pub async fn get_oauth_credentials(
         &self,
         provider: &str,
-    ) -> AppResult<Option<crate::tenant::oauth_manager::TenantOAuthCredentials>> {
+    ) -> AppResult<Option<TenantOAuthCredentials>> {
         self.database
             .get_tenant_oauth_credentials(self.tenant_id, provider)
             .await
@@ -300,7 +303,7 @@ impl TenantResources {
     /// Returns an error if credential storage fails or tenant ID mismatch
     pub async fn store_oauth_credentials(
         &self,
-        credential: &crate::tenant::oauth_manager::TenantOAuthCredentials,
+        credential: &TenantOAuthCredentials,
     ) -> AppResult<()> {
         // Ensure the credential belongs to this tenant
         if credential.tenant_id != self.tenant_id {
@@ -326,7 +329,7 @@ impl TenantResources {
         &self,
         user_id: Uuid,
         provider: &str,
-    ) -> AppResult<Option<crate::models::UserOAuthToken>> {
+    ) -> AppResult<Option<UserOAuthToken>> {
         // Convert tenant_id to string for database query
         let tenant_id_str = self.tenant_id.to_string();
         self.database
@@ -339,10 +342,7 @@ impl TenantResources {
     ///
     /// # Errors
     /// Returns an error if token storage fails
-    pub async fn store_user_oauth_token(
-        &self,
-        token: &crate::models::UserOAuthToken,
-    ) -> AppResult<()> {
+    pub async fn store_user_oauth_token(&self, token: &UserOAuthToken) -> AppResult<()> {
         // Additional validation could be added here to ensure
         // the user belongs to this tenant
         // For now, store using the user's OAuth app approach
@@ -377,7 +377,7 @@ pub struct JwtValidationResult {
 pub async fn validate_jwt_token_for_mcp(
     token: &str,
     auth_manager: &AuthManager,
-    jwks_manager: &crate::admin::jwks::JwksManager,
+    jwks_manager: &JwksManager,
     database: &Arc<Database>,
 ) -> AppResult<JwtValidationResult> {
     let auth_result = auth_manager
@@ -385,11 +385,10 @@ pub async fn validate_jwt_token_for_mcp(
         .map_err(|e| AppError::auth_invalid(format!("Failed to validate token: {e}")))?;
 
     // Parse user ID from claims
-    let user_id = crate::utils::uuid::parse_uuid(&auth_result.sub)
-        .map_err(|e| {
-            warn!(sub = %auth_result.sub, error = %e, "Invalid user ID in JWT token claims (MCP validation)");
-            AppError::auth_invalid("Invalid user ID in token")
-        })?;
+    let user_id = parse_uuid(&auth_result.sub).map_err(|e| {
+        warn!(sub = %auth_result.sub, error = %e, "Invalid user ID in JWT token claims (MCP validation)");
+        AppError::auth_invalid("Invalid user ID in token")
+    })?;
 
     // Get user and tenant information
     let user = database

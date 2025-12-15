@@ -152,7 +152,9 @@
 use anyhow::Result;
 use futures_util::future;
 use pierre_mcp_server::{
+    admin::jwks::JwksManager,
     auth::{AuthManager, JwtValidationError},
+    config::environment::RateLimitConfig,
     constants::oauth_providers,
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::multitenant::MultiTenantMcpServer,
@@ -161,6 +163,7 @@ use pierre_mcp_server::{
 };
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::RwLock;
+use tokio::time::sleep;
 use uuid::Uuid;
 
 // Import common test utilities
@@ -184,7 +187,7 @@ async fn create_multiple_test_users(
     database: &Database,
     auth_manager: &AuthManager,
     count: usize,
-    jwks_manager: &Arc<pierre_mcp_server::admin::jwks::JwksManager>,
+    jwks_manager: &Arc<JwksManager>,
 ) -> Result<Vec<(Uuid, String, String)>> {
     let mut users = Vec::new();
 
@@ -271,7 +274,7 @@ async fn test_authentication_middleware_integration() -> Result<()> {
         (*auth_manager).clone(),
         database.clone(),
         jwks_manager.clone(),
-        pierre_mcp_server::config::environment::RateLimitConfig::default(),
+        RateLimitConfig::default(),
     ));
 
     // Create test user
@@ -488,7 +491,7 @@ async fn test_token_expiration_handling() -> Result<()> {
     let expired_token = short_expiry_auth_manager.generate_token(&user, &jwks_manager)?;
 
     // Wait to ensure the token has expired
-    tokio::time::sleep(Duration::from_millis(1100)).await; // Wait over a second
+    sleep(Duration::from_millis(1100)).await; // Wait over a second
 
     // Try to validate expired token using detailed validation
     let result = short_expiry_auth_manager.validate_token_detailed(&expired_token, &jwks_manager);
@@ -687,7 +690,7 @@ async fn test_session_state_management() -> Result<()> {
     // last_active is a DateTime<Utc>, not an Option
 
     // Test multiple updates
-    tokio::time::sleep(Duration::from_millis(10)).await;
+    sleep(Duration::from_millis(10)).await;
     database.update_last_active(user_id).await?;
 
     let updated_user2 = database.get_user(user_id).await?.unwrap();
@@ -706,7 +709,7 @@ async fn test_concurrent_authentication_operations() -> Result<()> {
         (*auth_manager).clone(),
         database.clone(),
         jwks_manager.clone(),
-        pierre_mcp_server::config::environment::RateLimitConfig::default(),
+        RateLimitConfig::default(),
     ));
 
     // Create multiple users

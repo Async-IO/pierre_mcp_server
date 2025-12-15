@@ -8,16 +8,20 @@
 #![allow(missing_docs)]
 
 use pierre_mcp_server::a2a::system_user::A2ASystemUserService;
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
+use pierre_mcp_server::constants::init_server_config;
 use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
+use std::env;
 use std::sync::{Arc, Once};
 
 static INIT: Once = Once::new();
 
 fn init_test_config() {
     INIT.call_once(|| {
-        std::env::set_var("CI", "true");
-        std::env::set_var("DATABASE_URL", "sqlite::memory:");
-        let _ = pierre_mcp_server::constants::init_server_config();
+        env::set_var("CI", "true");
+        env::set_var("DATABASE_URL", "sqlite::memory:");
+        let _ = init_server_config();
     });
 }
 
@@ -27,7 +31,7 @@ async fn create_test_database() -> Arc<Database> {
     let database = Database::new(
         "sqlite::memory:",
         vec![0u8; 32],
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await
     .expect("Failed to create test database");
@@ -101,7 +105,7 @@ async fn test_password_generation() {
     let database = Database::new(
         "sqlite::memory:",
         vec![0u8; 32],
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await
     .expect("Failed to create test database");

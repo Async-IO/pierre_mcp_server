@@ -13,9 +13,10 @@ use super::models::{
     AuthorizeRequest, AuthorizeResponse, OAuth2AuthCode, OAuth2Error, TokenRequest, TokenResponse,
 };
 use crate::admin::jwks::JwksManager;
-use crate::auth::AuthManager;
+use crate::auth::{AuthManager, Claims, JwtValidationError};
+use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
-use crate::errors::{AppError, AppResult};
+use crate::errors::{AppError, AppResult, ErrorCode};
 use base64::{engine::general_purpose, Engine as _};
 use chrono::{Duration, Utc};
 use ring::rand::{SecureRandom, SystemRandom};
@@ -110,14 +111,14 @@ pub struct OAuth2AuthorizationServer {
     client_manager: ClientRegistrationManager,
     auth_manager: Arc<AuthManager>,
     jwks_manager: Arc<JwksManager>,
-    database: Arc<crate::database_plugins::factory::Database>,
+    database: Arc<Database>,
 }
 
 impl OAuth2AuthorizationServer {
     /// Creates a new `OAuth2` authorization server instance
     #[must_use]
     pub fn new(
-        database: Arc<crate::database_plugins::factory::Database>,
+        database: Arc<Database>,
         auth_manager: Arc<AuthManager>,
         jwks_manager: Arc<JwksManager>,
     ) -> Self {
@@ -760,7 +761,7 @@ impl OAuth2AuthorizationServer {
     /// Handle valid token claims by checking user existence
     async fn handle_valid_token_claims(
         &self,
-        claims: crate::auth::Claims,
+        claims: Claims,
     ) -> AppResult<super::models::ValidateRefreshResponse> {
         use super::models::{ValidateRefreshResponse, ValidationStatus};
 
@@ -806,7 +807,7 @@ impl OAuth2AuthorizationServer {
     async fn attempt_token_refresh(
         &self,
         refresh_token_value: &str,
-        claims: &crate::auth::Claims,
+        claims: &Claims,
     ) -> AppResult<super::models::ValidateRefreshResponse> {
         // Look up refresh token by value and verify it belongs to this user
         let refresh_token_data = match self
@@ -873,11 +874,11 @@ impl OAuth2AuthorizationServer {
     /// Handle JWT validation errors
     async fn handle_token_validation_error(
         &self,
-        validation_error: crate::auth::JwtValidationError,
+        validation_error: JwtValidationError,
         expired_access_token: &str,
         request: &super::models::ValidateRefreshRequest,
     ) -> AppResult<super::models::ValidateRefreshResponse> {
-        use crate::auth::JwtValidationError;
+        use JwtValidationError;
 
         match validation_error {
             JwtValidationError::TokenExpired { .. } => {
@@ -912,7 +913,7 @@ impl OAuth2AuthorizationServer {
     ///
     /// This is safe because we only need to read the claims, not trust them.
     /// The refresh token will be validated separately.
-    fn decode_expired_token(token: &str) -> AppResult<crate::auth::Claims> {
+    fn decode_expired_token(token: &str) -> AppResult<Claims> {
         use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 
         // Create a permissive validation that doesn't check expiry or signature
@@ -921,14 +922,14 @@ impl OAuth2AuthorizationServer {
         validation.insecure_disable_signature_validation(); // We just need to read claims
 
         // Decode without validation - we only need the claims data
-        let token_data = decode::<crate::auth::Claims>(
+        let token_data = decode::<Claims>(
             token,
             &DecodingKey::from_secret(&[]), // Dummy key since we're not validating signature
             &validation,
         )
         .map_err(|e| {
-            crate::errors::AppError::new(
-                crate::errors::ErrorCode::AuthMalformed,
+            AppError::new(
+                ErrorCode::AuthMalformed,
                 format!("Failed to decode expired token: {e}"),
             )
         })?;
@@ -944,8 +945,8 @@ impl OAuth2AuthorizationServer {
     ) -> AppResult<super::models::OAuth2RefreshToken> {
         // Parse user_id from string
         let user_id = Uuid::parse_str(user_id_str).map_err(|e| {
-            crate::errors::AppError::new(
-                crate::errors::ErrorCode::AuthMalformed,
+            AppError::new(
+                ErrorCode::AuthMalformed,
                 format!("Invalid user_id in token claims: {e}"),
             )
         })?;
@@ -957,38 +958,33 @@ impl OAuth2AuthorizationServer {
             .get_refresh_token_by_value(refresh_token_value)
             .await
             .map_err(|e| {
-                crate::errors::AppError::new(
-                    crate::errors::ErrorCode::DatabaseError,
+                AppError::new(
+                    ErrorCode::DatabaseError,
                     format!("Database error looking up refresh token: {e}"),
                 )
             })?
-            .ok_or_else(|| {
-                crate::errors::AppError::new(
-                    crate::errors::ErrorCode::ResourceNotFound,
-                    "Refresh token not found",
-                )
-            })?;
+            .ok_or_else(|| AppError::new(ErrorCode::ResourceNotFound, "Refresh token not found"))?;
 
         // Verify the refresh token belongs to this user
         if refresh_token.user_id != user_id {
-            return Err(crate::errors::AppError::new(
-                crate::errors::ErrorCode::AuthInvalid,
+            return Err(AppError::new(
+                ErrorCode::AuthInvalid,
                 "Refresh token does not belong to the user in the access token",
             ));
         }
 
         // Verify the refresh token hasn't expired
         if refresh_token.expires_at < Utc::now() {
-            return Err(crate::errors::AppError::new(
-                crate::errors::ErrorCode::AuthExpired,
+            return Err(AppError::new(
+                ErrorCode::AuthExpired,
                 "Refresh token has expired",
             ));
         }
 
         // Verify the refresh token hasn't been revoked
         if refresh_token.revoked {
-            return Err(crate::errors::AppError::new(
-                crate::errors::ErrorCode::AuthInvalid,
+            return Err(AppError::new(
+                ErrorCode::AuthInvalid,
                 "Refresh token has been revoked",
             ));
         }

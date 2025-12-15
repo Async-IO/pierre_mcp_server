@@ -9,13 +9,17 @@ use crate::config::environment::SseBufferStrategy;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::AppError;
 use crate::mcp::resources::ServerResources;
+use crate::utils::auth::extract_bearer_token_owned as extract_token;
 use axum::{
     extract::{Path, State},
+    http::HeaderMap,
     response::sse::{Event, KeepAlive, Sse},
+    routing::get,
     Router,
 };
 use futures_util::stream::Stream;
 use std::{convert::Infallible, sync::Arc, time::Duration};
+use tokio::sync::broadcast;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
@@ -28,16 +32,10 @@ impl SseRoutes {
         Router::new()
             .route(
                 "/notifications/sse/:user_id",
-                axum::routing::get(Self::handle_notification_sse),
+                get(Self::handle_notification_sse),
             )
-            .route(
-                "/mcp/sse/:session_id",
-                axum::routing::get(Self::handle_protocol_sse),
-            )
-            .route(
-                "/a2a/tasks/:task_id/stream",
-                axum::routing::get(Self::handle_a2a_task_sse),
-            )
+            .route("/mcp/sse/:session_id", get(Self::handle_protocol_sse))
+            .route("/a2a/tasks/:task_id/stream", get(Self::handle_a2a_task_sse))
             .with_state((manager, resources))
     }
 
@@ -49,7 +47,7 @@ impl SseRoutes {
     /// to prevent unauthorized access to OAuth tokens and personal notifications.
     async fn handle_notification_sse(
         Path(user_id): Path<String>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         State((manager, resources)): State<(Arc<SseManager>, Arc<ServerResources>)>,
     ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
         info!("New notification SSE connection for user: {}", user_id);
@@ -68,7 +66,7 @@ impl SseRoutes {
                 AppError::auth_invalid("Missing Authorization header - JWT token required for SSE notifications")
             })?;
 
-        let token = crate::utils::auth::extract_bearer_token_owned(auth_header).map_err(|_| {
+        let token = extract_token(auth_header).map_err(|_| {
             warn!(user_id = %user_uuid, "Invalid Authorization header format for SSE");
             AppError::auth_invalid("Invalid Authorization header format")
         })?;
@@ -123,7 +121,7 @@ impl SseRoutes {
                                 .event("notification")
                         );
                     }
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                    Err(broadcast::error::RecvError::Lagged(skipped)) => {
                         warn!(
                             "SSE buffer overflow for user {}: {} messages dropped (strategy: {:?})",
                             user_id_clone, skipped, overflow_strategy
@@ -152,7 +150,7 @@ impl SseRoutes {
                             }
                         }
                     }
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    Err(broadcast::error::RecvError::Closed) => {
                         info!("SSE channel closed for user: {}", user_id_clone);
                         break;
                     }
@@ -179,7 +177,7 @@ impl SseRoutes {
     /// to prevent unauthorized access to protocol messages and session hijacking.
     async fn handle_protocol_sse(
         Path(session_id): Path<String>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         State((manager, resources)): State<(Arc<SseManager>, Arc<ServerResources>)>,
     ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
         info!(
@@ -195,7 +193,7 @@ impl SseRoutes {
 
         // Validate authentication if provided
         if let Some(ref auth) = auth_header {
-            let token = crate::utils::auth::extract_bearer_token_owned(auth).map_err(|_| {
+            let token = extract_token(auth).map_err(|_| {
                 warn!(session_id = %session_id, "Invalid Authorization header format for MCP SSE");
                 AppError::auth_invalid("Invalid Authorization header format")
             })?;
@@ -246,14 +244,14 @@ impl SseRoutes {
                                 .event("message")
                         );
                     }
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                    Err(broadcast::error::RecvError::Lagged(skipped)) => {
                         warn!(
                             "SSE buffer overflow for session {}: {} messages dropped",
                             session_id_clone, skipped
                         );
                         // Continue operation for protocol streams
                     }
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    Err(broadcast::error::RecvError::Closed) => {
                         info!("SSE channel closed for session: {}", session_id_clone);
                         break;
                     }
@@ -280,7 +278,7 @@ impl SseRoutes {
     /// to prevent unauthorized monitoring of agent-to-agent task progress.
     async fn handle_a2a_task_sse(
         Path(task_id): Path<String>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         State((manager, resources)): State<(Arc<SseManager>, Arc<ServerResources>)>,
     ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
         info!("New A2A task SSE connection for task: {}", task_id);
@@ -296,7 +294,7 @@ impl SseRoutes {
                 )
             })?;
 
-        let token = crate::utils::auth::extract_bearer_token_owned(auth_header).map_err(|_| {
+        let token = extract_token(auth_header).map_err(|_| {
             warn!(task_id = %task_id, "Invalid Authorization header format for A2A SSE");
             AppError::auth_invalid("Invalid Authorization header format")
         })?;
@@ -370,14 +368,14 @@ impl SseRoutes {
                                 .event("task_update")
                         );
                     }
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                    Err(broadcast::error::RecvError::Lagged(skipped)) => {
                         warn!(
                             "SSE buffer overflow for task {}: {} messages dropped",
                             task_id_clone, skipped
                         );
                         // Continue operation
                     }
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    Err(broadcast::error::RecvError::Closed) => {
                         info!("SSE channel closed for task: {}", task_id_clone);
                         break;
                     }

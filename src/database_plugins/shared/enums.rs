@@ -7,6 +7,7 @@
 use crate::a2a::protocol::TaskStatus;
 use crate::constants::tiers;
 use crate::models::{UserStatus, UserTier};
+use crate::permissions::UserRole;
 
 /// Convert `UserTier` enum to database string representation
 ///
@@ -155,7 +156,7 @@ pub fn str_to_task_status(s: &str) -> TaskStatus {
 /// ```
 #[must_use]
 #[inline]
-pub const fn user_role_to_str(role: &crate::permissions::UserRole) -> &'static str {
+pub const fn user_role_to_str(role: &UserRole) -> &'static str {
     role.as_str()
 }
 
@@ -173,6 +174,6 @@ pub const fn user_role_to_str(role: &crate::permissions::UserRole) -> &'static s
 /// assert_eq!(str_to_user_role("unknown"), UserRole::User); // Default
 /// ```
 #[must_use]
-pub fn str_to_user_role(s: &str) -> crate::permissions::UserRole {
-    crate::permissions::UserRole::from_str_lossy(s)
+pub fn str_to_user_role(s: &str) -> UserRole {
+    UserRole::from_str_lossy(s)
 }

@@ -30,10 +30,7 @@ fn test_rate_limit_error_creation() {
     assert_eq!(error.http_status(), 429);
 
     // Check basic error properties
-    assert_eq!(
-        error.code,
-        pierre_mcp_server::errors::ErrorCode::RateLimitExceeded
-    );
+    assert_eq!(error.code, ErrorCode::RateLimitExceeded);
     assert!(error.message.contains("1000"));
     assert!(error.message.contains("professional"));
 }

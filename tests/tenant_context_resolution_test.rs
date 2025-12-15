@@ -8,6 +8,8 @@
 #![allow(missing_docs)]
 
 use chrono::Utc;
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
 use pierre_mcp_server::{
     database_plugins::{factory::Database, DatabaseProvider},
     models::Tenant,
@@ -24,13 +26,9 @@ async fn test_tenant_operations_work_through_factory() {
     let encryption_key = vec![0u8; 32];
 
     #[cfg(feature = "postgresql")]
-    let database = Database::new(
-        database_url,
-        encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
-    )
-    .await
-    .unwrap();
+    let database = Database::new(database_url, encryption_key, &PostgresPoolConfig::default())
+        .await
+        .unwrap();
 
     #[cfg(not(feature = "postgresql"))]
     let database = Database::new(database_url, encryption_key).await.unwrap();

@@ -9,6 +9,9 @@
 //! This module provides a universal interface for executing tools
 //! across different protocols (MCP, A2A) supported by Pierre.
 
+use crate::database::errors::DatabaseError;
+use std::error::Error;
+
 /// Protocol conversion utilities
 pub mod converter;
 /// Universal protocol abstractions
@@ -99,7 +102,7 @@ pub enum ProtocolError {
     Database {
         /// Underlying database error
         #[from]
-        source: crate::database::errors::DatabaseError,
+        source: DatabaseError,
     },
 
     /// Plugin not found
@@ -191,7 +194,7 @@ pub enum ProtocolError {
         tool_id: String,
         /// Underlying error
         #[source]
-        source: Box<dyn std::error::Error + Send + Sync>,
+        source: Box<dyn Error + Send + Sync>,
     },
 
     /// Tool execution failed (simple)

@@ -16,11 +16,20 @@ use chrono::Utc;
 use pierre_mcp_server::{
     api_keys::{ApiKeyManager, ApiKeyTier, CreateApiKeyRequest},
     auth::AuthManager,
+    config::environment::{
+        AppBehaviorConfig, AuthConfig, BackupConfig, DatabaseConfig, DatabaseUrl, Environment,
+        ExternalServicesConfig, FitbitApiConfig, GeocodingServiceConfig, HttpClientConfig,
+        LogLevel, LoggingConfig, OAuth2ServerConfig, OAuthConfig, OAuthProviderConfig,
+        PostgresPoolConfig, ProtocolConfig, RouteTimeoutConfig, SecurityConfig,
+        SecurityHeadersConfig, ServerConfig, SseConfig, StravaApiConfig, TlsConfig,
+        WeatherServiceConfig,
+    },
     database_plugins::{factory::Database, DatabaseProvider},
-    mcp::multitenant::MultiTenantMcpServer,
-    models::User,
+    mcp::{multitenant::MultiTenantMcpServer, resources::ServerResources},
+    models::{User, UserStatus, UserTier},
+    permissions::UserRole,
 };
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 use uuid::Uuid;
 
 mod common;
@@ -28,39 +37,38 @@ mod common;
 const TEST_JWT_SECRET: &str = "test_jwt_secret_for_tenant_isolation_tests";
 
 /// Create a test `ServerConfig` for tenant data isolation tests
-fn create_test_server_config(
-) -> std::sync::Arc<pierre_mcp_server::config::environment::ServerConfig> {
-    std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
+fn create_test_server_config() -> Arc<ServerConfig> {
+    Arc::new(ServerConfig {
         http_port: 4000,
         oauth_callback_port: 35535,
-        log_level: pierre_mcp_server::config::environment::LogLevel::Info,
-        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
-        http_client: pierre_mcp_server::config::environment::HttpClientConfig::default(),
-        database: pierre_mcp_server::config::environment::DatabaseConfig {
-            url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
+        log_level: LogLevel::Info,
+        logging: LoggingConfig::default(),
+        http_client: HttpClientConfig::default(),
+        database: DatabaseConfig {
+            url: DatabaseUrl::Memory,
             auto_migrate: true,
-            backup: pierre_mcp_server::config::environment::BackupConfig {
+            backup: BackupConfig {
                 enabled: false,
                 interval_seconds: 3600,
                 retention_count: 7,
-                directory: std::path::PathBuf::from("test_backups"),
+                directory: PathBuf::from("test_backups"),
             },
-            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            postgres_pool: PostgresPoolConfig::default(),
         },
-        auth: pierre_mcp_server::config::environment::AuthConfig {
+        auth: AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
-            ..pierre_mcp_server::config::environment::AuthConfig::default()
+            ..AuthConfig::default()
         },
-        oauth: pierre_mcp_server::config::environment::OAuthConfig {
-            strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
+        oauth: OAuthConfig {
+            strava: OAuthProviderConfig {
                 client_id: Some("test_client_id".to_owned()),
                 client_secret: Some("test_client_secret".to_owned()),
                 redirect_uri: Some("http://localhost:3000/oauth/callback/strava".to_owned()),
                 scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
                 enabled: true,
             },
-            fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig {
+            fitbit: OAuthProviderConfig {
                 client_id: Some("test_fitbit_id".to_owned()),
                 client_secret: Some("test_fitbit_secret".to_owned()),
                 redirect_uri: Some("http://localhost:3000/oauth/callback/fitbit".to_owned()),
@@ -68,59 +76,59 @@ fn create_test_server_config(
                 enabled: true,
             },
             // Use defaults for providers not needed in this test
-            garmin: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-            whoop: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-            terra: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+            garmin: OAuthProviderConfig::default(),
+            whoop: OAuthProviderConfig::default(),
+            terra: OAuthProviderConfig::default(),
         },
-        security: pierre_mcp_server::config::environment::SecurityConfig {
+        security: SecurityConfig {
             cors_origins: vec!["*".to_owned()],
-            tls: pierre_mcp_server::config::environment::TlsConfig {
+            tls: TlsConfig {
                 enabled: false,
                 cert_path: None,
                 key_path: None,
             },
-            headers: pierre_mcp_server::config::environment::SecurityHeadersConfig {
-                environment: pierre_mcp_server::config::environment::Environment::Development,
+            headers: SecurityHeadersConfig {
+                environment: Environment::Development,
             },
         },
-        external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
-            weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
+        external_services: ExternalServicesConfig {
+            weather: WeatherServiceConfig {
                 api_key: None,
                 base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                 enabled: false,
             },
-            strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
+            strava_api: StravaApiConfig {
                 base_url: "https://www.strava.com/api/v3".to_owned(),
                 auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
                 token_url: "https://www.strava.com/oauth/token".to_owned(),
                 deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
-            fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
+            fitbit_api: FitbitApiConfig {
                 base_url: "https://api.fitbit.com".to_owned(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
                 token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
                 revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
-            geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
+            geocoding: GeocodingServiceConfig {
                 base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: true,
             },
             ..Default::default()
         },
-        app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
+        app_behavior: AppBehaviorConfig {
             max_activities_fetch: 100,
             default_activities_limit: 20,
             ci_mode: true,
             auto_approve_users: false,
-            protocol: pierre_mcp_server::config::environment::ProtocolConfig {
+            protocol: ProtocolConfig {
                 mcp_version: "2024-11-05".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
                 server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
-        sse: pierre_mcp_server::config::environment::SseConfig::default(),
-        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
-        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        sse: SseConfig::default(),
+        oauth2_server: OAuth2ServerConfig::default(),
+        route_timeouts: RouteTimeoutConfig::default(),
         ..Default::default()
     })
 }
@@ -130,12 +138,8 @@ async fn setup_test_database() -> Result<Database> {
     let encryption_key = vec![0u8; 32];
 
     #[cfg(feature = "postgresql")]
-    let database = Database::new(
-        database_url,
-        encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
-    )
-    .await?;
+    let database =
+        Database::new(database_url, encryption_key, &PostgresPoolConfig::default()).await?;
 
     #[cfg(not(feature = "postgresql"))]
     let database = Database::new(database_url, encryption_key).await?;
@@ -144,11 +148,7 @@ async fn setup_test_database() -> Result<Database> {
     Ok(database)
 }
 
-async fn create_test_tenant_user(
-    database: &Database,
-    email: &str,
-    tier: pierre_mcp_server::models::UserTier,
-) -> Result<Uuid> {
+async fn create_test_tenant_user(database: &Database, email: &str, tier: UserTier) -> Result<Uuid> {
     let user = User {
         id: Uuid::new_v4(),
         email: email.to_owned(),
@@ -159,9 +159,9 @@ async fn create_test_tenant_user(
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_owned()),
         is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
+        user_status: UserStatus::Active,
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         created_at: Utc::now(),
@@ -178,18 +178,10 @@ async fn test_cross_tenant_api_key_access_blocked() -> Result<()> {
     let database = setup_test_database().await?;
 
     // Create two separate users (tenants)
-    let user1_id = create_test_tenant_user(
-        &database,
-        "user1@example.com",
-        pierre_mcp_server::models::UserTier::Professional,
-    )
-    .await?;
-    let user2_id = create_test_tenant_user(
-        &database,
-        "user2@example.com",
-        pierre_mcp_server::models::UserTier::Professional,
-    )
-    .await?;
+    let user1_id =
+        create_test_tenant_user(&database, "user1@example.com", UserTier::Professional).await?;
+    let user2_id =
+        create_test_tenant_user(&database, "user2@example.com", UserTier::Professional).await?;
 
     let api_key_manager = ApiKeyManager::new();
 
@@ -245,18 +237,10 @@ async fn test_oauth_token_isolation() -> Result<()> {
     let database = setup_test_database().await?;
 
     // Create two users
-    let user1_id = create_test_tenant_user(
-        &database,
-        "oauth1@example.com",
-        pierre_mcp_server::models::UserTier::Starter,
-    )
-    .await?;
-    let user2_id = create_test_tenant_user(
-        &database,
-        "oauth2@example.com",
-        pierre_mcp_server::models::UserTier::Starter,
-    )
-    .await?;
+    let user1_id =
+        create_test_tenant_user(&database, "oauth1@example.com", UserTier::Starter).await?;
+    let user2_id =
+        create_test_tenant_user(&database, "oauth2@example.com", UserTier::Starter).await?;
 
     // Verify users are isolated - each user can only access their own data
     let user1 = database.get_user(user1_id).await?;
@@ -285,18 +269,10 @@ async fn test_admin_cross_tenant_access_prevention() -> Result<()> {
     let database = setup_test_database().await?;
 
     // Create users in different tenants
-    let user1_id = create_test_tenant_user(
-        &database,
-        "tenant1@example.com",
-        pierre_mcp_server::models::UserTier::Enterprise,
-    )
-    .await?;
-    let user2_id = create_test_tenant_user(
-        &database,
-        "tenant2@example.com",
-        pierre_mcp_server::models::UserTier::Enterprise,
-    )
-    .await?;
+    let user1_id =
+        create_test_tenant_user(&database, "tenant1@example.com", UserTier::Enterprise).await?;
+    let user2_id =
+        create_test_tenant_user(&database, "tenant2@example.com", UserTier::Enterprise).await?;
 
     let api_key_manager = ApiKeyManager::new();
 
@@ -352,7 +328,7 @@ async fn test_concurrent_tenant_isolation() -> Result<()> {
         let user_id = create_test_tenant_user(
             &database,
             &format!("concurrent_user{i}@example.com"),
-            pierre_mcp_server::models::UserTier::Professional,
+            UserTier::Professional,
         )
         .await?;
         user_ids.push(user_id);
@@ -418,23 +394,13 @@ async fn test_database_encryption_isolation() -> Result<()> {
     let db_url2 = "sqlite::memory:";
 
     #[cfg(feature = "postgresql")]
-    let database1 = Database::new(
-        db_url1,
-        key1,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
-    )
-    .await?;
+    let database1 = Database::new(db_url1, key1, &PostgresPoolConfig::default()).await?;
 
     #[cfg(not(feature = "postgresql"))]
     let database1 = Database::new(db_url1, key1).await?;
 
     #[cfg(feature = "postgresql")]
-    let database2 = Database::new(
-        db_url2,
-        key2,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
-    )
-    .await?;
+    let database2 = Database::new(db_url2, key2, &PostgresPoolConfig::default()).await?;
 
     #[cfg(not(feature = "postgresql"))]
     let database2 = Database::new(db_url2, key2).await?;
@@ -443,18 +409,10 @@ async fn test_database_encryption_isolation() -> Result<()> {
     database2.migrate().await?;
 
     // Create users in separate encrypted databases
-    let user1_id = create_test_tenant_user(
-        &database1,
-        "encrypted1@example.com",
-        pierre_mcp_server::models::UserTier::Starter,
-    )
-    .await?;
-    let user2_id = create_test_tenant_user(
-        &database2,
-        "encrypted2@example.com",
-        pierre_mcp_server::models::UserTier::Starter,
-    )
-    .await?;
+    let user1_id =
+        create_test_tenant_user(&database1, "encrypted1@example.com", UserTier::Starter).await?;
+    let user2_id =
+        create_test_tenant_user(&database2, "encrypted2@example.com", UserTier::Starter).await?;
 
     // Verify users exist in their respective databases
     let user1_from_db1 = database1.get_user(user1_id).await?;
@@ -495,7 +453,7 @@ async fn test_mcp_server_tenant_isolation() -> Result<()> {
 
     // Create test server
     let cache = common::create_test_cache().await.unwrap();
-    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let resources = Arc::new(ServerResources::new(
         database.clone(),
         auth_manager.clone(),
         TEST_JWT_SECRET,
@@ -507,18 +465,10 @@ async fn test_mcp_server_tenant_isolation() -> Result<()> {
     let _server = MultiTenantMcpServer::new(resources);
 
     // Create two users
-    let user1_id = create_test_tenant_user(
-        &database,
-        "mcp1@example.com",
-        pierre_mcp_server::models::UserTier::Professional,
-    )
-    .await?;
-    let user2_id = create_test_tenant_user(
-        &database,
-        "mcp2@example.com",
-        pierre_mcp_server::models::UserTier::Professional,
-    )
-    .await?;
+    let user1_id =
+        create_test_tenant_user(&database, "mcp1@example.com", UserTier::Professional).await?;
+    let user2_id =
+        create_test_tenant_user(&database, "mcp2@example.com", UserTier::Professional).await?;
 
     // Get users for token generation
     let user1 = database.get_user(user1_id).await?.unwrap();

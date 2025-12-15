@@ -6,10 +6,14 @@
 
 use super::multitenant::{McpError, McpRequest, McpResponse, MultiTenantMcpServer};
 use super::resources::ServerResources;
+use super::tenant_isolation::extract_tenant_context_internal;
 use crate::auth::AuthResult;
+use crate::config::fitness::FitnessConfig;
 use crate::constants::{
     errors::{
-        ERROR_INTERNAL_ERROR, ERROR_INVALID_PARAMS, ERROR_METHOD_NOT_FOUND, ERROR_UNAUTHORIZED,
+        ERROR_INTERNAL_ERROR, ERROR_INVALID_PARAMS, ERROR_METHOD_NOT_FOUND, ERROR_TOKEN_EXPIRED,
+        ERROR_TOKEN_INVALID, ERROR_TOKEN_MALFORMED, ERROR_UNAUTHORIZED, MSG_TOKEN_EXPIRED,
+        MSG_TOKEN_INVALID, MSG_TOKEN_MALFORMED,
     },
     protocol::JSONRPC_VERSION,
     tools::{
@@ -17,6 +21,8 @@ use crate::constants::{
         GET_FITNESS_CONFIG, LIST_FITNESS_CONFIGS, SET_FITNESS_CONFIG,
     },
 };
+use crate::database::oauth_notifications::OAuthNotification;
+use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::AppError;
 use crate::tenant::TenantContext;
@@ -24,6 +30,8 @@ use crate::types::json_schemas;
 use serde_json::{json, Value};
 use std::fmt::Write;
 use std::sync::Arc;
+use std::time::Instant;
+use tracing::field::Empty;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
@@ -64,11 +72,11 @@ impl ToolHandlers {
         fields(
             method = %request.method,
             request_id = ?request.id,
-            tool_name = tracing::field::Empty,
-            user_id = tracing::field::Empty,
-            tenant_id = tracing::field::Empty,
-            success = tracing::field::Empty,
-            duration_ms = tracing::field::Empty,
+            tool_name = Empty,
+            user_id = Empty,
+            tenant_id = Empty,
+            success = Empty,
+            duration_ms = Empty,
         )
     )]
     pub async fn handle_tools_call_with_resources(
@@ -129,7 +137,7 @@ impl ToolHandlers {
                 }
 
                 // Extract tenant context from request and auth result
-                let tenant_context = crate::mcp::tenant_isolation::extract_tenant_context_internal(
+                let tenant_context = extract_tenant_context_internal(
                     &resources.database,
                     Some(auth_result.user_id),
                     None,
@@ -161,11 +169,11 @@ impl ToolHandlers {
     #[tracing::instrument(
         skip(request, auth_result, tenant_context, resources),
         fields(
-            tool_name = tracing::field::Empty,
+            tool_name = Empty,
             user_id = %auth_result.user_id,
             tenant_id = %auth_result.user_id, // Use user_id as tenant_id for now
-            success = tracing::field::Empty,
-            duration_ms = tracing::field::Empty,
+            success = Empty,
+            duration_ms = Empty,
         )
     )]
     async fn handle_tool_execution_direct(
@@ -213,7 +221,7 @@ impl ToolHandlers {
         // Record tool name in span
         tracing::Span::current().record("tool_name", tool_name.as_str());
 
-        let start_time = std::time::Instant::now();
+        let start_time = Instant::now();
 
         info!(
             "Executing tool call: {} for user: {} using {} authentication",
@@ -282,20 +290,11 @@ impl ToolHandlers {
         // Determine specific error code based on error message
         let error_message = e.to_string();
         let (error_code, error_msg) = if error_message.contains("JWT token expired") {
-            (
-                crate::constants::errors::ERROR_TOKEN_EXPIRED,
-                crate::constants::errors::MSG_TOKEN_EXPIRED,
-            )
+            (ERROR_TOKEN_EXPIRED, MSG_TOKEN_EXPIRED)
         } else if error_message.contains("JWT token signature is invalid") {
-            (
-                crate::constants::errors::ERROR_TOKEN_INVALID,
-                crate::constants::errors::MSG_TOKEN_INVALID,
-            )
+            (ERROR_TOKEN_INVALID, MSG_TOKEN_INVALID)
         } else if error_message.contains("JWT token is malformed") {
-            (
-                crate::constants::errors::ERROR_TOKEN_MALFORMED,
-                crate::constants::errors::MSG_TOKEN_MALFORMED,
-            )
+            (ERROR_TOKEN_MALFORMED, MSG_TOKEN_MALFORMED)
         } else {
             (ERROR_UNAUTHORIZED, "Authentication required")
         };
@@ -470,8 +469,8 @@ impl ToolHandlers {
         tool_name: &str,
         args: serde_json::Value,
         request_id: serde_json::Value,
-        user_id: &uuid::Uuid,
-        resources: Arc<crate::mcp::resources::ServerResources>,
+        user_id: &Uuid,
+        resources: Arc<ServerResources>,
     ) -> McpResponse {
         // Get user's tenant_id for tenant isolation
         let tenant_id = match resources.database.get_user(*user_id).await {
@@ -575,7 +574,7 @@ impl ToolHandlers {
         request_id: serde_json::Value,
         tenant_id: &str,
         user_id: &str,
-        database: &crate::database_plugins::factory::Database,
+        database: &Database,
     ) -> McpResponse {
         let params = serde_json::from_value::<json_schemas::GetFitnessConfigParams>(args)
             .unwrap_or_default();
@@ -656,7 +655,7 @@ impl ToolHandlers {
         request_id: serde_json::Value,
         tenant_id: &str,
         user_id: &str,
-        database: &crate::database_plugins::factory::Database,
+        database: &Database,
     ) -> McpResponse {
         let params = match serde_json::from_value::<json_schemas::SetFitnessConfigParams>(args) {
             Ok(p) => p,
@@ -676,9 +675,7 @@ impl ToolHandlers {
 
         let config_name = &params.configuration_name;
 
-        let configuration = match serde_json::from_value::<crate::config::fitness::FitnessConfig>(
-            params.configuration,
-        ) {
+        let configuration = match serde_json::from_value::<FitnessConfig>(params.configuration) {
             Ok(fc) => fc,
             Err(e) => {
                 return McpResponse {
@@ -728,7 +725,7 @@ impl ToolHandlers {
         request_id: serde_json::Value,
         tenant_id: &str,
         user_id: &str,
-        database: &crate::database_plugins::factory::Database,
+        database: &Database,
     ) -> McpResponse {
         let user_configs = database
             .list_user_fitness_configurations(tenant_id, user_id)
@@ -775,7 +772,7 @@ impl ToolHandlers {
         request_id: serde_json::Value,
         tenant_id: &str,
         user_id: &str,
-        database: &crate::database_plugins::factory::Database,
+        database: &Database,
     ) -> McpResponse {
         let params = match serde_json::from_value::<json_schemas::DeleteFitnessConfigParams>(args) {
             Ok(p) => p,
@@ -835,9 +832,7 @@ impl ToolHandlers {
     }
 
     /// Build notification text from a list of OAuth notifications
-    fn build_notification_text(
-        notifications: &[crate::database::oauth_notifications::OAuthNotification],
-    ) -> String {
+    fn build_notification_text(notifications: &[OAuthNotification]) -> String {
         let mut notification_text = String::from("\n\nOAuth Connection Updates:\n");
         for notification in notifications {
             let status_indicator = if notification.success {
@@ -887,8 +882,8 @@ impl ToolHandlers {
 
     /// Mark a list of notifications as read in the database
     async fn mark_notifications_read(
-        database: &crate::database_plugins::factory::Database,
-        notifications: &[crate::database::oauth_notifications::OAuthNotification],
+        database: &Database,
+        notifications: &[OAuthNotification],
         user_id: Uuid,
     ) {
         for notification in notifications {
@@ -934,10 +929,10 @@ impl ToolHandlers {
 
     /// Fetch unread notifications if any exist
     async fn fetch_unread_notifications(
-        database: &crate::database_plugins::factory::Database,
+        database: &Database,
         user_id: Uuid,
         tool_name: &str,
-    ) -> Option<Vec<crate::database::oauth_notifications::OAuthNotification>> {
+    ) -> Option<Vec<OAuthNotification>> {
         match database.get_unread_oauth_notifications(user_id).await {
             Ok(notifications) if !notifications.is_empty() => {
                 debug!(
@@ -970,7 +965,7 @@ impl ToolHandlers {
         mut response: McpResponse,
         user_id: Uuid,
         tool_name: &str,
-        database: &crate::database_plugins::factory::Database,
+        database: &Database,
     ) -> McpResponse {
         debug!(
             "NOTIFICATION_CHECK: Starting notification check for user {} with tool {}",

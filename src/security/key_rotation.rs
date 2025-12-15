@@ -12,12 +12,18 @@
 //! - Emergency key rotation procedures
 //! - Key lifecycle management
 
+use crate::constants::time;
+use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::AppResult;
-use chrono::Timelike;
+use chrono::{DateTime, Duration as ChronoDuration, Timelike, Utc};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
-use tokio::time::Duration;
+use tokio::{
+    runtime,
+    sync::RwLock,
+    time::{interval, Duration},
+};
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
@@ -54,9 +60,9 @@ pub struct KeyVersion {
     /// Version number (incremental)
     pub version: u32,
     /// When this key version was created
-    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub created_at: DateTime<Utc>,
     /// When this key version expires
-    pub expires_at: chrono::DateTime<chrono::Utc>,
+    pub expires_at: DateTime<Utc>,
     /// Whether this version is currently active
     pub is_active: bool,
     /// Tenant ID (None for global keys)
@@ -73,22 +79,22 @@ pub enum RotationStatus {
     /// Rotation scheduled
     Scheduled {
         /// When the rotation is scheduled to occur
-        scheduled_at: chrono::DateTime<chrono::Utc>,
+        scheduled_at: DateTime<Utc>,
     },
     /// Rotation in progress
     InProgress {
         /// When the rotation started
-        started_at: chrono::DateTime<chrono::Utc>,
+        started_at: DateTime<Utc>,
     },
     /// Rotation completed
     Completed {
         /// When the rotation completed
-        completed_at: chrono::DateTime<chrono::Utc>,
+        completed_at: DateTime<Utc>,
     },
     /// Rotation failed
     Failed {
         /// When the rotation failed
-        failed_at: chrono::DateTime<chrono::Utc>,
+        failed_at: DateTime<Utc>,
         /// Error message describing the failure
         error: String,
     },
@@ -99,15 +105,15 @@ pub struct KeyRotationManager {
     /// Encryption manager for performing key operations
     encryption_manager: Arc<super::TenantEncryptionManager>,
     /// Database for storing key metadata
-    database: Arc<crate::database_plugins::factory::Database>,
+    database: Arc<Database>,
     /// Audit logger
     auditor: Arc<super::audit::SecurityAuditor>,
     /// Rotation configuration
     config: KeyRotationConfig,
     /// Key version tracking
-    key_versions: tokio::sync::RwLock<HashMap<Option<Uuid>, Vec<KeyVersion>>>,
+    key_versions: RwLock<HashMap<Option<Uuid>, Vec<KeyVersion>>>,
     /// Rotation status tracking
-    rotation_status: tokio::sync::RwLock<HashMap<Option<Uuid>, RotationStatus>>,
+    rotation_status: RwLock<HashMap<Option<Uuid>, RotationStatus>>,
 }
 
 impl KeyRotationManager {
@@ -115,7 +121,7 @@ impl KeyRotationManager {
     #[must_use]
     pub fn new(
         encryption_manager: Arc<super::TenantEncryptionManager>,
-        database: Arc<crate::database_plugins::factory::Database>,
+        database: Arc<Database>,
         auditor: Arc<super::audit::SecurityAuditor>,
         config: KeyRotationConfig,
     ) -> Self {
@@ -124,8 +130,8 @@ impl KeyRotationManager {
             database,
             auditor,
             config,
-            key_versions: tokio::sync::RwLock::new(HashMap::new()),
-            rotation_status: tokio::sync::RwLock::new(HashMap::new()),
+            key_versions: RwLock::new(HashMap::new()),
+            rotation_status: RwLock::new(HashMap::new()),
         }
     }
 
@@ -147,14 +153,12 @@ impl KeyRotationManager {
 
         let manager = Arc::clone(&self);
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_secs(
-                crate::constants::time::HOUR_SECONDS as u64,
-            )); // Check every hour
+            let mut interval_timer = interval(Duration::from_secs(time::HOUR_SECONDS as u64)); // Check every hour
 
             loop {
-                interval.tick().await;
+                interval_timer.tick().await;
 
-                let now = chrono::Utc::now();
+                let now = Utc::now();
                 if u8::try_from(now.hour()).unwrap_or(0) == manager.config.rotation_hour {
                     if let Err(e) = manager.check_and_rotate_keys().await {
                         error!("Key rotation check failed: {}", e);
@@ -194,7 +198,7 @@ impl KeyRotationManager {
         let current_version = self.get_current_key_version(tenant_id).await?;
 
         if let Some(version) = current_version {
-            let age_days = (chrono::Utc::now() - version.created_at).num_days();
+            let age_days = (Utc::now() - version.created_at).num_days();
 
             if age_days >= i64::from(self.config.rotation_interval_days) {
                 info!(
@@ -217,7 +221,7 @@ impl KeyRotationManager {
 
     /// Schedule a key rotation
     async fn schedule_key_rotation(&self, tenant_id: Option<Uuid>) -> AppResult<()> {
-        let scheduled_at = chrono::Utc::now() + chrono::Duration::hours(1); // Schedule for 1 hour from now
+        let scheduled_at = Utc::now() + ChronoDuration::hours(1); // Schedule for 1 hour from now
 
         {
             let mut status = self.rotation_status.write().await;
@@ -255,7 +259,7 @@ impl KeyRotationManager {
         status.insert(
             tenant_id,
             RotationStatus::InProgress {
-                started_at: chrono::Utc::now(),
+                started_at: Utc::now(),
             },
         );
     }
@@ -267,7 +271,7 @@ impl KeyRotationManager {
                 self.rotation_status.write().await.insert(
                     tenant_id,
                     RotationStatus::Completed {
-                        completed_at: chrono::Utc::now(),
+                        completed_at: Utc::now(),
                     },
                 );
                 info!(
@@ -279,7 +283,7 @@ impl KeyRotationManager {
                 self.rotation_status.write().await.insert(
                     tenant_id,
                     RotationStatus::Failed {
-                        failed_at: chrono::Utc::now(),
+                        failed_at: Utc::now(),
                         error: e.to_string(),
                     },
                 );
@@ -340,9 +344,8 @@ impl KeyRotationManager {
 
         let new_version = KeyVersion {
             version: next_version,
-            created_at: chrono::Utc::now(),
-            expires_at: chrono::Utc::now()
-                + chrono::Duration::days(i64::from(self.config.max_key_age_days)),
+            created_at: Utc::now(),
+            expires_at: Utc::now() + ChronoDuration::days(i64::from(self.config.max_key_age_days)),
             is_active: false, // Will be activated after rotation
             tenant_id,
             algorithm: "AES-256-GCM".to_owned(),
@@ -415,9 +418,8 @@ impl KeyRotationManager {
     async fn initialize_key_version(&self, tenant_id: Option<Uuid>) -> AppResult<()> {
         let initial_version = KeyVersion {
             version: 1,
-            created_at: chrono::Utc::now(),
-            expires_at: chrono::Utc::now()
-                + chrono::Duration::days(i64::from(self.config.max_key_age_days)),
+            created_at: Utc::now(),
+            expires_at: Utc::now() + ChronoDuration::days(i64::from(self.config.max_key_age_days)),
             is_active: true,
             tenant_id,
             algorithm: "AES-256-GCM".to_owned(),
@@ -462,7 +464,7 @@ impl KeyRotationManager {
     /// Store key version in database
     fn store_key_version(&self, version: &KeyVersion) -> AppResult<()> {
         // Use async runtime to call the database method
-        let rt = tokio::runtime::Handle::current();
+        let rt = runtime::Handle::current();
         rt.block_on(self.database.store_key_version(version))
     }
 

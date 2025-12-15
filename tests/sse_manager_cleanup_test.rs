@@ -11,6 +11,7 @@ mod common;
 
 use common::create_test_server_resources;
 use pierre_mcp_server::sse::manager::SseManager;
+use tokio::time::{sleep, Duration};
 use uuid::Uuid;
 
 #[allow(clippy::expect_used)]
@@ -180,14 +181,14 @@ async fn test_cleanup_inactive_connections() {
     assert_eq!(manager.active_protocol_streams().await, 1);
 
     // Wait a bit
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    sleep(Duration::from_millis(100)).await;
 
     // Cleanup connections inactive for more than 50ms (should not remove our connection)
     manager.cleanup_inactive_connections(0).await;
 
     // Wait for cleanup with very short timeout (0 seconds = immediate)
     // This should remove the connection since it's now inactive
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    sleep(Duration::from_millis(100)).await;
     manager.cleanup_inactive_connections(0).await;
 
     // Connection should be cleaned up

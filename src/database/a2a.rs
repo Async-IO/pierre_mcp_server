@@ -4,15 +4,17 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use std::fmt::Write;
+
 use super::Database;
 use crate::a2a::{
     auth::A2AClient,
     client::A2ASession,
     protocol::{A2ATask, TaskStatus},
 };
-use crate::database_plugins::shared;
+use crate::database_plugins::shared::{enums, mappers};
 use crate::errors::{AppError, AppResult};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::Row;
@@ -179,7 +181,7 @@ impl Database {
         )
         .bind(&client.id)
         .bind(api_key_id)
-        .bind(chrono::Utc::now())
+        .bind(Utc::now())
         .execute(&self.pool)
         .await
         .map_err(|e| {
@@ -243,7 +245,7 @@ impl Database {
 
             Ok(Some(A2AClient {
                 id: row.get("id"),
-                user_id: uuid::Uuid::parse_str(&row.get::<String, _>("user_id"))?,
+                user_id: Uuid::parse_str(&row.get::<String, _>("user_id"))?,
                 name: row.get("name"),
                 description: row.get("description"),
                 public_key: row.get("public_key"),
@@ -316,7 +318,7 @@ impl Database {
 
             Ok(Some(A2AClient {
                 id: row.get("id"),
-                user_id: uuid::Uuid::parse_str(&row.get::<String, _>("user_id"))?,
+                user_id: Uuid::parse_str(&row.get::<String, _>("user_id"))?,
                 name: row.get("name"),
                 description: row.get("description"),
                 public_key: row.get("public_key"),
@@ -403,7 +405,7 @@ impl Database {
 
             clients.push(A2AClient {
                 id: row.get("id"),
-                user_id: uuid::Uuid::parse_str(&row.get::<String, _>("user_id"))?,
+                user_id: Uuid::parse_str(&row.get::<String, _>("user_id"))?,
                 name: row.get("name"),
                 description: row.get("description"),
                 public_key: row.get("public_key"),
@@ -429,7 +431,7 @@ impl Database {
     /// Returns an error if database operations fail or client not found
     pub async fn deactivate_a2a_client_impl(&self, client_id: &str) -> AppResult<()> {
         let query = "UPDATE a2a_clients SET is_active = 0, updated_at = ? WHERE id = ?";
-        let now = chrono::Utc::now();
+        let now = Utc::now();
 
         let result = sqlx::query(query)
             .bind(now)
@@ -558,7 +560,7 @@ impl Database {
 
             Ok(Some(A2AClient {
                 id: row.get("id"),
-                user_id: uuid::Uuid::parse_str(&row.get::<String, _>("user_id"))?,
+                user_id: Uuid::parse_str(&row.get::<String, _>("user_id"))?,
                 name: row.get("name"),
                 description: row.get("description"),
                 public_key: row.get("public_key"),
@@ -591,7 +593,7 @@ impl Database {
     ) -> AppResult<String> {
         let session_token = format!("sess_{}", Uuid::new_v4());
         let now = Utc::now();
-        let expires_at = now + chrono::Duration::hours(expires_in_hours);
+        let expires_at = now + Duration::hours(expires_in_hours);
 
         sqlx::query(
             r"
@@ -760,7 +762,7 @@ impl Database {
         .bind(task_type)
         .bind(serde_json::to_string(input_data)?)
         .bind(None::<String>) // output_data
-        .bind(shared::enums::task_status_to_str(&TaskStatus::Pending))
+        .bind(enums::task_status_to_str(&TaskStatus::Pending))
         .bind(None::<String>) // error_message
         .bind(now)
         .bind(now)
@@ -783,7 +785,6 @@ impl Database {
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> AppResult<Vec<A2ATask>> {
-        use std::fmt::Write;
         let mut query = String::from(
             r"
             SELECT id, client_id, task_type, input_data, output_data,
@@ -851,7 +852,7 @@ impl Database {
 
         let tasks: Vec<A2ATask> = rows
             .iter()
-            .map(shared::mappers::parse_a2a_task_from_row)
+            .map(mappers::parse_a2a_task_from_row)
             .collect::<AppResult<Vec<_>>>()?;
 
         Ok(tasks)
@@ -876,7 +877,7 @@ impl Database {
         .map_err(|e| AppError::database(format!("Failed to query A2A task: {e}")))?;
 
         if let Some(row) = row {
-            let task = shared::mappers::parse_a2a_task_from_row(&row)?;
+            let task = mappers::parse_a2a_task_from_row(&row)?;
             Ok(Some(task))
         } else {
             Ok(None)
@@ -971,7 +972,7 @@ impl Database {
             .ok_or_else(|| AppError::not_found(format!("A2A client: {client_id}")))?;
 
         let window_start =
-            Utc::now() - chrono::Duration::seconds(i64::from(client.rate_limit_window_seconds));
+            Utc::now() - Duration::seconds(i64::from(client.rate_limit_window_seconds));
 
         let count: i32 = sqlx::query_scalar(
             r"
@@ -1050,7 +1051,7 @@ impl Database {
         client_id: &str,
         days: u32,
     ) -> AppResult<Vec<(DateTime<Utc>, u32, u32)>> {
-        let start_date = Utc::now() - chrono::Duration::days(i64::from(days));
+        let start_date = Utc::now() - Duration::days(i64::from(days));
 
         let rows = sqlx::query(
             r"
@@ -1077,7 +1078,7 @@ impl Database {
             let error_count: i32 = row.get("error_count");
 
             // Parse date string (YYYY-MM-DD format from SQLite date())
-            let date = chrono::NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")?
+            let date = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")?
                 .and_hms_opt(0, 0, 0)
                 .ok_or_else(|| {
                     AppError::invalid_input(format!(
@@ -1192,7 +1193,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn record_a2a_usage(&self, usage: &crate::database::A2AUsage) -> AppResult<()> {
+    pub async fn record_a2a_usage(&self, usage: &A2AUsage) -> AppResult<()> {
         self.record_a2a_usage_impl(usage).await
     }
 

@@ -8,10 +8,11 @@
 #![allow(missing_docs)]
 
 use pierre_mcp_server::a2a::protocol::A2ARequest;
-use pierre_mcp_server::mcp::schema::ToolCall;
+use pierre_mcp_server::mcp::schema::{Content, ToolCall};
 use pierre_mcp_server::protocols::converter::{ProtocolConverter, ProtocolType};
 use pierre_mcp_server::protocols::universal::UniversalResponse;
 use serde_json::Value;
+use std::collections::HashMap;
 
 #[test]
 fn test_a2a_to_universal_conversion() {
@@ -27,7 +28,7 @@ fn test_a2a_to_universal_conversion() {
         id: Some(Value::Number(1.into())),
         auth_token: None,
         headers: None,
-        metadata: std::collections::HashMap::new(),
+        metadata: HashMap::new(),
     };
 
     let universal = ProtocolConverter::a2a_to_universal(&a2a_request, "test_user").unwrap();
@@ -108,17 +109,17 @@ fn test_universal_to_mcp_conversion_success() {
     assert!(!mcp_response.is_error);
     assert_eq!(mcp_response.content.len(), 1);
     match &mcp_response.content[0] {
-        pierre_mcp_server::mcp::schema::Content::Text { text } => {
+        Content::Text { text } => {
             assert!(text.contains("\"data\""));
             assert!(text.contains("\"test\""));
         }
-        pierre_mcp_server::mcp::schema::Content::Image { .. } => {
+        Content::Image { .. } => {
             panic!("Expected text content, got image");
         }
-        pierre_mcp_server::mcp::schema::Content::Resource { .. } => {
+        Content::Resource { .. } => {
             panic!("Expected text content, got resource");
         }
-        pierre_mcp_server::mcp::schema::Content::Progress { .. } => {
+        Content::Progress { .. } => {
             panic!("Expected text content, got progress");
         }
     }
@@ -138,16 +139,16 @@ fn test_universal_to_mcp_conversion_error() {
     assert!(mcp_response.is_error);
     assert_eq!(mcp_response.content.len(), 1);
     match &mcp_response.content[0] {
-        pierre_mcp_server::mcp::schema::Content::Text { text } => {
+        Content::Text { text } => {
             assert!(text.contains("Invalid parameters"));
         }
-        pierre_mcp_server::mcp::schema::Content::Image { .. } => {
+        Content::Image { .. } => {
             panic!("Expected text content, got image");
         }
-        pierre_mcp_server::mcp::schema::Content::Resource { .. } => {
+        Content::Resource { .. } => {
             panic!("Expected text content, got resource");
         }
-        pierre_mcp_server::mcp::schema::Content::Progress { .. } => {
+        Content::Progress { .. } => {
             panic!("Expected text content, got progress");
         }
     }

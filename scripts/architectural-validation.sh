@@ -419,7 +419,8 @@ echo -e "${BLUE}==== Legacy Function Detection ====${NC}"
 
 LEGACY_OAUTH=$(rg "Legacy OAuth not supported|legacy.*oauth|connect_strava|connect_fitbit" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 DEPRECATED_FUNCTIONS=$(rg "deprecated.*use.*instead|Universal.*deprecated|ProviderManager deprecated" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-PLACEHOLDER_IMPLEMENTATIONS=$(rg "fn handle_.*-> Value" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+# Exclude a2a_routes.rs - those are legitimate A2A protocol handlers returning JSON Values
+PLACEHOLDER_IMPLEMENTATIONS=$(rg "fn handle_.*-> Value" src/ --glob '!*a2a_routes.rs' --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 DISCARDED_EXPENSIVE_OPS=$(rg -B 2 -A 5 'let _ = \(' src/ | grep -v 'src/bin/' | rg '\.clone\(\)' | wc -l 2>/dev/null | tr -d ' ' || echo 0)
 
 LEGACY_ISSUES=0

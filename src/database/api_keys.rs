@@ -8,6 +8,7 @@ use super::Database;
 use crate::api_keys::{ApiKey, ApiKeyTier, ApiKeyUsage, ApiKeyUsageStats};
 use crate::errors::{AppError, AppResult};
 use chrono::{DateTime, Duration, Utc};
+use sqlx::sqlite::SqliteRow;
 use sqlx::Row;
 use tracing::{debug, warn};
 use uuid::Uuid;
@@ -20,7 +21,7 @@ impl Database {
     /// Returns an error if the database operation fails
     pub async fn create_api_key_impl(&self, api_key: &ApiKey) -> AppResult<()> {
         // Handle enterprise tier unlimited requests by storing NULL
-        let rate_limit_requests = if api_key.tier == crate::api_keys::ApiKeyTier::Enterprise {
+        let rate_limit_requests = if api_key.tier == ApiKeyTier::Enterprise {
             None
         } else {
             Some(i32::try_from(api_key.rate_limit_requests).map_err(|e| {
@@ -477,14 +478,14 @@ impl Database {
     }
 
     /// Convert database row to `ApiKey`
-    fn row_to_api_key(row: &sqlx::sqlite::SqliteRow) -> AppResult<ApiKey> {
+    fn row_to_api_key(row: &SqliteRow) -> AppResult<ApiKey> {
         let tier_str: String = row.get("tier");
         let tier = tier_str
             .parse::<ApiKeyTier>()
             .map_err(|e| AppError::internal(format!("Failed to parse tier: {e}")))?;
 
         // Handle enterprise tier with unlimited requests (stored as NULL)
-        let rate_limit_requests = if tier == crate::api_keys::ApiKeyTier::Enterprise {
+        let rate_limit_requests = if tier == ApiKeyTier::Enterprise {
             u32::MAX // Unlimited for enterprise
         } else {
             u32::try_from(row.get::<i32, _>("rate_limit_requests")).map_err(|e| {

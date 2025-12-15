@@ -14,16 +14,17 @@
 use anyhow::Result;
 use chrono::Utc;
 use pierre_mcp_server::{
+    admin::jwks::JwksManager,
     auth::AuthManager,
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::{
-        multitenant::{McpRequest, MultiTenantMcpServer},
+        multitenant::{McpRequest, McpResponse, MultiTenantMcpServer},
         resources::ServerResources,
     },
     models::{Tenant, User},
 };
 use serde_json::{json, Value};
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
 
 mod common;
@@ -32,7 +33,7 @@ mod common;
 async fn create_authenticated_user(
     database: &Database,
     auth_manager: &AuthManager,
-    jwks_manager: &Arc<pierre_mcp_server::admin::jwks::JwksManager>,
+    jwks_manager: &Arc<JwksManager>,
 ) -> Result<(Uuid, String)> {
     let tenant_uuid = Uuid::new_v4(); // Configuration tools require tenant context with valid UUID
     let user_id = Uuid::new_v4();
@@ -73,7 +74,7 @@ async fn create_authenticated_user(
 async fn create_authenticated_user_with_different_tenant(
     database: &Database,
     auth_manager: &AuthManager,
-    jwks_manager: &Arc<pierre_mcp_server::admin::jwks::JwksManager>,
+    jwks_manager: &Arc<JwksManager>,
     email: &str,
 ) -> Result<(Uuid, String)> {
     let tenant_uuid = Uuid::new_v4(); // Different tenant UUID
@@ -117,7 +118,7 @@ async fn make_tool_request(
     arguments: Value,
     token: &str,
     resources: &Arc<ServerResources>,
-) -> Result<pierre_mcp_server::mcp::multitenant::McpResponse> {
+) -> Result<McpResponse> {
     let request = McpRequest {
         jsonrpc: "2.0".to_owned(),
         method: "tools/call".to_owned(),
@@ -128,7 +129,7 @@ async fn make_tool_request(
         id: Some(json!(1)),
         auth_token: Some(format!("Bearer {token}")),
         headers: None,
-        metadata: std::collections::HashMap::new(),
+        metadata: HashMap::new(),
     };
 
     Ok(MultiTenantMcpServer::handle_request(request, resources)
@@ -252,7 +253,7 @@ async fn test_configuration_tools_require_authentication() -> Result<()> {
         id: Some(json!(1)),
         auth_token: None, // No authentication
         headers: None,
-        metadata: std::collections::HashMap::new(),
+        metadata: HashMap::new(),
     };
 
     let response = MultiTenantMcpServer::handle_request(request, &resources).await;
@@ -288,7 +289,7 @@ async fn test_configuration_tools_with_invalid_parameters() -> Result<()> {
         id: Some(json!(1)),
         auth_token: Some(format!("Bearer {token}")),
         headers: None,
-        metadata: std::collections::HashMap::new(),
+        metadata: HashMap::new(),
     };
 
     let response = MultiTenantMcpServer::handle_request(request, &resources).await;

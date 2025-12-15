@@ -23,19 +23,44 @@
 //! across integration tests.
 
 use anyhow::Result;
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
 use pierre_mcp_server::{
     admin::jwks::JwksManager,
     api_keys::{ApiKey, ApiKeyManager, ApiKeyTier, CreateApiKeyRequest},
     auth::AuthManager,
+    cache::{factory::Cache, CacheConfig},
+    config::{
+        self,
+        environment::{RateLimitConfig, ServerConfig},
+    },
+    constants,
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::resources::ServerResources,
     middleware::McpAuthMiddleware,
-    models::{User, UserTier},
+    models::{Tenant, User, UserStatus, UserTier},
+    routes::mcp::McpRoutes,
+    utils,
 };
 use rand::Rng;
-use std::sync::{Arc, LazyLock, Once};
+#[cfg(feature = "postgresql")]
+use std::thread;
+use std::{
+    env,
+    net::TcpListener,
+    path::Path,
+    process::{ChildStderr, ChildStdin, ChildStdout},
+    sync::{Arc, LazyLock, Once},
+    time::Duration as StdDuration,
+};
+#[cfg(feature = "postgresql")]
+use tokio::runtime::Builder as RuntimeBuilder;
+use tokio::{net::TcpListener as TokioTcpListener, task::JoinHandle, time::sleep as tokio_sleep};
 use uuid::Uuid;
+
+#[cfg(feature = "postgresql")]
+use sqlx::postgres::PgPoolOptions;
 
 static INIT_LOGGER: Once = Once::new();
 static INIT_HTTP_CLIENTS: Once = Once::new();
@@ -44,18 +69,18 @@ static INIT_SERVER_CONFIG: Once = Once::new();
 /// Initialize server configuration for tests (call once per test process)
 pub fn init_server_config() {
     INIT_SERVER_CONFIG.call_once(|| {
-        std::env::set_var("CI", "true");
-        std::env::set_var("DATABASE_URL", "sqlite::memory:");
+        env::set_var("CI", "true");
+        env::set_var("DATABASE_URL", "sqlite::memory:");
 
         // Set OAuth environment variables for testing
-        std::env::set_var("PIERRE_STRAVA_CLIENT_ID", "test_strava_client_id");
-        std::env::set_var("PIERRE_STRAVA_CLIENT_SECRET", "test_strava_client_secret");
-        std::env::set_var("PIERRE_GARMIN_CLIENT_ID", "test_garmin_client_id");
-        std::env::set_var("PIERRE_GARMIN_CLIENT_SECRET", "test_garmin_client_secret");
-        std::env::set_var("PIERRE_FITBIT_CLIENT_ID", "test_fitbit_client_id");
-        std::env::set_var("PIERRE_FITBIT_CLIENT_SECRET", "test_fitbit_client_secret");
+        env::set_var("PIERRE_STRAVA_CLIENT_ID", "test_strava_client_id");
+        env::set_var("PIERRE_STRAVA_CLIENT_SECRET", "test_strava_client_secret");
+        env::set_var("PIERRE_GARMIN_CLIENT_ID", "test_garmin_client_id");
+        env::set_var("PIERRE_GARMIN_CLIENT_SECRET", "test_garmin_client_secret");
+        env::set_var("PIERRE_FITBIT_CLIENT_ID", "test_fitbit_client_id");
+        env::set_var("PIERRE_FITBIT_CLIENT_SECRET", "test_fitbit_client_secret");
 
-        let _ = pierre_mcp_server::constants::init_server_config();
+        let _ = constants::init_server_config();
     });
 }
 
@@ -72,7 +97,7 @@ static SHARED_TEST_JWKS: LazyLock<Arc<JwksManager>> = LazyLock::new(|| {
 pub fn init_test_logging() {
     INIT_LOGGER.call_once(|| {
         // Check for TEST_LOG environment variable to control test logging level
-        let log_level = match std::env::var("TEST_LOG").as_deref() {
+        let log_level = match env::var("TEST_LOG").as_deref() {
             Ok("TRACE") => tracing::Level::TRACE,
             Ok("DEBUG") => tracing::Level::DEBUG,
             Ok("INFO") => tracing::Level::INFO,
@@ -97,8 +122,8 @@ pub fn init_test_logging() {
 /// Safe to call multiple times - initialization happens only once due to `Once` guard.
 pub fn init_test_http_clients() {
     INIT_HTTP_CLIENTS.call_once(|| {
-        pierre_mcp_server::utils::http_client::initialize_http_clients(
-            pierre_mcp_server::config::environment::HttpClientConfig::default(),
+        utils::http_client::initialize_http_clients(
+            config::environment::HttpClientConfig::default(),
         );
     });
 }
@@ -111,12 +136,7 @@ pub async fn create_test_database() -> Result<Arc<Database>> {
 
     #[cfg(feature = "postgresql")]
     let database = Arc::new(
-        Database::new(
-            database_url,
-            encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
-        )
-        .await?,
+        Database::new(database_url, encryption_key, &PostgresPoolConfig::default()).await?,
     );
 
     #[cfg(not(feature = "postgresql"))]
@@ -132,12 +152,7 @@ pub async fn create_test_database_with_key(encryption_key: Vec<u8>) -> Result<Ar
 
     #[cfg(feature = "postgresql")]
     let database = Arc::new(
-        Database::new(
-            database_url,
-            encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
-        )
-        .await?,
+        Database::new(database_url, encryption_key, &PostgresPoolConfig::default()).await?,
     );
 
     #[cfg(not(feature = "postgresql"))]
@@ -167,20 +182,20 @@ pub fn create_test_auth_middleware(
         (**auth_manager).clone(),
         database,
         jwks_manager,
-        pierre_mcp_server::config::environment::RateLimitConfig::default(),
+        RateLimitConfig::default(),
     ))
 }
 
 /// Create test cache with background cleanup disabled
-pub async fn create_test_cache() -> Result<pierre_mcp_server::cache::factory::Cache> {
-    let cache_config = pierre_mcp_server::cache::CacheConfig {
+pub async fn create_test_cache() -> Result<Cache> {
+    let cache_config = CacheConfig {
         max_entries: 1000,
         redis_url: None,
-        cleanup_interval: std::time::Duration::from_secs(60),
+        cleanup_interval: StdDuration::from_secs(60),
         enable_background_cleanup: false, // Disable background cleanup for tests
         ..Default::default()
     };
-    pierre_mcp_server::cache::factory::Cache::new(cache_config)
+    Cache::new(cache_config)
         .await
         .map_err(|e| anyhow::anyhow!("Failed to create test cache: {e}"))
 }
@@ -197,7 +212,7 @@ pub async fn create_test_user(database: &Database) -> Result<(Uuid, User)> {
     );
 
     // Activate the user for testing (bypass admin approval)
-    user.user_status = pierre_mcp_server::models::UserStatus::Active;
+    user.user_status = UserStatus::Active;
     user.approved_by = Some(user.id); // Self-approved for testing
     user.approved_at = Some(chrono::Utc::now());
 
@@ -209,7 +224,7 @@ pub async fn create_test_user(database: &Database) -> Result<(Uuid, User)> {
 
     // Now create the tenant with this user as owner
     let tenant_id = Uuid::new_v4();
-    let tenant = pierre_mcp_server::models::Tenant {
+    let tenant = Tenant {
         id: tenant_id,
         name: "Test Tenant".to_owned(),
         slug: format!("test-tenant-{}", tenant_id),
@@ -242,7 +257,7 @@ pub async fn create_test_user_with_email(database: &Database, email: &str) -> Re
     );
 
     // Activate the user for testing (bypass admin approval)
-    user.user_status = pierre_mcp_server::models::UserStatus::Active;
+    user.user_status = UserStatus::Active;
     user.approved_by = Some(user.id); // Self-approved for testing
     user.approved_at = Some(chrono::Utc::now());
 
@@ -254,7 +269,7 @@ pub async fn create_test_user_with_email(database: &Database, email: &str) -> Re
 
     // Now create the tenant with this user as owner
     let tenant_id = Uuid::new_v4();
-    let tenant = pierre_mcp_server::models::Tenant {
+    let tenant = Tenant {
         id: tenant_id,
         name: format!("Test Tenant for {}", email),
         slug: format!("test-tenant-{}", tenant_id),
@@ -362,12 +377,8 @@ pub async fn create_test_server_resources() -> Result<Arc<ServerResources>> {
     let encryption_key = generate_encryption_key().to_vec();
 
     #[cfg(feature = "postgresql")]
-    let database = Database::new(
-        database_url,
-        encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
-    )
-    .await?;
+    let database =
+        Database::new(database_url, encryption_key, &PostgresPoolConfig::default()).await?;
 
     #[cfg(not(feature = "postgresql"))]
     let database = Database::new(database_url, encryption_key).await?;
@@ -375,17 +386,17 @@ pub async fn create_test_server_resources() -> Result<Arc<ServerResources>> {
     let auth_manager = AuthManager::new(24);
 
     let admin_jwt_secret = "test_admin_secret";
-    let config = Arc::new(pierre_mcp_server::config::environment::ServerConfig::default());
+    let config = Arc::new(ServerConfig::default());
 
     // Create test cache with background cleanup disabled for tests
-    let cache_config = pierre_mcp_server::cache::CacheConfig {
+    let cache_config = CacheConfig {
         max_entries: 1000,
         redis_url: None,
-        cleanup_interval: std::time::Duration::from_secs(60),
+        cleanup_interval: StdDuration::from_secs(60),
         enable_background_cleanup: false, // Disable background cleanup for tests
         ..Default::default()
     };
-    let cache = pierre_mcp_server::cache::factory::Cache::new(cache_config).await?;
+    let cache = Cache::new(cache_config).await?;
 
     // Use shared JWKS manager to eliminate expensive RSA key generation (250-350ms per test)
     let jwks_manager = get_shared_test_jwks();
@@ -603,19 +614,19 @@ impl SdkBridgeHandle {
 
     /// Get mutable reference to stdin for sending requests
     #[allow(clippy::missing_const_for_fn)] // Cannot be const - returns &mut
-    pub fn stdin(&mut self) -> Option<&mut std::process::ChildStdin> {
+    pub fn stdin(&mut self) -> Option<&mut ChildStdin> {
         self.process.stdin.as_mut()
     }
 
     /// Get mutable reference to stdout for reading responses
     #[allow(clippy::missing_const_for_fn)] // Cannot be const - returns &mut
-    pub fn stdout(&mut self) -> Option<&mut std::process::ChildStdout> {
+    pub fn stdout(&mut self) -> Option<&mut ChildStdout> {
         self.process.stdout.as_mut()
     }
 
     /// Get mutable reference to stderr for reading errors
     #[allow(clippy::missing_const_for_fn)] // Cannot be const - returns &mut
-    pub fn stderr(&mut self) -> Option<&mut std::process::ChildStderr> {
+    pub fn stderr(&mut self) -> Option<&mut ChildStderr> {
         self.process.stderr.as_mut()
     }
 }
@@ -639,7 +650,7 @@ impl Drop for SdkBridgeHandle {
 /// Returns error if SDK bridge binary not found or process fails to start
 pub async fn spawn_sdk_bridge(jwt_token: &str, server_port: u16) -> Result<SdkBridgeHandle> {
     // Find SDK CLI entry point (dist/cli.js - built from TypeScript)
-    let sdk_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+    let sdk_path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("sdk")
         .join("dist")
         .join("cli.js");
@@ -845,7 +856,7 @@ pub async fn create_test_tenant(
 
 /// Handle for HTTP MCP server that cleans up automatically on drop
 pub struct HttpServerHandle {
-    task_handle: tokio::task::JoinHandle<()>,
+    task_handle: JoinHandle<()>,
     port: u16,
 }
 
@@ -870,7 +881,7 @@ impl Drop for HttpServerHandle {
 
 /// Check if a TCP port is available for binding
 fn is_port_available(port: u16) -> bool {
-    std::net::TcpListener::bind(format!("127.0.0.1:{port}")).is_ok()
+    TcpListener::bind(format!("127.0.0.1:{port}")).is_ok()
 }
 
 /// Find an available port for testing
@@ -907,9 +918,9 @@ pub async fn spawn_http_mcp_server(resources: &Arc<ServerResources>) -> Result<H
 
     // Spawn server task
     let task_handle = tokio::spawn(async move {
-        let app = pierre_mcp_server::routes::mcp::McpRoutes::routes(resources_for_task);
+        let app = McpRoutes::routes(resources_for_task);
 
-        let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{port}"))
+        let listener = TokioTcpListener::bind(format!("127.0.0.1:{port}"))
             .await
             .expect("Failed to bind to port");
 
@@ -919,7 +930,7 @@ pub async fn spawn_http_mcp_server(resources: &Arc<ServerResources>) -> Result<H
     });
 
     // Wait for server to be ready
-    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    tokio_sleep(StdDuration::from_millis(500)).await;
 
     Ok(HttpServerHandle { task_handle, port })
 }
@@ -953,7 +964,7 @@ impl IsolatedPostgresDb {
     /// # Errors
     /// Returns error if database creation fails
     pub async fn new() -> Result<Self> {
-        let base_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        let base_url = env::var("DATABASE_URL").unwrap_or_else(|_| {
             "postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server".to_owned()
         });
 
@@ -965,9 +976,9 @@ impl IsolatedPostgresDb {
             .replace("/pierre_mcp_server", "/postgres")
             .replace("/pierre_test_", "/postgres"); // Handle nested test URLs
 
-        let pool = sqlx::postgres::PgPoolOptions::new()
+        let pool = PgPoolOptions::new()
             .max_connections(1)
-            .acquire_timeout(std::time::Duration::from_secs(10))
+            .acquire_timeout(StdDuration::from_secs(10))
             .connect(&admin_url)
             .await?;
 
@@ -992,7 +1003,7 @@ impl IsolatedPostgresDb {
     /// Returns error if connection or migration fails
     pub async fn get_database(&self) -> Result<Database> {
         let encryption_key = generate_encryption_key().to_vec();
-        let pool_config = pierre_mcp_server::config::environment::PostgresPoolConfig {
+        let pool_config = PostgresPoolConfig {
             max_connections: 5,
             min_connections: 1,
             acquire_timeout_secs: 30,
@@ -1008,9 +1019,9 @@ impl IsolatedPostgresDb {
     /// Cleanup the isolated database
     /// Called automatically on Drop, but can be called explicitly
     async fn cleanup(&self) -> Result<()> {
-        let pool = sqlx::postgres::PgPoolOptions::new()
+        let pool = PgPoolOptions::new()
             .max_connections(1)
-            .acquire_timeout(std::time::Duration::from_secs(5))
+            .acquire_timeout(StdDuration::from_secs(5))
             .connect(&self.admin_url)
             .await?;
 
@@ -1037,16 +1048,16 @@ impl Drop for IsolatedPostgresDb {
         let admin_url = self.admin_url.clone();
         let db_name = self.db_name.clone();
 
-        std::thread::spawn(move || {
-            let rt = tokio::runtime::Builder::new_current_thread()
+        thread::spawn(move || {
+            let rt = RuntimeBuilder::new_current_thread()
                 .enable_all()
                 .build()
                 .expect("Failed to create runtime for cleanup");
 
             rt.block_on(async {
-                if let Ok(pool) = sqlx::postgres::PgPoolOptions::new()
+                if let Ok(pool) = PgPoolOptions::new()
                     .max_connections(1)
-                    .acquire_timeout(std::time::Duration::from_secs(5))
+                    .acquire_timeout(StdDuration::from_secs(5))
                     .connect(&admin_url)
                     .await
                 {
@@ -1083,15 +1094,15 @@ pub async fn create_isolated_postgres_db() -> Result<(String, String)> {
 /// Returns error if cleanup fails
 #[cfg(feature = "postgresql")]
 pub async fn cleanup_postgres_db(db_name: &str) -> Result<()> {
-    let base_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+    let base_url = env::var("DATABASE_URL").unwrap_or_else(|_| {
         "postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server".to_owned()
     });
 
     let admin_url = base_url.replace("/pierre_mcp_server", "/postgres");
 
-    let pool = sqlx::postgres::PgPoolOptions::new()
+    let pool = PgPoolOptions::new()
         .max_connections(1)
-        .acquire_timeout(std::time::Duration::from_secs(5))
+        .acquire_timeout(StdDuration::from_secs(5))
         .connect(&admin_url)
         .await?;
 

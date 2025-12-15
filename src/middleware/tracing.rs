@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use tracing::field::Empty;
 use tracing::Span;
 use uuid::Uuid;
 
@@ -72,12 +73,12 @@ pub fn create_request_span(method: &str, path: &str) -> tracing::Span {
         "http_request",
         method = %method,
         path = %path,
-        request_id = tracing::field::Empty,
-        user_id = tracing::field::Empty,
-        tenant_id = tracing::field::Empty,
-        auth_method = tracing::field::Empty,
-        status_code = tracing::field::Empty,
-        duration_ms = tracing::field::Empty,
+        request_id = Empty,
+        user_id = Empty,
+        tenant_id = Empty,
+        auth_method = Empty,
+        status_code = Empty,
+        duration_ms = Empty,
     )
 }
 
@@ -86,12 +87,12 @@ pub fn create_mcp_span(operation: &str) -> tracing::Span {
     tracing::info_span!(
         "mcp_operation",
         operation = %operation,
-        request_id = tracing::field::Empty,
-        user_id = tracing::field::Empty,
-        tenant_id = tracing::field::Empty,
-        tool_name = tracing::field::Empty,
-        duration_ms = tracing::field::Empty,
-        success = tracing::field::Empty,
+        request_id = Empty,
+        user_id = Empty,
+        tenant_id = Empty,
+        tool_name = Empty,
+        duration_ms = Empty,
+        success = Empty,
     )
 }
 
@@ -101,10 +102,10 @@ pub fn create_database_span(operation: &str, table: &str) -> tracing::Span {
         "database_operation",
         operation = %operation,
         table = %table,
-        request_id = tracing::field::Empty,
-        user_id = tracing::field::Empty,
-        tenant_id = tracing::field::Empty,
-        duration_ms = tracing::field::Empty,
-        rows_affected = tracing::field::Empty,
+        request_id = Empty,
+        user_id = Empty,
+        tenant_id = Empty,
+        duration_ms = Empty,
+        rows_affected = Empty,
     )
 }

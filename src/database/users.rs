@@ -7,8 +7,11 @@
 use super::Database;
 use crate::database_plugins::shared;
 use crate::errors::{AppError, AppResult};
+use crate::intelligence::{FitnessLevel, TimeAvailability, UserFitnessProfile, UserPreferences};
 use crate::models::{User, UserStatus};
 use crate::pagination::{Cursor, CursorPage, PaginationParams};
+use crate::permissions::UserRole;
+use sqlx::sqlite::SqliteRow;
 use sqlx::Row;
 use tracing::warn;
 use uuid::Uuid;
@@ -160,7 +163,7 @@ impl Database {
 
     /// Convert a database row to a User struct
     /// OAuth tokens are loaded separately via `user_oauth_tokens` table
-    fn row_to_user(row: &sqlx::sqlite::SqliteRow) -> AppResult<User> {
+    fn row_to_user(row: &SqliteRow) -> AppResult<User> {
         let id: String = row.get("id");
         let email: String = row.get("email");
         let display_name: Option<String> = row.get("display_name");
@@ -187,12 +190,12 @@ impl Database {
         let role = role_str.map_or_else(
             || {
                 if is_admin {
-                    crate::permissions::UserRole::Admin
+                    UserRole::Admin
                 } else {
-                    crate::permissions::UserRole::User
+                    UserRole::User
                 }
             },
-            |r| crate::permissions::UserRole::from_str_lossy(&r),
+            |r| UserRole::from_str_lossy(&r),
         );
 
         Ok(User {
@@ -330,7 +333,7 @@ impl Database {
     pub async fn get_user_fitness_profile(
         &self,
         user_id: Uuid,
-    ) -> AppResult<Option<crate::intelligence::UserFitnessProfile>> {
+    ) -> AppResult<Option<UserFitnessProfile>> {
         self.get_user_profile_impl(user_id).await?.map_or_else(
             || Ok(None),
             |profile_data| {
@@ -339,20 +342,20 @@ impl Database {
                     |_| {
                         // If profile data doesn't match UserFitnessProfile structure,
                         // create a default profile with user_id
-                        Ok(Some(crate::intelligence::UserFitnessProfile {
+                        Ok(Some(UserFitnessProfile {
                             user_id: user_id.to_string(),
                             age: None,
                             gender: None,
                             weight: None,
                             height: None,
-                            fitness_level: crate::intelligence::FitnessLevel::Beginner,
+                            fitness_level: FitnessLevel::Beginner,
                             primary_sports: vec![],
                             training_history_months: 0,
-                            preferences: crate::intelligence::UserPreferences {
+                            preferences: UserPreferences {
                                 preferred_units: "metric".into(),
                                 training_focus: vec![],
                                 injury_history: vec![],
-                                time_availability: crate::intelligence::TimeAvailability {
+                                time_availability: TimeAvailability {
                                     hours_per_week: 3.0,
                                     preferred_days: vec![],
                                     preferred_duration_minutes: Some(30),
@@ -376,7 +379,7 @@ impl Database {
     pub async fn update_user_fitness_profile(
         &self,
         user_id: Uuid,
-        profile: &crate::intelligence::UserFitnessProfile,
+        profile: &UserFitnessProfile,
     ) -> AppResult<()> {
         let profile_data = serde_json::to_value(profile)?;
         self.upsert_user_profile_impl(user_id, profile_data).await

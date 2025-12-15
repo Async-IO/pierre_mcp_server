@@ -16,7 +16,8 @@ use pierre_mcp_server::{
     },
     api_keys::{ApiKey, ApiKeyTier},
     database::{a2a::A2AUsage, Database},
-    models::{User, UserTier},
+    models::{User, UserStatus, UserTier},
+    permissions::UserRole,
 };
 use uuid::Uuid;
 
@@ -35,9 +36,9 @@ async fn create_test_client(db: &Database) -> (A2AClient, Uuid) {
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_owned()),
         is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
+        user_status: UserStatus::Active,
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         approved_by: None,
         approved_at: Some(Utc::now()),
         created_at: Utc::now(),

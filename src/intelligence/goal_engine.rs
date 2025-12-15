@@ -9,11 +9,15 @@
 #![allow(clippy::cast_sign_loss)] // Safe: positive values only
 #![allow(clippy::cast_possible_wrap)] // Safe: bounded values
 
+use std::cmp::Ordering;
+
 use super::{
     AdvancedInsight, Confidence, Deserialize, FitnessLevel, Goal, GoalType, InsightSeverity,
     Milestone, ProgressReport, Serialize, TimeFrame, UserFitnessProfile,
 };
-use crate::config::intelligence::{GoalEngineConfig, IntelligenceConfig, IntelligenceStrategy};
+use crate::config::intelligence::{
+    DefaultStrategy, GoalEngineConfig, IntelligenceConfig, IntelligenceStrategy,
+};
 use crate::errors::{AppError, AppResult};
 use crate::intelligence::physiological_constants::{
     consistency::{
@@ -62,9 +66,7 @@ pub trait GoalEngineTrait {
 }
 
 /// Advanced goal engine implementation with configurable strategy
-pub struct AdvancedGoalEngine<
-    S: IntelligenceStrategy = crate::config::intelligence::DefaultStrategy,
-> {
+pub struct AdvancedGoalEngine<S: IntelligenceStrategy = DefaultStrategy> {
     strategy: S,
     config: GoalEngineConfig,
     user_profile: Option<UserFitnessProfile>,
@@ -82,7 +84,7 @@ impl AdvancedGoalEngine {
     pub fn new() -> Self {
         let global_config = IntelligenceConfig::global();
         Self {
-            strategy: crate::config::intelligence::DefaultStrategy,
+            strategy: DefaultStrategy,
             config: global_config.goal_engine.clone(),
             user_profile: None,
         }
@@ -117,7 +119,7 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
     pub fn with_profile(profile: UserFitnessProfile) -> AdvancedGoalEngine {
         let global_config = IntelligenceConfig::global();
         AdvancedGoalEngine {
-            strategy: crate::config::intelligence::DefaultStrategy,
+            strategy: DefaultStrategy,
             config: global_config.goal_engine.clone(),
             user_profile: Some(profile),
         }
@@ -380,7 +382,7 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
         suggestions.sort_by(|a, b| {
             b.success_probability
                 .partial_cmp(&a.success_probability)
-                .unwrap_or(std::cmp::Ordering::Equal)
+                .unwrap_or(Ordering::Equal)
         });
     }
 

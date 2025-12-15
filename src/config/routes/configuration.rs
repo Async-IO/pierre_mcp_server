@@ -18,14 +18,20 @@ use crate::config::{
     catalog::{CatalogBuilder, ConfigCatalog},
     profiles::{ConfigProfile, ProfileTemplates},
     runtime::{ConfigValue, RuntimeConfig},
-    validation::ConfigValidator,
-    vo2_max::VO2MaxCalculator,
+    validation::{ConfigValidator, ValidationResult},
+    vo2_max::{
+        PersonalizedHRZones, PersonalizedPaceZones, PersonalizedPowerZones, VO2MaxCalculator,
+    },
 };
+use crate::constants::physiology;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult};
+use crate::mcp::resources::ServerResources;
 use crate::types::json_schemas;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Instant;
 use tracing::{debug, warn};
 use uuid::Uuid;
 
@@ -180,11 +186,11 @@ pub struct UserProfileParameters {
 #[derive(Debug, Serialize)]
 pub struct PersonalizedZones {
     /// Heart rate zones
-    pub heart_rate_zones: crate::config::vo2_max::PersonalizedHRZones,
+    pub heart_rate_zones: PersonalizedHRZones,
     /// Pace zones
-    pub pace_zones: crate::config::vo2_max::PersonalizedPaceZones,
+    pub pace_zones: PersonalizedPaceZones,
     /// Power zones
-    pub power_zones: crate::config::vo2_max::PersonalizedPowerZones,
+    pub power_zones: PersonalizedPowerZones,
     /// Estimated FTP
     pub estimated_ftp: f64,
 }
@@ -220,7 +226,7 @@ pub struct ValidationResponse {
 #[serde(untagged)]
 pub enum ValidationDetails {
     /// Successful validation
-    Success(crate::config::validation::ValidationResult),
+    Success(ValidationResult),
     /// Validation errors
     Errors(Vec<String>),
 }
@@ -254,20 +260,20 @@ pub struct ResponseMetadata {
 /// Configuration management routes handler
 #[derive(Clone)]
 pub struct ConfigurationRoutes {
-    resources: std::sync::Arc<crate::mcp::resources::ServerResources>,
+    resources: Arc<ServerResources>,
 }
 
 impl ConfigurationRoutes {
     /// Create a new configuration routes handler
     #[must_use]
-    pub const fn new(resources: std::sync::Arc<crate::mcp::resources::ServerResources>) -> Self {
+    pub const fn new(resources: Arc<ServerResources>) -> Self {
         Self { resources }
     }
 
     /// Authenticate `JWT` token and extract user `ID`
     ///
     /// Create response metadata
-    fn create_metadata(processing_start: std::time::Instant) -> ResponseMetadata {
+    fn create_metadata(processing_start: Instant) -> ResponseMetadata {
         ResponseMetadata {
             timestamp: chrono::Utc::now(),
             processing_time_ms: u64::try_from(processing_start.elapsed().as_millis()).ok(),
@@ -289,7 +295,7 @@ impl ConfigurationRoutes {
         &self,
         _auth_header: Option<&str>,
     ) -> AppResult<ConfigurationCatalogResponse> {
-        let processing_start = std::time::Instant::now();
+        let processing_start = Instant::now();
 
         let catalog = CatalogBuilder::build();
 
@@ -309,7 +315,7 @@ impl ConfigurationRoutes {
         &self,
         _auth_header: Option<&str>,
     ) -> AppResult<ConfigurationProfilesResponse> {
-        let processing_start = std::time::Instant::now();
+        let processing_start = Instant::now();
 
         let templates = ProfileTemplates::all();
         let profiles: Vec<ProfileInfo> = templates
@@ -370,7 +376,7 @@ impl ConfigurationRoutes {
         &self,
         auth: &AuthResult,
     ) -> AppResult<UserConfigurationResponse> {
-        let processing_start = std::time::Instant::now();
+        let processing_start = Instant::now();
         let user_id = auth.user_id;
 
         // Verify user exists in database before proceeding
@@ -409,7 +415,7 @@ impl ConfigurationRoutes {
         auth: &AuthResult,
         request: UpdateConfigurationRequest,
     ) -> AppResult<UpdateConfigurationResponse> {
-        let processing_start = std::time::Instant::now();
+        let processing_start = Instant::now();
         let user_id = auth.user_id;
 
         let parameter_overrides = request.parameters;
@@ -491,18 +497,14 @@ impl ConfigurationRoutes {
         auth: &AuthResult,
         request: &PersonalizedZonesRequest,
     ) -> AppResult<PersonalizedZonesResponse> {
-        let processing_start = std::time::Instant::now();
+        let processing_start = Instant::now();
         let user_id = auth.user_id;
 
         // Log personalized zones request
         debug!("Generating personalized zones for user {}", user_id);
 
-        let resting_hr = request
-            .resting_hr
-            .unwrap_or(crate::constants::physiology::DEFAULT_RESTING_HR);
-        let max_hr = request
-            .max_hr
-            .unwrap_or(crate::constants::physiology::DEFAULT_MAX_HR);
+        let resting_hr = request.resting_hr.unwrap_or(physiology::DEFAULT_RESTING_HR);
+        let max_hr = request.max_hr.unwrap_or(physiology::DEFAULT_MAX_HR);
         let lactate_threshold = request.lactate_threshold.unwrap_or(0.85);
         let sport_efficiency = request.sport_efficiency.unwrap_or(1.0);
 
@@ -556,7 +558,7 @@ impl ConfigurationRoutes {
         _auth: &AuthResult,
         request: &ValidateConfigurationRequest,
     ) -> AppResult<ValidationResponse> {
-        let processing_start = std::time::Instant::now();
+        let processing_start = Instant::now();
 
         // Convert typed input values to internal ConfigValue representation
         let params_map: HashMap<String, ConfigValue> = request

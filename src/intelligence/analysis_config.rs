@@ -5,6 +5,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use serde::{Deserialize, Serialize};
+use std::env;
 use std::time::Duration;
 use thiserror::Error;
 
@@ -220,19 +221,19 @@ impl AnalysisConfig {
         let mut config = Self::default();
 
         // Apply environment variable overrides
-        if let Ok(val) = std::env::var("INTELLIGENCE_FITNESS_SCORE_WEEKS") {
+        if let Ok(val) = env::var("INTELLIGENCE_FITNESS_SCORE_WEEKS") {
             config.timeframes.fitness_score_weeks = val.parse().map_err(|_| {
                 AnalysisConfigError::InvalidTimeframe("INTELLIGENCE_FITNESS_SCORE_WEEKS".into())
             })?;
         }
 
-        if let Ok(val) = std::env::var("INTELLIGENCE_TREND_ANALYSIS_WEEKS") {
+        if let Ok(val) = env::var("INTELLIGENCE_TREND_ANALYSIS_WEEKS") {
             config.timeframes.trend_analysis_weeks = val.parse().map_err(|_| {
                 AnalysisConfigError::InvalidTimeframe("INTELLIGENCE_TREND_ANALYSIS_WEEKS".into())
             })?;
         }
 
-        if let Ok(val) = std::env::var("INTELLIGENCE_HIGH_R_SQUARED_THRESHOLD") {
+        if let Ok(val) = env::var("INTELLIGENCE_HIGH_R_SQUARED_THRESHOLD") {
             config.confidence.high_r_squared = val.parse().map_err(|_| {
                 AnalysisConfigError::InvalidThreshold(
                     "INTELLIGENCE_HIGH_R_SQUARED_THRESHOLD".into(),
@@ -240,19 +241,19 @@ impl AnalysisConfig {
             })?;
         }
 
-        if let Ok(val) = std::env::var("INTELLIGENCE_SIGNIFICANCE_THRESHOLD") {
+        if let Ok(val) = env::var("INTELLIGENCE_SIGNIFICANCE_THRESHOLD") {
             config.confidence.significance_threshold = val.parse().map_err(|_| {
                 AnalysisConfigError::InvalidThreshold("INTELLIGENCE_SIGNIFICANCE_THRESHOLD".into())
             })?;
         }
 
-        if let Ok(val) = std::env::var("INTELLIGENCE_MIN_WEEKLY_VOLUME") {
+        if let Ok(val) = env::var("INTELLIGENCE_MIN_WEEKLY_VOLUME") {
             config.performance.min_weekly_volume_hours = val.parse().map_err(|_| {
                 AnalysisConfigError::InvalidThreshold("INTELLIGENCE_MIN_WEEKLY_VOLUME".into())
             })?;
         }
 
-        if let Ok(val) = std::env::var("INTELLIGENCE_HIGH_WEEKLY_VOLUME") {
+        if let Ok(val) = env::var("INTELLIGENCE_HIGH_WEEKLY_VOLUME") {
             config.performance.high_weekly_volume_hours = val.parse().map_err(|_| {
                 AnalysisConfigError::InvalidThreshold("INTELLIGENCE_HIGH_WEEKLY_VOLUME".into())
             })?;

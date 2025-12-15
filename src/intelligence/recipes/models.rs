@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use crate::config::IntelligenceConfig;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -231,7 +232,7 @@ impl MacroTargets {
     #[must_use]
     pub fn from_calories_and_timing(calories: f64, timing: MealTiming) -> Self {
         // Use configurable macro distribution from global config
-        let config = crate::config::IntelligenceConfig::global();
+        let config = IntelligenceConfig::global();
         let (protein_pct, carbs_pct, fat_pct) =
             config.nutrition.meal_timing_macros.get_distribution(timing);
 

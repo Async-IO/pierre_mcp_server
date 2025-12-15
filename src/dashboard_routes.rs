@@ -9,12 +9,17 @@
 // NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
 // - HashMap key ownership for statistics aggregation (tool_name.clone())
 
+use crate::api_keys::ApiKeyTier;
 use crate::auth::AuthResult;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult};
 use crate::mcp::resources::ServerResources;
-use chrono::{Datelike, Duration, TimeZone, Utc};
+use chrono::{DateTime, Datelike, Duration, TimeZone, Utc};
 use serde::Serialize;
+use serde_json::Value;
+use sqlx::FromRow;
+use std::collections::HashMap;
+use std::sync::Arc;
 use tracing::{debug, info};
 use uuid::Uuid;
 
@@ -52,7 +57,7 @@ pub struct TierUsage {
 #[derive(Debug, Serialize)]
 pub struct RecentActivity {
     /// When the request occurred
-    pub timestamp: chrono::DateTime<Utc>,
+    pub timestamp: DateTime<Utc>,
     /// Name of the API key used
     pub api_key_name: String,
     /// Tool that was invoked
@@ -80,7 +85,7 @@ pub struct UsageAnalytics {
 #[derive(Debug, Serialize)]
 pub struct UsageDataPoint {
     /// Timestamp for this data point
-    pub timestamp: chrono::DateTime<Utc>,
+    pub timestamp: DateTime<Utc>,
     /// Number of requests in this period
     pub request_count: u64,
     /// Number of errors in this period
@@ -118,16 +123,16 @@ pub struct RateLimitOverview {
     /// Percentage of limit used
     pub usage_percentage: f64,
     /// When the rate limit resets
-    pub reset_date: Option<chrono::DateTime<Utc>>,
+    pub reset_date: Option<DateTime<Utc>>,
 }
 
 /// Individual request log entry with detailed information
-#[derive(Debug, Serialize, sqlx::FromRow)]
+#[derive(Debug, Serialize, FromRow)]
 pub struct RequestLog {
     /// Unique identifier for this log entry
     pub id: String,
     /// When the request was made
-    pub timestamp: chrono::DateTime<Utc>,
+    pub timestamp: DateTime<Utc>,
     /// API key UUID used for the request
     pub api_key_id: String,
     /// Friendly name of the API key
@@ -170,13 +175,13 @@ pub struct RequestStats {
 /// Route handlers for the admin dashboard and metrics
 #[derive(Clone)]
 pub struct DashboardRoutes {
-    resources: std::sync::Arc<ServerResources>,
+    resources: Arc<ServerResources>,
 }
 
 impl DashboardRoutes {
     /// Creates a new dashboard routes instance with the given server resources
     #[must_use]
-    pub const fn new(resources: std::sync::Arc<ServerResources>) -> Self {
+    pub const fn new(resources: Arc<ServerResources>) -> Self {
         Self { resources }
     }
 
@@ -256,8 +261,7 @@ impl DashboardRoutes {
         }
 
         // Group by tier
-        let mut tier_map: std::collections::HashMap<String, (u32, u64)> =
-            std::collections::HashMap::new();
+        let mut tier_map: HashMap<String, (u32, u64)> = HashMap::new();
         for api_key in &api_keys {
             let tier_name = format!("{:?}", api_key.tier).to_lowercase();
             let month_stats = self
@@ -462,7 +466,7 @@ impl DashboardRoutes {
                     AppError::database(format!("Failed to get API key current usage: {e}"))
                 })?;
 
-            let limit = if api_key.tier == crate::api_keys::ApiKeyTier::Enterprise {
+            let limit = if api_key.tier == ApiKeyTier::Enterprise {
                 None
             } else {
                 Some(u64::from(api_key.rate_limit_requests))
@@ -563,8 +567,8 @@ impl DashboardRoutes {
     async fn get_top_tools_analysis(
         &self,
         user_id: Uuid,
-        start_date: chrono::DateTime<Utc>,
-        end_date: chrono::DateTime<Utc>,
+        start_date: DateTime<Utc>,
+        end_date: DateTime<Utc>,
     ) -> AppResult<Vec<ToolUsage>> {
         let api_keys = self
             .resources
@@ -572,8 +576,7 @@ impl DashboardRoutes {
             .get_user_api_keys(user_id)
             .await
             .map_err(|e| AppError::database(format!("Failed to get user API keys: {e}")))?;
-        let mut tool_stats: std::collections::HashMap<String, (u64, u64, u64)> =
-            std::collections::HashMap::new();
+        let mut tool_stats: HashMap<String, (u64, u64, u64)> = HashMap::new();
 
         // Aggregate tool usage across all user's API keys
         for api_key in api_keys {
@@ -593,17 +596,14 @@ impl DashboardRoutes {
                 for (tool_name, tool_data) in tool_usage_obj {
                     // Parse nested tool data object
                     if let Some(tool_obj) = tool_data.as_object() {
-                        let count = tool_obj
-                            .get("count")
-                            .and_then(serde_json::Value::as_u64)
-                            .unwrap_or(0);
+                        let count = tool_obj.get("count").and_then(Value::as_u64).unwrap_or(0);
                         let success_count = tool_obj
                             .get("success_count")
-                            .and_then(serde_json::Value::as_u64)
+                            .and_then(Value::as_u64)
                             .unwrap_or(0);
                         let avg_response_time = tool_obj
                             .get("avg_response_time_ms")
-                            .and_then(serde_json::Value::as_f64)
+                            .and_then(Value::as_f64)
                             .unwrap_or(0.0);
 
                         let entry = tool_stats.entry(tool_name.clone()).or_insert((0, 0, 0));

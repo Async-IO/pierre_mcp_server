@@ -4,12 +4,14 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-use crate::config::environment::{default_provider, OAuthProviderConfig};
+use crate::config::environment::{default_provider, get_oauth_config, OAuthProviderConfig};
 use crate::models::Activity;
 use crate::protocols::universal::auth_service::TokenData;
 use crate::protocols::universal::{UniversalResponse, UniversalToolExecutor};
 use crate::providers::core::FitnessProvider;
-use crate::providers::ProviderRegistry;
+use crate::providers::{OAuth2Credentials, ProviderRegistry};
+use serde_json::{json, Value as JsonValue};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::debug;
 use uuid::Uuid;
@@ -19,10 +21,10 @@ use uuid::Uuid;
 /// Returns the provider name from request parameters if specified, otherwise returns
 /// the configured default provider (from `PIERRE_DEFAULT_PROVIDER` env var or "synthetic").
 #[must_use]
-pub fn extract_provider(parameters: &serde_json::Map<String, serde_json::Value>) -> String {
+pub fn extract_provider(parameters: &serde_json::Map<String, JsonValue>) -> String {
     parameters
         .get("provider")
-        .and_then(serde_json::Value::as_str)
+        .and_then(JsonValue::as_str)
         .map_or_else(default_provider, String::from)
 }
 
@@ -52,10 +54,10 @@ pub async fn create_configured_provider(
         .map_err(|e| format!("Failed to create {provider_name} provider: {e}"))?;
 
     // Load provider-specific OAuth config
-    let config = crate::config::environment::get_oauth_config(provider_name);
+    let config = get_oauth_config(provider_name);
 
     // Build credentials
-    let credentials = crate::providers::OAuth2Credentials {
+    let credentials = OAuth2Credentials {
         client_id: config.client_id.clone().unwrap_or_default(),
         client_secret: config.client_secret.clone().unwrap_or_default(),
         access_token: Some(token_data.access_token.clone()),
@@ -77,28 +79,26 @@ pub async fn create_configured_provider(
 ///
 /// Returns a standardized response when no OAuth token is found for the provider.
 #[must_use]
-pub fn create_no_token_response(
-    provider_name: &str,
-) -> crate::protocols::universal::UniversalResponse {
-    crate::protocols::universal::UniversalResponse {
+pub fn create_no_token_response(provider_name: &str) -> UniversalResponse {
+    UniversalResponse {
         success: false,
         result: None,
         error: Some(format!(
             "No valid {provider_name} token found. Please connect your account using the connect_provider tool with provider='{provider_name}'."
         )),
         metadata: Some({
-            let mut map = std::collections::HashMap::new();
+            let mut map = HashMap::new();
             map.insert(
                 "total_activities".to_owned(),
-                serde_json::Value::Number(0.into()),
+                JsonValue::Number(0.into()),
             );
             map.insert(
                 "authentication_required".to_owned(),
-                serde_json::Value::Bool(true),
+                JsonValue::Bool(true),
             );
             map.insert(
                 "provider".to_owned(),
-                serde_json::Value::String(provider_name.to_owned()),
+                JsonValue::String(provider_name.to_owned()),
             );
             map
         }),
@@ -107,13 +107,10 @@ pub fn create_no_token_response(
 
 /// Create a standard auth error response
 #[must_use]
-pub fn create_auth_error_response(
-    provider_name: &str,
-    error: &str,
-) -> crate::protocols::universal::UniversalResponse {
-    crate::protocols::universal::UniversalResponse {
+pub fn create_auth_error_response(provider_name: &str, error: &str) -> UniversalResponse {
+    UniversalResponse {
         success: true,
-        result: Some(serde_json::json!({
+        result: Some(json!({
             "activities": [],
             "message": format!("Authentication error for {provider_name}: {error}"),
             "error": format!("Authentication error: {error}"),
@@ -121,14 +118,11 @@ pub fn create_auth_error_response(
         })),
         error: None,
         metadata: Some({
-            let mut map = std::collections::HashMap::new();
-            map.insert(
-                "authentication_error".to_owned(),
-                serde_json::Value::Bool(true),
-            );
+            let mut map = HashMap::new();
+            map.insert("authentication_error".to_owned(), JsonValue::Bool(true));
             map.insert(
                 "provider".to_owned(),
-                serde_json::Value::String(provider_name.to_owned()),
+                JsonValue::String(provider_name.to_owned()),
             );
             map
         }),
@@ -137,38 +131,38 @@ pub fn create_auth_error_response(
 
 /// Build success response for activities from any provider
 pub fn build_activities_success_response(
-    activities: &[crate::models::Activity],
+    activities: &[Activity],
     provider_name: &str,
     user_uuid: uuid::Uuid,
     tenant_id: Option<String>,
-) -> crate::protocols::universal::UniversalResponse {
-    crate::protocols::universal::UniversalResponse {
+) -> UniversalResponse {
+    UniversalResponse {
         success: true,
-        result: Some(serde_json::json!({
+        result: Some(json!({
             "activities": activities,
             "provider": provider_name,
             "count": activities.len()
         })),
         error: None,
         metadata: Some({
-            let mut map = std::collections::HashMap::new();
+            let mut map = HashMap::new();
             map.insert(
                 "total_activities".to_owned(),
-                serde_json::Value::Number(activities.len().into()),
+                JsonValue::Number(activities.len().into()),
             );
             map.insert(
                 "user_id".to_owned(),
-                serde_json::Value::String(user_uuid.to_string()),
+                JsonValue::String(user_uuid.to_string()),
             );
             map.insert(
                 "tenant_id".to_owned(),
-                tenant_id.map_or(serde_json::Value::Null, serde_json::Value::String),
+                tenant_id.map_or(JsonValue::Null, JsonValue::String),
             );
             map.insert(
                 "provider".to_owned(),
-                serde_json::Value::String(provider_name.to_owned()),
+                JsonValue::String(provider_name.to_owned()),
             );
-            map.insert("cached".to_owned(), serde_json::Value::Bool(false));
+            map.insert("cached".to_owned(), JsonValue::Bool(false));
             map
         }),
     }
@@ -176,7 +170,7 @@ pub fn build_activities_success_response(
 
 /// Get OAuth config for a provider, with logging
 pub fn get_provider_oauth_config(provider_name: &str) -> OAuthProviderConfig {
-    let config = crate::config::environment::get_oauth_config(provider_name);
+    let config = get_oauth_config(provider_name);
     debug!(
         provider = provider_name,
         has_client_id = config.client_id.is_some(),

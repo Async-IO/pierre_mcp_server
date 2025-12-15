@@ -11,13 +11,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use axum::{
-    body::Body,
+    body::{to_bytes, Body},
     http::{Request as HttpRequest, StatusCode},
     middleware,
     routing::get,
     Extension, Router,
 };
 use pierre_mcp_server::middleware::request_id::{request_id_middleware, RequestId};
+use std::error::Error;
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -28,7 +29,7 @@ async fn test_handler(Extension(request_id): Extension<RequestId>) -> String {
 }
 
 #[tokio::test]
-async fn test_request_id_middleware_generates_id() -> Result<(), Box<dyn std::error::Error>> {
+async fn test_request_id_middleware_generates_id() -> Result<(), Box<dyn Error>> {
     let app = Router::new()
         .route("/", get(test_handler))
         .layer(middleware::from_fn(request_id_middleware));
@@ -54,7 +55,7 @@ async fn test_request_id_middleware_generates_id() -> Result<(), Box<dyn std::er
 }
 
 #[tokio::test]
-async fn test_request_id_available_in_handler() -> Result<(), Box<dyn std::error::Error>> {
+async fn test_request_id_available_in_handler() -> Result<(), Box<dyn Error>> {
     let app = Router::new()
         .route("/", get(test_handler))
         .layer(middleware::from_fn(request_id_middleware));
@@ -66,7 +67,7 @@ async fn test_request_id_available_in_handler() -> Result<(), Box<dyn std::error
     assert_eq!(response.status(), StatusCode::OK);
 
     // The handler should successfully access the request ID
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await?;
+    let body = to_bytes(response.into_body(), usize::MAX).await?;
     let body_str = String::from_utf8(body.to_vec())?;
     assert!(body_str.starts_with("Request ID: "));
 

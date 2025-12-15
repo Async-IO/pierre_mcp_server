@@ -6,7 +6,8 @@
 
 use super::core::{ActivityQueryParams, FitnessProvider, OAuth2Credentials, ProviderConfig};
 use super::utils::{self, RetryConfig};
-use crate::constants::{api_provider_limits, oauth_providers};
+use crate::constants::oauth::GARMIN_DEFAULT_SCOPES;
+use crate::constants::{api_provider_limits, get_server_config, oauth_providers};
 use crate::errors::{AppError, AppResult};
 use crate::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
 use crate::pagination::{CursorPage, PaginationParams};
@@ -15,6 +16,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
+use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
 /// Garmin API response for athlete data
@@ -62,7 +64,7 @@ struct GarminStatsResponse {
 /// Garmin Connect provider implementation
 pub struct GarminProvider {
     config: ProviderConfig,
-    credentials: tokio::sync::RwLock<Option<OAuth2Credentials>>,
+    credentials: RwLock<Option<OAuth2Credentials>>,
     client: Client,
 }
 
@@ -70,7 +72,7 @@ impl GarminProvider {
     /// Create a new Garmin provider with default configuration
     #[must_use]
     pub fn new() -> Self {
-        let config = crate::constants::get_server_config().map_or_else(
+        let config = get_server_config().map_or_else(
             || ProviderConfig {
                 name: oauth_providers::GARMIN.to_owned(),
                 auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
@@ -94,7 +96,7 @@ impl GarminProvider {
                         .revoke_url
                         .clone(),
                 ),
-                default_scopes: crate::constants::oauth::GARMIN_DEFAULT_SCOPES
+                default_scopes: GARMIN_DEFAULT_SCOPES
                     .split(',')
                     .map(str::to_owned)
                     .collect(),
@@ -103,7 +105,7 @@ impl GarminProvider {
 
         Self {
             config,
-            credentials: tokio::sync::RwLock::new(None),
+            credentials: RwLock::new(None),
             // Clone Arc<Client> from shared singleton - cheap reference counting operation
             client: shared_client().clone(),
         }
@@ -114,7 +116,7 @@ impl GarminProvider {
     pub fn with_config(config: ProviderConfig) -> Self {
         Self {
             config,
-            credentials: tokio::sync::RwLock::new(None),
+            credentials: RwLock::new(None),
             // Clone Arc<Client> from shared singleton - cheap reference counting operation
             client: shared_client().clone(),
         }

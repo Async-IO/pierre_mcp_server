@@ -40,15 +40,19 @@
 //! # }
 //! ```
 
-use crate::errors::{AppError, AppResult};
-use chrono::{DateTime, Utc};
-use jsonwebtoken::{DecodingKey, EncodingKey};
-use rsa::{
-    pkcs8::{DecodePrivateKey, EncodePrivateKey, EncodePublicKey},
-    RsaPrivateKey, RsaPublicKey,
-};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+use chrono::{DateTime, Utc};
+use jsonwebtoken::{
+    decode, decode_header, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation,
+};
+use rsa::pkcs8::{DecodePrivateKey, EncodePrivateKey, EncodePublicKey, LineEnding};
+use rsa::{RsaPrivateKey, RsaPublicKey};
+use serde::{Deserialize, Serialize};
+use serde_json::to_string_pretty;
+
+use crate::constants::service_names::{ADMIN_API, PIERRE_MCP_SERVER};
+use crate::errors::{AppError, AppResult};
 
 /// RSA key size in bits for RS256 (2048 bits minimum, 4096 bits recommended)
 const RSA_KEY_SIZE: usize = 4096;
@@ -167,7 +171,7 @@ impl RsaKeyPair {
     /// Returns error if PEM encoding fails
     pub fn export_private_key_pem(&self) -> AppResult<String> {
         self.private_key
-            .to_pkcs8_pem(rsa::pkcs8::LineEnding::LF)
+            .to_pkcs8_pem(LineEnding::LF)
             .map(|pem| pem.to_string())
             .map_err(|e| AppError::internal(format!("Failed to export private key as PEM: {e}")))
     }
@@ -178,7 +182,7 @@ impl RsaKeyPair {
     /// Returns error if PEM encoding fails
     pub fn export_public_key_pem(&self) -> AppResult<String> {
         self.public_key
-            .to_public_key_pem(rsa::pkcs8::LineEnding::LF)
+            .to_public_key_pem(LineEnding::LF)
             .map_err(|e| AppError::internal(format!("Failed to export public key as PEM: {e}")))
     }
 
@@ -354,7 +358,7 @@ impl JwksManager {
     /// Returns error if JWK serialization fails
     pub fn get_jwks_json(&self) -> AppResult<String> {
         let jwks = self.get_jwks()?;
-        serde_json::to_string_pretty(&jwks)
+        to_string_pretty(&jwks)
             .map_err(|e| AppError::internal(format!("Failed to serialize JWKS: {e}")))
     }
 
@@ -437,11 +441,9 @@ impl JwksManager {
     /// # Errors
     /// Returns error if no active key exists or signing fails
     pub fn sign_admin_token<T: Serialize>(&self, claims: &T) -> AppResult<String> {
-        use jsonwebtoken::{encode, Header};
-
         let active_key = self.get_active_key()?;
 
-        let mut header = Header::new(jsonwebtoken::Algorithm::RS256);
+        let mut header = Header::new(Algorithm::RS256);
         header.kid = Some(active_key.kid.clone());
 
         let encoding_key = active_key.encoding_key()?;
@@ -455,8 +457,6 @@ impl JwksManager {
     /// # Errors
     /// Returns error if token verification fails or claims cannot be decoded
     pub fn verify_admin_token<T: for<'de> Deserialize<'de>>(&self, token: &str) -> AppResult<T> {
-        use jsonwebtoken::{decode, decode_header, Validation};
-
         // Extract kid from header
         let header = decode_header(token)
             .map_err(|e| AppError::auth_invalid(format!("Failed to decode JWT header: {e}")))?;
@@ -473,9 +473,9 @@ impl JwksManager {
         let decoding_key = key_pair.decoding_key()?;
 
         // Set up validation
-        let mut validation = Validation::new(jsonwebtoken::Algorithm::RS256);
-        validation.set_audience(&[crate::constants::service_names::ADMIN_API]);
-        validation.set_issuer(&[crate::constants::service_names::PIERRE_MCP_SERVER]);
+        let mut validation = Validation::new(Algorithm::RS256);
+        validation.set_audience(&[ADMIN_API]);
+        validation.set_issuer(&[PIERRE_MCP_SERVER]);
 
         // Verify and decode
         let token_data = decode::<T>(token, &decoding_key, &validation).map_err(|e| {

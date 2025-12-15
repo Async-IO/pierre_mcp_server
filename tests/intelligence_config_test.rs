@@ -148,8 +148,10 @@ use pierre_mcp_server::config::intelligence::{
     IntelligenceStrategy,
 };
 use pierre_mcp_server::intelligence::{
-    AdvancedGoalEngine, AdvancedPerformanceAnalyzer, AdvancedRecommendationEngine,
+    AdvancedGoalEngine, AdvancedPerformanceAnalyzer, AdvancedRecommendationEngine, FitnessLevel,
+    TimeAvailability, UserFitnessProfile, UserPreferences,
 };
+use std::ptr;
 
 #[test]
 fn test_default_intelligence_config_validation() {
@@ -341,7 +343,7 @@ fn test_global_config_singleton() {
     let config2 = IntelligenceConfig::global();
 
     // Should be the same instance (same pointer)
-    assert!(std::ptr::eq(config1, config2));
+    assert!(ptr::eq(config1, config2));
 }
 
 #[test]
@@ -677,20 +679,20 @@ mod integration_tests {
         let _engine = AdvancedRecommendationEngine::with_strategy(conservative_strategy);
 
         // Create test user profile
-        let _user_profile = pierre_mcp_server::intelligence::UserFitnessProfile {
+        let _user_profile = UserFitnessProfile {
             user_id: "test_user".to_owned(),
             age: Some(30),
             gender: None,
             weight: Some(70.0),
             height: Some(175.0),
-            fitness_level: pierre_mcp_server::intelligence::FitnessLevel::Intermediate,
+            fitness_level: FitnessLevel::Intermediate,
             primary_sports: vec!["running".to_owned()],
             training_history_months: 12,
-            preferences: pierre_mcp_server::intelligence::UserPreferences {
+            preferences: UserPreferences {
                 preferred_units: "metric".to_owned(),
                 training_focus: vec!["endurance".to_owned()],
                 injury_history: vec![],
-                time_availability: pierre_mcp_server::intelligence::TimeAvailability {
+                time_availability: TimeAvailability {
                     hours_per_week: 5.0,
                     preferred_days: vec![
                         "Monday".to_owned(),

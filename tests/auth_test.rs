@@ -10,12 +10,17 @@
 mod common;
 
 use chrono::{Duration, Utc};
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
 use pierre_mcp_server::{
+    admin::jwks::JwksManager,
     auth::{generate_jwt_secret, AuthManager, AuthMethod, Claims, JwtValidationError},
+    config::environment::RateLimitConfig,
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
     middleware::McpAuthMiddleware,
     models::{AuthRequest, User, UserStatus, UserTier},
+    utils::uuid::parse_uuid,
 };
 use std::sync::Arc;
 use uuid::Uuid;
@@ -136,7 +141,7 @@ fn test_extract_user_id_from_validated_token() {
 
     // CORRECT: Validate token with full security checks, THEN extract user ID
     let claims = auth_manager.validate_token(&token, &jwks_manager).unwrap();
-    let user_id = pierre_mcp_server::utils::uuid::parse_uuid(&claims.sub).unwrap();
+    let user_id = parse_uuid(&claims.sub).unwrap();
 
     assert_eq!(user_id, user.id);
 
@@ -157,13 +162,9 @@ async fn test_mcp_auth_middleware() {
 
     #[cfg(feature = "postgresql")]
     let database = Arc::new(
-        Database::new(
-            database_url,
-            encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
-        )
-        .await
-        .unwrap(),
+        Database::new(database_url, encryption_key, &PostgresPoolConfig::default())
+            .await
+            .unwrap(),
     );
 
     #[cfg(not(feature = "postgresql"))]
@@ -177,7 +178,7 @@ async fn test_mcp_auth_middleware() {
         auth_manager,
         database,
         jwks_manager.clone(),
-        pierre_mcp_server::config::environment::RateLimitConfig::default(),
+        RateLimitConfig::default(),
     );
 
     let token = middleware
@@ -193,7 +194,7 @@ async fn test_mcp_auth_middleware() {
     assert_eq!(auth_result.user_id, user.id);
     assert!(matches!(
         auth_result.auth_method,
-        pierre_mcp_server::auth::AuthMethod::JwtToken { .. }
+        AuthMethod::JwtToken { .. }
     ));
 }
 
@@ -207,13 +208,9 @@ async fn test_mcp_auth_middleware_invalid_header() {
 
     #[cfg(feature = "postgresql")]
     let database = Arc::new(
-        Database::new(
-            database_url,
-            encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
-        )
-        .await
-        .unwrap(),
+        Database::new(database_url, encryption_key, &PostgresPoolConfig::default())
+            .await
+            .unwrap(),
     );
 
     #[cfg(not(feature = "postgresql"))]
@@ -224,7 +221,7 @@ async fn test_mcp_auth_middleware_invalid_header() {
         auth_manager,
         database,
         jwks_manager,
-        pierre_mcp_server::config::environment::RateLimitConfig::default(),
+        RateLimitConfig::default(),
     );
 
     // Test missing header
@@ -249,13 +246,9 @@ async fn test_provider_access_check() {
 
     #[cfg(feature = "postgresql")]
     let database = Arc::new(
-        Database::new(
-            database_url,
-            encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
-        )
-        .await
-        .unwrap(),
+        Database::new(database_url, encryption_key, &PostgresPoolConfig::default())
+            .await
+            .unwrap(),
     );
 
     #[cfg(not(feature = "postgresql"))]
@@ -266,7 +259,7 @@ async fn test_provider_access_check() {
         auth_manager,
         database,
         jwks_manager.clone(),
-        pierre_mcp_server::config::environment::RateLimitConfig::default(),
+        RateLimitConfig::default(),
     );
 
     // User has no providers initially
@@ -377,7 +370,7 @@ fn test_validate_token_invalid_signature() {
     let token = auth_manager.generate_token(&user, &jwks_manager).unwrap();
 
     // Create a different JWKS manager with different key - validation will fail
-    let mut different_jwks_manager = pierre_mcp_server::admin::jwks::JwksManager::new();
+    let mut different_jwks_manager = JwksManager::new();
     different_jwks_manager
         .generate_rsa_key_pair_with_size("different_key", 2048)
         .unwrap();
@@ -434,7 +427,7 @@ fn test_validate_token_detailed_invalid_signature() {
     let token = auth_manager.generate_token(&user, &jwks_manager).unwrap();
 
     // Create a different JWKS manager with different key
-    let mut different_jwks_manager = pierre_mcp_server::admin::jwks::JwksManager::new();
+    let mut different_jwks_manager = JwksManager::new();
     different_jwks_manager
         .generate_rsa_key_pair_with_size("different_key", 2048)
         .unwrap();
@@ -606,13 +599,9 @@ async fn test_check_setup_status_admin_exists() {
     let encryption_key = generate_encryption_key().to_vec();
 
     #[cfg(feature = "postgresql")]
-    let database = Database::new(
-        database_url,
-        encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
-    )
-    .await
-    .unwrap();
+    let database = Database::new(database_url, encryption_key, &PostgresPoolConfig::default())
+        .await
+        .unwrap();
 
     #[cfg(not(feature = "postgresql"))]
     let database = Database::new(database_url, encryption_key).await.unwrap();
@@ -643,13 +632,9 @@ async fn test_check_setup_status_no_admin() {
     let encryption_key = generate_encryption_key().to_vec();
 
     #[cfg(feature = "postgresql")]
-    let database = Database::new(
-        database_url,
-        encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
-    )
-    .await
-    .unwrap();
+    let database = Database::new(database_url, encryption_key, &PostgresPoolConfig::default())
+        .await
+        .unwrap();
 
     #[cfg(not(feature = "postgresql"))]
     let database = Database::new(database_url, encryption_key).await.unwrap();
@@ -676,13 +661,9 @@ async fn test_mcp_auth_middleware_different_user_tiers() {
 
     #[cfg(feature = "postgresql")]
     let database = Arc::new(
-        Database::new(
-            database_url,
-            encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
-        )
-        .await
-        .unwrap(),
+        Database::new(database_url, encryption_key, &PostgresPoolConfig::default())
+            .await
+            .unwrap(),
     );
 
     #[cfg(not(feature = "postgresql"))]
@@ -708,7 +689,7 @@ async fn test_mcp_auth_middleware_different_user_tiers() {
             auth_manager.clone(),
             database.clone(),
             jwks_manager.clone(),
-            pierre_mcp_server::config::environment::RateLimitConfig::default(),
+            RateLimitConfig::default(),
         );
         let token = middleware
             .auth_manager()

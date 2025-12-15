@@ -24,6 +24,7 @@ use physiological_constants::fitness_score_thresholds::{
     STATISTICAL_SIGNIFICANCE_THRESHOLD, STRENGTH_ENDURANCE_DIVISOR,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Core activity analyzer for single activity analysis
 pub mod analyzer;
@@ -649,7 +650,7 @@ pub struct AdvancedInsight {
     /// Severity/importance of the insight
     pub severity: InsightSeverity,
     /// Additional metadata for the insight
-    pub metadata: std::collections::HashMap<String, serde_json::Value>,
+    pub metadata: HashMap<String, serde_json::Value>,
 }
 
 /// Severity level for insights

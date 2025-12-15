@@ -6,10 +6,12 @@
 
 //! Protocol constants for MCP and JSON-RPC
 
+use crate::constants::get_server_config;
+
 /// Get MCP Protocol version from environment or default
 #[must_use]
 pub fn mcp_protocol_version() -> String {
-    crate::constants::get_server_config().map_or_else(
+    get_server_config().map_or_else(
         || "2024-11-05".to_owned(),
         |c| c.mcp.protocol_version.clone(),
     )
@@ -21,7 +23,7 @@ pub const JSONRPC_VERSION: &str = "2.0";
 /// Get server name from environment or default
 #[must_use]
 pub fn server_name() -> String {
-    crate::constants::get_server_config().map_or_else(
+    get_server_config().map_or_else(
         || "pierre-fitness-api".to_owned(),
         |c| c.mcp.server_name.clone(),
     )
@@ -30,7 +32,7 @@ pub fn server_name() -> String {
 /// Get server name variant with specific suffix
 #[must_use]
 pub fn server_name_multitenant() -> String {
-    crate::constants::get_server_config().map_or_else(
+    get_server_config().map_or_else(
         || "pierre-fitness-api".to_owned(),
         |c| c.mcp.server_name.clone(),
     )

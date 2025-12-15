@@ -16,10 +16,11 @@
 mod helpers;
 
 use helpers::axum_test::AxumTestRequest;
+use pierre_mcp_server::routes::health::HealthRoutes;
 
 /// Get health routes for testing
 fn health_routes() -> axum::Router {
-    pierre_mcp_server::routes::health::HealthRoutes::routes()
+    HealthRoutes::routes()
 }
 
 // ============================================================================

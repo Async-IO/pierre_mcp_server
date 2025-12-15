@@ -5,6 +5,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use super::Database;
+use crate::dashboard_routes::ToolUsage;
 use crate::errors::{AppError, AppResult};
 use crate::rate_limiting::JwtUsage;
 use chrono::{DateTime, Duration, Utc};
@@ -600,7 +601,7 @@ impl Database {
         user_id: Uuid,
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
-    ) -> AppResult<Vec<crate::dashboard_routes::ToolUsage>> {
+    ) -> AppResult<Vec<ToolUsage>> {
         let rows = sqlx::query(
             r"
             SELECT
@@ -638,7 +639,7 @@ impl Database {
                 0.0
             };
 
-            tool_usage.push(crate::dashboard_routes::ToolUsage {
+            tool_usage.push(ToolUsage {
                 tool_name: endpoint,
                 #[allow(clippy::cast_sign_loss)]
                 request_count: usage_count as u64,
@@ -659,7 +660,7 @@ impl Database {
         user_id: Uuid,
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
-    ) -> AppResult<Vec<crate::dashboard_routes::ToolUsage>> {
+    ) -> AppResult<Vec<ToolUsage>> {
         self.get_top_tools_analysis_impl(user_id, start_time, end_time)
             .await
     }

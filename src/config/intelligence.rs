@@ -9,8 +9,11 @@
 //! including recommendation engine, performance analyzer, goal engine, and weather analysis.
 
 use crate::constants::limits;
+use crate::intelligence::recipes::MealTiming;
 use serde::{Deserialize, Serialize};
+use std::env;
 use std::marker::PhantomData;
+use std::str::FromStr;
 use std::sync::OnceLock;
 use thiserror::Error;
 use tracing::warn;
@@ -29,7 +32,7 @@ pub enum ConfigError {
 
     /// Environment variable access or parse error
     #[error("Environment variable error: {0}")]
-    EnvVar(#[from] std::env::VarError),
+    EnvVar(#[from] env::VarError),
 
     /// Failed to parse configuration value
     #[error("Parse error: {0}")]
@@ -914,11 +917,7 @@ impl MealTimingMacrosConfig {
 
     /// Get macro distribution for a specific meal timing
     #[must_use]
-    pub const fn get_distribution(
-        &self,
-        timing: crate::intelligence::recipes::MealTiming,
-    ) -> (u8, u8, u8) {
-        use crate::intelligence::recipes::MealTiming;
+    pub const fn get_distribution(&self, timing: MealTiming) -> (u8, u8, u8) {
         match timing {
             MealTiming::PreTraining => self.pre_training.as_tuple(),
             MealTiming::PostTraining => self.post_training.as_tuple(),
@@ -1033,11 +1032,7 @@ impl MealTdeeProportionsConfig {
     /// If TDEE is provided, returns TDEE × proportion for the timing.
     /// Otherwise, returns the fallback calorie value.
     #[must_use]
-    pub fn calories_for_timing(
-        &self,
-        timing: crate::intelligence::recipes::MealTiming,
-        tdee: Option<f64>,
-    ) -> f64 {
+    pub fn calories_for_timing(&self, timing: MealTiming, tdee: Option<f64>) -> f64 {
         tdee.map_or_else(
             || self.fallback_calories_for_timing(timing),
             |daily_tdee| (daily_tdee * self.proportion_for_timing(timing)).round(),
@@ -1046,11 +1041,7 @@ impl MealTdeeProportionsConfig {
 
     /// Get the TDEE proportion for a specific meal timing
     #[must_use]
-    pub const fn proportion_for_timing(
-        &self,
-        timing: crate::intelligence::recipes::MealTiming,
-    ) -> f64 {
-        use crate::intelligence::recipes::MealTiming;
+    pub const fn proportion_for_timing(&self, timing: MealTiming) -> f64 {
         match timing {
             MealTiming::PreTraining => self.pre_training,
             MealTiming::PostTraining => self.post_training,
@@ -1061,11 +1052,7 @@ impl MealTdeeProportionsConfig {
 
     /// Get fallback calories for a specific meal timing when TDEE is not provided
     #[must_use]
-    pub const fn fallback_calories_for_timing(
-        &self,
-        timing: crate::intelligence::recipes::MealTiming,
-    ) -> f64 {
-        use crate::intelligence::recipes::MealTiming;
+    pub const fn fallback_calories_for_timing(&self, timing: MealTiming) -> f64 {
         match timing {
             MealTiming::PreTraining => self.fallback_calories.pre_training,
             MealTiming::PostTraining => self.fallback_calories.post_training,
@@ -1377,11 +1364,8 @@ impl IntelligenceConfig<true> {
     /// 1. Check if env var exists
     /// 2. Parse it
     /// 3. Apply to target field
-    fn apply_env_var<T: std::str::FromStr>(
-        env_var_name: &str,
-        target: &mut T,
-    ) -> Result<(), ConfigError> {
-        if let Ok(val) = std::env::var(env_var_name) {
+    fn apply_env_var<T: FromStr>(env_var_name: &str, target: &mut T) -> Result<(), ConfigError> {
+        if let Ok(val) = env::var(env_var_name) {
             *target = val
                 .parse()
                 .map_err(|_| ConfigError::Parse(format!("Invalid {env_var_name}")))?;

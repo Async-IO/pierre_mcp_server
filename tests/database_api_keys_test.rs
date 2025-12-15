@@ -8,11 +8,12 @@
 #![allow(missing_docs)]
 
 use chrono::{DateTime, Duration, Utc};
-use pierre_mcp_server::api_keys::{
-    ApiKey, ApiKeyManager, ApiKeyTier, ApiKeyUsage, CreateApiKeyRequest,
+use pierre_mcp_server::{
+    api_keys::{ApiKey, ApiKeyManager, ApiKeyTier, ApiKeyUsage, CreateApiKeyRequest},
+    database::test_utils::create_test_db,
+    database_plugins::{factory::Database, DatabaseProvider},
+    models::{User, UserStatus, UserTier},
 };
-use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
-use pierre_mcp_server::models::{User, UserTier};
 use uuid::Uuid;
 
 async fn create_test_user(db: &Database) -> User {
@@ -24,7 +25,7 @@ async fn create_test_user(db: &Database) -> User {
     );
     user.id = uuid;
     user.tier = UserTier::Professional;
-    user.user_status = pierre_mcp_server::models::UserStatus::Active;
+    user.user_status = UserStatus::Active;
     user.is_admin = false;
 
     db.create_user(&user).await.expect("Failed to create user");
@@ -33,7 +34,7 @@ async fn create_test_user(db: &Database) -> User {
 
 #[tokio::test]
 async fn test_create_and_retrieve_api_key() {
-    let db = pierre_mcp_server::database::test_utils::create_test_db()
+    let db = create_test_db()
         .await
         .expect("Failed to create test database");
 
@@ -72,7 +73,7 @@ async fn test_create_and_retrieve_api_key() {
 
 #[tokio::test]
 async fn test_api_key_usage_tracking() {
-    let db = pierre_mcp_server::database::test_utils::create_test_db()
+    let db = create_test_db()
         .await
         .expect("Failed to create test database");
 
@@ -139,7 +140,7 @@ async fn test_api_key_usage_tracking() {
 
 #[tokio::test]
 async fn test_api_key_expiration() {
-    let db = pierre_mcp_server::database::test_utils::create_test_db()
+    let db = create_test_db()
         .await
         .expect("Failed to create test database");
 

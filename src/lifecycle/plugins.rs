@@ -14,6 +14,8 @@
 //! These adapters enable deterministic initialization order and health monitoring.
 
 use super::{Plugin, PluginHealth, PluginState};
+#[cfg(feature = "postgresql")]
+use crate::config::environment::PostgresPoolConfig;
 use crate::{
     auth::AuthManager,
     cache::factory::Cache,
@@ -88,7 +90,7 @@ impl Plugin for DatabasePlugin {
                 &self.connection_string,
                 self.encryption_key.clone(),
                 #[cfg(feature = "postgresql")]
-                &crate::config::environment::PostgresPoolConfig::default(),
+                &PostgresPoolConfig::default(),
             )
             .await?,
         );

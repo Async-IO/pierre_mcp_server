@@ -8,7 +8,7 @@ use crate::constants::tools::{
     DELETE_RECIPE, GET_RECIPE, GET_RECIPE_CONSTRAINTS, LIST_RECIPES, SAVE_RECIPE, SEARCH_RECIPES,
     VALIDATE_RECIPE,
 };
-use crate::protocols::universal::{UniversalRequest, UniversalResponse};
+use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalToolExecutor};
 use crate::protocols::ProtocolError;
 use std::collections::HashMap;
 use std::future::Future;
@@ -368,15 +368,13 @@ impl ToolId {
 /// Handler function type for async tools
 pub type AsyncToolHandler =
     fn(
-        &crate::protocols::universal::UniversalToolExecutor,
+        &UniversalToolExecutor,
         UniversalRequest,
     ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>>;
 
 /// Handler function type for sync tools
-pub type SyncToolHandler = fn(
-    &crate::protocols::universal::UniversalToolExecutor,
-    &UniversalRequest,
-) -> Result<UniversalResponse, ProtocolError>;
+pub type SyncToolHandler =
+    fn(&UniversalToolExecutor, &UniversalRequest) -> Result<UniversalResponse, ProtocolError>;
 
 /// Tool metadata and handler information
 pub struct ToolInfo {

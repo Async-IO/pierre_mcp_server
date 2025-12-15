@@ -9,6 +9,7 @@
 use super::WeatherConditions;
 use crate::config::fitness::WeatherApiConfig;
 use crate::config::intelligence::{IntelligenceConfig, WeatherAnalysisConfig};
+use crate::constants::get_server_config;
 use crate::intelligence::physiological_constants::{
     unit_conversions::MS_TO_KMH_FACTOR,
     weather_impact_factors::{
@@ -26,6 +27,7 @@ use crate::utils::http_client::create_client_with_timeout;
 use chrono::{DateTime, Utc};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 use tracing::{debug, error};
@@ -34,8 +36,6 @@ use tracing::{debug, error};
 #[inline]
 #[allow(clippy::cast_possible_truncation)] // Safe: clamped to f32 range
 fn safe_f64_to_f32(value: f64) -> f32 {
-    use std::cmp::Ordering;
-
     // Handle special cases
     if value.is_nan() {
         return 0.0_f32;
@@ -133,8 +133,7 @@ impl WeatherService {
     pub fn with_default_config() -> Self {
         Self::new(
             WeatherApiConfig::default(),
-            crate::constants::get_server_config()
-                .and_then(|c| c.external_services.weather.api_key.clone()),
+            get_server_config().and_then(|c| c.external_services.weather.api_key.clone()),
         )
     }
 

@@ -14,13 +14,21 @@ use anyhow::Result;
 use futures_util::{SinkExt, StreamExt};
 use pierre_mcp_server::{
     auth::AuthManager,
+    config::environment::RateLimitConfig,
     database_plugins::{factory::Database, DatabaseProvider},
+    models::{User, UserStatus, UserTier},
+    permissions::UserRole,
+    routes::websocket::WebSocketRoutes,
     websocket::WebSocketManager,
 };
 use rand::Rng;
 use serde_json::json;
 use std::{net::TcpListener, sync::Arc, time::Duration};
-use tokio::time::{sleep, timeout};
+use tokio::{
+    net::TcpListener as TokioTcpListener,
+    task::JoinHandle,
+    time::{sleep, timeout},
+};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use uuid::Uuid;
 
@@ -64,11 +72,11 @@ impl TestServer {
         })
     }
 
-    async fn start(&self) -> Result<tokio::task::JoinHandle<()>> {
+    async fn start(&self) -> Result<JoinHandle<()>> {
         let jwks_manager = common::get_shared_test_jwks();
         let port = self.port;
 
-        let rate_limit_config = pierre_mcp_server::config::environment::RateLimitConfig::default();
+        let rate_limit_config = RateLimitConfig::default();
 
         let ws_manager = Arc::new(WebSocketManager::new(
             self.database.clone(),
@@ -77,10 +85,10 @@ impl TestServer {
             rate_limit_config,
         ));
 
-        let app = pierre_mcp_server::routes::websocket::WebSocketRoutes::routes(ws_manager);
+        let app = WebSocketRoutes::routes(ws_manager);
 
         let handle = tokio::spawn(async move {
-            let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{port}"))
+            let listener = TokioTcpListener::bind(format!("127.0.0.1:{port}"))
                 .await
                 .unwrap();
             axum::serve(listener, app).await.unwrap();
@@ -96,19 +104,19 @@ impl TestServer {
         let user_id = Uuid::new_v4();
         let password_hash = bcrypt::hash(password, bcrypt::DEFAULT_COST)?;
 
-        let user = pierre_mcp_server::models::User {
+        let user = User {
             id: user_id,
             email: email.to_owned(),
             display_name: Some("Test User".to_owned()),
             password_hash,
-            tier: pierre_mcp_server::models::UserTier::Starter,
+            tier: UserTier::Starter,
             tenant_id: None,
             strava_token: None,
             fitbit_token: None,
             is_active: true,
-            user_status: pierre_mcp_server::models::UserStatus::Active,
+            user_status: UserStatus::Active,
             is_admin: false,
-            role: pierre_mcp_server::permissions::UserRole::User,
+            role: UserRole::User,
             approved_by: Some(user_id),
             approved_at: Some(chrono::Utc::now()),
             created_at: chrono::Utc::now(),

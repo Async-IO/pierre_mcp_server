@@ -11,14 +11,19 @@
 
 use super::{
     multitenant::{McpError, McpRequest, McpResponse},
+    protocol::ProtocolHandler,
     resources::ServerResources,
+    schema::{get_tools, CreateMessageRequest},
     tool_handlers::ToolHandlers,
 };
 use crate::constants::errors::{ERROR_INTERNAL_ERROR, ERROR_METHOD_NOT_FOUND};
-use crate::constants::protocol::JSONRPC_VERSION;
+use crate::constants::protocol::{mcp_protocol_version, JSONRPC_VERSION};
 use crate::errors::{AppError, AppResult};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
+use tokio::io::{AsyncWriteExt, Stdout};
+use tokio::sync::Mutex;
 use tracing::{debug, error, warn};
 
 /// Processes MCP protocol requests with validation, routing, and execution
@@ -35,7 +40,7 @@ impl McpRequestProcessor {
 
     /// Handle an MCP request and return a response
     pub async fn handle_request(&self, request: McpRequest) -> Option<McpResponse> {
-        let start_time = std::time::Instant::now();
+        let start_time = Instant::now();
 
         // Log request with optional truncation
         Self::log_request(&request);
@@ -61,7 +66,7 @@ impl McpRequestProcessor {
         }
     }
 
-    fn create_error_response(request: &McpRequest, e: &crate::errors::AppError) -> McpResponse {
+    fn create_error_response(request: &McpRequest, e: &AppError) -> McpResponse {
         error!(
             "Failed to process MCP request: {} | Request: method={}, jsonrpc={}, id={:?}",
             e, request.method, request.jsonrpc, request.id
@@ -123,7 +128,7 @@ impl McpRequestProcessor {
         debug!("Handling initialize request");
 
         let server_info = serde_json::json!({
-            "protocolVersion": crate::constants::protocol::mcp_protocol_version(),
+            "protocolVersion": mcp_protocol_version(),
             "capabilities": {
                 "tools": {
                     "listChanged": true
@@ -191,7 +196,7 @@ impl McpRequestProcessor {
         // Get all available tools from schema
         // MCP spec: tools/list must work without authentication
         // Authentication is checked at tools/call time, not discovery time
-        let tools = crate::mcp::schema::get_tools();
+        let tools = get_tools();
 
         McpResponse {
             jsonrpc: JSONRPC_VERSION.to_owned(),
@@ -252,7 +257,7 @@ impl McpRequestProcessor {
         match request.method.as_str() {
             "completion/complete" => {
                 // Delegate to protocol handler
-                crate::mcp::protocol::ProtocolHandler::handle_completion_complete(request.clone())
+                ProtocolHandler::handle_completion_complete(request.clone())
             }
             _ => Self::handle_unknown_method(request),
         }
@@ -265,7 +270,7 @@ impl McpRequestProcessor {
         match request.method.as_str() {
             "roots/list" => {
                 // Delegate to protocol handler
-                crate::mcp::protocol::ProtocolHandler::handle_roots_list(request.clone())
+                ProtocolHandler::handle_roots_list(request.clone())
             }
             _ => Self::handle_unknown_method(request),
         }
@@ -293,24 +298,23 @@ impl McpRequestProcessor {
 
                 // Parse request parameters
                 let create_message_request = match &request.params {
-                    Some(params) => match serde_json::from_value::<
-                        crate::mcp::schema::CreateMessageRequest,
-                    >(params.clone())
-                    {
-                        Ok(req) => req,
-                        Err(e) => {
-                            return Ok(McpResponse {
-                                jsonrpc: JSONRPC_VERSION.to_owned(),
-                                id: request.id.clone(),
-                                result: None,
-                                error: Some(McpError {
-                                    code: -32602, // Invalid params
-                                    message: format!("Invalid sampling parameters: {e}"),
-                                    data: None,
-                                }),
-                            });
+                    Some(params) => {
+                        match serde_json::from_value::<CreateMessageRequest>(params.clone()) {
+                            Ok(req) => req,
+                            Err(e) => {
+                                return Ok(McpResponse {
+                                    jsonrpc: JSONRPC_VERSION.to_owned(),
+                                    id: request.id.clone(),
+                                    result: None,
+                                    error: Some(McpError {
+                                        code: -32602, // Invalid params
+                                        message: format!("Invalid sampling parameters: {e}"),
+                                        data: None,
+                                    }),
+                                });
+                            }
                         }
-                    },
+                    }
                     None => {
                         return Ok(McpResponse {
                             jsonrpc: JSONRPC_VERSION.to_owned(),
@@ -449,7 +453,7 @@ impl McpRequestProcessor {
     }
 
     /// Log request completion with timing
-    fn log_completion(request_type: &str, start_time: std::time::Instant) {
+    fn log_completion(request_type: &str, start_time: Instant) {
         let duration = start_time.elapsed();
         debug!(
             duration_ms = u64::try_from(duration.as_millis()).unwrap_or(0),
@@ -464,10 +468,8 @@ impl McpRequestProcessor {
 /// Returns an error if JSON serialization fails or I/O operations fail
 pub async fn write_response_to_stdout(
     response: &McpResponse,
-    stdout: &Arc<tokio::sync::Mutex<tokio::io::Stdout>>,
+    stdout: &Arc<Mutex<Stdout>>,
 ) -> AppResult<()> {
-    use tokio::io::AsyncWriteExt;
-
     let response_json = serde_json::to_string(response)
         .map_err(|e| AppError::internal(format!("JSON serialization failed: {e}")))?;
     debug!("Sending MCP response: {}", response_json);

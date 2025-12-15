@@ -15,16 +15,20 @@ mod common;
 use pierre_mcp_server::{
     auth::AuthManager,
     config::environment::{
-        AppBehaviorConfig, AuthConfig, BackupConfig, DatabaseConfig, DatabaseUrl, Environment,
-        ExternalServicesConfig, FitbitApiConfig, GeocodingServiceConfig, HttpClientConfig,
-        LogLevel, OAuthConfig, OAuthProviderConfig, ProtocolConfig, SecurityConfig,
-        SecurityHeadersConfig, ServerConfig, StravaApiConfig, TlsConfig, WeatherServiceConfig,
+        AppBehaviorConfig, AuthConfig, BackupConfig, CacheConfig as EnvCacheConfig, CorsConfig,
+        DatabaseConfig, DatabaseUrl, Environment, ExternalServicesConfig, FirebaseConfig,
+        FitbitApiConfig, GeocodingServiceConfig, GoalManagementConfig, HttpClientConfig, LogLevel,
+        LoggingConfig, McpConfig, OAuth2ServerConfig, OAuthConfig, OAuthProviderConfig,
+        PostgresPoolConfig, ProtocolConfig, RateLimitConfig, RouteTimeoutConfig, SecurityConfig,
+        SecurityHeadersConfig, ServerConfig, SleepRecoveryConfig, SseConfig, StravaApiConfig,
+        TlsConfig, TrainingZonesConfig, WeatherServiceConfig,
     },
+    context::ServerContext,
     database_plugins::factory::Database,
     mcp::resources::ServerResources,
     routes::{auth::AuthService, RegisterRequest},
 };
-use std::sync::Arc;
+use std::{ptr, sync::Arc};
 use tempfile::TempDir;
 
 #[tokio::test]
@@ -37,7 +41,7 @@ async fn test_email_validation() {
     let database = Database::new(
         &format!("sqlite:{db_path_str}"),
         vec![0u8; 32],
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await
     .unwrap();
@@ -47,11 +51,11 @@ async fn test_email_validation() {
         .await
         .unwrap();
 
-    tracing::trace!("Created test database: {:?}", std::ptr::addr_of!(database));
+    tracing::trace!("Created test database: {:?}", ptr::addr_of!(database));
     let auth_manager = AuthManager::new(24);
     tracing::trace!(
         "Created test auth manager: {:?}",
-        std::ptr::addr_of!(auth_manager)
+        ptr::addr_of!(auth_manager)
     );
     // Email and password validation functions are now static, no need for routes instance
     assert!(AuthService::is_valid_email("test@example.com"));
@@ -82,7 +86,7 @@ async fn test_register_user() {
     let database = Database::new(
         &format!("sqlite:{db_path_str}"),
         vec![0u8; 32],
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await
     .unwrap();
@@ -99,7 +103,7 @@ async fn test_register_user() {
         http_port: 8081,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
-        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
+        logging: LoggingConfig::default(),
         http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
@@ -110,12 +114,12 @@ async fn test_register_user() {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
-            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            postgres_pool: PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
-            ..pierre_mcp_server::config::environment::AuthConfig::default()
+            ..AuthConfig::default()
         },
         oauth: OAuthConfig {
             strava: OAuthProviderConfig {
@@ -180,32 +184,32 @@ async fn test_register_user() {
                 server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
-        sse: pierre_mcp_server::config::environment::SseConfig::default(),
-        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
-        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        sse: SseConfig::default(),
+        oauth2_server: OAuth2ServerConfig::default(),
+        route_timeouts: RouteTimeoutConfig::default(),
         host: "localhost".to_owned(),
         base_url: "http://localhost:8081".to_owned(),
-        mcp: pierre_mcp_server::config::environment::McpConfig {
+        mcp: McpConfig {
             protocol_version: "2025-06-18".to_owned(),
             server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
         },
-        cors: pierre_mcp_server::config::environment::CorsConfig {
+        cors: CorsConfig {
             allowed_origins: "*".to_owned(),
             allow_localhost_dev: true,
         },
-        cache: pierre_mcp_server::config::environment::CacheConfig {
+        cache: EnvCacheConfig {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
             ..Default::default()
         },
         usda_api_key: None,
-        rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
-        sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
-        goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
-        training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
-        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
+        rate_limiting: RateLimitConfig::default(),
+        sleep_recovery: SleepRecoveryConfig::default(),
+        goal_management: GoalManagementConfig::default(),
+        training_zones: TrainingZonesConfig::default(),
+        firebase: FirebaseConfig::default(),
     });
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
@@ -218,7 +222,7 @@ async fn test_register_user() {
         Some(common::get_shared_test_jwks()),
     ));
 
-    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let server_context = ServerContext::from(server_resources.as_ref());
     let routes = AuthService::new(
         server_context.auth().clone(),
         server_context.config().clone(),
@@ -251,7 +255,7 @@ async fn test_register_duplicate_user() {
     let database = Database::new(
         &format!("sqlite:{db_path_str}"),
         vec![0u8; 32],
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await
     .unwrap();
@@ -268,7 +272,7 @@ async fn test_register_duplicate_user() {
         http_port: 8081,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
-        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
+        logging: LoggingConfig::default(),
         http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
@@ -279,12 +283,12 @@ async fn test_register_duplicate_user() {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
-            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            postgres_pool: PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
-            ..pierre_mcp_server::config::environment::AuthConfig::default()
+            ..AuthConfig::default()
         },
         oauth: OAuthConfig {
             strava: OAuthProviderConfig {
@@ -349,32 +353,32 @@ async fn test_register_duplicate_user() {
                 server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
-        sse: pierre_mcp_server::config::environment::SseConfig::default(),
-        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
-        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        sse: SseConfig::default(),
+        oauth2_server: OAuth2ServerConfig::default(),
+        route_timeouts: RouteTimeoutConfig::default(),
         host: "localhost".to_owned(),
         base_url: "http://localhost:8081".to_owned(),
-        mcp: pierre_mcp_server::config::environment::McpConfig {
+        mcp: McpConfig {
             protocol_version: "2025-06-18".to_owned(),
             server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
         },
-        cors: pierre_mcp_server::config::environment::CorsConfig {
+        cors: CorsConfig {
             allowed_origins: "*".to_owned(),
             allow_localhost_dev: true,
         },
-        cache: pierre_mcp_server::config::environment::CacheConfig {
+        cache: EnvCacheConfig {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
             ..Default::default()
         },
         usda_api_key: None,
-        rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
-        sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
-        goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
-        training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
-        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
+        rate_limiting: RateLimitConfig::default(),
+        sleep_recovery: SleepRecoveryConfig::default(),
+        goal_management: GoalManagementConfig::default(),
+        training_zones: TrainingZonesConfig::default(),
+        firebase: FirebaseConfig::default(),
     });
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
@@ -387,7 +391,7 @@ async fn test_register_duplicate_user() {
         Some(common::get_shared_test_jwks()),
     ));
 
-    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let server_context = ServerContext::from(server_resources.as_ref());
     let routes = AuthService::new(
         server_context.auth().clone(),
         server_context.config().clone(),

@@ -17,8 +17,14 @@ mod common;
 mod helpers;
 
 use helpers::axum_test::AxumTestRequest;
-use pierre_mcp_server::mcp::resources::ServerResources;
-
+use pierre_mcp_server::{
+    config::environment::{
+        AppBehaviorConfig, BackupConfig, DatabaseConfig, DatabaseUrl, Environment, SecurityConfig,
+        SecurityHeadersConfig, ServerConfig,
+    },
+    mcp::resources::ServerResources,
+    routes::dashboard::DashboardRoutes,
+};
 use std::sync::Arc;
 
 /// Test setup helper for dashboard route testing
@@ -40,24 +46,24 @@ impl DashboardTestSetup {
 
         // Create ServerResources
         let temp_dir = tempfile::tempdir()?;
-        let config = Arc::new(pierre_mcp_server::config::environment::ServerConfig {
+        let config = Arc::new(ServerConfig {
             http_port: 8081,
-            database: pierre_mcp_server::config::environment::DatabaseConfig {
-                url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
-                backup: pierre_mcp_server::config::environment::BackupConfig {
+            database: DatabaseConfig {
+                url: DatabaseUrl::Memory,
+                backup: BackupConfig {
                     directory: temp_dir.path().to_path_buf(),
                     ..Default::default()
                 },
                 ..Default::default()
             },
-            app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
+            app_behavior: AppBehaviorConfig {
                 ci_mode: true,
                 auto_approve_users: false,
                 ..Default::default()
             },
-            security: pierre_mcp_server::config::environment::SecurityConfig {
-                headers: pierre_mcp_server::config::environment::SecurityHeadersConfig {
-                    environment: pierre_mcp_server::config::environment::Environment::Testing,
+            security: SecurityConfig {
+                headers: SecurityHeadersConfig {
+                    environment: Environment::Testing,
                 },
                 ..Default::default()
             },
@@ -92,7 +98,7 @@ impl DashboardTestSetup {
     }
 
     fn routes(&self) -> axum::Router {
-        pierre_mcp_server::routes::dashboard::DashboardRoutes::routes(self.resources.clone())
+        DashboardRoutes::routes(self.resources.clone())
     }
 
     fn auth_header(&self) -> String {

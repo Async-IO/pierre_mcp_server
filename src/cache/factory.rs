@@ -4,12 +4,15 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use std::time::Duration;
+
+use serde::{Deserialize, Serialize};
+use tracing::info;
+
 use super::{memory::InMemoryCache, redis::RedisCache, CacheConfig, CacheProvider};
 use crate::config::environment::RedisConnectionConfig;
+use crate::constants::get_server_config;
 use crate::errors::AppResult;
-use serde::{Deserialize, Serialize};
-use std::time::Duration;
-use tracing::info;
 
 /// Cache backend enum for pluggable implementations
 #[non_exhaustive]
@@ -57,7 +60,7 @@ impl Cache {
     ///
     /// Returns an error if cache initialization fails
     pub async fn from_env() -> AppResult<Self> {
-        let config = crate::constants::get_server_config().map_or_else(
+        let config = get_server_config().map_or_else(
             || CacheConfig {
                 max_entries: 1000,
                 redis_url: None,

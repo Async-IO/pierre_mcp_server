@@ -14,9 +14,12 @@
 mod common;
 
 use chrono::{Duration, Utc};
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
 use pierre_mcp_server::{
     api_keys::{ApiKeyManager, ApiKeyTier, ApiKeyUsage, CreateApiKeyRequest},
-    auth::AuthManager,
+    auth::{AuthManager, AuthMethod},
+    config::environment::RateLimitConfig,
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
     middleware::McpAuthMiddleware,
@@ -37,13 +40,9 @@ async fn create_test_environment() -> (
 
     #[cfg(feature = "postgresql")]
     let database = Arc::new(
-        Database::new(
-            database_url,
-            encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
-        )
-        .await
-        .unwrap(),
+        Database::new(database_url, encryption_key, &PostgresPoolConfig::default())
+            .await
+            .unwrap(),
     );
 
     #[cfg(not(feature = "postgresql"))]
@@ -58,7 +57,7 @@ async fn create_test_environment() -> (
         (*auth_manager).clone(),
         database.clone(),
         jwks_manager,
-        pierre_mcp_server::config::environment::RateLimitConfig::default(),
+        RateLimitConfig::default(),
     ));
 
     // Create test user
@@ -101,10 +100,7 @@ async fn test_end_to_end_api_key_workflow() {
         .unwrap();
 
     assert_eq!(auth_result.user_id, user.id);
-    assert!(matches!(
-        auth_result.auth_method,
-        pierre_mcp_server::auth::AuthMethod::ApiKey { .. }
-    ));
+    assert!(matches!(auth_result.auth_method, AuthMethod::ApiKey { .. }));
     assert!(auth_result.rate_limit.limit.is_some());
 
     // Step 3: Verify rate limit status

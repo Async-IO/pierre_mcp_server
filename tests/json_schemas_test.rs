@@ -9,12 +9,14 @@
 //! This module validates that typed parameter structs correctly deserialize
 //! JSON input with proper type safety and validation.
 
-use pierre_mcp_server::types::json_schemas::{
-    A2ATaskCreateParams, ConfigValueInput, UpdateConfigurationRequest,
+use pierre_mcp_server::{
+    config::runtime::ConfigValue,
+    types::json_schemas::{A2ATaskCreateParams, ConfigValueInput, UpdateConfigurationRequest},
 };
+use std::error::Error;
 
 #[test]
-fn test_config_value_input_deserialization() -> Result<(), Box<dyn std::error::Error>> {
+fn test_config_value_input_deserialization() -> Result<(), Box<dyn Error>> {
     // Test float (use a value that's not a mathematical constant)
     let json = serde_json::json!(5.25);
     let value: ConfigValueInput = serde_json::from_value(json)?;
@@ -60,7 +62,7 @@ fn test_config_value_input_deserialization() -> Result<(), Box<dyn std::error::E
 }
 
 #[test]
-fn test_update_configuration_request_parsing() -> Result<(), Box<dyn std::error::Error>> {
+fn test_update_configuration_request_parsing() -> Result<(), Box<dyn Error>> {
     let json = serde_json::json!({
         "profile": "endurance",
         "parameter_overrides": {
@@ -87,7 +89,7 @@ fn test_update_configuration_request_parsing() -> Result<(), Box<dyn std::error:
 }
 
 #[test]
-fn test_a2a_task_create_params_with_alias() -> Result<(), Box<dyn std::error::Error>> {
+fn test_a2a_task_create_params_with_alias() -> Result<(), Box<dyn Error>> {
     // Test with 'task_type' field
     let json1 = serde_json::json!({
         "client_id": "test-client",
@@ -132,8 +134,6 @@ fn test_deny_unknown_fields() {
 
 #[test]
 fn test_config_value_conversion_to_internal() {
-    use pierre_mcp_server::config::runtime::ConfigValue;
-
     // Test Float conversion
     let input = ConfigValueInput::Float(5.25);
     let config_val = input.to_config_value();

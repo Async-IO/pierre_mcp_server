@@ -4,11 +4,17 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-use crate::database_plugins::DatabaseProvider;
-use crate::errors::{AppError, AppResult};
-use base64::Engine;
 use std::env;
+
+use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
+use base64::engine::general_purpose::STANDARD as Base64Standard;
+use base64::Engine as Base64Engine;
+use rand::RngCore;
 use tracing::info;
+
+use crate::database::generate_encryption_key;
+use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::errors::{AppError, AppResult};
 
 /// Master Encryption Key (MEK) - Tier 1
 /// Loaded from environment variable or external key management system
@@ -60,13 +66,11 @@ impl MasterEncryptionKey {
     /// Returns error if decoding fails or key is wrong length
     fn load_from_environment(encoded_key: &str) -> AppResult<Self> {
         info!("Loading Master Encryption Key from environment variable");
-        let key_bytes = base64::engine::general_purpose::STANDARD
-            .decode(encoded_key)
-            .map_err(|e| {
-                AppError::config(format!(
-                    "Invalid base64 encoding in PIERRE_MASTER_ENCRYPTION_KEY: {e}"
-                ))
-            })?;
+        let key_bytes = Base64Standard.decode(encoded_key).map_err(|e| {
+            AppError::config(format!(
+                "Invalid base64 encoding in PIERRE_MASTER_ENCRYPTION_KEY: {e}"
+            ))
+        })?;
 
         if key_bytes.len() != 32 {
             return Err(AppError::config(format!(
@@ -92,9 +96,6 @@ impl MasterEncryptionKey {
     ///
     /// Returns an error if encryption fails
     pub fn encrypt(&self, plaintext: &[u8]) -> AppResult<Vec<u8>> {
-        use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
-        use rand::RngCore;
-
         let cipher = Aes256Gcm::new_from_slice(&self.key)
             .map_err(|e| AppError::internal(format!("Invalid key length: {e}")))?;
 
@@ -124,8 +125,6 @@ impl MasterEncryptionKey {
     /// - The encrypted data is too short to contain a nonce
     /// - Decryption fails due to invalid data or wrong key
     pub fn decrypt(&self, encrypted_data: &[u8]) -> AppResult<Vec<u8>> {
-        use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
-
         if encrypted_data.len() < 12 {
             return Err(AppError::invalid_input("Encrypted data too short"));
         }
@@ -150,7 +149,7 @@ impl DatabaseEncryptionKey {
     /// Create a new random DEK
     #[must_use]
     pub fn generate() -> Self {
-        let key = crate::database::generate_encryption_key();
+        let key = generate_encryption_key();
         Self { key }
     }
 
@@ -230,17 +229,14 @@ impl KeyManager {
 
     /// Decode base64-encoded encrypted DEK
     fn decode_encrypted_dek(encrypted_dek_base64: &str) -> AppResult<Vec<u8>> {
-        base64::engine::general_purpose::STANDARD
+        Base64Standard
             .decode(encrypted_dek_base64)
             .map_err(|e| AppError::internal(format!("Invalid base64 encoding for stored DEK: {e}")))
     }
 
     /// Store encrypted DEK in database
-    async fn store_dek(
-        database: &crate::database_plugins::factory::Database,
-        encrypted_dek: &[u8],
-    ) -> AppResult<()> {
-        let encrypted_dek_base64 = base64::engine::general_purpose::STANDARD.encode(encrypted_dek);
+    async fn store_dek(database: &Database, encrypted_dek: &[u8]) -> AppResult<()> {
+        let encrypted_dek_base64 = Base64Standard.encode(encrypted_dek);
         database
             .update_system_secret("database_encryption_key", &encrypted_dek_base64)
             .await
@@ -258,10 +254,7 @@ impl KeyManager {
     /// Returns an error if:
     /// - Database operations fail
     /// - DEK encryption/decryption fails
-    pub async fn complete_initialization(
-        &mut self,
-        database: &mut crate::database_plugins::factory::Database,
-    ) -> AppResult<()> {
+    pub async fn complete_initialization(&mut self, database: &mut Database) -> AppResult<()> {
         info!("Completing two-tier key management initialization");
 
         if let Ok(encrypted_dek_base64) =
@@ -299,10 +292,7 @@ impl KeyManager {
         Ok(())
     }
 
-    async fn store_new_dek(
-        &self,
-        database: &crate::database_plugins::factory::Database,
-    ) -> AppResult<()> {
+    async fn store_new_dek(&self, database: &Database) -> AppResult<()> {
         info!("No existing DEK found, storing current Database Encryption Key");
         let encrypted_dek = self.dek.encrypt_with_mek(&self.mek)?;
         Self::store_dek(database, &encrypted_dek).await?;
@@ -312,7 +302,7 @@ impl KeyManager {
 
     /// Load DEK from database or generate new one
     async fn load_or_generate_dek(
-        database: &crate::database_plugins::factory::Database,
+        database: &Database,
         mek: &MasterEncryptionKey,
     ) -> AppResult<DatabaseEncryptionKey> {
         if let Ok(encrypted_dek_base64) =
@@ -348,9 +338,7 @@ impl KeyManager {
     /// - MEK loading fails
     /// - Database operations fail
     /// - DEK encryption/decryption fails
-    pub async fn initialize(
-        database: &crate::database_plugins::factory::Database,
-    ) -> AppResult<Self> {
+    pub async fn initialize(database: &Database) -> AppResult<Self> {
         info!("Initializing two-tier key management system");
 
         let mek = MasterEncryptionKey::load_or_generate()?;
@@ -379,10 +367,7 @@ impl KeyManager {
     /// Returns an error if:
     /// - DEK encryption fails
     /// - Database storage fails
-    pub async fn rotate_database_key(
-        &mut self,
-        database: &crate::database_plugins::factory::Database,
-    ) -> AppResult<()> {
+    pub async fn rotate_database_key(&mut self, database: &Database) -> AppResult<()> {
         info!("Rotating Database Encryption Key");
 
         // Generate new DEK
@@ -392,7 +377,7 @@ impl KeyManager {
         let encrypted_dek = self.dek.encrypt_with_mek(&self.mek)?;
 
         // Store encrypted DEK in database
-        let encrypted_dek_base64 = base64::engine::general_purpose::STANDARD.encode(&encrypted_dek);
+        let encrypted_dek_base64 = Base64Standard.encode(&encrypted_dek);
         database
             .update_system_secret("database_encryption_key", &encrypted_dek_base64)
             .await?;

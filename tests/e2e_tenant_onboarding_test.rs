@@ -17,11 +17,19 @@
 #![allow(missing_docs)]
 
 use anyhow::Result;
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
 use pierre_mcp_server::{
-    config::environment::ServerConfig,
+    auth::AuthManager,
+    config::environment::{OAuthConfig, OAuthProviderConfig, ServerConfig},
     database_plugins::{factory::Database, DatabaseProvider},
-    intelligence::ActivityIntelligence,
-    models::{OAuthApp, Tenant, User, UserTier},
+    intelligence::{
+        ActivityIntelligence, ContextualFactors, PerformanceMetrics, TimeOfDay, TrendDirection,
+        TrendIndicators,
+    },
+    mcp::resources::ServerResources,
+    models::{OAuthApp, Tenant, User, UserStatus, UserTier},
+    permissions::UserRole,
     protocols::universal::{UniversalRequest, UniversalToolExecutor},
     tenant::{
         oauth_manager::TenantOAuthManager, StoreCredentialsRequest, TenantContext,
@@ -30,6 +38,7 @@ use pierre_mcp_server::{
 };
 use serde_json::json;
 use std::sync::Arc;
+use tracing_subscriber::fmt;
 use uuid::Uuid;
 
 mod common;
@@ -38,7 +47,7 @@ mod common;
 #[allow(clippy::too_many_lines)] // Long function: Defines complete end-to-end tenant onboarding workflow
 #[tokio::test]
 async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
-    tracing_subscriber::fmt::init();
+    fmt::init();
 
     // Initialize HTTP clients (only once across all tests)
     common::init_test_http_clients();
@@ -50,7 +59,7 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         Database::new(
             "sqlite::memory:",
             vec![0; 32],
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await
         .expect("Failed to create test database"),
@@ -81,9 +90,9 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
+        user_status: UserStatus::Active,
         is_admin: true,
-        role: pierre_mcp_server::permissions::UserRole::Admin,
+        role: UserRole::Admin,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         firebase_uid: None,
@@ -102,9 +111,9 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
+        user_status: UserStatus::Active,
         is_admin: true,
-        role: pierre_mcp_server::permissions::UserRole::Admin,
+        role: UserRole::Admin,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         firebase_uid: None,
@@ -175,12 +184,12 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
     database.create_oauth_app(&beta_strava_app).await?;
 
     // Step 6: Set up tenant OAuth client and configure credentials
-    let oauth_config = Arc::new(pierre_mcp_server::config::environment::OAuthConfig {
-        strava: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        garmin: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        whoop: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        terra: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+    let oauth_config = Arc::new(OAuthConfig {
+        strava: OAuthProviderConfig::default(),
+        fitbit: OAuthProviderConfig::default(),
+        garmin: OAuthProviderConfig::default(),
+        whoop: OAuthProviderConfig::default(),
+        terra: OAuthProviderConfig::default(),
     });
     let tenant_oauth_client = Arc::new(TenantOAuthClient::new(TenantOAuthManager::new(
         oauth_config,
@@ -216,22 +225,22 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
     let _intelligence = Arc::new(ActivityIntelligence::new(
         "E2E Test Intelligence".to_owned(),
         vec![], // No initial insights
-        pierre_mcp_server::intelligence::PerformanceMetrics {
+        PerformanceMetrics {
             relative_effort: Some(85.0),
             zone_distribution: None,
             personal_records: Vec::new(),
             efficiency_score: Some(90.0),
-            trend_indicators: pierre_mcp_server::intelligence::TrendIndicators {
-                pace_trend: pierre_mcp_server::intelligence::TrendDirection::Improving,
-                effort_trend: pierre_mcp_server::intelligence::TrendDirection::Stable,
-                distance_trend: pierre_mcp_server::intelligence::TrendDirection::Improving,
+            trend_indicators: TrendIndicators {
+                pace_trend: TrendDirection::Improving,
+                effort_trend: TrendDirection::Stable,
+                distance_trend: TrendDirection::Improving,
                 consistency_score: 85.0,
             },
         },
-        pierre_mcp_server::intelligence::ContextualFactors {
+        ContextualFactors {
             weather: None,
             location: None,
-            time_of_day: pierre_mcp_server::intelligence::TimeOfDay::Morning,
+            time_of_day: TimeOfDay::Morning,
             days_since_last_activity: Some(1),
             weekly_load: None,
         },
@@ -240,9 +249,9 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
     let config = Arc::new(create_test_server_config());
 
     // Create ServerResources for the test
-    let auth_manager = pierre_mcp_server::auth::AuthManager::new(24);
+    let auth_manager = AuthManager::new(24);
     let cache = common::create_test_cache().await.unwrap();
-    let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let server_resources = Arc::new(ServerResources::new(
         (*database).clone(),
         auth_manager,
         "test_secret",
@@ -372,7 +381,7 @@ async fn create_tenant_test_database() -> Result<Arc<Database>> {
         Database::new(
             "sqlite::memory:",
             vec![0; 32],
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await?,
     );
@@ -401,9 +410,9 @@ async fn setup_multitenant_scenario(database: &Arc<Database>) -> Result<(Uuid, U
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
+        user_status: UserStatus::Active,
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         firebase_uid: None,
@@ -448,12 +457,12 @@ async fn test_tenant_context_switching() -> Result<()> {
     let (tenant1_id, tenant2_id, user_id) = setup_multitenant_scenario(&database).await?;
 
     // Set up different OAuth credentials for each tenant
-    let oauth_config = Arc::new(pierre_mcp_server::config::environment::OAuthConfig {
-        strava: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        garmin: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        whoop: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        terra: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+    let oauth_config = Arc::new(OAuthConfig {
+        strava: OAuthProviderConfig::default(),
+        fitbit: OAuthProviderConfig::default(),
+        garmin: OAuthProviderConfig::default(),
+        whoop: OAuthProviderConfig::default(),
+        terra: OAuthProviderConfig::default(),
     });
     let tenant_oauth_client = Arc::new(TenantOAuthClient::new(TenantOAuthManager::new(
         oauth_config,
@@ -534,12 +543,12 @@ fn create_test_server_config() -> ServerConfig {
                 retention_count: 7,
                 directory: PathBuf::from("test_backups"),
             },
-            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            postgres_pool: PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
-            ..pierre_mcp_server::config::environment::AuthConfig::default()
+            ..AuthConfig::default()
         },
         oauth: OAuthConfig {
             strava: OAuthProviderConfig {
@@ -604,9 +613,9 @@ fn create_test_server_config() -> ServerConfig {
                 server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
-        sse: pierre_mcp_server::config::environment::SseConfig::default(),
-        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
-        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        sse: SseConfig::default(),
+        oauth2_server: OAuth2ServerConfig::default(),
+        route_timeouts: RouteTimeoutConfig::default(),
         ..Default::default()
     }
 }

@@ -15,6 +15,9 @@
 mod common;
 
 use pierre_mcp_server::auth::AuthManager;
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
+use pierre_mcp_server::config::environment::RateLimitConfig;
 use pierre_mcp_server::database::generate_encryption_key;
 use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
 use pierre_mcp_server::middleware::McpAuthMiddleware;
@@ -29,13 +32,9 @@ async fn test_jwt_tokens_now_have_rate_limiting() {
 
     #[cfg(feature = "postgresql")]
     let database = Arc::new(
-        Database::new(
-            database_url,
-            encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
-        )
-        .await
-        .unwrap(),
+        Database::new(database_url, encryption_key, &PostgresPoolConfig::default())
+            .await
+            .unwrap(),
     );
 
     #[cfg(not(feature = "postgresql"))]
@@ -48,7 +47,7 @@ async fn test_jwt_tokens_now_have_rate_limiting() {
         auth_manager,
         database.clone(),
         jwks_manager.clone(),
-        pierre_mcp_server::config::environment::RateLimitConfig::default(),
+        RateLimitConfig::default(),
     ));
 
     // Create and store a test user (defaults to Starter tier with 10,000 requests/month)

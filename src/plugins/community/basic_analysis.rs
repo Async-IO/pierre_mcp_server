@@ -8,9 +8,11 @@ use crate::plugins::core::{PluginCategory, PluginImplementation, PluginInfo, Plu
 use crate::plugins::PluginEnvironment;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
 use crate::protocols::ProtocolError;
+use crate::providers::core::FitnessProvider;
 use crate::{impl_static_plugin, plugin_info};
 use async_trait::async_trait;
 use serde_json::Value;
+use std::collections::HashMap;
 use tracing::info;
 
 /// Basic analysis plugin for community use
@@ -97,7 +99,7 @@ impl PluginImplementation for BasicAnalysisPlugin {
                 }
             })),
             error: None,
-            metadata: Some(std::collections::HashMap::from([
+            metadata: Some(HashMap::from([
                 ("analysis_type".into(), Value::String("basic".into())),
                 ("zones_included".into(), Value::Bool(include_zones)),
             ])),
@@ -109,7 +111,7 @@ impl PluginImplementation for BasicAnalysisPlugin {
 async fn perform_basic_analysis(
     activity_id: &str,
     include_zones: bool,
-    provider: &dyn crate::providers::core::FitnessProvider,
+    provider: &dyn FitnessProvider,
 ) -> Result<Value, ProtocolError> {
     // Fetch actual activity data from the provider
     let activity = provider.get_activity(activity_id).await.map_err(|e| {

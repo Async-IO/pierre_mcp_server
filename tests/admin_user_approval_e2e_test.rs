@@ -12,13 +12,19 @@ mod helpers;
 
 use anyhow::Result;
 use helpers::axum_test::AxumTestRequest;
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
 use pierre_mcp_server::{
+    admin::AdminAuthService,
     auth::AuthManager,
+    constants::system_config::STARTER_MONTHLY_LIMIT,
     database_plugins::{factory::Database, DatabaseProvider},
-    routes::admin::AdminApiContext,
+    models::{User, UserStatus, UserTier},
+    permissions::UserRole,
+    routes::admin::{AdminApiContext, AdminRoutes},
 };
 use serde_json::Value;
-use std::sync::Arc;
+use std::{env, fs, sync::Arc};
 
 /// Complete end-to-end test for admin setup and user approval workflow
 // Long function: Comprehensive test covering admin setup, user creation, approval, and cleanup
@@ -26,18 +32,18 @@ use std::sync::Arc;
 #[tokio::test]
 async fn test_complete_admin_user_approval_workflow() -> Result<()> {
     // Initialize test database with cleanup
-    let database_url = if std::env::var("CI").is_ok() {
+    let database_url = if env::var("CI").is_ok() {
         "sqlite::memory:".to_owned()
     } else {
         let database_path = "./test_data/admin_approval_e2e_test.db";
-        let _ = std::fs::remove_file(database_path); // Clean up any existing test database
+        let _ = fs::remove_file(database_path); // Clean up any existing test database
         format!("sqlite:{database_path}")
     };
     #[cfg(feature = "postgresql")]
     let database = Database::new(
         &database_url,
         b"test_encryption_key_32_bytes_long".to_vec(),
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -53,19 +59,18 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
     let jwks_manager = common::get_shared_test_jwks();
 
     // Create admin API context
-    let admin_api_key_monthly_limit =
-        pierre_mcp_server::constants::system_config::STARTER_MONTHLY_LIMIT;
+    let admin_api_key_monthly_limit = STARTER_MONTHLY_LIMIT;
     let admin_context = AdminApiContext::new(
         Arc::new(database.clone()),
         jwt_secret,
         Arc::new(auth_manager.clone()),
         jwks_manager.clone(),
         admin_api_key_monthly_limit,
-        pierre_mcp_server::admin::AdminAuthService::DEFAULT_CACHE_TTL_SECS,
+        AdminAuthService::DEFAULT_CACHE_TTL_SECS,
     );
 
     // Create admin routes
-    let admin_routes = pierre_mcp_server::routes::admin::AdminRoutes::routes(admin_context);
+    let admin_routes = AdminRoutes::routes(admin_context);
 
     println!("Starting complete admin user approval workflow test");
 
@@ -95,19 +100,19 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
 
     // Step 2: Register a regular user (this would normally be done via main API)
     println!("2️⃣ Creating test user directly in database...");
-    let test_user = pierre_mcp_server::models::User {
+    let test_user = User {
         id: uuid::Uuid::new_v4(),
         email: "test_user@example.com".to_owned(),
         display_name: Some("Test User".to_owned()),
         password_hash: "hashed_password".to_owned(),
-        tier: pierre_mcp_server::models::UserTier::Starter,
+        tier: UserTier::Starter,
         tenant_id: Some("test_tenant".to_owned()),
         strava_token: None,
         fitbit_token: None,
         is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Pending, // Start as pending
+        user_status: UserStatus::Pending, // Start as pending
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         approved_by: None,
         approved_at: None,
         created_at: chrono::Utc::now(),
@@ -204,9 +209,9 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
     println!(" Admin conflict prevention working correctly");
 
     // Cleanup: Remove test database (only in local environment)
-    if std::env::var("CI").is_err() {
-        if let Ok(database_path) = std::env::var("TEST_DATABASE_PATH") {
-            let _ = std::fs::remove_file(&database_path);
+    if env::var("CI").is_err() {
+        if let Ok(database_path) = env::var("TEST_DATABASE_PATH") {
+            let _ = fs::remove_file(&database_path);
             println!("Test database cleaned up");
         }
     }
@@ -225,18 +230,18 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
 #[tokio::test]
 async fn test_admin_token_management_workflow() -> Result<()> {
     // Initialize test database
-    let database_url = if std::env::var("CI").is_ok() {
+    let database_url = if env::var("CI").is_ok() {
         "sqlite::memory:".to_owned()
     } else {
         let database_path = "./test_data/admin_token_mgmt_test.db";
-        let _ = std::fs::remove_file(database_path);
+        let _ = fs::remove_file(database_path);
         format!("sqlite:{database_path}")
     };
     #[cfg(feature = "postgresql")]
     let database = Database::new(
         &database_url,
         b"test_encryption_key_32_bytes_long".to_vec(),
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -250,17 +255,16 @@ async fn test_admin_token_management_workflow() -> Result<()> {
     // Create JWKS manager for RS256 with 2048-bit test keys for faster execution
     let jwks_manager = common::get_shared_test_jwks();
 
-    let admin_api_key_monthly_limit =
-        pierre_mcp_server::constants::system_config::STARTER_MONTHLY_LIMIT;
+    let admin_api_key_monthly_limit = STARTER_MONTHLY_LIMIT;
     let admin_context = AdminApiContext::new(
         Arc::new(database.clone()),
         jwt_secret,
         Arc::new(auth_manager),
         jwks_manager.clone(),
         admin_api_key_monthly_limit,
-        pierre_mcp_server::admin::AdminAuthService::DEFAULT_CACHE_TTL_SECS,
+        AdminAuthService::DEFAULT_CACHE_TTL_SECS,
     );
-    let admin_routes = pierre_mcp_server::routes::admin::AdminRoutes::routes(admin_context);
+    let admin_routes = AdminRoutes::routes(admin_context);
 
     println!("Starting admin token management workflow test");
 
@@ -346,8 +350,8 @@ async fn test_admin_token_management_workflow() -> Result<()> {
     println!(" Token revocation working");
 
     // Cleanup: Remove test database (only in local environment)
-    if std::env::var("CI").is_err() && database_url.starts_with("sqlite:./") {
-        let _ = std::fs::remove_file(&database_url[7..]); // Remove "sqlite:" prefix
+    if env::var("CI").is_err() && database_url.starts_with("sqlite:./") {
+        let _ = fs::remove_file(&database_url[7..]); // Remove "sqlite:" prefix
     }
 
     println!("ADMIN TOKEN MANAGEMENT WORKFLOW TEST PASSED!");
@@ -358,18 +362,18 @@ async fn test_admin_token_management_workflow() -> Result<()> {
 /// Test error handling and edge cases
 #[tokio::test]
 async fn test_admin_workflow_error_handling() -> Result<()> {
-    let database_url = if std::env::var("CI").is_ok() {
+    let database_url = if env::var("CI").is_ok() {
         "sqlite::memory:".to_owned()
     } else {
         let database_path = "./test_data/admin_error_handling_test.db";
-        let _ = std::fs::remove_file(database_path);
+        let _ = fs::remove_file(database_path);
         format!("sqlite:{database_path}")
     };
     #[cfg(feature = "postgresql")]
     let database = Database::new(
         &database_url,
         b"test_encryption_key_32_bytes_long".to_vec(),
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -383,17 +387,16 @@ async fn test_admin_workflow_error_handling() -> Result<()> {
     // Create JWKS manager for RS256 with 2048-bit test keys for faster execution
     let jwks_manager = common::get_shared_test_jwks();
 
-    let admin_api_key_monthly_limit =
-        pierre_mcp_server::constants::system_config::STARTER_MONTHLY_LIMIT;
+    let admin_api_key_monthly_limit = STARTER_MONTHLY_LIMIT;
     let admin_context = AdminApiContext::new(
         Arc::new(database),
         jwt_secret,
         Arc::new(auth_manager),
         jwks_manager,
         admin_api_key_monthly_limit,
-        pierre_mcp_server::admin::AdminAuthService::DEFAULT_CACHE_TTL_SECS,
+        AdminAuthService::DEFAULT_CACHE_TTL_SECS,
     );
-    let admin_routes = pierre_mcp_server::routes::admin::AdminRoutes::routes(admin_context);
+    let admin_routes = AdminRoutes::routes(admin_context);
 
     println!("Starting admin workflow error handling test");
 
@@ -444,8 +447,8 @@ async fn test_admin_workflow_error_handling() -> Result<()> {
     println!(" Malformed UUID properly rejected");
 
     // Cleanup: Remove test database (only in local environment)
-    if std::env::var("CI").is_err() && database_url.starts_with("sqlite:./") {
-        let _ = std::fs::remove_file(&database_url[7..]); // Remove "sqlite:" prefix
+    if env::var("CI").is_err() && database_url.starts_with("sqlite:./") {
+        let _ = fs::remove_file(&database_url[7..]); // Remove "sqlite:" prefix
     }
 
     println!("ADMIN WORKFLOW ERROR HANDLING TEST PASSED!");
@@ -475,21 +478,21 @@ async fn setup_admin_and_get_token(admin_routes: axum::Router) -> Result<String>
 /// Helper: Create pending user for testing
 async fn create_test_pending_user(database: &Database) -> Result<uuid::Uuid> {
     let test_user_id = uuid::Uuid::new_v4();
-    let test_user = pierre_mcp_server::models::User {
+    let test_user = User {
         id: test_user_id,
         email: "user@example.com".to_owned(),
         display_name: Some("Test User".to_owned()),
         password_hash: "dummy_hash".to_owned(),
-        tier: pierre_mcp_server::models::UserTier::Starter,
+        tier: UserTier::Starter,
         tenant_id: None,
         strava_token: None,
         fitbit_token: None,
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Pending,
+        user_status: UserStatus::Pending,
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         approved_by: None,
         approved_at: None,
         firebase_uid: None,
@@ -521,11 +524,11 @@ async fn verify_tenant_user_linkage(
 /// Test user approval with automatic tenant creation
 #[tokio::test]
 async fn test_user_approval_with_tenant_creation() -> Result<()> {
-    let database_url = if std::env::var("CI").is_ok() {
+    let database_url = if env::var("CI").is_ok() {
         "sqlite::memory:".to_owned()
     } else {
         let database_path = "./test_data/admin_approval_with_tenant_test.db";
-        let _ = std::fs::remove_file(database_path);
+        let _ = fs::remove_file(database_path);
         format!("sqlite:{database_path}")
     };
 
@@ -533,7 +536,7 @@ async fn test_user_approval_with_tenant_creation() -> Result<()> {
     let database = Database::new(
         &database_url,
         b"test_encryption_key_32_bytes_long".to_vec(),
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -550,11 +553,11 @@ async fn test_user_approval_with_tenant_creation() -> Result<()> {
         jwt_secret,
         Arc::new(auth_manager.clone()),
         jwks_manager.clone(),
-        pierre_mcp_server::constants::system_config::STARTER_MONTHLY_LIMIT,
-        pierre_mcp_server::admin::AdminAuthService::DEFAULT_CACHE_TTL_SECS,
+        STARTER_MONTHLY_LIMIT,
+        AdminAuthService::DEFAULT_CACHE_TTL_SECS,
     );
 
-    let admin_routes = pierre_mcp_server::routes::admin::AdminRoutes::routes(admin_context);
+    let admin_routes = AdminRoutes::routes(admin_context);
 
     println!("Testing user approval with tenant creation");
 
@@ -617,8 +620,8 @@ async fn test_user_approval_with_tenant_creation() -> Result<()> {
     println!(" Tenant and user linkage verified");
 
     // Cleanup
-    if std::env::var("CI").is_err() && database_url.starts_with("sqlite:./") {
-        let _ = std::fs::remove_file(&database_url[7..]);
+    if env::var("CI").is_err() && database_url.starts_with("sqlite:./") {
+        let _ = fs::remove_file(&database_url[7..]);
     }
 
     println!("USER APPROVAL WITH TENANT CREATION TEST PASSED!");

@@ -36,6 +36,7 @@ use crate::intelligence::physiological_constants::{
 };
 use crate::models::{Activity, SportType};
 use chrono::{DateTime, Local, Timelike, Utc};
+use std::fmt::Write;
 
 /// Safe cast from f64 to f32 with bounds checking
 /// Note: Direct casting is required here for numeric conversion - this is a fundamental
@@ -451,7 +452,6 @@ impl ActivityAnalyzer {
 
         // Add detailed insights
         if let Some(distance) = activity.distance_meters {
-            use std::fmt::Write;
             let distance_km = distance / 1000.0;
             let _ = write!(summary, ". During this {distance_km:.1} km session");
         }

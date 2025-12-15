@@ -4,14 +4,19 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-use super::{CacheConfig, CacheKey, CacheProvider};
-use crate::config::environment::RedisConnectionConfig;
-use crate::errors::{AppError, AppResult};
+use std::time::Duration;
+
 use redis::aio::{ConnectionManager, ConnectionManagerConfig};
 use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
+use serde_json::{from_slice, to_vec};
+use tokio::time::sleep;
 use tracing::{error, info, warn};
+
+use super::{CacheConfig, CacheKey, CacheProvider};
+use crate::config::environment::RedisConnectionConfig;
+use crate::constants::cache::CACHE_KEY_PREFIX;
+use crate::errors::{AppError, AppResult};
 
 /// Redis cache implementation with connection pooling
 ///
@@ -100,7 +105,7 @@ impl RedisCache {
                                 .as_ref()
                                 .map_or_else(|| "unknown".to_owned(), ToString::to_string)
                         );
-                        tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+                        sleep(Duration::from_millis(delay_ms)).await;
                         // Exponential backoff with cap
                         delay_ms = (delay_ms * 2).min(max_delay_ms);
                     }
@@ -118,7 +123,7 @@ impl RedisCache {
 
     /// Build full Redis key with namespace prefix
     fn build_key(key: &CacheKey) -> String {
-        format!("{}{}", crate::constants::cache::CACHE_KEY_PREFIX, key)
+        format!("{CACHE_KEY_PREFIX}{key}")
     }
 }
 
@@ -137,7 +142,7 @@ impl CacheProvider for RedisCache {
         value: &T,
         ttl: Duration,
     ) -> AppResult<()> {
-        let serialized = serde_json::to_vec(value)
+        let serialized = to_vec(value)
             .map_err(|e| AppError::internal(format!("Cache serialization failed: {e}")))?;
         let redis_key = Self::build_key(key);
         let ttl_secs = ttl.as_secs();
@@ -166,7 +171,7 @@ impl CacheProvider for RedisCache {
 
         match data {
             Some(bytes) => {
-                let value: T = serde_json::from_slice(&bytes).map_err(|e| {
+                let value: T = from_slice(&bytes).map_err(|e| {
                     AppError::internal(format!("Cache deserialization failed: {e}"))
                 })?;
                 Ok(Some(value))
@@ -189,7 +194,7 @@ impl CacheProvider for RedisCache {
 
     async fn invalidate_pattern(&self, pattern: &str) -> AppResult<u64> {
         // Convert glob pattern to Redis pattern (glob and Redis use same wildcard syntax)
-        let redis_pattern = format!("{}{}", crate::constants::cache::CACHE_KEY_PREFIX, pattern);
+        let redis_pattern = format!("{CACHE_KEY_PREFIX}{pattern}");
 
         let mut conn = self.manager.clone();
         let mut count = 0u64;
@@ -281,7 +286,7 @@ impl CacheProvider for RedisCache {
 
     async fn clear_all(&self) -> AppResult<()> {
         // Clear only keys with our namespace prefix (safe for shared Redis instances)
-        let pattern = format!("{}*", crate::constants::cache::CACHE_KEY_PREFIX);
+        let pattern = format!("{CACHE_KEY_PREFIX}*");
 
         let mut conn = self.manager.clone();
         let mut cursor = 0u64;

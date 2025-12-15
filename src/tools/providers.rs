@@ -4,12 +4,19 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-use crate::database_plugins::factory::Database;
-use crate::database_plugins::DatabaseProvider;
-use crate::errors::AppError;
-use crate::providers::CoreFitnessProvider;
-use std::collections::HashMap;
-use std::sync::Arc;
+use crate::{
+    constants::oauth_providers::{FITBIT, STRAVA},
+    database_plugins::{factory::Database, DatabaseProvider},
+    errors::AppError,
+    providers::CoreFitnessProvider,
+};
+use std::{
+    collections::HashMap,
+    fmt::{Display, Formatter, Result as FmtResult},
+    str::FromStr,
+    sync::Arc,
+};
+use tokio::sync::{OnceCell, RwLock};
 use tracing::error;
 use uuid::Uuid;
 
@@ -22,8 +29,8 @@ pub enum ProviderType {
     Fitbit,
 }
 
-impl std::fmt::Display for ProviderType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for ProviderType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Self::Strava => write!(f, "strava"),
             Self::Fitbit => write!(f, "fitbit"),
@@ -31,7 +38,7 @@ impl std::fmt::Display for ProviderType {
     }
 }
 
-impl std::str::FromStr for ProviderType {
+impl FromStr for ProviderType {
     type Err = AppError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -85,8 +92,7 @@ pub struct ProviderInfo {
 }
 
 /// Type alias for complex provider cache type
-type ProviderCache =
-    tokio::sync::RwLock<HashMap<(Uuid, ProviderType), Arc<Box<dyn CoreFitnessProvider>>>>;
+type ProviderCache = RwLock<HashMap<(Uuid, ProviderType), Arc<Box<dyn CoreFitnessProvider>>>>;
 
 /// Unified provider manager
 pub struct ProviderManager {
@@ -101,7 +107,7 @@ impl ProviderManager {
     pub fn new(database: Arc<Database>) -> Self {
         Self {
             database,
-            provider_cache: tokio::sync::RwLock::new(HashMap::new()),
+            provider_cache: RwLock::new(HashMap::new()),
         }
     }
 
@@ -149,22 +155,14 @@ impl ProviderManager {
         let token = match provider_type {
             ProviderType::Strava => self
                 .database
-                .get_user_oauth_token(
-                    user_id,
-                    tenant_id,
-                    crate::constants::oauth_providers::STRAVA,
-                )
+                .get_user_oauth_token(user_id, tenant_id, STRAVA)
                 .await
                 .map_err(|e| {
                     AppError::database(format!("Failed to get Strava OAuth token: {e}"))
                 })?,
             ProviderType::Fitbit => self
                 .database
-                .get_user_oauth_token(
-                    user_id,
-                    tenant_id,
-                    crate::constants::oauth_providers::FITBIT,
-                )
+                .get_user_oauth_token(user_id, tenant_id, FITBIT)
                 .await
                 .map_err(|e| {
                     AppError::database(format!("Failed to get Fitbit OAuth token: {e}"))
@@ -239,11 +237,7 @@ impl ProviderManager {
         match provider_type {
             ProviderType::Strava => {
                 self.database
-                    .delete_user_oauth_token(
-                        user_id,
-                        tenant_id,
-                        crate::constants::oauth_providers::STRAVA,
-                    )
+                    .delete_user_oauth_token(user_id, tenant_id, STRAVA)
                     .await
                     .map_err(|e| {
                         AppError::database(format!("Failed to delete Strava OAuth token: {e}"))
@@ -251,11 +245,7 @@ impl ProviderManager {
             }
             ProviderType::Fitbit => {
                 self.database
-                    .delete_user_oauth_token(
-                        user_id,
-                        tenant_id,
-                        crate::constants::oauth_providers::FITBIT,
-                    )
+                    .delete_user_oauth_token(user_id, tenant_id, FITBIT)
                     .await
                     .map_err(|e| {
                         AppError::database(format!("Failed to delete Fitbit OAuth token: {e}"))
@@ -345,13 +335,13 @@ impl ProviderManager {
 /// Global provider manager instance
 /// This provides a singleton for use across the application
 pub struct GlobalProviderManager {
-    inner: tokio::sync::OnceCell<ProviderManager>,
+    inner: OnceCell<ProviderManager>,
 }
 
 impl GlobalProviderManager {
     const fn new() -> Self {
         Self {
-            inner: tokio::sync::OnceCell::const_new(),
+            inner: OnceCell::const_new(),
         }
     }
 

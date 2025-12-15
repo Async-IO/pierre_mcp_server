@@ -16,15 +16,20 @@
 
 use anyhow::Result;
 use chrono::Utc;
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
 use pierre_mcp_server::{
+    config::environment::{OAuthConfig, OAuthProviderConfig},
     constants::oauth_providers,
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
     models::{Tenant, User, UserOAuthToken, UserStatus, UserTier},
+    permissions::UserRole,
     tenant::oauth_manager::{CredentialConfig, TenantOAuthManager},
 };
 use serial_test::serial;
-use std::sync::Arc;
+use std::{env, sync::Arc};
+use tokio::sync::RwLock;
 use uuid::Uuid;
 
 /// Create test database with migrations
@@ -33,12 +38,8 @@ async fn setup_test_database() -> Result<Database> {
     let encryption_key = generate_encryption_key().to_vec();
 
     #[cfg(feature = "postgresql")]
-    let database = Database::new(
-        database_url,
-        encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
-    )
-    .await?;
+    let database =
+        Database::new(database_url, encryption_key, &PostgresPoolConfig::default()).await?;
 
     #[cfg(not(feature = "postgresql"))]
     let database = Database::new(database_url, encryption_key).await?;
@@ -62,7 +63,7 @@ async fn create_test_user(database: &Database, email: &str, tenant_id: Uuid) -> 
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         approved_by: None,
         approved_at: Some(Utc::now()),
         created_at: Utc::now(),
@@ -83,18 +84,18 @@ async fn test_tenant_credential_isolation() -> Result<()> {
     let database = setup_test_database().await?;
 
     // Set up server-level OAuth config (fallback credentials for tenant A)
-    let oauth_config = Arc::new(pierre_mcp_server::config::environment::OAuthConfig {
-        strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
+    let oauth_config = Arc::new(OAuthConfig {
+        strava: OAuthProviderConfig {
             client_id: Some("163846".to_owned()),
             client_secret: Some("env_secret_a".to_owned()),
             redirect_uri: Some("http://localhost:8080/api/oauth/callback/strava".to_owned()),
             scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
             enabled: true,
         },
-        fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        garmin: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        whoop: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        terra: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+        fitbit: OAuthProviderConfig::default(),
+        garmin: OAuthProviderConfig::default(),
+        whoop: OAuthProviderConfig::default(),
+        terra: OAuthProviderConfig::default(),
     });
     let mut oauth_manager = TenantOAuthManager::new(oauth_config);
 
@@ -197,12 +198,12 @@ async fn test_tenant_credential_isolation() -> Result<()> {
 #[tokio::test]
 async fn test_rate_limit_tracking_per_tenant() -> Result<()> {
     let database = setup_test_database().await?;
-    let oauth_config = Arc::new(pierre_mcp_server::config::environment::OAuthConfig {
-        strava: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        garmin: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        whoop: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        terra: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+    let oauth_config = Arc::new(OAuthConfig {
+        strava: OAuthProviderConfig::default(),
+        fitbit: OAuthProviderConfig::default(),
+        garmin: OAuthProviderConfig::default(),
+        whoop: OAuthProviderConfig::default(),
+        terra: OAuthProviderConfig::default(),
     });
     let mut oauth_manager = TenantOAuthManager::new(oauth_config);
 
@@ -500,12 +501,12 @@ async fn test_oauth_callback_tenant_preservation() -> Result<()> {
 #[tokio::test]
 async fn test_token_refresh_uses_tenant_credentials() -> Result<()> {
     let database = setup_test_database().await?;
-    let oauth_config = Arc::new(pierre_mcp_server::config::environment::OAuthConfig {
-        strava: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        garmin: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        whoop: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        terra: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+    let oauth_config = Arc::new(OAuthConfig {
+        strava: OAuthProviderConfig::default(),
+        fitbit: OAuthProviderConfig::default(),
+        garmin: OAuthProviderConfig::default(),
+        whoop: OAuthProviderConfig::default(),
+        terra: OAuthProviderConfig::default(),
     });
     let mut oauth_manager = TenantOAuthManager::new(oauth_config);
 
@@ -561,12 +562,12 @@ async fn test_token_refresh_uses_tenant_credentials() -> Result<()> {
 #[serial]
 async fn test_tenant_specific_rate_limits() -> Result<()> {
     let database = setup_test_database().await?;
-    let oauth_config = Arc::new(pierre_mcp_server::config::environment::OAuthConfig {
-        strava: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        garmin: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        whoop: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        terra: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+    let oauth_config = Arc::new(OAuthConfig {
+        strava: OAuthProviderConfig::default(),
+        fitbit: OAuthProviderConfig::default(),
+        garmin: OAuthProviderConfig::default(),
+        whoop: OAuthProviderConfig::default(),
+        terra: OAuthProviderConfig::default(),
     });
     let mut oauth_manager = TenantOAuthManager::new(oauth_config);
 
@@ -599,8 +600,8 @@ async fn test_tenant_specific_rate_limits() -> Result<()> {
     database.create_tenant(&enterprise_tenant).await?;
 
     // Standard tenant uses default rate limits (via environment)
-    std::env::set_var("STRAVA_CLIENT_ID", "163846");
-    std::env::set_var("STRAVA_CLIENT_SECRET", "standard_secret");
+    env::set_var("STRAVA_CLIENT_ID", "163846");
+    env::set_var("STRAVA_CLIENT_SECRET", "standard_secret");
 
     // Enterprise tenant gets custom credentials with higher rate limits
     oauth_manager.store_credentials(
@@ -644,17 +645,15 @@ async fn test_tenant_specific_rate_limits() -> Result<()> {
 /// Verifies that concurrent OAuth operations from multiple tenants don't interfere
 #[tokio::test]
 async fn test_concurrent_multitenant_oauth_operations() -> Result<()> {
-    let database = std::sync::Arc::new(setup_test_database().await?);
-    let oauth_config = Arc::new(pierre_mcp_server::config::environment::OAuthConfig {
-        strava: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        garmin: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        whoop: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
-        terra: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+    let database = Arc::new(setup_test_database().await?);
+    let oauth_config = Arc::new(OAuthConfig {
+        strava: OAuthProviderConfig::default(),
+        fitbit: OAuthProviderConfig::default(),
+        garmin: OAuthProviderConfig::default(),
+        whoop: OAuthProviderConfig::default(),
+        terra: OAuthProviderConfig::default(),
     });
-    let oauth_manager = std::sync::Arc::new(tokio::sync::RwLock::new(TenantOAuthManager::new(
-        oauth_config,
-    )));
+    let oauth_manager = Arc::new(RwLock::new(TenantOAuthManager::new(oauth_config)));
 
     // Create 5 tenants concurrently
     let mut tasks = vec![];

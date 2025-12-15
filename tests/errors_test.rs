@@ -8,7 +8,8 @@
 #![allow(missing_docs)]
 
 use chrono::Utc;
-use pierre_mcp_server::errors::{AppError, ErrorCode, ErrorResponse};
+use pierre_mcp_server::errors::{AppError, AppResult, ErrorCode, ErrorResponse};
+use std::io;
 
 #[test]
 fn test_error_code_http_status() {
@@ -316,7 +317,7 @@ fn test_error_response_without_request_id() {
 
 #[test]
 fn test_app_error_from_io_error() {
-    let io_error = std::io::Error::new(std::io::ErrorKind::NotFound, "File not found");
+    let io_error = io::Error::new(io::ErrorKind::NotFound, "File not found");
     let app_error = AppError::from(io_error);
 
     assert_eq!(app_error.code, ErrorCode::InternalError);
@@ -329,11 +330,11 @@ fn test_app_error_from_io_error() {
 #[test]
 fn test_app_result_type_alias() {
     #[allow(clippy::unnecessary_wraps)]
-    fn successful_operation() -> pierre_mcp_server::errors::AppResult<String> {
+    fn successful_operation() -> AppResult<String> {
         Ok("Success".to_owned())
     }
 
-    fn failed_operation() -> pierre_mcp_server::errors::AppResult<String> {
+    fn failed_operation() -> AppResult<String> {
         Err(AppError::auth_required())
     }
 

@@ -153,13 +153,18 @@ mod common;
 
 use anyhow::Result;
 use pierre_mcp_server::{
-    admin::models::{AdminPermission, CreateAdminTokenRequest, GeneratedAdminToken},
-    database_plugins::DatabaseProvider,
-    models::User,
-    routes::admin::AdminApiContext,
+    admin::{
+        models::{AdminPermission, CreateAdminTokenRequest, GeneratedAdminToken},
+        AdminAuthService,
+    },
+    constants::system_config::STARTER_MONTHLY_LIMIT,
+    database_plugins::{factory::Database, DatabaseProvider},
+    models::{User, UserStatus},
+    routes::admin::{AdminApiContext, AdminRoutes},
 };
 use serde_json::{json, Value};
-use std::sync::Arc;
+use std::{str, sync::Arc};
+use tokio::time::{sleep, Duration};
 use uuid::Uuid;
 mod helpers;
 use helpers::axum_test::AxumTestRequest;
@@ -188,15 +193,14 @@ impl AdminTestSetup {
 
         // Create admin context
         let jwt_secret = "test_admin_jwt_secret_for_route_testing";
-        let admin_api_key_monthly_limit =
-            pierre_mcp_server::constants::system_config::STARTER_MONTHLY_LIMIT;
+        let admin_api_key_monthly_limit = STARTER_MONTHLY_LIMIT;
         let context = AdminApiContext::new(
             Arc::new((*database).clone()),
             jwt_secret,
             auth_manager.clone(),
             jwks_manager.clone(),
             admin_api_key_monthly_limit,
-            pierre_mcp_server::admin::AdminAuthService::DEFAULT_CACHE_TTL_SECS,
+            AdminAuthService::DEFAULT_CACHE_TTL_SECS,
         );
 
         // Create test user
@@ -305,12 +309,12 @@ impl AdminTestSetup {
 
     /// Create admin routes filter for testing
     fn routes(&self) -> axum::Router {
-        pierre_mcp_server::routes::admin::AdminRoutes::routes(self.context.clone())
+        AdminRoutes::routes(self.context.clone())
     }
 
     /// Helper method to manually insert admin token into database
     async fn insert_admin_token_to_db(
-        database: &pierre_mcp_server::database_plugins::factory::Database,
+        database: &Database,
         token: &GeneratedAdminToken,
         jwt_secret: &str,
     ) -> Result<()> {
@@ -321,7 +325,7 @@ impl AdminTestSetup {
         let permissions_json = token.permissions.to_json()?;
 
         match database {
-            pierre_mcp_server::database_plugins::factory::Database::SQLite(sqlite_db) => {
+            Database::SQLite(sqlite_db) => {
                 let query = r"
                     INSERT INTO admin_tokens (
                         id, service_name, service_description, token_hash, token_prefix,
@@ -347,7 +351,7 @@ impl AdminTestSetup {
                     .await?;
             }
             #[cfg(feature = "postgresql")]
-            pierre_mcp_server::database_plugins::factory::Database::PostgreSQL(_) => {
+            Database::PostgreSQL(_) => {
                 // Handle PostgreSQL case if needed
                 return Err(anyhow::anyhow!("PostgreSQL not supported in test helper"));
             }
@@ -358,10 +362,7 @@ impl AdminTestSetup {
 }
 
 /// Helper function to create an approved user for API key provisioning tests
-async fn create_approved_user(
-    database: &pierre_mcp_server::database_plugins::factory::Database,
-    email: &str,
-) -> Result<User> {
+async fn create_approved_user(database: &Database, email: &str) -> Result<User> {
     let user = User::new(
         email.to_owned(),
         "test_hash".to_owned(),
@@ -370,7 +371,7 @@ async fn create_approved_user(
 
     // Create user with approved status and timestamp
     let mut approved_user = user;
-    approved_user.user_status = pierre_mcp_server::models::UserStatus::Active;
+    approved_user.user_status = UserStatus::Active;
     approved_user.approved_at = Some(chrono::Utc::now());
 
     database.create_user(&approved_user).await?;
@@ -1296,7 +1297,7 @@ async fn test_concurrent_requests() -> Result<()> {
         let handle = tokio::spawn(async move {
             // Add small delay to stagger requests and reduce database contention
             if i > 0 {
-                tokio::time::sleep(tokio::time::Duration::from_millis(50 * i as u64)).await;
+                sleep(Duration::from_millis(50 * i as u64)).await;
             }
 
             let request_body = json!({
@@ -1332,7 +1333,7 @@ async fn test_concurrent_requests() -> Result<()> {
             failed_statuses.push(status);
             // Also capture response body for debugging
             let body_bytes = response.bytes();
-            let body = std::str::from_utf8(&body_bytes).unwrap_or("<invalid utf8>");
+            let body = str::from_utf8(&body_bytes).unwrap_or("<invalid utf8>");
             eprintln!("Failed request - Status: {}, Body: {}", status, body);
         }
     }

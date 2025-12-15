@@ -10,6 +10,7 @@
 //! for creating JSON-specific error messages with proper context.
 
 use pierre_mcp_server::errors::{AppError, ErrorCode, JsonResultExt};
+use std::error::Error;
 
 #[test]
 fn test_json_parse_error() {
@@ -53,7 +54,7 @@ fn test_json_result_ext() -> Result<(), String> {
 }
 
 #[test]
-fn test_json_result_ext_with_valid_json() -> Result<(), Box<dyn std::error::Error>> {
+fn test_json_result_ext_with_valid_json() -> Result<(), Box<dyn Error>> {
     let json_str = r#"{"valid": "json"}"#;
     let result: Result<serde_json::Value, _> = serde_json::from_str(json_str);
 

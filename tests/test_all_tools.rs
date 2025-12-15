@@ -12,28 +12,32 @@ use base64::prelude::*;
 use rand::Rng;
 use serde_json::json;
 use serial_test::serial;
-use std::collections::HashMap;
+use std::{collections::HashMap, env, error::Error, path::PathBuf, sync::Arc};
 use uuid::Uuid;
 
 // Import necessary modules from the main crate
-use pierre_mcp_server::config::environment::*;
-use pierre_mcp_server::constants::oauth_providers;
-use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
-use pierre_mcp_server::intelligence::insights::{Insight, InsightType};
-use pierre_mcp_server::intelligence::{
-    ActivityIntelligence, ContextualFactors, ContextualWeeklyLoad, PerformanceMetrics, TimeOfDay,
-    TrendDirection, TrendIndicators,
+use pierre_mcp_server::{
+    auth::AuthManager,
+    config::environment::*,
+    constants::oauth_providers,
+    database_plugins::{factory::Database, DatabaseProvider},
+    intelligence::insights::{Insight, InsightType},
+    intelligence::{
+        ActivityIntelligence, ContextualFactors, ContextualWeeklyLoad, PerformanceMetrics,
+        TimeOfDay, TrendDirection, TrendIndicators,
+    },
+    mcp::resources::ServerResources,
+    models::{DecryptedToken, Tenant, User, UserOAuthToken, UserStatus, UserTier},
+    permissions::UserRole,
+    protocols::universal::{UniversalRequest, UniversalToolExecutor},
+    tenant::TenantOAuthCredentials,
 };
-use pierre_mcp_server::mcp::resources::ServerResources;
-use pierre_mcp_server::models::{Tenant, User, UserOAuthToken};
-use pierre_mcp_server::protocols::universal::{UniversalRequest, UniversalToolExecutor};
-use std::{path::PathBuf, sync::Arc};
 
 mod common;
 
 #[tokio::test]
 #[serial]
-async fn test_complete_multitenant_workflow() -> Result<(), Box<dyn std::error::Error>> {
+async fn test_complete_multitenant_workflow() -> Result<(), Box<dyn Error>> {
     common::init_server_config();
     println!("Pierre MCP Server - Comprehensive Tool Testing Harness");
     println!("====================================================\n");
@@ -69,12 +73,12 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
     common::init_test_http_clients();
 
     // Initialize test logging
-    std::env::set_var("TEST_LOG", "WARN");
+    env::set_var("TEST_LOG", "WARN");
 
     // Use the same database and encryption key as the main server
     let database_url =
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:./data/users.db".to_owned());
-    let master_key = std::env::var("PIERRE_MASTER_ENCRYPTION_KEY")
+        env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:./data/users.db".to_owned());
+    let master_key = env::var("PIERRE_MASTER_ENCRYPTION_KEY")
         .unwrap_or_else(|_| "dGVzdF9lbmNyeXB0aW9uX2tleV9mb3JfY2lfb25seV8zMg==".to_owned());
     let encryption_key = BASE64_STANDARD
         .decode(master_key)
@@ -84,7 +88,7 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
         Database::new(
             &database_url,
             encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await?,
     );
@@ -143,12 +147,12 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
                 retention_count: 7,
                 directory: PathBuf::from("test_backups"),
             },
-            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            postgres_pool: PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
-            ..pierre_mcp_server::config::environment::AuthConfig::default()
+            ..AuthConfig::default()
         },
         oauth: OAuthConfig {
             strava: OAuthProviderConfig {
@@ -238,36 +242,36 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
                 server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
-        sse: pierre_mcp_server::config::environment::SseConfig::default(),
-        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
-        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        sse: SseConfig::default(),
+        oauth2_server: OAuth2ServerConfig::default(),
+        route_timeouts: RouteTimeoutConfig::default(),
         host: "localhost".to_owned(),
         base_url: "http://localhost:8081".to_owned(),
-        mcp: pierre_mcp_server::config::environment::McpConfig {
+        mcp: McpConfig {
             protocol_version: "2025-06-18".to_owned(),
             server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
         },
-        cors: pierre_mcp_server::config::environment::CorsConfig {
+        cors: CorsConfig {
             allowed_origins: "*".to_owned(),
             allow_localhost_dev: true,
         },
-        cache: pierre_mcp_server::config::environment::CacheConfig {
+        cache: CacheConfig {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
             ..Default::default()
         },
         usda_api_key: None,
-        rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
-        sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
-        goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
-        training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
-        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
+        rate_limiting: RateLimitConfig::default(),
+        sleep_recovery: SleepRecoveryConfig::default(),
+        goal_management: GoalManagementConfig::default(),
+        training_zones: TrainingZonesConfig::default(),
+        firebase: FirebaseConfig::default(),
     });
 
     // Create ServerResources for the test
-    let auth_manager = pierre_mcp_server::auth::AuthManager::new(24);
+    let auth_manager = AuthManager::new(24);
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
         (*database).clone(),
@@ -291,8 +295,6 @@ async fn find_or_create_test_user_with_token(
 }
 
 async fn create_test_user(executor: &UniversalToolExecutor) -> Result<(User, Tenant)> {
-    use pierre_mcp_server::models::{UserStatus, UserTier};
-
     // Create a unique test user and tenant for this test run
     let user_id = Uuid::new_v4();
     let tenant_id = Uuid::new_v4();
@@ -313,7 +315,7 @@ async fn create_test_user(executor: &UniversalToolExecutor) -> Result<(User, Ten
         approved_at: Some(chrono::Utc::now()),
         is_active: true,
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         firebase_uid: None,
         auth_provider: String::new(),
     };
@@ -353,7 +355,7 @@ async fn create_test_user(executor: &UniversalToolExecutor) -> Result<(User, Ten
     let token_id = rand::thread_rng().gen::<u64>();
     let refresh_token_id = rand::thread_rng().gen::<u64>();
 
-    let mock_token = pierre_mcp_server::models::DecryptedToken {
+    let mock_token = DecryptedToken {
         access_token: format!("at_{token_id:016x}_{timestamp}"),
         refresh_token: format!("rt_{refresh_token_id:016x}_{timestamp}"),
         expires_at: now + chrono::Duration::hours(6),
@@ -393,8 +395,8 @@ async fn setup_tenant_oauth_credentials(
     tenant_id: Uuid,
 ) -> Result<()> {
     // Get Strava credentials from environment
-    let client_id = std::env::var("STRAVA_CLIENT_ID").unwrap_or_else(|_| "163846".to_owned());
-    let client_secret = std::env::var("STRAVA_CLIENT_SECRET")
+    let client_id = env::var("STRAVA_CLIENT_ID").unwrap_or_else(|_| "163846".to_owned());
+    let client_secret = env::var("STRAVA_CLIENT_SECRET")
         .unwrap_or_else(|_| "1dfc45ad0a1f6983b835e4495aa9473d111d03bc".to_owned());
 
     // Check if tenant already has Strava OAuth credentials
@@ -418,12 +420,12 @@ async fn setup_tenant_oauth_credentials(
     }
 
     // Create TenantOAuthCredentials struct
-    let tenant_oauth_creds = pierre_mcp_server::tenant::TenantOAuthCredentials {
+    let tenant_oauth_creds = TenantOAuthCredentials {
         tenant_id,
         provider: "strava".to_owned(),
         client_id: client_id.clone(),
         client_secret: client_secret.clone(),
-        redirect_uri: std::env::var("STRAVA_REDIRECT_URI")
+        redirect_uri: env::var("STRAVA_REDIRECT_URI")
             .unwrap_or_else(|_| "http://localhost:8080/auth/strava/callback".to_owned()),
         scopes: vec![
             "read".to_owned(),

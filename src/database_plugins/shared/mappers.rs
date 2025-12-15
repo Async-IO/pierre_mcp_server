@@ -12,6 +12,7 @@
 use crate::a2a::protocol::A2ATask;
 use crate::errors::{AppError, AppResult};
 use crate::models::User;
+use crate::permissions::UserRole;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use tracing::warn;
@@ -66,7 +67,7 @@ where
     let role = row
         .try_get::<String, _>("role")
         .map(|role_str| super::enums::str_to_user_role(&role_str))
-        .unwrap_or(crate::permissions::UserRole::User);
+        .unwrap_or(UserRole::User);
 
     Ok(User {
         id: row

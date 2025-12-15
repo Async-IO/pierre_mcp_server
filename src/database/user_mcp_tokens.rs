@@ -6,9 +6,12 @@
 
 use super::Database;
 use crate::errors::{AppError, AppResult};
-use chrono::{DateTime, Utc};
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+use chrono::{DateTime, Duration, Utc};
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use sqlx::sqlite::SqliteRow;
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -94,14 +97,10 @@ impl From<UserMcpToken> for UserMcpTokenInfo {
 impl Database {
     /// Generate a new MCP token with secure random bytes
     fn generate_mcp_token() -> String {
-        use rand::RngCore;
         let mut rng = rand::thread_rng();
         let mut bytes = [0u8; 32];
         rng.fill_bytes(&mut bytes);
-        format!(
-            "pmcp_{}",
-            base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, bytes)
-        )
+        format!("pmcp_{}", URL_SAFE_NO_PAD.encode(bytes))
     }
 
     /// Hash a token for storage
@@ -128,7 +127,7 @@ impl Database {
 
         let expires_at = request
             .expires_in_days
-            .map(|days| now + chrono::Duration::days(i64::from(days)));
+            .map(|days| now + Duration::days(i64::from(days)));
 
         sqlx::query(
             r"
@@ -317,7 +316,7 @@ impl Database {
     }
 
     /// Convert database row to `UserMcpToken`
-    fn row_to_user_mcp_token(row: &sqlx::sqlite::SqliteRow) -> AppResult<UserMcpToken> {
+    fn row_to_user_mcp_token(row: &SqliteRow) -> AppResult<UserMcpToken> {
         Ok(UserMcpToken {
             id: row.get("id"),
             user_id: Uuid::parse_str(row.get::<String, _>("user_id").as_str())

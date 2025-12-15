@@ -39,19 +39,41 @@ pub mod test_utils;
 pub use a2a::{A2AUsage, A2AUsageStats};
 pub use chat::{ChatManager, ConversationRecord, ConversationSummary, MessageRecord};
 pub use errors::{DatabaseError, DatabaseResult};
+pub use oauth_notifications::OAuthNotification;
 pub use user_mcp_tokens::{
     CreateUserMcpTokenRequest, UserMcpToken, UserMcpTokenCreated, UserMcpTokenInfo,
 };
+pub use user_oauth_tokens::OAuthTokenData;
 
 use crate::a2a::auth::A2AClient;
 use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
+use crate::admin::jwks::JwksManager;
+use crate::admin::jwt::AdminJwtManager;
+use crate::admin::models::{
+    AdminToken, AdminTokenUsage, CreateAdminTokenRequest, GeneratedAdminToken,
+};
 use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
+use crate::config::fitness::FitnessConfig;
+use crate::dashboard_routes::{RequestLog, ToolUsage};
+use crate::database_plugins::{shared, DatabaseProvider};
 use crate::errors::{AppError, AppResult};
-use crate::models::{User, UserOAuthApp, UserOAuthToken};
+use crate::models::{
+    AuthorizationCode, OAuthApp, Tenant, User, UserOAuthApp, UserOAuthToken, UserStatus,
+};
+use crate::oauth2_server::models::{OAuth2AuthCode, OAuth2Client, OAuth2RefreshToken, OAuth2State};
+use crate::pagination::{CursorPage, PaginationParams};
+use crate::permissions::impersonation::ImpersonationSession;
 use crate::rate_limiting::JwtUsage;
+use crate::security::audit::AuditEvent;
+use crate::security::key_rotation::KeyVersion;
+use crate::tenant::oauth_manager::TenantOAuthCredentials;
+use base64::engine::general_purpose::{self, STANDARD};
 use base64::Engine;
 use chrono::{DateTime, Utc};
+use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
+use ring::digest::{digest, SHA256};
+use ring::rand::{SecureRandom, SystemRandom};
 use serde_json::Value;
 use sqlx::{Pool, Row, Sqlite, SqlitePool};
 use tracing::{info, warn};
@@ -198,10 +220,6 @@ impl Database {
     ///
     /// Returns an error if encryption fails
     pub fn encrypt_data(&self, data: &str) -> AppResult<String> {
-        use base64::{engine::general_purpose, Engine as _};
-        use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
-        use ring::rand::{SecureRandom, SystemRandom};
-
         let rng = SystemRandom::new();
 
         // Generate unique nonce
@@ -233,9 +251,6 @@ impl Database {
     ///
     /// Returns an error if decryption fails or data is malformed
     pub fn decrypt_data(&self, encrypted_data: &str) -> AppResult<String> {
-        use base64::{engine::general_purpose, Engine as _};
-        use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
-
         // Decode from base64
         let combined = general_purpose::STANDARD
             .decode(encrypted_data)
@@ -278,10 +293,6 @@ impl Database {
     ///
     /// Returns an error if encryption fails
     fn encrypt_data_with_aad_impl(&self, data: &str, aad_context: &str) -> AppResult<String> {
-        use base64::{engine::general_purpose, Engine as _};
-        use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
-        use ring::rand::{SecureRandom, SystemRandom};
-
         let rng = SystemRandom::new();
 
         // Generate unique nonce
@@ -324,9 +335,6 @@ impl Database {
         encrypted_data: &str,
         aad_context: &str,
     ) -> AppResult<String> {
-        use base64::{engine::general_purpose, Engine as _};
-        use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
-
         // Decode from base64
         let combined = general_purpose::STANDARD
             .decode(encrypted_data)
@@ -400,9 +408,6 @@ impl Database {
     ///
     /// Returns an error if hashing fails
     pub fn hash_data(&self, data: &str) -> AppResult<String> {
-        use base64::{engine::general_purpose, Engine as _};
-        use ring::digest::{digest, SHA256};
-
         let hash = digest(&SHA256, data.as_bytes());
         Ok(general_purpose::STANDARD.encode(hash.as_ref()))
     }
@@ -417,7 +422,7 @@ impl Database {
         kid: &str,
         private_key_pem: &str,
         public_key_pem: &str,
-        created_at: chrono::DateTime<chrono::Utc>,
+        created_at: DateTime<Utc>,
         is_active: bool,
         key_size_bits: usize,
     ) -> AppResult<()> {
@@ -453,7 +458,7 @@ impl Database {
     /// Returns an error if database query fails
     pub async fn load_rsa_keypairs(
         &self,
-    ) -> AppResult<Vec<(String, String, String, chrono::DateTime<chrono::Utc>, bool)>> {
+    ) -> AppResult<Vec<(String, String, String, DateTime<Utc>, bool)>> {
         use sqlx::Row;
 
         let rows = sqlx::query(
@@ -476,7 +481,7 @@ impl Database {
             let public_key_pem: String = row
                 .try_get("public_key_pem")
                 .map_err(|e| AppError::database(format!("Failed to get public_key_pem: {e}")))?;
-            let created_at: chrono::DateTime<chrono::Utc> = row
+            let created_at: DateTime<Utc> = row
                 .try_get("created_at")
                 .map_err(|e| AppError::database(format!("Failed to get created_at: {e}")))?;
             let is_active: bool = row
@@ -516,7 +521,7 @@ impl Database {
     /// Returns an error if:
     /// - Database insert fails
     /// - Tenant already exists with the same slug
-    pub async fn create_tenant_impl(&self, tenant: &crate::models::Tenant) -> AppResult<()> {
+    pub async fn create_tenant_impl(&self, tenant: &Tenant) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO tenants (id, name, slug, domain, plan, owner_user_id, is_active, created_at, updated_at)
@@ -540,7 +545,7 @@ impl Database {
 
         // Add the owner as an admin of the tenant
         let tenant_user_id = Uuid::new_v4().to_string();
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = Utc::now().to_rfc3339();
         sqlx::query(
             r"
             INSERT INTO tenant_users (id, tenant_id, user_id, role, invited_at, joined_at)
@@ -574,10 +579,10 @@ impl Database {
 
         // Generate new secret
         let secret_value = match secret_type {
-            "admin_jwt_secret" => crate::admin::jwt::AdminJwtManager::generate_jwt_secret(),
+            "admin_jwt_secret" => AdminJwtManager::generate_jwt_secret(),
             "database_encryption_key" => {
                 // Return existing key (already loaded during initialization)
-                return Ok(base64::engine::general_purpose::STANDARD.encode(&self.encryption_key));
+                return Ok(STANDARD.encode(&self.encryption_key));
             }
             _ => {
                 return Err(AppError::invalid_input(format!(
@@ -587,7 +592,7 @@ impl Database {
         };
 
         // Store in database
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = Utc::now().to_rfc3339();
         sqlx::query("INSERT INTO system_secrets (secret_type, secret_value, created_at, updated_at) VALUES (?, ?, ?, ?)")
             .bind(secret_type)
             .bind(&secret_value)
@@ -630,7 +635,7 @@ impl Database {
         secret_type: &str,
         new_value: &str,
     ) -> AppResult<()> {
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = Utc::now().to_rfc3339();
         sqlx::query(
             "INSERT INTO system_secrets (secret_type, secret_value, created_at, updated_at) \
              VALUES (?, ?, ?, ?) \
@@ -652,7 +657,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if tenant not found or database query fails
-    pub async fn get_tenant_by_id_impl(&self, tenant_id: Uuid) -> AppResult<crate::models::Tenant> {
+    pub async fn get_tenant_by_id_impl(&self, tenant_id: Uuid) -> AppResult<Tenant> {
         let row = sqlx::query(
             r"
             SELECT t.id, t.name, t.slug, t.domain, t.plan, tu.user_id, t.created_at, t.updated_at
@@ -675,7 +680,7 @@ impl Database {
                     .try_get("user_id")
                     .map_err(|e| AppError::database(format!("Failed to get user_id: {e}")))?;
 
-                Ok(crate::models::Tenant {
+                Ok(Tenant {
                     id: Uuid::parse_str(&id_str)?,
                     name: row
                         .try_get("name")
@@ -707,7 +712,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if tenant not found or database query fails
-    pub async fn get_tenant_by_slug_impl(&self, slug: &str) -> AppResult<crate::models::Tenant> {
+    pub async fn get_tenant_by_slug_impl(&self, slug: &str) -> AppResult<Tenant> {
         let row = sqlx::query(
             r"
             SELECT t.id, t.name, t.slug, t.domain, t.plan, tu.user_id, t.created_at, t.updated_at
@@ -730,7 +735,7 @@ impl Database {
                     .try_get("user_id")
                     .map_err(|e| AppError::database(format!("Failed to get user_id: {e}")))?;
 
-                Ok(crate::models::Tenant {
+                Ok(Tenant {
                     id: Uuid::parse_str(&id_str)?,
                     name: row
                         .try_get("name")
@@ -762,10 +767,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if database query fails
-    pub async fn list_tenants_for_user_impl(
-        &self,
-        user_id: Uuid,
-    ) -> AppResult<Vec<crate::models::Tenant>> {
+    pub async fn list_tenants_for_user_impl(&self, user_id: Uuid) -> AppResult<Vec<Tenant>> {
         let rows = sqlx::query(
             r"
             SELECT DISTINCT t.id, t.name, t.slug, t.domain, t.plan,
@@ -792,7 +794,7 @@ impl Database {
                     .try_get("owner_user_id")
                     .map_err(|e| AppError::database(format!("Failed to get owner_user_id: {e}")))?;
 
-                Ok(crate::models::Tenant {
+                Ok(Tenant {
                     id: Uuid::parse_str(&id_str)?,
                     name: row
                         .try_get("name")
@@ -825,7 +827,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if database query fails
-    pub async fn get_all_tenants_impl(&self) -> AppResult<Vec<crate::models::Tenant>> {
+    pub async fn get_all_tenants_impl(&self) -> AppResult<Vec<Tenant>> {
         let rows = sqlx::query(
             r"
             SELECT id, slug, name, domain, plan, owner_user_id, created_at, updated_at
@@ -848,7 +850,7 @@ impl Database {
                     .try_get("owner_user_id")
                     .map_err(|e| AppError::database(format!("Failed to get owner_user_id: {e}")))?;
 
-                Ok(crate::models::Tenant {
+                Ok(Tenant {
                     id: Uuid::parse_str(&id_str)?,
                     name: row
                         .try_get("name")
@@ -883,7 +885,7 @@ impl Database {
     /// Returns an error if encryption or database operation fails
     pub async fn store_tenant_oauth_credentials_impl(
         &self,
-        credentials: &crate::tenant::TenantOAuthCredentials,
+        credentials: &TenantOAuthCredentials,
     ) -> AppResult<()> {
         // Encrypt the client secret using AES-256-GCM with AAD binding
         // AAD context format: "{tenant_id}|{provider}|tenant_oauth_credentials"
@@ -896,7 +898,7 @@ impl Database {
 
         // Convert scopes to JSON array for SQLite
         let scopes_json = serde_json::to_string(&credentials.scopes)?;
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = Utc::now().to_rfc3339();
 
         sqlx::query(
             r"
@@ -938,7 +940,7 @@ impl Database {
     pub async fn get_tenant_oauth_providers_impl(
         &self,
         tenant_id: Uuid,
-    ) -> AppResult<Vec<crate::tenant::TenantOAuthCredentials>> {
+    ) -> AppResult<Vec<TenantOAuthCredentials>> {
         let rows = sqlx::query(
             r"
             SELECT provider, client_id, client_secret_encrypted,
@@ -983,7 +985,7 @@ impl Database {
 
                 let scopes: Vec<String> = serde_json::from_str(&scopes_json)?;
 
-                Ok(crate::tenant::TenantOAuthCredentials {
+                Ok(TenantOAuthCredentials {
                     tenant_id,
                     provider,
                     client_id,
@@ -1007,7 +1009,7 @@ impl Database {
         &self,
         tenant_id: Uuid,
         provider: &str,
-    ) -> AppResult<Option<crate::tenant::TenantOAuthCredentials>> {
+    ) -> AppResult<Option<TenantOAuthCredentials>> {
         let row = sqlx::query(
             r"
             SELECT client_id, client_secret_encrypted,
@@ -1048,7 +1050,7 @@ impl Database {
 
                 let scopes: Vec<String> = serde_json::from_str(&scopes_json)?;
 
-                Ok(Some(crate::tenant::TenantOAuthCredentials {
+                Ok(Some(TenantOAuthCredentials {
                     tenant_id,
                     provider: provider.to_owned(),
                     client_id,
@@ -1130,7 +1132,7 @@ impl Database {
         .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         // Insert or update configuration
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = Utc::now().to_rfc3339();
         let query = r"
             INSERT INTO user_configurations (user_id, config_data, created_at, updated_at)
             VALUES (?1, ?2, ?3, ?3)
@@ -1183,7 +1185,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    async fn create_oauth_app_impl(&self, app: &crate::models::OAuthApp) -> AppResult<()> {
+    async fn create_oauth_app_impl(&self, app: &OAuthApp) -> AppResult<()> {
         let redirect_uris_json = serde_json::to_string(&app.redirect_uris)?;
         let scopes_json = serde_json::to_string(&app.scopes)?;
 
@@ -1218,10 +1220,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails or app not found
-    async fn get_oauth_app_by_client_id_impl(
-        &self,
-        client_id: &str,
-    ) -> AppResult<crate::models::OAuthApp> {
+    async fn get_oauth_app_by_client_id_impl(&self, client_id: &str) -> AppResult<OAuthApp> {
         let row = sqlx::query(
             r"
             SELECT id, client_id, client_secret_hash, name, description, redirect_uris,
@@ -1240,7 +1239,7 @@ impl Database {
                 let redirect_uris_json: String = row.get("redirect_uris");
                 let scopes_json: String = row.get("scopes");
 
-                Ok(crate::models::OAuthApp {
+                Ok(OAuthApp {
                     id: Uuid::parse_str(&row.get::<String, _>("id"))?,
                     client_id: row.get("client_id"),
                     client_secret: row.get("client_secret_hash"),
@@ -1282,10 +1281,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn store_oauth2_client_impl(
-        &self,
-        client: &crate::oauth2_server::models::OAuth2Client,
-    ) -> AppResult<()> {
+    pub async fn store_oauth2_client_impl(&self, client: &OAuth2Client) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO oauth2_clients (id, client_id, client_secret_hash, redirect_uris, grant_types, response_types, client_name, client_uri, scope, created_at, expires_at)
@@ -1317,10 +1313,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn get_oauth2_client_impl(
-        &self,
-        client_id: &str,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2Client>> {
+    pub async fn get_oauth2_client_impl(&self, client_id: &str) -> AppResult<Option<OAuth2Client>> {
         let row = sqlx::query(
             r"
             SELECT id, client_id, client_secret_hash, redirect_uris, grant_types, response_types, client_name, client_uri, scope, created_at, expires_at
@@ -1346,7 +1339,7 @@ impl Database {
                 .try_get("response_types")
                 .map_err(|e| AppError::database(format!("Failed to get response_types: {e}")))?;
 
-            Ok(Some(crate::oauth2_server::models::OAuth2Client {
+            Ok(Some(OAuth2Client {
                 id: row
                     .try_get("id")
                     .map_err(|e| AppError::database(format!("Failed to get id: {e}")))?,
@@ -1385,10 +1378,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn store_oauth2_auth_code_impl(
-        &self,
-        auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> AppResult<()> {
+    pub async fn store_oauth2_auth_code_impl(&self, auth_code: &OAuth2AuthCode) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO oauth2_auth_codes (code, client_id, user_id, tenant_id, redirect_uri, scope, code_challenge, code_challenge_method, expires_at, used, state)
@@ -1420,10 +1410,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn get_oauth2_auth_code_impl(
-        &self,
-        code: &str,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
+    pub async fn get_oauth2_auth_code_impl(&self, code: &str) -> AppResult<Option<OAuth2AuthCode>> {
         let row = sqlx::query(
             r"
             SELECT code, client_id, user_id, tenant_id, redirect_uri, scope, code_challenge, code_challenge_method, expires_at, used, state
@@ -1439,7 +1426,7 @@ impl Database {
             .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
         if let Some(row) = row {
-            Ok(Some(crate::oauth2_server::models::OAuth2AuthCode {
+            Ok(Some(OAuth2AuthCode {
                 code: row
                     .try_get("code")
                     .map_err(|e| AppError::database(format!("Failed to get code: {e}")))?,
@@ -1486,10 +1473,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn update_oauth2_auth_code_impl(
-        &self,
-        auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> AppResult<()> {
+    pub async fn update_oauth2_auth_code_impl(&self, auth_code: &OAuth2AuthCode) -> AppResult<()> {
         sqlx::query(
             r"
             UPDATE oauth2_auth_codes
@@ -1513,7 +1497,7 @@ impl Database {
     /// Returns an error if the database query fails
     pub async fn store_oauth2_refresh_token_impl(
         &self,
-        refresh_token: &crate::oauth2_server::models::OAuth2RefreshToken,
+        refresh_token: &OAuth2RefreshToken,
     ) -> AppResult<()> {
         sqlx::query(
             r"
@@ -1546,7 +1530,7 @@ impl Database {
     pub async fn get_oauth2_refresh_token_impl(
         &self,
         token: &str,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    ) -> AppResult<Option<OAuth2RefreshToken>> {
         let row = sqlx::query(
             r"
             SELECT token, client_id, user_id, tenant_id, scope, created_at, expires_at, revoked
@@ -1560,7 +1544,7 @@ impl Database {
         .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
         if let Some(row) = row {
-            Ok(Some(crate::oauth2_server::models::OAuth2RefreshToken {
+            Ok(Some(OAuth2RefreshToken {
                 token: row
                     .try_get("token")
                     .map_err(|e| AppError::database(format!("Failed to get token: {e}")))?,
@@ -1604,7 +1588,7 @@ impl Database {
         client_id: &str,
         redirect_uri: &str,
         now: DateTime<Utc>,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
+    ) -> AppResult<Option<OAuth2AuthCode>> {
         let row = sqlx::query(
             r"
             UPDATE oauth2_auth_codes
@@ -1628,7 +1612,7 @@ impl Database {
             .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
         if let Some(row) = row {
-            Ok(Some(crate::oauth2_server::models::OAuth2AuthCode {
+            Ok(Some(OAuth2AuthCode {
                 code: row
                     .try_get("code")
                     .map_err(|e| AppError::database(format!("Failed to get code: {e}")))?,
@@ -1680,7 +1664,7 @@ impl Database {
         token: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    ) -> AppResult<Option<OAuth2RefreshToken>> {
         let row = sqlx::query(
             r"
             UPDATE oauth2_refresh_tokens
@@ -1700,7 +1684,7 @@ impl Database {
         .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
         if let Some(row) = row {
-            Ok(Some(crate::oauth2_server::models::OAuth2RefreshToken {
+            Ok(Some(OAuth2RefreshToken {
                 token: row
                     .try_get("token")
                     .map_err(|e| AppError::database(format!("Failed to get token: {e}")))?,
@@ -1738,10 +1722,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn store_oauth2_state_impl(
-        &self,
-        state: &crate::oauth2_server::models::OAuth2State,
-    ) -> AppResult<()> {
+    pub async fn store_oauth2_state_impl(&self, state: &OAuth2State) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO oauth2_states (state, client_id, user_id, tenant_id, redirect_uri, scope, code_challenge, code_challenge_method, created_at, expires_at, used)
@@ -1778,7 +1759,7 @@ impl Database {
         state_value: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2State>> {
+    ) -> AppResult<Option<OAuth2State>> {
         let row = sqlx::query(
             r"
             UPDATE oauth2_states
@@ -1800,7 +1781,7 @@ impl Database {
             .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
         if let Some(row) = row {
-            Ok(Some(crate::oauth2_server::models::OAuth2State {
+            Ok(Some(OAuth2State {
                 state: row
                     .try_get("state")
                     .map_err(|e| AppError::database(format!("Failed to get state: {e}")))?,
@@ -1845,10 +1826,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails or code not found/expired
-    async fn get_authorization_code_impl(
-        &self,
-        code: &str,
-    ) -> AppResult<crate::models::AuthorizationCode> {
+    async fn get_authorization_code_impl(&self, code: &str) -> AppResult<AuthorizationCode> {
         let row = sqlx::query(
             r"
             SELECT code, client_id, user_id, redirect_uri, scope, created_at, expires_at
@@ -1862,7 +1840,7 @@ impl Database {
         .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
         match row {
-            Some(row) => Ok(crate::models::AuthorizationCode {
+            Some(row) => Ok(AuthorizationCode {
                 code: row.get("code"),
                 client_id: row.get("client_id"),
                 redirect_uri: row.get("redirect_uri"),
@@ -1909,10 +1887,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    async fn store_audit_event_impl(
-        &self,
-        event: &crate::security::audit::AuditEvent,
-    ) -> AppResult<()> {
+    async fn store_audit_event_impl(&self, event: &AuditEvent) -> AppResult<()> {
         let query = r"
             INSERT INTO audit_events (
                 id, event_type, severity, message, source, result,
@@ -1978,10 +1953,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    async fn list_user_oauth_apps_impl(
-        &self,
-        user_id: Uuid,
-    ) -> AppResult<Vec<crate::models::UserOAuthApp>> {
+    async fn list_user_oauth_apps_impl(&self, user_id: Uuid) -> AppResult<Vec<UserOAuthApp>> {
         // First ensure the user_oauth_apps table exists
         sqlx::query(
             r"
@@ -2020,7 +1992,7 @@ impl Database {
 
         let mut apps = Vec::new();
         for row in rows {
-            apps.push(crate::models::UserOAuthApp {
+            apps.push(UserOAuthApp {
                 id: row.get("id"),
                 user_id: Uuid::parse_str(&row.get::<String, _>("user_id"))?,
                 provider: row.get("provider"),
@@ -2111,7 +2083,7 @@ impl Database {
         .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         let id = Uuid::new_v4().to_string();
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = Utc::now().to_rfc3339();
 
         sqlx::query(
             r"
@@ -2148,7 +2120,7 @@ impl Database {
         &self,
         user_id: Uuid,
         provider: &str,
-    ) -> AppResult<Option<crate::models::UserOAuthApp>> {
+    ) -> AppResult<Option<UserOAuthApp>> {
         // First ensure the user_oauth_apps table exists
         sqlx::query(
             r"
@@ -2192,7 +2164,7 @@ impl Database {
                 let created_at_str: String = row.get("created_at");
                 let updated_at_str: String = row.get("updated_at");
 
-                Ok(Some(crate::models::UserOAuthApp {
+                Ok(Some(UserOAuthApp {
                     id: id_str,
                     user_id: Uuid::parse_str(&user_id_str)
                         .map_err(|e| AppError::database(format!("Invalid UUID: {e}")))?,
@@ -2200,10 +2172,10 @@ impl Database {
                     client_id: row.get("client_id"),
                     client_secret: row.get("client_secret"),
                     redirect_uri: row.get("redirect_uri"),
-                    created_at: chrono::DateTime::parse_from_rfc3339(&created_at_str)
-                        .map_or_else(|_| chrono::Utc::now(), |dt| dt.with_timezone(&chrono::Utc)),
-                    updated_at: chrono::DateTime::parse_from_rfc3339(&updated_at_str)
-                        .map_or_else(|_| chrono::Utc::now(), |dt| dt.with_timezone(&chrono::Utc)),
+                    created_at: DateTime::parse_from_rfc3339(&created_at_str)
+                        .map_or_else(|_| Utc::now(), |dt| dt.with_timezone(&Utc)),
+                    updated_at: DateTime::parse_from_rfc3339(&updated_at_str)
+                        .map_or_else(|_| Utc::now(), |dt| dt.with_timezone(&Utc)),
                 }))
             },
         )
@@ -2211,7 +2183,7 @@ impl Database {
 }
 
 // Implement HasEncryption trait for SQLite (delegates to inherent impl methods)
-impl crate::database_plugins::shared::encryption::HasEncryption for Database {
+impl shared::encryption::HasEncryption for Database {
     fn encrypt_data_with_aad(&self, data: &str, aad: &str) -> AppResult<String> {
         // Call inherent impl directly to avoid infinite recursion
         Self::encrypt_data_with_aad_impl(self, data, aad)
@@ -2227,7 +2199,7 @@ impl crate::database_plugins::shared::encryption::HasEncryption for Database {
 use async_trait::async_trait;
 
 #[async_trait]
-impl crate::database_plugins::DatabaseProvider for Database {
+impl DatabaseProvider for Database {
     async fn new(database_url: &str, encryption_key: Vec<u8>) -> AppResult<Self> {
         // Call inherent impl directly to avoid infinite recursion
         Self::new_impl(database_url, encryption_key).await
@@ -2273,15 +2245,15 @@ impl crate::database_plugins::DatabaseProvider for Database {
     async fn get_users_by_status_cursor(
         &self,
         status: &str,
-        params: &crate::pagination::PaginationParams,
-    ) -> AppResult<crate::pagination::CursorPage<User>> {
+        params: &PaginationParams,
+    ) -> AppResult<CursorPage<User>> {
         Self::get_users_by_status_cursor(self, status, params).await
     }
 
     async fn update_user_status(
         &self,
         user_id: Uuid,
-        new_status: crate::models::UserStatus,
+        new_status: UserStatus,
         admin_token_id: &str,
     ) -> AppResult<User> {
         Self::update_user_status(self, user_id, new_status, admin_token_id).await
@@ -2418,7 +2390,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         end_time: Option<DateTime<Utc>>,
         _status_filter: Option<&str>,
         _tool_filter: Option<&str>,
-    ) -> AppResult<Vec<crate::dashboard_routes::RequestLog>> {
+    ) -> AppResult<Vec<RequestLog>> {
         let analytics_logs = self
             .get_request_logs(None, start_time, end_time, 10, 0)
             .await?;
@@ -2426,7 +2398,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         // Convert analytics::RequestLog to dashboard_routes::RequestLog
         Ok(analytics_logs
             .into_iter()
-            .map(|log| crate::dashboard_routes::RequestLog {
+            .map(|log| RequestLog {
                 id: log.id,
                 timestamp: log.timestamp,
                 api_key_id: log.api_key_id.unwrap_or_default(),
@@ -2558,7 +2530,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         client_id: &str,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
-    ) -> AppResult<crate::database::A2AUsageStats> {
+    ) -> AppResult<A2AUsageStats> {
         Self::get_a2a_usage_stats(self, client_id, start_date, end_date).await
     }
 
@@ -2592,37 +2564,28 @@ impl crate::database_plugins::DatabaseProvider for Database {
         user_id: Uuid,
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
-    ) -> AppResult<Vec<crate::dashboard_routes::ToolUsage>> {
+    ) -> AppResult<Vec<ToolUsage>> {
         Self::get_top_tools_analysis_impl(self, user_id, start_time, end_time).await
     }
 
     async fn create_admin_token(
         &self,
-        request: &crate::admin::models::CreateAdminTokenRequest,
+        request: &CreateAdminTokenRequest,
         admin_jwt_secret: &str,
-        jwks_manager: &crate::admin::jwks::JwksManager,
-    ) -> AppResult<crate::admin::models::GeneratedAdminToken> {
+        jwks_manager: &JwksManager,
+    ) -> AppResult<GeneratedAdminToken> {
         Self::create_admin_token(self, request, admin_jwt_secret, jwks_manager).await
     }
 
-    async fn get_admin_token_by_id(
-        &self,
-        token_id: &str,
-    ) -> AppResult<Option<crate::admin::models::AdminToken>> {
+    async fn get_admin_token_by_id(&self, token_id: &str) -> AppResult<Option<AdminToken>> {
         Self::get_admin_token_by_id(self, token_id).await
     }
 
-    async fn get_admin_token_by_prefix(
-        &self,
-        token_prefix: &str,
-    ) -> AppResult<Option<crate::admin::models::AdminToken>> {
+    async fn get_admin_token_by_prefix(&self, token_prefix: &str) -> AppResult<Option<AdminToken>> {
         Self::get_admin_token_by_prefix(self, token_prefix).await
     }
 
-    async fn list_admin_tokens(
-        &self,
-        include_inactive: bool,
-    ) -> AppResult<Vec<crate::admin::models::AdminToken>> {
+    async fn list_admin_tokens(&self, include_inactive: bool) -> AppResult<Vec<AdminToken>> {
         Self::list_admin_tokens(self, include_inactive).await
     }
 
@@ -2638,10 +2601,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::update_admin_token_last_used(self, token_id, ip_address).await
     }
 
-    async fn record_admin_token_usage(
-        &self,
-        usage: &crate::admin::models::AdminTokenUsage,
-    ) -> AppResult<()> {
+    async fn record_admin_token_usage(&self, usage: &AdminTokenUsage) -> AppResult<()> {
         Self::record_admin_token_usage(self, usage).await
     }
 
@@ -2650,7 +2610,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         token_id: &str,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
-    ) -> AppResult<Vec<crate::admin::models::AdminTokenUsage>> {
+    ) -> AppResult<Vec<AdminTokenUsage>> {
         Self::get_admin_token_usage_history(self, token_id, start_date, end_date).await
     }
 
@@ -2722,8 +2682,8 @@ impl crate::database_plugins::DatabaseProvider for Database {
     async fn create_user_mcp_token(
         &self,
         user_id: Uuid,
-        request: &crate::database::CreateUserMcpTokenRequest,
-    ) -> AppResult<crate::database::UserMcpTokenCreated> {
+        request: &CreateUserMcpTokenRequest,
+    ) -> AppResult<UserMcpTokenCreated> {
         Self::create_user_mcp_token(self, user_id, request).await
     }
 
@@ -2731,10 +2691,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::validate_user_mcp_token(self, token_value).await
     }
 
-    async fn list_user_mcp_tokens(
-        &self,
-        user_id: Uuid,
-    ) -> AppResult<Vec<crate::database::UserMcpTokenInfo>> {
+    async fn list_user_mcp_tokens(&self, user_id: Uuid) -> AppResult<Vec<UserMcpTokenInfo>> {
         Self::list_user_mcp_tokens(self, user_id).await
     }
 
@@ -2746,7 +2703,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         &self,
         token_id: &str,
         user_id: Uuid,
-    ) -> AppResult<Option<crate::database::UserMcpToken>> {
+    ) -> AppResult<Option<UserMcpToken>> {
         Self::get_user_mcp_token(self, token_id, user_id).await
     }
 
@@ -2754,25 +2711,25 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::cleanup_expired_user_mcp_tokens(self).await
     }
 
-    async fn create_tenant(&self, tenant: &crate::models::Tenant) -> AppResult<()> {
+    async fn create_tenant(&self, tenant: &Tenant) -> AppResult<()> {
         Self::create_tenant_impl(self, tenant).await
     }
 
-    async fn get_tenant_by_id(&self, tenant_id: Uuid) -> AppResult<crate::models::Tenant> {
+    async fn get_tenant_by_id(&self, tenant_id: Uuid) -> AppResult<Tenant> {
         Self::get_tenant_by_id_impl(self, tenant_id).await
     }
 
-    async fn get_tenant_by_slug(&self, slug: &str) -> AppResult<crate::models::Tenant> {
+    async fn get_tenant_by_slug(&self, slug: &str) -> AppResult<Tenant> {
         Self::get_tenant_by_slug_impl(self, slug).await
     }
 
-    async fn list_tenants_for_user(&self, user_id: Uuid) -> AppResult<Vec<crate::models::Tenant>> {
+    async fn list_tenants_for_user(&self, user_id: Uuid) -> AppResult<Vec<Tenant>> {
         Self::list_tenants_for_user_impl(self, user_id).await
     }
 
     async fn store_tenant_oauth_credentials(
         &self,
-        credentials: &crate::tenant::TenantOAuthCredentials,
+        credentials: &TenantOAuthCredentials,
     ) -> AppResult<()> {
         Self::store_tenant_oauth_credentials_impl(self, credentials).await
     }
@@ -2780,7 +2737,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
     async fn get_tenant_oauth_providers(
         &self,
         tenant_id: Uuid,
-    ) -> AppResult<Vec<crate::tenant::TenantOAuthCredentials>> {
+    ) -> AppResult<Vec<TenantOAuthCredentials>> {
         Self::get_tenant_oauth_providers_impl(self, tenant_id).await
     }
 
@@ -2788,74 +2745,50 @@ impl crate::database_plugins::DatabaseProvider for Database {
         &self,
         tenant_id: Uuid,
         provider: &str,
-    ) -> AppResult<Option<crate::tenant::TenantOAuthCredentials>> {
+    ) -> AppResult<Option<TenantOAuthCredentials>> {
         Self::get_tenant_oauth_credentials_impl(self, tenant_id, provider).await
     }
 
-    async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> AppResult<()> {
+    async fn create_oauth_app(&self, app: &OAuthApp) -> AppResult<()> {
         Self::create_oauth_app_impl(self, app).await
     }
 
-    async fn get_oauth_app_by_client_id(
-        &self,
-        client_id: &str,
-    ) -> AppResult<crate::models::OAuthApp> {
+    async fn get_oauth_app_by_client_id(&self, client_id: &str) -> AppResult<OAuthApp> {
         Self::get_oauth_app_by_client_id_impl(self, client_id).await
     }
 
-    async fn list_oauth_apps_for_user(
-        &self,
-        user_id: Uuid,
-    ) -> AppResult<Vec<crate::models::OAuthApp>> {
+    async fn list_oauth_apps_for_user(&self, user_id: Uuid) -> AppResult<Vec<OAuthApp>> {
         Self::list_oauth_apps_for_user(self, user_id).await
     }
 
-    async fn store_oauth2_client(
-        &self,
-        client: &crate::oauth2_server::models::OAuth2Client,
-    ) -> AppResult<()> {
+    async fn store_oauth2_client(&self, client: &OAuth2Client) -> AppResult<()> {
         Self::store_oauth2_client_impl(self, client).await
     }
 
-    async fn get_oauth2_client(
-        &self,
-        client_id: &str,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2Client>> {
+    async fn get_oauth2_client(&self, client_id: &str) -> AppResult<Option<OAuth2Client>> {
         Self::get_oauth2_client_impl(self, client_id).await
     }
 
-    async fn store_oauth2_auth_code(
-        &self,
-        auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> AppResult<()> {
+    async fn store_oauth2_auth_code(&self, auth_code: &OAuth2AuthCode) -> AppResult<()> {
         Self::store_oauth2_auth_code_impl(self, auth_code).await
     }
 
-    async fn get_oauth2_auth_code(
-        &self,
-        code: &str,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
+    async fn get_oauth2_auth_code(&self, code: &str) -> AppResult<Option<OAuth2AuthCode>> {
         Self::get_oauth2_auth_code_impl(self, code).await
     }
 
-    async fn update_oauth2_auth_code(
-        &self,
-        auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> AppResult<()> {
+    async fn update_oauth2_auth_code(&self, auth_code: &OAuth2AuthCode) -> AppResult<()> {
         Self::update_oauth2_auth_code_impl(self, auth_code).await
     }
 
     async fn store_oauth2_refresh_token(
         &self,
-        refresh_token: &crate::oauth2_server::models::OAuth2RefreshToken,
+        refresh_token: &OAuth2RefreshToken,
     ) -> AppResult<()> {
         Self::store_oauth2_refresh_token_impl(self, refresh_token).await
     }
 
-    async fn get_oauth2_refresh_token(
-        &self,
-        token: &str,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    async fn get_oauth2_refresh_token(&self, token: &str) -> AppResult<Option<OAuth2RefreshToken>> {
         Self::get_oauth2_refresh_token_impl(self, token).await
     }
 
@@ -2869,7 +2802,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         client_id: &str,
         redirect_uri: &str,
         now: DateTime<Utc>,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
+    ) -> AppResult<Option<OAuth2AuthCode>> {
         Self::consume_auth_code_impl(self, code, client_id, redirect_uri, now).await
     }
 
@@ -2878,14 +2811,14 @@ impl crate::database_plugins::DatabaseProvider for Database {
         token: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    ) -> AppResult<Option<OAuth2RefreshToken>> {
         Self::consume_refresh_token_impl(self, token, client_id, now).await
     }
 
     async fn get_refresh_token_by_value(
         &self,
         token: &str,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    ) -> AppResult<Option<OAuth2RefreshToken>> {
         Self::get_refresh_token_by_value(self, token).await
     }
 
@@ -2900,10 +2833,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::store_authorization_code(self, code, client_id, redirect_uri, scope, user_id).await
     }
 
-    async fn get_authorization_code(
-        &self,
-        code: &str,
-    ) -> AppResult<crate::models::AuthorizationCode> {
+    async fn get_authorization_code(&self, code: &str) -> AppResult<AuthorizationCode> {
         Self::get_authorization_code_impl(self, code).await
     }
 
@@ -2911,10 +2841,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::delete_authorization_code_impl(self, code).await
     }
 
-    async fn store_oauth2_state(
-        &self,
-        state: &crate::oauth2_server::models::OAuth2State,
-    ) -> AppResult<()> {
+    async fn store_oauth2_state(&self, state: &OAuth2State) -> AppResult<()> {
         Self::store_oauth2_state_impl(self, state).await
     }
 
@@ -2923,28 +2850,22 @@ impl crate::database_plugins::DatabaseProvider for Database {
         state_value: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2State>> {
+    ) -> AppResult<Option<OAuth2State>> {
         Self::consume_oauth2_state_impl(self, state_value, client_id, now).await
     }
 
-    async fn store_key_version(
-        &self,
-        version: &crate::security::key_rotation::KeyVersion,
-    ) -> AppResult<()> {
+    async fn store_key_version(&self, version: &KeyVersion) -> AppResult<()> {
         Self::store_key_version(self, version).await
     }
 
-    async fn get_key_versions(
-        &self,
-        tenant_id: Option<Uuid>,
-    ) -> AppResult<Vec<crate::security::key_rotation::KeyVersion>> {
+    async fn get_key_versions(&self, tenant_id: Option<Uuid>) -> AppResult<Vec<KeyVersion>> {
         Self::get_key_versions(self, tenant_id).await
     }
 
     async fn get_current_key_version(
         &self,
         tenant_id: Option<Uuid>,
-    ) -> AppResult<Option<crate::security::key_rotation::KeyVersion>> {
+    ) -> AppResult<Option<KeyVersion>> {
         Self::get_current_key_version(self, tenant_id).await
     }
 
@@ -2965,11 +2886,11 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::delete_old_key_versions(self, tenant_id, keep_count).await
     }
 
-    async fn get_all_tenants(&self) -> AppResult<Vec<crate::models::Tenant>> {
+    async fn get_all_tenants(&self) -> AppResult<Vec<Tenant>> {
         Self::get_all_tenants_impl(self).await
     }
 
-    async fn store_audit_event(&self, event: &crate::security::audit::AuditEvent) -> AppResult<()> {
+    async fn store_audit_event(&self, event: &AuditEvent) -> AppResult<()> {
         Self::store_audit_event_impl(self, event).await
     }
 
@@ -2978,7 +2899,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         tenant_id: Option<Uuid>,
         event_type: Option<&str>,
         limit: Option<u32>,
-    ) -> AppResult<Vec<crate::security::audit::AuditEvent>> {
+    ) -> AppResult<Vec<AuditEvent>> {
         Self::get_audit_events(self, tenant_id, event_type, limit).await
     }
 
@@ -3016,7 +2937,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
     async fn get_unread_oauth_notifications(
         &self,
         user_id: Uuid,
-    ) -> AppResult<Vec<crate::database::oauth_notifications::OAuthNotification>> {
+    ) -> AppResult<Vec<OAuthNotification>> {
         Self::get_unread_oauth_notifications(self, user_id).await
     }
 
@@ -3036,7 +2957,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         &self,
         user_id: Uuid,
         limit: Option<i64>,
-    ) -> AppResult<Vec<crate::database::oauth_notifications::OAuthNotification>> {
+    ) -> AppResult<Vec<OAuthNotification>> {
         Self::get_all_oauth_notifications(self, user_id, limit).await
     }
 
@@ -3044,7 +2965,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         &self,
         tenant_id: &str,
         configuration_name: &str,
-        config: &crate::config::fitness::FitnessConfig,
+        config: &FitnessConfig,
     ) -> AppResult<String> {
         let manager = self.fitness_configurations();
         manager
@@ -3057,7 +2978,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-        config: &crate::config::fitness::FitnessConfig,
+        config: &FitnessConfig,
     ) -> AppResult<String> {
         let manager = self.fitness_configurations();
         manager
@@ -3069,7 +2990,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         &self,
         tenant_id: &str,
         configuration_name: &str,
-    ) -> AppResult<Option<crate::config::fitness::FitnessConfig>> {
+    ) -> AppResult<Option<FitnessConfig>> {
         let manager = self.fitness_configurations();
         manager
             .get_tenant_config(tenant_id, configuration_name)
@@ -3081,7 +3002,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-    ) -> AppResult<Option<crate::config::fitness::FitnessConfig>> {
+    ) -> AppResult<Option<FitnessConfig>> {
         let manager = self.fitness_configurations();
         manager
             .get_user_config(tenant_id, user_id, configuration_name)
@@ -3116,7 +3037,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
 
     // OAuth Token Management
     async fn upsert_user_oauth_token(&self, token: &UserOAuthToken) -> AppResult<()> {
-        use crate::database::user_oauth_tokens::OAuthTokenData;
+        use user_oauth_tokens::OAuthTokenData;
 
         let token_data = OAuthTokenData {
             id: &token.id,
@@ -3227,24 +3148,21 @@ impl crate::database_plugins::DatabaseProvider for Database {
     // Impersonation Session Management
     // ================================
 
-    async fn create_impersonation_session(
-        &self,
-        session: &crate::permissions::impersonation::ImpersonationSession,
-    ) -> AppResult<()> {
+    async fn create_impersonation_session(&self, session: &ImpersonationSession) -> AppResult<()> {
         Self::create_impersonation_session(self, session).await
     }
 
     async fn get_impersonation_session(
         &self,
         session_id: &str,
-    ) -> AppResult<Option<crate::permissions::impersonation::ImpersonationSession>> {
+    ) -> AppResult<Option<ImpersonationSession>> {
         Self::get_impersonation_session(self, session_id).await
     }
 
     async fn get_active_impersonation_session(
         &self,
         impersonator_id: Uuid,
-    ) -> AppResult<Option<crate::permissions::impersonation::ImpersonationSession>> {
+    ) -> AppResult<Option<ImpersonationSession>> {
         Self::get_active_impersonation_session(self, impersonator_id).await
     }
 
@@ -3262,7 +3180,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         target_user_id: Option<Uuid>,
         active_only: bool,
         limit: u32,
-    ) -> AppResult<Vec<crate::permissions::impersonation::ImpersonationSession>> {
+    ) -> AppResult<Vec<ImpersonationSession>> {
         Self::list_impersonation_sessions(self, impersonator_id, target_user_id, active_only, limit)
             .await
     }

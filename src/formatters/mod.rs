@@ -29,7 +29,8 @@
 //! ```
 
 use serde::Serialize;
-use std::fmt;
+use std::{error::Error, fmt};
+use toon_format::EncodeOptions;
 
 /// Output serialization format selector
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -105,7 +106,7 @@ impl fmt::Display for FormatError {
     }
 }
 
-impl std::error::Error for FormatError {}
+impl Error for FormatError {}
 
 /// Format serializable data to the specified output format
 ///
@@ -147,7 +148,7 @@ pub fn format_output<T: Serialize>(
                 message: format!("Failed to convert to JSON value: {e}"),
                 format,
             })?;
-            let options = toon_format::EncodeOptions::default();
+            let options = EncodeOptions::default();
             toon_format::encode(&value, &options).map_err(|e| FormatError {
                 message: e.to_string(),
                 format,
@@ -192,7 +193,7 @@ pub fn format_output_pretty<T: Serialize>(
                 message: format!("Failed to convert to JSON value: {e}"),
                 format,
             })?;
-            let options = toon_format::EncodeOptions::default();
+            let options = EncodeOptions::default();
             toon_format::encode(&value, &options).map_err(|e| FormatError {
                 message: e.to_string(),
                 format,

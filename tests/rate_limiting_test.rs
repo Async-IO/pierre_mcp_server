@@ -12,15 +12,21 @@
 mod common;
 
 use chrono::{Datelike, Duration, TimeZone, Timelike, Utc};
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
 use pierre_mcp_server::{
-    api_keys::{ApiKey, ApiKeyManager, ApiKeyTier, ApiKeyUsage},
+    api_keys::{
+        ApiKey, ApiKeyManager, ApiKeyTier, ApiKeyUsage, CreateApiKeyRequest,
+        CreateApiKeyRequestSimple,
+    },
     auth::AuthManager,
+    config::environment::RateLimitConfig,
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
     middleware::McpAuthMiddleware,
     models::User,
 };
-use std::sync::Arc;
+use std::{cmp::min, sync::Arc};
 use uuid::Uuid;
 
 async fn create_test_setup() -> (Arc<Database>, ApiKeyManager, Arc<McpAuthMiddleware>, User) {
@@ -30,13 +36,9 @@ async fn create_test_setup() -> (Arc<Database>, ApiKeyManager, Arc<McpAuthMiddle
 
     #[cfg(feature = "postgresql")]
     let database = Arc::new(
-        Database::new(
-            database_url,
-            encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
-        )
-        .await
-        .unwrap(),
+        Database::new(database_url, encryption_key, &PostgresPoolConfig::default())
+            .await
+            .unwrap(),
     );
 
     #[cfg(not(feature = "postgresql"))]
@@ -49,7 +51,7 @@ async fn create_test_setup() -> (Arc<Database>, ApiKeyManager, Arc<McpAuthMiddle
         auth_manager,
         database.clone(),
         jwks_manager,
-        pierre_mcp_server::config::environment::RateLimitConfig::default(),
+        RateLimitConfig::default(),
     ));
 
     // Create API key manager
@@ -751,7 +753,7 @@ async fn test_legacy_conversion_functionality() {
     database.create_user(&user).await.unwrap();
 
     // Test legacy API key creation using the old CreateApiKeyRequest format
-    let legacy_request = pierre_mcp_server::api_keys::CreateApiKeyRequest {
+    let legacy_request = CreateApiKeyRequest {
         name: "Legacy API Key".to_owned(),
         description: Some("Created using legacy format".to_owned()),
         tier: ApiKeyTier::Professional,
@@ -773,7 +775,7 @@ async fn test_legacy_conversion_functionality() {
     );
 
     // Test new simplified API key creation
-    let simple_request = pierre_mcp_server::api_keys::CreateApiKeyRequestSimple {
+    let simple_request = CreateApiKeyRequestSimple {
         name: "Simple API Key".to_owned(),
         description: Some("Created using simplified format".to_owned()),
         rate_limit_requests: 25_000, // Maps to Professional tier
@@ -949,7 +951,7 @@ async fn test_enterprise_unlimited_comprehensive() {
 
     for usage in extreme_usage_levels {
         // Record usage to database (sample only, not full count for performance)
-        let sample_count = std::cmp::min(usage, 100); // Record max 100 samples
+        let sample_count = min(usage, 100); // Record max 100 samples
         for i in 0..sample_count {
             let usage_record = ApiKeyUsage {
                 id: None,

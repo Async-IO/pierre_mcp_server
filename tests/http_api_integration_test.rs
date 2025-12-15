@@ -11,16 +11,32 @@ mod common;
 
 use anyhow::Result;
 use pierre_mcp_server::{
+    api_keys::{ApiKeyManager, ApiKeyTier, CreateApiKeyRequest},
     auth::AuthManager,
+    cache::{factory::Cache, CacheConfig as MemoryCacheConfig},
+    config::environment::{
+        AppBehaviorConfig, AuthConfig, BackupConfig, CacheConfig, CorsConfig, DatabaseConfig,
+        DatabaseUrl, Environment, ExternalServicesConfig, FirebaseConfig, FitbitApiConfig,
+        GarminApiConfig, GeocodingServiceConfig, GoalManagementConfig, HttpClientConfig, LogLevel,
+        LoggingConfig, McpConfig, OAuth2ServerConfig, OAuthConfig, OAuthProviderConfig,
+        PostgresPoolConfig, ProtocolConfig, RateLimitConfig, RouteTimeoutConfig, SecurityConfig,
+        SecurityHeadersConfig, ServerConfig, SleepRecoveryConfig, SseConfig, StravaApiConfig,
+        TlsConfig, TrainingZonesConfig, WeatherServiceConfig,
+    },
+    context::ServerContext,
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::resources::ServerResources,
-    models::{Tenant, User, UserStatus},
-    routes::auth::{AuthService, OAuthService},
+    models::{Tenant, User, UserStatus, UserTier},
+    permissions::UserRole,
+    routes::{
+        auth::{AuthService, OAuthService},
+        LoginRequest, RegisterRequest,
+    },
     tenant::TenantOAuthCredentials,
 };
 use serde_json::json;
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 /// Test setup for SDK integration tests
 // Long function: Defines complete test environment setup including database, auth, config, and test data
@@ -35,7 +51,7 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthService, OAuthSe
         Database::new(
             "sqlite::memory:",
             generate_encryption_key().to_vec(),
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await?,
     );
@@ -53,7 +69,7 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthService, OAuthSe
         email: "admin@example.com".to_owned(),
         display_name: Some("Admin".to_owned()),
         password_hash: "hash".to_owned(),
-        tier: pierre_mcp_server::models::UserTier::Starter,
+        tier: UserTier::Starter,
         tenant_id: None,
         strava_token: None,
         fitbit_token: None,
@@ -62,7 +78,7 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthService, OAuthSe
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         approved_by: None,
         approved_at: None,
         firebase_uid: None,
@@ -112,58 +128,58 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthService, OAuthSe
         .await?;
 
     // Create basic config with correct structure
-    let config = Arc::new(pierre_mcp_server::config::environment::ServerConfig {
+    let config = Arc::new(ServerConfig {
         http_port: 8081,
         oauth_callback_port: 35535,
-        log_level: pierre_mcp_server::config::environment::LogLevel::Info,
-        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
-        http_client: pierre_mcp_server::config::environment::HttpClientConfig::default(),
-        database: pierre_mcp_server::config::environment::DatabaseConfig {
-            url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
+        log_level: LogLevel::Info,
+        logging: LoggingConfig::default(),
+        http_client: HttpClientConfig::default(),
+        database: DatabaseConfig {
+            url: DatabaseUrl::Memory,
             auto_migrate: true,
-            backup: pierre_mcp_server::config::environment::BackupConfig {
+            backup: BackupConfig {
                 enabled: false,
                 interval_seconds: 3600,
                 retention_count: 7,
-                directory: std::path::PathBuf::from("test_backups"),
+                directory: PathBuf::from("test_backups"),
             },
-            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            postgres_pool: PostgresPoolConfig::default(),
         },
-        auth: pierre_mcp_server::config::environment::AuthConfig {
+        auth: AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
-            ..pierre_mcp_server::config::environment::AuthConfig::default()
+            ..AuthConfig::default()
         },
-        oauth: pierre_mcp_server::config::environment::OAuthConfig {
-            strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
+        oauth: OAuthConfig {
+            strava: OAuthProviderConfig {
                 client_id: Some("test_client_id".to_owned()),
                 client_secret: Some("test_client_secret".to_owned()),
                 redirect_uri: Some("http://localhost:8081/oauth/callback/strava".to_owned()),
                 scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
                 enabled: true,
             },
-            fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig {
+            fitbit: OAuthProviderConfig {
                 client_id: Some("test_fitbit_client_id".to_owned()),
                 client_secret: Some("test_fitbit_client_secret".to_owned()),
                 redirect_uri: Some("http://localhost:8081/oauth/callback/fitbit".to_owned()),
                 scopes: vec!["activity".to_owned(), "profile".to_owned()],
                 enabled: true,
             },
-            garmin: pierre_mcp_server::config::environment::OAuthProviderConfig {
+            garmin: OAuthProviderConfig {
                 client_id: None,
                 client_secret: None,
                 redirect_uri: None,
                 scopes: vec![],
                 enabled: false,
             },
-            whoop: pierre_mcp_server::config::environment::OAuthProviderConfig {
+            whoop: OAuthProviderConfig {
                 client_id: None,
                 client_secret: None,
                 redirect_uri: None,
                 scopes: vec![],
                 enabled: false,
             },
-            terra: pierre_mcp_server::config::environment::OAuthProviderConfig {
+            terra: OAuthProviderConfig {
                 client_id: None,
                 client_secret: None,
                 redirect_uri: None,
@@ -171,95 +187,93 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthService, OAuthSe
                 enabled: false,
             },
         },
-        security: pierre_mcp_server::config::environment::SecurityConfig {
+        security: SecurityConfig {
             cors_origins: vec!["http://localhost:3000".to_owned()],
-            tls: pierre_mcp_server::config::environment::TlsConfig {
+            tls: TlsConfig {
                 enabled: false,
                 cert_path: None,
                 key_path: None,
             },
-            headers: pierre_mcp_server::config::environment::SecurityHeadersConfig {
-                environment: pierre_mcp_server::config::environment::Environment::Testing,
+            headers: SecurityHeadersConfig {
+                environment: Environment::Testing,
             },
         },
-        external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
-            weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
+        external_services: ExternalServicesConfig {
+            weather: WeatherServiceConfig {
                 api_key: None,
                 base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                 enabled: false,
             },
-            geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
+            geocoding: GeocodingServiceConfig {
                 base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: false,
             },
-            strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
+            strava_api: StravaApiConfig {
                 base_url: "https://www.strava.com/api/v3".to_owned(),
                 auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
                 token_url: "https://www.strava.com/oauth/token".to_owned(),
                 deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
-            fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
+            fitbit_api: FitbitApiConfig {
                 base_url: "https://api.fitbit.com".to_owned(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
                 token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
                 revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
-            garmin_api: pierre_mcp_server::config::environment::GarminApiConfig {
+            garmin_api: GarminApiConfig {
                 base_url: "https://apis.garmin.com".to_owned(),
                 auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
                 token_url: "https://connect.garmin.com/oauth-service/oauth/access_token".to_owned(),
                 revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_owned(),
             },
         },
-        app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
+        app_behavior: AppBehaviorConfig {
             max_activities_fetch: 200,
             default_activities_limit: 50,
             ci_mode: true,
             auto_approve_users: false,
-            protocol: pierre_mcp_server::config::environment::ProtocolConfig {
+            protocol: ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
                 server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
-        sse: pierre_mcp_server::config::environment::SseConfig::default(),
-        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
-        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        sse: SseConfig::default(),
+        oauth2_server: OAuth2ServerConfig::default(),
+        route_timeouts: RouteTimeoutConfig::default(),
         host: "localhost".to_owned(),
         base_url: "http://localhost:8081".to_owned(),
-        mcp: pierre_mcp_server::config::environment::McpConfig {
+        mcp: McpConfig {
             protocol_version: "2025-06-18".to_owned(),
             server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
         },
-        cors: pierre_mcp_server::config::environment::CorsConfig {
+        cors: CorsConfig {
             allowed_origins: "*".to_owned(),
             allow_localhost_dev: true,
         },
-        cache: pierre_mcp_server::config::environment::CacheConfig {
+        cache: CacheConfig {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
             ..Default::default()
         },
         usda_api_key: None,
-        rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
-        sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
-        goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
-        training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
-        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
+        rate_limiting: RateLimitConfig::default(),
+        sleep_recovery: SleepRecoveryConfig::default(),
+        goal_management: GoalManagementConfig::default(),
+        training_zones: TrainingZonesConfig::default(),
+        firebase: FirebaseConfig::default(),
     });
 
-    let cache_config = pierre_mcp_server::cache::CacheConfig {
+    let cache_config = MemoryCacheConfig {
         max_entries: 1000,
         redis_url: None,
-        cleanup_interval: std::time::Duration::from_secs(60),
+        cleanup_interval: Duration::from_secs(60),
         enable_background_cleanup: false,
         ..Default::default()
     };
-    let cache = pierre_mcp_server::cache::factory::Cache::new(cache_config)
-        .await
-        .unwrap();
+    let cache = Cache::new(cache_config).await.unwrap();
 
     let server_resources = Arc::new(ServerResources::new(
         (*database).clone(),
@@ -271,7 +285,7 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthService, OAuthSe
         Some(common::get_shared_test_jwks()),
     ));
 
-    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let server_context = ServerContext::from(server_resources.as_ref());
     let auth_routes = AuthService::new(
         server_context.auth().clone(),
         server_context.config().clone(),
@@ -292,7 +306,7 @@ async fn create_approved_test_user(
     email: &str,
     password: &str,
 ) -> Result<String> {
-    let user = pierre_mcp_server::models::User::new(
+    let user = User::new(
         email.to_owned(),
         bcrypt::hash(password, bcrypt::DEFAULT_COST)?,
         Some("Test User".to_owned()),
@@ -301,7 +315,7 @@ async fn create_approved_test_user(
 
     // Create user with active status
     let mut active_user = user;
-    active_user.user_status = pierre_mcp_server::models::UserStatus::Active;
+    active_user.user_status = UserStatus::Active;
     active_user.approved_at = Some(chrono::Utc::now());
 
     database.create_user(&active_user).await?;
@@ -313,7 +327,7 @@ async fn test_sdk_user_registration_flow() -> Result<()> {
     let (database, auth_routes, _oauth_routes, _tenant_id) = setup_test_environment().await?;
 
     // Test 1: Register user (should create with pending status)
-    let register_request = pierre_mcp_server::routes::RegisterRequest {
+    let register_request = RegisterRequest {
         email: "sdk_test@example.com".to_owned(),
         password: "TestPassword123".to_owned(),
         display_name: Some("SDK Test User".to_owned()),
@@ -326,15 +340,12 @@ async fn test_sdk_user_registration_flow() -> Result<()> {
     // Test 2: Verify user is created with pending status
     let user_id = uuid::Uuid::parse_str(&register_response.user_id)?;
     let user = database.get_user(user_id).await?.unwrap();
-    assert_eq!(
-        user.user_status,
-        pierre_mcp_server::models::UserStatus::Pending
-    );
+    assert_eq!(user.user_status, UserStatus::Pending);
 
     // Test 3: Login succeeds for pending user but returns pending status
     // (Backend authenticates; frontend handles access control based on user_status)
     let pending_login_response = auth_routes
-        .login(pierre_mcp_server::routes::LoginRequest {
+        .login(LoginRequest {
             email: "sdk_test@example.com".to_owned(),
             password: "TestPassword123".to_owned(),
         })
@@ -355,13 +366,13 @@ async fn test_sdk_user_registration_flow() -> Result<()> {
     database
         .update_user_status(
             user_id,
-            pierre_mcp_server::models::UserStatus::Active,
+            UserStatus::Active,
             "", // Empty for test
         )
         .await?;
 
     let active_login_response = auth_routes
-        .login(pierre_mcp_server::routes::LoginRequest {
+        .login(LoginRequest {
             email: "sdk_test@example.com".to_owned(),
             password: "TestPassword123".to_owned(),
         })
@@ -417,11 +428,11 @@ async fn test_sdk_api_key_management() -> Result<()> {
     let user_id = uuid::Uuid::parse_str(&user_id_str)?;
 
     // Test 1: Create API key
-    let api_key_manager = pierre_mcp_server::api_keys::ApiKeyManager::new();
-    let create_request = pierre_mcp_server::api_keys::CreateApiKeyRequest {
+    let api_key_manager = ApiKeyManager::new();
+    let create_request = CreateApiKeyRequest {
         name: "SDK Test Key".to_owned(),
         description: Some("Test API key for SDK integration".to_owned()),
-        tier: pierre_mcp_server::api_keys::ApiKeyTier::Starter,
+        tier: ApiKeyTier::Starter,
         rate_limit_requests: Some(1000),
         expires_in_days: Some(365),
     };
@@ -448,7 +459,7 @@ async fn test_sdk_error_handling() -> Result<()> {
     let (database, auth_routes, oauth_routes, tenant_id) = setup_test_environment().await?;
 
     // Test 1: Invalid email format
-    let invalid_email_request = pierre_mcp_server::routes::RegisterRequest {
+    let invalid_email_request = RegisterRequest {
         email: "invalid-email".to_owned(),
         password: "TestPassword123".to_owned(),
         display_name: Some("Test User".to_owned()),
@@ -462,7 +473,7 @@ async fn test_sdk_error_handling() -> Result<()> {
         .contains("Invalid email format"));
 
     // Test 2: Password too short
-    let short_password_request = pierre_mcp_server::routes::RegisterRequest {
+    let short_password_request = RegisterRequest {
         email: "test@example.com".to_owned(),
         password: "short".to_owned(),
         display_name: Some("Test User".to_owned()),
@@ -476,7 +487,7 @@ async fn test_sdk_error_handling() -> Result<()> {
         .contains("at least 8 characters"));
 
     // Test 3: Duplicate user registration
-    let valid_request = pierre_mcp_server::routes::RegisterRequest {
+    let valid_request = RegisterRequest {
         email: "duplicate@example.com".to_owned(),
         password: "TestPassword123".to_owned(),
         display_name: Some("Test User".to_owned()),
@@ -488,7 +499,7 @@ async fn test_sdk_error_handling() -> Result<()> {
     assert!(result.unwrap_err().to_string().contains("already exists"));
 
     // Test 4: Login with non-existent user
-    let login_request = pierre_mcp_server::routes::LoginRequest {
+    let login_request = LoginRequest {
         email: "nonexistent@example.com".to_owned(),
         password: "TestPassword123".to_owned(),
     };
@@ -525,7 +536,7 @@ async fn test_sdk_complete_onboarding_simulation() -> Result<()> {
     // Simulate complete SDK onboarding flow
 
     // Step 1: Register user
-    let register_request = pierre_mcp_server::routes::RegisterRequest {
+    let register_request = RegisterRequest {
         email: "complete_test@example.com".to_owned(),
         password: "CompleteTest123".to_owned(),
         display_name: Some("Complete Test User".to_owned()),
@@ -536,11 +547,11 @@ async fn test_sdk_complete_onboarding_simulation() -> Result<()> {
 
     // Step 2: Admin approves user (simulated)
     database
-        .update_user_status(user_id, pierre_mcp_server::models::UserStatus::Active, "")
+        .update_user_status(user_id, UserStatus::Active, "")
         .await?;
 
     // Step 3: User logs in
-    let login_request = pierre_mcp_server::routes::LoginRequest {
+    let login_request = LoginRequest {
         email: "complete_test@example.com".to_owned(),
         password: "CompleteTest123".to_owned(),
     };
@@ -557,11 +568,11 @@ async fn test_sdk_complete_onboarding_simulation() -> Result<()> {
     // Step 4: Test OAuth URL generation (uses env vars for client credentials)
 
     // Step 5: Create API key
-    let api_key_manager = pierre_mcp_server::api_keys::ApiKeyManager::new();
-    let create_request = pierre_mcp_server::api_keys::CreateApiKeyRequest {
+    let api_key_manager = ApiKeyManager::new();
+    let create_request = CreateApiKeyRequest {
         name: "Complete Test API Key".to_owned(),
         description: Some("Complete onboarding test".to_owned()),
-        tier: pierre_mcp_server::api_keys::ApiKeyTier::Professional,
+        tier: ApiKeyTier::Professional,
         rate_limit_requests: Some(5000),
         expires_in_days: None,
     };
@@ -571,10 +582,7 @@ async fn test_sdk_complete_onboarding_simulation() -> Result<()> {
 
     // Step 6: Verify complete setup
     let user = database.get_user(user_id).await?.unwrap();
-    assert_eq!(
-        user.user_status,
-        pierre_mcp_server::models::UserStatus::Active
-    );
+    assert_eq!(user.user_status, UserStatus::Active);
     assert_eq!(user.email, "complete_test@example.com");
 
     // Skip OAuth app verification for now due to type mismatch

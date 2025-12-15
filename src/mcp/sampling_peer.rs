@@ -9,6 +9,7 @@ use crate::errors::{AppError, AppResult};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::io::Stdout;
 use tokio::sync::{oneshot, Mutex, RwLock};
 use tokio::time::{timeout, Duration};
 use tracing::{debug, warn};
@@ -27,13 +28,13 @@ pub struct SamplingPeer {
     /// Pending requests awaiting responses from client
     pending_requests: Arc<Mutex<HashMap<Value, ResponseSender>>>,
     /// Stdout channel for sending requests to client
-    stdout: Arc<Mutex<tokio::io::Stdout>>,
+    stdout: Arc<Mutex<Stdout>>,
 }
 
 impl SamplingPeer {
     /// Create a new sampling peer with access to stdout
     #[must_use]
-    pub fn new(stdout: Arc<Mutex<tokio::io::Stdout>>) -> Self {
+    pub fn new(stdout: Arc<Mutex<Stdout>>) -> Self {
         Self {
             request_counter: Arc::new(RwLock::new(0)),
             pending_requests: Arc::new(Mutex::new(HashMap::new())),

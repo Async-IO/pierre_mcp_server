@@ -4,10 +4,12 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use std::sync::Arc;
+
 use crate::a2a::client::A2AClientManager;
 use crate::a2a::system_user::A2ASystemUserService;
+use crate::config::environment::ServerConfig;
 use crate::tenant::TenantOAuthClient;
-use std::sync::Arc;
 
 /// Configuration context containing config and OAuth dependencies
 ///
@@ -21,7 +23,7 @@ use std::sync::Arc;
 /// - `a2a_system_user_service`: System user service for A2A operations
 #[derive(Clone)]
 pub struct ConfigContext {
-    config: Arc<crate::config::environment::ServerConfig>,
+    config: Arc<ServerConfig>,
     tenant_oauth_client: Arc<TenantOAuthClient>,
     a2a_client_manager: Arc<A2AClientManager>,
     a2a_system_user_service: Arc<A2ASystemUserService>,
@@ -31,7 +33,7 @@ impl ConfigContext {
     /// Create new configuration context
     #[must_use]
     pub const fn new(
-        config: Arc<crate::config::environment::ServerConfig>,
+        config: Arc<ServerConfig>,
         tenant_oauth_client: Arc<TenantOAuthClient>,
         a2a_client_manager: Arc<A2AClientManager>,
         a2a_system_user_service: Arc<A2ASystemUserService>,
@@ -46,7 +48,7 @@ impl ConfigContext {
 
     /// Get server configuration
     #[must_use]
-    pub const fn config(&self) -> &Arc<crate::config::environment::ServerConfig> {
+    pub const fn config(&self) -> &Arc<ServerConfig> {
         &self.config
     }
 

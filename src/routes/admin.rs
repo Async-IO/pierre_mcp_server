@@ -10,8 +10,33 @@
 //! user management, and administrative functions. All handlers are thin
 //! wrappers that delegate business logic to service layers.
 
+use std::sync::Arc;
+
+use axum::{
+    body::Bytes,
+    extract::{Path, Query, State},
+    http::StatusCode,
+    middleware,
+    response::IntoResponse,
+    routing::{get, post, put},
+    Extension, Json, Router,
+};
+use chrono::{DateTime, Duration, Utc};
+use rand::{distributions::Alphanumeric, Rng};
+use serde::{Deserialize, Serialize};
+use serde_json::{from_slice, json, to_value, Value};
+use tokio::task;
+use tracing::{error, info, warn};
+use uuid::Uuid;
+
 use crate::{
-    admin::{auth::AdminAuthService, models::ValidatedAdminToken},
+    admin::{
+        auth::AdminAuthService,
+        jwks::JwksManager,
+        middleware::admin_auth_middleware,
+        models::{AdminPermission, CreateAdminTokenRequest, ValidatedAdminToken},
+        AdminPermission as AdminPerm,
+    },
     api_keys::{ApiKey, ApiKeyManager, ApiKeyTier, CreateApiKeyRequest},
     auth::AuthManager,
     constants::{
@@ -20,23 +45,13 @@ use crate::{
     },
     database_plugins::{factory::Database, DatabaseProvider},
     errors::{AppError, AppResult},
-    models::{User, UserStatus},
+    models::{Tenant, User, UserStatus},
+    rate_limiting::UnifiedRateLimitCalculator,
+    routes::auth::SetupStatusResponse,
 };
-use axum::{
-    extract::{Query, State},
-    Extension, Json,
-};
-use rand::Rng;
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use tracing::{error, info, warn};
-use uuid::Uuid;
 
 // Helper function for JSON responses with status
-fn json_response<T: serde::Serialize>(
-    value: T,
-    status: axum::http::StatusCode,
-) -> impl axum::response::IntoResponse {
+fn json_response<T: Serialize>(value: T, status: StatusCode) -> impl IntoResponse {
     (status, Json(value))
 }
 
@@ -180,7 +195,7 @@ pub struct AdminResponse {
     /// Response message
     pub message: String,
     /// Optional additional data
-    pub data: Option<serde_json::Value>,
+    pub data: Option<Value>,
 }
 
 /// Admin setup response
@@ -245,7 +260,7 @@ pub struct AdminApiContext {
     /// JWT secret for admin token validation
     pub admin_jwt_secret: String,
     /// JWKS manager for key rotation and validation
-    pub jwks_manager: Arc<crate::admin::jwks::JwksManager>,
+    pub jwks_manager: Arc<JwksManager>,
     /// Default monthly request limit for admin-provisioned API keys
     pub admin_api_key_monthly_limit: u32,
 }
@@ -256,7 +271,7 @@ impl AdminApiContext {
         database: Arc<Database>,
         jwt_secret: &str,
         auth_manager: Arc<AuthManager>,
-        jwks_manager: Arc<crate::admin::jwks::JwksManager>,
+        jwks_manager: Arc<JwksManager>,
         admin_api_key_monthly_limit: u32,
         admin_token_cache_ttl_secs: u64,
     ) -> Self {
@@ -325,7 +340,7 @@ async fn create_and_store_api_key(
     user: &User,
     request: &ProvisionApiKeyRequest,
     tier: &ApiKeyTier,
-    admin_token: &crate::admin::models::ValidatedAdminToken,
+    admin_token: &ValidatedAdminToken,
 ) -> Result<(ApiKey, String), String> {
     // Generate API key using ApiKeyManager
     let api_key_manager = ApiKeyManager::new();
@@ -399,13 +414,13 @@ fn create_provision_response(
 /// Parse and validate provision API key request
 fn parse_provision_request(
     body: &[u8],
-) -> Result<ProvisionApiKeyRequest, (axum::http::StatusCode, Json<AdminResponse>)> {
-    match serde_json::from_slice(body) {
+) -> Result<ProvisionApiKeyRequest, (StatusCode, Json<AdminResponse>)> {
+    match from_slice(body) {
         Ok(req) => Ok(req),
         Err(e) => {
             warn!(error = %e, "Invalid JSON body in provision API key request");
             Err((
-                axum::http::StatusCode::BAD_REQUEST,
+                StatusCode::BAD_REQUEST,
                 Json(AdminResponse {
                     success: false,
                     message: format!("Invalid JSON body: {e}"),
@@ -418,16 +433,16 @@ fn parse_provision_request(
 
 /// Check if admin token has provision permission
 fn check_provision_permission(
-    admin_token: &crate::admin::models::ValidatedAdminToken,
-) -> Result<(), (axum::http::StatusCode, Json<AdminResponse>)> {
+    admin_token: &ValidatedAdminToken,
+) -> Result<(), (StatusCode, Json<AdminResponse>)> {
     if admin_token
         .permissions
-        .has_permission(&crate::admin::AdminPermission::ProvisionKeys)
+        .has_permission(&AdminPerm::ProvisionKeys)
     {
         Ok(())
     } else {
         Err((
-            axum::http::StatusCode::FORBIDDEN,
+            StatusCode::FORBIDDEN,
             Json(AdminResponse {
                 success: false,
                 message: "Permission denied: ProvisionKeys required".to_owned(),
@@ -440,10 +455,10 @@ fn check_provision_permission(
 /// Validate tier string and return appropriate response on error
 fn validate_tier_or_respond(
     tier_str: &str,
-) -> Result<ApiKeyTier, (axum::http::StatusCode, Json<AdminResponse>)> {
+) -> Result<ApiKeyTier, (StatusCode, Json<AdminResponse>)> {
     validate_tier(tier_str).map_err(|error_msg| {
         (
-            axum::http::StatusCode::BAD_REQUEST,
+            StatusCode::BAD_REQUEST,
             Json(AdminResponse {
                 success: false,
                 message: error_msg,
@@ -457,10 +472,10 @@ fn validate_tier_or_respond(
 async fn get_user_or_respond(
     database: &Database,
     email: &str,
-) -> Result<User, (axum::http::StatusCode, Json<AdminResponse>)> {
+) -> Result<User, (StatusCode, Json<AdminResponse>)> {
     get_existing_user(database, email).await.map_err(|_e| {
         (
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            StatusCode::INTERNAL_SERVER_ERROR,
             Json(AdminResponse {
                 success: false,
                 message: format!("Failed to lookup user: {email}"),
@@ -473,7 +488,7 @@ async fn get_user_or_respond(
 /// Record API key provisioning action in audit log
 async fn record_provisioning_audit(
     database: &Database,
-    admin_token: &crate::admin::models::ValidatedAdminToken,
+    admin_token: &ValidatedAdminToken,
     api_key: &ApiKey,
     user_email: &str,
     tier: &ApiKeyTier,
@@ -499,13 +514,13 @@ async fn record_provisioning_audit(
 /// Returns an error response if an admin already exists, or Ok(None) if setup can proceed
 async fn check_no_admin_exists(
     database: &Database,
-) -> AppResult<Option<(axum::http::StatusCode, Json<AdminResponse>)>> {
+) -> AppResult<Option<(StatusCode, Json<AdminResponse>)>> {
     match database.get_users_by_status("active").await {
         Ok(users) => {
             let admin_exists = users.iter().any(|u| u.is_admin);
             if admin_exists {
                 return Ok(Some((
-                    axum::http::StatusCode::CONFLICT,
+                    StatusCode::CONFLICT,
                     Json(AdminResponse {
                         success: false,
                         message: "Admin user already exists. Use admin token management instead."
@@ -519,7 +534,7 @@ async fn check_no_admin_exists(
         Err(e) => {
             error!("Failed to check existing admin users: {}", e);
             Ok(Some((
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::INTERNAL_SERVER_ERROR,
                 Json(AdminResponse {
                     success: false,
                     message: format!("Database error: {e}"),
@@ -534,7 +549,7 @@ async fn check_no_admin_exists(
 async fn create_admin_user_record(
     database: &Database,
     request: &AdminSetupRequest,
-) -> Result<Uuid, (axum::http::StatusCode, Json<AdminResponse>)> {
+) -> Result<Uuid, (StatusCode, Json<AdminResponse>)> {
     let user_id = Uuid::new_v4();
 
     // Hash password
@@ -543,7 +558,7 @@ async fn create_admin_user_record(
         Err(e) => {
             error!("Failed to hash password: {}", e);
             return Err((
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::INTERNAL_SERVER_ERROR,
                 Json(AdminResponse {
                     success: false,
                     message: "Failed to process password".into(),
@@ -572,7 +587,7 @@ async fn create_admin_user_record(
         Err(e) => {
             error!("Failed to create admin user: {}", e);
             Err((
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::INTERNAL_SERVER_ERROR,
                 Json(AdminResponse {
                     success: false,
                     message: format!("Failed to create admin user: {e}"),
@@ -587,19 +602,19 @@ async fn create_admin_user_record(
 async fn generate_initial_admin_token(
     database: &Database,
     admin_jwt_secret: &str,
-    jwks_manager: &Arc<crate::admin::jwks::JwksManager>,
-) -> Result<String, (axum::http::StatusCode, Json<AdminResponse>)> {
-    let token_request = crate::admin::models::CreateAdminTokenRequest {
+    jwks_manager: &Arc<JwksManager>,
+) -> Result<String, (StatusCode, Json<AdminResponse>)> {
+    let token_request = CreateAdminTokenRequest {
         service_name: "initial_admin_setup".to_owned(),
         service_description: Some("Initial admin setup token".to_owned()),
         permissions: Some(vec![
-            crate::admin::models::AdminPermission::ManageUsers,
-            crate::admin::models::AdminPermission::ManageAdminTokens,
-            crate::admin::models::AdminPermission::ProvisionKeys,
-            crate::admin::models::AdminPermission::ListKeys,
-            crate::admin::models::AdminPermission::UpdateKeyLimits,
-            crate::admin::models::AdminPermission::RevokeKeys,
-            crate::admin::models::AdminPermission::ViewAuditLogs,
+            AdminPermission::ManageUsers,
+            AdminPermission::ManageAdminTokens,
+            AdminPermission::ProvisionKeys,
+            AdminPermission::ListKeys,
+            AdminPermission::UpdateKeyLimits,
+            AdminPermission::RevokeKeys,
+            AdminPermission::ViewAuditLogs,
         ]),
         is_super_admin: true,
         expires_in_days: Some(365),
@@ -613,7 +628,7 @@ async fn generate_initial_admin_token(
         Err(e) => {
             error!("Failed to generate admin token after creating user: {}", e);
             Err((
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::INTERNAL_SERVER_ERROR,
                 Json(AdminResponse {
                     success: false,
                     message: format!("User created but token generation failed: {e}"),
@@ -631,36 +646,28 @@ pub struct AdminRoutes;
 
 impl AdminRoutes {
     /// Create all admin routes (Axum)
-    pub fn routes(context: AdminApiContext) -> axum::Router {
-        use axum::{middleware, Router};
-
+    pub fn routes(context: AdminApiContext) -> Router {
         // Reuse auth service from context (already configured with proper TTL)
         let auth_service = context.auth_service.clone();
         let context = Arc::new(context);
 
         // Protected routes require admin authentication
-        let api_key_routes =
-            Self::api_key_routes(context.clone()).layer(middleware::from_fn_with_state(
-                auth_service.clone(),
-                crate::admin::middleware::admin_auth_middleware,
-            ));
+        let api_key_routes = Self::api_key_routes(context.clone()).layer(
+            middleware::from_fn_with_state(auth_service.clone(), admin_auth_middleware),
+        );
 
         let user_routes = Self::user_routes(context.clone()).layer(middleware::from_fn_with_state(
             auth_service.clone(),
-            crate::admin::middleware::admin_auth_middleware,
+            admin_auth_middleware,
         ));
 
-        let settings_routes =
-            Self::settings_routes(context.clone()).layer(middleware::from_fn_with_state(
-                auth_service.clone(),
-                crate::admin::middleware::admin_auth_middleware,
-            ));
+        let settings_routes = Self::settings_routes(context.clone()).layer(
+            middleware::from_fn_with_state(auth_service.clone(), admin_auth_middleware),
+        );
 
-        let admin_token_routes =
-            Self::admin_token_routes(context.clone()).layer(middleware::from_fn_with_state(
-                auth_service,
-                crate::admin::middleware::admin_auth_middleware,
-            ));
+        let admin_token_routes = Self::admin_token_routes(context.clone()).layer(
+            middleware::from_fn_with_state(auth_service, admin_auth_middleware),
+        );
 
         // Setup routes are public (no auth required for initial setup)
         let setup_routes = Self::setup_routes(context);
@@ -674,9 +681,7 @@ impl AdminRoutes {
     }
 
     /// API key management routes (Axum)
-    fn api_key_routes(context: Arc<AdminApiContext>) -> axum::Router {
-        use axum::{routing::get, routing::post, Router};
-
+    fn api_key_routes(context: Arc<AdminApiContext>) -> Router {
         Router::new()
             .route("/admin/provision", post(Self::handle_provision_api_key))
             .route("/admin/revoke", post(Self::handle_revoke_api_key))
@@ -686,9 +691,7 @@ impl AdminRoutes {
     }
 
     /// User management routes (Axum)
-    fn user_routes(context: Arc<AdminApiContext>) -> axum::Router {
-        use axum::{routing::get, routing::post, Router};
-
+    fn user_routes(context: Arc<AdminApiContext>) -> Router {
         Router::new()
             .route("/admin/users", get(Self::handle_list_users))
             .route("/admin/pending-users", get(Self::handle_pending_users))
@@ -716,9 +719,7 @@ impl AdminRoutes {
     }
 
     /// System settings routes (Axum)
-    fn settings_routes(context: Arc<AdminApiContext>) -> axum::Router {
-        use axum::{routing::get, routing::put, Router};
-
+    fn settings_routes(context: Arc<AdminApiContext>) -> Router {
         Router::new()
             .route(
                 "/admin/settings/auto-approval",
@@ -732,12 +733,7 @@ impl AdminRoutes {
     }
 
     /// Setup routes (Axum)
-    fn setup_routes(context: Arc<AdminApiContext>) -> axum::Router {
-        use axum::{
-            routing::{get, post},
-            Router,
-        };
-
+    fn setup_routes(context: Arc<AdminApiContext>) -> Router {
         Router::new()
             .route("/admin/setup", post(Self::handle_admin_setup))
             .route("/admin/setup/status", get(Self::handle_setup_status))
@@ -746,9 +742,7 @@ impl AdminRoutes {
     }
 
     /// Admin token management routes (Axum)
-    fn admin_token_routes(context: Arc<AdminApiContext>) -> axum::Router {
-        use axum::{routing::get, routing::post, Router};
-
+    fn admin_token_routes(context: Arc<AdminApiContext>) -> Router {
         Router::new()
             .route("/admin/tokens", post(Self::handle_create_admin_token))
             .route("/admin/tokens", get(Self::handle_list_admin_tokens))
@@ -768,8 +762,8 @@ impl AdminRoutes {
     async fn handle_provision_api_key(
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
-        body: axum::body::Bytes,
-    ) -> AppResult<impl axum::response::IntoResponse> {
+        body: Bytes,
+    ) -> AppResult<impl IntoResponse> {
         // Parse and validate request
         let request = match parse_provision_request(&body) {
             Ok(req) => req,
@@ -809,9 +803,9 @@ impl AdminRoutes {
                     let status_code = if error_msg.contains("Invalid rate limit period")
                         || error_msg.contains("Invalid tier")
                     {
-                        axum::http::StatusCode::BAD_REQUEST
+                        StatusCode::BAD_REQUEST
                     } else {
-                        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+                        StatusCode::INTERNAL_SERVER_ERROR
                     };
 
                     return Ok((
@@ -847,11 +841,11 @@ impl AdminRoutes {
 
         // Wrap in AdminResponse for consistency
         Ok((
-            axum::http::StatusCode::CREATED,
+            StatusCode::CREATED,
             Json(AdminResponse {
                 success: true,
                 message: format!("API key provisioned successfully for {}", user.email),
-                data: serde_json::to_value(&provision_response).ok(),
+                data: to_value(&provision_response).ok(),
             }),
         ))
     }
@@ -861,11 +855,11 @@ impl AdminRoutes {
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
         Json(request): Json<RevokeKeyRequest>,
-    ) -> AppResult<impl axum::response::IntoResponse> {
+    ) -> AppResult<impl IntoResponse> {
         // Check required permission
         if !admin_token
             .permissions
-            .has_permission(&crate::admin::AdminPermission::RevokeKeys)
+            .has_permission(&AdminPerm::RevokeKeys)
         {
             return Ok(json_response(
                 AdminResponse {
@@ -873,7 +867,7 @@ impl AdminRoutes {
                     message: "Permission denied: RevokeKeys required".to_owned(),
                     data: None,
                 },
-                axum::http::StatusCode::FORBIDDEN,
+                StatusCode::FORBIDDEN,
             ));
         }
 
@@ -894,7 +888,7 @@ impl AdminRoutes {
                         message: format!("API key {} not found", request.api_key_id),
                         data: None,
                     },
-                    axum::http::StatusCode::NOT_FOUND,
+                    StatusCode::NOT_FOUND,
                 ));
             }
             Err(e) => {
@@ -904,7 +898,7 @@ impl AdminRoutes {
                         message: format!("Failed to lookup API key: {e}"),
                         data: None,
                     },
-                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    StatusCode::INTERNAL_SERVER_ERROR,
                 ));
             }
         };
@@ -921,13 +915,13 @@ impl AdminRoutes {
                     AdminResponse {
                         success: true,
                         message: format!("API key {} revoked successfully", request.api_key_id),
-                        data: Some(serde_json::json!({
+                        data: Some(json!({
                             "api_key_id": request.api_key_id,
                             "revoked_by": admin_token.service_name,
                             "reason": request.reason.unwrap_or_else(|| "Admin revocation".into())
                         })),
                     },
-                    axum::http::StatusCode::OK,
+                    StatusCode::OK,
                 ))
             }
             Err(e) => {
@@ -939,7 +933,7 @@ impl AdminRoutes {
                         message: format!("Failed to revoke API key: {e}"),
                         data: None,
                     },
-                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    StatusCode::INTERNAL_SERVER_ERROR,
                 ))
             }
         }
@@ -950,19 +944,16 @@ impl AdminRoutes {
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
         Query(params): Query<ListApiKeysQuery>,
-    ) -> AppResult<impl axum::response::IntoResponse> {
+    ) -> AppResult<impl IntoResponse> {
         // Check required permission
-        if !admin_token
-            .permissions
-            .has_permission(&crate::admin::AdminPermission::ListKeys)
-        {
+        if !admin_token.permissions.has_permission(&AdminPerm::ListKeys) {
             return Ok(json_response(
                 AdminResponse {
                     success: false,
                     message: "Permission denied: ListKeys required".to_owned(),
                     data: None,
                 },
-                axum::http::StatusCode::FORBIDDEN,
+                StatusCode::FORBIDDEN,
             ));
         }
 
@@ -994,7 +985,7 @@ impl AdminRoutes {
                 let api_key_responses: Vec<serde_json::Value> = api_keys
                     .into_iter()
                     .map(|key| {
-                        serde_json::json!({
+                        json!({
                             "id": key.id,
                             "user_id": key.user_id.clone(),
                             "name": key.name,
@@ -1017,7 +1008,7 @@ impl AdminRoutes {
                     AdminResponse {
                         success: true,
                         message: format!("Found {} API keys", api_key_responses.len()),
-                        data: Some(serde_json::json!({
+                        data: Some(json!({
                             "filters": {
                                 "user_email": user_email,
                                 "active_only": active_only,
@@ -1028,7 +1019,7 @@ impl AdminRoutes {
                             "count": api_key_responses.len()
                         })),
                     },
-                    axum::http::StatusCode::OK,
+                    StatusCode::OK,
                 ))
             }
             Err(e) => {
@@ -1039,7 +1030,7 @@ impl AdminRoutes {
                         message: format!("Failed to list API keys: {e}"),
                         data: None,
                     },
-                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    StatusCode::INTERNAL_SERVER_ERROR,
                 ))
             }
         }
@@ -1050,11 +1041,11 @@ impl AdminRoutes {
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
         Query(params): Query<ListUsersQuery>,
-    ) -> AppResult<impl axum::response::IntoResponse> {
+    ) -> AppResult<impl IntoResponse> {
         // Check required permission
         if !admin_token
             .permissions
-            .has_permission(&crate::admin::AdminPermission::ManageUsers)
+            .has_permission(&AdminPerm::ManageUsers)
         {
             return Ok(json_response(
                 AdminResponse {
@@ -1062,7 +1053,7 @@ impl AdminRoutes {
                     message: "Permission denied: ManageUsers required".to_owned(),
                     data: None,
                 },
-                axum::http::StatusCode::FORBIDDEN,
+                StatusCode::FORBIDDEN,
             ));
         }
 
@@ -1104,13 +1095,13 @@ impl AdminRoutes {
             AdminResponse {
                 success: true,
                 message: format!("Retrieved {total} users"),
-                data: serde_json::to_value(UserListResponse {
+                data: to_value(UserListResponse {
                     users: user_summaries,
                     total,
                 })
                 .ok(),
             },
-            axum::http::StatusCode::OK,
+            StatusCode::OK,
         ))
     }
 
@@ -1118,11 +1109,11 @@ impl AdminRoutes {
     async fn handle_pending_users(
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
-    ) -> AppResult<impl axum::response::IntoResponse> {
+    ) -> AppResult<impl IntoResponse> {
         // Check required permission
         if !admin_token
             .permissions
-            .has_permission(&crate::admin::AdminPermission::ManageUsers)
+            .has_permission(&AdminPerm::ManageUsers)
         {
             return Ok(json_response(
                 AdminResponse {
@@ -1130,7 +1121,7 @@ impl AdminRoutes {
                     message: "Permission denied: ManageUsers required".to_owned(),
                     data: None,
                 },
-                axum::http::StatusCode::FORBIDDEN,
+                StatusCode::FORBIDDEN,
             ));
         }
 
@@ -1172,13 +1163,13 @@ impl AdminRoutes {
             AdminResponse {
                 success: true,
                 message: format!("Retrieved {count} pending users"),
-                data: serde_json::to_value(serde_json::json!({
+                data: to_value(json!({
                     "count": count,
                     "users": user_summaries
                 }))
                 .ok(),
             },
-            axum::http::StatusCode::OK,
+            StatusCode::OK,
         ))
     }
 
@@ -1193,8 +1184,8 @@ impl AdminRoutes {
 
     /// Handle tenant creation and linking for user approval
     async fn create_and_link_tenant(
-        database: &crate::database_plugins::factory::Database,
-        user_uuid: uuid::Uuid,
+        database: &Database,
+        user_uuid: Uuid,
         user_email: &str,
         request: &ApproveUserRequest,
         display_name: Option<&str>,
@@ -1253,12 +1244,12 @@ impl AdminRoutes {
     async fn handle_approve_user(
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
-        axum::extract::Path(user_id): axum::extract::Path<String>,
+        Path(user_id): Path<String>,
         Json(request): Json<ApproveUserRequest>,
-    ) -> AppResult<impl axum::response::IntoResponse> {
+    ) -> AppResult<impl IntoResponse> {
         if !admin_token
             .permissions
-            .has_permission(&crate::admin::AdminPermission::ManageUsers)
+            .has_permission(&AdminPerm::ManageUsers)
         {
             return Ok(json_response(
                 AdminResponse {
@@ -1266,7 +1257,7 @@ impl AdminRoutes {
                     message: "Permission denied: ManageUsers required".to_owned(),
                     data: None,
                 },
-                axum::http::StatusCode::FORBIDDEN,
+                StatusCode::FORBIDDEN,
             ));
         }
 
@@ -1276,7 +1267,7 @@ impl AdminRoutes {
         );
 
         let ctx = context.as_ref();
-        let user_uuid = uuid::Uuid::parse_str(&user_id).map_err(|e| {
+        let user_uuid = Uuid::parse_str(&user_id).map_err(|e| {
             error!(error = %e, "Invalid user ID format");
             AppError::invalid_input(format!("Invalid user ID format: {e}"))
         })?;
@@ -1301,7 +1292,7 @@ impl AdminRoutes {
                     message: "User is already approved".to_owned(),
                     data: None,
                 },
-                axum::http::StatusCode::BAD_REQUEST,
+                StatusCode::BAD_REQUEST,
             ));
         }
 
@@ -1330,7 +1321,7 @@ impl AdminRoutes {
             AdminResponse {
                 success: true,
                 message: "User approved successfully".to_owned(),
-                data: serde_json::to_value(serde_json::json!({
+                data: to_value(json!({
                     "user": {
                         "id": updated_user.id.to_string(),
                         "email": updated_user.email,
@@ -1343,7 +1334,7 @@ impl AdminRoutes {
                 }))
                 .ok(),
             },
-            axum::http::StatusCode::OK,
+            StatusCode::OK,
         ))
     }
 
@@ -1351,12 +1342,12 @@ impl AdminRoutes {
     async fn handle_suspend_user(
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
-        axum::extract::Path(user_id): axum::extract::Path<String>,
+        Path(user_id): Path<String>,
         Json(request): Json<SuspendUserRequest>,
-    ) -> AppResult<impl axum::response::IntoResponse> {
+    ) -> AppResult<impl IntoResponse> {
         if !admin_token
             .permissions
-            .has_permission(&crate::admin::AdminPermission::ManageUsers)
+            .has_permission(&AdminPerm::ManageUsers)
         {
             return Ok(json_response(
                 AdminResponse {
@@ -1364,7 +1355,7 @@ impl AdminRoutes {
                     message: "Permission denied: ManageUsers required".to_owned(),
                     data: None,
                 },
-                axum::http::StatusCode::FORBIDDEN,
+                StatusCode::FORBIDDEN,
             ));
         }
 
@@ -1374,7 +1365,7 @@ impl AdminRoutes {
         );
 
         let ctx = context.as_ref();
-        let user_uuid = uuid::Uuid::parse_str(&user_id).map_err(|e| {
+        let user_uuid = Uuid::parse_str(&user_id).map_err(|e| {
             error!(error = %e, "Invalid user ID format");
             AppError::invalid_input(format!("Invalid user ID format: {e}"))
         })?;
@@ -1399,7 +1390,7 @@ impl AdminRoutes {
                     message: "User is already suspended".to_owned(),
                     data: None,
                 },
-                axum::http::StatusCode::BAD_REQUEST,
+                StatusCode::BAD_REQUEST,
             ));
         }
 
@@ -1422,7 +1413,7 @@ impl AdminRoutes {
             AdminResponse {
                 success: true,
                 message: "User suspended successfully".to_owned(),
-                data: serde_json::to_value(serde_json::json!({
+                data: to_value(json!({
                     "user": {
                         "id": updated_user.id.to_string(),
                         "email": updated_user.email,
@@ -1432,7 +1423,7 @@ impl AdminRoutes {
                 }))
                 .ok(),
             },
-            axum::http::StatusCode::OK,
+            StatusCode::OK,
         ))
     }
 
@@ -1443,11 +1434,11 @@ impl AdminRoutes {
     async fn handle_reset_user_password(
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
-        axum::extract::Path(user_id): axum::extract::Path<String>,
-    ) -> AppResult<impl axum::response::IntoResponse> {
+        Path(user_id): Path<String>,
+    ) -> AppResult<impl IntoResponse> {
         if !admin_token
             .permissions
-            .has_permission(&crate::admin::AdminPermission::ManageUsers)
+            .has_permission(&AdminPerm::ManageUsers)
         {
             return Ok(json_response(
                 AdminResponse {
@@ -1455,7 +1446,7 @@ impl AdminRoutes {
                     message: "Permission denied: ManageUsers required".to_owned(),
                     data: None,
                 },
-                axum::http::StatusCode::FORBIDDEN,
+                StatusCode::FORBIDDEN,
             ));
         }
 
@@ -1465,7 +1456,7 @@ impl AdminRoutes {
         );
 
         let ctx = context.as_ref();
-        let user_uuid = uuid::Uuid::parse_str(&user_id).map_err(|e| {
+        let user_uuid = Uuid::parse_str(&user_id).map_err(|e| {
             error!(error = %e, "Invalid user ID format");
             AppError::invalid_input(format!("Invalid user ID format: {e}"))
         })?;
@@ -1486,7 +1477,7 @@ impl AdminRoutes {
 
         // Generate temporary password (16 chars alphanumeric)
         let temp_password: String = rand::thread_rng()
-            .sample_iter(&rand::distributions::Alphanumeric)
+            .sample_iter(&Alphanumeric)
             .take(16)
             .map(char::from)
             .collect();
@@ -1515,7 +1506,7 @@ impl AdminRoutes {
             AdminResponse {
                 success: true,
                 message: "Password reset successfully".to_owned(),
-                data: serde_json::to_value(serde_json::json!({
+                data: to_value(json!({
                     "user_id": user_uuid.to_string(),
                     "email": user.email,
                     "temporary_password": temp_password,
@@ -1524,7 +1515,7 @@ impl AdminRoutes {
                 }))
                 .ok(),
             },
-            axum::http::StatusCode::OK,
+            StatusCode::OK,
         ))
     }
 
@@ -1532,11 +1523,11 @@ impl AdminRoutes {
     async fn handle_get_user_rate_limit(
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
-        axum::extract::Path(user_id): axum::extract::Path<String>,
-    ) -> AppResult<impl axum::response::IntoResponse> {
+        Path(user_id): Path<String>,
+    ) -> AppResult<impl IntoResponse> {
         if !admin_token
             .permissions
-            .has_permission(&crate::admin::AdminPermission::ManageUsers)
+            .has_permission(&AdminPerm::ManageUsers)
         {
             return Ok(json_response(
                 AdminResponse {
@@ -1544,12 +1535,12 @@ impl AdminRoutes {
                     message: "Permission denied: ManageUsers required".to_owned(),
                     data: None,
                 },
-                axum::http::StatusCode::FORBIDDEN,
+                StatusCode::FORBIDDEN,
             ));
         }
 
         let ctx = context.as_ref();
-        let user_uuid = uuid::Uuid::parse_str(&user_id)
+        let user_uuid = Uuid::parse_str(&user_id)
             .map_err(|e| AppError::invalid_input(format!("Invalid user ID format: {e}")))?;
 
         // Get user
@@ -1568,10 +1559,11 @@ impl AdminRoutes {
             .unwrap_or(0);
 
         // Get daily usage from activity logs (today's requests)
-        let now = chrono::Utc::now();
-        let today_start = now.date_naive().and_hms_opt(0, 0, 0).map_or(now, |t| {
-            chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(t, chrono::Utc)
-        });
+        let now = Utc::now();
+        let today_start = now
+            .date_naive()
+            .and_hms_opt(0, 0, 0)
+            .map_or(now, |t| DateTime::<Utc>::from_naive_utc_and_offset(t, Utc));
         let daily_used = ctx
             .database
             .get_top_tools_analysis(user_uuid, today_start, now)
@@ -1592,20 +1584,17 @@ impl AdminRoutes {
         let daily_remaining = daily_limit.map(|l| l.saturating_sub(daily_used));
 
         // Calculate reset times
-        let daily_reset = (now + chrono::Duration::days(1))
+        let daily_reset = (now + Duration::days(1))
             .date_naive()
             .and_hms_opt(0, 0, 0)
-            .map_or(now, |t| {
-                chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(t, chrono::Utc)
-            });
-        let monthly_reset =
-            crate::rate_limiting::UnifiedRateLimitCalculator::calculate_monthly_reset();
+            .map_or(now, |t| DateTime::<Utc>::from_naive_utc_and_offset(t, Utc));
+        let monthly_reset = UnifiedRateLimitCalculator::calculate_monthly_reset();
 
         Ok(json_response(
             AdminResponse {
                 success: true,
                 message: "Rate limit information retrieved".to_owned(),
-                data: serde_json::to_value(serde_json::json!({
+                data: to_value(json!({
                     "user_id": user_uuid.to_string(),
                     "tier": user.tier.to_string(),
                     "rate_limits": {
@@ -1627,7 +1616,7 @@ impl AdminRoutes {
                 }))
                 .ok(),
             },
-            axum::http::StatusCode::OK,
+            StatusCode::OK,
         ))
     }
 
@@ -1635,12 +1624,12 @@ impl AdminRoutes {
     async fn handle_get_user_activity(
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
-        axum::extract::Path(user_id): axum::extract::Path<String>,
+        Path(user_id): Path<String>,
         Query(params): Query<UserActivityQuery>,
-    ) -> AppResult<impl axum::response::IntoResponse> {
+    ) -> AppResult<impl IntoResponse> {
         if !admin_token
             .permissions
-            .has_permission(&crate::admin::AdminPermission::ManageUsers)
+            .has_permission(&AdminPerm::ManageUsers)
         {
             return Ok(json_response(
                 AdminResponse {
@@ -1648,12 +1637,12 @@ impl AdminRoutes {
                     message: "Permission denied: ManageUsers required".to_owned(),
                     data: None,
                 },
-                axum::http::StatusCode::FORBIDDEN,
+                StatusCode::FORBIDDEN,
             ));
         }
 
         let ctx = context.as_ref();
-        let user_uuid = uuid::Uuid::parse_str(&user_id)
+        let user_uuid = Uuid::parse_str(&user_id)
             .map_err(|e| AppError::invalid_input(format!("Invalid user ID format: {e}")))?;
 
         // Verify user exists
@@ -1665,8 +1654,8 @@ impl AdminRoutes {
 
         // Get time range for activity using days parameter (default 30)
         let days = i64::from(params.days.unwrap_or(30).clamp(1, 365));
-        let now = chrono::Utc::now();
-        let start_time = now - chrono::Duration::days(days);
+        let now = Utc::now();
+        let start_time = now - Duration::days(days);
 
         // Get top tools usage
         let top_tools_raw = ctx
@@ -1687,7 +1676,7 @@ impl AdminRoutes {
                 } else {
                     0.0
                 };
-                serde_json::json!({
+                json!({
                     "tool_name": t.tool_name,
                     "call_count": t.request_count,
                     "percentage": percentage,
@@ -1699,7 +1688,7 @@ impl AdminRoutes {
             AdminResponse {
                 success: true,
                 message: "User activity retrieved".to_owned(),
-                data: serde_json::to_value(serde_json::json!({
+                data: to_value(json!({
                     "user_id": user_uuid.to_string(),
                     "period_days": days,
                     "total_requests": total_requests,
@@ -1707,7 +1696,7 @@ impl AdminRoutes {
                 }))
                 .ok(),
             },
-            axum::http::StatusCode::OK,
+            StatusCode::OK,
         ))
     }
 
@@ -1715,11 +1704,11 @@ impl AdminRoutes {
     async fn handle_get_auto_approval(
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
-    ) -> AppResult<impl axum::response::IntoResponse> {
+    ) -> AppResult<impl IntoResponse> {
         // Check required permission
         if !admin_token
             .permissions
-            .has_permission(&crate::admin::AdminPermission::ManageUsers)
+            .has_permission(&AdminPerm::ManageUsers)
         {
             return Ok(json_response(
                 AdminResponse {
@@ -1727,7 +1716,7 @@ impl AdminRoutes {
                     message: "Permission denied: ManageUsers required".to_owned(),
                     data: None,
                 },
-                axum::http::StatusCode::FORBIDDEN,
+                StatusCode::FORBIDDEN,
             ));
         }
 
@@ -1753,13 +1742,13 @@ impl AdminRoutes {
             AdminResponse {
                 success: true,
                 message: "Auto-approval setting retrieved".to_owned(),
-                data: serde_json::to_value(AutoApprovalResponse {
+                data: to_value(AutoApprovalResponse {
                     enabled,
                     description: "When enabled, new user registrations are automatically approved without admin intervention".to_owned(),
                 })
                 .ok(),
             },
-            axum::http::StatusCode::OK,
+            StatusCode::OK,
         ))
     }
 
@@ -1768,11 +1757,11 @@ impl AdminRoutes {
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
         Json(request): Json<UpdateAutoApprovalRequest>,
-    ) -> AppResult<impl axum::response::IntoResponse> {
+    ) -> AppResult<impl IntoResponse> {
         // Check required permission
         if !admin_token
             .permissions
-            .has_permission(&crate::admin::AdminPermission::ManageUsers)
+            .has_permission(&AdminPerm::ManageUsers)
         {
             return Ok(json_response(
                 AdminResponse {
@@ -1780,7 +1769,7 @@ impl AdminRoutes {
                     message: "Permission denied: ManageUsers required".to_owned(),
                     data: None,
                 },
-                axum::http::StatusCode::FORBIDDEN,
+                StatusCode::FORBIDDEN,
             ));
         }
 
@@ -1811,13 +1800,13 @@ impl AdminRoutes {
                     "Auto-approval has been {}",
                     if request.enabled { "enabled" } else { "disabled" }
                 ),
-                data: serde_json::to_value(AutoApprovalResponse {
+                data: to_value(AutoApprovalResponse {
                     enabled: request.enabled,
                     description: "When enabled, new user registrations are automatically approved without admin intervention".to_owned(),
                 })
                 .ok(),
             },
-            axum::http::StatusCode::OK,
+            StatusCode::OK,
         ))
     }
 
@@ -1826,11 +1815,11 @@ impl AdminRoutes {
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
         Json(request): Json<serde_json::Value>,
-    ) -> AppResult<impl axum::response::IntoResponse> {
+    ) -> AppResult<impl IntoResponse> {
         // Check required permission
         if !admin_token
             .permissions
-            .has_permission(&crate::admin::AdminPermission::ProvisionKeys)
+            .has_permission(&AdminPerm::ProvisionKeys)
         {
             return Ok(json_response(
                 AdminResponse {
@@ -1838,7 +1827,7 @@ impl AdminRoutes {
                     message: "Permission denied: ProvisionKeys required".to_owned(),
                     data: None,
                 },
-                axum::http::StatusCode::FORBIDDEN,
+                StatusCode::FORBIDDEN,
             ));
         }
 
@@ -1863,12 +1852,10 @@ impl AdminRoutes {
 
         let is_super_admin = request
             .get("is_super_admin")
-            .and_then(serde_json::Value::as_bool)
+            .and_then(Value::as_bool)
             .unwrap_or(false);
 
-        let expires_in_days = request
-            .get("expires_in_days")
-            .and_then(serde_json::Value::as_u64);
+        let expires_in_days = request.get("expires_in_days").and_then(Value::as_u64);
 
         // Parse permissions if provided
         let permissions =
@@ -1876,7 +1863,7 @@ impl AdminRoutes {
                 let mut parsed_permissions = Vec::new();
                 for p in perms_array {
                     if let Some(perm_str) = p.as_str() {
-                        match perm_str.parse::<crate::admin::models::AdminPermission>() {
+                        match perm_str.parse::<AdminPermission>() {
                             Ok(perm) => parsed_permissions.push(perm),
                             Err(_) => {
                                 return Ok(json_response(
@@ -1885,7 +1872,7 @@ impl AdminRoutes {
                                         message: format!("Invalid permission: {perm_str}"),
                                         data: None,
                                     },
-                                    axum::http::StatusCode::BAD_REQUEST,
+                                    StatusCode::BAD_REQUEST,
                                 ));
                             }
                         }
@@ -1897,7 +1884,7 @@ impl AdminRoutes {
             };
 
         // Create token request
-        let token_request = crate::admin::models::CreateAdminTokenRequest {
+        let token_request = CreateAdminTokenRequest {
             service_name,
             service_description,
             permissions,
@@ -1921,7 +1908,7 @@ impl AdminRoutes {
             AdminResponse {
                 success: true,
                 message: "Admin token created successfully".to_owned(),
-                data: serde_json::to_value(serde_json::json!({
+                data: to_value(json!({
                     "token_id": generated_token.token_id,
                     "service_name": generated_token.service_name,
                     "jwt_token": generated_token.jwt_token,
@@ -1931,7 +1918,7 @@ impl AdminRoutes {
                 }))
                 .ok(),
             },
-            axum::http::StatusCode::CREATED,
+            StatusCode::CREATED,
         ))
     }
 
@@ -1939,11 +1926,11 @@ impl AdminRoutes {
     async fn handle_list_admin_tokens(
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
-    ) -> AppResult<impl axum::response::IntoResponse> {
+    ) -> AppResult<impl IntoResponse> {
         // Check required permission
         if !admin_token
             .permissions
-            .has_permission(&crate::admin::AdminPermission::ProvisionKeys)
+            .has_permission(&AdminPerm::ProvisionKeys)
         {
             return Ok(json_response(
                 AdminResponse {
@@ -1951,7 +1938,7 @@ impl AdminRoutes {
                     message: "Permission denied: ProvisionKeys required".to_owned(),
                     data: None,
                 },
-                axum::http::StatusCode::FORBIDDEN,
+                StatusCode::FORBIDDEN,
             ));
         }
 
@@ -1973,13 +1960,13 @@ impl AdminRoutes {
             AdminResponse {
                 success: true,
                 message: format!("Retrieved {} admin tokens", tokens.len()),
-                data: serde_json::to_value(serde_json::json!({
+                data: to_value(json!({
                     "count": tokens.len(),
                     "tokens": tokens
                 }))
                 .ok(),
             },
-            axum::http::StatusCode::OK,
+            StatusCode::OK,
         ))
     }
 
@@ -1987,12 +1974,12 @@ impl AdminRoutes {
     async fn handle_get_admin_token(
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
-        axum::extract::Path(token_id): axum::extract::Path<String>,
-    ) -> AppResult<impl axum::response::IntoResponse> {
+        Path(token_id): Path<String>,
+    ) -> AppResult<impl IntoResponse> {
         // Check required permission
         if !admin_token
             .permissions
-            .has_permission(&crate::admin::AdminPermission::ProvisionKeys)
+            .has_permission(&AdminPerm::ProvisionKeys)
         {
             return Ok(json_response(
                 AdminResponse {
@@ -2000,7 +1987,7 @@ impl AdminRoutes {
                     message: "Permission denied: ProvisionKeys required".to_owned(),
                     data: None,
                 },
-                axum::http::StatusCode::FORBIDDEN,
+                StatusCode::FORBIDDEN,
             ));
         }
 
@@ -2020,7 +2007,7 @@ impl AdminRoutes {
                         message: "Admin token not found".to_owned(),
                         data: None,
                     },
-                    axum::http::StatusCode::NOT_FOUND,
+                    StatusCode::NOT_FOUND,
                 ));
             }
             Err(e) => {
@@ -2031,7 +2018,7 @@ impl AdminRoutes {
                         message: format!("Failed to get admin token: {e}"),
                         data: None,
                     },
-                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    StatusCode::INTERNAL_SERVER_ERROR,
                 ));
             }
         };
@@ -2040,9 +2027,9 @@ impl AdminRoutes {
             AdminResponse {
                 success: true,
                 message: "Admin token retrieved successfully".to_owned(),
-                data: serde_json::to_value(token).ok(),
+                data: to_value(token).ok(),
             },
-            axum::http::StatusCode::OK,
+            StatusCode::OK,
         ))
     }
 
@@ -2050,12 +2037,12 @@ impl AdminRoutes {
     async fn handle_revoke_admin_token(
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
-        axum::extract::Path(token_id): axum::extract::Path<String>,
-    ) -> AppResult<impl axum::response::IntoResponse> {
+        Path(token_id): Path<String>,
+    ) -> AppResult<impl IntoResponse> {
         // Check required permission
         if !admin_token
             .permissions
-            .has_permission(&crate::admin::AdminPermission::ProvisionKeys)
+            .has_permission(&AdminPerm::ProvisionKeys)
         {
             return Ok(json_response(
                 AdminResponse {
@@ -2063,7 +2050,7 @@ impl AdminRoutes {
                     message: "Permission denied: ProvisionKeys required".to_owned(),
                     data: None,
                 },
-                axum::http::StatusCode::FORBIDDEN,
+                StatusCode::FORBIDDEN,
             ));
         }
 
@@ -2089,12 +2076,12 @@ impl AdminRoutes {
             AdminResponse {
                 success: true,
                 message: "Admin token revoked successfully".to_owned(),
-                data: serde_json::to_value(serde_json::json!({
+                data: to_value(json!({
                     "token_id": token_id
                 }))
                 .ok(),
             },
-            axum::http::StatusCode::OK,
+            StatusCode::OK,
         ))
     }
 
@@ -2102,12 +2089,12 @@ impl AdminRoutes {
     async fn handle_rotate_admin_token(
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
-        axum::extract::Path(token_id): axum::extract::Path<String>,
-    ) -> AppResult<impl axum::response::IntoResponse> {
+        Path(token_id): Path<String>,
+    ) -> AppResult<impl IntoResponse> {
         // Check required permission
         if !admin_token
             .permissions
-            .has_permission(&crate::admin::AdminPermission::ProvisionKeys)
+            .has_permission(&AdminPerm::ProvisionKeys)
         {
             return Ok(json_response(
                 AdminResponse {
@@ -2115,7 +2102,7 @@ impl AdminRoutes {
                     message: "Permission denied: ProvisionKeys required".to_owned(),
                     data: None,
                 },
-                axum::http::StatusCode::FORBIDDEN,
+                StatusCode::FORBIDDEN,
             ));
         }
 
@@ -2147,7 +2134,7 @@ impl AdminRoutes {
             })?;
 
         // Generate new token with same properties
-        let token_request = crate::admin::models::CreateAdminTokenRequest {
+        let token_request = CreateAdminTokenRequest {
             service_name: existing_token.service_name.clone(),
             service_description: existing_token.service_description.clone(),
             permissions: None, // Will use existing token's permissions
@@ -2173,7 +2160,7 @@ impl AdminRoutes {
             AdminResponse {
                 success: true,
                 message: "Admin token rotated successfully".to_owned(),
-                data: serde_json::to_value(serde_json::json!({
+                data: to_value(json!({
                     "old_token_id": token_id,
                     "new_token": {
                         "token_id": new_token.token_id,
@@ -2185,7 +2172,7 @@ impl AdminRoutes {
                 }))
                 .ok(),
             },
-            axum::http::StatusCode::OK,
+            StatusCode::OK,
         ))
     }
 
@@ -2193,7 +2180,7 @@ impl AdminRoutes {
     async fn handle_admin_setup(
         State(context): State<Arc<AdminApiContext>>,
         Json(request): Json<AdminSetupRequest>,
-    ) -> AppResult<impl axum::response::IntoResponse> {
+    ) -> AppResult<impl IntoResponse> {
         info!("Admin setup request for email: {}", request.email);
 
         let ctx = context.as_ref();
@@ -2227,14 +2214,14 @@ impl AdminRoutes {
         // Return success response
         info!("Admin setup completed successfully for: {}", request.email);
         Ok((
-            axum::http::StatusCode::CREATED,
+            StatusCode::CREATED,
             Json(AdminResponse {
                 success: true,
                 message: format!(
                     "Admin user {} created successfully with token",
                     request.email
                 ),
-                data: Some(serde_json::json!({
+                data: Some(json!({
                     "user_id": user_id.to_string(),
                     "admin_token": admin_token,
                 })),
@@ -2245,7 +2232,7 @@ impl AdminRoutes {
     /// Handle setup status check
     async fn handle_setup_status(
         State(context): State<Arc<AdminApiContext>>,
-    ) -> AppResult<impl axum::response::IntoResponse> {
+    ) -> AppResult<impl IntoResponse> {
         info!("Setup status check requested");
 
         let ctx = context.as_ref();
@@ -2256,10 +2243,10 @@ impl AdminRoutes {
                     "Setup status check successful: needs_setup={}, admin_user_exists={}",
                     setup_status.needs_setup, setup_status.admin_user_exists
                 );
-                Ok(json_response(setup_status, axum::http::StatusCode::OK))
+                Ok(json_response(setup_status, StatusCode::OK))
             }
             Err(e) => {
-                use crate::routes::auth::SetupStatusResponse;
+                use SetupStatusResponse;
 
                 error!("Failed to check setup status: {}", e);
                 Ok(json_response(
@@ -2268,39 +2255,39 @@ impl AdminRoutes {
                         admin_user_exists: false,
                         message: Some("Unable to determine setup status. Please ensure admin user is created.".to_owned()),
                     },
-                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    StatusCode::INTERNAL_SERVER_ERROR,
                 ))
             }
         }
     }
 
     /// Handle health check (GET /admin/health)
-    async fn handle_health() -> axum::Json<serde_json::Value> {
+    async fn handle_health() -> Json<serde_json::Value> {
         // Use spawn_blocking for JSON serialization (CPU-bound operation)
-        let health_json = tokio::task::spawn_blocking(|| {
-            serde_json::json!({
+        let health_json = task::spawn_blocking(|| {
+            json!({
                 "status": "healthy",
                 "service": "pierre-mcp-admin-api",
-                "timestamp": chrono::Utc::now().to_rfc3339(),
+                "timestamp": Utc::now().to_rfc3339(),
                 "version": env!("CARGO_PKG_VERSION")
             })
         })
         .await
         .unwrap_or_else(|_| {
-            serde_json::json!({
+            json!({
                 "status": "error",
                 "service": "pierre-mcp-admin-api"
             })
         });
 
-        axum::Json(health_json)
+        Json(health_json)
     }
 
     /// Handle token info (GET /admin/token-info)
     /// Returns information about the authenticated admin token
     async fn handle_token_info(
         Extension(admin_token): Extension<ValidatedAdminToken>,
-    ) -> axum::Json<serde_json::Value> {
+    ) -> Json<serde_json::Value> {
         // Clone values before spawn_blocking
         let token_id = admin_token.token_id;
         let service_name = admin_token.service_name.clone();
@@ -2308,7 +2295,7 @@ impl AdminRoutes {
         let is_super_admin = admin_token.is_super_admin;
 
         // Use spawn_blocking for JSON serialization (CPU-bound operation)
-        let token_info_json = tokio::task::spawn_blocking(move || {
+        let token_info_json = task::spawn_blocking(move || {
             // Convert permissions to JSON array
             let permission_strings: Vec<String> = permissions
                 .to_vec()
@@ -2316,7 +2303,7 @@ impl AdminRoutes {
                 .map(ToString::to_string)
                 .collect();
 
-            serde_json::json!({
+            json!({
                 "token_id": token_id,
                 "service_name": service_name,
                 "permissions": permission_strings,
@@ -2325,12 +2312,12 @@ impl AdminRoutes {
         })
         .await
         .unwrap_or_else(|_| {
-            serde_json::json!({
+            json!({
                 "error": "Failed to serialize token info"
             })
         });
 
-        axum::Json(token_info_json)
+        Json(token_info_json)
     }
 
     /// Create default tenant for a user
@@ -2342,7 +2329,7 @@ impl AdminRoutes {
         owner_user_id: Uuid,
         tenant_name: &str,
         tenant_slug: &str,
-    ) -> AppResult<crate::models::Tenant> {
+    ) -> AppResult<Tenant> {
         // Reserved slugs that cannot be used for tenants
         const RESERVED_SLUGS: &[&str] = &[
             "admin",
@@ -2404,15 +2391,15 @@ impl AdminRoutes {
             )));
         }
 
-        let tenant_data = crate::models::Tenant {
+        let tenant_data = Tenant {
             id: tenant_id,
             name: tenant_name.to_owned(),
             slug,
             domain: None,
-            plan: crate::constants::tiers::STARTER.to_owned(), // Default plan for auto-created tenants
+            plan: tiers::STARTER.to_owned(), // Default plan for auto-created tenants
             owner_user_id,
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
         };
 
         database

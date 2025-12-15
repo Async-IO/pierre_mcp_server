@@ -7,10 +7,28 @@
 use crate::a2a::auth::A2AClient;
 use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
+use crate::admin::jwks::JwksManager;
+use crate::admin::models::{
+    AdminToken, AdminTokenUsage, CreateAdminTokenRequest, GeneratedAdminToken,
+};
 use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
+use crate::config::fitness::FitnessConfig;
+use crate::dashboard_routes::{RequestLog, ToolUsage};
+use crate::database::oauth_notifications::OAuthNotification;
+use crate::database::{
+    CreateUserMcpTokenRequest, UserMcpToken, UserMcpTokenCreated, UserMcpTokenInfo,
+};
 use crate::errors::AppResult;
-use crate::models::{User, UserOAuthApp, UserOAuthToken};
+use crate::models::{
+    AuthorizationCode, OAuthApp, Tenant, User, UserOAuthApp, UserOAuthToken, UserStatus,
+};
+use crate::oauth2_server::models::{OAuth2AuthCode, OAuth2Client, OAuth2RefreshToken, OAuth2State};
+use crate::pagination::{CursorPage, PaginationParams};
+use crate::permissions::impersonation::ImpersonationSession;
 use crate::rate_limiting::JwtUsage;
+use crate::security::audit::AuditEvent;
+use crate::security::key_rotation::KeyVersion;
+use crate::tenant::oauth_manager::TenantOAuthCredentials;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
@@ -81,14 +99,14 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn get_users_by_status_cursor(
         &self,
         status: &str,
-        params: &crate::pagination::PaginationParams,
-    ) -> AppResult<crate::pagination::CursorPage<User>>;
+        params: &PaginationParams,
+    ) -> AppResult<CursorPage<User>>;
 
     /// Update user status and approval information
     async fn update_user_status(
         &self,
         user_id: Uuid,
-        new_status: crate::models::UserStatus,
+        new_status: UserStatus,
         admin_token_id: &str,
     ) -> AppResult<User>;
 
@@ -285,7 +303,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         end_time: Option<DateTime<Utc>>,
         status_filter: Option<&str>,
         tool_filter: Option<&str>,
-    ) -> AppResult<Vec<crate::dashboard_routes::RequestLog>>;
+    ) -> AppResult<Vec<RequestLog>>;
 
     /// Get system-wide statistics
     async fn get_system_stats(&self) -> AppResult<(u64, u64)>;
@@ -427,7 +445,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         user_id: Uuid,
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
-    ) -> AppResult<Vec<crate::dashboard_routes::ToolUsage>>;
+    ) -> AppResult<Vec<ToolUsage>>;
 
     // ================================
     // Admin Token Management
@@ -436,28 +454,19 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Create a new admin token
     async fn create_admin_token(
         &self,
-        request: &crate::admin::models::CreateAdminTokenRequest,
+        request: &CreateAdminTokenRequest,
         admin_jwt_secret: &str,
-        jwks_manager: &crate::admin::jwks::JwksManager,
-    ) -> AppResult<crate::admin::models::GeneratedAdminToken>;
+        jwks_manager: &JwksManager,
+    ) -> AppResult<GeneratedAdminToken>;
 
     /// Get admin token by ID
-    async fn get_admin_token_by_id(
-        &self,
-        token_id: &str,
-    ) -> AppResult<Option<crate::admin::models::AdminToken>>;
+    async fn get_admin_token_by_id(&self, token_id: &str) -> AppResult<Option<AdminToken>>;
 
     /// Get admin token by prefix for fast lookup
-    async fn get_admin_token_by_prefix(
-        &self,
-        token_prefix: &str,
-    ) -> AppResult<Option<crate::admin::models::AdminToken>>;
+    async fn get_admin_token_by_prefix(&self, token_prefix: &str) -> AppResult<Option<AdminToken>>;
 
     /// List all admin tokens (super admin only)
-    async fn list_admin_tokens(
-        &self,
-        include_inactive: bool,
-    ) -> AppResult<Vec<crate::admin::models::AdminToken>>;
+    async fn list_admin_tokens(&self, include_inactive: bool) -> AppResult<Vec<AdminToken>>;
 
     /// Deactivate admin token
     async fn deactivate_admin_token(&self, token_id: &str) -> AppResult<()>;
@@ -470,10 +479,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     ) -> AppResult<()>;
 
     /// Record admin token usage for audit trail
-    async fn record_admin_token_usage(
-        &self,
-        usage: &crate::admin::models::AdminTokenUsage,
-    ) -> AppResult<()>;
+    async fn record_admin_token_usage(&self, usage: &AdminTokenUsage) -> AppResult<()>;
 
     /// Get admin token usage history
     async fn get_admin_token_usage_history(
@@ -481,7 +487,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         token_id: &str,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
-    ) -> AppResult<Vec<crate::admin::models::AdminTokenUsage>>;
+    ) -> AppResult<Vec<AdminTokenUsage>>;
 
     /// Record API key provisioning by admin
     async fn record_admin_provisioned_key(
@@ -533,17 +539,14 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn create_user_mcp_token(
         &self,
         user_id: Uuid,
-        request: &crate::database::CreateUserMcpTokenRequest,
-    ) -> AppResult<crate::database::UserMcpTokenCreated>;
+        request: &CreateUserMcpTokenRequest,
+    ) -> AppResult<UserMcpTokenCreated>;
 
     /// Validate a user MCP token and return the associated user ID
     async fn validate_user_mcp_token(&self, token_value: &str) -> AppResult<Uuid>;
 
     /// List all MCP tokens for a user
-    async fn list_user_mcp_tokens(
-        &self,
-        user_id: Uuid,
-    ) -> AppResult<Vec<crate::database::UserMcpTokenInfo>>;
+    async fn list_user_mcp_tokens(&self, user_id: Uuid) -> AppResult<Vec<UserMcpTokenInfo>>;
 
     /// Revoke a user MCP token
     async fn revoke_user_mcp_token(&self, token_id: &str, user_id: Uuid) -> AppResult<()>;
@@ -553,7 +556,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         &self,
         token_id: &str,
         user_id: Uuid,
-    ) -> AppResult<Option<crate::database::UserMcpToken>>;
+    ) -> AppResult<Option<UserMcpToken>>;
 
     /// Cleanup expired user MCP tokens (mark as revoked)
     async fn cleanup_expired_user_mcp_tokens(&self) -> AppResult<u64>;
@@ -563,100 +566,74 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     // ================================
 
     /// Create a new tenant
-    async fn create_tenant(&self, tenant: &crate::models::Tenant) -> AppResult<()>;
+    async fn create_tenant(&self, tenant: &Tenant) -> AppResult<()>;
 
     /// Get tenant by ID
-    async fn get_tenant_by_id(&self, tenant_id: Uuid) -> AppResult<crate::models::Tenant>;
+    async fn get_tenant_by_id(&self, tenant_id: Uuid) -> AppResult<Tenant>;
 
     /// Get tenant by slug
-    async fn get_tenant_by_slug(&self, slug: &str) -> AppResult<crate::models::Tenant>;
+    async fn get_tenant_by_slug(&self, slug: &str) -> AppResult<Tenant>;
 
     /// List tenants for a user
-    async fn list_tenants_for_user(&self, user_id: Uuid) -> AppResult<Vec<crate::models::Tenant>>;
+    async fn list_tenants_for_user(&self, user_id: Uuid) -> AppResult<Vec<Tenant>>;
 
     /// Store tenant OAuth credentials
     async fn store_tenant_oauth_credentials(
         &self,
-        credentials: &crate::tenant::TenantOAuthCredentials,
+        credentials: &TenantOAuthCredentials,
     ) -> AppResult<()>;
 
     /// Get tenant OAuth providers
     async fn get_tenant_oauth_providers(
         &self,
         tenant_id: Uuid,
-    ) -> AppResult<Vec<crate::tenant::TenantOAuthCredentials>>;
+    ) -> AppResult<Vec<TenantOAuthCredentials>>;
 
     /// Get tenant OAuth credentials for specific provider
     async fn get_tenant_oauth_credentials(
         &self,
         tenant_id: Uuid,
         provider: &str,
-    ) -> AppResult<Option<crate::tenant::TenantOAuthCredentials>>;
+    ) -> AppResult<Option<TenantOAuthCredentials>>;
 
     // ================================
     // OAuth App Registration
     // ================================
 
     /// Create OAuth application for MCP clients
-    async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> AppResult<()>;
+    async fn create_oauth_app(&self, app: &OAuthApp) -> AppResult<()>;
 
     /// Get OAuth app by client ID
-    async fn get_oauth_app_by_client_id(
-        &self,
-        client_id: &str,
-    ) -> AppResult<crate::models::OAuthApp>;
+    async fn get_oauth_app_by_client_id(&self, client_id: &str) -> AppResult<OAuthApp>;
 
     /// List OAuth apps for a user
-    async fn list_oauth_apps_for_user(
-        &self,
-        user_id: Uuid,
-    ) -> AppResult<Vec<crate::models::OAuthApp>>;
+    async fn list_oauth_apps_for_user(&self, user_id: Uuid) -> AppResult<Vec<OAuthApp>>;
 
     // ================================
     // OAuth 2.0 Server (RFC 7591)
     // ================================
 
     /// Store OAuth 2.0 client registration
-    async fn store_oauth2_client(
-        &self,
-        client: &crate::oauth2_server::models::OAuth2Client,
-    ) -> AppResult<()>;
+    async fn store_oauth2_client(&self, client: &OAuth2Client) -> AppResult<()>;
 
     /// Get OAuth 2.0 client by `client_id`
-    async fn get_oauth2_client(
-        &self,
-        client_id: &str,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2Client>>;
+    async fn get_oauth2_client(&self, client_id: &str) -> AppResult<Option<OAuth2Client>>;
 
     /// Store OAuth 2.0 authorization code
-    async fn store_oauth2_auth_code(
-        &self,
-        auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> AppResult<()>;
+    async fn store_oauth2_auth_code(&self, auth_code: &OAuth2AuthCode) -> AppResult<()>;
 
     /// Get OAuth 2.0 authorization code
-    async fn get_oauth2_auth_code(
-        &self,
-        code: &str,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2AuthCode>>;
+    async fn get_oauth2_auth_code(&self, code: &str) -> AppResult<Option<OAuth2AuthCode>>;
 
     /// Update OAuth 2.0 authorization code (mark as used)
-    async fn update_oauth2_auth_code(
-        &self,
-        auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> AppResult<()>;
+    async fn update_oauth2_auth_code(&self, auth_code: &OAuth2AuthCode) -> AppResult<()>;
 
     /// Store OAuth 2.0 refresh token
-    async fn store_oauth2_refresh_token(
-        &self,
-        refresh_token: &crate::oauth2_server::models::OAuth2RefreshToken,
-    ) -> AppResult<()>;
+    async fn store_oauth2_refresh_token(&self, refresh_token: &OAuth2RefreshToken)
+        -> AppResult<()>;
 
     /// Get OAuth 2.0 refresh token
-    async fn get_oauth2_refresh_token(
-        &self,
-        token: &str,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>>;
+    async fn get_oauth2_refresh_token(&self, token: &str) -> AppResult<Option<OAuth2RefreshToken>>;
 
     /// Revoke OAuth 2.0 refresh token
     async fn revoke_oauth2_refresh_token(&self, token: &str) -> AppResult<()>;
@@ -680,7 +657,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         client_id: &str,
         redirect_uri: &str,
         now: DateTime<Utc>,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2AuthCode>>;
+    ) -> AppResult<Option<OAuth2AuthCode>>;
 
     /// Atomically consume OAuth 2.0 refresh token (check-and-revoke in single operation)
     ///
@@ -699,7 +676,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         token: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>>;
+    ) -> AppResult<Option<OAuth2RefreshToken>>;
 
     /// Look up a refresh token by its value (without `client_id` constraint)
     ///
@@ -714,7 +691,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn get_refresh_token_by_value(
         &self,
         token: &str,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>>;
+    ) -> AppResult<Option<OAuth2RefreshToken>>;
 
     /// Store authorization code
     async fn store_authorization_code(
@@ -727,19 +704,13 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     ) -> AppResult<()>;
 
     /// Get authorization code data
-    async fn get_authorization_code(
-        &self,
-        code: &str,
-    ) -> AppResult<crate::models::AuthorizationCode>;
+    async fn get_authorization_code(&self, code: &str) -> AppResult<AuthorizationCode>;
 
     /// Delete authorization code (after use)
     async fn delete_authorization_code(&self, code: &str) -> AppResult<()>;
 
     /// Store `OAuth2` state for CSRF protection
-    async fn store_oauth2_state(
-        &self,
-        state: &crate::oauth2_server::models::OAuth2State,
-    ) -> AppResult<()>;
+    async fn store_oauth2_state(&self, state: &OAuth2State) -> AppResult<()>;
 
     /// Consume `OAuth2` state (atomically check and mark as used)
     ///
@@ -752,29 +723,23 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         state_value: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2State>>;
+    ) -> AppResult<Option<OAuth2State>>;
 
     // ================================
     // Key Rotation & Security
     // ================================
 
     /// Store key version metadata
-    async fn store_key_version(
-        &self,
-        version: &crate::security::key_rotation::KeyVersion,
-    ) -> AppResult<()>;
+    async fn store_key_version(&self, version: &KeyVersion) -> AppResult<()>;
 
     /// Get all key versions for a tenant
-    async fn get_key_versions(
-        &self,
-        tenant_id: Option<Uuid>,
-    ) -> AppResult<Vec<crate::security::key_rotation::KeyVersion>>;
+    async fn get_key_versions(&self, tenant_id: Option<Uuid>) -> AppResult<Vec<KeyVersion>>;
 
     /// Get current active key version for a tenant
     async fn get_current_key_version(
         &self,
         tenant_id: Option<Uuid>,
-    ) -> AppResult<Option<crate::security::key_rotation::KeyVersion>>;
+    ) -> AppResult<Option<KeyVersion>>;
 
     /// Update key version status (activate/deactivate)
     async fn update_key_version_status(
@@ -792,10 +757,10 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     ) -> AppResult<u64>;
 
     /// Get all tenants for key rotation check
-    async fn get_all_tenants(&self) -> AppResult<Vec<crate::models::Tenant>>;
+    async fn get_all_tenants(&self) -> AppResult<Vec<Tenant>>;
 
     /// Store audit event
-    async fn store_audit_event(&self, event: &crate::security::audit::AuditEvent) -> AppResult<()>;
+    async fn store_audit_event(&self, event: &AuditEvent) -> AppResult<()>;
 
     /// Get audit events with filters
     async fn get_audit_events(
@@ -803,7 +768,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         tenant_id: Option<Uuid>,
         event_type: Option<&str>,
         limit: Option<u32>,
-    ) -> AppResult<Vec<crate::security::audit::AuditEvent>>;
+    ) -> AppResult<Vec<AuditEvent>>;
 
     // ================================
     // Tenant User Management
@@ -847,7 +812,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn get_unread_oauth_notifications(
         &self,
         user_id: Uuid,
-    ) -> AppResult<Vec<crate::database::oauth_notifications::OAuthNotification>>;
+    ) -> AppResult<Vec<OAuthNotification>>;
 
     /// Mark OAuth notification as read
     async fn mark_oauth_notification_read(
@@ -864,7 +829,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         &self,
         user_id: Uuid,
         limit: Option<i64>,
-    ) -> AppResult<Vec<crate::database::oauth_notifications::OAuthNotification>>;
+    ) -> AppResult<Vec<OAuthNotification>>;
 
     // ================================
     // Fitness Configuration Management
@@ -875,7 +840,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         &self,
         tenant_id: &str,
         configuration_name: &str,
-        config: &crate::config::fitness::FitnessConfig,
+        config: &FitnessConfig,
     ) -> AppResult<String>;
 
     /// Save user-specific fitness configuration
@@ -884,7 +849,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-        config: &crate::config::fitness::FitnessConfig,
+        config: &FitnessConfig,
     ) -> AppResult<String>;
 
     /// Get tenant-level fitness configuration
@@ -892,7 +857,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         &self,
         tenant_id: &str,
         configuration_name: &str,
-    ) -> AppResult<Option<crate::config::fitness::FitnessConfig>>;
+    ) -> AppResult<Option<FitnessConfig>>;
 
     /// Get user-specific fitness configuration
     async fn get_user_fitness_config(
@@ -900,7 +865,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-    ) -> AppResult<Option<crate::config::fitness::FitnessConfig>>;
+    ) -> AppResult<Option<FitnessConfig>>;
 
     /// List all tenant-level fitness configuration names
     async fn list_tenant_fitness_configurations(&self, tenant_id: &str) -> AppResult<Vec<String>>;
@@ -925,22 +890,19 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     // ================================
 
     /// Create a new impersonation session for audit trail
-    async fn create_impersonation_session(
-        &self,
-        session: &crate::permissions::impersonation::ImpersonationSession,
-    ) -> AppResult<()>;
+    async fn create_impersonation_session(&self, session: &ImpersonationSession) -> AppResult<()>;
 
     /// Get impersonation session by ID
     async fn get_impersonation_session(
         &self,
         session_id: &str,
-    ) -> AppResult<Option<crate::permissions::impersonation::ImpersonationSession>>;
+    ) -> AppResult<Option<ImpersonationSession>>;
 
     /// Get active impersonation session for an impersonator
     async fn get_active_impersonation_session(
         &self,
         impersonator_id: Uuid,
-    ) -> AppResult<Option<crate::permissions::impersonation::ImpersonationSession>>;
+    ) -> AppResult<Option<ImpersonationSession>>;
 
     /// End an impersonation session
     async fn end_impersonation_session(&self, session_id: &str) -> AppResult<()>;
@@ -955,5 +917,5 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         target_user_id: Option<Uuid>,
         active_only: bool,
         limit: u32,
-    ) -> AppResult<Vec<crate::permissions::impersonation::ImpersonationSession>>;
+    ) -> AppResult<Vec<ImpersonationSession>>;
 }

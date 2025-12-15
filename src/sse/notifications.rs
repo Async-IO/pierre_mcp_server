@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use crate::constants::network_config::SSE_BROADCAST_CHANNEL_SIZE;
 use crate::database::oauth_notifications::OAuthNotification;
 use crate::errors::AppError;
 use serde_json::json;
@@ -91,6 +92,6 @@ impl NotificationStream {
 impl Default for NotificationStream {
     fn default() -> Self {
         // Use default buffer size from constants
-        Self::new(crate::constants::network_config::SSE_BROADCAST_CHANNEL_SIZE)
+        Self::new(SSE_BROADCAST_CHANNEL_SIZE)
     }
 }

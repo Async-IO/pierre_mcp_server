@@ -20,7 +20,10 @@ mod common;
 mod helpers;
 
 use helpers::axum_test::AxumTestRequest;
-use pierre_mcp_server::websocket::WebSocketManager;
+use pierre_mcp_server::{
+    config::environment::RateLimitConfig, routes::websocket::WebSocketRoutes,
+    websocket::WebSocketManager,
+};
 use std::sync::Arc;
 
 /// Test setup helper for WebSocket route testing
@@ -36,7 +39,7 @@ impl WebSocketTestSetup {
         let jwks_manager = common::get_shared_test_jwks();
 
         // Create rate limit config using defaults
-        let rate_limit_config = pierre_mcp_server::config::environment::RateLimitConfig::default();
+        let rate_limit_config = RateLimitConfig::default();
 
         // Create WebSocket manager
         let manager = Arc::new(WebSocketManager::new(
@@ -50,7 +53,7 @@ impl WebSocketTestSetup {
     }
 
     fn routes(&self) -> axum::Router {
-        pierre_mcp_server::routes::websocket::WebSocketRoutes::routes(self.manager.clone())
+        WebSocketRoutes::routes(self.manager.clone())
     }
 }
 

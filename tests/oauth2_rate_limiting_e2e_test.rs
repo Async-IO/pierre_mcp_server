@@ -7,6 +7,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]
 
+use futures_util::future::join_all;
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
 use pierre_mcp_server::{
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
@@ -16,8 +19,12 @@ use pierre_mcp_server::{
     },
     rate_limiting::OAuth2RateLimitConfig,
 };
-use std::net::{IpAddr, Ipv4Addr};
-use std::sync::Arc;
+use std::{
+    net::{IpAddr, Ipv4Addr},
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
+use tokio::time::{sleep, Duration};
 
 /// Test rate limiting on client registration endpoint
 #[tokio::test]
@@ -29,7 +36,7 @@ async fn test_rate_limit_client_registration() {
         Database::new(
             "sqlite::memory:",
             encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await
         .unwrap(),
@@ -177,8 +184,8 @@ async fn test_rate_limit_headers() {
     );
 
     // Reset timestamp should be in the future (within next 60 seconds)
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs();
     #[allow(clippy::cast_possible_wrap)]
@@ -246,7 +253,7 @@ async fn test_rate_limit_window_reset() {
     assert!(status.is_limited, "Request 4 should be rate limited");
 
     // Wait for window to expire (60 seconds + small buffer)
-    tokio::time::sleep(tokio::time::Duration::from_secs(61)).await;
+    sleep(Duration::from_secs(61)).await;
 
     // After window reset, should be able to make requests again
     let status = rate_limiter.check_rate_limit(endpoint, client_ip);
@@ -325,7 +332,7 @@ async fn test_concurrent_requests_same_ip() {
     }
 
     // Wait for all requests to complete
-    let results: Vec<bool> = futures_util::future::join_all(handles)
+    let results: Vec<bool> = join_all(handles)
         .await
         .into_iter()
         .map(|r| r.unwrap())
@@ -360,7 +367,7 @@ async fn test_rate_limiter_cleanup() {
     }
 
     // Wait for cleanup window (2 minutes)
-    tokio::time::sleep(tokio::time::Duration::from_secs(121)).await;
+    sleep(Duration::from_secs(121)).await;
 
     // Make another request to trigger cleanup
     let new_ip = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));

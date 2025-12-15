@@ -8,6 +8,7 @@
 // - Arc resource clones for parallel plugin execution
 // - String ownership for tool names and plugin identifiers
 
+use super::core::{PluginInfo as CorePluginInfo, PluginTool};
 use super::registry::PluginRegistry;
 use super::{PluginContext, PluginEnvironment};
 use crate::mcp::resources::ServerResources;
@@ -194,7 +195,7 @@ impl PluginToolExecutor {
 #[derive(Debug, Clone)]
 pub enum ToolInfo {
     /// Plugin-based tool with full plugin metadata
-    Plugin(crate::plugins::core::PluginInfo),
+    Plugin(CorePluginInfo),
     /// Core built-in tool
     Core {
         /// Tool name
@@ -240,13 +241,13 @@ pub struct ExecutorStatistics {
     /// Number of plugin-provided tools
     pub plugin_tools: usize,
     /// Detailed plugin registry statistics
-    pub plugin_stats: crate::plugins::registry::PluginRegistryStatistics,
+    pub plugin_stats: super::registry::PluginRegistryStatistics,
 }
 
 /// Builder pattern for creating plugin-enabled tool executors
 pub struct PluginToolExecutorBuilder {
     resources: Option<Arc<ServerResources>>,
-    plugins: Vec<Box<dyn crate::plugins::core::PluginTool>>,
+    plugins: Vec<Box<dyn PluginTool>>,
 }
 
 impl PluginToolExecutorBuilder {
@@ -268,7 +269,7 @@ impl PluginToolExecutorBuilder {
 
     /// Add a custom plugin
     #[must_use]
-    pub fn with_plugin(mut self, plugin: Box<dyn crate::plugins::core::PluginTool>) -> Self {
+    pub fn with_plugin(mut self, plugin: Box<dyn PluginTool>) -> Self {
         self.plugins.push(plugin);
         self
     }

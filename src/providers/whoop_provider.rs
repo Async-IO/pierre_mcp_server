@@ -32,6 +32,8 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use reqwest::Client;
 use serde::Deserialize;
+use std::fmt::Write;
+use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
 // ============================================================================
@@ -180,7 +182,7 @@ struct WhoopRecoveryScore {
 /// WHOOP fitness provider for sleep, recovery, and workout data
 pub struct WhoopProvider {
     config: ProviderConfig,
-    credentials: tokio::sync::RwLock<Option<OAuth2Credentials>>,
+    credentials: RwLock<Option<OAuth2Credentials>>,
     client: Client,
 }
 
@@ -202,7 +204,7 @@ impl WhoopProvider {
 
         Self {
             config,
-            credentials: tokio::sync::RwLock::new(None),
+            credentials: RwLock::new(None),
             client: shared_client().clone(),
         }
     }
@@ -212,7 +214,7 @@ impl WhoopProvider {
     pub fn with_config(config: ProviderConfig) -> Self {
         Self {
             config,
-            credentials: tokio::sync::RwLock::new(None),
+            credentials: RwLock::new(None),
             client: shared_client().clone(),
         }
     }
@@ -721,13 +723,11 @@ impl FitnessProvider for WhoopProvider {
         // Build endpoint with optional time filter (WHOOP supports start/end parameters)
         let mut endpoint = format!("activity/workout?limit={page_limit}");
         if let Some(after) = params.after {
-            use std::fmt::Write;
             if let Some(dt) = chrono::DateTime::from_timestamp(after, 0) {
                 let _ = write!(endpoint, "&start={}", dt.format("%Y-%m-%dT%H:%M:%S%.3fZ"));
             }
         }
         if let Some(before) = params.before {
-            use std::fmt::Write;
             if let Some(dt) = chrono::DateTime::from_timestamp(before, 0) {
                 let _ = write!(endpoint, "&end={}", dt.format("%Y-%m-%dT%H:%M:%S%.3fZ"));
             }
@@ -760,7 +760,6 @@ impl FitnessProvider for WhoopProvider {
         // If cursor provided, use it as the next_token
         if let Some(cursor) = &params.cursor {
             if let Some((_, token)) = cursor.decode() {
-                use std::fmt::Write;
                 let _ = write!(endpoint, "&nextToken={token}");
             }
         }

@@ -10,12 +10,16 @@
 //! thresholds, and personalized settings. All handlers require valid JWT authentication.
 
 use crate::{
-    config::routes::configuration::ConfigurationRoutes as ConfigService, errors::AppError,
+    auth::AuthResult,
+    config::routes::configuration::{
+        ConfigurationRoutes as ConfigService, UpdateConfigurationRequest,
+    },
+    errors::AppError,
     mcp::resources::ServerResources,
 };
 use axum::{
     extract::State,
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, put},
     Json, Router,
@@ -38,9 +42,9 @@ impl ConfigurationRoutes {
 
     /// Extract and authenticate user from authorization header
     async fn authenticate(
-        headers: &axum::http::HeaderMap,
+        headers: &HeaderMap,
         resources: &Arc<ServerResources>,
-    ) -> Result<crate::auth::AuthResult, AppError> {
+    ) -> Result<AuthResult, AppError> {
         let auth_header = headers
             .get("authorization")
             .and_then(|h| h.to_str().ok())
@@ -56,7 +60,7 @@ impl ConfigurationRoutes {
     /// Handle get configuration
     async fn handle_get_config(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
 
@@ -72,8 +76,8 @@ impl ConfigurationRoutes {
     /// Handle update configuration
     async fn handle_update_config(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
-        Json(request): Json<crate::config::routes::configuration::UpdateConfigurationRequest>,
+        headers: HeaderMap,
+        Json(request): Json<UpdateConfigurationRequest>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
 
@@ -89,7 +93,7 @@ impl ConfigurationRoutes {
     /// Handle get user-specific configuration
     async fn handle_get_user_config(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
 
@@ -105,8 +109,8 @@ impl ConfigurationRoutes {
     /// Handle update user-specific configuration
     async fn handle_update_user_config(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
-        Json(request): Json<crate::config::routes::configuration::UpdateConfigurationRequest>,
+        headers: HeaderMap,
+        Json(request): Json<UpdateConfigurationRequest>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
 

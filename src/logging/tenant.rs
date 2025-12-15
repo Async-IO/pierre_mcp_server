@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use crate::constants::network_config::HTTP_CLIENT_ERROR_THRESHOLD;
 use tracing::Span;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
@@ -90,7 +91,7 @@ impl TenantLogger {
         status_code: u16,
         duration_ms: u64,
     ) {
-        if status_code < crate::constants::network_config::HTTP_CLIENT_ERROR_THRESHOLD {
+        if status_code < HTTP_CLIENT_ERROR_THRESHOLD {
             info!(
                 user_id = ?user_id,
                 tenant_id = ?tenant_id,

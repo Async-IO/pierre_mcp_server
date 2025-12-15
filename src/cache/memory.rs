@@ -4,15 +4,20 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-use super::{CacheConfig, CacheKey, CacheProvider};
-use crate::errors::{AppError, AppResult};
-use lru::LruCache;
-use serde::{Deserialize, Serialize};
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::RwLock;
+
+use lru::LruCache;
+use serde::{Deserialize, Serialize};
+use tokio::spawn;
+use tokio::sync::{mpsc, RwLock};
+use tokio::time::interval;
 use tracing::debug;
+
+use super::{CacheConfig, CacheKey, CacheProvider};
+use crate::constants::cache_config::DEFAULT_CAPACITY;
+use crate::errors::{AppError, AppResult};
 
 /// In-memory cache entry with expiration
 #[derive(Debug, Clone)]
@@ -47,17 +52,16 @@ impl CacheEntry {
 #[derive(Clone)]
 pub struct InMemoryCache {
     store: Arc<RwLock<LruCache<String, CacheEntry>>>,
-    shutdown_tx: Option<Arc<tokio::sync::mpsc::Sender<()>>>,
+    shutdown_tx: Option<Arc<mpsc::Sender<()>>>,
 }
 
 impl InMemoryCache {
     /// Default cache capacity when config specifies zero entries
     /// Falls back to minimum capacity (1) if constant is somehow zero
-    const DEFAULT_CACHE_CAPACITY: NonZeroUsize =
-        match NonZeroUsize::new(crate::constants::cache_config::DEFAULT_CAPACITY) {
-            Some(n) => n,
-            None => NonZeroUsize::MIN,
-        };
+    const DEFAULT_CACHE_CAPACITY: NonZeroUsize = match NonZeroUsize::new(DEFAULT_CAPACITY) {
+        Some(n) => n,
+        None => NonZeroUsize::MIN,
+    };
 
     /// Create new in-memory cache with optional background cleanup task
     fn new_with_config(config: &CacheConfig) -> Self {
@@ -68,12 +72,12 @@ impl InMemoryCache {
         let store = Arc::new(RwLock::new(LruCache::new(capacity)));
 
         let shutdown_tx = if config.enable_background_cleanup {
-            let (shutdown_tx, mut shutdown_rx) = tokio::sync::mpsc::channel::<()>(1);
+            let (shutdown_tx, mut shutdown_rx) = mpsc::channel::<()>(1);
             let store_clone = store.clone();
             let cleanup_interval = config.cleanup_interval;
 
-            tokio::spawn(async move {
-                let mut interval = tokio::time::interval(cleanup_interval);
+            spawn(async move {
+                let mut interval = interval(cleanup_interval);
                 loop {
                     tokio::select! {
                         _ = interval.tick() => {

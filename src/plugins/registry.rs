@@ -8,12 +8,13 @@
 // - Plugin info cloning for registry operations
 // - Arc plugin clones for concurrent access
 
+use super::community::{BasicAnalysisPlugin, WeatherIntegrationPlugin};
 use super::core::{PluginInfo, PluginTool, PluginToolStatic};
 use super::PluginEnvironment;
 use crate::protocols::universal::UniversalRequest;
 use crate::protocols::ProtocolError;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock, RwLock};
 use tracing::{debug, info};
 
 /// Plugin registry that manages all available plugins
@@ -41,14 +42,10 @@ impl PluginRegistry {
     fn register_builtin_plugins(&mut self) {
         // Manually register all built-in plugins
         // Note: When adding new plugins, add them to this list
-        self.register_plugin(Box::new(
-            crate::plugins::community::BasicAnalysisPlugin::new(),
-        ))
-        .ok();
-        self.register_plugin(Box::new(
-            crate::plugins::community::WeatherIntegrationPlugin::new(),
-        ))
-        .ok();
+        self.register_plugin(Box::new(BasicAnalysisPlugin::new()))
+            .ok();
+        self.register_plugin(Box::new(WeatherIntegrationPlugin::new()))
+            .ok();
 
         info!("Registered {} plugins", self.plugins.len());
     }
@@ -222,13 +219,12 @@ pub struct PluginRegistryStatistics {
 }
 
 /// Convenience function to create a global plugin registry
-static GLOBAL_REGISTRY: std::sync::OnceLock<std::sync::Arc<std::sync::RwLock<PluginRegistry>>> =
-    std::sync::OnceLock::new();
+static GLOBAL_REGISTRY: OnceLock<Arc<RwLock<PluginRegistry>>> = OnceLock::new();
 
 /// Get the global plugin registry instance
 #[must_use]
-pub fn global_registry() -> std::sync::Arc<std::sync::RwLock<PluginRegistry>> {
+pub fn global_registry() -> Arc<RwLock<PluginRegistry>> {
     GLOBAL_REGISTRY
-        .get_or_init(|| std::sync::Arc::new(std::sync::RwLock::new(PluginRegistry::new())))
+        .get_or_init(|| Arc::new(RwLock::new(PluginRegistry::new())))
         .clone()
 }

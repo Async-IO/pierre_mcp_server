@@ -6,9 +6,12 @@
 
 //! Fitness-specific configuration for sport types and intelligence parameters
 
+use crate::constants::time::MINUTE_SECONDS;
+use crate::database::fitness_configurations::FitnessConfigurationManager;
 use crate::errors::AppResult;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::env;
 
 /// Main fitness configuration structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -149,7 +152,7 @@ impl FitnessConfig {
         // Convert sport_key back to proper case (e.g., "RUN" -> "Run")
         let proper_key = Self::sport_key_to_proper_case(sport_key);
 
-        if let Ok(value) = std::env::var(&env_key) {
+        if let Ok(value) = env::var(&env_key) {
             sport_types.insert(proper_key, value);
         } else {
             // Use default mapping if env var not set
@@ -179,9 +182,7 @@ impl FitnessConfig {
     /// Get the internal sport type name for a provider sport type
     #[must_use]
     pub fn map_sport_type(&self, provider_sport: &str) -> Option<&str> {
-        self.sport_types
-            .get(provider_sport)
-            .map(std::string::String::as_str)
+        self.sport_types.get(provider_sport).map(String::as_str)
     }
 
     /// Get all configured sport type mappings
@@ -203,7 +204,7 @@ impl FitnessConfig {
     ///
     /// Returns an error if database operation fails or configuration parsing fails
     pub async fn load_for_user(
-        db_manager: Option<&crate::database::fitness_configurations::FitnessConfigurationManager>,
+        db_manager: Option<&FitnessConfigurationManager>,
         tenant_id: Option<&str>,
         user_id: Option<&str>,
         configuration_name: Option<&str>,
@@ -303,7 +304,7 @@ impl FitnessConfig {
 
     /// Parse environment variable as f32 and update target if valid
     fn parse_env_f32(env_var: &str, target: &mut f32) {
-        if let Ok(value) = std::env::var(env_var) {
+        if let Ok(value) = env::var(env_var) {
             if let Ok(parsed) = value.parse::<f32>() {
                 *target = parsed;
             }
@@ -312,7 +313,7 @@ impl FitnessConfig {
 
     /// Parse environment variable as bool and update target if valid
     fn parse_env_bool(env_var: &str, target: &mut bool) {
-        if let Ok(value) = std::env::var(env_var) {
+        if let Ok(value) = env::var(env_var) {
             if let Ok(parsed) = value.parse::<bool>() {
                 *target = parsed;
             }
@@ -321,7 +322,7 @@ impl FitnessConfig {
 
     /// Parse environment variable as u64 and update target if valid
     fn parse_env_u64(env_var: &str, target: &mut u64) {
-        if let Ok(value) = std::env::var(env_var) {
+        if let Ok(value) = env::var(env_var) {
             if let Ok(parsed) = value.parse::<u64>() {
                 *target = parsed;
             }
@@ -462,7 +463,7 @@ impl Default for WeatherApiConfig {
             enabled: true,
             cache_duration_hours: 24,
             request_timeout_seconds: 10,
-            rate_limit_requests_per_minute: crate::constants::time::MINUTE_SECONDS as u64,
+            rate_limit_requests_per_minute: MINUTE_SECONDS as u64,
         }
     }
 }

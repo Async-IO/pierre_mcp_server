@@ -4,11 +4,48 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-use crate::protocols::universal::{UniversalRequest, UniversalResponse};
+use crate::config::environment::default_provider;
+use crate::config::intelligence::IntelligenceConfig;
+use crate::constants::limits::{self, METERS_PER_KILOMETER};
+use crate::constants::oauth::STRAVA_DEFAULT_SCOPES;
+use crate::constants::time_constants;
+use crate::constants::units::METERS_PER_KM;
+use crate::errors::{AppResult, ErrorCode};
+use crate::intelligence::physiological_constants::api_limits::{
+    DEFAULT_ACTIVITY_LIMIT, MAX_ACTIVITY_LIMIT,
+};
+use crate::intelligence::physiological_constants::business_thresholds::{
+    ACHIEVEMENT_DISTANCE_THRESHOLD_KM, ACHIEVEMENT_ELEVATION_THRESHOLD_M,
+};
+use crate::intelligence::physiological_constants::efficiency_defaults::{
+    DEFAULT_EFFICIENCY_SCORE, DEFAULT_EFFICIENCY_WITH_DISTANCE,
+};
+use crate::intelligence::physiological_constants::heart_rate::{
+    AGE_BASED_MAX_HR_CONSTANT, HIGH_INTENSITY_HR_THRESHOLD,
+};
+use crate::intelligence::physiological_constants::hr_estimation::ASSUMED_MAX_HR;
+use crate::intelligence::physiological_constants::unit_conversions::MS_TO_KMH_FACTOR;
+use crate::intelligence::training_load::TrainingLoad;
+use crate::intelligence::{
+    HardEasyPattern, MetricType, OvertrainingSignals, PatternDetector, PerformancePredictor,
+    RiskLevel, SafeMetricExtractor, SleepAnalyzer, StatisticalAnalyzer, TrainingLoadCalculator,
+    TrainingStatus, TrendDataPoint, TrendDirection, TssDataPoint, VolumeProgressionPattern,
+    VolumeTrend, WeeklySchedulePattern,
+};
+use crate::mcp::sampling_peer::SamplingPeer;
+use crate::mcp::schema::{Content, CreateMessageRequest, ModelPreferences, PromptMessage};
+use crate::models::Activity;
+use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalToolExecutor};
 use crate::protocols::ProtocolError;
+use crate::providers::core::FitnessProvider;
+use crate::providers::OAuth2Credentials;
+use crate::utils::uuid::parse_user_id_for_protocol;
 use chrono::{Duration, Utc};
+use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 use tracing::{info, warn};
 
 use super::{apply_format_to_response, extract_output_format};
@@ -44,14 +81,13 @@ struct RecoveryAdjustmentInfo {
 /// - 50-69 (Moderate): -5% penalty (0.95)
 /// - <50 (Poor): -10% penalty (0.90)
 async fn fetch_and_calculate_recovery_adjustment(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     user_uuid: uuid::Uuid,
     tenant_id: Option<&str>,
     sleep_provider_name: &str,
     analysis: &mut serde_json::Value,
 ) -> Result<RecoveryAdjustmentInfo, String> {
     use super::sleep_recovery::fetch_provider_sleep_data;
-    use crate::intelligence::SleepAnalyzer;
 
     // Fetch sleep data from provider
     let sleep_data =
@@ -60,7 +96,7 @@ async fn fetch_and_calculate_recovery_adjustment(
             .map_err(|e| e.error.unwrap_or_else(|| "Unknown error".to_owned()))?;
 
     // Calculate sleep quality score using SleepAnalyzer
-    let config = &crate::config::intelligence::IntelligenceConfig::global().sleep_recovery;
+    let config = &IntelligenceConfig::global().sleep_recovery;
     let sleep_quality = SleepAnalyzer::calculate_sleep_quality(&sleep_data, config)
         .map_err(|e| format!("Sleep quality calculation failed: {e}"))?;
 
@@ -121,13 +157,13 @@ struct RecoveryContextInfo {
 /// Fetches recent sleep data and provides recovery context to interpret
 /// training load data (CTL/ATL/TSB) more accurately.
 async fn fetch_recovery_context_for_training_load(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     user_uuid: uuid::Uuid,
     tenant_id: Option<&str>,
     sleep_provider_name: &str,
 ) -> Result<RecoveryContextInfo, String> {
     use super::sleep_recovery::fetch_provider_sleep_data;
-    use crate::intelligence::SleepAnalyzer;
+    use SleepAnalyzer;
 
     // Fetch sleep data from provider
     let sleep_data =
@@ -136,7 +172,7 @@ async fn fetch_recovery_context_for_training_load(
             .map_err(|e| e.error.unwrap_or_else(|| "Unknown error".to_owned()))?;
 
     // Calculate sleep quality score
-    let config = &crate::config::intelligence::IntelligenceConfig::global().sleep_recovery;
+    let config = &IntelligenceConfig::global().sleep_recovery;
     let sleep_quality = SleepAnalyzer::calculate_sleep_quality(&sleep_data, config)
         .map_err(|e| format!("Sleep quality calculation failed: {e}"))?;
 
@@ -235,15 +271,12 @@ fn parse_activity_parameters(
 /// # Returns
 /// Tuple of (`max_hr_value`, `source_description`)
 fn determine_max_heart_rate(max_hr_provided: Option<f64>, user_age: Option<u32>) -> (f64, String) {
-    use crate::intelligence::physiological_constants::hr_estimation::ASSUMED_MAX_HR;
+    use ASSUMED_MAX_HR;
 
     match (max_hr_provided, user_age) {
         (Some(hr), _) => (hr, "provided".to_owned()),
         (None, Some(age)) => {
-            let max_hr = f64::from(
-                crate::intelligence::physiological_constants::heart_rate::AGE_BASED_MAX_HR_CONSTANT
-                    .saturating_sub(age),
-            );
+            let max_hr = f64::from(AGE_BASED_MAX_HR_CONSTANT.saturating_sub(age));
             (max_hr, format!("calculated_from_age_{age}"))
         }
         (None, None) => (ASSUMED_MAX_HR, "default_assumed".to_owned()),
@@ -271,17 +304,11 @@ struct CalculatedMetrics {
 /// # Returns
 /// Calculated metrics structure
 fn calculate_activity_metrics(params: &ActivityParameters, max_hr: f64) -> CalculatedMetrics {
-    use crate::constants::limits;
-    use crate::intelligence::physiological_constants::{
-        efficiency_defaults::{DEFAULT_EFFICIENCY_SCORE, DEFAULT_EFFICIENCY_WITH_DISTANCE},
-        unit_conversions::MS_TO_KMH_FACTOR,
-    };
-
     let duration_f64 =
         f64::from(u32::try_from(params.duration.min(u64::from(u32::MAX))).unwrap_or(u32::MAX));
 
     let pace = if params.distance > 0.0 && params.duration > 0 {
-        duration_f64 / (params.distance / limits::METERS_PER_KILOMETER)
+        duration_f64 / (params.distance / METERS_PER_KILOMETER)
     } else {
         0.0
     };
@@ -329,7 +356,7 @@ fn build_metrics_response(
     max_hr: f64,
     max_hr_source: &str,
 ) -> UniversalResponse {
-    use crate::constants::limits;
+    use limits;
 
     UniversalResponse {
         success: true,
@@ -341,7 +368,7 @@ fn build_metrics_response(
             "max_hr_used": max_hr,
             "max_hr_source": max_hr_source,
             "metrics_summary": {
-                "distance_km": params.distance / limits::METERS_PER_KILOMETER,
+                "distance_km": params.distance / METERS_PER_KILOMETER,
                 "duration_minutes": params.duration / limits::SECONDS_PER_MINUTE,
                 "elevation_meters": params.elevation_gain,
                 "average_heart_rate": params.heart_rate
@@ -349,7 +376,7 @@ fn build_metrics_response(
         })),
         error: None,
         metadata: Some({
-            let mut map = std::collections::HashMap::new();
+            let mut map = HashMap::new();
             map.insert(
                 "calculation_timestamp".into(),
                 serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
@@ -371,7 +398,7 @@ fn build_metrics_response(
 
 /// Fetch activity from provider and calculate metrics (helper for `activity_id` path)
 async fn fetch_and_calculate_metrics(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: &UniversalRequest,
     activity_id: &str,
     provider_name: &str,
@@ -412,7 +439,7 @@ async fn fetch_and_calculate_metrics(
         .map_err(|e| ProtocolError::InternalError(format!("Failed to create provider: {e}")))?;
 
     // Safe: OAuth credential clones needed for struct field ownership
-    let credentials = crate::providers::OAuth2Credentials {
+    let credentials = OAuth2Credentials {
         client_id: executor
             .resources
             .config
@@ -432,7 +459,7 @@ async fn fetch_and_calculate_metrics(
         access_token: Some(token_data.access_token.clone()),
         refresh_token: Some(token_data.refresh_token.clone()),
         expires_at: Some(token_data.expires_at),
-        scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+        scopes: STRAVA_DEFAULT_SCOPES
             .split(',')
             .map(str::to_owned)
             .collect(),
@@ -483,10 +510,10 @@ async fn fetch_and_calculate_metrics(
 /// # Errors
 /// Returns `ProtocolError` if activity parameter is missing or calculation fails
 pub async fn handle_calculate_metrics(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Result<UniversalResponse, ProtocolError> {
-    let user_uuid = crate::utils::uuid::parse_user_id_for_protocol(&request.user_id)?;
+    let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
     // Extract output format parameter: "json" (default) or "toon"
     let output_format = extract_output_format(&request);
@@ -527,22 +554,13 @@ pub async fn handle_calculate_metrics(
 }
 
 /// Generate insights and recommendations from activity data
-fn generate_activity_insights(
-    activity: &crate::models::Activity,
-) -> (Vec<String>, Vec<&'static str>) {
-    use crate::intelligence::physiological_constants::{
-        business_thresholds::{
-            ACHIEVEMENT_DISTANCE_THRESHOLD_KM, ACHIEVEMENT_ELEVATION_THRESHOLD_M,
-        },
-        heart_rate::HIGH_INTENSITY_HR_THRESHOLD,
-    };
-
+fn generate_activity_insights(activity: &Activity) -> (Vec<String>, Vec<&'static str>) {
     let mut insights = Vec::new();
     let mut recommendations = Vec::new();
 
     // Analyze distance
     if let Some(distance) = activity.distance_meters {
-        let km = distance / crate::constants::limits::METERS_PER_KILOMETER;
+        let km = distance / METERS_PER_KILOMETER;
         insights.push(format!("Activity covered {km:.2} km"));
         if km > ACHIEVEMENT_DISTANCE_THRESHOLD_KM {
             recommendations.push("Great long-distance effort! Ensure proper recovery time");
@@ -589,8 +607,8 @@ fn build_intelligence_metadata(
     activity_id: &str,
     user_uuid: uuid::Uuid,
     tenant_id: Option<String>,
-) -> std::collections::HashMap<String, serde_json::Value> {
-    let mut metadata = std::collections::HashMap::new();
+) -> HashMap<String, serde_json::Value> {
+    let mut metadata = HashMap::new();
     metadata.insert(
         "activity_id".to_owned(),
         serde_json::Value::String(activity_id.to_owned()),
@@ -612,11 +630,11 @@ fn build_intelligence_metadata(
 
 /// Create intelligence analysis JSON response with optional MCP sampling
 async fn create_intelligence_response(
-    activity: &crate::models::Activity,
+    activity: &Activity,
     activity_id: &str,
     user_uuid: uuid::Uuid,
     tenant_id: Option<String>,
-    sampling_peer: Option<&std::sync::Arc<crate::mcp::sampling_peer::SamplingPeer>>,
+    sampling_peer: Option<&Arc<SamplingPeer>>,
 ) -> UniversalResponse {
     // Try MCP sampling first if available (uses client's LLM)
     if let Some(peer) = sampling_peer {
@@ -628,7 +646,7 @@ async fn create_intelligence_response(
                     result: Some(llm_analysis),
                     error: None,
                     metadata: Some({
-                        let mut map = std::collections::HashMap::new();
+                        let mut map = HashMap::new();
                         map.insert(
                             "activity_id".to_owned(),
                             serde_json::Value::String(activity_id.to_owned()),
@@ -679,7 +697,7 @@ async fn create_intelligence_response(
             "insights": insights,
             "recommendations": recommendations,
             "performance_metrics": {
-                "distance_km": activity.distance_meters.map(|d| d / crate::constants::limits::METERS_PER_KILOMETER),
+                "distance_km": activity.distance_meters.map(|d| d / METERS_PER_KILOMETER),
                 "duration_minutes": Some(duration_minutes),
                 "elevation_meters": activity.elevation_gain,
                 "average_heart_rate": activity.average_heart_rate,
@@ -713,11 +731,11 @@ async fn create_intelligence_response(
 /// # Returns
 /// `UniversalResponse` with intelligence or error
 async fn fetch_and_analyze_activity(
-    provider: Box<dyn crate::providers::core::FitnessProvider>,
+    provider: Box<dyn FitnessProvider>,
     activity_id: &str,
     user_uuid: uuid::Uuid,
     tenant_id: Option<String>,
-    sampling_peer: Option<&std::sync::Arc<crate::mcp::sampling_peer::SamplingPeer>>,
+    sampling_peer: Option<&Arc<SamplingPeer>>,
 ) -> UniversalResponse {
     match provider.get_activity(activity_id).await {
         Ok(activity) => {
@@ -732,7 +750,7 @@ async fn fetch_and_analyze_activity(
         }
         Err(e) => {
             // Handle NotFound by auto-fetching recent activities
-            if e.code == crate::errors::ErrorCode::ResourceNotFound {
+            if e.code == ErrorCode::ResourceNotFound {
                 // Activity not found - fetch recent activities to show valid IDs
                 match provider.get_activities(Some(5), None).await {
                     Ok(activities) if !activities.is_empty() => {
@@ -818,12 +836,12 @@ async fn fetch_and_analyze_activity(
 /// # Returns
 /// `UniversalResponse` with trend analysis or error
 async fn fetch_and_analyze_trends(
-    provider: Box<dyn crate::providers::core::FitnessProvider>,
+    provider: Box<dyn FitnessProvider>,
     metric: &str,
     timeframe: &str,
     user_uuid: uuid::Uuid,
 ) -> UniversalResponse {
-    use crate::intelligence::physiological_constants::api_limits::MAX_ACTIVITY_LIMIT;
+    use MAX_ACTIVITY_LIMIT;
 
     match provider
         .get_activities(Some(MAX_ACTIVITY_LIMIT), None)
@@ -837,7 +855,7 @@ async fn fetch_and_analyze_trends(
                 result: Some(analysis),
                 error: None,
                 metadata: Some({
-                    let mut map = std::collections::HashMap::new();
+                    let mut map = HashMap::new();
                     map.insert(
                         "user_id".to_owned(),
                         serde_json::Value::String(user_uuid.to_string()),
@@ -868,11 +886,11 @@ async fn fetch_and_analyze_trends(
 /// # Returns
 /// `UniversalResponse` with pattern analysis or error
 async fn fetch_and_detect_patterns(
-    provider: Box<dyn crate::providers::core::FitnessProvider>,
+    provider: Box<dyn FitnessProvider>,
     pattern_type: &str,
     user_uuid: uuid::Uuid,
 ) -> UniversalResponse {
-    use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
+    use DEFAULT_ACTIVITY_LIMIT;
 
     match provider
         .get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None)
@@ -886,7 +904,7 @@ async fn fetch_and_detect_patterns(
                 result: Some(analysis),
                 error: None,
                 metadata: Some({
-                    let mut map = std::collections::HashMap::new();
+                    let mut map = HashMap::new();
                     map.insert(
                         "user_id".to_owned(),
                         serde_json::Value::String(user_uuid.to_string()),
@@ -916,11 +934,11 @@ async fn fetch_and_detect_patterns(
 /// Returns `ProtocolError` if `activity_id` parameter is missing or validation fails
 #[must_use]
 pub fn handle_get_activity_intelligence(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use parse_user_id_for_protocol;
 
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
@@ -943,7 +961,7 @@ pub fn handle_get_activity_intelligence(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
+            .map_or_else(default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Extract output format parameter: "json" (default) or "toon"
@@ -1026,11 +1044,11 @@ pub fn handle_get_activity_intelligence(
 /// Handle `analyze_performance_trends` tool - analyze performance over time
 #[must_use]
 pub fn handle_analyze_performance_trends(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use parse_user_id_for_protocol;
 
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
@@ -1045,7 +1063,7 @@ pub fn handle_analyze_performance_trends(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
+            .map_or_else(default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
         let metric = request
             .parameters
@@ -1128,14 +1146,14 @@ pub fn handle_analyze_performance_trends(
 
 /// Execute activity comparison with authenticated provider
 async fn execute_activity_comparison(
-    provider: Box<dyn crate::providers::core::FitnessProvider>,
+    provider: Box<dyn FitnessProvider>,
     activity_id: &str,
     comparison_type: &str,
     compare_activity_id: Option<&str>,
     user_uuid: uuid::Uuid,
     request: &UniversalRequest,
 ) -> UniversalResponse {
-    use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
+    use DEFAULT_ACTIVITY_LIMIT;
 
     match provider.get_activity(activity_id).await {
         Ok(target_activity) => {
@@ -1174,7 +1192,7 @@ async fn execute_activity_comparison(
                 result: Some(comparison),
                 error: None,
                 metadata: Some({
-                    let mut map = std::collections::HashMap::new();
+                    let mut map = HashMap::new();
                     map.insert(
                         "user_id".to_owned(),
                         serde_json::Value::String(user_uuid.to_string()),
@@ -1184,7 +1202,7 @@ async fn execute_activity_comparison(
             }
         }
         Err(e) => {
-            let error_message = if e.code == crate::errors::ErrorCode::ResourceNotFound {
+            let error_message = if e.code == ErrorCode::ResourceNotFound {
                 format!(
                     "Activity '{activity_id}' not found. Please use get_activities to retrieve your activity IDs first, then use compare_activities with a valid ID from the list."
                 )
@@ -1205,11 +1223,11 @@ async fn execute_activity_comparison(
 /// Handle `compare_activities` tool - compare two activities
 #[must_use]
 pub fn handle_compare_activities(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use parse_user_id_for_protocol;
 
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
@@ -1224,7 +1242,7 @@ pub fn handle_compare_activities(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
+            .map_or_else(default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
         let activity_id = request
             .parameters
@@ -1286,11 +1304,11 @@ pub fn handle_compare_activities(
 /// Handle `detect_patterns` tool - detect patterns in activity data
 #[must_use]
 pub fn handle_detect_patterns(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use parse_user_id_for_protocol;
 
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
@@ -1305,7 +1323,7 @@ pub fn handle_detect_patterns(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
+            .map_or_else(default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
         let pattern_type = request
             .parameters
@@ -1385,12 +1403,12 @@ pub fn handle_detect_patterns(
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn handle_generate_recommendations(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use parse_user_id_for_protocol;
+        use DEFAULT_ACTIVITY_LIMIT;
 
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
@@ -1405,7 +1423,7 @@ pub fn handle_generate_recommendations(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
+            .map_or_else(default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
         let recommendation_type = request
             .parameters
@@ -1512,7 +1530,7 @@ pub fn handle_generate_recommendations(
                             result: Some(analysis),
                             error: None,
                             metadata: Some({
-                                let mut map = std::collections::HashMap::new();
+                                let mut map = HashMap::new();
                                 map.insert(
                                     "user_id".to_owned(),
                                     serde_json::Value::String(user_uuid.to_string()),
@@ -1559,12 +1577,12 @@ pub fn handle_generate_recommendations(
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn handle_calculate_fitness_score(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use parse_user_id_for_protocol;
+        use DEFAULT_ACTIVITY_LIMIT;
 
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
@@ -1579,7 +1597,7 @@ pub fn handle_calculate_fitness_score(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
+            .map_or_else(default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
         let timeframe = request
             .parameters
@@ -1714,7 +1732,7 @@ pub fn handle_calculate_fitness_score(
                             result: Some(analysis),
                             error: None,
                             metadata: Some({
-                                let mut map = std::collections::HashMap::new();
+                                let mut map = HashMap::new();
                                 map.insert(
                                     "user_id".to_owned(),
                                     serde_json::Value::String(user_uuid.to_string()),
@@ -1763,12 +1781,12 @@ pub fn handle_calculate_fitness_score(
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn handle_predict_performance(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use parse_user_id_for_protocol;
+        use DEFAULT_ACTIVITY_LIMIT;
 
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
@@ -1783,7 +1801,7 @@ pub fn handle_predict_performance(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
+            .map_or_else(default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
         let target_sport = request
             .parameters
@@ -1866,7 +1884,7 @@ pub fn handle_predict_performance(
                             result: Some(prediction),
                             error: None,
                             metadata: Some({
-                                let mut map = std::collections::HashMap::new();
+                                let mut map = HashMap::new();
                                 map.insert(
                                     "user_id".to_owned(),
                                     serde_json::Value::String(user_uuid.to_string()),
@@ -1913,12 +1931,12 @@ pub fn handle_predict_performance(
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn handle_analyze_training_load(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use parse_user_id_for_protocol;
+        use DEFAULT_ACTIVITY_LIMIT;
 
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
@@ -1933,7 +1951,7 @@ pub fn handle_analyze_training_load(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
+            .map_or_else(default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
         let timeframe = request
             .parameters
@@ -2076,7 +2094,7 @@ pub fn handle_analyze_training_load(
                             result: Some(analysis),
                             error: None,
                             metadata: Some({
-                                let mut map = std::collections::HashMap::new();
+                                let mut map = HashMap::new();
                                 map.insert(
                                     "user_id".to_owned(),
                                     serde_json::Value::String(user_uuid.to_string()),
@@ -2127,11 +2145,11 @@ pub fn handle_analyze_training_load(
 
 /// Analyze performance trend for a specific metric over time
 fn analyze_performance_trend(
-    activities: &[crate::models::Activity],
+    activities: &[Activity],
     metric: &str,
     timeframe: &str,
 ) -> serde_json::Value {
-    use crate::intelligence::SafeMetricExtractor;
+    use SafeMetricExtractor;
 
     if activities.is_empty() {
         return serde_json::json!({
@@ -2159,7 +2177,7 @@ fn analyze_performance_trend(
 
     // Filter activities by timeframe
     let cutoff_date = calculate_cutoff_date(timeframe);
-    let filtered_activities: Vec<crate::models::Activity> = activities
+    let filtered_activities: Vec<Activity> = activities
         .iter()
         .filter(|a| a.start_date >= cutoff_date)
         .cloned()
@@ -2206,11 +2224,9 @@ fn analyze_performance_trend(
 fn compute_trend_statistics(
     metric: &str,
     timeframe: &str,
-    metric_type: crate::intelligence::MetricType,
+    metric_type: MetricType,
     data_points_with_timestamp: &[(chrono::DateTime<chrono::Utc>, f64)],
 ) -> serde_json::Value {
-    use crate::intelligence::{StatisticalAnalyzer, TrendDataPoint, TrendDirection};
-
     // Convert to TrendDataPoint format
     let trend_data_points: Vec<TrendDataPoint> = data_points_with_timestamp
         .iter()
@@ -2283,8 +2299,8 @@ fn compute_trend_statistics(
 }
 
 /// Parse metric string to `MetricType`
-fn parse_metric_type(metric: &str) -> Result<crate::intelligence::MetricType, String> {
-    use crate::intelligence::MetricType;
+fn parse_metric_type(metric: &str) -> Result<MetricType, String> {
+    use MetricType;
     match metric.to_lowercase().as_str() {
         "pace" => Ok(MetricType::Pace),
         "speed" => Ok(MetricType::Speed),
@@ -2394,8 +2410,8 @@ fn generate_trend_insights(
 
 /// Compare an activity using different comparison strategies
 fn compare_activity_logic(
-    target: &crate::models::Activity,
-    all_activities: &[crate::models::Activity],
+    target: &Activity,
+    all_activities: &[Activity],
     comparison_type: &str,
     compare_activity_id: Option<&str>,
 ) -> serde_json::Value {
@@ -2411,11 +2427,11 @@ fn compare_activity_logic(
 
 /// Compare activity with similar past activities
 fn compare_with_similar_activities(
-    target: &crate::models::Activity,
-    all_activities: &[crate::models::Activity],
+    target: &Activity,
+    all_activities: &[Activity],
 ) -> serde_json::Value {
     // Find similar activities (same sport, similar distance/duration)
-    let similar: Vec<&crate::models::Activity> = all_activities
+    let similar: Vec<&Activity> = all_activities
         .iter()
         .filter(|a| {
             a.id != target.id
@@ -2515,11 +2531,11 @@ fn compare_with_similar_activities(
 
 /// Compare activity with personal records
 fn compare_with_personal_records(
-    target: &crate::models::Activity,
-    all_activities: &[crate::models::Activity],
+    target: &Activity,
+    all_activities: &[Activity],
 ) -> serde_json::Value {
     // Find same sport activities
-    let same_sport: Vec<&crate::models::Activity> = all_activities
+    let same_sport: Vec<&Activity> = all_activities
         .iter()
         .filter(|a| a.sport_type == target.sport_type)
         .collect();
@@ -2540,7 +2556,7 @@ fn compare_with_personal_records(
         let max_distance = same_sport
             .iter()
             .filter_map(|a| a.distance_meters)
-            .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            .max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
 
         if let Some(max_d) = max_distance {
             let is_pr = distance >= max_d;
@@ -2563,7 +2579,7 @@ fn compare_with_personal_records(
     let best_pace = same_sport
         .iter()
         .filter_map(|a| calculate_pace(a))
-        .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        .min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
 
     if let (Some(tp), Some(bp)) = (target_pace, best_pace) {
         let is_pr = tp <= bp;
@@ -2616,8 +2632,8 @@ fn compare_with_personal_records(
 
 /// Compare activity with a specific activity by ID
 fn compare_with_specific_activity(
-    target: &crate::models::Activity,
-    all_activities: &[crate::models::Activity],
+    target: &Activity,
+    all_activities: &[Activity],
     compare_id: &str,
 ) -> serde_json::Value {
     // Find the specific activity to compare with
@@ -2782,12 +2798,11 @@ fn is_similar_distance(dist1: Option<f64>, dist2: Option<f64>) -> bool {
 }
 
 /// Calculate pace in min/km
-fn calculate_pace(activity: &crate::models::Activity) -> Option<f64> {
+fn calculate_pace(activity: &Activity) -> Option<f64> {
     if let Some(distance) = activity.distance_meters {
         if distance > 0.0 && activity.duration_seconds > 0 {
             #[allow(clippy::cast_precision_loss)]
-            let seconds_per_km = (activity.duration_seconds as f64 / distance)
-                * crate::constants::units::METERS_PER_KM;
+            let seconds_per_km = (activity.duration_seconds as f64 / distance) * METERS_PER_KM;
             return Some(seconds_per_km / 60.0); // convert to min/km
         }
     }
@@ -2795,7 +2810,7 @@ fn calculate_pace(activity: &crate::models::Activity) -> Option<f64> {
 }
 
 /// Calculate average pace from activities
-fn calculate_average_pace(activities: &[&crate::models::Activity]) -> Option<f64> {
+fn calculate_average_pace(activities: &[&Activity]) -> Option<f64> {
     let paces: Vec<f64> = activities
         .iter()
         .filter_map(|a| calculate_pace(a))
@@ -2809,7 +2824,7 @@ fn calculate_average_pace(activities: &[&crate::models::Activity]) -> Option<f64
 }
 
 /// Calculate average heart rate from activities
-fn calculate_average_hr(activities: &[&crate::models::Activity]) -> Option<f64> {
+fn calculate_average_hr(activities: &[&Activity]) -> Option<f64> {
     let hrs: Vec<f64> = activities
         .iter()
         .filter_map(|a| a.average_heart_rate.map(f64::from))
@@ -2823,7 +2838,7 @@ fn calculate_average_hr(activities: &[&crate::models::Activity]) -> Option<f64> 
 }
 
 /// Calculate average elevation from activities
-fn calculate_average_elevation(activities: &[&crate::models::Activity]) -> Option<f64> {
+fn calculate_average_elevation(activities: &[&Activity]) -> Option<f64> {
     let elevs: Vec<f64> = activities.iter().filter_map(|a| a.elevation_gain).collect();
     if elevs.is_empty() {
         return None;
@@ -2838,11 +2853,8 @@ fn calculate_average_elevation(activities: &[&crate::models::Activity]) -> Optio
 // ============================================================================
 
 /// Detect patterns in activity data based on pattern type
-fn detect_activity_patterns(
-    activities: &[crate::models::Activity],
-    pattern_type: &str,
-) -> serde_json::Value {
-    use crate::intelligence::PatternDetector;
+fn detect_activity_patterns(activities: &[Activity], pattern_type: &str) -> serde_json::Value {
+    use PatternDetector;
 
     if activities.len() < 3 {
         return serde_json::json!({
@@ -2869,9 +2881,7 @@ fn detect_activity_patterns(
 }
 
 /// Format weekly schedule pattern results for JSON response
-fn format_weekly_schedule(
-    pattern: &crate::intelligence::WeeklySchedulePattern,
-) -> serde_json::Value {
+fn format_weekly_schedule(pattern: &WeeklySchedulePattern) -> serde_json::Value {
     use chrono::Weekday;
 
     // Convert Weekday enum to string
@@ -2938,7 +2948,7 @@ fn format_weekly_schedule(
 }
 
 /// Format hard/easy pattern results for JSON response
-fn format_hard_easy_pattern(pattern: &crate::intelligence::HardEasyPattern) -> serde_json::Value {
+fn format_hard_easy_pattern(pattern: &HardEasyPattern) -> serde_json::Value {
     let mut insights = vec![pattern.pattern_description.clone()];
 
     if !pattern.adequate_recovery {
@@ -2970,10 +2980,8 @@ fn format_hard_easy_pattern(pattern: &crate::intelligence::HardEasyPattern) -> s
 }
 
 /// Format volume progression pattern results for JSON response
-fn format_volume_progression(
-    pattern: &crate::intelligence::VolumeProgressionPattern,
-) -> serde_json::Value {
-    use crate::intelligence::VolumeTrend;
+fn format_volume_progression(pattern: &VolumeProgressionPattern) -> serde_json::Value {
+    use VolumeTrend;
 
     let mut insights = Vec::new();
     let trend_description = match pattern.trend {
@@ -3017,10 +3025,8 @@ fn format_volume_progression(
 }
 
 /// Format overtraining signals results for JSON response
-fn format_overtraining_signals(
-    signals: &crate::intelligence::OvertrainingSignals,
-) -> serde_json::Value {
-    use crate::intelligence::RiskLevel;
+fn format_overtraining_signals(signals: &OvertrainingSignals) -> serde_json::Value {
+    use RiskLevel;
 
     let mut warning_signs = Vec::new();
 
@@ -3101,10 +3107,10 @@ fn format_overtraining_signals(
 /// # Errors
 /// Returns error if sampling request fails or response is invalid
 async fn generate_activity_intelligence_via_sampling(
-    sampling_peer: &std::sync::Arc<crate::mcp::sampling_peer::SamplingPeer>,
-    activity: &crate::models::Activity,
-) -> crate::errors::AppResult<serde_json::Value> {
-    use crate::mcp::schema::{Content, CreateMessageRequest, ModelPreferences, PromptMessage};
+    sampling_peer: &Arc<SamplingPeer>,
+    activity: &Activity,
+) -> AppResult<serde_json::Value> {
+    use {Content, CreateMessageRequest, ModelPreferences, PromptMessage};
 
     // Prepare activity data for LLM analysis
     #[allow(clippy::cast_precision_loss)]
@@ -3202,11 +3208,11 @@ async fn generate_activity_intelligence_via_sampling(
 /// # Errors
 /// Returns error if sampling request fails or response is invalid
 async fn generate_recommendations_via_sampling(
-    sampling_peer: &std::sync::Arc<crate::mcp::sampling_peer::SamplingPeer>,
-    activities: &[crate::models::Activity],
+    sampling_peer: &Arc<SamplingPeer>,
+    activities: &[Activity],
     recommendation_type: &str,
-) -> crate::errors::AppResult<serde_json::Value> {
-    use crate::mcp::schema::{Content, CreateMessageRequest, ModelPreferences, PromptMessage};
+) -> AppResult<serde_json::Value> {
+    use {Content, CreateMessageRequest, ModelPreferences, PromptMessage};
 
     // Prepare activity summary for LLM analysis
     let activity_summary = if activities.is_empty() {
@@ -3296,7 +3302,7 @@ async fn generate_recommendations_via_sampling(
 
 /// Generate personalized training recommendations
 fn generate_training_recommendations(
-    activities: &[crate::models::Activity],
+    activities: &[Activity],
     recommendation_type: &str,
 ) -> serde_json::Value {
     if activities.is_empty() {
@@ -3336,11 +3342,7 @@ fn generate_training_recommendations(
 }
 
 /// Generate weekly training plan recommendations using training load analysis
-fn generate_training_plan_recommendations(
-    activities: &[crate::models::Activity],
-) -> serde_json::Value {
-    use crate::intelligence::{PatternDetector, TrainingLoadCalculator};
-
+fn generate_training_plan_recommendations(activities: &[Activity]) -> serde_json::Value {
     // Analyze volume progression to detect spikes
     let volume_pattern = PatternDetector::detect_volume_progression(activities);
     let weekly_schedule = PatternDetector::detect_weekly_schedule(activities);
@@ -3442,14 +3444,12 @@ fn generate_training_plan_recommendations(
 
 /// Helper to process TSB status and add recommendations
 fn process_tsb_recommendations(
-    load: &crate::intelligence::training_load::TrainingLoad,
+    load: &TrainingLoad,
     recommendations: &mut Vec<String>,
     priority: &mut &str,
     recovery_status: &mut &str,
     reasoning: &mut String,
 ) {
-    use crate::intelligence::{RiskLevel, TrainingLoadCalculator, TrainingStatus};
-
     let status = TrainingLoadCalculator::interpret_tsb(load.tsb);
     let recovery_days = TrainingLoadCalculator::recommend_recovery_days(load.tsb);
 
@@ -3494,9 +3494,7 @@ fn process_tsb_recommendations(
 }
 
 /// Generate recovery recommendations using TSB and overtraining signals
-fn generate_recovery_recommendations(activities: &[crate::models::Activity]) -> serde_json::Value {
-    use crate::intelligence::{PatternDetector, RiskLevel, TrainingLoadCalculator};
-
+fn generate_recovery_recommendations(activities: &[Activity]) -> serde_json::Value {
     // Calculate TSB (Training Stress Balance)
     let calculator = TrainingLoadCalculator::new();
     let training_load = calculator
@@ -3586,8 +3584,8 @@ fn generate_recovery_recommendations(activities: &[crate::models::Activity]) -> 
 }
 
 /// Generate intensity recommendations using hard/easy pattern detection
-fn generate_intensity_recommendations(activities: &[crate::models::Activity]) -> serde_json::Value {
-    use crate::intelligence::PatternDetector;
+fn generate_intensity_recommendations(activities: &[Activity]) -> serde_json::Value {
+    use PatternDetector;
 
     // Detect hard/easy pattern
     let pattern = PatternDetector::detect_hard_easy_pattern(activities);
@@ -3683,11 +3681,9 @@ fn generate_intensity_recommendations(activities: &[crate::models::Activity]) ->
 }
 
 /// Generate goal-specific recommendations using performance prediction
-fn generate_goal_specific_recommendations(
-    activities: &[crate::models::Activity],
-) -> serde_json::Value {
-    use crate::intelligence::PerformancePredictor;
-    use std::collections::HashMap;
+fn generate_goal_specific_recommendations(activities: &[Activity]) -> serde_json::Value {
+    use HashMap;
+    use PerformancePredictor;
 
     // Detect primary sport
     let mut sport_counts: HashMap<String, usize> = HashMap::new();
@@ -3716,11 +3712,9 @@ fn generate_goal_specific_recommendations(
             }
         })
         .max_by(|a, b| {
-            let pace_a = a.1 / (a.0 / crate::constants::limits::METERS_PER_KILOMETER);
-            let pace_b = b.1 / (b.0 / crate::constants::limits::METERS_PER_KILOMETER);
-            pace_b
-                .partial_cmp(&pace_a)
-                .unwrap_or(std::cmp::Ordering::Equal)
+            let pace_a = a.1 / (a.0 / METERS_PER_KILOMETER);
+            let pace_b = b.1 / (b.0 / METERS_PER_KILOMETER);
+            pace_b.partial_cmp(&pace_a).unwrap_or(Ordering::Equal)
         });
 
     let mut recommendations = Vec::new();
@@ -3731,7 +3725,7 @@ fn generate_goal_specific_recommendations(
     if let Some((distance, time)) = best_performance {
         if let Ok(predictions) = PerformancePredictor::generate_race_predictions(distance, time) {
             race_predictions = Some(serde_json::json!({
-                "based_on": format!("{:.1}km in {}", distance / crate::constants::limits::METERS_PER_KILOMETER, PerformancePredictor::format_time(time)),
+                "based_on": format!("{:.1}km in {}", distance / METERS_PER_KILOMETER, PerformancePredictor::format_time(time)),
                 "vdot": predictions.vdot,
                 "race_times": predictions.predictions,
             }));
@@ -3776,8 +3770,8 @@ fn generate_goal_specific_recommendations(
 
 /// Generate nutrition recommendations based on recent activity
 /// Calculate activity nutrition metrics (duration, calories, intensity)
-fn calculate_nutrition_metrics(activity: &crate::models::Activity) -> (f64, f64, &'static str) {
-    use crate::constants::time_constants;
+fn calculate_nutrition_metrics(activity: &Activity) -> (f64, f64, &'static str) {
+    use time_constants;
 
     let duration_hours = f64::from(
         u32::try_from(activity.duration_seconds.min(u64::from(u32::MAX))).unwrap_or(u32::MAX),
@@ -3862,7 +3856,7 @@ fn build_meal_suggestions(intensity: &str) -> Vec<serde_json::Value> {
     suggestions
 }
 
-fn generate_nutrition_recommendations(activities: &[crate::models::Activity]) -> serde_json::Value {
+fn generate_nutrition_recommendations(activities: &[Activity]) -> serde_json::Value {
     let most_recent = activities.iter().max_by_key(|a| a.start_date);
 
     if most_recent.is_none() {
@@ -3952,11 +3946,7 @@ fn generate_nutrition_recommendations(activities: &[crate::models::Activity]) ->
 }
 
 /// Generate comprehensive recommendations combining all analyses
-fn generate_comprehensive_recommendations(
-    activities: &[crate::models::Activity],
-) -> serde_json::Value {
-    use crate::intelligence::{PatternDetector, TrainingLoadCalculator};
-
+fn generate_comprehensive_recommendations(activities: &[Activity]) -> serde_json::Value {
     // Comprehensive analysis using all available modules
     let calculator = TrainingLoadCalculator::new();
     let training_load = calculator
@@ -4060,12 +4050,9 @@ fn generate_comprehensive_recommendations(
 
 /// Calculate fitness metrics using CTL/ATL/TSS methodology
 /// Calculate fitness metrics using proper 3-component formula with `TrainingLoadCalculator`
-fn calculate_fitness_metrics(
-    activities: &[crate::models::Activity],
-    timeframe: &str,
-) -> serde_json::Value {
-    use crate::intelligence::TrainingLoadCalculator;
+fn calculate_fitness_metrics(activities: &[Activity], timeframe: &str) -> serde_json::Value {
     use chrono::{Duration, Utc};
+    use TrainingLoadCalculator;
 
     if activities.is_empty() {
         return serde_json::json!({
@@ -4157,8 +4144,8 @@ fn calculate_fitness_metrics(
 }
 
 /// Calculate consistency score: percentage of weeks with 3+ activities
-fn calculate_consistency_score(activities: &[crate::models::Activity]) -> f64 {
-    use std::collections::HashMap;
+fn calculate_consistency_score(activities: &[Activity]) -> f64 {
+    use HashMap;
 
     if activities.is_empty() {
         return 0.0;
@@ -4197,7 +4184,7 @@ fn calculate_consistency_score(activities: &[crate::models::Activity]) -> f64 {
 }
 
 /// Calculate performance trend: improvement in average pace over time
-fn calculate_performance_trend(activities: &[crate::models::Activity]) -> f64 {
+fn calculate_performance_trend(activities: &[Activity]) -> f64 {
     let activities_with_pace: Vec<_> = activities
         .iter()
         .filter(|a| a.distance_meters.is_some() && a.duration_seconds > 0)
@@ -4270,7 +4257,7 @@ fn classify_fitness_level(score: f64) -> &'static str {
 }
 
 /// Calculate fitness trend by comparing recent vs older activities
-fn calculate_trend(activities: &[crate::models::Activity]) -> &'static str {
+fn calculate_trend(activities: &[Activity]) -> &'static str {
     if activities.len() < 4 {
         return "stable";
     }
@@ -4304,14 +4291,11 @@ fn calculate_trend(activities: &[crate::models::Activity]) -> &'static str {
 
 /// Predict race performance using VDOT and Riegel formulas
 /// Predict race performance using VDOT methodology from `PerformancePredictor`
-fn predict_race_performance(
-    activities: &[crate::models::Activity],
-    target_sport: &str,
-) -> serde_json::Value {
-    use crate::intelligence::PerformancePredictor;
+fn predict_race_performance(activities: &[Activity], target_sport: &str) -> serde_json::Value {
+    use PerformancePredictor;
 
     // Filter activities by sport type
-    let running_activities: Vec<&crate::models::Activity> = activities
+    let running_activities: Vec<&Activity> = activities
         .iter()
         .filter(|a| format!("{:?}", a.sport_type).contains("Run"))
         .collect();
@@ -4418,11 +4402,11 @@ fn predict_race_performance(
 /// - Number of recent races and consistency
 #[allow(clippy::cast_precision_loss, clippy::bool_to_int_with_if)] // Multi-level threshold scoring, not simple boolean conversion
 fn calculate_prediction_confidence(
-    activities: &[&crate::models::Activity],
+    activities: &[&Activity],
     best_activity_date: &chrono::DateTime<chrono::Utc>,
 ) -> String {
-    use crate::intelligence::TrainingLoadCalculator;
     use chrono::Utc;
+    use TrainingLoadCalculator;
 
     // Factor 1: Recency (< 30 days = high confidence)
     let days_since_best = (Utc::now() - *best_activity_date).num_days();
@@ -4477,11 +4461,8 @@ fn calculate_prediction_confidence(
 // ============================================================================
 
 /// Analyze training load with detailed TSS/CTL/ATL/TSB metrics
-fn analyze_detailed_training_load(
-    activities: &[crate::models::Activity],
-    timeframe: &str,
-) -> serde_json::Value {
-    use crate::intelligence::TrainingLoadCalculator;
+fn analyze_detailed_training_load(activities: &[Activity], timeframe: &str) -> serde_json::Value {
+    use TrainingLoadCalculator;
 
     if activities.is_empty() {
         return serde_json::json!({
@@ -4579,10 +4560,8 @@ fn analyze_detailed_training_load(
 }
 
 /// Calculate weekly TSS totals from `TssDataPoint` history (Phase 1 format)
-fn calculate_weekly_tss_from_history(
-    tss_history: &[crate::intelligence::TssDataPoint],
-) -> Vec<serde_json::Value> {
-    use std::collections::HashMap;
+fn calculate_weekly_tss_from_history(tss_history: &[TssDataPoint]) -> Vec<serde_json::Value> {
+    use HashMap;
 
     if tss_history.is_empty() {
         return Vec::new();

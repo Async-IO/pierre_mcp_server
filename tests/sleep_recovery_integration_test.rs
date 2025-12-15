@@ -13,12 +13,16 @@
 
 use anyhow::Result;
 use pierre_mcp_server::{
+    auth::AuthManager,
+    cache::{factory::Cache, CacheConfig as MemoryCacheConfig},
     config::environment::*,
     database_plugins::DatabaseProvider,
+    mcp::resources::ServerResources,
+    models::User,
     protocols::universal::{UniversalRequest, UniversalToolExecutor},
 };
 use serde_json::json;
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 use uuid::Uuid;
 
 mod common;
@@ -134,7 +138,7 @@ fn create_test_config() -> Arc<ServerConfig> {
         auth: AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
-            ..pierre_mcp_server::config::environment::AuthConfig::default()
+            ..AuthConfig::default()
         },
         oauth: create_test_oauth_config(),
         security: create_test_security_config(),
@@ -171,11 +175,11 @@ fn create_test_config() -> Arc<ServerConfig> {
             ..Default::default()
         },
         usda_api_key: None,
-        rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
-        sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
-        goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
-        training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
-        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
+        rate_limiting: RateLimitConfig::default(),
+        sleep_recovery: SleepRecoveryConfig::default(),
+        goal_management: GoalManagementConfig::default(),
+        training_zones: TrainingZonesConfig::default(),
+        firebase: FirebaseConfig::default(),
     })
 }
 
@@ -185,20 +189,20 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
     common::init_test_http_clients();
 
     let database = common::create_test_database().await?;
-    let auth_manager = pierre_mcp_server::auth::AuthManager::new(24);
+    let auth_manager = AuthManager::new(24);
     let config = create_test_config();
 
     // Create test cache with background cleanup disabled
-    let cache_config = pierre_mcp_server::cache::CacheConfig {
+    let cache_config = MemoryCacheConfig {
         max_entries: 1000,
         redis_url: None,
-        cleanup_interval: std::time::Duration::from_secs(60),
+        cleanup_interval: Duration::from_secs(60),
         enable_background_cleanup: false,
         ..Default::default()
     };
-    let cache = pierre_mcp_server::cache::factory::Cache::new(cache_config).await?;
+    let cache = Cache::new(cache_config).await?;
 
-    let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let server_resources = Arc::new(ServerResources::new(
         (*database).clone(),
         auth_manager,
         "test_secret",
@@ -246,7 +250,7 @@ async fn test_analyze_sleep_quality_tool() -> Result<()> {
     let user_id = Uuid::new_v4();
 
     // Create user for testing
-    let user = pierre_mcp_server::models::User::new(
+    let user = User::new(
         "sleep_test@example.com".to_owned(),
         "password_hash".to_owned(),
         Some("Sleep Test User".to_owned()),
@@ -349,7 +353,7 @@ async fn test_calculate_recovery_score_tool() -> Result<()> {
     let user_id = Uuid::new_v4();
 
     // Create user
-    let user = pierre_mcp_server::models::User::new(
+    let user = User::new(
         "recovery_test@example.com".to_owned(),
         "password_hash".to_owned(),
         Some("Recovery Test User".to_owned()),
@@ -427,7 +431,7 @@ async fn test_suggest_rest_day_tool() -> Result<()> {
     let user_id = Uuid::new_v4();
 
     // Create user with some activities
-    let user = pierre_mcp_server::models::User::new(
+    let user = User::new(
         "rest_day_test@example.com".to_owned(),
         "password_hash".to_owned(),
         Some("Rest Day Test User".to_owned()),
@@ -578,7 +582,7 @@ async fn test_track_sleep_trends_tool() -> Result<()> {
     let user_id = Uuid::new_v4();
 
     // Create user
-    let user = pierre_mcp_server::models::User::new(
+    let user = User::new(
         "trends_test@example.com".to_owned(),
         "password_hash".to_owned(),
         Some("Trends Test User".to_owned()),
@@ -625,7 +629,7 @@ async fn test_optimize_sleep_schedule_tool() -> Result<()> {
     let user_id = Uuid::new_v4();
 
     // Create user
-    let user = pierre_mcp_server::models::User::new(
+    let user = User::new(
         "optimize_test@example.com".to_owned(),
         "password_hash".to_owned(),
         Some("Optimize Test User".to_owned()),

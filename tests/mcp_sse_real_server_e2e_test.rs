@@ -12,14 +12,26 @@ mod common;
 use anyhow::Result;
 use pierre_mcp_server::{
     auth::AuthManager,
+    cache::{factory::Cache, CacheConfig},
+    config::environment::{
+        AppBehaviorConfig, AuthConfig, BackupConfig, DatabaseConfig, DatabaseUrl, Environment,
+        ExternalServicesConfig, HttpClientConfig, LogLevel, LoggingConfig, OAuth2ServerConfig,
+        OAuthConfig, PostgresPoolConfig, ProtocolConfig, RouteTimeoutConfig, SecurityConfig,
+        SecurityHeadersConfig, ServerConfig, SseConfig, TlsConfig,
+    },
     database_plugins::{factory::Database, DatabaseProvider},
-    mcp::multitenant::MultiTenantMcpServer,
+    mcp::{multitenant::MultiTenantMcpServer, resources::ServerResources},
+    models::{User, UserStatus, UserTier},
+    permissions::UserRole,
 };
 use rand::Rng;
 use reqwest::Client;
 use serde_json::{json, Value};
-use std::{net::TcpListener, sync::Arc, time::Duration};
-use tokio::time::{sleep, timeout};
+use std::{net::TcpListener, path::PathBuf, sync::Arc, time::Duration};
+use tokio::{
+    task::JoinHandle,
+    time::{sleep, timeout},
+};
 use uuid::Uuid;
 
 const TEST_JWT_SECRET: &str = "test_jwt_secret_for_sse_e2e_tests";
@@ -67,19 +79,18 @@ impl TestServer {
         })
     }
 
-    async fn start(&self) -> Result<tokio::task::JoinHandle<()>> {
+    async fn start(&self) -> Result<JoinHandle<()>> {
         let config = self.create_config();
-        let cache =
-            pierre_mcp_server::cache::factory::Cache::new(pierre_mcp_server::cache::CacheConfig {
-                max_entries: 1000,
-                redis_url: None,
-                cleanup_interval: Duration::from_secs(60),
-                enable_background_cleanup: false,
-                ..Default::default()
-            })
-            .await?;
+        let cache = Cache::new(CacheConfig {
+            max_entries: 1000,
+            redis_url: None,
+            cleanup_interval: Duration::from_secs(60),
+            enable_background_cleanup: false,
+            ..Default::default()
+        })
+        .await?;
 
-        let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+        let resources = Arc::new(ServerResources::new(
             (*self.database).clone(),
             (*self.auth_manager).clone(),
             &self.jwt_secret,
@@ -102,58 +113,56 @@ impl TestServer {
         Ok(handle)
     }
 
-    fn create_config(&self) -> Arc<pierre_mcp_server::config::environment::ServerConfig> {
-        Arc::new(pierre_mcp_server::config::environment::ServerConfig {
+    fn create_config(&self) -> Arc<ServerConfig> {
+        Arc::new(ServerConfig {
             http_port: self.port,
             oauth_callback_port: 35535,
-            log_level: pierre_mcp_server::config::environment::LogLevel::Info,
-            logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
-            http_client: pierre_mcp_server::config::environment::HttpClientConfig::default(),
-            database: pierre_mcp_server::config::environment::DatabaseConfig {
-                url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
+            log_level: LogLevel::Info,
+            logging: LoggingConfig::default(),
+            http_client: HttpClientConfig::default(),
+            database: DatabaseConfig {
+                url: DatabaseUrl::Memory,
                 auto_migrate: true,
-                backup: pierre_mcp_server::config::environment::BackupConfig {
+                backup: BackupConfig {
                     enabled: false,
                     interval_seconds: 3600,
                     retention_count: 7,
-                    directory: std::path::PathBuf::from("test_backups"),
+                    directory: PathBuf::from("test_backups"),
                 },
-                postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(
-                ),
+                postgres_pool: PostgresPoolConfig::default(),
             },
-            auth: pierre_mcp_server::config::environment::AuthConfig {
+            auth: AuthConfig {
                 jwt_expiry_hours: 24,
                 enable_refresh_tokens: false,
-                ..pierre_mcp_server::config::environment::AuthConfig::default()
+                ..AuthConfig::default()
             },
-            oauth: pierre_mcp_server::config::environment::OAuthConfig::default(),
-            security: pierre_mcp_server::config::environment::SecurityConfig {
+            oauth: OAuthConfig::default(),
+            security: SecurityConfig {
                 cors_origins: vec!["*".to_owned()],
-                tls: pierre_mcp_server::config::environment::TlsConfig {
+                tls: TlsConfig {
                     enabled: false,
                     cert_path: None,
                     key_path: None,
                 },
-                headers: pierre_mcp_server::config::environment::SecurityHeadersConfig {
-                    environment: pierre_mcp_server::config::environment::Environment::Testing,
+                headers: SecurityHeadersConfig {
+                    environment: Environment::Testing,
                 },
             },
-            external_services:
-                pierre_mcp_server::config::environment::ExternalServicesConfig::default(),
-            app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
+            external_services: ExternalServicesConfig::default(),
+            app_behavior: AppBehaviorConfig {
                 max_activities_fetch: 100,
                 default_activities_limit: 20,
                 ci_mode: true,
                 auto_approve_users: false,
-                protocol: pierre_mcp_server::config::environment::ProtocolConfig {
+                protocol: ProtocolConfig {
                     mcp_version: "2025-06-18".to_owned(),
                     server_name: "pierre-mcp-server-test".to_owned(),
                     server_version: env!("CARGO_PKG_VERSION").to_owned(),
                 },
             },
-            sse: pierre_mcp_server::config::environment::SseConfig::default(),
-            oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
-            route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+            sse: SseConfig::default(),
+            oauth2_server: OAuth2ServerConfig::default(),
+            route_timeouts: RouteTimeoutConfig::default(),
             ..Default::default()
         })
     }
@@ -162,19 +171,19 @@ impl TestServer {
         let user_id = Uuid::new_v4();
         let password_hash = bcrypt::hash(password, bcrypt::DEFAULT_COST)?;
 
-        let user = pierre_mcp_server::models::User {
+        let user = User {
             id: user_id,
             email: email.to_owned(),
             display_name: Some("Test User".to_owned()),
             password_hash,
-            tier: pierre_mcp_server::models::UserTier::Starter,
+            tier: UserTier::Starter,
             tenant_id: None,
             strava_token: None,
             fitbit_token: None,
             is_active: true,
-            user_status: pierre_mcp_server::models::UserStatus::Active,
+            user_status: UserStatus::Active,
             is_admin: false,
-            role: pierre_mcp_server::permissions::UserRole::User,
+            role: UserRole::User,
             approved_by: Some(user_id),
             approved_at: Some(chrono::Utc::now()),
             created_at: chrono::Utc::now(),

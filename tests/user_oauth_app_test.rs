@@ -16,11 +16,14 @@
 
 use anyhow::Result;
 use chrono::Utc;
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
 use pierre_mcp_server::{
     config::environment::{OAuthConfig, OAuthProviderConfig},
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
     models::{Tenant, User, UserStatus, UserTier},
+    permissions::UserRole,
     tenant::oauth_manager::{CredentialConfig, TenantOAuthManager},
 };
 use serial_test::serial;
@@ -37,12 +40,8 @@ async fn setup_test_database() -> Result<Database> {
     let encryption_key = generate_encryption_key().to_vec();
 
     #[cfg(feature = "postgresql")]
-    let database = Database::new(
-        database_url,
-        encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
-    )
-    .await?;
+    let database =
+        Database::new(database_url, encryption_key, &PostgresPoolConfig::default()).await?;
 
     #[cfg(not(feature = "postgresql"))]
     let database = Database::new(database_url, encryption_key).await?;
@@ -66,7 +65,7 @@ async fn create_test_user(database: &Database, email: &str, tenant_id: Uuid) -> 
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         approved_by: None,
         approved_at: Some(Utc::now()),
         created_at: Utc::now(),

@@ -9,19 +9,25 @@
 //! This module provides endpoints for A2A client management and protocol operations.
 //! All client management routes require valid JWT authentication.
 
-use crate::a2a::agent_card::AgentCard;
-use crate::database_plugins::DatabaseProvider;
-use crate::errors::AppError;
-use crate::mcp::resources::ServerResources;
+use crate::{
+    a2a::{agent_card::AgentCard, client::ClientRegistrationRequest},
+    auth::AuthResult,
+    database_plugins::DatabaseProvider,
+    errors::AppError,
+    mcp::resources::ServerResources,
+    security::cookies::get_cookie_value,
+};
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{delete, get},
     Json, Router,
 };
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use tokio::task;
 use tracing::{error, info};
 
 /// Response for A2A client list
@@ -137,15 +143,13 @@ impl A2ARoutes {
 
     /// Extract and authenticate user from authorization header or cookie
     async fn authenticate(
-        headers: &axum::http::HeaderMap,
+        headers: &HeaderMap,
         resources: &Arc<ServerResources>,
-    ) -> Result<crate::auth::AuthResult, AppError> {
+    ) -> Result<AuthResult, AppError> {
         let auth_value =
             if let Some(auth_header) = headers.get("authorization").and_then(|h| h.to_str().ok()) {
                 auth_header.to_owned()
-            } else if let Some(token) =
-                crate::security::cookies::get_cookie_value(headers, "auth_token")
-            {
+            } else if let Some(token) = get_cookie_value(headers, "auth_token") {
                 format!("Bearer {token}")
             } else {
                 return Err(AppError::auth_invalid(
@@ -163,7 +167,7 @@ impl A2ARoutes {
     /// Handle A2A status (public endpoint)
     async fn handle_status() -> Json<serde_json::Value> {
         // Yield to scheduler for cooperative multitasking
-        tokio::task::yield_now().await;
+        task::yield_now().await;
         Json(serde_json::json!({
             "status": "active"
         }))
@@ -172,14 +176,14 @@ impl A2ARoutes {
     /// Handle agent card discovery endpoint (public endpoint)
     async fn handle_agent_card_discovery() -> Json<AgentCard> {
         // Yield to scheduler for cooperative multitasking
-        tokio::task::yield_now().await;
+        task::yield_now().await;
         Json(AgentCard::new())
     }
 
     /// List all A2A clients for authenticated user
     async fn handle_list_clients(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
         let user_id = auth.user_id;
@@ -209,7 +213,7 @@ impl A2ARoutes {
     /// Create a new A2A client
     async fn handle_create_client(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Json(request): Json<CreateA2AClientRequest>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
@@ -221,7 +225,7 @@ impl A2ARoutes {
         );
 
         // Convert to the A2A client registration request format
-        let registration_request = crate::a2a::client::ClientRegistrationRequest {
+        let registration_request = ClientRegistrationRequest {
             name: request.name,
             description: request.description,
             capabilities: request.capabilities,
@@ -259,7 +263,7 @@ impl A2ARoutes {
     /// Get a specific A2A client
     async fn handle_get_client(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Path(client_id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
@@ -296,7 +300,7 @@ impl A2ARoutes {
     /// Delete (deactivate) an A2A client
     async fn handle_delete_client(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Path(client_id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
@@ -329,7 +333,7 @@ impl A2ARoutes {
     /// Get A2A client usage statistics
     async fn handle_client_usage(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Path(client_id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
@@ -368,7 +372,7 @@ impl A2ARoutes {
     /// Get A2A client rate limit status
     async fn handle_client_rate_limit(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Path(client_id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
@@ -402,7 +406,7 @@ impl A2ARoutes {
                 "rate_limit_window_seconds": client.rate_limit_window_seconds,
                 "current_usage": current_usage,
                 "remaining": remaining,
-                "reset_at": chrono::Utc::now().to_rfc3339()
+                "reset_at": Utc::now().to_rfc3339()
             })),
         )
             .into_response())
@@ -411,7 +415,7 @@ impl A2ARoutes {
     /// Handle A2A dashboard overview
     async fn handle_dashboard_overview(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
         let user_id = auth.user_id;
@@ -435,7 +439,7 @@ impl A2ARoutes {
     /// Handle A2A dashboard analytics
     async fn handle_dashboard_analytics(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
     ) -> Result<Response, AppError> {
         Self::authenticate(&headers, &resources).await?;
 

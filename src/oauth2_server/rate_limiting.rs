@@ -4,10 +4,12 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use crate::config::environment::RateLimitConfig;
+use crate::rate_limiting::{OAuth2RateLimitConfig, OAuth2RateLimitStatus};
 use dashmap::DashMap;
 use std::net::IpAddr;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 /// `OAuth2` rate limiter with per-IP tracking using sharded concurrent `HashMap`
 /// Uses `DashMap` for fine-grained locking instead of global `Mutex` to reduce contention
@@ -16,9 +18,9 @@ pub struct OAuth2RateLimiter {
     /// Per-IP request tracking: IP -> (`request_count`, `window_start`)
     /// `DashMap` provides lock-free read operations and sharded write operations
     state: Arc<DashMap<IpAddr, (u32, Instant)>>,
-    config: crate::rate_limiting::OAuth2RateLimitConfig,
+    config: OAuth2RateLimitConfig,
     /// Rate limit configuration for window and cleanup values
-    rate_limit_config: crate::config::environment::RateLimitConfig,
+    rate_limit_config: RateLimitConfig,
 }
 
 impl OAuth2RateLimiter {
@@ -27,43 +29,35 @@ impl OAuth2RateLimiter {
     pub fn new() -> Self {
         Self {
             state: Arc::new(DashMap::new()),
-            config: crate::rate_limiting::OAuth2RateLimitConfig::new(),
-            rate_limit_config: crate::config::environment::RateLimitConfig::default(),
+            config: OAuth2RateLimitConfig::new(),
+            rate_limit_config: RateLimitConfig::default(),
         }
     }
 
     /// Create `OAuth2` rate limiter from `RateLimitConfig`
     #[must_use]
-    pub fn from_rate_limit_config(
-        rate_config: crate::config::environment::RateLimitConfig,
-    ) -> Self {
+    pub fn from_rate_limit_config(rate_config: RateLimitConfig) -> Self {
         Self {
             state: Arc::new(DashMap::new()),
-            config: crate::rate_limiting::OAuth2RateLimitConfig::from_rate_limit_config(
-                &rate_config,
-            ),
+            config: OAuth2RateLimitConfig::from_rate_limit_config(&rate_config),
             rate_limit_config: rate_config,
         }
     }
 
     /// Create `OAuth2` rate limiter with custom configuration
     #[must_use]
-    pub fn with_config(config: crate::rate_limiting::OAuth2RateLimitConfig) -> Self {
+    pub fn with_config(config: OAuth2RateLimitConfig) -> Self {
         Self {
             state: Arc::new(DashMap::new()),
             config,
-            rate_limit_config: crate::config::environment::RateLimitConfig::default(),
+            rate_limit_config: RateLimitConfig::default(),
         }
     }
 
     /// Check rate limit for a specific endpoint and IP
     /// Uses `DashMap` entry API for atomic read-modify-write operations
     #[must_use]
-    pub fn check_rate_limit(
-        &self,
-        endpoint: &str,
-        client_ip: IpAddr,
-    ) -> crate::rate_limiting::OAuth2RateLimitStatus {
+    pub fn check_rate_limit(&self, endpoint: &str, client_ip: IpAddr) -> OAuth2RateLimitStatus {
         let limit = self.config.get_limit(endpoint);
         let now = Instant::now();
         let window = Duration::from_secs(self.rate_limit_config.rate_limit_window_secs);
@@ -96,17 +90,17 @@ impl OAuth2RateLimiter {
         }
 
         // Calculate reset time (convert Instant to Unix timestamp)
-        let now_system = std::time::SystemTime::now();
+        let now_system = SystemTime::now();
         let elapsed_from_window_start = now.duration_since(result_window_start);
         let reset_system = now_system + (window - elapsed_from_window_start);
         #[allow(clippy::cast_possible_wrap)]
         // Safe: Unix timestamps fit in i64 range for next several centuries
         let reset_at = reset_system
-            .duration_since(std::time::UNIX_EPOCH)
+            .duration_since(UNIX_EPOCH)
             .unwrap_or(Duration::ZERO)
             .as_secs() as i64;
 
-        crate::rate_limiting::OAuth2RateLimitStatus {
+        OAuth2RateLimitStatus {
             is_limited,
             limit,
             remaining,

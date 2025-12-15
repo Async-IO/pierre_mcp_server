@@ -5,7 +5,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::config::environment::RouteTimeoutConfig;
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use std::future::Future;
 use std::sync::OnceLock;
 use std::time::Duration;
@@ -61,10 +61,10 @@ fn get_config() -> &'static RouteTimeoutConfig {
 /// # Ok(())
 /// # }
 /// ```
-pub async fn with_database_timeout<F, T, E>(operation: F) -> crate::errors::AppResult<T>
+pub async fn with_database_timeout<F, T, E>(operation: F) -> AppResult<T>
 where
     F: Future<Output = Result<T, E>>,
-    E: Into<crate::errors::AppError>,
+    E: Into<AppError>,
 {
     let config = get_config();
     let duration = Duration::from_secs(config.database_timeout_secs);
@@ -104,10 +104,10 @@ where
 /// # Ok(())
 /// # }
 /// ```
-pub async fn with_provider_api_timeout<F, T, E>(operation: F) -> crate::errors::AppResult<T>
+pub async fn with_provider_api_timeout<F, T, E>(operation: F) -> AppResult<T>
 where
     F: Future<Output = Result<T, E>>,
-    E: Into<crate::errors::AppError>,
+    E: Into<AppError>,
 {
     let config = get_config();
     let duration = Duration::from_secs(config.provider_api_timeout_secs);
@@ -147,10 +147,10 @@ where
 /// # Ok(())
 /// # }
 /// ```
-pub async fn with_sse_timeout<F, T, E>(operation: F) -> crate::errors::AppResult<T>
+pub async fn with_sse_timeout<F, T, E>(operation: F) -> AppResult<T>
 where
     F: Future<Output = Result<T, E>>,
-    E: Into<crate::errors::AppError>,
+    E: Into<AppError>,
 {
     let config = get_config();
     let duration = Duration::from_secs(config.sse_event_timeout_secs);
@@ -190,10 +190,10 @@ where
 /// # Ok(())
 /// # }
 /// ```
-pub async fn with_oauth_timeout<F, T, E>(operation: F) -> crate::errors::AppResult<T>
+pub async fn with_oauth_timeout<F, T, E>(operation: F) -> AppResult<T>
 where
     F: Future<Output = Result<T, E>>,
-    E: Into<crate::errors::AppError>,
+    E: Into<AppError>,
 {
     let config = get_config();
     let duration = Duration::from_secs(config.oauth_operation_timeout_secs);

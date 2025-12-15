@@ -11,6 +11,7 @@
 
 use pierre_mcp_server::intelligence::{AnalysisConfig, ConfidenceLevel};
 use serial_test::serial;
+use std::env;
 
 #[test]
 fn test_default_config_validation() {
@@ -54,8 +55,8 @@ fn test_confidence_level_calculation() {
 #[test]
 #[serial]
 fn test_environment_variable_override() {
-    std::env::set_var("INTELLIGENCE_FITNESS_SCORE_WEEKS", "8");
-    std::env::set_var("INTELLIGENCE_HIGH_R_SQUARED_THRESHOLD", "0.75");
+    env::set_var("INTELLIGENCE_FITNESS_SCORE_WEEKS", "8");
+    env::set_var("INTELLIGENCE_HIGH_R_SQUARED_THRESHOLD", "0.75");
 
     let config = AnalysisConfig::from_environment().unwrap();
 
@@ -63,6 +64,6 @@ fn test_environment_variable_override() {
     assert!((config.confidence.high_r_squared - 0.75).abs() < 0.001);
 
     // Clean up
-    std::env::remove_var("INTELLIGENCE_FITNESS_SCORE_WEEKS");
-    std::env::remove_var("INTELLIGENCE_HIGH_R_SQUARED_THRESHOLD");
+    env::remove_var("INTELLIGENCE_FITNESS_SCORE_WEEKS");
+    env::remove_var("INTELLIGENCE_HIGH_R_SQUARED_THRESHOLD");
 }

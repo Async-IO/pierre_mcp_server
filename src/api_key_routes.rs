@@ -8,6 +8,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::Serialize;
+use std::sync::Arc;
 
 use crate::{
     api_keys::{
@@ -80,7 +81,7 @@ pub struct ApiKeyDeactivateResponse {
 #[derive(Clone)]
 pub struct ApiKeyRoutes {
     /// Server resources including database
-    resources: std::sync::Arc<ServerResources>,
+    resources: Arc<ServerResources>,
     /// API key management logic
     api_key_manager: ApiKeyManager,
 }
@@ -88,7 +89,7 @@ pub struct ApiKeyRoutes {
 impl ApiKeyRoutes {
     /// Create a new API key routes handler
     #[must_use]
-    pub const fn new(resources: std::sync::Arc<ServerResources>) -> Self {
+    pub const fn new(resources: Arc<ServerResources>) -> Self {
         Self {
             api_key_manager: ApiKeyManager::new(),
             resources,

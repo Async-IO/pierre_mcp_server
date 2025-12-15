@@ -9,13 +9,17 @@
 
 mod common;
 
-use pierre_mcp_server::admin::{
-    auth::AdminAuthService,
-    jwt::AdminJwtManager,
-    models::{AdminPermission, AdminPermissions},
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
+use pierre_mcp_server::{
+    admin::{
+        auth::AdminAuthService,
+        jwt::AdminJwtManager,
+        models::{AdminPermission, AdminPermissions},
+    },
+    database::generate_encryption_key,
+    database_plugins::factory::Database,
 };
-use pierre_mcp_server::database::generate_encryption_key;
-use pierre_mcp_server::database_plugins::factory::Database;
 
 #[tokio::test]
 async fn test_admin_authentication_flow() {
@@ -26,7 +30,7 @@ async fn test_admin_authentication_flow() {
     let database = Database::new(
         "sqlite::memory:",
         encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await
     .unwrap();

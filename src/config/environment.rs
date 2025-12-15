@@ -6,11 +6,16 @@
 
 //! Environment-based configuration management for production deployment
 
-use crate::constants::{defaults, limits, oauth};
+use crate::config::intelligence::IntelligenceConfig;
+use crate::constants::{
+    defaults, goal_management, limits, oauth, oauth_providers, sleep_recovery, timeouts,
+};
 use crate::errors::{AppError, AppResult};
+use crate::intelligence::physiological_constants::training_zone_percentages::{ftp, vdot};
 use crate::middleware::redaction::RedactionFeatures;
 use serde::{Deserialize, Serialize};
 use std::env;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::path::PathBuf;
 use tracing::{debug, info, warn};
 
@@ -57,8 +62,8 @@ impl LogLevel {
     }
 }
 
-impl std::fmt::Display for LogLevel {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for LogLevel {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Self::Error => write!(f, "error"),
             Self::Warn => write!(f, "warn"),
@@ -112,8 +117,8 @@ impl Environment {
     }
 }
 
-impl std::fmt::Display for Environment {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for Environment {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Self::Development => write!(f, "development"),
             Self::Production => write!(f, "production"),
@@ -155,8 +160,8 @@ impl LlmProviderType {
     }
 }
 
-impl std::fmt::Display for LlmProviderType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for LlmProviderType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Self::Groq => write!(f, "groq"),
             Self::Gemini => write!(f, "gemini"),
@@ -246,8 +251,8 @@ impl Default for DatabaseUrl {
     }
 }
 
-impl std::fmt::Display for DatabaseUrl {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for DatabaseUrl {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         write!(f, "{}", self.to_connection_string())
     }
 }
@@ -380,7 +385,6 @@ pub struct SleepRecoveryConfig {
 
 impl Default for SleepRecoveryConfig {
     fn default() -> Self {
-        use crate::constants::sleep_recovery;
         Self {
             activity_limit: sleep_recovery::ACTIVITY_LIMIT,
             trend_min_days: sleep_recovery::TREND_MIN_DAYS,
@@ -418,7 +422,6 @@ pub struct GoalManagementConfig {
 
 impl Default for GoalManagementConfig {
     fn default() -> Self {
-        use crate::constants::goal_management;
         Self {
             min_activities_for_history: goal_management::MIN_ACTIVITIES_FOR_TRAINING_HISTORY,
             advanced_activities_per_week: goal_management::ADVANCED_FITNESS_ACTIVITIES_PER_WEEK,
@@ -460,7 +463,6 @@ pub struct TrainingZonesConfig {
 
 impl Default for TrainingZonesConfig {
     fn default() -> Self {
-        use crate::intelligence::physiological_constants::training_zone_percentages::{ftp, vdot};
         Self {
             vdot_easy_zone_percent: vdot::EASY_ZONE_PERCENT,
             vdot_tempo_zone_percent: vdot::TEMPO_ZONE_PERCENT,
@@ -589,7 +591,7 @@ impl Default for PostgresPoolConfig {
     fn default() -> Self {
         use crate::constants::database;
         // CI environment detection at config load time
-        let is_ci = std::env::var("CI").is_ok();
+        let is_ci = env::var("CI").is_ok();
         Self {
             max_connections: if is_ci { 3 } else { 10 },
             min_connections: if is_ci { 1 } else { 2 },
@@ -893,7 +895,7 @@ impl<'de> Deserialize<'de> for LoggingConfig {
     where
         D: serde::Deserializer<'de>,
     {
-        use serde::de::{self, MapAccess, Visitor};
+        use serde::de::{self, IgnoredAny, MapAccess, Visitor};
         use std::fmt;
 
         struct LoggingConfigVisitor;
@@ -941,7 +943,7 @@ impl<'de> Deserialize<'de> for LoggingConfig {
                             debug_sampling_rate = Some(map.next_value()?);
                         }
                         _ => {
-                            let _: serde::de::IgnoredAny = map.next_value()?;
+                            let _: IgnoredAny = map.next_value()?;
                         }
                     }
                 }
@@ -1171,18 +1173,15 @@ pub enum SseBufferStrategy {
 impl Default for HttpClientConfig {
     fn default() -> Self {
         Self {
-            shared_client_timeout_secs: crate::constants::timeouts::HTTP_CLIENT_TIMEOUT_SECS,
-            shared_client_connect_timeout_secs:
-                crate::constants::timeouts::HTTP_CLIENT_CONNECT_TIMEOUT_SECS,
-            oauth_client_timeout_secs: crate::constants::timeouts::OAUTH_CLIENT_TIMEOUT_SECS,
-            oauth_client_connect_timeout_secs:
-                crate::constants::timeouts::OAUTH_CLIENT_CONNECT_TIMEOUT_SECS,
-            api_client_timeout_secs: crate::constants::timeouts::API_CLIENT_TIMEOUT_SECS,
-            api_client_connect_timeout_secs:
-                crate::constants::timeouts::API_CLIENT_CONNECT_TIMEOUT_SECS,
-            health_check_timeout_secs: crate::constants::timeouts::HEALTH_CHECK_TIMEOUT_SECS,
+            shared_client_timeout_secs: timeouts::HTTP_CLIENT_TIMEOUT_SECS,
+            shared_client_connect_timeout_secs: timeouts::HTTP_CLIENT_CONNECT_TIMEOUT_SECS,
+            oauth_client_timeout_secs: timeouts::OAUTH_CLIENT_TIMEOUT_SECS,
+            oauth_client_connect_timeout_secs: timeouts::OAUTH_CLIENT_CONNECT_TIMEOUT_SECS,
+            api_client_timeout_secs: timeouts::API_CLIENT_TIMEOUT_SECS,
+            api_client_connect_timeout_secs: timeouts::API_CLIENT_CONNECT_TIMEOUT_SECS,
+            health_check_timeout_secs: timeouts::HEALTH_CHECK_TIMEOUT_SECS,
             oauth_callback_notification_timeout_secs:
-                crate::constants::timeouts::OAUTH_CALLBACK_NOTIFICATION_TIMEOUT_SECS,
+                timeouts::OAUTH_CALLBACK_NOTIFICATION_TIMEOUT_SECS,
             enable_retries: true,
             max_retries: 3,
             retry_base_delay_ms: 100,
@@ -1195,9 +1194,9 @@ impl Default for HttpClientConfig {
 impl Default for SseConfig {
     fn default() -> Self {
         Self {
-            cleanup_interval_secs: crate::constants::timeouts::SSE_CLEANUP_INTERVAL_SECS,
-            connection_timeout_secs: crate::constants::timeouts::SSE_CONNECTION_TIMEOUT_SECS,
-            session_cookie_max_age_secs: crate::constants::timeouts::SESSION_COOKIE_MAX_AGE_SECS,
+            cleanup_interval_secs: timeouts::SSE_CLEANUP_INTERVAL_SECS,
+            connection_timeout_secs: timeouts::SSE_CONNECTION_TIMEOUT_SECS,
+            session_cookie_max_age_secs: timeouts::SESSION_COOKIE_MAX_AGE_SECS,
             session_cookie_secure: false, // Default to false for development, override in production
             max_buffer_size: 1000,
             buffer_overflow_strategy: SseBufferStrategy::default(),
@@ -1339,7 +1338,7 @@ impl ServerConfig {
     /// Returns an error if intelligence configuration cannot be loaded or validated
     pub fn init_all_configs(&self) -> AppResult<()> {
         // Initialize intelligence configuration
-        let intelligence_config = crate::config::intelligence::IntelligenceConfig::global();
+        let intelligence_config = IntelligenceConfig::global();
 
         // Validate intelligence configuration is properly loaded by accessing a field
         info!(
@@ -1480,7 +1479,7 @@ impl ServerConfig {
     /// Load `PostgreSQL` pool configuration from environment (or defaults)
     fn load_postgres_pool_config() -> PostgresPoolConfig {
         use crate::constants::database;
-        let is_ci = std::env::var("CI").is_ok();
+        let is_ci = env::var("CI").is_ok();
         PostgresPoolConfig {
             max_connections: env::var("POSTGRES_MAX_CONNECTIONS")
                 .ok()
@@ -2016,8 +2015,6 @@ impl ServerConfig {
 
     /// Load sleep recovery configuration from environment
     fn load_sleep_recovery_config() -> SleepRecoveryConfig {
-        use crate::constants::sleep_recovery;
-
         SleepRecoveryConfig {
             activity_limit: env::var("SLEEP_RECOVERY_ACTIVITY_LIMIT")
                 .ok()
@@ -2060,8 +2057,6 @@ impl ServerConfig {
 
     /// Load goal management configuration from environment
     fn load_goal_management_config() -> GoalManagementConfig {
-        use crate::constants::goal_management;
-
         GoalManagementConfig {
             min_activities_for_history: env::var("GOAL_MANAGEMENT_MIN_ACTIVITIES")
                 .ok()
@@ -2106,8 +2101,6 @@ impl ServerConfig {
 
     /// Load training zones configuration from environment
     fn load_training_zones_config() -> TrainingZonesConfig {
-        use crate::intelligence::physiological_constants::training_zone_percentages::{ftp, vdot};
-
         TrainingZonesConfig {
             vdot_easy_zone_percent: env::var("TRAINING_ZONES_VDOT_EASY_PERCENT")
                 .ok()
@@ -2259,7 +2252,7 @@ impl ServerConfig {
         Ok(SseConfig {
             cleanup_interval_secs: env_var_or(
                 "SSE_CLEANUP_INTERVAL_SECS",
-                &crate::constants::timeouts::SSE_CLEANUP_INTERVAL_SECS.to_string(),
+                &timeouts::SSE_CLEANUP_INTERVAL_SECS.to_string(),
             )
             .parse()
             .map_err(|e| {
@@ -2267,7 +2260,7 @@ impl ServerConfig {
             })?,
             connection_timeout_secs: env_var_or(
                 "SSE_CONNECTION_TIMEOUT_SECS",
-                &crate::constants::timeouts::SSE_CONNECTION_TIMEOUT_SECS.to_string(),
+                &timeouts::SSE_CONNECTION_TIMEOUT_SECS.to_string(),
             )
             .parse()
             .map_err(|e| {
@@ -2275,7 +2268,7 @@ impl ServerConfig {
             })?,
             session_cookie_max_age_secs: env_var_or(
                 "SESSION_COOKIE_MAX_AGE_SECS",
-                &crate::constants::timeouts::SESSION_COOKIE_MAX_AGE_SECS.to_string(),
+                &timeouts::SESSION_COOKIE_MAX_AGE_SECS.to_string(),
             )
             .parse()
             .map_err(|e| {
@@ -2341,7 +2334,6 @@ fn parse_origins(origins_str: &str) -> Vec<String> {
 /// ```
 #[must_use]
 pub fn default_provider() -> String {
-    use crate::constants::oauth_providers;
     let provider = env::var("PIERRE_DEFAULT_PROVIDER")
         .ok()
         .filter(|s| !s.is_empty())
@@ -2360,8 +2352,6 @@ pub fn default_provider() -> String {
 /// * `provider_name` - The provider name (e.g., "strava", "garmin", "fitbit")
 #[must_use]
 pub fn get_oauth_config(provider_name: &str) -> OAuthProviderConfig {
-    use crate::constants::oauth_providers;
-
     fn parse_scopes(env_value: Option<String>, defaults: Vec<String>) -> Vec<String> {
         env_value.map_or(defaults, |s| s.split(',').map(str::to_owned).collect())
     }

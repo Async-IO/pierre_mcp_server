@@ -18,6 +18,8 @@
 //! - **VO2 Max**: Physiological calculations and training zones
 //! - **Routes**: HTTP endpoints for configuration management
 
+use std::error::Error;
+
 use tracing::{debug, info};
 
 // Core configuration modules
@@ -82,7 +84,7 @@ pub use routes::{ConfigurationRoutes, FitnessConfigurationRoutes};
 /// # Errors
 ///
 /// Returns an error if configuration initialization fails
-pub fn init_configs() -> Result<(), Box<dyn std::error::Error>> {
+pub fn init_configs() -> Result<(), Box<dyn Error>> {
     // Initialize global intelligence config
     let intelligence_config = IntelligenceConfig::global();
 

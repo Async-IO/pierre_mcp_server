@@ -4,6 +4,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use std::fmt::{Debug, Display};
+use std::result::Result;
+
 use crate::errors::{AppError, AppResult, ErrorCode};
 
 /// Create a validation error with context
@@ -58,9 +61,9 @@ pub trait ErrorContext<T> {
     fn with_operation_context(self, operation: &str) -> AppResult<T>;
 }
 
-impl<T, E> ErrorContext<T> for std::result::Result<T, E>
+impl<T, E> ErrorContext<T> for Result<T, E>
 where
-    E: std::fmt::Display + std::fmt::Debug + Send + Sync + 'static,
+    E: Display + Debug + Send + Sync + 'static,
 {
     fn with_validation_context(self, message: &str) -> AppResult<T> {
         self.map_err(|e| validation_error(&format!("{message}: {e}")))

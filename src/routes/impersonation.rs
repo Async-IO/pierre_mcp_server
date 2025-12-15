@@ -10,14 +10,17 @@
 //! All impersonation actions are logged for audit purposes.
 
 use crate::{
+    auth::AuthResult,
     database_plugins::DatabaseProvider,
     errors::{AppError, ErrorCode},
     mcp::resources::ServerResources,
+    models::User,
     permissions::impersonation::ImpersonationSession,
+    security::cookies::get_cookie_value,
 };
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
@@ -112,16 +115,14 @@ impl ImpersonationRoutes {
 
     /// Authenticate user and require super admin role
     async fn authenticate_super_admin(
-        headers: &axum::http::HeaderMap,
+        headers: &HeaderMap,
         resources: &Arc<ServerResources>,
-    ) -> Result<(crate::auth::AuthResult, crate::models::User), AppError> {
+    ) -> Result<(AuthResult, User), AppError> {
         // Try Authorization header first, then fall back to auth_token cookie
         let auth_value =
             if let Some(auth_header) = headers.get("authorization").and_then(|h| h.to_str().ok()) {
                 auth_header.to_owned()
-            } else if let Some(token) =
-                crate::security::cookies::get_cookie_value(headers, "auth_token")
-            {
+            } else if let Some(token) = get_cookie_value(headers, "auth_token") {
                 format!("Bearer {token}")
             } else {
                 return Err(AppError::auth_invalid(
@@ -156,7 +157,7 @@ impl ImpersonationRoutes {
     /// Handle starting an impersonation session
     async fn handle_start_impersonation(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Json(request): Json<StartImpersonationRequestBody>,
     ) -> Result<Response, AppError> {
         // Authenticate and verify super admin status
@@ -251,15 +252,13 @@ impl ImpersonationRoutes {
     /// Handle ending an impersonation session
     async fn handle_end_impersonation(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
     ) -> Result<Response, AppError> {
         // Authenticate - can be either super admin or impersonated session
         let auth_value =
             if let Some(auth_header) = headers.get("authorization").and_then(|h| h.to_str().ok()) {
                 auth_header.to_owned()
-            } else if let Some(token) =
-                crate::security::cookies::get_cookie_value(&headers, "auth_token")
-            {
+            } else if let Some(token) = get_cookie_value(&headers, "auth_token") {
                 format!("Bearer {token}")
             } else {
                 return Err(AppError::auth_invalid(
@@ -317,7 +316,7 @@ impl ImpersonationRoutes {
     /// Handle listing impersonation sessions
     async fn handle_list_sessions(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
     ) -> Result<Response, AppError> {
         // Authenticate and verify super admin status
         let (auth, _user) = Self::authenticate_super_admin(&headers, &resources).await?;
@@ -381,7 +380,7 @@ impl ImpersonationRoutes {
     /// Handle getting a specific impersonation session
     async fn handle_get_session(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Path(session_id): Path<String>,
     ) -> Result<Response, AppError> {
         // Authenticate and verify super admin status

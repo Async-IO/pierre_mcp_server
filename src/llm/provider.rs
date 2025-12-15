@@ -32,6 +32,7 @@
 //! }
 //! ```
 
+use std::fmt;
 use tracing::{debug, info};
 
 use super::{
@@ -263,8 +264,8 @@ impl ChatProvider {
     }
 }
 
-impl std::fmt::Debug for ChatProvider {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for ChatProvider {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Gemini(_) => f.debug_tuple("ChatProvider::Gemini").finish(),
             Self::Groq(_) => f.debug_tuple("ChatProvider::Groq").finish(),

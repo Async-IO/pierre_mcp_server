@@ -4,11 +4,15 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use crate::constants::oauth_config::AUTHORIZATION_EXPIRES_MINUTES;
 use crate::database_plugins::DatabaseProvider;
-use crate::protocols::universal::{UniversalRequest, UniversalResponse};
+use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalToolExecutor};
 use crate::protocols::ProtocolError;
-use crate::tenant::TenantContext;
+use crate::providers::ProviderRegistry;
+use crate::tenant::{TenantContext, TenantRole};
 use crate::utils::uuid::parse_user_id_for_protocol;
+use serde_json::{json, Map, Value};
+use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use tracing::{error, info};
@@ -16,7 +20,7 @@ use tracing::{error, info};
 /// Handle `get_connection_status` tool - check OAuth connection status
 #[must_use]
 pub fn handle_get_connection_status(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -33,10 +37,7 @@ pub fn handle_get_connection_status(
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Check if a specific provider is requested
-        if let Some(specific_provider) = request
-            .parameters
-            .get("provider")
-            .and_then(serde_json::Value::as_str)
+        if let Some(specific_provider) = request.parameters.get("provider").and_then(Value::as_str)
         {
             // Single provider mode
             let is_connected = matches!(
@@ -55,27 +56,22 @@ pub fn handle_get_connection_status(
 
             Ok(UniversalResponse {
                 success: true,
-                result: Some(serde_json::json!({
+                result: Some(json!({
                     "provider": specific_provider,
                     "status": status,
                     "connected": is_connected
                 })),
                 error: None,
                 metadata: Some({
-                    let mut map = std::collections::HashMap::new();
-                    map.insert(
-                        "user_id".to_owned(),
-                        serde_json::Value::String(user_uuid.to_string()),
-                    );
+                    let mut map = HashMap::new();
+                    map.insert("user_id".to_owned(), Value::String(user_uuid.to_string()));
                     map.insert(
                         "provider".to_owned(),
-                        serde_json::Value::String(specific_provider.to_owned()),
+                        Value::String(specific_provider.to_owned()),
                     );
                     map.insert(
                         "tenant_id".to_owned(),
-                        request
-                            .tenant_id
-                            .map_or(serde_json::Value::Null, serde_json::Value::String),
+                        request.tenant_id.map_or(Value::Null, Value::String),
                     );
                     map
                 }),
@@ -83,7 +79,7 @@ pub fn handle_get_connection_status(
         } else {
             // Multi-provider mode - check all supported providers from registry
             let providers_to_check = executor.resources.provider_registry.supported_providers();
-            let mut providers_status = serde_json::Map::new();
+            let mut providers_status = Map::new();
 
             for provider in providers_to_check {
                 let is_connected = matches!(
@@ -102,7 +98,7 @@ pub fn handle_get_connection_status(
 
                 providers_status.insert(
                     provider.to_owned(),
-                    serde_json::json!({
+                    json!({
                         "connected": is_connected,
                         "status": status
                     }),
@@ -111,21 +107,16 @@ pub fn handle_get_connection_status(
 
             Ok(UniversalResponse {
                 success: true,
-                result: Some(serde_json::json!({
+                result: Some(json!({
                     "providers": providers_status
                 })),
                 error: None,
                 metadata: Some({
-                    let mut map = std::collections::HashMap::new();
-                    map.insert(
-                        "user_id".to_owned(),
-                        serde_json::Value::String(user_uuid.to_string()),
-                    );
+                    let mut map = HashMap::new();
+                    map.insert("user_id".to_owned(), Value::String(user_uuid.to_string()));
                     map.insert(
                         "tenant_id".to_owned(),
-                        request
-                            .tenant_id
-                            .map_or(serde_json::Value::Null, serde_json::Value::String),
+                        request.tenant_id.map_or(Value::Null, Value::String),
                     );
                     map
                 }),
@@ -137,7 +128,7 @@ pub fn handle_get_connection_status(
 /// Handle `disconnect_provider` tool - disconnect user from OAuth provider
 #[must_use]
 pub fn handle_disconnect_provider(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -154,11 +145,7 @@ pub fn handle_disconnect_provider(
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Extract provider from parameters (required)
-        let Some(provider) = request
-            .parameters
-            .get("provider")
-            .and_then(serde_json::Value::as_str)
-        else {
+        let Some(provider) = request.parameters.get("provider").and_then(Value::as_str) else {
             let supported = executor
                 .resources
                 .provider_registry
@@ -177,27 +164,19 @@ pub fn handle_disconnect_provider(
         {
             Ok(()) => Ok(UniversalResponse {
                 success: true,
-                result: Some(serde_json::json!({
+                result: Some(json!({
                     "provider": provider,
                     "status": "disconnected",
                     "message": format!("Successfully disconnected from {provider}")
                 })),
                 error: None,
                 metadata: Some({
-                    let mut map = std::collections::HashMap::new();
-                    map.insert(
-                        "user_id".to_owned(),
-                        serde_json::Value::String(user_uuid.to_string()),
-                    );
-                    map.insert(
-                        "provider".to_owned(),
-                        serde_json::Value::String(provider.to_owned()),
-                    );
+                    let mut map = HashMap::new();
+                    map.insert("user_id".to_owned(), Value::String(user_uuid.to_string()));
+                    map.insert("provider".to_owned(), Value::String(provider.to_owned()));
                     map.insert(
                         "tenant_id".to_owned(),
-                        request
-                            .tenant_id
-                            .map_or(serde_json::Value::Null, serde_json::Value::String),
+                        request.tenant_id.map_or(Value::Null, Value::String),
                     );
                     map
                 }),
@@ -207,20 +186,12 @@ pub fn handle_disconnect_provider(
                 result: None,
                 error: Some(format!("Failed to disconnect from {provider}: {e}")),
                 metadata: Some({
-                    let mut map = std::collections::HashMap::new();
-                    map.insert(
-                        "user_id".to_owned(),
-                        serde_json::Value::String(user_uuid.to_string()),
-                    );
-                    map.insert(
-                        "provider".to_owned(),
-                        serde_json::Value::String(provider.to_owned()),
-                    );
+                    let mut map = HashMap::new();
+                    map.insert("user_id".to_owned(), Value::String(user_uuid.to_string()));
+                    map.insert("provider".to_owned(), Value::String(provider.to_owned()));
                     map.insert(
                         "tenant_id".to_owned(),
-                        request
-                            .tenant_id
-                            .map_or(serde_json::Value::Null, serde_json::Value::String),
+                        request.tenant_id.map_or(Value::Null, Value::String),
                     );
                     map
                 }),
@@ -230,10 +201,7 @@ pub fn handle_disconnect_provider(
 }
 
 /// Validate that provider is supported using provider registry
-fn is_provider_supported(
-    provider: &str,
-    provider_registry: &crate::providers::ProviderRegistry,
-) -> bool {
+fn is_provider_supported(provider: &str, provider_registry: &ProviderRegistry) -> bool {
     provider_registry.is_supported(provider)
 }
 
@@ -247,7 +215,7 @@ fn build_oauth_success_response(
 ) -> UniversalResponse {
     UniversalResponse {
         success: true,
-        result: Some(serde_json::json!({
+        result: Some(json!({
             "provider": provider,
             "authorization_url": authorization_url,
             "state": state,
@@ -259,24 +227,15 @@ fn build_oauth_success_response(
                  4. Once connected, you can access your {} data through MCP tools",
                 provider, provider, provider
             ),
-            "expires_in_minutes": crate::constants::oauth_config::AUTHORIZATION_EXPIRES_MINUTES,
+            "expires_in_minutes": AUTHORIZATION_EXPIRES_MINUTES,
             "status": "pending_authorization"
         })),
         error: None,
         metadata: Some({
-            let mut map = std::collections::HashMap::new();
-            map.insert(
-                "user_id".to_owned(),
-                serde_json::Value::String(user_uuid.to_string()),
-            );
-            map.insert(
-                "tenant_id".to_owned(),
-                serde_json::Value::String(tenant_id.to_string()),
-            );
-            map.insert(
-                "provider".to_owned(),
-                serde_json::Value::String(provider.to_owned()),
-            );
+            let mut map = HashMap::new();
+            map.insert("user_id".to_owned(), Value::String(user_uuid.to_string()));
+            map.insert("tenant_id".to_owned(), Value::String(tenant_id.to_string()));
+            map.insert("provider".to_owned(), Value::String(provider.to_owned()));
             map
         }),
     }
@@ -292,15 +251,12 @@ fn build_oauth_error_response(provider: &str, error: &str) -> UniversalResponse 
              Please check that OAuth credentials are configured for provider '{provider}'."
         )),
         metadata: Some({
-            let mut map = std::collections::HashMap::new();
+            let mut map = HashMap::new();
             map.insert(
                 "error_type".to_owned(),
-                serde_json::Value::String("oauth_configuration_error".to_owned()),
+                Value::String("oauth_configuration_error".to_owned()),
             );
-            map.insert(
-                "provider".to_owned(),
-                serde_json::Value::String(provider.to_owned()),
-            );
+            map.insert("provider".to_owned(), Value::String(provider.to_owned()));
             map
         }),
     }
@@ -320,7 +276,7 @@ fn connection_error(message: impl Into<String>) -> UniversalResponse {
 /// Handle `connect_provider` tool - initiate OAuth connection flow
 #[must_use]
 pub fn handle_connect_provider(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -375,7 +331,7 @@ pub fn handle_connect_provider(
             tenant_id,
             user_id: user_uuid,
             tenant_name,
-            user_role: crate::tenant::TenantRole::Member,
+            user_role: TenantRole::Member,
         };
         let state = format!("{}:{}", user_uuid, uuid::Uuid::new_v4());
 

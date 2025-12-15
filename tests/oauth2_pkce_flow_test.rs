@@ -10,6 +10,8 @@
 mod common;
 
 use base64::{engine::general_purpose, Engine as _};
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
 use pierre_mcp_server::{
     auth::AuthManager,
     database::generate_encryption_key,
@@ -39,7 +41,7 @@ async fn setup_test_env() -> (
         Database::new(
             "sqlite::memory:",
             encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await
         .unwrap(),

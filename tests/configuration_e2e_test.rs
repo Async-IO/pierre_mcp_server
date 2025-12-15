@@ -13,16 +13,26 @@
 
 mod common;
 
+use pierre_mcp_server::auth::AuthManager;
+use pierre_mcp_server::cache::{factory::Cache, CacheConfig};
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
+use pierre_mcp_server::config::environment::{
+    AppBehaviorConfig, BackupConfig, DatabaseConfig, ServerConfig,
+};
 use pierre_mcp_server::database_plugins::factory::Database;
 use pierre_mcp_server::database_plugins::DatabaseProvider;
 use pierre_mcp_server::intelligence::{
     ActivityIntelligence, ContextualFactors, PerformanceMetrics, TimeOfDay, TrendDirection,
     TrendIndicators,
 };
+use pierre_mcp_server::mcp::resources::ServerResources;
 use pierre_mcp_server::models::User;
 use pierre_mcp_server::protocols::universal::{UniversalRequest, UniversalToolExecutor};
 use serde_json::json;
+use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 use uuid::Uuid;
 
 async fn create_test_tool_executor() -> Arc<UniversalToolExecutor> {
@@ -42,7 +52,7 @@ async fn create_test_tool_executor_with_user() -> (Arc<UniversalToolExecutor>, S
         Database::new(
             "sqlite::memory:",
             vec![0; 32],
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await
         .expect("Failed to create test database"),
@@ -81,23 +91,20 @@ async fn create_test_tool_executor_with_user() -> (Arc<UniversalToolExecutor>, S
     ));
 
     // Create minimal config for testing
-    let config = Arc::new(
-        pierre_mcp_server::config::environment::ServerConfig::from_env()
-            .unwrap_or_else(|_| create_test_config()),
-    );
+    let config = Arc::new(ServerConfig::from_env().unwrap_or_else(|_| create_test_config()));
 
     // Create ServerResources for the test
-    let auth_manager = pierre_mcp_server::auth::AuthManager::new(24);
+    let auth_manager = AuthManager::new(24);
 
     // Create test cache with background cleanup disabled
-    let cache_config = pierre_mcp_server::cache::CacheConfig {
+    let cache_config = CacheConfig {
         max_entries: 1000,
         redis_url: None,
-        cleanup_interval: std::time::Duration::from_secs(60),
+        cleanup_interval: Duration::from_secs(60),
         enable_background_cleanup: false,
         ..Default::default()
     };
-    let cache = pierre_mcp_server::cache::factory::Cache::new(cache_config)
+    let cache = Cache::new(cache_config)
         .await
         .expect("Failed to create test cache");
 
@@ -112,7 +119,7 @@ async fn create_test_tool_executor_with_user() -> (Arc<UniversalToolExecutor>, S
         .await
         .expect("Failed to create test user");
 
-    let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let server_resources = Arc::new(ServerResources::new(
         (*database).clone(),
         auth_manager,
         "test_secret",
@@ -127,17 +134,17 @@ async fn create_test_tool_executor_with_user() -> (Arc<UniversalToolExecutor>, S
     )
 }
 
-fn create_test_config() -> pierre_mcp_server::config::environment::ServerConfig {
-    pierre_mcp_server::config::environment::ServerConfig {
+fn create_test_config() -> ServerConfig {
+    ServerConfig {
         http_port: 4000,
-        database: pierre_mcp_server::config::environment::DatabaseConfig {
-            backup: pierre_mcp_server::config::environment::BackupConfig {
-                directory: std::path::PathBuf::from("data/backups"),
+        database: DatabaseConfig {
+            backup: BackupConfig {
+                directory: PathBuf::from("data/backups"),
                 ..Default::default()
             },
             ..Default::default()
         },
-        app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
+        app_behavior: AppBehaviorConfig {
             ci_mode: true,
             auto_approve_users: false,
             ..Default::default()

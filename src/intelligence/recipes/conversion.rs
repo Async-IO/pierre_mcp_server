@@ -4,9 +4,12 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-use super::models::IngredientUnit;
 use std::collections::HashMap;
+use std::error::Error;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::sync::LazyLock;
+
+use super::models::IngredientUnit;
 
 /// Conversion error types
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,8 +22,8 @@ pub enum ConversionError {
     UnsupportedUnit(IngredientUnit),
 }
 
-impl std::fmt::Display for ConversionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for ConversionError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Self::DensityNotFound(name) => {
                 write!(f, "Density not found for ingredient: {name}")
@@ -33,7 +36,7 @@ impl std::fmt::Display for ConversionError {
     }
 }
 
-impl std::error::Error for ConversionError {}
+impl Error for ConversionError {}
 
 /// Density information for an ingredient
 ///

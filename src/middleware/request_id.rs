@@ -12,6 +12,7 @@
 
 use axum::{extract::Request, middleware::Next, response::Response};
 use http::HeaderValue;
+use std::fmt::{self, Display, Formatter};
 use tracing::Span;
 use uuid::Uuid;
 
@@ -87,8 +88,8 @@ impl RequestId {
     }
 }
 
-impl std::fmt::Display for RequestId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for RequestId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }

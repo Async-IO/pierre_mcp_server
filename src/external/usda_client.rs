@@ -38,11 +38,12 @@
 //! ```
 
 use crate::errors::AppError;
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::RwLock;
+use tokio::{sync::RwLock, time::sleep};
 
 /// USDA API client configuration
 #[derive(Debug, Clone)]
@@ -215,7 +216,7 @@ impl RateLimiter {
     async fn wait_if_needed(&mut self) {
         while !self.can_request() {
             // Sleep for 1 second and check again
-            tokio::time::sleep(Duration::from_secs(1)).await;
+            sleep(Duration::from_secs(1)).await;
         }
     }
 }
@@ -237,7 +238,7 @@ impl UsdaClient {
 
         Self {
             config,
-            http_client: reqwest::Client::new(),
+            http_client: Client::new(),
             search_cache: Arc::new(RwLock::new(HashMap::new())),
             details_cache: Arc::new(RwLock::new(HashMap::new())),
             rate_limiter: Arc::new(RwLock::new(rate_limiter)),

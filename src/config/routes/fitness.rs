@@ -8,8 +8,10 @@ use crate::auth::AuthResult;
 use crate::config::fitness::FitnessConfig;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult};
+use crate::mcp::resources::ServerResources;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::time::Instant;
 use uuid::Uuid;
 
 // ================================================================================================
@@ -93,13 +95,13 @@ pub struct ResponseMetadata {
 /// Fitness configuration routes handler
 #[derive(Clone)]
 pub struct FitnessConfigurationRoutes {
-    resources: Arc<crate::mcp::resources::ServerResources>,
+    resources: Arc<ServerResources>,
 }
 
 impl FitnessConfigurationRoutes {
     /// Create a new fitness configuration routes handler
     #[must_use]
-    pub const fn new(resources: Arc<crate::mcp::resources::ServerResources>) -> Self {
+    pub const fn new(resources: Arc<ServerResources>) -> Self {
         Self { resources }
     }
 
@@ -133,7 +135,7 @@ impl FitnessConfigurationRoutes {
     }
 
     /// Create response metadata
-    fn create_metadata(processing_start: std::time::Instant) -> ResponseMetadata {
+    fn create_metadata(processing_start: Instant) -> ResponseMetadata {
         ResponseMetadata {
             timestamp: chrono::Utc::now(),
             processing_time_ms: u64::try_from(processing_start.elapsed().as_millis()).ok(),
@@ -156,7 +158,7 @@ impl FitnessConfigurationRoutes {
         &self,
         auth: &AuthResult,
     ) -> AppResult<FitnessConfigurationListResponse> {
-        let processing_start = std::time::Instant::now();
+        let processing_start = Instant::now();
         let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
 
@@ -208,7 +210,7 @@ impl FitnessConfigurationRoutes {
         auth: &AuthResult,
         configuration_name: &str,
     ) -> AppResult<FitnessConfigurationResponse> {
-        let processing_start = std::time::Instant::now();
+        let processing_start = Instant::now();
         let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
 
@@ -264,7 +266,7 @@ impl FitnessConfigurationRoutes {
         auth: &AuthResult,
         request: SaveFitnessConfigRequest,
     ) -> AppResult<FitnessConfigurationSaveResponse> {
-        let processing_start = std::time::Instant::now();
+        let processing_start = Instant::now();
         let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
 
@@ -309,7 +311,7 @@ impl FitnessConfigurationRoutes {
         auth: &AuthResult,
         request: SaveFitnessConfigRequest,
     ) -> AppResult<FitnessConfigurationSaveResponse> {
-        let processing_start = std::time::Instant::now();
+        let processing_start = Instant::now();
         let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
 
@@ -361,7 +363,7 @@ impl FitnessConfigurationRoutes {
         auth: &AuthResult,
         configuration_name: &str,
     ) -> AppResult<FitnessConfigurationSaveResponse> {
-        let processing_start = std::time::Instant::now();
+        let processing_start = Instant::now();
         let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
 
@@ -402,7 +404,7 @@ impl FitnessConfigurationRoutes {
         auth: &AuthResult,
         configuration_name: &str,
     ) -> AppResult<FitnessConfigurationSaveResponse> {
-        let processing_start = std::time::Instant::now();
+        let processing_start = Instant::now();
         let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
 

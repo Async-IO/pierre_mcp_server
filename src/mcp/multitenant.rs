@@ -17,27 +17,49 @@ use super::{
     resources::ServerResources,
     tool_handlers::{McpOAuthCredentials, ToolRoutingContext},
 };
+use crate::api_keys::ApiKeyUsage;
 use crate::auth::{AuthManager, AuthResult};
+use crate::config::environment::ServerConfig;
 use crate::constants::{
     errors::{ERROR_INTERNAL_ERROR, ERROR_INVALID_PARAMS, ERROR_METHOD_NOT_FOUND},
+    get_server_config,
+    oauth::STRAVA_DEFAULT_SCOPES,
     protocol::JSONRPC_VERSION,
 };
+use crate::context::ServerContext;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::errors::{AppError, AppResult};
+use crate::jsonrpc::{JsonRpcError, JsonRpcRequest, JsonRpcResponse};
+use crate::mcp::schema::ProgressNotification;
+use crate::protocols::converter::ProtocolConverter;
+use crate::protocols::universal::tool_registry::ToolId;
+use crate::protocols::universal::types::{CancellationToken, ProgressReporter};
+use crate::protocols::universal::{UniversalRequest, UniversalToolExecutor};
 use crate::providers::ProviderRegistry;
 use crate::routes::OAuthRoutes;
 use crate::security::headers::SecurityConfig;
+use crate::tenant::oauth_client::StoreCredentialsRequest;
 use crate::tenant::{TenantContext, TenantOAuthClient};
 use crate::types::json_schemas;
-// Removed unused imports - now using AppError directly
-
 use chrono::Utc;
-
 use serde_json::Value;
 use std::fmt::Write;
+use std::net::SocketAddr;
 use std::sync::Arc;
-use tracing::{debug, error, info, warn};
+use std::time::Duration;
+use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
+use tower_http::LatencyUnit;
+use tracing::{debug, error, info, warn, Level};
 use uuid::Uuid;
+
+use crate::constants::service_names::PIERRE_MCP_SERVER;
+use crate::middleware::{request_id_middleware, setup_cors};
+use crate::oauth2_server::OAuth2RateLimiter;
+use crate::routes::admin::AdminApiContext;
+use crate::routes::oauth2::OAuth2Context;
+use axum::middleware;
+use tokio::net::TcpListener;
+use tower::layer::util::Identity;
 
 // Constants are now imported from the constants module
 
@@ -71,7 +93,7 @@ impl MultiTenantMcpServer {
     }
 
     /// Initialize security configuration based on environment
-    fn setup_security_config(config: &crate::config::environment::ServerConfig) -> SecurityConfig {
+    fn setup_security_config(config: &ServerConfig) -> SecurityConfig {
         let security_config =
             SecurityConfig::from_environment(&config.security.headers.environment.to_string());
         info!(
@@ -159,7 +181,7 @@ impl MultiTenantMcpServer {
         id: Value,
     ) -> McpResponse {
         // Use existing ServerResources (no fake auth managers or cloning!)
-        let server_context = crate::context::ServerContext::from(resources.as_ref());
+        let server_context = ServerContext::from(resources.as_ref());
         let oauth_routes = OAuthRoutes::new(
             server_context.data().clone(),
             server_context.config().clone(),
@@ -203,11 +225,9 @@ impl MultiTenantMcpServer {
         database: &Arc<Database>,
         api_key_id: &str,
         tool_name: &str,
-        response_time: std::time::Duration,
+        response_time: Duration,
         response: &McpResponse,
     ) -> AppResult<()> {
-        use crate::api_keys::ApiKeyUsage;
-
         let status_code = if response.error.is_some() {
             400 // Error responses
         } else {
@@ -256,7 +276,7 @@ impl MultiTenantMcpServer {
         tenant_context: &TenantContext,
         oauth_client: &Arc<TenantOAuthClient>,
         credentials: &McpOAuthCredentials<'_>,
-        config: &Arc<crate::config::environment::ServerConfig>,
+        config: &Arc<ServerConfig>,
     ) {
         // Store Strava credentials if provided
         if let (Some(id), Some(secret)) = (
@@ -317,10 +337,10 @@ impl MultiTenantMcpServer {
                     params.http_port, params.provider
                 )
             },
-            Clone::clone,
+            String::clone,
         );
 
-        let request = crate::tenant::oauth_client::StoreCredentialsRequest {
+        let request = StoreCredentialsRequest {
             client_id: params.client_id.to_owned(),
             client_secret: params.client_secret.to_owned(),
             redirect_uri,
@@ -341,9 +361,9 @@ impl MultiTenantMcpServer {
 
     /// Get default Strava OAuth scopes
     fn get_strava_scopes() -> Vec<String> {
-        crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+        STRAVA_DEFAULT_SCOPES
             .split(',')
-            .map(str::to_owned)
+            .map(<str as ToOwned>::to_owned)
             .collect()
     }
 
@@ -370,7 +390,7 @@ impl MultiTenantMcpServer {
         request_id: Value,
         credentials: McpOAuthCredentials<'_>,
         http_port: u16,
-        config: &Arc<crate::config::environment::ServerConfig>,
+        config: &Arc<ServerConfig>,
     ) -> McpResponse {
         info!(
             "Checking connection status for tenant {} user {}",
@@ -423,8 +443,7 @@ impl MultiTenantMcpServer {
 
     /// Build OAuth base URL with dynamic port
     fn build_oauth_base_url(http_port: u16) -> String {
-        let host = crate::constants::get_server_config()
-            .map_or_else(|| "localhost".to_owned(), |c| c.host.clone());
+        let host = get_server_config().map_or_else(|| "localhost".to_owned(), |c| c.host.clone());
         format!("http://{host}:{http_port}/api/oauth")
     }
 
@@ -469,7 +488,7 @@ impl MultiTenantMcpServer {
     }
 
     /// Build notifications text from unread notifications
-    async fn build_notifications_text(database: &Arc<Database>, user_id: uuid::Uuid) -> String {
+    async fn build_notifications_text(database: &Arc<Database>, user_id: Uuid) -> String {
         let unread_notifications = database
             .get_unread_oauth_notifications(user_id)
             .await
@@ -506,7 +525,7 @@ impl MultiTenantMcpServer {
         connection_status: &ProviderConnectionStatus,
         base_url: &str,
         database: &Arc<Database>,
-    ) -> serde_json::Value {
+    ) -> Value {
         let unread_notifications = database
             .get_unread_oauth_notifications(tenant_context.user_id)
             .await
@@ -740,8 +759,6 @@ impl MultiTenantMcpServer {
     /// Validate that tool name is registered in the Universal protocol `ToolId` registry
     /// All tools registered in `ToolId` enum are automatically routed through Universal Protocol
     fn validate_known_tool(tool_name: &str, request_id: Value) -> Option<McpResponse> {
-        use crate::protocols::universal::tool_registry::ToolId;
-
         if ToolId::from_name(tool_name).is_some() {
             None
         } else {
@@ -766,9 +783,7 @@ impl MultiTenantMcpServer {
         tenant_context: &TenantContext,
         resources: &Arc<ServerResources>,
         request_id: &Value,
-    ) -> crate::protocols::universal::UniversalRequest {
-        use crate::protocols::universal::types::{CancellationToken, ProgressReporter};
-
+    ) -> UniversalRequest {
         // Create progress reporter if notification sender is available
         let progress_reporter = resources
             .progress_notification_sender
@@ -780,7 +795,6 @@ impl MultiTenantMcpServer {
                 // Set callback to send progress notifications
                 let sender_clone = sender.clone();
                 reporter.set_callback(move |progress, total, message| {
-                    use crate::mcp::schema::ProgressNotification;
                     let notification =
                         ProgressNotification::new(progress_token.clone(), progress, total, message);
                     let _ = sender_clone.send(notification);
@@ -792,7 +806,7 @@ impl MultiTenantMcpServer {
         // Create cancellation token for this operation
         let cancellation_token = Some(CancellationToken::new());
 
-        crate::protocols::universal::UniversalRequest {
+        UniversalRequest {
             tool_name: tool_name.to_owned(),
             parameters: args.clone(),
             user_id: auth_result.user_id.to_string(),
@@ -806,7 +820,7 @@ impl MultiTenantMcpServer {
 
     /// Execute Universal protocol tool and convert response to MCP format
     async fn execute_and_convert_tool(
-        universal_request: crate::protocols::universal::UniversalRequest,
+        universal_request: UniversalRequest,
         resources: &Arc<ServerResources>,
         tool_name: &str,
         provider_name: &str,
@@ -822,7 +836,7 @@ impl MultiTenantMcpServer {
                 .await;
         }
 
-        let executor = crate::protocols::universal::UniversalToolExecutor::new(resources.clone());
+        let executor = UniversalToolExecutor::new(resources.clone());
 
         let result = executor.execute_tool(universal_request.clone()).await;
 
@@ -834,8 +848,7 @@ impl MultiTenantMcpServer {
         match result {
             Ok(response) => {
                 // Convert UniversalResponse to proper MCP ToolResponse format
-                let tool_response =
-                    crate::protocols::converter::ProtocolConverter::universal_to_mcp(response);
+                let tool_response = ProtocolConverter::universal_to_mcp(response);
 
                 // Serialize ToolResponse to JSON for MCP result field
                 match serde_json::to_value(&tool_response) {
@@ -865,11 +878,11 @@ impl MultiTenantMcpServer {
 
 // Phase 2: Type aliases pointing to unified JSON-RPC foundation
 /// Type alias for MCP requests using the JSON-RPC foundation
-pub type McpRequest = crate::jsonrpc::JsonRpcRequest;
+pub type McpRequest = JsonRpcRequest;
 /// Type alias for MCP responses using the JSON-RPC foundation
-pub type McpResponse = crate::jsonrpc::JsonRpcResponse;
+pub type McpResponse = JsonRpcResponse;
 /// Type alias for MCP errors using the JSON-RPC foundation
-pub type McpError = crate::jsonrpc::JsonRpcError;
+pub type McpError = JsonRpcError;
 
 // ============================================================================
 // AXUM SERVER ORCHESTRATION
@@ -898,10 +911,6 @@ impl MultiTenantMcpServer {
         port: u16,
         resources: Arc<ServerResources>,
     ) -> AppResult<()> {
-        use std::net::SocketAddr;
-        use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
-        use tower_http::LatencyUnit;
-
         info!("HTTP server (Axum) starting on port {}", port);
 
         // Build the main router with all routes
@@ -913,19 +922,17 @@ impl MultiTenantMcpServer {
                 TraceLayer::new_for_http()
                     .make_span_with(
                         DefaultMakeSpan::new()
-                            .level(tracing::Level::INFO)
+                            .level(Level::INFO)
                             .include_headers(false),
                     )
                     .on_response(
                         DefaultOnResponse::new()
-                            .level(tracing::Level::INFO)
+                            .level(Level::INFO)
                             .latency_unit(LatencyUnit::Millis),
                     ),
             )
-            .layer(axum::middleware::from_fn(
-                crate::middleware::request_id_middleware,
-            ))
-            .layer(crate::middleware::setup_cors(&resources.config))
+            .layer(middleware::from_fn(request_id_middleware))
+            .layer(setup_cors(&resources.config))
             .layer(Self::create_security_headers_layer(&resources.config));
 
         // Create server address
@@ -933,7 +940,7 @@ impl MultiTenantMcpServer {
         info!("HTTP server (Axum) listening on http://{}", addr);
 
         // Start the Axum server with ConnectInfo for IP extraction (rate limiting)
-        let listener = tokio::net::TcpListener::bind(addr)
+        let listener = TcpListener::bind(addr)
             .await
             .map_err(|e| AppError::internal(format!("Transport error: {e}")))?;
         axum::serve(
@@ -975,7 +982,7 @@ impl MultiTenantMcpServer {
             .rate_limiting
             .admin_provisioned_api_key_monthly_limit;
         let admin_token_cache_ttl = resources.config.auth.admin_token_cache_ttl_secs;
-        let admin_context = crate::routes::admin::AdminApiContext::new(
+        let admin_context = AdminApiContext::new(
             resources.database.clone(),
             &resources.admin_jwt_secret,
             resources.auth_manager.clone(),
@@ -989,16 +996,14 @@ impl MultiTenantMcpServer {
         let health_routes = Self::create_axum_health_routes();
 
         // Create OAuth2 server context
-        let oauth2_context = crate::routes::oauth2::OAuth2Context {
+        let oauth2_context = OAuth2Context {
             database: resources.database.clone(),
             auth_manager: resources.auth_manager.clone(),
             jwks_manager: resources.jwks_manager.clone(),
             config: resources.config.clone(),
-            rate_limiter: Arc::new(
-                crate::oauth2_server::OAuth2RateLimiter::from_rate_limit_config(
-                    resources.config.rate_limiting.clone(),
-                ),
-            ),
+            rate_limiter: Arc::new(OAuth2RateLimiter::from_rate_limit_config(
+                resources.config.rate_limiting.clone(),
+            )),
         };
         let oauth2_routes = OAuth2Routes::routes(oauth2_context);
 
@@ -1036,7 +1041,7 @@ impl MultiTenantMcpServer {
         async fn health_handler() -> Json<serde_json::Value> {
             Json(serde_json::json!({
                 "status": "ok",
-                "service": crate::constants::service_names::PIERRE_MCP_SERVER
+                "service": PIERRE_MCP_SERVER
             }))
         }
 
@@ -1057,9 +1062,7 @@ impl MultiTenantMcpServer {
     /// Validates security headers configuration and returns Identity layer.
     /// Security headers are validated at startup to catch configuration errors early.
     /// Response header injection happens via response interceptor middleware.
-    fn create_security_headers_layer(
-        config: &Arc<crate::config::environment::ServerConfig>,
-    ) -> tower::layer::util::Identity {
+    fn create_security_headers_layer(config: &Arc<ServerConfig>) -> Identity {
         // Validate security headers configuration at startup
         let security_config = Self::setup_security_config(config);
         let headers = security_config.to_headers();
@@ -1077,6 +1080,6 @@ impl MultiTenantMcpServer {
         }
 
         // Return identity layer - headers are applied via CORS middleware and response interceptors
-        tower::layer::util::Identity::new()
+        Identity::new()
     }
 }

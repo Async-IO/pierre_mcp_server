@@ -8,6 +8,8 @@
 #![allow(missing_docs)]
 
 use chrono::{Duration, Utc};
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
 use pierre_mcp_server::{
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
@@ -16,6 +18,7 @@ use pierre_mcp_server::{
         models::{ClientRegistrationRequest, OAuth2State},
     },
 };
+use std::error::Error;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -23,7 +26,7 @@ use uuid::Uuid;
 async fn create_test_client(
     database: &Arc<Database>,
     client_id: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn Error>> {
     let registration_manager = ClientRegistrationManager::new(database.clone());
 
     // Register a test client
@@ -74,7 +77,7 @@ async fn test_state_storage_and_consumption() {
         Database::new(
             "sqlite::memory:",
             encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await
         .unwrap(),
@@ -148,7 +151,7 @@ async fn test_state_replay_attack_prevention() {
         Database::new(
             "sqlite::memory:",
             encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await
         .unwrap(),
@@ -215,7 +218,7 @@ async fn test_expired_state_rejection() {
         Database::new(
             "sqlite::memory:",
             encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await
         .unwrap(),
@@ -274,7 +277,7 @@ async fn test_state_not_found() {
         Database::new(
             "sqlite::memory:",
             encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await
         .unwrap(),
@@ -313,7 +316,7 @@ async fn test_state_client_id_mismatch() {
         Database::new(
             "sqlite::memory:",
             encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await
         .unwrap(),
@@ -389,7 +392,7 @@ async fn test_state_with_pkce_parameters() {
         Database::new(
             "sqlite::memory:",
             encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await
         .unwrap(),
@@ -455,7 +458,7 @@ async fn test_state_expiration_boundary() {
         Database::new(
             "sqlite::memory:",
             encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await
         .unwrap(),

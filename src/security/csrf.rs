@@ -9,11 +9,13 @@
 //! Generates cryptographically secure CSRF tokens and provides validation.
 //! Tokens are tied to user sessions and have configurable expiration.
 
-use crate::errors::AppResult;
-use rand::Rng;
 use std::collections::HashMap;
 use std::sync::Arc;
+
+use rand::Rng;
 use tokio::sync::RwLock;
+
+use crate::errors::{AppError, AppResult};
 
 /// CSRF token length in bytes (32 bytes = 256 bits)
 const CSRF_TOKEN_LENGTH: usize = 32;
@@ -100,20 +102,18 @@ impl CsrfTokenManager {
             let tokens = self.tokens.read().await;
             tokens
                 .get(token)
-                .ok_or_else(|| crate::errors::AppError::auth_invalid("Invalid CSRF token"))?
+                .ok_or_else(|| AppError::auth_invalid("Invalid CSRF token"))?
                 .clone() // Safe: clone to release read lock before validation
         };
 
         // Check expiration
         if chrono::Utc::now() > csrf_token.expires_at {
-            return Err(crate::errors::AppError::auth_invalid("CSRF token expired"));
+            return Err(AppError::auth_invalid("CSRF token expired"));
         }
 
         // Check user ID
         if csrf_token.user_id != user_id {
-            return Err(crate::errors::AppError::auth_invalid(
-                "CSRF token user mismatch",
-            ));
+            return Err(AppError::auth_invalid("CSRF token user mismatch"));
         }
 
         Ok(())

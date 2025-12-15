@@ -13,6 +13,8 @@
 
 use anyhow::Result;
 use chrono::Utc;
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
 use pierre_mcp_server::{
     api_keys::{ApiKey, ApiKeyTier, ApiKeyUsage},
     constants::oauth_providers,
@@ -33,7 +35,7 @@ async fn test_sqlite_database_creation() -> Result<()> {
     let db = Database::new(
         "sqlite::memory:",
         encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -53,7 +55,7 @@ async fn test_sqlite_migration() -> Result<()> {
     let db = Database::new(
         "sqlite::memory:",
         encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -74,7 +76,7 @@ async fn test_user_crud_operations() -> Result<()> {
     let db = Database::new(
         "sqlite::memory:",
         encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -122,7 +124,7 @@ async fn test_user_last_active_update() -> Result<()> {
     let db = Database::new(
         "sqlite::memory:",
         encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -156,7 +158,7 @@ async fn test_user_count() -> Result<()> {
     let db = Database::new(
         "sqlite::memory:",
         encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -192,7 +194,7 @@ async fn test_strava_token_operations() -> Result<()> {
     let db = Database::new(
         "sqlite::memory:",
         encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -272,7 +274,7 @@ async fn test_fitbit_token_operations() -> Result<()> {
     let db = Database::new(
         "sqlite::memory:",
         encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -355,7 +357,7 @@ async fn test_api_key_operations() -> Result<()> {
     let db = Database::new(
         "sqlite::memory:",
         encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -419,7 +421,7 @@ async fn test_api_key_usage_tracking() -> Result<()> {
     let db = Database::new(
         "sqlite::memory:",
         encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -487,7 +489,7 @@ async fn test_jwt_usage_tracking() -> Result<()> {
     let db = Database::new(
         "sqlite::memory:",
         encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -556,7 +558,7 @@ async fn test_concurrent_database_operations() -> Result<()> {
     let db = Database::new(
         "sqlite::memory:",
         encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -599,7 +601,7 @@ async fn test_token_encryption_roundtrip() -> Result<()> {
     let db = Database::new(
         "sqlite::memory:",
         encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -686,7 +688,7 @@ async fn test_database_error_scenarios() -> Result<()> {
     let db = Database::new(
         "sqlite::memory:",
         encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -721,7 +723,7 @@ async fn test_api_key_usage_aggregation() -> Result<()> {
     let db = Database::new(
         "sqlite::memory:",
         encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -790,7 +792,7 @@ async fn test_user_tier_handling() -> Result<()> {
     let db = Database::new(
         "sqlite::memory:",
         encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 
@@ -868,7 +870,7 @@ async fn test_database_connection_reuse() -> Result<()> {
     let db = Database::new(
         "sqlite::memory:",
         encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await?;
 

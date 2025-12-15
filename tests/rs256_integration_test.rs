@@ -19,7 +19,7 @@ use pierre_mcp_server::{
     auth::AuthManager,
     models::User,
 };
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc, thread, time::Duration};
 
 /// Test JWKS manager initialization and key generation
 #[tokio::test]
@@ -357,7 +357,7 @@ async fn test_jwks_multiple_keys() -> Result<()> {
     assert!(jwks.keys.len() >= 2);
 
     // All keys should have unique kid
-    let mut kids = std::collections::HashSet::new();
+    let mut kids = HashSet::new();
     for key in &jwks.keys {
         assert!(kids.insert(key.kid.clone()), "Duplicate kid found");
     }
@@ -462,7 +462,7 @@ async fn test_key_lifecycle_rollover() -> Result<()> {
     jwks_manager.generate_rsa_key_pair_with_size("lifecycle_key_1", 2048)?;
 
     // Sleep to ensure initial key has a distinct timestamp
-    std::thread::sleep(std::time::Duration::from_secs(1));
+    thread::sleep(Duration::from_secs(1));
 
     let initial_kid = jwks_manager.get_active_key()?.kid.clone();
 
@@ -474,17 +474,17 @@ async fn test_key_lifecycle_rollover() -> Result<()> {
     let rotated_kids = [
         {
             let kid = jwks_manager.rotate_keys_with_size(2048)?;
-            std::thread::sleep(std::time::Duration::from_secs(1));
+            thread::sleep(Duration::from_secs(1));
             kid
         },
         {
             let kid = jwks_manager.rotate_keys_with_size(2048)?;
-            std::thread::sleep(std::time::Duration::from_secs(1));
+            thread::sleep(Duration::from_secs(1));
             kid
         },
         {
             let kid = jwks_manager.rotate_keys_with_size(2048)?;
-            std::thread::sleep(std::time::Duration::from_secs(1));
+            thread::sleep(Duration::from_secs(1));
             kid
         },
         jwks_manager.rotate_keys_with_size(2048)?,

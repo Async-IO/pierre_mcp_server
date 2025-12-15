@@ -9,9 +9,11 @@
 use chrono::{Duration, Utc};
 use reqwest::Client;
 use serde_json::Value;
+use std::env;
+use std::error::Error;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn Error>> {
     println!("Tool OpenWeatherMap API Diagnostics");
     println!("=================================");
 
@@ -26,8 +28,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn check_api_key() -> Result<String, Box<dyn std::error::Error>> {
-    std::env::var("OPENWEATHER_API_KEY").map_or_else(
+fn check_api_key() -> Result<String, Box<dyn Error>> {
+    env::var("OPENWEATHER_API_KEY").map_or_else(
         |_| {
             println!("Error No OPENWEATHER_API_KEY environment variable found");
             Err("Missing API key".into())
@@ -43,10 +45,7 @@ fn check_api_key() -> Result<String, Box<dyn std::error::Error>> {
     )
 }
 
-async fn test_current_weather(
-    client: &Client,
-    api_key: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn test_current_weather(client: &Client, api_key: &str) -> Result<(), Box<dyn Error>> {
     let lat = 45.5017; // Montreal
     let lon = -73.5673;
 
@@ -91,10 +90,7 @@ async fn test_current_weather(
     Ok(())
 }
 
-async fn test_historical_weather(
-    client: &Client,
-    api_key: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn test_historical_weather(client: &Client, api_key: &str) -> Result<(), Box<dyn Error>> {
     let lat = 45.5017; // Montreal
     let lon = -73.5673;
 
@@ -143,10 +139,7 @@ async fn test_historical_weather(
     Ok(())
 }
 
-async fn test_error_conditions(
-    client: &Client,
-    api_key: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn test_error_conditions(client: &Client, api_key: &str) -> Result<(), Box<dyn Error>> {
     println!("\nTest 3: Error Condition Tests");
     println!("=================================");
 

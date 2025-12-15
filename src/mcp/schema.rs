@@ -11,6 +11,7 @@
 //! it easy to modify the schema without hardcoding JSON.
 
 use crate::constants::{
+    get_server_config,
     json_fields::{ACTIVITY_ID, AFTER, BEFORE, FORMAT, LIMIT, MODE, OFFSET, PROVIDER, SPORT_TYPE},
     tools::{
         ANALYZE_ACTIVITY, CONNECT_PROVIDER, DELETE_FITNESS_CONFIG, DELETE_RECIPE,
@@ -316,7 +317,7 @@ pub struct InitializeRequest {
         default,
         skip_serializing_if = "Option::is_none"
     )]
-    pub oauth_credentials: Option<std::collections::HashMap<String, OAuthAppCredentials>>,
+    pub oauth_credentials: Option<HashMap<String, OAuthAppCredentials>>,
 }
 
 /// OAuth Application Credentials provided by client
@@ -373,7 +374,7 @@ impl InitializeResponse {
                 }),
                 auth: Some(AuthCapability {
                     oauth2: Some({
-                        let host = crate::constants::get_server_config()
+                        let host = get_server_config()
                             .map_or_else(|| "localhost".to_owned(), |c| c.host.clone());
                         OAuth2Capability {
                             discovery_url: format!("http://{host}:{http_port}/.well-known/oauth-authorization-server"),
@@ -384,7 +385,7 @@ impl InitializeResponse {
                     }),
                 }),
                 oauth2: Some({
-                    let host = crate::constants::get_server_config()
+                    let host = get_server_config()
                         .map_or_else(|| "localhost".to_owned(), |c| c.host.clone());
                     OAuth2Capability {
                         discovery_url: format!("http://{host}:{http_port}/.well-known/oauth-authorization-server"),

@@ -5,6 +5,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::errors::{AppError, AppResult};
+use crate::protocols::ProtocolError;
 use uuid::Uuid;
 
 /// Parse a UUID from a string with consistent error handling
@@ -96,12 +97,9 @@ pub fn parse_user_id_from_state(state: &str) -> AppResult<Uuid> {
 /// # Errors
 ///
 /// Returns a `ProtocolError::InvalidParameters` if the user ID is not a valid UUID
-pub fn parse_user_id_for_protocol(
-    user_id_str: &str,
-) -> Result<Uuid, crate::protocols::ProtocolError> {
-    Uuid::parse_str(user_id_str).map_err(|_| {
-        crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".into())
-    })
+pub fn parse_user_id_for_protocol(user_id_str: &str) -> Result<Uuid, ProtocolError> {
+    Uuid::parse_str(user_id_str)
+        .map_err(|_| ProtocolError::InvalidParameters("Invalid user ID format".into()))
 }
 
 /// Format a UUID as a hyphenated string

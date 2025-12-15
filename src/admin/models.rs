@@ -10,6 +10,8 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::str::FromStr;
 use uuid::Uuid;
 
 /// Admin token with full details
@@ -155,8 +157,8 @@ pub enum AdminPermission {
     ManageUsers,
 }
 
-impl std::fmt::Display for AdminPermission {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for AdminPermission {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Self::ProvisionKeys => write!(f, "provision_keys"),
             Self::ListKeys => write!(f, "list_keys"),
@@ -169,7 +171,7 @@ impl std::fmt::Display for AdminPermission {
     }
 }
 
-impl std::str::FromStr for AdminPermission {
+impl FromStr for AdminPermission {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -298,8 +300,8 @@ pub enum AdminAction {
     ManageUser,
 }
 
-impl std::fmt::Display for AdminAction {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for AdminAction {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Self::ProvisionKey => write!(f, "provision_key"),
             Self::RevokeKey => write!(f, "revoke_key"),
@@ -313,7 +315,7 @@ impl std::fmt::Display for AdminAction {
     }
 }
 
-impl std::str::FromStr for AdminAction {
+impl FromStr for AdminAction {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -363,8 +365,8 @@ pub enum RateLimitPeriod {
     Month,
 }
 
-impl std::fmt::Display for RateLimitPeriod {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for RateLimitPeriod {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Self::Hour => write!(f, "hour"),
             Self::Day => write!(f, "day"),

@@ -4,14 +4,21 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use crate::admin::jwks::JwksManager;
 use crate::api_keys::ApiKeyManager;
 use crate::auth::{AuthManager, AuthMethod, AuthResult};
+use crate::config::environment::RateLimitConfig;
 use crate::constants::key_prefixes;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::errors::{AppError, AppResult};
 use crate::providers::errors::ProviderError;
 use crate::rate_limiting::UnifiedRateLimitCalculator;
+use crate::security::cookies::get_cookie_value;
 use crate::utils::errors::auth_error;
+use crate::utils::uuid::parse_uuid;
+use axum::http::HeaderMap;
+use std::sync::Arc;
+use tracing::field::Empty;
 use tracing::{debug, info, warn};
 
 /// Middleware for `MCP` protocol authentication
@@ -20,8 +27,8 @@ pub struct McpAuthMiddleware {
     auth_manager: AuthManager,
     api_key_manager: ApiKeyManager,
     rate_limit_calculator: UnifiedRateLimitCalculator,
-    database: std::sync::Arc<Database>,
-    jwks_manager: std::sync::Arc<crate::admin::jwks::JwksManager>,
+    database: Arc<Database>,
+    jwks_manager: Arc<JwksManager>,
 }
 
 impl McpAuthMiddleware {
@@ -29,9 +36,9 @@ impl McpAuthMiddleware {
     #[must_use]
     pub fn new(
         auth_manager: AuthManager,
-        database: std::sync::Arc<Database>,
-        jwks_manager: std::sync::Arc<crate::admin::jwks::JwksManager>,
-        rate_limit_config: crate::config::environment::RateLimitConfig,
+        database: Arc<Database>,
+        jwks_manager: Arc<JwksManager>,
+        rate_limit_config: RateLimitConfig,
     ) -> Self {
         Self {
             auth_manager,
@@ -56,20 +63,20 @@ impl McpAuthMiddleware {
     #[tracing::instrument(
         skip(self, headers),
         fields(
-            auth_method = tracing::field::Empty,
-            user_id = tracing::field::Empty,
-            tenant_id = tracing::field::Empty,
-            success = tracing::field::Empty,
+            auth_method = Empty,
+            user_id = Empty,
+            tenant_id = Empty,
+            success = Empty,
         )
     )]
     pub async fn authenticate_request_with_headers(
         &self,
-        headers: &axum::http::HeaderMap,
+        headers: &HeaderMap,
     ) -> AppResult<AuthResult> {
         debug!("=== AUTH MIDDLEWARE AUTHENTICATE_REQUEST_WITH_HEADERS START ===");
 
         // Try cookie authentication first (preferred for web clients)
-        if let Some(jwt_token) = crate::security::cookies::get_cookie_value(headers, "auth_token") {
+        if let Some(jwt_token) = get_cookie_value(headers, "auth_token") {
             debug!("Found JWT in httpOnly cookie, attempting authentication");
             tracing::Span::current().record("auth_method", "JWT_COOKIE");
             match self.authenticate_jwt_token(&jwt_token).await {
@@ -112,10 +119,10 @@ impl McpAuthMiddleware {
     #[tracing::instrument(
         skip(self, auth_header),
         fields(
-            auth_method = tracing::field::Empty,
-            user_id = tracing::field::Empty,
-            tenant_id = tracing::field::Empty,
-            success = tracing::field::Empty,
+            auth_method = Empty,
+            user_id = Empty,
+            tenant_id = Empty,
+            success = Empty,
         )
     )]
     pub async fn authenticate_request(&self, auth_header: Option<&str>) -> AppResult<AuthResult> {
@@ -259,7 +266,7 @@ impl McpAuthMiddleware {
             .validate_token_detailed(token, &self.jwks_manager)
             .map_err(|e| AppError::auth_invalid(format!("JWT validation failed: {e}")))?;
 
-        let user_id = crate::utils::uuid::parse_uuid(&claims.sub)
+        let user_id = parse_uuid(&claims.sub)
             .map_err(|_| AppError::auth_invalid("Invalid user ID in token"))?;
 
         // Get user from database to check tier and rate limits

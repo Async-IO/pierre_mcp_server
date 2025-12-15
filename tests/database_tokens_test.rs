@@ -9,7 +9,8 @@
 
 use pierre_mcp_server::constants::oauth_providers;
 use pierre_mcp_server::database::{user_oauth_tokens::OAuthTokenData, Database};
-use pierre_mcp_server::models::{DecryptedToken, User, UserTier};
+use pierre_mcp_server::models::{DecryptedToken, User, UserStatus, UserTier};
+use pierre_mcp_server::permissions::UserRole;
 use uuid::Uuid;
 
 #[tokio::test]
@@ -29,9 +30,9 @@ async fn test_strava_token_storage() {
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_owned()),
         is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
+        user_status: UserStatus::Active,
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
@@ -132,9 +133,9 @@ async fn test_fitbit_token_storage() {
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_owned()),
         is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
+        user_status: UserStatus::Active,
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),

@@ -156,7 +156,7 @@ use pierre_mcp_server::{
 };
 use serde_json::json;
 use serial_test::serial;
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 use uuid::Uuid;
 
 mod common;
@@ -535,7 +535,7 @@ async fn test_websocket_message_size_limits() -> Result<()> {
 #[tokio::test]
 async fn test_websocket_client_id_generation() -> Result<()> {
     // Test that client IDs are unique
-    let mut ids = std::collections::HashSet::new();
+    let mut ids = HashSet::new();
 
     for _ in 0..100 {
         let id = Uuid::new_v4();

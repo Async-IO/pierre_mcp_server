@@ -11,9 +11,11 @@ use axum::{
         State,
     },
     response::IntoResponse,
+    routing::get,
     Router,
 };
 use std::sync::Arc;
+use tokio::task;
 use tracing::{debug, info};
 
 /// WebSocket routes implementation
@@ -29,7 +31,7 @@ impl WebSocketRoutes {
     /// Configured Axum Router with WebSocket endpoint
     pub fn routes(manager: Arc<WebSocketManager>) -> Router {
         Router::new()
-            .route("/ws", axum::routing::get(Self::handle_websocket))
+            .route("/ws", get(Self::handle_websocket))
             .with_state(manager)
     }
 
@@ -51,7 +53,7 @@ impl WebSocketRoutes {
         info!("New WebSocket connection request");
 
         // Yield to scheduler to allow other tasks to progress during upgrade
-        tokio::task::yield_now().await;
+        task::yield_now().await;
 
         // Upgrade HTTP connection to WebSocket
         ws.on_upgrade(move |socket: WebSocket| async move {

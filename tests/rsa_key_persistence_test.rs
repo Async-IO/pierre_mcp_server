@@ -11,27 +11,31 @@ mod common;
 
 use anyhow::Result;
 use chrono::Utc;
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
 use pierre_mcp_server::{
-    admin::{jwks::JwksManager, jwt::AdminJwtManager, models::AdminPermissions},
+    admin::{
+        jwks::JwksManager,
+        jwt::AdminJwtManager,
+        models::{AdminPermission, AdminPermissions},
+    },
     auth::AuthManager,
+    database,
     database_plugins::{factory::Database, DatabaseProvider},
     models::User,
 };
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
+use tokio::time::sleep;
 
 /// Create a test database for RSA key persistence tests
 async fn create_rsa_test_database() -> Result<Database> {
     common::init_test_logging();
     let database_url = "sqlite::memory:";
-    let encryption_key = pierre_mcp_server::database::generate_encryption_key().to_vec();
+    let encryption_key = database::generate_encryption_key().to_vec();
 
     #[cfg(feature = "postgresql")]
-    let database = Database::new(
-        database_url,
-        encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
-    )
-    .await?;
+    let database =
+        Database::new(database_url, encryption_key, &PostgresPoolConfig::default()).await?;
 
     #[cfg(not(feature = "postgresql"))]
     let database = Database::new(database_url, encryption_key).await?;
@@ -262,7 +266,7 @@ async fn test_multiple_persisted_keys() -> Result<()> {
         .await?;
 
     // Small delay to ensure different timestamps
-    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    sleep(Duration::from_millis(100)).await;
 
     // Save second key (active)
     let mut jwks2 = JwksManager::new();
@@ -348,7 +352,7 @@ async fn test_super_admin_token_persistence() -> Result<()> {
     assert!(
         validated
             .permissions
-            .has_permission(&pierre_mcp_server::admin::models::AdminPermission::ManageAdminTokens),
+            .has_permission(&AdminPermission::ManageAdminTokens),
         "Should have ManageAdminTokens permission"
     );
 

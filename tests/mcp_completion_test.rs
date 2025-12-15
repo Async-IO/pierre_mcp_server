@@ -8,6 +8,7 @@
 
 use pierre_mcp_server::mcp::protocol::{McpRequest, ProtocolHandler};
 use serde_json::json;
+use std::collections::HashMap;
 
 #[test]
 fn test_completion_activity_type() {
@@ -27,7 +28,7 @@ fn test_completion_activity_type() {
         id: Some(json!(1)),
         auth_token: None,
         headers: None,
-        metadata: std::collections::HashMap::new(),
+        metadata: HashMap::new(),
     };
 
     let response = ProtocolHandler::handle_completion_complete(request);
@@ -65,7 +66,7 @@ fn test_completion_provider() {
         id: Some(json!(2)),
         auth_token: None,
         headers: None,
-        metadata: std::collections::HashMap::new(),
+        metadata: HashMap::new(),
     };
 
     let response = ProtocolHandler::handle_completion_complete(request);
@@ -97,7 +98,7 @@ fn test_completion_goal_type() {
         id: Some(json!(3)),
         auth_token: None,
         headers: None,
-        metadata: std::collections::HashMap::new(),
+        metadata: HashMap::new(),
     };
 
     let response = ProtocolHandler::handle_completion_complete(request);
@@ -133,7 +134,7 @@ fn test_completion_resource_uri() {
         id: Some(json!(4)),
         auth_token: None,
         headers: None,
-        metadata: std::collections::HashMap::new(),
+        metadata: HashMap::new(),
     };
 
     let response = ProtocolHandler::handle_completion_complete(request);
@@ -165,7 +166,7 @@ fn test_completion_no_matches() {
         id: Some(json!(5)),
         auth_token: None,
         headers: None,
-        metadata: std::collections::HashMap::new(),
+        metadata: HashMap::new(),
     };
 
     let response = ProtocolHandler::handle_completion_complete(request);
@@ -197,7 +198,7 @@ fn test_completion_unknown_argument() {
         id: Some(json!(6)),
         auth_token: None,
         headers: None,
-        metadata: std::collections::HashMap::new(),
+        metadata: HashMap::new(),
     };
 
     let response = ProtocolHandler::handle_completion_complete(request);
@@ -225,7 +226,7 @@ fn test_completion_invalid_params() {
         id: Some(json!(7)),
         auth_token: None,
         headers: None,
-        metadata: std::collections::HashMap::new(),
+        metadata: HashMap::new(),
     };
 
     let response = ProtocolHandler::handle_completion_complete(request);
@@ -247,7 +248,7 @@ fn test_completion_missing_params() {
         id: Some(json!(8)),
         auth_token: None,
         headers: None,
-        metadata: std::collections::HashMap::new(),
+        metadata: HashMap::new(),
     };
 
     let response = ProtocolHandler::handle_completion_complete(request);

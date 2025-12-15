@@ -4,15 +4,21 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-use crate::errors::AppError;
-use crate::mcp::{
-    protocol::{McpRequest, McpResponse},
-    resources::ServerResources,
-    tool_handlers::ToolHandlers,
+use crate::{
+    database::oauth_notifications::OAuthNotification,
+    errors::AppError,
+    mcp::{
+        protocol::{McpRequest, McpResponse},
+        resources::ServerResources,
+        tool_handlers::ToolHandlers,
+    },
 };
 use serde_json::Value;
 use std::sync::Arc;
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{
+    broadcast::{self, Sender},
+    RwLock,
+};
 use tracing::{debug, error, info};
 
 /// MCP protocol stream for a specific session
@@ -144,9 +150,7 @@ impl McpProtocolStream {
     /// Send OAuth notification through MCP protocol stream
     ///
     /// Build JSON-RPC notification for OAuth completion
-    fn build_oauth_notification_json(
-        notification: &crate::database::oauth_notifications::OAuthNotification,
-    ) -> Result<String, AppError> {
+    fn build_oauth_notification_json(notification: &OAuthNotification) -> Result<String, AppError> {
         let mcp_notification = serde_json::json!({
             "jsonrpc": "2.0",
             "method": "notifications/oauth_completed",
@@ -164,7 +168,7 @@ impl McpProtocolStream {
 
     /// Broadcast notification via sender
     fn broadcast_notification(
-        sender: &tokio::sync::broadcast::Sender<String>,
+        sender: &Sender<String>,
         json_data: String,
         provider: &str,
     ) -> Result<(), AppError> {
@@ -193,7 +197,7 @@ impl McpProtocolStream {
     /// - Sending the notification fails
     pub async fn send_oauth_notification(
         &self,
-        notification: &crate::database::oauth_notifications::OAuthNotification,
+        notification: &OAuthNotification,
     ) -> Result<(), AppError> {
         debug!(
             "send_oauth_notification called for provider: {}",
@@ -207,7 +211,7 @@ impl McpProtocolStream {
         Self::broadcast_notification(&sender, json_data, &notification.provider)
     }
 
-    async fn get_active_sender(&self) -> Result<tokio::sync::broadcast::Sender<String>, AppError> {
+    async fn get_active_sender(&self) -> Result<Sender<String>, AppError> {
         let sender_guard = self.sender.read().await;
         let Some(sender) = sender_guard.as_ref().cloned() else {
             drop(sender_guard);

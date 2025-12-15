@@ -19,10 +19,13 @@
 #![allow(missing_docs)]
 
 use anyhow::Result;
-use pierre_mcp_server::database_plugins::DatabaseProvider;
-use pierre_mcp_server::models::User;
-use pierre_mcp_server::protocols::universal::{UniversalRequest, UniversalToolExecutor};
+use pierre_mcp_server::{
+    database_plugins::DatabaseProvider,
+    models::User,
+    protocols::universal::{UniversalRequest, UniversalToolExecutor},
+};
 use serde_json::json;
+use std::env;
 use uuid::Uuid;
 
 mod common;
@@ -72,7 +75,7 @@ fn create_test_request(
 
 /// Check if USDA API key is configured
 fn usda_api_key_available() -> bool {
-    std::env::var("USDA_API_KEY").is_ok()
+    env::var("USDA_API_KEY").is_ok()
 }
 
 // ============================================================================

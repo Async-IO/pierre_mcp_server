@@ -21,8 +21,9 @@ use common::fixtures::{generate_activities, ActivityBatchSize};
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use pierre_mcp_server::cache::memory::InMemoryCache;
 use pierre_mcp_server::cache::{CacheConfig, CacheKey, CacheProvider, CacheResource};
+use pierre_mcp_server::models::Activity;
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
 use uuid::Uuid;
 
@@ -228,7 +229,7 @@ fn bench_cache_invalidate(c: &mut Criterion) {
                 }
             });
 
-            let start = std::time::Instant::now();
+            let start = Instant::now();
             for _ in 0..iters {
                 let pattern = CacheKey::tenant_pattern(tenant_id, "benchmark");
                 rt.block_on(async {
@@ -311,8 +312,7 @@ fn bench_cache_activities(c: &mut Criterion) {
     group.bench_function("get_100_activities", |b| {
         b.iter(|| {
             rt.block_on(async {
-                let _: Option<Vec<pierre_mcp_server::models::Activity>> =
-                    cache.get(black_box(&retrieval_key)).await.unwrap();
+                let _: Option<Vec<Activity>> = cache.get(black_box(&retrieval_key)).await.unwrap();
             });
         });
     });

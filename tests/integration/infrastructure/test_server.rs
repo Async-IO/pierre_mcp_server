@@ -10,7 +10,7 @@
 
 use anyhow::Result;
 use pierre_mcp_server::{
-    cache::CacheConfig,
+    cache::{factory::Cache, CacheConfig},
     config::environment::{
         AppBehaviorConfig, AuthConfig, BackupConfig, DatabaseConfig, DatabaseUrl, Environment,
         ExternalServicesConfig, HttpClientConfig, LogLevel, LoggingConfig, OAuth2ServerConfig,
@@ -19,14 +19,19 @@ use pierre_mcp_server::{
     },
     database_plugins::DatabaseProvider,
     mcp::{multitenant::MultiTenantMcpServer, resources::ServerResources},
-    models::{User, UserStatus, UserTier},
+    models::{Tenant, User, UserStatus, UserTier},
     permissions::UserRole,
     providers::synthetic_provider::set_synthetic_test_seed,
 };
 use rand::Rng;
-use std::{net::TcpListener, sync::Arc, time::Duration};
-use tokio::time::sleep;
+use std::{net::TcpListener, path::PathBuf, sync::Arc, time::Duration};
+use tokio::{task::JoinHandle, time::sleep};
 use uuid::Uuid;
+
+use crate::common::{
+    create_test_auth_manager, create_test_database, get_shared_test_jwks, init_server_config,
+    init_test_http_clients, init_test_logging,
+};
 
 /// Default seed for deterministic test data generation (reserved for future use)
 pub const DEFAULT_TEST_SEED: u64 = 12345;
@@ -35,7 +40,7 @@ pub const DEFAULT_TEST_SEED: u64 = 12345;
 pub struct IntegrationTestServer {
     port: u16,
     resources: Arc<ServerResources>,
-    server_handle: Option<tokio::task::JoinHandle<()>>,
+    server_handle: Option<JoinHandle<()>>,
 }
 
 impl IntegrationTestServer {
@@ -48,17 +53,17 @@ impl IntegrationTestServer {
         // Enable seeded synthetic provider for deterministic test data
         set_synthetic_test_seed(DEFAULT_TEST_SEED);
 
-        crate::common::init_test_logging();
-        crate::common::init_test_http_clients();
-        crate::common::init_server_config();
+        init_test_logging();
+        init_test_http_clients();
+        init_server_config();
 
         let port = find_available_port();
-        let database = crate::common::create_test_database().await?;
-        let auth_manager = crate::common::create_test_auth_manager();
-        let jwks_manager = crate::common::get_shared_test_jwks();
+        let database = create_test_database().await?;
+        let auth_manager = create_test_auth_manager();
+        let jwks_manager = get_shared_test_jwks();
 
         let config = Arc::new(create_test_server_config(port));
-        let cache = pierre_mcp_server::cache::factory::Cache::new(CacheConfig {
+        let cache = Cache::new(CacheConfig {
             max_entries: 1000,
             redis_url: None,
             cleanup_interval: Duration::from_secs(60),
@@ -174,7 +179,7 @@ impl IntegrationTestServer {
 
         // Create tenant for user
         let tenant_id = Uuid::new_v4();
-        let tenant = pierre_mcp_server::models::Tenant {
+        let tenant = Tenant {
             id: tenant_id,
             name: format!("Tenant for {email}"),
             slug: format!("tenant-{tenant_id}"),
@@ -244,7 +249,7 @@ fn create_test_server_config(port: u16) -> ServerConfig {
                 enabled: false,
                 interval_seconds: 3600,
                 retention_count: 7,
-                directory: std::path::PathBuf::from("test_backups"),
+                directory: PathBuf::from("test_backups"),
             },
             postgres_pool: PostgresPoolConfig::default(),
         },

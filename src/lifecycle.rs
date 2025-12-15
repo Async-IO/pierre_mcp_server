@@ -19,6 +19,7 @@ use crate::errors::{AppError, AppResult};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
+use tokio::time::{error::Elapsed, timeout};
 use tracing::{error, info, warn};
 
 /// Plugin lifecycle state
@@ -115,7 +116,7 @@ impl PluginManager {
 
     /// Handle plugin initialization result and log appropriately
     fn handle_plugin_init(
-        result: Result<Result<(), AppError>, tokio::time::error::Elapsed>,
+        result: Result<Result<(), AppError>, Elapsed>,
         plugin_name: &str,
         is_required: bool,
         timeout: Duration,
@@ -177,7 +178,7 @@ impl PluginManager {
         info!("Initializing {} plugins", self.plugins.len());
 
         self.plugins.sort_by_key(|p| p.priority());
-        let timeout = self.initialization_timeout;
+        let init_timeout = self.initialization_timeout;
 
         for plugin in &mut self.plugins {
             let plugin_name = plugin.name().to_owned();
@@ -189,9 +190,9 @@ impl PluginManager {
                 plugin_name, priority, is_required
             );
 
-            let result = tokio::time::timeout(timeout, plugin.initialize()).await;
+            let result = timeout(init_timeout, plugin.initialize()).await;
 
-            Self::handle_plugin_init(result, &plugin_name, is_required, timeout)?;
+            Self::handle_plugin_init(result, &plugin_name, is_required, init_timeout)?;
         }
 
         info!("All plugins initialized successfully");

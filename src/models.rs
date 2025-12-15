@@ -29,12 +29,20 @@
 //! - `PersonalRecord`: Individual performance records
 //! - `SportType`: Enumeration of supported activity types
 
-use crate::constants::tiers;
-use crate::errors::AppError;
+use std::collections::HashMap;
+use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::str::FromStr;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use uuid::Uuid;
+
+use crate::config::profiles::FitnessLevel;
+use crate::config::FitnessConfig;
+use crate::constants::tiers;
+use crate::errors::{AppError, AppResult};
+use crate::intelligence::algorithms::MaxHrAlgorithm;
+use crate::permissions::UserRole;
 
 /// Heart rate zone data for an activity
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -175,8 +183,8 @@ pub enum UserTier {
     Enterprise,
 }
 
-impl std::fmt::Display for UserTier {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for UserTier {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Self::Starter => write!(f, "Starter"),
             Self::Professional => write!(f, "Professional"),
@@ -218,8 +226,8 @@ impl UserStatus {
     }
 }
 
-impl std::fmt::Display for UserStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for UserStatus {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Self::Pending => write!(f, "pending"),
             Self::Active => write!(f, "active"),
@@ -260,7 +268,7 @@ impl UserTier {
     }
 }
 
-impl std::str::FromStr for UserTier {
+impl FromStr for UserTier {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -999,10 +1007,7 @@ pub enum SportType {
 impl SportType {
     /// Create `SportType` from provider string using configuration mapping
     #[must_use]
-    pub fn from_provider_string(
-        provider_sport: &str,
-        fitness_config: &crate::config::FitnessConfig,
-    ) -> Self {
+    pub fn from_provider_string(provider_sport: &str, fitness_config: &FitnessConfig) -> Self {
         // First check if we have a configured mapping
         if let Some(internal_name) = fitness_config.map_sport_type(provider_sport) {
             return Self::from_internal_string(internal_name);
@@ -1274,7 +1279,7 @@ pub struct User {
     /// Whether this user has admin privileges (legacy - use role instead)
     pub is_admin: bool,
     /// User role for permission system (`super_admin`, `admin`, `user`)
-    pub role: crate::permissions::UserRole,
+    pub role: UserRole,
     /// Admin who approved this user (if approved)
     pub approved_by: Option<Uuid>,
     /// When the user was approved by admin
@@ -1306,7 +1311,7 @@ pub struct UserPhysiologicalProfile {
     /// Weight in kg
     pub weight: Option<f64>,
     /// Overall fitness level
-    pub fitness_level: crate::config::profiles::FitnessLevel,
+    pub fitness_level: FitnessLevel,
     /// Primary sport for specialized calculations
     pub primary_sport: SportType,
     /// Years of training experience
@@ -1325,7 +1330,7 @@ impl UserPhysiologicalProfile {
             lactate_threshold_percentage: None,
             age: None,
             weight: None,
-            fitness_level: crate::config::profiles::FitnessLevel::Recreational,
+            fitness_level: FitnessLevel::Recreational,
             primary_sport,
             training_experience_years: None,
         }
@@ -1338,8 +1343,6 @@ impl UserPhysiologicalProfile {
     pub fn estimated_max_hr(&self) -> Option<u16> {
         self.max_hr.or_else(|| {
             self.age.map(|age| {
-                use crate::intelligence::algorithms::MaxHrAlgorithm;
-
                 // Use Tanaka formula via enum (gold standard: 208 - 0.7xage)
                 MaxHrAlgorithm::Tanaka
                     .estimate(u32::from(age), None)
@@ -1359,9 +1362,9 @@ impl UserPhysiologicalProfile {
 
     /// Get fitness level from VO2 max if available
     #[must_use]
-    pub fn fitness_level_from_vo2_max(&self) -> crate::config::profiles::FitnessLevel {
+    pub fn fitness_level_from_vo2_max(&self) -> FitnessLevel {
         self.vo2_max.map_or(self.fitness_level, |vo2_max| {
-            crate::config::profiles::FitnessLevel::from_vo2_max(
+            FitnessLevel::from_vo2_max(
                 vo2_max, self.age, None, // Gender not stored in this profile
             )
         })
@@ -1600,7 +1603,7 @@ impl User {
             is_active: true,
             user_status: UserStatus::Pending, // New users need admin approval
             is_admin: false,                  // Regular users are not admins by default
-            role: crate::permissions::UserRole::User, // Default to regular user
+            role: UserRole::User,             // Default to regular user
             approved_by: None,
             approved_at: None,
             firebase_uid: None, // No Firebase UID for email/password users
@@ -1658,7 +1661,7 @@ impl EncryptedToken {
         expires_at: DateTime<Utc>,
         scope: String,
         encryption_key: &[u8],
-    ) -> crate::errors::AppResult<Self> {
+    ) -> AppResult<Self> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
         use ring::rand::{SecureRandom, SystemRandom};
@@ -1712,7 +1715,7 @@ impl EncryptedToken {
     /// # Errors
     ///
     /// Returns an error if decryption fails, nonce is invalid, or the encryption key is incorrect
-    pub fn decrypt(&self, encryption_key: &[u8]) -> crate::errors::AppResult<DecryptedToken> {
+    pub fn decrypt(&self, encryption_key: &[u8]) -> AppResult<DecryptedToken> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 

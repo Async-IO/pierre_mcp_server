@@ -8,6 +8,8 @@
 #![allow(missing_docs)]
 
 use anyhow::Result;
+use std::time::Duration;
+use tokio::{task::spawn_blocking, time::sleep};
 
 mod common;
 
@@ -65,7 +67,7 @@ async fn test_oauth_connection_isolation_via_sdk() -> Result<()> {
 
     println!("✓ Spawned 2 SDK bridges (one per tenant)");
 
-    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(500)).await;
 
     // TEST 1: Verify both SDKs can make requests and maintain separate contexts
     println!("\n=== Test 1: SDK Context Isolation ===");
@@ -144,7 +146,7 @@ async fn test_oauth_token_retrieval_isolation_via_mcp() -> Result<()> {
 
     println!("✓ Spawned 2 SDK bridges");
 
-    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(500)).await;
 
     // Verify each tenant can communicate via SDK with isolated context
     println!("\n=== Verifying OAuth Token Isolation ===");
@@ -226,20 +228,20 @@ async fn test_concurrent_oauth_operations_via_sdk() -> Result<()> {
 
     println!("✓ Spawned 3 SDK bridges");
 
-    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(500)).await;
 
     // Make concurrent tools/list requests to verify SDK context isolation
     println!("\n=== Concurrent SDK Context Validation ===");
 
-    let request1 = tokio::task::spawn_blocking(move || {
+    let request1 = spawn_blocking(move || {
         common::send_sdk_stdio_request(&mut sdk1, "tools/list", &serde_json::json!({}))
     });
 
-    let request2 = tokio::task::spawn_blocking(move || {
+    let request2 = spawn_blocking(move || {
         common::send_sdk_stdio_request(&mut sdk2, "tools/list", &serde_json::json!({}))
     });
 
-    let request3 = tokio::task::spawn_blocking(move || {
+    let request3 = spawn_blocking(move || {
         common::send_sdk_stdio_request(&mut sdk3, "tools/list", &serde_json::json!({}))
     });
 

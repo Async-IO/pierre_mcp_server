@@ -4,9 +4,13 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-use crate::errors::{AppError, AppResult};
+use std::collections::HashMap;
+use std::str::FromStr;
+
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
+
+use crate::errors::{AppError, AppResult};
 
 /// Training load calculation algorithm selection
 ///
@@ -212,7 +216,7 @@ impl TrainingLoadAlgorithm {
         }
 
         // Create a map of date -> TSS for quick lookup
-        let mut tss_map = std::collections::HashMap::new();
+        let mut tss_map = HashMap::new();
         for point in tss_data {
             let date_key = point.date.date_naive();
             *tss_map.entry(date_key).or_insert(0.0) += point.tss;
@@ -283,7 +287,7 @@ impl TrainingLoadAlgorithm {
         let window_start = last_date - Duration::days(window_days - 1);
 
         // Create daily TSS map
-        let mut tss_map = std::collections::HashMap::new();
+        let mut tss_map = HashMap::new();
         for point in tss_data {
             if point.date >= window_start {
                 let date_key = point.date.date_naive();
@@ -346,7 +350,7 @@ impl TrainingLoadAlgorithm {
         }
 
         // Create daily TSS map
-        let mut tss_map = std::collections::HashMap::new();
+        let mut tss_map = HashMap::new();
         for point in tss_data {
             let date_key = point.date.date_naive();
             *tss_map.entry(date_key).or_insert(0.0) += point.tss;
@@ -436,7 +440,7 @@ impl TrainingLoadAlgorithm {
     }
 }
 
-impl std::str::FromStr for TrainingLoadAlgorithm {
+impl FromStr for TrainingLoadAlgorithm {
     type Err = AppError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {

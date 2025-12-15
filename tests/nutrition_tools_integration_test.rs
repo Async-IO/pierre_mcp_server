@@ -21,6 +21,7 @@
 use anyhow::Result;
 use pierre_mcp_server::protocols::universal::{UniversalRequest, UniversalToolExecutor};
 use serde_json::json;
+use std::env;
 use uuid::Uuid;
 
 mod common;
@@ -54,7 +55,7 @@ fn create_test_request(tool_name: &str, parameters: serde_json::Value) -> Univer
 
 /// Check if USDA API key is configured
 fn usda_api_key_available() -> bool {
-    std::env::var("USDA_API_KEY").is_ok()
+    env::var("USDA_API_KEY").is_ok()
 }
 
 // ============================================================================

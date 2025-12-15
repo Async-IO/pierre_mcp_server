@@ -62,8 +62,10 @@ pub use executor::ToolInfo;
 /// Plugin registry
 pub use registry::PluginRegistry;
 
+use crate::database_plugins::factory::Database;
 use crate::protocols::universal::UniversalResponse;
 use crate::protocols::ProtocolError;
+use crate::providers::registry::ProviderRegistry;
 
 /// Plugin execution context with user information
 #[derive(Debug, Clone)]
@@ -88,9 +90,9 @@ pub struct PluginResult {
 /// Plugin execution environment for safe resource access
 pub struct PluginEnvironment<'a> {
     /// Database connection for data persistence
-    pub database: &'a crate::database_plugins::factory::Database,
+    pub database: &'a Database,
     /// Provider registry for fitness data access
-    pub provider_registry: &'a crate::providers::registry::ProviderRegistry,
+    pub provider_registry: &'a ProviderRegistry,
     /// Execution context with user information
     pub context: &'a PluginContext,
 }
@@ -99,8 +101,8 @@ impl<'a> PluginEnvironment<'a> {
     /// Create new plugin environment with resource access
     #[must_use]
     pub const fn new(
-        database: &'a crate::database_plugins::factory::Database,
-        provider_registry: &'a crate::providers::registry::ProviderRegistry,
+        database: &'a Database,
+        provider_registry: &'a ProviderRegistry,
         context: &'a PluginContext,
     ) -> Self {
         Self {

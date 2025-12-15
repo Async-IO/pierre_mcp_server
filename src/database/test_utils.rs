@@ -3,6 +3,8 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
+#[cfg(feature = "postgresql")]
+use crate::config::environment::PostgresPoolConfig;
 use crate::database_plugins::factory::Database;
 use crate::errors::AppResult;
 
@@ -17,12 +19,7 @@ pub async fn create_test_db() -> AppResult<Database> {
 
     #[cfg(feature = "postgresql")]
     {
-        Database::new(
-            database_url,
-            vec![0u8; 32],
-            &crate::config::environment::PostgresPoolConfig::default(),
-        )
-        .await
+        Database::new(database_url, vec![0u8; 32], &PostgresPoolConfig::default()).await
     }
 
     #[cfg(not(feature = "postgresql"))]

@@ -10,14 +10,17 @@
 //! API keys and JWT tokens, using the same logic and limits across all
 //! authentication methods.
 
-use crate::api_keys::{ApiKey, ApiKeyTier};
-use crate::constants::tiers;
-use crate::models::{Tenant, User, UserTier};
+use std::collections::HashMap;
+
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use tracing::warn;
 use uuid::Uuid;
+
+use crate::api_keys::{ApiKey, ApiKeyTier};
+use crate::config::environment::RateLimitConfig;
+use crate::constants::tiers;
+use crate::models::{Tenant, User, UserTier};
 
 /// JWT token usage record for tracking
 #[derive(Debug, Serialize, Deserialize)]
@@ -127,7 +130,7 @@ impl TenantRateLimitTier {
 
     /// Create tier configuration for starter tenants from config
     #[must_use]
-    pub const fn starter_from_config(config: &crate::config::environment::RateLimitConfig) -> Self {
+    pub const fn starter_from_config(config: &RateLimitConfig) -> Self {
         Self {
             monthly_limit: TENANT_STARTER_LIMIT,
             burst_limit: config.free_tier_burst,
@@ -139,9 +142,7 @@ impl TenantRateLimitTier {
 
     /// Create tier configuration for professional tenants from config
     #[must_use]
-    pub const fn professional_from_config(
-        config: &crate::config::environment::RateLimitConfig,
-    ) -> Self {
+    pub const fn professional_from_config(config: &RateLimitConfig) -> Self {
         Self {
             monthly_limit: TENANT_PROFESSIONAL_LIMIT,
             burst_limit: config.professional_burst,
@@ -153,9 +154,7 @@ impl TenantRateLimitTier {
 
     /// Create tier configuration for enterprise tenants from config
     #[must_use]
-    pub const fn enterprise_from_config(
-        config: &crate::config::environment::RateLimitConfig,
-    ) -> Self {
+    pub const fn enterprise_from_config(config: &RateLimitConfig) -> Self {
         Self {
             monthly_limit: TENANT_ENTERPRISE_LIMIT,
             burst_limit: config.enterprise_burst,
@@ -227,7 +226,7 @@ pub struct TenantRateLimitConfig {
     /// Default configuration for new tenants
     default_config: TenantRateLimitTier,
     /// Rate limit configuration source (optional for backward compatibility)
-    rate_limit_config: Option<crate::config::environment::RateLimitConfig>,
+    rate_limit_config: Option<RateLimitConfig>,
 }
 
 impl TenantRateLimitConfig {
@@ -243,7 +242,7 @@ impl TenantRateLimitConfig {
 
     /// Create new tenant rate limit configuration manager with config
     #[must_use]
-    pub fn new_with_config(config: crate::config::environment::RateLimitConfig) -> Self {
+    pub fn new_with_config(config: RateLimitConfig) -> Self {
         Self {
             tenant_configs: HashMap::new(),
             default_config: TenantRateLimitTier::starter_from_config(&config),
@@ -338,7 +337,7 @@ impl UnifiedRateLimitCalculator {
 
     /// Create a new unified rate limit calculator with config
     #[must_use]
-    pub fn new_with_config(config: crate::config::environment::RateLimitConfig) -> Self {
+    pub fn new_with_config(config: RateLimitConfig) -> Self {
         Self {
             tenant_config: TenantRateLimitConfig::new_with_config(config),
         }
@@ -664,9 +663,7 @@ impl OAuth2RateLimitConfig {
 
     /// Create `OAuth2` rate limit configuration from `RateLimitConfig`
     #[must_use]
-    pub const fn from_rate_limit_config(
-        config: &crate::config::environment::RateLimitConfig,
-    ) -> Self {
+    pub const fn from_rate_limit_config(config: &RateLimitConfig) -> Self {
         Self {
             authorize_rpm: config.oauth_authorize_rpm,
             token_rpm: config.oauth_token_rpm,

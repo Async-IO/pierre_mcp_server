@@ -10,12 +10,12 @@
 //! request logs, and other monitoring data. All handlers require valid JWT authentication.
 
 use crate::{
-    dashboard_routes::DashboardRoutes as DashboardService, errors::AppError,
-    mcp::resources::ServerResources,
+    auth::AuthResult, dashboard_routes::DashboardRoutes as DashboardService, errors::AppError,
+    mcp::resources::ServerResources, security::cookies::get_cookie_value,
 };
 use axum::{
     extract::{Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::get,
     Json, Router,
@@ -103,16 +103,14 @@ impl DashboardRoutes {
 
     /// Extract and authenticate user from authorization header or cookie
     async fn authenticate(
-        headers: &axum::http::HeaderMap,
+        headers: &HeaderMap,
         resources: &Arc<ServerResources>,
-    ) -> Result<crate::auth::AuthResult, AppError> {
+    ) -> Result<AuthResult, AppError> {
         // Try Authorization header first
         let auth_value =
             if let Some(auth_header) = headers.get("authorization").and_then(|h| h.to_str().ok()) {
                 auth_header.to_owned()
-            } else if let Some(token) =
-                crate::security::cookies::get_cookie_value(headers, "auth_token")
-            {
+            } else if let Some(token) = get_cookie_value(headers, "auth_token") {
                 // Fall back to auth_token cookie, format as Bearer token
                 format!("Bearer {token}")
             } else {
@@ -131,7 +129,7 @@ impl DashboardRoutes {
     /// Handle dashboard overview request
     async fn handle_dashboard_overview(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
 
@@ -144,7 +142,7 @@ impl DashboardRoutes {
     /// Handle detailed stats request
     async fn handle_detailed_stats(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
 
@@ -157,7 +155,7 @@ impl DashboardRoutes {
     /// Handle usage analytics request
     async fn handle_usage_analytics(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Query(params): Query<UsageAnalyticsQuery>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
@@ -171,7 +169,7 @@ impl DashboardRoutes {
     /// Handle rate limits overview request
     async fn handle_rate_limits(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
 
@@ -184,7 +182,7 @@ impl DashboardRoutes {
     /// Handle request logs request
     async fn handle_request_logs(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Query(params): Query<RequestLogsQuery>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
@@ -202,7 +200,7 @@ impl DashboardRoutes {
     /// Handle tool usage breakdown request
     async fn handle_tool_usage(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Query(params): Query<ToolUsageQuery>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;

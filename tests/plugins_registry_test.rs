@@ -9,7 +9,7 @@
 
 use async_trait::async_trait;
 use pierre_mcp_server::plugins::{
-    core::{PluginCategory, PluginInfo, PluginTool},
+    core::{plugin_success, PluginCategory, PluginInfo, PluginTool},
     registry::PluginRegistry,
     PluginEnvironment, PluginResult,
 };
@@ -36,11 +36,7 @@ impl PluginTool for TestPlugin {
         _request: UniversalRequest,
         _env: PluginEnvironment<'_>,
     ) -> Result<PluginResult, ProtocolError> {
-        Ok(pierre_mcp_server::plugins::core::plugin_success(
-            serde_json::json!({"test": true}),
-            1,
-            100,
-        ))
+        Ok(plugin_success(serde_json::json!({"test": true}), 1, 100))
     }
 }
 

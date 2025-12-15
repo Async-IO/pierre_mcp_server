@@ -5,10 +5,18 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use super::Database;
+use crate::admin::jwks::JwksManager;
+use crate::admin::jwt::AdminJwtManager;
+use crate::admin::models::{
+    AdminAction, AdminPermissions, AdminToken, AdminTokenUsage, CreateAdminTokenRequest,
+    GeneratedAdminToken,
+};
 use crate::errors::{AppError, AppResult};
 use chrono::{DateTime, Utc};
+use sqlx::sqlite::SqliteRow;
 use sqlx::Row;
 use tracing::debug;
+use uuid::Uuid;
 
 impl Database {
     /// Create a new admin token
@@ -21,16 +29,10 @@ impl Database {
     /// - Permissions JSON serialization fails
     pub async fn create_admin_token(
         &self,
-        request: &crate::admin::models::CreateAdminTokenRequest,
+        request: &CreateAdminTokenRequest,
         admin_jwt_secret: &str,
-        jwks_manager: &crate::admin::jwks::JwksManager,
-    ) -> AppResult<crate::admin::models::GeneratedAdminToken> {
-        use crate::admin::{
-            jwt::AdminJwtManager,
-            models::{AdminPermissions, GeneratedAdminToken},
-        };
-        use uuid::Uuid;
-
+        jwks_manager: &JwksManager,
+    ) -> AppResult<GeneratedAdminToken> {
         // Generate unique token ID
         let uuid = Uuid::new_v4().simple();
         let token_id = format!("admin_{uuid}");
@@ -128,10 +130,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if database query fails
-    pub async fn get_admin_token_by_id(
-        &self,
-        token_id: &str,
-    ) -> AppResult<Option<crate::admin::models::AdminToken>> {
+    pub async fn get_admin_token_by_id(&self, token_id: &str) -> AppResult<Option<AdminToken>> {
         let query = r"
             SELECT id, service_name, service_description, token_hash, token_prefix,
                    jwt_secret_hash, permissions, is_super_admin, is_active,
@@ -160,7 +159,7 @@ impl Database {
     pub async fn get_admin_token_by_prefix(
         &self,
         token_prefix: &str,
-    ) -> AppResult<Option<crate::admin::models::AdminToken>> {
+    ) -> AppResult<Option<AdminToken>> {
         let query = r"
             SELECT id, service_name, service_description, token_hash, token_prefix,
                    jwt_secret_hash, permissions, is_super_admin, is_active,
@@ -186,10 +185,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if database query or row parsing fails
-    pub async fn list_admin_tokens(
-        &self,
-        include_inactive: bool,
-    ) -> AppResult<Vec<crate::admin::models::AdminToken>> {
+    pub async fn list_admin_tokens(&self, include_inactive: bool) -> AppResult<Vec<AdminToken>> {
         let query = if include_inactive {
             r"
                 SELECT id, service_name, service_description, token_hash, token_prefix,
@@ -269,10 +265,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if database insertion fails
-    pub async fn record_admin_token_usage(
-        &self,
-        usage: &crate::admin::models::AdminTokenUsage,
-    ) -> AppResult<()> {
+    pub async fn record_admin_token_usage(&self, usage: &AdminTokenUsage) -> AppResult<()> {
         let query = r"
             INSERT INTO admin_token_usage (
                 admin_token_id, timestamp, action, target_resource,
@@ -316,7 +309,7 @@ impl Database {
         token_id: &str,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
-    ) -> AppResult<Vec<crate::admin::models::AdminTokenUsage>> {
+    ) -> AppResult<Vec<AdminTokenUsage>> {
         let query = r"
             SELECT id, admin_token_id, timestamp, action, target_resource,
                    ip_address, user_agent, request_size_bytes, success,
@@ -488,12 +481,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if row parsing or JSON deserialization fails
-    fn row_to_admin_token(
-        row: &sqlx::sqlite::SqliteRow,
-    ) -> AppResult<crate::admin::models::AdminToken> {
-        use crate::admin::models::{AdminPermissions, AdminToken};
-        use sqlx::Row;
-
+    fn row_to_admin_token(row: &SqliteRow) -> AppResult<AdminToken> {
         let permissions_json: String = row
             .try_get("permissions")
             .map_err(|e| AppError::database(format!("Failed to get permissions from row: {e}")))?;
@@ -548,12 +536,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if row parsing fails
-    fn row_to_admin_token_usage(
-        row: &sqlx::sqlite::SqliteRow,
-    ) -> AppResult<crate::admin::models::AdminTokenUsage> {
-        use crate::admin::models::{AdminAction, AdminTokenUsage};
-        use sqlx::Row;
-
+    fn row_to_admin_token_usage(row: &SqliteRow) -> AppResult<AdminTokenUsage> {
         let action_str: String = row
             .try_get("action")
             .map_err(|e| AppError::database(format!("Failed to get action from row: {e}")))?;

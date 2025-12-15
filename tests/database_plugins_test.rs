@@ -7,17 +7,23 @@
 #![allow(missing_docs)]
 
 use chrono::Utc;
-use pierre_mcp_server::constants::oauth_providers;
-use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
-use pierre_mcp_server::models::{User, UserOAuthToken};
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
+use pierre_mcp_server::{
+    constants::oauth_providers,
+    database_plugins::{factory::Database, DatabaseProvider},
+    models::{User, UserOAuthToken, UserStatus, UserTier},
+    permissions::UserRole,
+};
 use serde_json::json;
+use std::env;
 use uuid::Uuid;
 
 async fn create_test_database() -> Database {
     let encryption_key = (0..32).collect::<Vec<u8>>();
     // Use a unique database file path for each test to ensure isolation
     let unique_id = uuid::Uuid::new_v4();
-    let temp_dir = std::env::temp_dir();
+    let temp_dir = env::temp_dir();
     let db_path = temp_dir.join(format!("test_{unique_id}.db"));
     let database_url = format!("sqlite:{}", db_path.display());
 
@@ -26,7 +32,7 @@ async fn create_test_database() -> Database {
         Database::new(
             &database_url,
             encryption_key,
-            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            &PostgresPoolConfig::default(),
         )
         .await
         .expect("Failed to create test database")
@@ -47,11 +53,11 @@ async fn create_test_user(db: &Database) -> Uuid {
         email: "test@example.com".to_owned(),
         display_name: Some("Test User".to_owned()),
         password_hash: "hashed_password".to_owned(),
-        tier: pierre_mcp_server::models::UserTier::Starter,
+        tier: UserTier::Starter,
         is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
+        user_status: UserStatus::Active,
         is_admin: false,
-        role: pierre_mcp_server::permissions::UserRole::User,
+        role: UserRole::User,
         approved_by: None,
         approved_at: Some(Utc::now()),
         created_at: Utc::now(),
@@ -76,7 +82,7 @@ async fn test_database_factory_creation() {
     let sqlite_db = Database::new(
         "sqlite::memory:",
         encryption_key.clone(),
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        &PostgresPoolConfig::default(),
     )
     .await;
 
@@ -311,13 +317,13 @@ async fn test_database_trait_abstraction() {
                 email: format!("test{i}@example.com"),
                 display_name: Some(format!("Test User {i}")),
                 password_hash: "hashed_password".to_owned(),
-                tier: pierre_mcp_server::models::UserTier::Starter,
+                tier: UserTier::Starter,
                 created_at: Utc::now(),
                 last_active: Utc::now(),
                 is_active: true,
-                user_status: pierre_mcp_server::models::UserStatus::Active,
+                user_status: UserStatus::Active,
                 is_admin: false,
-                role: pierre_mcp_server::permissions::UserRole::User,
+                role: UserRole::User,
                 approved_by: None,
                 approved_at: Some(chrono::Utc::now()),
                 strava_token: None,
@@ -360,13 +366,13 @@ async fn test_system_stats() {
             email: format!("user{i}@example.com"),
             display_name: Some(format!("User {i}")),
             password_hash: "hashed_password".to_owned(),
-            tier: pierre_mcp_server::models::UserTier::Starter,
+            tier: UserTier::Starter,
             created_at: Utc::now(),
             last_active: Utc::now(),
             is_active: true,
-            user_status: pierre_mcp_server::models::UserStatus::Active,
+            user_status: UserStatus::Active,
             is_admin: false,
-            role: pierre_mcp_server::permissions::UserRole::User,
+            role: UserRole::User,
             approved_by: None,
             approved_at: Some(chrono::Utc::now()),
             strava_token: None,

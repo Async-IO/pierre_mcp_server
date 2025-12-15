@@ -16,8 +16,18 @@ use pierre_mcp_server::{
     api_key_routes::ApiKeyRoutes,
     api_keys::{ApiKeyTier, CreateApiKeyRequest},
     auth::{AuthManager, AuthMethod, AuthResult},
+    config::environment::{
+        AppBehaviorConfig, AuthConfig, BackupConfig, CacheConfig, CorsConfig, DatabaseConfig,
+        DatabaseUrl, Environment, ExternalServicesConfig, FirebaseConfig, FitbitApiConfig,
+        GarminApiConfig, GeocodingServiceConfig, GoalManagementConfig, HttpClientConfig, LogLevel,
+        LoggingConfig, McpConfig, OAuth2ServerConfig, OAuthConfig, OAuthProviderConfig,
+        PostgresPoolConfig, ProtocolConfig, RateLimitConfig, RouteTimeoutConfig, SecurityConfig,
+        SecurityHeadersConfig, ServerConfig, SleepRecoveryConfig, SseConfig, StravaApiConfig,
+        TlsConfig, TrainingZonesConfig, WeatherServiceConfig,
+    },
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
+    mcp::resources::ServerResources,
     models::User,
     rate_limiting::UnifiedRateLimitInfo,
 };
@@ -52,13 +62,9 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
     let encryption_key = generate_encryption_key().to_vec();
 
     #[cfg(feature = "postgresql")]
-    let database = Database::new(
-        database_url,
-        encryption_key,
-        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
-    )
-    .await
-    .unwrap();
+    let database = Database::new(database_url, encryption_key, &PostgresPoolConfig::default())
+        .await
+        .unwrap();
 
     #[cfg(not(feature = "postgresql"))]
     let database = Database::new(database_url, encryption_key).await.unwrap();
@@ -82,7 +88,7 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
     let cache = common::create_test_cache().await.unwrap();
 
     // Create ServerResources for API key routes
-    let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+    let server_resources = Arc::new(ServerResources::new(
         database.clone(),
         auth_manager.clone(),
         "test_jwt_secret",
@@ -90,59 +96,58 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
             // Create temporary directory for test config files
             let temp_dir = tempfile::tempdir().unwrap();
 
-            pierre_mcp_server::config::environment::ServerConfig {
+            ServerConfig {
                 http_port: 8081,
                 oauth_callback_port: 35535,
-                log_level: pierre_mcp_server::config::environment::LogLevel::Info,
-                logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
-                http_client: pierre_mcp_server::config::environment::HttpClientConfig::default(),
-                database: pierre_mcp_server::config::environment::DatabaseConfig {
-                    url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
+                log_level: LogLevel::Info,
+                logging: LoggingConfig::default(),
+                http_client: HttpClientConfig::default(),
+                database: DatabaseConfig {
+                    url: DatabaseUrl::Memory,
                     auto_migrate: true,
-                    backup: pierre_mcp_server::config::environment::BackupConfig {
+                    backup: BackupConfig {
                         enabled: false,
                         interval_seconds: 3600,
                         retention_count: 7,
                         directory: temp_dir.path().to_path_buf(),
                     },
-                    postgres_pool:
-                        pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+                    postgres_pool: PostgresPoolConfig::default(),
                 },
-                auth: pierre_mcp_server::config::environment::AuthConfig {
+                auth: AuthConfig {
                     jwt_expiry_hours: 24,
                     enable_refresh_tokens: false,
-                    ..pierre_mcp_server::config::environment::AuthConfig::default()
+                    ..AuthConfig::default()
                 },
-                oauth: pierre_mcp_server::config::environment::OAuthConfig {
-                    strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                oauth: OAuthConfig {
+                    strava: OAuthProviderConfig {
                         client_id: None,
                         client_secret: None,
                         redirect_uri: None,
                         scopes: vec![],
                         enabled: false,
                     },
-                    fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                    fitbit: OAuthProviderConfig {
                         client_id: None,
                         client_secret: None,
                         redirect_uri: None,
                         scopes: vec![],
                         enabled: false,
                     },
-                    garmin: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                    garmin: OAuthProviderConfig {
                         client_id: None,
                         client_secret: None,
                         redirect_uri: None,
                         scopes: vec![],
                         enabled: false,
                     },
-                    whoop: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                    whoop: OAuthProviderConfig {
                         client_id: None,
                         client_secret: None,
                         redirect_uri: None,
                         scopes: vec![],
                         enabled: false,
                     },
-                    terra: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                    terra: OAuthProviderConfig {
                         client_id: None,
                         client_secret: None,
                         redirect_uri: None,
@@ -150,40 +155,40 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
                         enabled: false,
                     },
                 },
-                security: pierre_mcp_server::config::environment::SecurityConfig {
+                security: SecurityConfig {
                     cors_origins: vec!["*".to_owned()],
-                    tls: pierre_mcp_server::config::environment::TlsConfig {
+                    tls: TlsConfig {
                         enabled: false,
                         cert_path: None,
                         key_path: None,
                     },
-                    headers: pierre_mcp_server::config::environment::SecurityHeadersConfig {
-                        environment: pierre_mcp_server::config::environment::Environment::Testing,
+                    headers: SecurityHeadersConfig {
+                        environment: Environment::Testing,
                     },
                 },
-                external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
-                    weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
+                external_services: ExternalServicesConfig {
+                    weather: WeatherServiceConfig {
                         api_key: None,
                         base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                         enabled: false,
                     },
-                    geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
+                    geocoding: GeocodingServiceConfig {
                         base_url: "https://nominatim.openstreetmap.org".to_owned(),
                         enabled: false,
                     },
-                    strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
+                    strava_api: StravaApiConfig {
                         base_url: "https://www.strava.com/api/v3".to_owned(),
                         auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
                         token_url: "https://www.strava.com/oauth/token".to_owned(),
                         deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
                     },
-                    fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
+                    fitbit_api: FitbitApiConfig {
                         base_url: "https://api.fitbit.com".to_owned(),
                         auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
                         token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
                         revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
                     },
-                    garmin_api: pierre_mcp_server::config::environment::GarminApiConfig {
+                    garmin_api: GarminApiConfig {
                         base_url: "https://apis.garmin.com".to_owned(),
                         auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
                         token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
@@ -192,48 +197,43 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
                             .to_owned(),
                     },
                 },
-                app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
+                app_behavior: AppBehaviorConfig {
                     max_activities_fetch: 100,
                     default_activities_limit: 20,
                     ci_mode: true,
                     auto_approve_users: false,
-                    protocol: pierre_mcp_server::config::environment::ProtocolConfig {
+                    protocol: ProtocolConfig {
                         mcp_version: "2025-06-18".to_owned(),
                         server_name: "pierre-mcp-server-test".to_owned(),
                         server_version: env!("CARGO_PKG_VERSION").to_owned(),
                     },
                 },
-                sse: pierre_mcp_server::config::environment::SseConfig::default(),
-                oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(
-                ),
-                route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(
-                ),
+                sse: SseConfig::default(),
+                oauth2_server: OAuth2ServerConfig::default(),
+                route_timeouts: RouteTimeoutConfig::default(),
                 host: "localhost".to_owned(),
                 base_url: "http://localhost:8081".to_owned(),
-                mcp: pierre_mcp_server::config::environment::McpConfig {
+                mcp: McpConfig {
                     protocol_version: "2025-06-18".to_owned(),
                     server_name: "pierre-mcp-server-test".to_owned(),
                     session_cache_size: 1000,
                 },
-                cors: pierre_mcp_server::config::environment::CorsConfig {
+                cors: CorsConfig {
                     allowed_origins: "*".to_owned(),
                     allow_localhost_dev: true,
                 },
-                cache: pierre_mcp_server::config::environment::CacheConfig {
+                cache: CacheConfig {
                     redis_url: None,
                     max_entries: 10000,
                     cleanup_interval_secs: 300,
                     ..Default::default()
                 },
                 usda_api_key: None,
-                rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
-                sleep_recovery:
-                    pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
-                goal_management:
-                    pierre_mcp_server::config::environment::GoalManagementConfig::default(),
-                training_zones:
-                    pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
-                firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
+                rate_limiting: RateLimitConfig::default(),
+                sleep_recovery: SleepRecoveryConfig::default(),
+                goal_management: GoalManagementConfig::default(),
+                training_zones: TrainingZonesConfig::default(),
+                firebase: FirebaseConfig::default(),
             }
         }),
         cache,

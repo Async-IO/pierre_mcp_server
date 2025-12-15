@@ -7,6 +7,7 @@
 use crate::errors::AppError;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::str::FromStr;
 use uuid::Uuid;
 
 /// Impersonation system for super admins to act as other users
@@ -104,7 +105,7 @@ impl fmt::Display for UserRole {
     }
 }
 
-impl std::str::FromStr for UserRole {
+impl FromStr for UserRole {
     type Err = AppError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {

@@ -151,6 +151,8 @@
 
 mod common;
 
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::config::environment::PostgresPoolConfig;
 use pierre_mcp_server::{
     a2a::{
         client::{A2AClientTier, ClientRegistrationRequest},
@@ -158,19 +160,24 @@ use pierre_mcp_server::{
     },
     a2a_routes::{A2AClientRequest, A2ARoutes},
     auth::AuthManager,
+    cache::{factory::Cache, CacheConfig},
     config::environment::ServerConfig,
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
+    mcp::resources::ServerResources,
     models::User,
 };
 use serde_json::json;
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use uuid::Uuid;
 
 /// Test setup helper that creates all necessary components for A2A testing
 struct A2ATestSetup {
     routes: A2ARoutes,
-    server_resources: Arc<pierre_mcp_server::mcp::resources::ServerResources>,
+    server_resources: Arc<ServerResources>,
     database: Arc<Database>,
     #[allow(dead_code)]
     auth_manager: Arc<AuthManager>,
@@ -189,7 +196,7 @@ impl A2ATestSetup {
             Database::new(
                 "sqlite::memory:",
                 encryption_key,
-                &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+                &PostgresPoolConfig::default(),
             )
             .await
             .expect("Failed to create test database"),
@@ -229,19 +236,19 @@ impl A2ATestSetup {
         let config = Arc::new(create_test_server_config());
 
         // Create test cache with background cleanup disabled
-        let cache_config = pierre_mcp_server::cache::CacheConfig {
+        let cache_config = CacheConfig {
             max_entries: 1000,
             redis_url: None,
-            cleanup_interval: std::time::Duration::from_secs(60),
+            cleanup_interval: Duration::from_secs(60),
             enable_background_cleanup: false,
             ..Default::default()
         };
-        let cache = pierre_mcp_server::cache::factory::Cache::new(cache_config)
+        let cache = Cache::new(cache_config)
             .await
             .expect("Failed to create test cache");
 
         // Create ServerResources for A2A routes
-        let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+        let server_resources = Arc::new(ServerResources::new(
             (*database).clone(),
             (*auth_manager).clone(),
             "test_jwt_secret",
@@ -1401,7 +1408,7 @@ async fn test_dashboard_performance_with_many_clients() {
     }
 
     // Test dashboard performance
-    let start = std::time::Instant::now();
+    let start = Instant::now();
     let result = setup
         .routes
         .get_dashboard_overview(Some(&auth_header))
@@ -1441,7 +1448,7 @@ async fn test_client_list_performance() {
     }
 
     // Test list performance
-    let start = std::time::Instant::now();
+    let start = Instant::now();
     let result = setup.routes.list_clients(Some(&auth_header)).await;
     let duration = start.elapsed();
 
@@ -1596,12 +1603,12 @@ fn create_test_server_config() -> ServerConfig {
                 retention_count: 5,
                 directory: PathBuf::from("/tmp/backups"),
             },
-            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            postgres_pool: PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
-            ..pierre_mcp_server::config::environment::AuthConfig::default()
+            ..AuthConfig::default()
         },
         oauth: OAuthConfig {
             strava: OAuthProviderConfig {
@@ -1692,9 +1699,9 @@ fn create_test_server_config() -> ServerConfig {
                 server_version: "1.0.0".to_owned(),
             },
         },
-        sse: pierre_mcp_server::config::environment::SseConfig::default(),
-        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
-        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        sse: SseConfig::default(),
+        oauth2_server: OAuth2ServerConfig::default(),
+        route_timeouts: RouteTimeoutConfig::default(),
         host: "localhost".to_owned(),
         base_url: "http://localhost:8081".to_owned(),
         mcp: McpConfig {
@@ -1713,10 +1720,10 @@ fn create_test_server_config() -> ServerConfig {
             ..Default::default()
         },
         usda_api_key: None,
-        rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
-        sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
-        goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
-        training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
-        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
+        rate_limiting: RateLimitConfig::default(),
+        sleep_recovery: SleepRecoveryConfig::default(),
+        goal_management: GoalManagementConfig::default(),
+        training_zones: TrainingZonesConfig::default(),
+        firebase: FirebaseConfig::default(),
     }
 }

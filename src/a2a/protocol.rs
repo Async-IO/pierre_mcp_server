@@ -13,20 +13,29 @@
 //! Implements the core A2A (Agent-to-Agent) protocol for Pierre,
 //! providing JSON-RPC 2.0 based communication between AI agents.
 
+use crate::a2a::A2A_VERSION;
 use crate::database_plugins::DatabaseProvider;
+use crate::jsonrpc::{JsonRpcError, JsonRpcRequest, JsonRpcResponse};
+use crate::mcp::resources::ServerResources;
+use crate::mcp::schema::OAuthAppCredentials;
+use crate::protocols::universal::{UniversalRequest, UniversalToolExecutor};
 use crate::types::json_schemas;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{from_value, json, to_value, Number, Value};
 use std::collections::HashMap;
+use std::env::var;
+use std::fmt::{self, Display, Formatter};
+use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 // Phase 2: Type aliases pointing to unified JSON-RPC foundation
 
 /// A2A protocol request (JSON-RPC 2.0 request)
-pub type A2ARequest = crate::jsonrpc::JsonRpcRequest;
+pub type A2ARequest = JsonRpcRequest;
 /// A2A protocol response (JSON-RPC 2.0 response)
-pub type A2AResponse = crate::jsonrpc::JsonRpcResponse;
+pub type A2AResponse = JsonRpcResponse;
 
 /// A2A Protocol Error types
 #[non_exhaustive]
@@ -73,7 +82,7 @@ pub enum A2AError {
 // Phase 2: Type alias for error response
 
 /// A2A protocol error response (JSON-RPC 2.0 error)
-pub type A2AErrorResponse = crate::jsonrpc::JsonRpcError;
+pub type A2AErrorResponse = JsonRpcError;
 
 impl From<A2AError> for A2AErrorResponse {
     fn from(error: A2AError) -> Self {
@@ -121,7 +130,7 @@ pub struct A2AInitializeRequest {
         default,
         skip_serializing_if = "Option::is_none"
     )]
-    pub oauth_credentials: Option<HashMap<String, crate::mcp::schema::OAuthAppCredentials>>,
+    pub oauth_credentials: Option<HashMap<String, OAuthAppCredentials>>,
 }
 
 /// A2A Client Information
@@ -237,10 +246,10 @@ pub struct A2ATask {
     /// Current status of the task
     pub status: TaskStatus,
     /// When the task was created
-    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub created_at: DateTime<Utc>,
     /// When the task completed (if finished)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub completed_at: Option<DateTime<Utc>>,
     /// Task result data (if completed successfully)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<Value>,
@@ -260,7 +269,7 @@ pub struct A2ATask {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_message: Option<String>,
     /// When the task was last updated
-    pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 /// Task status enumeration
@@ -280,8 +289,8 @@ pub enum TaskStatus {
     Cancelled,
 }
 
-impl std::fmt::Display for TaskStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for TaskStatus {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::Pending => write!(f, "pending"),
             Self::Running => write!(f, "running"),
@@ -297,7 +306,7 @@ pub struct A2AServer {
     /// A2A protocol version
     pub version: String,
     /// Optional server resources for MCP integration
-    pub resources: Option<std::sync::Arc<crate::mcp::resources::ServerResources>>,
+    pub resources: Option<Arc<ServerResources>>,
 }
 
 impl A2AServer {
@@ -305,18 +314,16 @@ impl A2AServer {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            version: crate::a2a::A2A_VERSION.to_owned(),
+            version: A2A_VERSION.to_owned(),
             resources: None,
         }
     }
 
     /// Create a new A2A server with server resources
     #[must_use]
-    pub fn new_with_resources(
-        resources: std::sync::Arc<crate::mcp::resources::ServerResources>,
-    ) -> Self {
+    pub fn new_with_resources(resources: Arc<ServerResources>) -> Self {
         Self {
-            version: crate::a2a::A2A_VERSION.to_owned(),
+            version: A2A_VERSION.to_owned(),
             resources: Some(resources),
         }
     }
@@ -347,7 +354,7 @@ impl A2AServer {
     }
 
     fn handle_initialize(&self, request: A2ARequest) -> A2AResponse {
-        let result = serde_json::json!({
+        let result = json!({
             "version": self.version,
             "capabilities": [
                 "message/send",
@@ -401,8 +408,7 @@ impl A2AServer {
         // If initialization successful and OAuth credentials provided, store them
         if response.error.is_none() {
             if let Some(params) = &request.params {
-                if let Ok(init_request) =
-                    serde_json::from_value::<A2AInitializeRequest>(params.clone())
+                if let Ok(init_request) = from_value::<A2AInitializeRequest>(params.clone())
                 // Safe: JSON value ownership for deserialization
                 {
                     if let Some(oauth_creds) = init_request.oauth_credentials {
@@ -427,7 +433,7 @@ impl A2AServer {
     fn handle_initialize_internal(&self, request: A2ARequest) -> A2AResponse {
         // Parse A2A initialize request parameters
         let init_request = request.params.as_ref().and_then(|params| {
-            serde_json::from_value::<A2AInitializeRequest>(params.clone()) // Safe: JSON value ownership for deserialization
+            from_value::<A2AInitializeRequest>(params.clone()) // Safe: JSON value ownership for deserialization
                 .inspect_err(|e| {
                     warn!(
                         error = ?e,
@@ -444,7 +450,7 @@ impl A2AServer {
         } else {
             // Default values if parsing fails
             debug!("A2A initialize: using default values (no valid params provided)");
-            (crate::a2a::A2A_VERSION.to_owned(), "unknown".to_owned())
+            (A2A_VERSION.to_owned(), "unknown".to_owned())
         };
 
         info!("A2A initialization from client: {client_name} with protocol version: {protocol_version}");
@@ -456,7 +462,7 @@ impl A2AServer {
             self.version.clone(), // Safe: String ownership for response
         );
 
-        match serde_json::to_value(&init_response) {
+        match to_value(&init_response) {
             Ok(result) => A2AResponse {
                 jsonrpc: "2.0".into(),
                 result: Some(result),
@@ -479,12 +485,12 @@ impl A2AServer {
     /// Authenticate the A2A request and extract user information
     fn authenticate_request(
         request: &A2ARequest,
-        resources: &std::sync::Arc<crate::mcp::resources::ServerResources>,
-    ) -> Result<uuid::Uuid, Box<A2AResponse>> {
+        resources: &Arc<ServerResources>,
+    ) -> Result<Uuid, Box<A2AResponse>> {
         let request_id = request
             .id
             .clone() // Safe: JSON value ownership for request ID
-            .unwrap_or_else(|| serde_json::Value::Number(serde_json::Number::from(0)));
+            .unwrap_or_else(|| Value::Number(Number::from(0)));
 
         // Extract auth token from request
         let auth_token = request.auth_token.as_deref().ok_or_else(|| {
@@ -506,7 +512,7 @@ impl A2AServer {
             .auth_manager
             .validate_token(auth_token, &resources.jwks_manager)
         {
-            Ok(claims) => uuid::Uuid::parse_str(&claims.sub).map_or_else(
+            Ok(claims) => Uuid::parse_str(&claims.sub).map_or_else(
                 |_| {
                     Err(Box::new(A2AResponse {
                         jsonrpc: "2.0".into(),
@@ -536,9 +542,9 @@ impl A2AServer {
 
     /// Store OAuth credentials provided during A2A initialization
     async fn store_oauth_credentials(
-        oauth_creds: HashMap<String, crate::mcp::schema::OAuthAppCredentials>,
-        user_id: &uuid::Uuid,
-        resources: &std::sync::Arc<crate::mcp::resources::ServerResources>,
+        oauth_creds: HashMap<String, OAuthAppCredentials>,
+        user_id: &Uuid,
+        resources: &Arc<ServerResources>,
     ) -> Result<(), String> {
         for (provider, creds) in oauth_creds {
             info!("Storing OAuth credentials for provider {provider} for A2A user {user_id}");
@@ -566,7 +572,7 @@ impl A2AServer {
         // Message sending would forward requests to appropriate handlers
         A2AResponse {
             jsonrpc: "2.0".into(),
-            result: Some(serde_json::json!({"status": "received"})),
+            result: Some(json!({"status": "received"})),
             error: None,
             id: request.id,
         }
@@ -575,10 +581,10 @@ impl A2AServer {
     fn handle_message_stream(request: A2ARequest) -> A2AResponse {
         // Get base URL from environment or use default
         let base_url =
-            std::env::var("PIERRE_BASE_URL").unwrap_or_else(|_| "http://localhost:8080".to_owned());
+            var("PIERRE_BASE_URL").unwrap_or_else(|_| "http://localhost:8080".to_owned());
 
         // Extract stream_id or task_id from params (support both for flexibility)
-        let params = request.params.as_ref().unwrap_or(&serde_json::Value::Null);
+        let params = request.params.as_ref().unwrap_or(&Value::Null);
         let stream_id = params
             .get("stream_id")
             .or_else(|| params.get("task_id"))
@@ -588,7 +594,7 @@ impl A2AServer {
             // Return SSE streaming endpoint for specific stream/task
             A2AResponse {
                 jsonrpc: "2.0".into(),
-                result: Some(serde_json::json!({
+                result: Some(json!({
                     "stream_url": format!("{}/a2a/tasks/{}/stream", base_url, id),
                     "stream_type": "text/event-stream",
                     "protocol": "SSE",
@@ -602,7 +608,7 @@ impl A2AServer {
             // Return generic streaming info if no specific ID provided
             A2AResponse {
                 jsonrpc: "2.0".into(),
-                result: Some(serde_json::json!({
+                result: Some(json!({
                     "streaming_supported": true,
                     "stream_type": "text/event-stream",
                     "protocol": "SSE",
@@ -616,11 +622,10 @@ impl A2AServer {
 
     async fn handle_task_create(&self, request: A2ARequest) -> A2AResponse {
         // Parse request parameters using typed struct
-        let params_value = request.params.as_ref().unwrap_or(&serde_json::Value::Null);
+        let params_value = request.params.as_ref().unwrap_or(&Value::Null);
 
         let task_params =
-            match serde_json::from_value::<json_schemas::A2ATaskCreateParams>(params_value.clone())
-            {
+            match from_value::<json_schemas::A2ATaskCreateParams>(params_value.clone()) {
                 Ok(params) => params,
                 Err(e) => {
                     error!("Failed to parse A2A task create parameters: {}", e);
@@ -691,7 +696,7 @@ impl A2AServer {
             updated_at: chrono::Utc::now(),
         };
 
-        match serde_json::to_value(task) {
+        match to_value(task) {
             Ok(task_value) => A2AResponse {
                 jsonrpc: "2.0".into(),
                 result: Some(task_value),
@@ -704,7 +709,7 @@ impl A2AServer {
                 error: Some(A2AErrorResponse {
                     code: -32603,
                     message: "Internal error: Failed to serialize task".to_owned(),
-                    data: Some(serde_json::json!({
+                    data: Some(json!({
                         "error": e.to_string(),
                         "context": "Task serialization failed"
                     })),
@@ -717,7 +722,7 @@ impl A2AServer {
     async fn handle_task_get(&self, request: A2ARequest) -> A2AResponse {
         // Validate task ID parameter
         if let Some(params) = request.params.as_ref() {
-            if let Some(serde_json::Value::String(_task_id)) = params.get("task_id") {
+            if let Some(Value::String(_task_id)) = params.get("task_id") {
                 // Task ID is valid, continue processing
             } else {
                 return A2AResponse {
@@ -748,26 +753,25 @@ impl A2AServer {
         if let Some(resources) = &self.resources {
             let database = &resources.database;
             // Parse task_id from validated params using typed struct
-            let params_value = request.params.as_ref().unwrap_or(&serde_json::Value::Null);
+            let params_value = request.params.as_ref().unwrap_or(&Value::Null);
 
-            let task_params = match serde_json::from_value::<json_schemas::A2ATaskGetParams>(
-                params_value.clone(),
-            ) {
-                Ok(params) => params,
-                Err(e) => {
-                    error!("Failed to parse A2A task get parameters: {}", e);
-                    return A2AResponse {
-                        jsonrpc: "2.0".into(),
-                        result: None,
-                        error: Some(A2AErrorResponse {
-                            code: -32602,
-                            message: format!("Invalid parameters: {e}"),
-                            data: None,
-                        }),
-                        id: request.id,
-                    };
-                }
-            };
+            let task_params =
+                match from_value::<json_schemas::A2ATaskGetParams>(params_value.clone()) {
+                    Ok(params) => params,
+                    Err(e) => {
+                        error!("Failed to parse A2A task get parameters: {}", e);
+                        return A2AResponse {
+                            jsonrpc: "2.0".into(),
+                            result: None,
+                            error: Some(A2AErrorResponse {
+                                code: -32602,
+                                message: format!("Invalid parameters: {e}"),
+                                data: None,
+                            }),
+                            id: request.id,
+                        };
+                    }
+                };
 
             let task_id = &task_params.task_id;
 
@@ -776,7 +780,7 @@ impl A2AServer {
                 Ok(Some(task)) => {
                     return A2AResponse {
                         jsonrpc: "2.0".into(),
-                        result: Some(serde_json::to_value(task).unwrap_or_default()),
+                        result: Some(to_value(task).unwrap_or_default()),
                         error: None,
                         id: request.id,
                     };
@@ -826,16 +830,15 @@ impl A2AServer {
         if let Some(resources) = &self.resources {
             let database = &resources.database;
             // Parse list parameters using typed struct (with defaults for missing fields)
-            let params_value = request.params.as_ref().unwrap_or(&serde_json::Value::Null);
+            let params_value = request.params.as_ref().unwrap_or(&Value::Null);
 
-            let list_params =
-                serde_json::from_value::<json_schemas::A2ATaskListParams>(params_value.clone())
-                    .unwrap_or(json_schemas::A2ATaskListParams {
-                        client_id: None,
-                        status: None,
-                        limit: 20,
-                        offset: None,
-                    });
+            let list_params = from_value::<json_schemas::A2ATaskListParams>(params_value.clone())
+                .unwrap_or(json_schemas::A2ATaskListParams {
+                    client_id: None,
+                    status: None,
+                    limit: 20,
+                    offset: None,
+                });
 
             let client_id = list_params.client_id.as_deref();
             let limit = Some(list_params.limit);
@@ -861,10 +864,10 @@ impl A2AServer {
                 .await
             {
                 Ok(tasks) => {
-                    let tasks_json = serde_json::to_value(&tasks).unwrap_or_default();
+                    let tasks_json = to_value(&tasks).unwrap_or_default();
                     A2AResponse {
                         jsonrpc: "2.0".into(),
-                        result: Some(serde_json::json!({
+                        result: Some(json!({
                             "tasks": tasks_json,
                             "total": tasks.len(),
                             "limit": limit,
@@ -901,7 +904,7 @@ impl A2AServer {
 
     fn handle_tools_list(request: A2ARequest) -> A2AResponse {
         // Available tools would be sourced from the universal tool executor
-        let tools = serde_json::json!([
+        let tools = json!([
             {
                 "name": "get_activities",
                 "description": "Retrieve user fitness activities",
@@ -953,9 +956,9 @@ impl A2AServer {
             .unwrap_or_default();
 
         // Create universal request
-        let universal_request = crate::protocols::universal::UniversalRequest {
+        let universal_request = UniversalRequest {
             tool_name: tool_name.to_owned(),
-            parameters: serde_json::Value::Object(tool_params),
+            parameters: Value::Object(tool_params),
             user_id: "unknown".into(), // In production, this would come from authentication
             protocol: "a2a".into(),
             tenant_id: None, // A2A protocol doesn't have tenant context yet
@@ -982,7 +985,7 @@ impl A2AServer {
             }
         };
 
-        let executor = crate::protocols::universal::UniversalToolExecutor::new(resources);
+        let executor = UniversalToolExecutor::new(resources);
 
         match executor.execute_tool(universal_request).await {
             Ok(response) => A2AResponse {
@@ -1007,16 +1010,16 @@ impl A2AServer {
     fn handle_task_resubscribe(request: A2ARequest) -> A2AResponse {
         // Get base URL from environment or use default
         let base_url =
-            std::env::var("PIERRE_BASE_URL").unwrap_or_else(|_| "http://localhost:8080".to_owned());
+            var("PIERRE_BASE_URL").unwrap_or_else(|_| "http://localhost:8080".to_owned());
 
-        let params = request.params.as_ref().unwrap_or(&serde_json::Value::Null);
+        let params = request.params.as_ref().unwrap_or(&Value::Null);
         let task_id = params.get("task_id").and_then(|v| v.as_str());
 
         if let Some(task_id) = task_id {
             // Return resubscription information with new stream endpoint
             A2AResponse {
                 jsonrpc: "2.0".into(),
-                result: Some(serde_json::json!({
+                result: Some(json!({
                     "task_id": task_id,
                     "stream_url": format!("{}/a2a/tasks/{}/stream", base_url, task_id),
                     "stream_type": "text/event-stream",
@@ -1055,7 +1058,7 @@ impl A2AServer {
         // Simulate task cancellation until full task management is implemented
         A2AResponse {
             jsonrpc: "2.0".into(),
-            result: Some(serde_json::json!({
+            result: Some(json!({
                 "task_id": task_id,
                 "status": "cancelled",
                 "cancelled_at": chrono::Utc::now().to_rfc3339()
@@ -1074,7 +1077,7 @@ impl A2AServer {
         // In a full implementation, this would store push notification settings
         A2AResponse {
             jsonrpc: "2.0".into(),
-            result: Some(serde_json::json!({
+            result: Some(json!({
                 "status": "configured",
                 "config": config,
                 "updated_at": chrono::Utc::now().to_rfc3339()

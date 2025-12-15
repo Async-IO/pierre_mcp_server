@@ -8,11 +8,13 @@
 //!
 //! Converts between different protocol formats (MCP, A2A) and the universal format.
 
-use crate::a2a::protocol::{A2ARequest, A2AResponse};
-use crate::mcp::schema::{ToolCall, ToolResponse};
-use crate::protocols::universal::{UniversalRequest, UniversalResponse};
+use crate::a2a::protocol::{A2AErrorResponse, A2ARequest, A2AResponse};
+use crate::mcp::schema::{Content, Tool, ToolCall, ToolResponse};
+use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalTool};
+use crate::protocols::ProtocolError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::fmt::Write;
 use tracing::{debug, warn};
 
 /// Supported protocol types
@@ -80,7 +82,7 @@ impl ProtocolConverter {
     pub fn a2a_to_universal(
         request: &A2ARequest,
         user_id: &str,
-    ) -> Result<UniversalRequest, crate::protocols::ProtocolError> {
+    ) -> Result<UniversalRequest, ProtocolError> {
         // Extract tool name from A2A method
         let tool_name = match request.method.as_str() {
             "a2a/tools/call" => {
@@ -91,14 +93,14 @@ impl ProtocolConverter {
                     .and_then(|p| p.get("tool"))
                     .and_then(|t| t.as_str())
                     .ok_or_else(|| {
-                        crate::protocols::ProtocolError::InvalidParameters(
+                        ProtocolError::InvalidParameters(
                             "Tool name not found in A2A request".into(),
                         )
                     })?
                     .to_owned()
             }
             _method => {
-                return Err(crate::protocols::ProtocolError::ConversionFailed {
+                return Err(ProtocolError::ConversionFailed {
                     from: ProtocolType::A2A,
                     to: ProtocolType::A2A,
                     reason: "unsupported A2A method",
@@ -140,7 +142,7 @@ impl ProtocolConverter {
             A2AResponse {
                 jsonrpc: "2.0".into(),
                 result: None,
-                error: Some(crate::a2a::protocol::A2AErrorResponse {
+                error: Some(A2AErrorResponse {
                     code: -32603,
                     message: response.error.unwrap_or_else(|| "Internal error".into()),
                     data: None,
@@ -179,13 +181,13 @@ impl ProtocolConverter {
             let result_text = Self::format_response_content(response.result.as_ref());
 
             ToolResponse {
-                content: vec![crate::mcp::schema::Content::Text { text: result_text }],
+                content: vec![Content::Text { text: result_text }],
                 is_error: false,
                 structured_content: response.result,
             }
         } else {
             ToolResponse {
-                content: vec![crate::mcp::schema::Content::Text {
+                content: vec![Content::Text {
                     text: format!(
                         "Error: {}",
                         response.error.unwrap_or_else(|| "Unknown error".into())
@@ -199,8 +201,6 @@ impl ProtocolConverter {
 
     /// Format response content into human-readable text
     fn format_response_content(result: Option<&Value>) -> String {
-        use std::fmt::Write;
-
         let Some(data) = result else {
             return "No data available".to_owned();
         };
@@ -289,15 +289,11 @@ impl ProtocolConverter {
     /// # Errors
     ///
     /// Returns an error if the request data is not valid JSON or if the protocol type cannot be determined.
-    pub fn detect_protocol(
-        request_data: &str,
-    ) -> Result<ProtocolType, crate::protocols::ProtocolError> {
+    pub fn detect_protocol(request_data: &str) -> Result<ProtocolType, ProtocolError> {
         // Try to parse as JSON first
         let json: Value = serde_json::from_str(request_data).map_err(|e| {
             debug!(error = %e, "Failed to parse request as JSON during protocol detection");
-            crate::protocols::ProtocolError::SerializationError(
-                "Invalid JSON during protocol detection".into(),
-            )
+            ProtocolError::SerializationError("Invalid JSON during protocol detection".into())
         })?;
 
         // Check for A2A indicators
@@ -318,14 +314,14 @@ impl ProtocolConverter {
             }
         }
 
-        Err(crate::protocols::ProtocolError::InvalidRequest(
+        Err(ProtocolError::InvalidRequest(
             "Unknown protocol format".into(),
         ))
     }
 
     /// Convert tool definition to A2A format
     #[must_use]
-    pub fn tool_to_a2a_format(tool: &crate::protocols::universal::UniversalTool) -> Value {
+    pub fn tool_to_a2a_format(tool: &UniversalTool) -> Value {
         serde_json::json!({
             "name": tool.name,
             "description": tool.description,
@@ -339,10 +335,8 @@ impl ProtocolConverter {
 
     /// Convert tool definition to MCP format
     #[must_use]
-    pub fn tool_to_mcp_format(
-        tool: &crate::protocols::universal::UniversalTool,
-    ) -> crate::mcp::schema::Tool {
-        crate::mcp::schema::Tool {
+    pub fn tool_to_mcp_format(tool: &UniversalTool) -> Tool {
+        Tool {
             name: tool.name.clone(), // Safe: String ownership needed for MCP tool schema
             description: tool.description.clone(), // Safe: String ownership for MCP tool schema
             input_schema: serde_json::json!({

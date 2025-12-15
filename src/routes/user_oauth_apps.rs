@@ -18,12 +18,13 @@
 //! - `GET /api/users/oauth-apps/:provider` - Get specific OAuth app
 //! - `DELETE /api/users/oauth-apps/:provider` - Remove OAuth app
 
-use crate::database_plugins::DatabaseProvider;
-use crate::errors::AppError;
-use crate::mcp::resources::ServerResources;
+use crate::{
+    database_plugins::DatabaseProvider, errors::AppError, mcp::resources::ServerResources,
+    security::cookies::get_cookie_value,
+};
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{delete, get, post},
     Json, Router,
@@ -113,16 +114,14 @@ impl UserOAuthAppRoutes {
 
     /// Extract and authenticate user from authorization header or cookie
     async fn authenticate(
-        headers: &axum::http::HeaderMap,
+        headers: &HeaderMap,
         resources: &Arc<ServerResources>,
     ) -> Result<Uuid, AppError> {
         // Try Authorization header first, then fall back to auth_token cookie
         let auth_value =
             if let Some(auth_header) = headers.get("authorization").and_then(|h| h.to_str().ok()) {
                 auth_header.to_owned()
-            } else if let Some(token) =
-                crate::security::cookies::get_cookie_value(headers, "auth_token")
-            {
+            } else if let Some(token) = get_cookie_value(headers, "auth_token") {
                 // Fall back to auth_token cookie, format as Bearer token
                 format!("Bearer {token}")
             } else {
@@ -143,7 +142,7 @@ impl UserOAuthAppRoutes {
     /// Handle registering a new OAuth app
     async fn handle_register_app(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Json(request): Json<RegisterUserOAuthAppRequest>,
     ) -> Result<Response, AppError> {
         let user_id = Self::authenticate(&headers, &resources).await?;
@@ -193,7 +192,7 @@ impl UserOAuthAppRoutes {
     /// Handle listing user's OAuth apps
     async fn handle_list_apps(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
     ) -> Result<Response, AppError> {
         let user_id = Self::authenticate(&headers, &resources).await?;
 
@@ -217,7 +216,7 @@ impl UserOAuthAppRoutes {
     /// Handle getting a specific OAuth app
     async fn handle_get_app(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Path(provider): Path<String>,
     ) -> Result<Response, AppError> {
         let user_id = Self::authenticate(&headers, &resources).await?;
@@ -246,7 +245,7 @@ impl UserOAuthAppRoutes {
     /// Handle deleting an OAuth app
     async fn handle_delete_app(
         State(resources): State<Arc<ServerResources>>,
-        headers: axum::http::HeaderMap,
+        headers: HeaderMap,
         Path(provider): Path<String>,
     ) -> Result<Response, AppError> {
         let user_id = Self::authenticate(&headers, &resources).await?;

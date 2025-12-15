@@ -4,6 +4,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use crate::routes::auth::OAuthCallbackResponse;
+use std::error::Error;
+
 /// Template renderer for OAuth success and error pages
 pub struct OAuthTemplateRenderer;
 
@@ -14,8 +17,8 @@ impl OAuthTemplateRenderer {
     /// Returns an error if template formatting fails
     pub fn render_success_template(
         provider: &str,
-        callback_response: &crate::routes::OAuthCallbackResponse,
-    ) -> Result<String, Box<dyn std::error::Error>> {
+        callback_response: &OAuthCallbackResponse,
+    ) -> Result<String, Box<dyn Error>> {
         const TEMPLATE: &str = include_str!("../../templates/oauth_success.html");
 
         let rendered = TEMPLATE
@@ -33,7 +36,7 @@ impl OAuthTemplateRenderer {
         provider: &str,
         error: &str,
         description: Option<&str>,
-    ) -> Result<String, Box<dyn std::error::Error>> {
+    ) -> Result<String, Box<dyn Error>> {
         const TEMPLATE: &str = include_str!("../../templates/oauth_error.html");
 
         let description_html = description
