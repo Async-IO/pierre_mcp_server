@@ -1810,25 +1810,38 @@ export class PierreMcpClient {
         return await this.handleConnectProvider(request);
       }
 
-      // CRITICAL: Check for authentication tokens BEFORE attempting to connect
-      // This prevents the SDK from triggering interactive OAuth flow during connection attempts
+      // CRITICAL: Check for authentication tokens BEFORE attempting tool call
+      // If no tokens, automatically trigger OAuth flow (not just return error)
       if (this.oauthProvider) {
         // IMPORTANT: Must await tokens() to ensure async token loading completes
         // Using synchronous savedTokens check causes race condition (tokens may not be loaded yet)
         const existingTokens = await this.oauthProvider.tokens();
         if (!existingTokens) {
           this.log(
-            `No authentication tokens available - rejecting tool call ${request.params.name}`,
+            `No authentication tokens available - triggering OAuth flow for ${request.params.name}`,
           );
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Authentication required. Please use the "Connect to Pierre" tool to authenticate before accessing fitness data.`,
-              },
-            ],
-            isError: true,
-          };
+
+          // Automatically trigger OAuth instead of returning error
+          // This provides seamless UX - user doesn't need to know about "connect_to_pierre"
+          try {
+            const connectResult = await this.handleConnectToPierre(request);
+            if (connectResult.isError) {
+              return connectResult;
+            }
+            // After successful OAuth, retry the original tool call
+            this.log(`OAuth completed, retrying ${request.params.name}`);
+          } catch (oauthError) {
+            this.log(`OAuth flow failed: ${oauthError}`);
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `Authentication required but OAuth flow failed: ${oauthError instanceof Error ? oauthError.message : String(oauthError)}. Please try again.`,
+                },
+              ],
+              isError: true,
+            };
+          }
         }
       }
 

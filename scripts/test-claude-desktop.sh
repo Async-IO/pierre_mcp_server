@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # Copyright (c) 2025 Pierre Fitness Intelligence
 # ABOUTME: Automated Claude Desktop testing setup script
-# ABOUTME: Prepares server, tokens, and config for testing feature/automatic-oauth-reauth branch
+# ABOUTME: Prepares server and config for testing MCP integration with Claude Desktop
 #
 # Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 # Copyright ©2025 Async-IO.org
@@ -23,7 +23,6 @@ TOKEN_FILE="$HOME/.pierre-claude-tokens.json"
 
 echo "=========================================="
 echo "Claude Desktop Testing Automation"
-echo "Branch: feature/automatic-oauth-reauth"
 if [ "$AUTOMATIC_OAUTH" = true ]; then
     echo "Mode: Automatic OAuth (skip browser flow)"
 else
@@ -32,15 +31,14 @@ fi
 echo "=========================================="
 echo ""
 
-# Step 1-5: Use unified setup-and-start.sh script
+# Step 1: Use unified setup-and-start.sh script
 # This handles: fresh-start, build, admin user creation, server start, health check
-echo "Step 1-5: Running setup-and-start.sh (unified setup)..."
+# Always run --run-tests to create test user (needed for OAuth login in both modes)
+echo "Step 1: Running setup-and-start.sh (unified setup)..."
 cd "$PROJECT_ROOT"
 
-# Run the unified setup script with workflow tests
 ./bin/setup-and-start.sh --run-tests
-
-echo "✅ Setup and workflow complete"
+echo "✅ Setup and workflow complete (test user created)"
 echo ""
 
 # Get the server PID for later reference
@@ -48,20 +46,20 @@ SERVER_PID=$(pgrep -f "pierre-mcp-server" | head -1)
 echo "Server PID: $SERVER_PID"
 echo ""
 
-# Re-source .workflow_test_env to get FRESH tokens from complete-user-workflow.sh
-echo "Step 6: Loading fresh tokens from workflow..."
-if [ -f "$PROJECT_ROOT/.workflow_test_env" ]; then
-    source "$PROJECT_ROOT/.workflow_test_env"
-    echo "✅ Fresh tokens loaded"
-else
-    echo "⚠️  Warning: $PROJECT_ROOT/.workflow_test_env not found"
-    exit 1
-fi
-echo ""
-
-# Step 7: Handle token file based on mode
+# Step 2: Handle token file based on mode
 if [ "$AUTOMATIC_OAUTH" = true ]; then
-    echo "Step 7: Updating $TOKEN_FILE with fresh token (automatic OAuth mode)..."
+    # Load tokens from workflow for automatic OAuth mode
+    echo "Step 2: Loading tokens from workflow..."
+    if [ -f "$PROJECT_ROOT/.workflow_test_env" ]; then
+        source "$PROJECT_ROOT/.workflow_test_env"
+        echo "✅ Tokens loaded"
+    else
+        echo "❌ Error: $PROJECT_ROOT/.workflow_test_env not found"
+        exit 1
+    fi
+    echo ""
+
+    echo "Step 3: Updating $TOKEN_FILE with fresh token..."
     if [ -n "$JWT_TOKEN" ]; then
         cat > "$TOKEN_FILE" <<EOF
 {
@@ -95,7 +93,7 @@ EOF
         exit 1
     fi
 else
-    echo "Step 7: Removing $TOKEN_FILE to force OAuth flow (manual OAuth mode)..."
+    echo "Step 2: Removing $TOKEN_FILE to force OAuth flow..."
     if [ -f "$TOKEN_FILE" ]; then
         rm "$TOKEN_FILE"
         echo "✅ Token file removed - OAuth flow will be triggered on first connect"
@@ -110,8 +108,8 @@ else
 fi
 echo ""
 
-# Step 8: Update Claude Desktop config to point to this worktree
-echo "Step 8: Updating Claude Desktop config..."
+# Update Claude Desktop config to point to this worktree
+echo "Updating Claude Desktop config..."
 CLAUDE_CONFIG_DIR="$(dirname "$CLAUDE_CONFIG")"
 mkdir -p "$CLAUDE_CONFIG_DIR"
 
@@ -143,8 +141,8 @@ echo "Server is running with PID: $SERVER_PID"
 echo "Server logs: $PROJECT_ROOT/server.log"
 echo ""
 
-# Step 9: Restart Claude Desktop to pick up new config
-echo "Step 9: Restarting Claude Desktop..."
+# Restart Claude Desktop to pick up new config
+echo "Restarting Claude Desktop..."
 echo "Stopping Claude Desktop..."
 osascript -e 'quit app "Claude"' 2>/dev/null || true
 sleep 2
@@ -183,9 +181,9 @@ else
     echo "⚠️  Tools require authentication - you'll need to connect first"
     echo ""
     echo "To test OAuth flow:"
-    echo "1. Try: 'Connect to Pierre' - browser will open for OAuth"
-    echo "2. Complete authentication in browser"
-    echo "3. Try: 'Connect to Strava' - second OAuth flow"
+    echo "1. Ask Claude Desktop for Strava data - browser will open for OAuth"
+    echo "2. Login with: user@example.com / TestPassword123!"
+    echo "3. After Pierre auth, connect Strava when prompted"
     echo "4. Verify: 'Check my Strava connection status'"
 fi
 
