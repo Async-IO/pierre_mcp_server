@@ -31,10 +31,9 @@ impl OAuthTemplateRenderer {
     /// Capitalize provider name for display
     fn capitalize_provider(provider: &str) -> String {
         let mut chars = provider.chars();
-        match chars.next() {
-            None => String::new(),
-            Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-        }
+        chars.next().map_or_else(String::new, |first| {
+            first.to_uppercase().collect::<String>() + chars.as_str()
+        })
     }
 
     /// Render OAuth error template
