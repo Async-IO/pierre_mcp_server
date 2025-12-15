@@ -42,8 +42,8 @@ echo "JWT Token: ${JWT_TOKEN:0:50}..."
 ### Automated Setup Script
 
 `./scripts/complete-user-workflow.sh` creates:
-- Admin user: `admin@pierre.mcp`
-- Regular user: `user@example.com`
+- Admin user: `$ADMIN_EMAIL` (default: `admin@pierre.mcp`)
+- Regular user: `$OAUTH_DEFAULT_EMAIL` (default: `user@example.com`)
 - Default tenant: `User Organization`
 - JWT token (saved in `.workflow_test_env`)
 
@@ -136,11 +136,11 @@ curl -X POST http://localhost:8081/admin/setup \
 curl -X POST http://localhost:8081/api/auth/register \
   -H "Authorization: Bearer {admin_token}" \
   -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com",
-    "password": "userpass123",
-    "display_name": "User"
-  }'
+  -d "{
+    \"email\": \"$OAUTH_DEFAULT_EMAIL\",
+    \"password\": \"$OAUTH_DEFAULT_PASSWORD\",
+    \"display_name\": \"User\"
+  }"
 
 # approve user (requires admin token)
 curl -X POST http://localhost:8081/admin/approve-user/{user_id} \

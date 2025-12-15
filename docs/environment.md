@@ -207,8 +207,13 @@ export OAUTH_CALLBACK_PORT="35535"  # bridge callback port for focus recovery
 For dev/test only (leave empty in production):
 
 ```bash
+# Regular user defaults (for OAuth login form)
 export OAUTH_DEFAULT_EMAIL="user@example.com"
 export OAUTH_DEFAULT_PASSWORD="userpass123"
+
+# Admin user defaults (for setup scripts)
+export ADMIN_EMAIL="admin@pierre.mcp"
+export ADMIN_PASSWORD="adminpass123"
 ```
 
 ## Frontend Configuration

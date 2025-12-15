@@ -45,11 +45,11 @@ echo -e "\n${BLUE}=== Step 1: Create or Get Admin Token ===${NC}"
 
 ADMIN_RESPONSE=$(curl -s -X POST http://localhost:$HTTP_PORT/admin/setup \
   -H "Content-Type: application/json" \
-  -d '{
-    "email": "admin@pierre.mcp",
-    "password": "adminpass123",
-    "display_name": "System Administrator"
-  }')
+  -d "{
+    \"email\": \"$ADMIN_EMAIL\",
+    \"password\": \"$ADMIN_PASSWORD\",
+    \"display_name\": \"System Administrator\"
+  }")
 
 # Extract admin token for future use
 ADMIN_TOKEN=$(echo $ADMIN_RESPONSE | jq -r '.data.admin_token')
@@ -264,7 +264,7 @@ echo -e "\n${GREEN}🎉 Complete workflow test completed successfully!${NC}"
 echo -e "${BLUE}Environment variables saved to .workflow_test_env${NC}"
 
 echo -e "\n${YELLOW}Summary:${NC}"
-echo "- Admin User: admin@pierre.mcp"
+echo "- Admin User: $ADMIN_EMAIL"
 echo "- Regular User: $OAUTH_DEFAULT_EMAIL (ID: $USER_ID)"
 echo "- Tenant: User Organization (ID: $TENANT_ID)"
 echo "- MCP Tools Available: $TOOLS_COUNT"
