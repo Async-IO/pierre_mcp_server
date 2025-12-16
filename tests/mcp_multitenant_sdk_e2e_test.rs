@@ -52,6 +52,10 @@ fn make_tenant_sdk_get_activities_request(
 /// - Test completes in <10 seconds
 #[tokio::test]
 #[serial]
+#[cfg_attr(
+    target_os = "windows",
+    ignore = "SDK stdio tests fail on Windows due to Node.js pipe handling differences"
+)]
 async fn test_concurrent_multitenant_get_activities() -> Result<()> {
     common::init_test_logging();
     common::init_test_http_clients();
@@ -162,6 +166,10 @@ async fn test_concurrent_multitenant_get_activities() -> Result<()> {
 /// - Test validates transport-agnostic MCP protocol
 #[tokio::test]
 #[serial]
+#[cfg_attr(
+    target_os = "windows",
+    ignore = "SDK stdio tests fail on Windows due to Node.js pipe handling differences"
+)]
 async fn test_http_transport_tools_list_parity() -> Result<()> {
     common::init_test_logging();
     common::init_test_http_clients();

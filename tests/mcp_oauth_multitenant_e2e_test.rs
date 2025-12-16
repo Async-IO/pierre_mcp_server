@@ -28,6 +28,10 @@ mod common;
 /// - Connection status is per-tenant
 /// - No cross-tenant OAuth contamination
 #[tokio::test]
+#[cfg_attr(
+    target_os = "windows",
+    ignore = "SDK stdio tests fail on Windows due to Node.js pipe handling differences"
+)]
 async fn test_oauth_connection_isolation_via_sdk() -> Result<()> {
     common::init_test_logging();
     common::init_test_http_clients();
@@ -117,6 +121,10 @@ async fn test_oauth_connection_isolation_via_sdk() -> Result<()> {
 /// - Connection status reflects tenant's own state
 /// - SDK maintains proper tenant context
 #[tokio::test]
+#[cfg_attr(
+    target_os = "windows",
+    ignore = "SDK stdio tests fail on Windows due to Node.js pipe handling differences"
+)]
 async fn test_oauth_token_retrieval_isolation_via_mcp() -> Result<()> {
     common::init_test_logging();
     common::init_test_http_clients();
@@ -198,6 +206,10 @@ async fn test_oauth_token_retrieval_isolation_via_mcp() -> Result<()> {
 /// - No context switching errors
 /// - SDK handles concurrent tenants correctly
 #[tokio::test]
+#[cfg_attr(
+    target_os = "windows",
+    ignore = "SDK stdio tests fail on Windows due to Node.js pipe handling differences"
+)]
 async fn test_concurrent_oauth_operations_via_sdk() -> Result<()> {
     common::init_test_logging();
     common::init_test_http_clients();
