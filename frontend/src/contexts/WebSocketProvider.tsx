@@ -139,6 +139,22 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
     });
   };
 
+  const reconnect = () => {
+    // Clear any pending reconnect timeout
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    // Close existing connection if any
+    if (wsRef.current) {
+      wsRef.current.close(1000, 'Manual reconnect');
+      wsRef.current = null;
+    }
+    isConnectingRef.current = false;
+    // Attempt immediate reconnection
+    connect();
+  };
+
   // Single effect to manage connection
   useEffect(() => {
     if (token) {
@@ -159,7 +175,8 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
       isConnected,
       lastMessage,
       sendMessage,
-      subscribe
+      subscribe,
+      reconnect
     }}>
       {children}
     </WebSocketContext.Provider>

@@ -976,6 +976,9 @@ impl MultiTenantMcpServer {
         use crate::routes::websocket::WebSocketRoutes;
         use crate::sse::SseRoutes;
 
+        // Admin configuration routes
+        use crate::config::routes::{admin_config_router, AdminConfigState};
+
         // Create admin routes using the routes::admin::AdminApiContext
         let admin_api_key_limit = resources
             .config
@@ -1007,6 +1010,21 @@ impl MultiTenantMcpServer {
         };
         let oauth2_routes = OAuth2Routes::routes(oauth2_context);
 
+        // Create admin configuration routes if service is available
+        let admin_config_routes = resources.admin_config.as_ref().map_or_else(
+            || {
+                tracing::warn!("Admin config service not available - admin config API disabled");
+                Router::new()
+            },
+            |admin_config| {
+                let admin_config_state = Arc::new(AdminConfigState::new(
+                    Arc::clone(admin_config),
+                    Arc::clone(resources),
+                ));
+                admin_config_router(admin_config_state)
+            },
+        );
+
         // Combine all routes into the main router
         Router::new()
             .merge(health_routes)
@@ -1028,6 +1046,7 @@ impl MultiTenantMcpServer {
             .merge(ConfigurationRoutes::routes(Arc::clone(resources)))
             .merge(FitnessConfigurationRoutes::routes(Arc::clone(resources)))
             .merge(WebAdminRoutes::routes(Arc::clone(resources)))
+            .nest("/api/admin/config", admin_config_routes)
             .merge(ImpersonationRoutes::routes(Arc::clone(resources)))
             .merge(UserMcpTokenRoutes::routes(Arc::clone(resources)))
             .merge(ChatRoutes::routes(Arc::clone(resources)))

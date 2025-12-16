@@ -46,6 +46,9 @@ pub mod vo2_max;
 /// HTTP routes for configuration management
 pub mod routes;
 
+/// Admin configuration management with runtime parameter overrides
+pub mod admin;
+
 // Re-export main configuration types from environment
 pub use environment::{LlmProviderType, ServerConfig};
 

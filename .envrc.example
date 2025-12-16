@@ -98,10 +98,10 @@ export PIERRE_MASTER_ENCRYPTION_KEY="your-base64-encoded-master-key"
 # Testing: 2048 (faster ~250ms key generation, sufficient for dev/test)
 export PIERRE_RSA_KEY_SIZE="2048"  # Use 4096 for production
 
-# Rate Limiting Configuration
-export RATE_LIMIT_ENABLED="true"
-export RATE_LIMIT_REQUESTS="100"
-export RATE_LIMIT_WINDOW="60"
+# Rate Limiting Configuration (tier-based burst limits)
+export RATE_LIMIT_FREE_TIER_BURST="10"
+export RATE_LIMIT_PROFESSIONAL_BURST="50"
+export RATE_LIMIT_ENTERPRISE_BURST="100"
 
 # Backup Configuration
 export BACKUP_ENABLED="true"

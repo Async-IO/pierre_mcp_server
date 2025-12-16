@@ -8,6 +8,7 @@ import Register from './components/Register';
 import PendingApproval from './components/PendingApproval';
 import Dashboard from './components/Dashboard';
 import ImpersonationBanner from './components/ImpersonationBanner';
+import ConnectionBanner from './components/ConnectionBanner';
 import { AuthProvider } from './contexts/AuthContext';
 import { WebSocketProvider } from './contexts/WebSocketProvider';
 import { useAuth } from './hooks/useAuth';
@@ -102,6 +103,7 @@ function AppContent() {
   // Authenticated and active - show dashboard
   return (
     <div className="min-h-screen bg-pierre-gray-50">
+      <ConnectionBanner />
       <ImpersonationBanner />
       <Dashboard />
     </div>

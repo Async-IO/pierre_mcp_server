@@ -23,6 +23,7 @@ export interface WebSocketContextType {
   lastMessage: WebSocketMessage | null;
   sendMessage: (message: WebSocketMessage) => void;
   subscribe: (topics: string[]) => void;
+  reconnect: () => void;
 }
 
 export const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);

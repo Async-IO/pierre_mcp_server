@@ -292,4 +292,18 @@ mod tests {
         let response = response.assert_status(StatusCode::OK);
         assert_eq!(response.text(), "ok");
     }
+
+    #[tokio::test]
+    async fn test_axum_test_request_post_with_form() {
+        let app = Router::new().route("/test", post(|body: String| async move { body }));
+        let form_data = [("grant_type", "password"), ("username", "test@example.com")];
+        let response = AxumTestRequest::post("/test")
+            .form(&form_data)
+            .send(app)
+            .await;
+        assert_eq!(response.status(), 200);
+        let text = response.text();
+        assert!(text.contains("grant_type=password"));
+        assert!(text.contains("username=test%40example.com"));
+    }
 }

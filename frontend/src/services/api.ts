@@ -545,6 +545,130 @@ class ApiService {
     return response.data.data;
   }
 
+  // Admin Configuration Management endpoints
+  async getConfigCatalog(tenantId?: string): Promise<{
+    success: boolean;
+    data: {
+      total_parameters: number;
+      runtime_configurable_count: number;
+      static_count: number;
+      categories: Array<{
+        id: string;
+        name: string;
+        display_name: string;
+        description: string;
+        display_order: number;
+        is_active: boolean;
+        parameters: Array<{
+          key: string;
+          display_name: string;
+          description: string;
+          category: string;
+          data_type: string;
+          current_value: unknown;
+          default_value: unknown;
+          is_modified: boolean;
+          valid_range?: { min?: number; max?: number; step?: number };
+          enum_options?: string[];
+          units?: string;
+          scientific_basis?: string;
+          is_runtime_configurable: boolean;
+          requires_restart: boolean;
+        }>;
+      }>;
+    };
+  }> {
+    const params = new URLSearchParams();
+    if (tenantId) params.append('tenant_id', tenantId);
+    const queryString = params.toString();
+    const url = queryString ? `/api/admin/config/catalog?${queryString}` : '/api/admin/config/catalog';
+    const response = await axios.get(url);
+    return response.data;
+  }
+
+  async getConfigAuditLog(params?: {
+    category?: string;
+    config_key?: string;
+    admin_user_id?: string;
+    tenant_id?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{
+    success: boolean;
+    data: {
+      entries: Array<{
+        id: string;
+        timestamp: string;
+        admin_user_id: string;
+        admin_email: string;
+        category: string;
+        config_key: string;
+        old_value: unknown;
+        new_value: unknown;
+        data_type: string;
+        reason?: string;
+        tenant_id?: string;
+        ip_address?: string;
+        user_agent?: string;
+      }>;
+      total_count: number;
+      offset: number;
+      limit: number;
+    };
+  }> {
+    const queryParams = new URLSearchParams();
+    if (params?.category) queryParams.append('category', params.category);
+    if (params?.config_key) queryParams.append('config_key', params.config_key);
+    if (params?.admin_user_id) queryParams.append('admin_user_id', params.admin_user_id);
+    if (params?.tenant_id) queryParams.append('tenant_id', params.tenant_id);
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.offset) queryParams.append('offset', params.offset.toString());
+
+    const queryString = queryParams.toString();
+    const url = queryString ? `/api/admin/config/audit?${queryString}` : '/api/admin/config/audit';
+    const response = await axios.get(url);
+    return response.data;
+  }
+
+  async updateConfig(request: {
+    parameters: Record<string, unknown>;
+    reason?: string;
+  }, tenantId?: string): Promise<{
+    success: boolean;
+    data: {
+      updated_count: number;
+      requires_restart: boolean;
+      validation_errors?: Array<{
+        parameter: string;
+        error: string;
+      }>;
+    };
+  }> {
+    const params = new URLSearchParams();
+    if (tenantId) params.append('tenant_id', tenantId);
+    const queryString = params.toString();
+    const url = queryString ? `/api/admin/config?${queryString}` : '/api/admin/config';
+    const response = await axios.put(url, request);
+    return response.data;
+  }
+
+  async resetConfig(request: {
+    category?: string;
+    parameters?: string[];
+  }, tenantId?: string): Promise<{
+    success: boolean;
+    data: {
+      reset_count: number;
+    };
+  }> {
+    const params = new URLSearchParams();
+    if (tenantId) params.append('tenant_id', tenantId);
+    const queryString = params.toString();
+    const url = queryString ? `/api/admin/config/reset?${queryString}` : '/api/admin/config/reset';
+    const response = await axios.post(url, request);
+    return response.data;
+  }
+
   // Impersonation endpoints (super admin only)
   async startImpersonation(targetUserId: string, reason?: string): Promise<{
     success: boolean;
