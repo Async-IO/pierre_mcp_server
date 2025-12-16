@@ -116,7 +116,11 @@ impl StravaProvider {
     /// - URL encoding fails for any parameter
     pub fn get_auth_url(&self, redirect_uri: &str, state: &str) -> AppResult<String> {
         if self.config.client_id.is_empty() {
-            return Err(ProviderError::ConfigurationError("Client ID not configured".into()).into());
+            return Err(ProviderError::ConfigurationError {
+                provider: "strava".into(),
+                details: "Client ID not configured".into(),
+            }
+            .into());
         }
 
         let mut url = url::Url::parse(&self.config.auth_url)?;
@@ -146,7 +150,11 @@ impl StravaProvider {
         pkce: &PkceParams,
     ) -> AppResult<String> {
         if self.config.client_id.is_empty() {
-            return Err(ProviderError::ConfigurationError("Client ID not configured".into()).into());
+            return Err(ProviderError::ConfigurationError {
+                provider: "strava".into(),
+                details: "Client ID not configured".into(),
+            }
+            .into());
         }
 
         let mut url = url::Url::parse(&self.config.auth_url)?;
@@ -172,9 +180,13 @@ impl StravaProvider {
     /// - Token exchange API returns an error response
     /// - Response cannot be parsed as JSON
     /// - Strava API returns invalid token data
-    pub async fn exchange_code(&mut self, code: &str) -> Result<(String, String)> {
+    pub async fn exchange_code(&mut self, code: &str) -> AppResult<(String, String)> {
         if self.config.client_id.is_empty() || self.config.client_secret.is_empty() {
-            return Err(ProviderError::ConfigurationError("Client credentials not configured".into()).into());
+            return Err(ProviderError::ConfigurationError {
+                provider: "strava".into(),
+                details: "Client credentials not configured".into(),
+            }
+            .into());
         }
 
         let (token, athlete) = crate::oauth2_client::strava::exchange_strava_code(
@@ -221,9 +233,13 @@ impl StravaProvider {
         &mut self,
         code: &str,
         pkce: &PkceParams,
-    ) -> Result<(String, String)> {
+    ) -> AppResult<(String, String)> {
         if self.config.client_id.is_empty() || self.config.client_secret.is_empty() {
-            return Err(ProviderError::ConfigurationError("Client credentials not configured".into()).into());
+            return Err(ProviderError::ConfigurationError {
+                provider: "strava".into(),
+                details: "Client credentials not configured".into(),
+            }
+            .into());
         }
 
         let (token, athlete) = crate::oauth2_client::strava::exchange_strava_code_with_pkce(
@@ -266,14 +282,20 @@ impl StravaProvider {
     /// - Token refresh API returns an error response
     /// - Response cannot be parsed as JSON
     /// - Strava API returns invalid token data
-    pub async fn refresh_access_token(&mut self) -> Result<(String, String)> {
-        let refresh_token = self
-            .refresh_token
-            .as_ref()
-            .context("No refresh token available")?;
+    pub async fn refresh_access_token(&mut self) -> AppResult<(String, String)> {
+        let refresh_token = self.refresh_token.as_ref().ok_or_else(|| {
+            ProviderError::TokenRefreshFailed {
+                provider: "strava".into(),
+                details: "No refresh token available".into(),
+            }
+        })?;
 
         if self.config.client_id.is_empty() || self.config.client_secret.is_empty() {
-            return Err(ProviderError::ConfigurationError("Client credentials not configured".into()).into());
+            return Err(ProviderError::ConfigurationError {
+                provider: "strava".into(),
+                details: "Client credentials not configured".into(),
+            }
+            .into());
         }
 
         let new_token = crate::oauth2_client::strava::refresh_strava_token(
@@ -320,7 +342,11 @@ impl FitnessProvider for StravaProvider {
                 self.refresh_token = refresh_token;
                 Ok(())
             }
-            AuthData::ApiKey(_) => Err(ProviderError::AuthenticationFailed("Strava requires OAuth2 authentication".into()).into()),
+            AuthData::ApiKey(_) => Err(ProviderError::AuthenticationFailed {
+                provider: "strava".into(),
+                reason: "Strava requires OAuth2 authentication".into(),
+            }
+            .into()),
         }
     }
 
@@ -336,7 +362,12 @@ impl FitnessProvider for StravaProvider {
     /// - Strava API returns malformed athlete data
     #[tracing::instrument(skip(self), fields(provider = "strava", api_call = "get_athlete"))]
     async fn get_athlete(&self) -> AppResult<Athlete> {
-        let token = self.access_token.as_ref().context("Not authenticated")?;
+        let token = self.access_token.as_ref().ok_or_else(|| {
+            ProviderError::AuthenticationFailed {
+                provider: "strava".into(),
+                reason: "Not authenticated".into(),
+            }
+        })?;
 
         let response: StravaAthlete = self
             .client
@@ -375,7 +406,12 @@ impl FitnessProvider for StravaProvider {
         &self,
         params: &ActivityQueryParams,
     ) -> AppResult<Vec<Activity>> {
-        let token = self.access_token.as_ref().context("Not authenticated")?;
+        let token = self.access_token.as_ref().ok_or_else(|| {
+            ProviderError::AuthenticationFailed {
+                provider: "strava".into(),
+                reason: "Not authenticated".into(),
+            }
+        })?;
 
         // Build query parameters without unnecessary allocations
         let per_page = params
@@ -407,7 +443,10 @@ impl FitnessProvider for StravaProvider {
             .query(&query)
             .send()
             .await
-            .context("Failed to send request to Strava API")?;
+            .map_err(|e| ProviderError::Reqwest {
+                provider: "strava".into(),
+                source: e,
+            })?;
 
         let status = response.status();
         info!("Strava API response status: {}", status);
@@ -423,25 +462,26 @@ impl FitnessProvider for StravaProvider {
             if status == 401 && self.refresh_token.is_some() {
                 info!("Access token expired, attempting to refresh...");
                 // Note: This would require mutable self to refresh the token
-                return Err(ProviderError::AuthenticationFailed(format!(
-                    "Access token expired. Strava API error: {} - {}",
-                    status,
-                    error_text
-                )).into());
+                return Err(ProviderError::AuthenticationFailed {
+                    provider: "strava".into(),
+                    reason: format!("Access token expired. Strava API error: {status} - {error_text}"),
+                }
+                .into());
             }
 
-            return Err(ProviderError::ApiError(format!(
-                "Strava API returned error: {} - {}",
-                status,
-                error_text
-            )).into());
+            return Err(ProviderError::ApiError {
+                provider: "strava".into(),
+                status_code: status.as_u16(),
+                message: error_text,
+                retryable: status.is_server_error(),
+            }
+            .into());
         }
 
         // Get response text first for debugging
-        let response_text = response
-            .text()
-            .await
-            .context("Failed to read response body")?;
+        let response_text = response.text().await.map_err(|e| {
+            ProviderError::NetworkError(format!("Failed to read response body: {e}"))
+        })?;
 
         info!("Strava API response length: {} bytes", response_text.len());
         if response_text.len() < crate::constants::logging::MAX_RESPONSE_BODY_LOG_SIZE {
@@ -455,15 +495,10 @@ impl FitnessProvider for StravaProvider {
 
         // Try to parse JSON
         let activities: Vec<StravaActivity> =
-            serde_json::from_str(&response_text).with_context(|| {
-                format!(
-                    "Failed to parse Strava activities JSON. Response: {}",
-                    if response_text.len() < 500 {
-                        &response_text
-                    } else {
-                        &response_text[..500]
-                    }
-                )
+            serde_json::from_str(&response_text).map_err(|e| ProviderError::ParseError {
+                provider: "strava".into(),
+                field: "activities",
+                source: e,
             })?;
 
         info!(
@@ -499,7 +534,12 @@ impl FitnessProvider for StravaProvider {
     /// - Strava API returns malformed activity data
     /// - Activity ID is invalid or inaccessible
     async fn get_activity(&self, id: &str) -> AppResult<Activity> {
-        let token = self.access_token.as_ref().context("Not authenticated")?;
+        let token = self.access_token.as_ref().ok_or_else(|| {
+            ProviderError::AuthenticationFailed {
+                provider: "strava".into(),
+                reason: "Not authenticated".into(),
+            }
+        })?;
 
         let response: StravaActivity = self
             .client
@@ -580,7 +620,12 @@ impl StravaProvider {
     /// - Response cannot be parsed as JSON
     /// - Strava API returns malformed athlete or stats data
     async fn get_strava_athlete_stats(&self) -> AppResult<Stats> {
-        let token = self.access_token.as_ref().context("Not authenticated")?;
+        let token = self.access_token.as_ref().ok_or_else(|| {
+            ProviderError::AuthenticationFailed {
+                provider: "strava".into(),
+                reason: "Not authenticated".into(),
+            }
+        })?;
 
         // Get athlete ID first
         let athlete: StravaAthlete = self

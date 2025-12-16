@@ -16,13 +16,13 @@
 //! - [Fitbit Web API](https://dev.fitbit.com/build/reference/web-api/)
 //! - [OAuth2 Authorization](https://dev.fitbit.com/build/reference/web-api/developer-guide/authorization/)
 
+use super::errors::ProviderError;
 use super::{AuthData, FitnessProvider};
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::models::{Activity, Athlete, HeartRateZone, PersonalRecord, SportType, Stats};
 use crate::oauth2_client::client::PkceParams;
 use crate::pagination::{CursorPage, PaginationParams};
 use crate::utils::http_client::api_client;
-use crate::errors::{AppError, AppResult};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use reqwest::Client;
@@ -75,10 +75,12 @@ impl FitbitProvider {
     /// # Errors
     /// Returns an error if `client_id` is not configured
     pub fn get_auth_url(&self, redirect_uri: &str, state: &str) -> AppResult<String> {
-        let client_id = self
-            .client_id
-            .as_ref()
-            .context("Client ID not configured")?;
+        let client_id = self.client_id.as_ref().ok_or_else(|| {
+            ProviderError::ConfigurationError {
+                provider: "fitbit".into(),
+                details: "Client ID not configured".into(),
+            }
+        })?;
 
         let mut url = url::Url::parse(FITBIT_AUTH_URL)?;
         url.query_pairs_mut()
@@ -106,10 +108,12 @@ impl FitbitProvider {
         state: &str,
         pkce: &PkceParams,
     ) -> AppResult<String> {
-        let client_id = self
-            .client_id
-            .as_ref()
-            .context("Client ID not configured")?;
+        let client_id = self.client_id.as_ref().ok_or_else(|| {
+            ProviderError::ConfigurationError {
+                provider: "fitbit".into(),
+                details: "Client ID not configured".into(),
+            }
+        })?;
 
         let mut url = url::Url::parse(FITBIT_AUTH_URL)?;
         url.query_pairs_mut()
@@ -142,12 +146,19 @@ impl FitbitProvider {
         &mut self,
         code: &str,
         redirect_uri: &str,
-    ) -> Result<(String, String)> {
-        let client_id = self.client_id.as_ref().context("Client ID not set")?;
-        let client_secret = self
-            .client_secret
-            .as_ref()
-            .context("Client secret not set")?;
+    ) -> AppResult<(String, String)> {
+        let client_id = self.client_id.as_ref().ok_or_else(|| {
+            ProviderError::ConfigurationError {
+                provider: "fitbit".into(),
+                details: "Client ID not configured".into(),
+            }
+        })?;
+        let client_secret = self.client_secret.as_ref().ok_or_else(|| {
+            ProviderError::ConfigurationError {
+                provider: "fitbit".into(),
+                details: "Client secret not configured".into(),
+            }
+        })?;
 
         let (token, _) = crate::oauth2_client::fitbit::exchange_fitbit_code(
             &self.client,
@@ -188,12 +199,19 @@ impl FitbitProvider {
         code: &str,
         redirect_uri: &str,
         pkce: &PkceParams,
-    ) -> Result<(String, String)> {
-        let client_id = self.client_id.as_ref().context("Client ID not set")?;
-        let client_secret = self
-            .client_secret
-            .as_ref()
-            .context("Client secret not set")?;
+    ) -> AppResult<(String, String)> {
+        let client_id = self.client_id.as_ref().ok_or_else(|| {
+            ProviderError::ConfigurationError {
+                provider: "fitbit".into(),
+                details: "Client ID not configured".into(),
+            }
+        })?;
+        let client_secret = self.client_secret.as_ref().ok_or_else(|| {
+            ProviderError::ConfigurationError {
+                provider: "fitbit".into(),
+                details: "Client secret not configured".into(),
+            }
+        })?;
 
         let (token, _) = crate::oauth2_client::fitbit::exchange_fitbit_code_with_pkce(
             &self.client,
@@ -225,17 +243,26 @@ impl FitbitProvider {
     /// - Fitbit API returns error response
     /// - Response cannot be parsed as JSON
     /// - Token refresh fails
-    pub async fn refresh_access_token(&mut self) -> Result<(String, String)> {
-        let refresh_token = self
-            .refresh_token
-            .as_ref()
-            .context("No refresh token available")?;
+    pub async fn refresh_access_token(&mut self) -> AppResult<(String, String)> {
+        let refresh_token = self.refresh_token.as_ref().ok_or_else(|| {
+            ProviderError::TokenRefreshFailed {
+                provider: "fitbit".into(),
+                details: "No refresh token available".into(),
+            }
+        })?;
 
-        let client_id = self.client_id.as_ref().context("Client ID not set")?;
-        let client_secret = self
-            .client_secret
-            .as_ref()
-            .context("Client secret not set")?;
+        let client_id = self.client_id.as_ref().ok_or_else(|| {
+            ProviderError::ConfigurationError {
+                provider: "fitbit".into(),
+                details: "Client ID not configured".into(),
+            }
+        })?;
+        let client_secret = self.client_secret.as_ref().ok_or_else(|| {
+            ProviderError::ConfigurationError {
+                provider: "fitbit".into(),
+                details: "Client secret not configured".into(),
+            }
+        })?;
 
         let new_token = crate::oauth2_client::fitbit::refresh_fitbit_token(
             &self.client,
@@ -264,7 +291,12 @@ impl FitbitProvider {
         start_date: &str,
         end_date: &str,
     ) -> AppResult<Vec<FitbitActivity>> {
-        let token = self.access_token.as_ref().context("Not authenticated")?;
+        let token = self.access_token.as_ref().ok_or_else(|| {
+            ProviderError::AuthenticationFailed {
+                provider: "fitbit".into(),
+                reason: "Not authenticated".into(),
+            }
+        })?;
 
         let response: FitbitActivitiesResponse = self
             .client
@@ -308,7 +340,12 @@ impl FitnessProvider for FitbitProvider {
 
     #[tracing::instrument(skip(self), fields(provider = "fitbit", api_call = "get_athlete"))]
     async fn get_athlete(&self) -> AppResult<Athlete> {
-        let token = self.access_token.as_ref().context("Not authenticated")?;
+        let token = self.access_token.as_ref().ok_or_else(|| {
+            ProviderError::AuthenticationFailed {
+                provider: "fitbit".into(),
+                reason: "Not authenticated".into(),
+            }
+        })?;
 
         let response: FitbitUser = self
             .client
@@ -370,7 +407,12 @@ impl FitnessProvider for FitbitProvider {
     }
 
     async fn get_activity(&self, id: &str) -> AppResult<Activity> {
-        let token = self.access_token.as_ref().context("Not authenticated")?;
+        let token = self.access_token.as_ref().ok_or_else(|| {
+            ProviderError::AuthenticationFailed {
+                provider: "fitbit".into(),
+                reason: "Not authenticated".into(),
+            }
+        })?;
 
         let response: FitbitActivityDetail = self
             .client
@@ -385,7 +427,12 @@ impl FitnessProvider for FitbitProvider {
     }
 
     async fn get_stats(&self) -> AppResult<Stats> {
-        let token = self.access_token.as_ref().context("Not authenticated")?;
+        let token = self.access_token.as_ref().ok_or_else(|| {
+            ProviderError::AuthenticationFailed {
+                provider: "fitbit".into(),
+                reason: "Not authenticated".into(),
+            }
+        })?;
 
         // Get lifetime stats from Fitbit
         let response: FitbitLifetimeStats = self

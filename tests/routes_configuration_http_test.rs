@@ -16,7 +16,6 @@
 mod common;
 mod helpers;
 
-use anyhow::Context;
 use helpers::axum_test::AxumTestRequest;
 use pierre_mcp_server::{
     config::environment::{
@@ -84,9 +83,7 @@ impl ConfigurationTestSetup {
         ));
 
         // Generate JWT token for the user
-        let jwt_token = auth_manager
-            .generate_token(&user, &resources.jwks_manager)
-            .context("Failed to generate JWT")?;
+        let jwt_token = auth_manager.generate_token(&user, &resources.jwks_manager)?;
 
         Ok(Self {
             resources,

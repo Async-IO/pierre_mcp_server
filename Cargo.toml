@@ -277,3 +277,7 @@ map_unwrap_or = "warn"
 # Enforce `use` imports over inline qualified paths (crate::foo::bar)
 # Idiomatic Rust prefers imports at top of file for readability
 absolute_paths = "deny"
+
+# Disallow anyhow::Context methods - use structured ProviderError types instead
+# Configuration in clippy.toml specifies which methods are banned
+disallowed_methods = "deny"
