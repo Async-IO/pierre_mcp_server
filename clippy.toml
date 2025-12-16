@@ -1,0 +1,9 @@
+# ABOUTME: Clippy configuration for disallowed methods
+# ABOUTME: Prevents usage of anyhow::Context trait methods in favor of structured errors
+
+# Disallow anyhow::Context trait methods - use structured ProviderError types instead
+# These methods create untyped errors that bypass our structured error handling
+disallowed-methods = [
+    { path = "anyhow::Context::context", reason = "Use structured ProviderError types instead of .context()" },
+    { path = "anyhow::Context::with_context", reason = "Use structured ProviderError types instead of .with_context()" },
+]
