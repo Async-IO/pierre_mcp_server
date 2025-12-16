@@ -660,7 +660,7 @@ if [ -d "frontend" ]; then
         if [ -f "playwright.config.ts" ]; then
             echo -e "${BLUE}Running Playwright E2E tests...${NC}"
             # Install Playwright browsers if needed
-            if ! npx playwright install --with-deps chromium 2>/dev/null; then
+            if ! bunx playwright install --with-deps chromium 2>/dev/null; then
                 echo -e "${YELLOW}[WARN] Playwright browser installation failed, attempting tests anyway${NC}"
             fi
             if bun run test:e2e; then
