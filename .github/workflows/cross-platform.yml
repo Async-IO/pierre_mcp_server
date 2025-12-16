@@ -83,12 +83,8 @@ jobs:
         shell: bash
         # Note: Using --lib --bins --tests instead of --all-targets to exclude benches
         # Criterion benchmarks don't accept --test-threads and will fail
-        run: |
-          if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            cargo test --lib --bins --tests --release --quiet -- --test-threads=4
-          else
-            cargo test --lib --bins --tests --quiet -- --test-threads=4
-          fi
+        # Debug builds used on all platforms - release builds on Windows/MSVC take 2+ hours
+        run: cargo test --lib --bins --tests --quiet -- --test-threads=4
         env:
           DATABASE_URL: "sqlite::memory:"
           ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
@@ -99,12 +95,7 @@ jobs:
 
       - name: Test health monitoring functions
         shell: bash
-        run: |
-          if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            cargo test health --release --quiet
-          else
-            cargo test health --quiet
-          fi
+        run: cargo test health --quiet
         env:
           DATABASE_URL: "sqlite::memory:"
           ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
