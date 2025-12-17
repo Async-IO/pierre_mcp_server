@@ -4,7 +4,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use super::circuit_breaker::CircuitBreaker;
 use super::core::{ActivityQueryParams, FitnessProvider, OAuth2Credentials, ProviderConfig};
+use super::errors::ProviderError;
 use super::utils::{self, RetryConfig};
 use crate::constants::oauth::GARMIN_DEFAULT_SCOPES;
 use crate::constants::{api_provider_limits, get_server_config, oauth_providers};
@@ -66,6 +68,7 @@ pub struct GarminProvider {
     config: ProviderConfig,
     credentials: RwLock<Option<OAuth2Credentials>>,
     client: Client,
+    circuit_breaker: CircuitBreaker,
 }
 
 impl GarminProvider {
@@ -104,6 +107,7 @@ impl GarminProvider {
         );
 
         Self {
+            circuit_breaker: CircuitBreaker::new(oauth_providers::GARMIN),
             config,
             credentials: RwLock::new(None),
             // Clone Arc<Client> from shared singleton - cheap reference counting operation
@@ -114,7 +118,9 @@ impl GarminProvider {
     /// Create provider with custom configuration
     #[must_use]
     pub fn with_config(config: ProviderConfig) -> Self {
+        let provider_name = config.name.clone();
         Self {
+            circuit_breaker: CircuitBreaker::new(&provider_name),
             config,
             credentials: RwLock::new(None),
             // Clone Arc<Client> from shared singleton - cheap reference counting operation
@@ -122,12 +128,21 @@ impl GarminProvider {
         }
     }
 
-    /// Make authenticated API request with rate limit handling
+    /// Make authenticated API request with rate limit handling and circuit breaker protection
     /// Uses shared retry logic with exponential backoff for 429 errors
     async fn api_request<T>(&self, endpoint: &str) -> AppResult<T>
     where
         T: for<'de> Deserialize<'de>,
     {
+        // Check circuit breaker before making request
+        if !self.circuit_breaker.is_allowed() {
+            let err = ProviderError::CircuitBreakerOpen {
+                provider: oauth_providers::GARMIN.to_owned(),
+                retry_after_secs: 30,
+            };
+            return Err(AppError::external_service("Garmin", err.to_string()));
+        }
+
         // Clone access token to avoid holding lock across await
         let access_token = {
             let guard = self.credentials.read().await;
@@ -157,8 +172,22 @@ impl GarminProvider {
                 api_provider_limits::garmin::ESTIMATED_RATE_LIMIT_BLOCK_DURATION_SECS,
         };
 
-        utils::api_request_with_retry(&self.client, &url, &access_token, "Garmin", &retry_config)
-            .await
+        let result = utils::api_request_with_retry(
+            &self.client,
+            &url,
+            &access_token,
+            "Garmin",
+            &retry_config,
+        )
+        .await;
+
+        // Record success/failure for circuit breaker
+        match &result {
+            Ok(_) => self.circuit_breaker.record_success(),
+            Err(_) => self.circuit_breaker.record_failure(),
+        }
+
+        result
     }
 
     /// Convert Garmin activity type to our `SportType` enum

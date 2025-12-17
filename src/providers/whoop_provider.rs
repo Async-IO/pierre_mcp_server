@@ -18,6 +18,7 @@
     clippy::cast_precision_loss
 )]
 
+use super::circuit_breaker::CircuitBreaker;
 use super::core::{ActivityQueryParams, FitnessProvider, OAuth2Credentials, ProviderConfig};
 use super::errors::ProviderError;
 use crate::constants::oauth_providers;
@@ -184,6 +185,7 @@ pub struct WhoopProvider {
     config: ProviderConfig,
     credentials: RwLock<Option<OAuth2Credentials>>,
     client: Client,
+    circuit_breaker: CircuitBreaker,
 }
 
 impl WhoopProvider {
@@ -203,6 +205,7 @@ impl WhoopProvider {
         };
 
         Self {
+            circuit_breaker: CircuitBreaker::new(oauth_providers::WHOOP),
             config,
             credentials: RwLock::new(None),
             client: shared_client().clone(),
@@ -212,7 +215,9 @@ impl WhoopProvider {
     /// Create provider with custom configuration
     #[must_use]
     pub fn with_config(config: ProviderConfig) -> Self {
+        let provider_name = config.name.clone();
         Self {
+            circuit_breaker: CircuitBreaker::new(&provider_name),
             config,
             credentials: RwLock::new(None),
             client: shared_client().clone(),
@@ -233,12 +238,21 @@ impl WhoopProvider {
         token.ok_or_else(|| AppError::internal("No access token available"))
     }
 
-    /// Make authenticated API request to WHOOP
+    /// Make authenticated API request to WHOOP with circuit breaker protection
     async fn api_request<T>(&self, endpoint: &str) -> AppResult<T>
     where
         T: for<'de> Deserialize<'de>,
     {
         debug!("Starting WHOOP API request to endpoint: {endpoint}");
+
+        // Check circuit breaker before making request
+        if !self.circuit_breaker.is_allowed() {
+            let err = ProviderError::CircuitBreakerOpen {
+                provider: oauth_providers::WHOOP.to_owned(),
+                retry_after_secs: 30,
+            };
+            return Err(AppError::external_service("WHOOP", err.to_string()));
+        }
 
         self.refresh_token_if_needed().await?;
 
@@ -250,9 +264,25 @@ impl WhoopProvider {
             endpoint.trim_start_matches('/')
         );
 
+        let result = self.execute_api_request(&url, &access_token).await;
+
+        // Record success/failure for circuit breaker
+        match &result {
+            Ok(_) => self.circuit_breaker.record_success(),
+            Err(_) => self.circuit_breaker.record_failure(),
+        }
+
+        result
+    }
+
+    /// Execute the actual API request (separated for circuit breaker wrapping)
+    async fn execute_api_request<T>(&self, url: &str, access_token: &str) -> AppResult<T>
+    where
+        T: for<'de> Deserialize<'de>,
+    {
         let response = self
             .client
-            .get(&url)
+            .get(url)
             .header("Authorization", format!("Bearer {access_token}"))
             .send()
             .await

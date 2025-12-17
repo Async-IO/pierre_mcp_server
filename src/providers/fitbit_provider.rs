@@ -7,6 +7,7 @@
 // - HTTP client Arc sharing across async operations (shared_client().clone())
 // - String ownership for API responses and error handling
 
+use super::circuit_breaker::CircuitBreaker;
 use super::core::{
     ActivityQueryParams, FitnessProvider, OAuth2Credentials, ProviderConfig, ProviderFactory,
 };
@@ -218,6 +219,7 @@ pub struct FitbitProvider {
     config: ProviderConfig,
     credentials: RwLock<Option<OAuth2Credentials>>,
     client: Client,
+    circuit_breaker: CircuitBreaker,
 }
 
 impl FitbitProvider {
@@ -237,6 +239,7 @@ impl FitbitProvider {
         };
 
         Self {
+            circuit_breaker: CircuitBreaker::new(oauth_providers::FITBIT),
             config,
             credentials: RwLock::new(None),
             client: shared_client().clone(),
@@ -246,7 +249,9 @@ impl FitbitProvider {
     /// Create provider with custom configuration
     #[must_use]
     pub fn with_config(config: ProviderConfig) -> Self {
+        let provider_name = config.name.clone();
         Self {
+            circuit_breaker: CircuitBreaker::new(&provider_name),
             config,
             credentials: RwLock::new(None),
             client: shared_client().clone(),
@@ -307,12 +312,21 @@ impl FitbitProvider {
         AppError::external_service("Fitbit", err.to_string())
     }
 
-    /// Make authenticated API request
+    /// Make authenticated API request with circuit breaker protection
     async fn api_request<T>(&self, endpoint: &str) -> AppResult<T>
     where
         T: for<'de> Deserialize<'de>,
     {
         debug!("Starting Fitbit API request to endpoint: {endpoint}");
+
+        // Check circuit breaker before making request
+        if !self.circuit_breaker.is_allowed() {
+            let err = ProviderError::CircuitBreakerOpen {
+                provider: oauth_providers::FITBIT.to_owned(),
+                retry_after_secs: 30,
+            };
+            return Err(AppError::external_service("Fitbit", err.to_string()));
+        }
 
         self.refresh_token_if_needed().await?;
 
@@ -324,8 +338,24 @@ impl FitbitProvider {
             endpoint.trim_start_matches('/')
         );
 
-        let response = self.send_authenticated_request(&url, &access_token).await?;
-        self.parse_response(response, &url).await
+        let result = self.execute_api_request(&url, &access_token).await;
+
+        // Record success/failure for circuit breaker
+        match &result {
+            Ok(_) => self.circuit_breaker.record_success(),
+            Err(_) => self.circuit_breaker.record_failure(),
+        }
+
+        result
+    }
+
+    /// Execute the actual API request (separated for circuit breaker wrapping)
+    async fn execute_api_request<T>(&self, url: &str, access_token: &str) -> AppResult<T>
+    where
+        T: for<'de> Deserialize<'de>,
+    {
+        let response = self.send_authenticated_request(url, access_token).await?;
+        self.parse_response(response, url).await
     }
 
     /// Send authenticated HTTP request to Fitbit API

@@ -40,6 +40,8 @@
 
 // Core provider system
 
+/// Circuit breaker pattern for provider resilience
+pub mod circuit_breaker;
 /// Core provider traits and interfaces
 pub mod core;
 /// Provider error types and result aliases
@@ -73,6 +75,8 @@ pub mod terra;
 pub mod whoop_provider;
 
 // Re-export key types for convenience
+/// Re-export circuit breaker types for provider resilience
+pub use circuit_breaker::{CircuitBreaker, CircuitBreakerConfig, CircuitState};
 pub use core::{
     ActivityQueryParams, FitnessProvider as CoreFitnessProvider, OAuth2Credentials, ProviderConfig,
     ProviderFactory, TenantProvider,

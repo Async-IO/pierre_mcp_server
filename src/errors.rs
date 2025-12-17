@@ -668,6 +668,13 @@ impl From<ProviderError> for AppError {
                 provider,
                 quota_type,
             } => Self::external_service(&provider, format!("Quota exceeded: {quota_type}")),
+            ProviderError::CircuitBreakerOpen {
+                provider,
+                retry_after_secs,
+            } => Self::external_service(
+                &provider,
+                format!("Service temporarily unavailable: retry after {retry_after_secs}s"),
+            ),
         }
     }
 }
