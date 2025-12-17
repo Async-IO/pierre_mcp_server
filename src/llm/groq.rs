@@ -41,13 +41,12 @@ use async_trait::async_trait;
 use futures_util::{future, StreamExt};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::env;
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{debug, error, instrument, warn};
 
 use super::{
-    ChatMessage, ChatRequest, ChatResponse, ChatResponseWithTools, ChatStream, FunctionCall,
-    FunctionDeclaration, LlmCapabilities, LlmProvider, StreamChunk, TokenUsage, Tool,
+    ChatMessage, ChatRequest, ChatResponse, ChatStream, LlmCapabilities, LlmProvider, StreamChunk,
+    TokenUsage,
 };
 use crate::errors::AppError;
 
@@ -84,27 +83,6 @@ struct GroqRequest {
     max_tokens: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     stream: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    tools: Option<Vec<GroqTool>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    tool_choice: Option<String>,
-}
-
-/// Tool definition for Groq API (OpenAI-compatible format)
-#[derive(Debug, Clone, Serialize)]
-struct GroqTool {
-    #[serde(rename = "type")]
-    tool_type: String,
-    function: GroqFunction,
-}
-
-/// Function definition within a tool
-#[derive(Debug, Clone, Serialize)]
-struct GroqFunction {
-    name: String,
-    description: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    parameters: Option<Value>,
 }
 
 /// Message structure for Groq API (OpenAI-compatible)
@@ -143,24 +121,6 @@ struct GroqChoice {
 #[derive(Debug, Deserialize)]
 struct GroqResponseMessage {
     content: Option<String>,
-    #[serde(default)]
-    tool_calls: Option<Vec<GroqToolCall>>,
-}
-
-/// Tool call in Groq response (OpenAI-compatible)
-#[derive(Debug, Clone, Deserialize)]
-struct GroqToolCall {
-    id: String,
-    #[serde(rename = "type")]
-    call_type: String,
-    function: GroqFunctionCall,
-}
-
-/// Function call details in Groq response
-#[derive(Debug, Clone, Deserialize)]
-struct GroqFunctionCall {
-    name: String,
-    arguments: String,
 }
 
 /// Usage statistics in Groq response
@@ -295,126 +255,6 @@ impl GroqProvider {
                 ),
             )
         }
-    }
-
-    /// Convert internal Tool format to Groq's OpenAI-compatible format
-    fn convert_tools(tools: &[Tool]) -> Vec<GroqTool> {
-        tools
-            .iter()
-            .flat_map(|tool| {
-                tool.function_declarations.iter().map(|func| GroqTool {
-                    tool_type: "function".to_owned(),
-                    function: GroqFunction {
-                        name: func.name.clone(),
-                        description: func.description.clone(),
-                        parameters: func.parameters.clone(),
-                    },
-                })
-            })
-            .collect()
-    }
-
-    /// Convert Groq tool calls to internal FunctionCall format
-    fn convert_tool_calls(tool_calls: &[GroqToolCall]) -> Vec<FunctionCall> {
-        tool_calls
-            .iter()
-            .filter_map(|call| {
-                // Parse the arguments JSON string
-                let args: Value =
-                    serde_json::from_str(&call.function.arguments).unwrap_or_default();
-                Some(FunctionCall {
-                    name: call.function.name.clone(),
-                    args,
-                })
-            })
-            .collect()
-    }
-
-    /// Perform a chat completion with tool/function calling support
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the API call fails or response parsing fails.
-    #[instrument(skip(self, request, tools), fields(model = %request.model.as_deref().unwrap_or(DEFAULT_MODEL)))]
-    pub async fn complete_with_tools(
-        &self,
-        request: &ChatRequest,
-        tools: Option<Vec<Tool>>,
-    ) -> Result<ChatResponseWithTools, AppError> {
-        let model = request.model.as_deref().unwrap_or(DEFAULT_MODEL);
-
-        debug!("Sending chat completion request to Groq with tools");
-
-        let groq_tools = tools.as_ref().map(|t| Self::convert_tools(t));
-
-        let groq_request = GroqRequest {
-            model: model.to_owned(),
-            messages: Self::convert_messages(&request.messages),
-            temperature: request.temperature,
-            max_tokens: request.max_tokens,
-            stream: Some(false),
-            tools: groq_tools,
-            tool_choice: tools.as_ref().map(|_| "auto".to_owned()),
-        };
-
-        let response = self
-            .client
-            .post(Self::api_url("chat/completions"))
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .json(&groq_request)
-            .send()
-            .await
-            .map_err(|e| {
-                error!("Failed to send request to Groq API: {}", e);
-                AppError::external_service("Groq", format!("Failed to connect: {e}"))
-            })?;
-
-        let status = response.status();
-        let body = response.text().await.map_err(|e| {
-            error!("Failed to read Groq API response: {}", e);
-            AppError::external_service("Groq", format!("Failed to read response: {e}"))
-        })?;
-
-        if !status.is_success() {
-            return Err(Self::parse_error_response(status, &body));
-        }
-
-        let groq_response: GroqResponse = serde_json::from_str(&body).map_err(|e| {
-            error!("Failed to parse Groq API response: {}", e);
-            AppError::external_service("Groq", format!("Failed to parse response: {e}"))
-        })?;
-
-        let choice = groq_response
-            .choices
-            .into_iter()
-            .next()
-            .ok_or_else(|| AppError::external_service("Groq", "API returned no choices"))?;
-
-        let content = choice.message.content;
-        let function_calls = choice.message.tool_calls.map(|calls| {
-            info!("Groq returned {} tool calls", calls.len());
-            Self::convert_tool_calls(&calls)
-        });
-
-        debug!(
-            "Received response from Groq: content={:?}, tool_calls={:?}, finish_reason: {:?}",
-            content.as_ref().map(String::len),
-            function_calls.as_ref().map(Vec::len),
-            choice.finish_reason
-        );
-
-        Ok(ChatResponseWithTools {
-            content,
-            function_calls,
-            model: groq_response.model,
-            usage: groq_response.usage.map(|u| TokenUsage {
-                prompt_tokens: u.prompt,
-                completion_tokens: u.completion,
-                total_tokens: u.total,
-            }),
-            finish_reason: choice.finish_reason,
-        })
     }
 }
 
