@@ -6,6 +6,7 @@
 
 use std::collections::HashMap;
 
+use crate::database_plugins::shared::transactions::SqliteTransactionGuard;
 use crate::errors::{AppError, AppResult};
 use crate::intelligence::recipes::{
     IngredientUnit, MealTiming, Recipe, RecipeIngredient, ValidatedNutrition,
@@ -51,6 +52,9 @@ impl RecipeManager {
 
     /// Create a new recipe in the database
     ///
+    /// Uses a transaction to ensure atomicity - if any ingredient insert fails,
+    /// the entire operation (including the recipe) is rolled back.
+    ///
     /// # Errors
     ///
     /// Returns an error if database operation fails or data serialization fails
@@ -65,7 +69,15 @@ impl RecipeManager {
         let instructions_json = serde_json::to_string(&recipe.instructions)?;
         let tags_json = serde_json::to_string(&recipe.tags)?;
 
-        // Insert recipe
+        // Begin transaction for atomic recipe + ingredients insertion
+        let tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| AppError::database(format!("Failed to begin transaction: {e}")))?;
+        let mut guard = SqliteTransactionGuard::new(tx);
+
+        // Insert recipe within transaction
         sqlx::query(
             r"
             INSERT INTO recipes (
@@ -105,11 +117,11 @@ impl RecipeManager {
                 .map(|n| n.validated_at.to_rfc3339()),
         )
         .bind(&now)
-        .execute(&self.pool)
+        .execute(guard.executor()?)
         .await
         .map_err(|e| AppError::database(format!("Failed to create recipe: {e}")))?;
 
-        // Insert ingredients
+        // Insert ingredients within same transaction
         for (idx, ingredient) in recipe.ingredients.iter().enumerate() {
             let ingredient_id = Uuid::new_v4().to_string();
             // Sort order is bounded by practical recipe ingredient count (< 100)
@@ -131,10 +143,13 @@ impl RecipeManager {
             .bind(ingredient.grams)
             .bind(&ingredient.preparation)
             .bind(sort_order)
-            .execute(&self.pool)
+            .execute(guard.executor()?)
             .await
             .map_err(|e| AppError::database(format!("Failed to create recipe ingredient: {e}")))?;
         }
+
+        // Commit transaction - if not reached, guard will auto-rollback on drop
+        guard.commit().await?;
 
         Ok(recipe_id)
     }
@@ -254,6 +269,9 @@ impl RecipeManager {
 
     /// Update a recipe
     ///
+    /// Uses a transaction to ensure atomicity - if any operation fails,
+    /// the entire update (including ingredient changes) is rolled back.
+    ///
     /// # Errors
     ///
     /// Returns an error if database operation fails
@@ -268,7 +286,15 @@ impl RecipeManager {
         let instructions_json = serde_json::to_string(&recipe.instructions)?;
         let tags_json = serde_json::to_string(&recipe.tags)?;
 
-        // Update recipe
+        // Begin transaction for atomic update + ingredients replacement
+        let tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| AppError::database(format!("Failed to begin transaction: {e}")))?;
+        let mut guard = SqliteTransactionGuard::new(tx);
+
+        // Update recipe within transaction
         let result = sqlx::query(
             r"
             UPDATE recipes SET
@@ -307,22 +333,23 @@ impl RecipeManager {
         .bind(recipe_id)
         .bind(user_id.to_string())
         .bind(tenant_id)
-        .execute(&self.pool)
+        .execute(guard.executor()?)
         .await
         .map_err(|e| AppError::database(format!("Failed to update recipe: {e}")))?;
 
         if result.rows_affected() == 0 {
+            // Recipe not found - transaction will auto-rollback on guard drop
             return Ok(false);
         }
 
-        // Delete existing ingredients
+        // Delete existing ingredients within same transaction
         sqlx::query("DELETE FROM recipe_ingredients WHERE recipe_id = $1")
             .bind(recipe_id)
-            .execute(&self.pool)
+            .execute(guard.executor()?)
             .await
             .map_err(|e| AppError::database(format!("Failed to delete recipe ingredients: {e}")))?;
 
-        // Insert updated ingredients
+        // Insert updated ingredients within same transaction
         for (idx, ingredient) in recipe.ingredients.iter().enumerate() {
             let ingredient_id = Uuid::new_v4().to_string();
             // Sort order is bounded by practical recipe ingredient count (< 100)
@@ -344,10 +371,13 @@ impl RecipeManager {
             .bind(ingredient.grams)
             .bind(&ingredient.preparation)
             .bind(sort_order)
-            .execute(&self.pool)
+            .execute(guard.executor()?)
             .await
             .map_err(|e| AppError::database(format!("Failed to update recipe ingredient: {e}")))?;
         }
+
+        // Commit transaction - if not reached, guard will auto-rollback on drop
+        guard.commit().await?;
 
         Ok(true)
     }
