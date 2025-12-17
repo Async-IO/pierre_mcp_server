@@ -147,6 +147,15 @@ pub enum ProviderError {
         /// Type of quota exceeded
         quota_type: String,
     },
+
+    /// Circuit breaker is open - provider is failing
+    #[error("Provider {provider} circuit breaker open: retry after {retry_after_secs}s")]
+    CircuitBreakerOpen {
+        /// Name of the fitness provider
+        provider: String,
+        /// Seconds to wait before retrying
+        retry_after_secs: u64,
+    },
 }
 
 impl ProviderError {
@@ -159,7 +168,8 @@ impl ProviderError {
             | Self::NetworkError(_)
             | Self::Timeout { .. }
             | Self::Reqwest { .. }
-            | Self::HttpError { .. } => true,
+            | Self::HttpError { .. }
+            | Self::CircuitBreakerOpen { .. } => true,
             Self::AuthenticationFailed { .. }
             | Self::TokenRefreshFailed { .. }
             | Self::NotFound { .. }
@@ -176,6 +186,9 @@ impl ProviderError {
     pub const fn retry_after_secs(&self) -> Option<u64> {
         match self {
             Self::RateLimitExceeded {
+                retry_after_secs, ..
+            }
+            | Self::CircuitBreakerOpen {
                 retry_after_secs, ..
             } => Some(*retry_after_secs),
             _ => None,

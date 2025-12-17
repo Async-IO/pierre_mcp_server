@@ -7,6 +7,7 @@
 // - HTTP client Arc sharing across async operations (shared_client().clone())
 // - String ownership for API responses and error handling
 
+use super::circuit_breaker::CircuitBreaker;
 use super::core::{ActivityQueryParams, FitnessProvider, OAuth2Credentials, ProviderConfig};
 use super::errors::ProviderError;
 use crate::constants::oauth::STRAVA_DEFAULT_SCOPES;
@@ -225,6 +226,7 @@ pub struct StravaProvider {
     config: ProviderConfig,
     credentials: RwLock<Option<OAuth2Credentials>>,
     client: Client,
+    circuit_breaker: CircuitBreaker,
 }
 
 /// Convert f32 metric value to u32 for Activity fields
@@ -252,6 +254,7 @@ impl StravaProvider {
         };
 
         Self {
+            circuit_breaker: CircuitBreaker::new(oauth_providers::STRAVA),
             config,
             credentials: RwLock::new(None),
             client: shared_client().clone(),
@@ -261,7 +264,9 @@ impl StravaProvider {
     /// Create provider with custom configuration
     #[must_use]
     pub fn with_config(config: ProviderConfig) -> Self {
+        let provider_name = config.name.clone();
         Self {
+            circuit_breaker: CircuitBreaker::new(&provider_name),
             config,
             credentials: RwLock::new(None),
             client: shared_client().clone(),
@@ -337,12 +342,21 @@ impl StravaProvider {
         token.ok_or_else(|| AppError::internal("No access token available"))
     }
 
-    /// Make authenticated API request
+    /// Make authenticated API request with circuit breaker protection
     async fn api_request<T>(&self, endpoint: &str) -> AppResult<T>
     where
         T: for<'de> Deserialize<'de>,
     {
         info!("Starting API request to endpoint: {endpoint}");
+
+        // Check circuit breaker before making request
+        if !self.circuit_breaker.is_allowed() {
+            let err = ProviderError::CircuitBreakerOpen {
+                provider: oauth_providers::STRAVA.to_owned(),
+                retry_after_secs: 30,
+            };
+            return Err(AppError::external_service("Strava", err.to_string()));
+        }
 
         self.refresh_token_if_needed().await?;
 
@@ -355,8 +369,24 @@ impl StravaProvider {
             endpoint.trim_start_matches('/')
         );
 
-        let response = self.send_authenticated_request(&url, &access_token).await?;
-        self.parse_response(response, &url).await
+        let result = self.execute_api_request::<T>(&url, &access_token).await;
+
+        // Record success/failure for circuit breaker
+        match &result {
+            Ok(_) => self.circuit_breaker.record_success(),
+            Err(_) => self.circuit_breaker.record_failure(),
+        }
+
+        result
+    }
+
+    /// Execute the actual API request (separated for circuit breaker wrapping)
+    async fn execute_api_request<T>(&self, url: &str, access_token: &str) -> AppResult<T>
+    where
+        T: for<'de> Deserialize<'de>,
+    {
+        let response = self.send_authenticated_request(url, access_token).await?;
+        self.parse_response(response, url).await
     }
 
     /// Send authenticated HTTP request to Strava API
