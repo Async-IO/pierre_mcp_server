@@ -8,6 +8,8 @@ import { test, expect, type Page } from '@playwright/test';
 import { setupDashboardMocks, loginToDashboard, navigateToTab } from './test-helpers';
 
 // Mock configuration catalog data
+// Uses real category names that match AdminConfiguration.tsx groupings:
+// - Intelligence categories: training_stress, heart_rate_zones, algorithms
 const mockConfigCatalog = {
   success: true,
   data: {
@@ -15,18 +17,18 @@ const mockConfigCatalog = {
     runtime_configurable_count: 10,
     categories: [
       {
-        id: 'tsb',
-        name: 'tsb',
+        id: 'training_stress',
+        name: 'training_stress',
         display_name: 'Training Stress Balance',
         description: 'TSB thresholds for training load analysis',
         display_order: 1,
         is_active: true,
         parameters: [
           {
-            key: 'tsb.fatigued_threshold',
+            key: 'training_stress.fatigued_threshold',
             display_name: 'Fatigued Threshold',
             description: 'TSB value below which an athlete is considered fatigued',
-            category: 'tsb',
+            category: 'training_stress',
             data_type: 'float',
             current_value: -10.0,
             default_value: -10.0,
@@ -38,10 +40,10 @@ const mockConfigCatalog = {
             requires_restart: false,
           },
           {
-            key: 'tsb.fresh_max',
+            key: 'training_stress.fresh_max',
             display_name: 'Fresh Maximum',
             description: 'Maximum TSB for optimal freshness',
-            category: 'tsb',
+            category: 'training_stress',
             data_type: 'float',
             current_value: 20.0,
             default_value: 20.0,
@@ -54,18 +56,18 @@ const mockConfigCatalog = {
         ],
       },
       {
-        id: 'heart_rate',
-        name: 'heart_rate',
+        id: 'heart_rate_zones',
+        name: 'heart_rate_zones',
         display_name: 'Heart Rate Zones',
         description: 'Heart rate zone calculation parameters',
         display_order: 2,
         is_active: true,
         parameters: [
           {
-            key: 'hr.zone1_max_percent',
+            key: 'heart_rate_zones.zone1_max_percent',
             display_name: 'Zone 1 Max Percentage',
             description: 'Upper bound of Zone 1 as percentage of max HR',
-            category: 'heart_rate',
+            category: 'heart_rate_zones',
             data_type: 'integer',
             current_value: 60,
             default_value: 60,
@@ -126,8 +128,8 @@ const mockAuditLog = {
         timestamp: new Date().toISOString(),
         admin_user_id: 'user-123',
         admin_email: 'admin@test.com',
-        category: 'tsb',
-        config_key: 'tsb.fatigued_threshold',
+        category: 'training_stress',
+        config_key: 'training_stress.fatigued_threshold',
         old_value: -15.0,
         new_value: -10.0,
         data_type: 'float',
@@ -211,6 +213,9 @@ async function navigateToAdminConfig(page: Page) {
   await page.waitForSelector('nav', { timeout: 10000 });
   await navigateToTab(page, 'Configuration');
   await page.waitForSelector('h1:has-text("Configuration Management")', { timeout: 10000 });
+  // Switch to Intelligence tab since mock data uses Intelligence categories
+  await page.getByRole('button', { name: 'Intelligence' }).click();
+  await page.waitForTimeout(300);
 }
 
 test.describe('Admin Configuration - Loading and Display', () => {
@@ -504,7 +509,7 @@ test.describe('Admin Configuration - Audit History', () => {
 
     // Should show audit entries
     await expect(page.getByText('admin@test.com').first()).toBeVisible();
-    await expect(page.getByText('tsb.fatigued_threshold')).toBeVisible();
+    await expect(page.getByText('training_stress.fatigued_threshold')).toBeVisible();
   });
 
   test('audit log shows old and new values', async ({ page }) => {

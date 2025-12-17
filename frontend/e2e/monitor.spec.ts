@@ -85,7 +85,8 @@ test.describe('Monitor Tab - Stats Display', () => {
     await loginAndNavigateToMonitor(page);
 
     await expect(page.getByText('Total Requests')).toBeVisible();
-    await expect(page.getByText('156')).toBeVisible();
+    // Use exact match to avoid matching '156ms' from response times
+    await expect(page.getByText('156', { exact: true })).toBeVisible();
   });
 
   test('displays Success Rate stat card', async ({ page }) => {
