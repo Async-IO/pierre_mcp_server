@@ -17,7 +17,7 @@ use chrono::{DateTime, Utc};
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, instrument, warn};
 
 /// Garmin API response for athlete data
 #[derive(Debug, Deserialize)]
@@ -387,6 +387,7 @@ impl FitnessProvider for GarminProvider {
         Ok(())
     }
 
+    #[instrument(skip(self), fields(provider = "garmin", api_call = "get_athlete"))]
     async fn get_athlete(&self) -> AppResult<Athlete> {
         // Source: https://github.com/cyberjunky/python-garminconnect
         // Endpoint: /userprofile-service/userprofile/profile
@@ -409,6 +410,15 @@ impl FitnessProvider for GarminProvider {
         })
     }
 
+    #[instrument(
+        skip(self, params),
+        fields(
+            provider = "garmin",
+            api_call = "get_activities",
+            limit = ?params.limit,
+            offset = ?params.offset,
+        )
+    )]
     async fn get_activities_with_params(
         &self,
         params: &ActivityQueryParams,
@@ -444,6 +454,10 @@ impl FitnessProvider for GarminProvider {
         Ok(CursorPage::new(activities, None, None, false))
     }
 
+    #[instrument(
+        skip(self),
+        fields(provider = "garmin", api_call = "get_activity", activity_id = %id)
+    )]
     async fn get_activity(&self, id: &str) -> AppResult<Activity> {
         // Source: https://github.com/cyberjunky/python-garminconnect
         // Endpoint: /activity-service/activity/{activity_id}
@@ -452,6 +466,7 @@ impl FitnessProvider for GarminProvider {
         Self::convert_garmin_activity(garmin_activity)
     }
 
+    #[instrument(skip(self), fields(provider = "garmin", api_call = "get_stats"))]
     async fn get_stats(&self) -> AppResult<Stats> {
         // Source: https://github.com/cyberjunky/python-garminconnect
         // Using aggregate stats endpoint which provides all-time totals

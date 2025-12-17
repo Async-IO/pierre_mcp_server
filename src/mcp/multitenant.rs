@@ -49,7 +49,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
 use tower_http::LatencyUnit;
-use tracing::{debug, error, info, warn, Level};
+use tracing::{debug, error, field::Empty, info, warn, Level};
 use uuid::Uuid;
 
 use crate::constants::service_names::PIERRE_MCP_SERVER;
@@ -107,6 +107,13 @@ impl MultiTenantMcpServer {
     ///
     /// # Errors
     /// Returns `None` if the request cannot be processed
+    #[tracing::instrument(
+        skip(request, resources),
+        fields(
+            method = %request.method,
+            request_id = ?request.id,
+        )
+    )]
     pub async fn handle_request(
         request: McpRequest,
         resources: &Arc<ServerResources>,
@@ -120,6 +127,14 @@ impl MultiTenantMcpServer {
     ///
     /// # Errors
     /// Returns an error if the provider is not supported or the operation fails
+    #[tracing::instrument(
+        skip(ctx, request_id),
+        fields(
+            provider = %provider_name,
+            user_id = %user_id,
+            tenant_id = Empty,
+        )
+    )]
     pub async fn route_disconnect_tool(
         provider_name: &str,
         user_id: Uuid,
@@ -141,11 +156,19 @@ impl MultiTenantMcpServer {
     }
 
     /// Route provider-specific tool requests to appropriate handlers
+    #[tracing::instrument(
+        skip(args, request_id, ctx, user_id),
+        fields(
+            tool_name = %tool_name,
+            user_id = %user_id,
+            tenant_id = Empty,
+        )
+    )]
     pub async fn route_provider_tool(
         tool_name: &str,
         args: &Value,
         request_id: Value,
-        _user_id: Uuid,
+        user_id: Uuid,
         ctx: &ToolRoutingContext<'_>,
     ) -> McpResponse {
         if let Some(ref tenant_ctx) = ctx.tenant_context {
@@ -383,6 +406,14 @@ impl MultiTenantMcpServer {
     }
 
     /// Handle tenant-aware connection status
+    #[tracing::instrument(
+        skip(tenant_oauth_client, database, request_id, credentials, config),
+        fields(
+            tenant_id = %tenant_context.tenant_id,
+            tenant_name = %tenant_context.tenant_name,
+            user_id = %tenant_context.user_id,
+        )
+    )]
     pub async fn handle_tenant_connection_status(
         tenant_context: &TenantContext,
         tenant_oauth_client: &Arc<TenantOAuthClient>,

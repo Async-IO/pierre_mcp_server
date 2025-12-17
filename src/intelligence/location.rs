@@ -15,7 +15,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
-use tracing::{debug, info, warn};
+use tracing::{debug, info, instrument, warn};
 
 /// Geographic location data with rich context
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -150,6 +150,15 @@ impl LocationService {
     }
 
     /// Fetch location from geocoding API
+    #[instrument(
+        skip(self),
+        fields(
+            service = "nominatim",
+            api_call = "reverse_geocode",
+            lat = %latitude,
+            lon = %longitude,
+        )
+    )]
     async fn fetch_from_api(&self, latitude: f64, longitude: f64) -> AppResult<NominatimResponse> {
         let url = format!(
             "{}/reverse?format=json&lat={}&lon={}&zoom=14&addressdetails=1",
@@ -184,6 +193,15 @@ impl LocationService {
     /// # Errors
     ///
     /// Returns an error if the reverse geocoding request fails or the response cannot be parsed
+    #[instrument(
+        skip(self),
+        fields(
+            service = "location",
+            operation = "get_location",
+            lat = %latitude,
+            lon = %longitude,
+        )
+    )]
     pub async fn get_location_from_coordinates(
         &mut self,
         latitude: f64,

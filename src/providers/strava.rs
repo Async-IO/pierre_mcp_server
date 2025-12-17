@@ -402,6 +402,15 @@ impl FitnessProvider for StravaProvider {
     /// - Response cannot be parsed as JSON
     /// - Strava API returns malformed activity data
     /// - Network connection fails
+    #[tracing::instrument(
+        skip(self, params),
+        fields(
+            provider = "strava",
+            api_call = "get_activities",
+            limit = ?params.limit,
+            offset = ?params.offset,
+        )
+    )]
     async fn get_activities_with_params(
         &self,
         params: &ActivityQueryParams,
@@ -533,6 +542,7 @@ impl FitnessProvider for StravaProvider {
     /// - Response cannot be parsed as JSON
     /// - Strava API returns malformed activity data
     /// - Activity ID is invalid or inaccessible
+    #[tracing::instrument(skip(self), fields(provider = "strava", api_call = "get_activity", activity_id = %id))]
     async fn get_activity(&self, id: &str) -> AppResult<Activity> {
         let token = self.access_token.as_ref().ok_or_else(|| {
             ProviderError::AuthenticationFailed {
@@ -564,6 +574,7 @@ impl FitnessProvider for StravaProvider {
     /// - Response cannot be parsed as JSON
     /// - Both athlete stats API and activities fallback fail
     /// - Strava API returns malformed stats data
+    #[tracing::instrument(skip(self), fields(provider = "strava", api_call = "get_stats"))]
     async fn get_stats(&self) -> AppResult<Stats> {
         // Try Strava's athlete stats endpoint first
         if let Ok(strava_stats) = self.get_strava_athlete_stats().await {
@@ -592,8 +603,9 @@ impl FitnessProvider for StravaProvider {
     ///
     /// Returns errors for:
     /// - Authentication failures
-    /// - API communication issues  
+    /// - API communication issues
     /// - Data parsing errors
+    #[tracing::instrument(skip(self), fields(provider = "strava", api_call = "get_personal_records"))]
     async fn get_personal_records(&self) -> AppResult<Vec<PersonalRecord>> {
         // Personal records require analysis of activities to determine bests
         // This would involve fetching activities and calculating personal bests

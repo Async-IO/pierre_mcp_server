@@ -10,6 +10,7 @@ use crate::models::Activity;
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use tracing::instrument;
 
 /// Standard CTL (Chronic Training Load) window - 42 days for long-term fitness
 const CTL_WINDOW_DAYS: i64 = 42;
@@ -108,6 +109,14 @@ impl TrainingLoadCalculator {
     ///
     /// # Errors
     /// Returns `AppError` if TSS calculation fails for any activity
+    #[instrument(
+        skip(self, activities),
+        fields(
+            service = "training_load",
+            operation = "calculate",
+            activity_count = activities.len(),
+        )
+    )]
     pub fn calculate_training_load(
         &self,
         activities: &[Activity],

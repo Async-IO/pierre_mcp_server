@@ -47,6 +47,7 @@ use rand_chacha::ChaCha8Rng;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
+use tracing::instrument;
 
 /// Global test seed for synthetic provider factory
 ///
@@ -904,6 +905,7 @@ impl FitnessProvider for SyntheticProvider {
         Ok(())
     }
 
+    #[instrument(skip(self), fields(provider = "synthetic", api_call = "get_athlete"))]
     async fn get_athlete(&self) -> AppResult<Athlete> {
         // Return consistent synthetic athlete
         Ok(Athlete {
@@ -916,6 +918,15 @@ impl FitnessProvider for SyntheticProvider {
         })
     }
 
+    #[instrument(
+        skip(self, params),
+        fields(
+            provider = "synthetic",
+            api_call = "get_activities",
+            limit = ?params.limit,
+            offset = ?params.offset,
+        )
+    )]
     async fn get_activities_with_params(
         &self,
         params: &ActivityQueryParams,
@@ -953,6 +964,14 @@ impl FitnessProvider for SyntheticProvider {
         Ok(sorted.into_iter().skip(offset).take(limit).collect())
     }
 
+    #[instrument(
+        skip(self, params),
+        fields(
+            provider = "synthetic",
+            api_call = "get_activities_cursor",
+            limit = params.limit,
+        )
+    )]
     async fn get_activities_cursor(
         &self,
         params: &PaginationParams,
@@ -1012,6 +1031,10 @@ impl FitnessProvider for SyntheticProvider {
         ))
     }
 
+    #[instrument(
+        skip(self),
+        fields(provider = "synthetic", api_call = "get_activity", activity_id = %id)
+    )]
     async fn get_activity(&self, id: &str) -> AppResult<Activity> {
         let index = self
             .activity_index
@@ -1031,14 +1054,23 @@ impl FitnessProvider for SyntheticProvider {
         })
     }
 
+    #[instrument(skip(self), fields(provider = "synthetic", api_call = "get_stats"))]
     async fn get_stats(&self) -> AppResult<Stats> {
         Ok(self.calculate_stats()?)
     }
 
+    #[instrument(
+        skip(self),
+        fields(provider = "synthetic", api_call = "get_personal_records")
+    )]
     async fn get_personal_records(&self) -> AppResult<Vec<PersonalRecord>> {
         Ok(self.extract_personal_records()?)
     }
 
+    #[instrument(
+        skip(self),
+        fields(provider = "synthetic", api_call = "get_sleep_sessions")
+    )]
     async fn get_sleep_sessions(
         &self,
         start_date: DateTime<Utc>,
@@ -1060,6 +1092,10 @@ impl FitnessProvider for SyntheticProvider {
         Ok(filtered)
     }
 
+    #[instrument(
+        skip(self),
+        fields(provider = "synthetic", api_call = "get_latest_sleep_session")
+    )]
     async fn get_latest_sleep_session(&self) -> Result<SleepSession, ProviderError> {
         // Find latest session within lock scope, clone and release lock immediately
         self.sleep_sessions

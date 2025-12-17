@@ -37,6 +37,7 @@ use crate::intelligence::physiological_constants::{
 use crate::models::{Activity, SportType};
 use chrono::{DateTime, Local, Timelike, Utc};
 use std::fmt::Write;
+use tracing::instrument;
 
 /// Safe cast from f64 to f32 with bounds checking
 /// Note: Direct casting is required here for numeric conversion - this is a fundamental
@@ -91,6 +92,15 @@ impl ActivityAnalyzer {
     /// # Errors
     ///
     /// Returns an error if analysis fails due to invalid data or computation errors
+    #[instrument(
+        skip(self, activity, context),
+        fields(
+            service = "analyzer",
+            operation = "analyze_activity",
+            activity_id = %activity.id,
+            sport_type = ?activity.sport_type,
+        )
+    )]
     pub fn analyze_activity(
         &self,
         activity: &Activity,

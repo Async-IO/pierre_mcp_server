@@ -27,7 +27,7 @@ use reqwest::Client;
 use serde::Deserialize;
 use serde_json::from_str;
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, instrument, warn};
 
 /// Fitbit API base URL
 const FITBIT_API_BASE: &str = "https://api.fitbit.com/1";
@@ -710,6 +710,7 @@ impl FitnessProvider for FitbitProvider {
         Ok(())
     }
 
+    #[instrument(skip(self), fields(provider = "fitbit", api_call = "get_athlete"))]
     async fn get_athlete(&self) -> AppResult<Athlete> {
         let response: FitbitUserResponse = self.api_request("user/-/profile.json").await?;
 
@@ -723,6 +724,15 @@ impl FitnessProvider for FitbitProvider {
         })
     }
 
+    #[instrument(
+        skip(self, params),
+        fields(
+            provider = "fitbit",
+            api_call = "get_activities",
+            limit = ?params.limit,
+            offset = ?params.offset,
+        )
+    )]
     async fn get_activities_with_params(
         &self,
         params: &ActivityQueryParams,
@@ -790,6 +800,10 @@ impl FitnessProvider for FitbitProvider {
         Ok(CursorPage::new(activities, None, None, has_more))
     }
 
+    #[instrument(
+        skip(self),
+        fields(provider = "fitbit", api_call = "get_activity", activity_id = %id)
+    )]
     async fn get_activity(&self, id: &str) -> AppResult<Activity> {
         // Fitbit doesn't have a direct single activity endpoint
         // We need to use the activity log endpoint
@@ -804,6 +818,7 @@ impl FitnessProvider for FitbitProvider {
             .and_then(Self::convert_fitbit_activity)
     }
 
+    #[instrument(skip(self), fields(provider = "fitbit", api_call = "get_stats"))]
     async fn get_stats(&self) -> AppResult<Stats> {
         let response: FitbitLifetimeStatsResponse =
             self.api_request("user/-/activities.json").await?;
@@ -823,6 +838,10 @@ impl FitnessProvider for FitbitProvider {
         Ok(vec![])
     }
 
+    #[instrument(
+        skip(self),
+        fields(provider = "fitbit", api_call = "get_sleep_sessions")
+    )]
     async fn get_sleep_sessions(
         &self,
         start_date: DateTime<Utc>,
@@ -857,6 +876,10 @@ impl FitnessProvider for FitbitProvider {
         Ok(sessions)
     }
 
+    #[instrument(
+        skip(self),
+        fields(provider = "fitbit", api_call = "get_latest_sleep_session")
+    )]
     async fn get_latest_sleep_session(&self) -> Result<SleepSession, ProviderError> {
         let today = Utc::now();
         let week_ago = today - chrono::Duration::days(7);
@@ -873,6 +896,10 @@ impl FitnessProvider for FitbitProvider {
             })
     }
 
+    #[instrument(
+        skip(self),
+        fields(provider = "fitbit", api_call = "get_recovery_metrics")
+    )]
     async fn get_recovery_metrics(
         &self,
         start_date: DateTime<Utc>,
@@ -968,6 +995,10 @@ impl FitnessProvider for FitbitProvider {
         Ok(metrics)
     }
 
+    #[instrument(
+        skip(self),
+        fields(provider = "fitbit", api_call = "get_health_metrics")
+    )]
     async fn get_health_metrics(
         &self,
         start_date: DateTime<Utc>,

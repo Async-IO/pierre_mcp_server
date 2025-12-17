@@ -34,7 +34,7 @@ use reqwest::Client;
 use serde::Deserialize;
 use std::fmt::Write;
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, instrument, warn};
 
 // ============================================================================
 // WHOOP API Response Structures
@@ -694,6 +694,7 @@ impl FitnessProvider for WhoopProvider {
         Ok(())
     }
 
+    #[instrument(skip(self), fields(provider = "whoop", api_call = "get_athlete"))]
     async fn get_athlete(&self) -> AppResult<Athlete> {
         let profile: WhoopUserProfile = self.api_request("user/profile/basic").await?;
 
@@ -707,6 +708,15 @@ impl FitnessProvider for WhoopProvider {
         })
     }
 
+    #[instrument(
+        skip(self, params),
+        fields(
+            provider = "whoop",
+            api_call = "get_activities",
+            limit = ?params.limit,
+            offset = ?params.offset,
+        )
+    )]
     async fn get_activities_with_params(
         &self,
         params: &ActivityQueryParams,
@@ -802,6 +812,10 @@ impl FitnessProvider for WhoopProvider {
         ))
     }
 
+    #[instrument(
+        skip(self),
+        fields(provider = "whoop", api_call = "get_activity", activity_id = %id)
+    )]
     async fn get_activity(&self, id: &str) -> AppResult<Activity> {
         let endpoint = format!("activity/workout/{id}");
         let workout: WhoopWorkout = self.api_request(&endpoint).await?;
@@ -825,6 +839,10 @@ impl FitnessProvider for WhoopProvider {
         Ok(vec![])
     }
 
+    #[instrument(
+        skip(self),
+        fields(provider = "whoop", api_call = "get_sleep_sessions")
+    )]
     async fn get_sleep_sessions(
         &self,
         start_date: DateTime<Utc>,
@@ -858,6 +876,10 @@ impl FitnessProvider for WhoopProvider {
         Ok(sessions)
     }
 
+    #[instrument(
+        skip(self),
+        fields(provider = "whoop", api_call = "get_latest_sleep_session")
+    )]
     async fn get_latest_sleep_session(&self) -> Result<SleepSession, ProviderError> {
         let endpoint = "activity/sleep?limit=1";
 
@@ -888,6 +910,10 @@ impl FitnessProvider for WhoopProvider {
         })
     }
 
+    #[instrument(
+        skip(self),
+        fields(provider = "whoop", api_call = "get_recovery_metrics")
+    )]
     async fn get_recovery_metrics(
         &self,
         start_date: DateTime<Utc>,
@@ -921,6 +947,10 @@ impl FitnessProvider for WhoopProvider {
         Ok(metrics)
     }
 
+    #[instrument(
+        skip(self),
+        fields(provider = "whoop", api_call = "get_health_metrics")
+    )]
     async fn get_health_metrics(
         &self,
         start_date: DateTime<Utc>,

@@ -27,7 +27,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
 use tokio::task;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, field::Empty, info, warn};
 use urlencoding::encode;
 
 use crate::{
@@ -1333,6 +1333,15 @@ impl AuthRoutes {
     ///
     /// Security: Only administrators can create new users to prevent
     /// unauthorized user creation, database pollution, and `DoS` attacks.
+    #[tracing::instrument(
+        skip(resources, headers, request),
+        fields(
+            route = "admin_register",
+            email = %request.email,
+            user_id = Empty,
+            success = Empty,
+        )
+    )]
     async fn handle_register(
         State(resources): State<Arc<ServerResources>>,
         headers: HeaderMap,
@@ -1393,6 +1402,15 @@ impl AuthRoutes {
     /// This endpoint allows users to register themselves without admin authentication.
     /// New users are created in "Pending" status by default and require admin approval,
     /// unless `AUTO_APPROVE_USERS` environment variable is set to true.
+    #[tracing::instrument(
+        skip(resources, request),
+        fields(
+            route = "public_register",
+            email = %request.email,
+            user_id = Empty,
+            success = Empty,
+        )
+    )]
     async fn handle_public_register(
         State(resources): State<Arc<ServerResources>>,
         Json(request): Json<RegisterRequest>,
@@ -1421,6 +1439,15 @@ impl AuthRoutes {
     /// Handle Firebase authentication login (Axum)
     ///
     /// Authenticates users via Firebase ID tokens (Google Sign-In, Apple, etc.)
+    #[tracing::instrument(
+        skip(resources, request),
+        fields(
+            route = "firebase_login",
+            user_id = Empty,
+            auth_provider = Empty,
+            success = Empty,
+        )
+    )]
     async fn handle_firebase_login(
         State(resources): State<Arc<ServerResources>>,
         Json(request): Json<FirebaseLoginRequest>,
@@ -1483,6 +1510,14 @@ impl AuthRoutes {
     }
 
     /// Handle token refresh (Axum)
+    #[tracing::instrument(
+        skip(resources, request),
+        fields(
+            route = "token_refresh",
+            user_id = %request.user_id,
+            success = Empty,
+        )
+    )]
     async fn handle_refresh(
         State(resources): State<Arc<ServerResources>>,
         Json(request): Json<RefreshTokenRequest>,
@@ -1569,6 +1604,16 @@ impl AuthRoutes {
     /// ```
     ///
     /// Response format: RFC 6749 Section 5.1 compliant JSON
+    #[tracing::instrument(
+        skip(resources, request),
+        fields(
+            route = "oauth2_token",
+            grant_type = %request.grant_type,
+            username = %request.username,
+            user_id = Empty,
+            success = Empty,
+        )
+    )]
     async fn handle_oauth2_token(
         State(resources): State<Arc<ServerResources>>,
         Form(request): Form<OAuth2TokenRequest>,
@@ -1672,6 +1717,15 @@ impl AuthRoutes {
     }
 
     /// Handle OAuth callback (Axum)
+    #[tracing::instrument(
+        skip(resources, params),
+        fields(
+            route = "oauth_callback",
+            provider = %provider,
+            user_id = Empty,
+            success = Empty,
+        )
+    )]
     async fn handle_oauth_callback(
         State(resources): State<Arc<ServerResources>>,
         Path(provider): Path<String>,
@@ -1729,6 +1783,13 @@ impl AuthRoutes {
     }
 
     /// Handle OAuth status check (Axum)
+    #[tracing::instrument(
+        skip(resources, headers),
+        fields(
+            route = "oauth_status",
+            user_id = Empty,
+        )
+    )]
     async fn handle_oauth_status(
         State(resources): State<Arc<ServerResources>>,
         headers: HeaderMap,
@@ -1841,6 +1902,15 @@ impl AuthRoutes {
     }
 
     /// Handle OAuth authorization initiation (Axum)
+    #[tracing::instrument(
+        skip(resources),
+        fields(
+            route = "oauth_auth_initiate",
+            provider = %provider,
+            user_id = %user_id_str,
+            tenant_id = Empty,
+        )
+    )]
     async fn handle_oauth_auth_initiate(
         State(resources): State<Arc<ServerResources>>,
         Path((provider, user_id_str)): Path<(String, String)>,

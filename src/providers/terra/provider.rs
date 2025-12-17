@@ -17,6 +17,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use tracing::instrument;
 
 use crate::errors::AppResult;
 use crate::models::{
@@ -162,6 +163,7 @@ impl FitnessProvider for TerraProvider {
         Ok(())
     }
 
+    #[instrument(skip(self), fields(provider = "terra", api_call = "get_athlete"))]
     async fn get_athlete(&self) -> AppResult<Athlete> {
         let user_id = self.get_user_id().await?;
 
@@ -191,6 +193,15 @@ impl FitnessProvider for TerraProvider {
         })
     }
 
+    #[instrument(
+        skip(self, params),
+        fields(
+            provider = "terra",
+            api_call = "get_activities",
+            limit = ?params.limit,
+            offset = ?params.offset,
+        )
+    )]
     async fn get_activities_with_params(
         &self,
         params: &ActivityQueryParams,
@@ -258,6 +269,10 @@ impl FitnessProvider for TerraProvider {
         Ok(CursorPage::new(items, next_cursor, None, has_more))
     }
 
+    #[instrument(
+        skip(self),
+        fields(provider = "terra", api_call = "get_activity", activity_id = %id)
+    )]
     async fn get_activity(&self, id: &str) -> AppResult<Activity> {
         let user_id = self.get_user_id().await?;
 
@@ -271,6 +286,7 @@ impl FitnessProvider for TerraProvider {
         })
     }
 
+    #[instrument(skip(self), fields(provider = "terra", api_call = "get_stats"))]
     async fn get_stats(&self) -> AppResult<Stats> {
         let user_id = self.get_user_id().await?;
 
@@ -296,6 +312,10 @@ impl FitnessProvider for TerraProvider {
         Ok(Vec::new())
     }
 
+    #[instrument(
+        skip(self),
+        fields(provider = "terra", api_call = "get_sleep_sessions")
+    )]
     async fn get_sleep_sessions(
         &self,
         start_date: DateTime<Utc>,
@@ -309,6 +329,10 @@ impl FitnessProvider for TerraProvider {
         Ok(sessions)
     }
 
+    #[instrument(
+        skip(self),
+        fields(provider = "terra", api_call = "get_latest_sleep_session")
+    )]
     async fn get_latest_sleep_session(&self) -> Result<SleepSession, ProviderError> {
         let user_id = self.get_user_id().await?;
 
@@ -322,6 +346,10 @@ impl FitnessProvider for TerraProvider {
             })
     }
 
+    #[instrument(
+        skip(self),
+        fields(provider = "terra", api_call = "get_recovery_metrics")
+    )]
     async fn get_recovery_metrics(
         &self,
         start_date: DateTime<Utc>,
@@ -335,6 +363,10 @@ impl FitnessProvider for TerraProvider {
         Ok(metrics)
     }
 
+    #[instrument(
+        skip(self),
+        fields(provider = "terra", api_call = "get_health_metrics")
+    )]
     async fn get_health_metrics(
         &self,
         start_date: DateTime<Utc>,
