@@ -14,7 +14,13 @@ use pierre_mcp_server::providers::utils::{
     conversions, is_authenticated, needs_token_refresh, with_retry, with_retry_default,
     RetryBackoffConfig, RetryConfig,
 };
+use pierre_mcp_server::providers::{
+    ENV_RETRY_BASE_DELAY_MS, ENV_RETRY_JITTER_FACTOR, ENV_RETRY_MAX_ATTEMPTS,
+    ENV_RETRY_MAX_DELAY_MS,
+};
 use reqwest::StatusCode;
+use serial_test::serial;
+use std::env;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
@@ -451,4 +457,149 @@ fn test_provider_error_retry_after_secs() {
 
     let network = ProviderError::NetworkError("issue".to_owned());
     assert_eq!(network.retry_after_secs(), None);
+}
+
+// Tests for RetryBackoffConfig::from_env()
+
+/// Helper to clear retry env vars before/after tests
+fn clear_retry_env_vars() {
+    env::remove_var(ENV_RETRY_MAX_ATTEMPTS);
+    env::remove_var(ENV_RETRY_BASE_DELAY_MS);
+    env::remove_var(ENV_RETRY_MAX_DELAY_MS);
+    env::remove_var(ENV_RETRY_JITTER_FACTOR);
+}
+
+#[test]
+#[serial]
+fn test_from_env_uses_defaults_when_no_env_vars() {
+    clear_retry_env_vars();
+
+    let config = RetryBackoffConfig::from_env();
+
+    assert_eq!(config.max_attempts, 3);
+    assert_eq!(config.base_delay_ms, 1000);
+    assert_eq!(config.max_delay_ms, 30000);
+    assert!((config.jitter_factor - 0.1).abs() < 0.001);
+
+    clear_retry_env_vars();
+}
+
+#[test]
+#[serial]
+fn test_from_env_reads_valid_env_vars() {
+    clear_retry_env_vars();
+
+    env::set_var(ENV_RETRY_MAX_ATTEMPTS, "5");
+    env::set_var(ENV_RETRY_BASE_DELAY_MS, "2000");
+    env::set_var(ENV_RETRY_MAX_DELAY_MS, "60000");
+    env::set_var(ENV_RETRY_JITTER_FACTOR, "0.25");
+
+    let config = RetryBackoffConfig::from_env();
+
+    assert_eq!(config.max_attempts, 5);
+    assert_eq!(config.base_delay_ms, 2000);
+    assert_eq!(config.max_delay_ms, 60000);
+    assert!((config.jitter_factor - 0.25).abs() < 0.001);
+
+    clear_retry_env_vars();
+}
+
+#[test]
+#[serial]
+fn test_from_env_falls_back_to_defaults_for_invalid_values() {
+    clear_retry_env_vars();
+
+    // Set invalid (non-numeric) values
+    env::set_var(ENV_RETRY_MAX_ATTEMPTS, "not_a_number");
+    env::set_var(ENV_RETRY_BASE_DELAY_MS, "abc");
+    env::set_var(ENV_RETRY_MAX_DELAY_MS, "");
+    env::set_var(ENV_RETRY_JITTER_FACTOR, "xyz");
+
+    let config = RetryBackoffConfig::from_env();
+
+    // Should use defaults
+    assert_eq!(config.max_attempts, 3);
+    assert_eq!(config.base_delay_ms, 1000);
+    assert_eq!(config.max_delay_ms, 30000);
+    assert!((config.jitter_factor - 0.1).abs() < 0.001);
+
+    clear_retry_env_vars();
+}
+
+#[test]
+#[serial]
+fn test_from_env_falls_back_to_defaults_for_out_of_range_values() {
+    clear_retry_env_vars();
+
+    // Set out-of-range values
+    env::set_var(ENV_RETRY_MAX_ATTEMPTS, "0"); // min is 1
+    env::set_var(ENV_RETRY_BASE_DELAY_MS, "50"); // min is 100
+    env::set_var(ENV_RETRY_MAX_DELAY_MS, "1000000"); // max is 600000
+    env::set_var(ENV_RETRY_JITTER_FACTOR, "1.5"); // max is 1.0
+
+    let config = RetryBackoffConfig::from_env();
+
+    // Should use defaults due to out-of-range values
+    assert_eq!(config.max_attempts, 3);
+    assert_eq!(config.base_delay_ms, 1000);
+    assert_eq!(config.max_delay_ms, 30000);
+    assert!((config.jitter_factor - 0.1).abs() < 0.001);
+
+    clear_retry_env_vars();
+}
+
+#[test]
+#[serial]
+fn test_from_env_partial_env_vars() {
+    clear_retry_env_vars();
+
+    // Only set some env vars
+    env::set_var(ENV_RETRY_MAX_ATTEMPTS, "7");
+    env::set_var(ENV_RETRY_JITTER_FACTOR, "0.3");
+    // Leave base_delay_ms and max_delay_ms unset
+
+    let config = RetryBackoffConfig::from_env();
+
+    assert_eq!(config.max_attempts, 7);
+    assert_eq!(config.base_delay_ms, 1000); // default
+    assert_eq!(config.max_delay_ms, 30000); // default
+    assert!((config.jitter_factor - 0.3).abs() < 0.001);
+
+    clear_retry_env_vars();
+}
+
+#[test]
+#[serial]
+fn test_from_env_boundary_values() {
+    clear_retry_env_vars();
+
+    // Test minimum valid values
+    env::set_var(ENV_RETRY_MAX_ATTEMPTS, "1");
+    env::set_var(ENV_RETRY_BASE_DELAY_MS, "100");
+    env::set_var(ENV_RETRY_MAX_DELAY_MS, "1000");
+    env::set_var(ENV_RETRY_JITTER_FACTOR, "0.0");
+
+    let config = RetryBackoffConfig::from_env();
+
+    assert_eq!(config.max_attempts, 1);
+    assert_eq!(config.base_delay_ms, 100);
+    assert_eq!(config.max_delay_ms, 1000);
+    assert!((config.jitter_factor - 0.0).abs() < 0.001);
+
+    clear_retry_env_vars();
+
+    // Test maximum valid values
+    env::set_var(ENV_RETRY_MAX_ATTEMPTS, "100");
+    env::set_var(ENV_RETRY_BASE_DELAY_MS, "300000");
+    env::set_var(ENV_RETRY_MAX_DELAY_MS, "600000");
+    env::set_var(ENV_RETRY_JITTER_FACTOR, "1.0");
+
+    let config = RetryBackoffConfig::from_env();
+
+    assert_eq!(config.max_attempts, 100);
+    assert_eq!(config.base_delay_ms, 300_000);
+    assert_eq!(config.max_delay_ms, 600_000);
+    assert!((config.jitter_factor - 1.0).abs() < 0.001);
+
+    clear_retry_env_vars();
 }

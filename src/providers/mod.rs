@@ -104,4 +104,7 @@ pub use terra::{
     TerraDataCache, TerraDescriptor, TerraProvider, TerraProviderFactory, TerraWebhookHandler,
 };
 /// Re-export retry utilities for production resilience
-pub use utils::{with_retry, with_retry_default, RetryBackoffConfig};
+pub use utils::{
+    with_retry, with_retry_default, RetryBackoffConfig, ENV_RETRY_BASE_DELAY_MS,
+    ENV_RETRY_JITTER_FACTOR, ENV_RETRY_MAX_ATTEMPTS, ENV_RETRY_MAX_DELAY_MS,
+};

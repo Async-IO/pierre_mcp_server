@@ -8,6 +8,7 @@ use crate::errors::{AppError, AppResult};
 use chrono::{TimeZone, Utc};
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
+use std::env;
 use std::future::Future;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -330,6 +331,87 @@ pub fn is_authenticated(credentials: &Option<OAuth2Credentials>) -> bool {
     })
 }
 
+/// Environment variable name for maximum retry attempts
+pub const ENV_RETRY_MAX_ATTEMPTS: &str = "PIERRE_RETRY_MAX_ATTEMPTS";
+/// Environment variable name for base delay in milliseconds
+pub const ENV_RETRY_BASE_DELAY_MS: &str = "PIERRE_RETRY_BASE_DELAY_MS";
+/// Environment variable name for maximum delay in milliseconds
+pub const ENV_RETRY_MAX_DELAY_MS: &str = "PIERRE_RETRY_MAX_DELAY_MS";
+/// Environment variable name for jitter factor (0.0 to 1.0)
+pub const ENV_RETRY_JITTER_FACTOR: &str = "PIERRE_RETRY_JITTER_FACTOR";
+
+/// Parse a u32 environment variable with validation and fallback to default
+fn parse_env_u32(name: &str, default: u32, min: u32, max: u32) -> u32 {
+    env::var(name).map_or(default, |val| {
+        val.parse::<u32>().map_or_else(
+            |e| {
+                warn!(
+                    "Failed to parse environment variable {name}='{val}': {e}, using default {default}"
+                );
+                default
+            },
+            |parsed| {
+                if parsed >= min && parsed <= max {
+                    parsed
+                } else {
+                    warn!(
+                        "Environment variable {name}={parsed} out of range [{min}, {max}], using default {default}"
+                    );
+                    default
+                }
+            },
+        )
+    })
+}
+
+/// Parse a u64 environment variable with validation and fallback to default
+fn parse_env_u64(name: &str, default: u64, min: u64, max: u64) -> u64 {
+    env::var(name).map_or(default, |val| {
+        val.parse::<u64>().map_or_else(
+            |e| {
+                warn!(
+                    "Failed to parse environment variable {name}='{val}': {e}, using default {default}"
+                );
+                default
+            },
+            |parsed| {
+                if parsed >= min && parsed <= max {
+                    parsed
+                } else {
+                    warn!(
+                        "Environment variable {name}={parsed} out of range [{min}, {max}], using default {default}"
+                    );
+                    default
+                }
+            },
+        )
+    })
+}
+
+/// Parse an f64 environment variable with validation and fallback to default
+fn parse_env_f64(name: &str, default: f64, min: f64, max: f64) -> f64 {
+    env::var(name).map_or(default, |val| {
+        val.parse::<f64>().map_or_else(
+            |e| {
+                warn!(
+                    "Failed to parse environment variable {name}='{val}': {e}, using default {default}"
+                );
+                default
+            },
+            |parsed| {
+                if parsed >= min && parsed <= max {
+                    parsed
+                } else {
+                    warn!(
+                        "Environment variable {name}={parsed} out of range [{min}, {max}], using default {default}"
+                    );
+                    default
+                }
+            },
+        )
+    })
+}
+
 /// Configuration for exponential backoff retry behavior
 #[derive(Debug, Clone)]
 pub struct RetryBackoffConfig {
@@ -385,6 +467,42 @@ impl RetryBackoffConfig {
             base_delay_ms: 500,
             max_delay_ms: 5000,
             jitter_factor: 0.1,
+        }
+    }
+
+    /// Create a retry config from environment variables
+    ///
+    /// Reads the following environment variables:
+    /// - `PIERRE_RETRY_MAX_ATTEMPTS`: Maximum retry attempts (default: 3)
+    /// - `PIERRE_RETRY_BASE_DELAY_MS`: Base delay in milliseconds (default: 1000)
+    /// - `PIERRE_RETRY_MAX_DELAY_MS`: Maximum delay in milliseconds (default: 30000)
+    /// - `PIERRE_RETRY_JITTER_FACTOR`: Jitter factor 0.0-1.0 (default: 0.1)
+    ///
+    /// Invalid values are logged as warnings and fall back to defaults.
+    #[must_use]
+    pub fn from_env() -> Self {
+        let defaults = Self::default();
+
+        let max_attempts = parse_env_u32(ENV_RETRY_MAX_ATTEMPTS, defaults.max_attempts, 1, 100);
+
+        let base_delay_ms = parse_env_u64(
+            ENV_RETRY_BASE_DELAY_MS,
+            defaults.base_delay_ms,
+            100,
+            300_000,
+        );
+
+        let max_delay_ms =
+            parse_env_u64(ENV_RETRY_MAX_DELAY_MS, defaults.max_delay_ms, 1000, 600_000);
+
+        let jitter_factor =
+            parse_env_f64(ENV_RETRY_JITTER_FACTOR, defaults.jitter_factor, 0.0, 1.0);
+
+        Self {
+            max_attempts,
+            base_delay_ms,
+            max_delay_ms,
+            jitter_factor,
         }
     }
 
