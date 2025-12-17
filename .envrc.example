@@ -151,30 +151,138 @@ export ADMIN_EMAIL="admin@pierre.mcp"
 export ADMIN_PASSWORD="adminpass123"
 
 # ============================================================================
-# TOKIO RUNTIME CONFIGURATION (Advanced)
+# CACHE CONFIGURATION
 # ============================================================================
-# Configure async runtime for performance tuning (optional - uses defaults if not set)
 
-# Worker threads (default: number of CPU cores)
-# export TOKIO_WORKER_THREADS="4"
+# Cache TTL Configuration (seconds)
+export CACHE_TTL_PROFILE_SECS="86400"         # 24 hours - athlete profiles change infrequently
+export CACHE_TTL_ACTIVITY_LIST_SECS="900"     # 15 minutes - needs to be fresh for new activities
+export CACHE_TTL_ACTIVITY_SECS="3600"         # 1 hour - activity details rarely change
+export CACHE_TTL_STATS_SECS="21600"           # 6 hours - stats aggregate over time windows
 
-# Thread stack size in bytes (default: OS default)
-# export TOKIO_THREAD_STACK_SIZE="2097152"  # 2MB
+# Cache General Settings
+export CACHE_MAX_ENTRIES="10000"
+export CACHE_CLEANUP_INTERVAL_SECS="300"      # 5 minutes
 
-# Worker thread name prefix (default: pierre-worker)
-# export TOKIO_THREAD_NAME="pierre-worker"
+# Redis Connection Configuration (when using Redis cache)
+# export REDIS_URL="redis://localhost:6379"
+export REDIS_CONNECTION_TIMEOUT_SECS="10"
+export REDIS_RESPONSE_TIMEOUT_SECS="5"
+export REDIS_RECONNECTION_RETRIES="5"
+export REDIS_RETRY_EXPONENT_BASE="2"
+export REDIS_MAX_RETRY_DELAY_MS="30000"
+export REDIS_INITIAL_CONNECTION_RETRIES="3"
+export REDIS_INITIAL_RETRY_DELAY_MS="500"
 
 # ============================================================================
-# SQLX POOL CONFIGURATION (Advanced)
+# HTTP CLIENT CONFIGURATION
 # ============================================================================
-# Fine-tune database connection pool behavior (optional - uses defaults if not set)
 
-# Connection lifecycle
-# export SQLX_IDLE_TIMEOUT_SECS="600"        # close idle connections after (default: 600)
-# export SQLX_MAX_LIFETIME_SECS="1800"       # max connection lifetime (default: 1800)
+# HTTP Client Timeouts (seconds)
+export HTTP_CLIENT_TIMEOUT_SECS="30"
+export HTTP_CLIENT_CONNECT_TIMEOUT_SECS="10"
+export OAUTH_CLIENT_TIMEOUT_SECS="15"
+export OAUTH_CLIENT_CONNECT_TIMEOUT_SECS="5"
+export API_CLIENT_TIMEOUT_SECS="60"
+export API_CLIENT_CONNECT_TIMEOUT_SECS="10"
+export HEALTH_CHECK_TIMEOUT_SECS="5"
+export OAUTH_CALLBACK_NOTIFICATION_TIMEOUT_SECS="5"
 
-# Connection validation
-# export SQLX_TEST_BEFORE_ACQUIRE="true"     # validate before use (default: true)
+# HTTP Client Retry Configuration
+export HTTP_CLIENT_ENABLE_RETRIES="true"
+export HTTP_CLIENT_MAX_RETRIES="3"
+export HTTP_CLIENT_RETRY_BASE_DELAY_MS="100"
+export HTTP_CLIENT_RETRY_MAX_DELAY_MS="5000"
+export HTTP_CLIENT_RETRY_JITTER_ENABLED="true"
 
-# Performance
-# export SQLX_STATEMENT_CACHE_CAPACITY="100" # prepared statement cache (default: 100)
+# ============================================================================
+# SSE (SERVER-SENT EVENTS) CONFIGURATION
+# ============================================================================
+
+export SSE_CLEANUP_INTERVAL_SECS="300"        # 5 minutes
+export SSE_CONNECTION_TIMEOUT_SECS="600"      # 10 minutes
+export SSE_MAX_BUFFER_SIZE="1000"
+export SSE_BUFFER_OVERFLOW_STRATEGY="drop_oldest"  # Options: drop_oldest, drop_new, close_connection
+export SSE_BROADCAST_CHANNEL_SIZE="1000"
+export SSE_MAX_CONNECTIONS_PER_USER="5"
+export SESSION_COOKIE_MAX_AGE_SECS="86400"    # 24 hours
+export SESSION_COOKIE_SECURE="false"          # Set to true in production with HTTPS
+
+# ============================================================================
+# MCP SERVER CONFIGURATION
+# ============================================================================
+
+export MCP_PROTOCOL_VERSION="2025-06-18"
+export SERVER_NAME="pierre-mcp-server"
+export MCP_SESSION_CACHE_SIZE="100"
+export MCP_MAX_REQUEST_SIZE="1048576"         # 1MB
+export MCP_MAX_RESPONSE_SIZE="10485760"       # 10MB
+export MCP_NOTIFICATION_CHANNEL_SIZE="100"
+export MCP_WEBSOCKET_CHANNEL_CAPACITY="1000"
+export TCP_KEEP_ALIVE_SECS="60"
+
+# ============================================================================
+# PROVIDER RATE LIMITS AND ACTIVITY SETTINGS
+# ============================================================================
+
+# Strava Provider Settings
+export STRAVA_DEFAULT_ACTIVITIES_PER_PAGE="30"
+export STRAVA_MAX_ACTIVITIES_PER_REQUEST="200"
+export STRAVA_RATE_LIMIT_15MIN="100"
+export STRAVA_RATE_LIMIT_DAILY="15000"
+
+# Fitbit Provider Settings
+export FITBIT_RATE_LIMIT_HOURLY="150"
+export FITBIT_RATE_LIMIT_DAILY="1000"
+
+# Garmin Provider Settings
+export GARMIN_DEFAULT_ACTIVITIES_PER_PAGE="20"
+export GARMIN_MAX_ACTIVITIES_PER_REQUEST="100"
+export GARMIN_MAX_REQUESTS_PER_HOUR="100"
+export GARMIN_MIN_LOGIN_INTERVAL_SECS="300"   # 5 minutes
+export GARMIN_RATE_LIMIT_BLOCK_DURATION_SECS="3600"  # 1 hour
+
+# ============================================================================
+# OAUTH RATE LIMITING
+# ============================================================================
+
+export OAUTH_AUTHORIZE_RATE_LIMIT_RPM="60"
+export OAUTH_TOKEN_RATE_LIMIT_RPM="30"
+export OAUTH_REGISTER_RATE_LIMIT_RPM="10"
+export OAUTH2_RATE_LIMIT_WINDOW_SECS="60"
+export RATE_LIMITER_CLEANUP_THRESHOLD="1000"
+export RATE_LIMITER_STALE_ENTRY_TIMEOUT_SECS="120"
+
+# ============================================================================
+# SYSTEM MONITORING
+# ============================================================================
+
+export MONITORING_MEMORY_WARNING_THRESHOLD="80.0"   # Warn at 80% memory usage
+export MONITORING_DISK_WARNING_THRESHOLD="85.0"     # Warn at 85% disk usage
+
+# ============================================================================
+# ROUTE TIMEOUT CONFIGURATION
+# ============================================================================
+
+export ROUTE_TIMEOUT_DATABASE_SECS="30"
+export ROUTE_TIMEOUT_PROVIDER_API_SECS="60"
+export ROUTE_TIMEOUT_SSE_EVENT_SECS="5"
+export ROUTE_TIMEOUT_OAUTH_SECS="15"
+
+# ============================================================================
+# TOKIO RUNTIME CONFIGURATION
+# ============================================================================
+
+# Uncomment to customize Tokio runtime settings
+# export TOKIO_WORKER_THREADS=""               # Default: CPU count
+# export TOKIO_THREAD_STACK_SIZE=""            # Default: ~2MB
+export TOKIO_THREAD_NAME="pierre-worker"
+
+# ============================================================================
+# SQLX CONNECTION POOL CONFIGURATION
+# ============================================================================
+
+# export SQLX_IDLE_TIMEOUT_SECS=""             # Default: 10 min (PostgreSQL)
+# export SQLX_MAX_LIFETIME_SECS=""             # Default: 30 min
+export SQLX_TEST_BEFORE_ACQUIRE="true"
+# export SQLX_STATEMENT_CACHE_CAPACITY=""      # Default: 100

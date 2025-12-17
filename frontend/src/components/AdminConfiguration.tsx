@@ -4,10 +4,34 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../services/api';
 import { Card, Badge, Input, Button, Modal, Tabs } from './ui';
+
+// Clipboard copy with fallback for older browsers
+const copyToClipboard = async (text: string): Promise<boolean> => {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Fallback for older browsers
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      return true;
+    } catch {
+      return false;
+    } finally {
+      document.body.removeChild(textArea);
+    }
+  }
+};
 
 interface ConfigParameter {
   key: string;
@@ -51,9 +75,36 @@ interface AuditEntry {
   reason?: string;
 }
 
+// Category groupings: Server vs Intelligence configuration
+const SERVER_CATEGORIES = new Set([
+  'rate_limiting',
+  'feature_flags',
+  'tokio_runtime',
+  'sqlx_config',
+  'cache_ttl',
+  'provider_strava',
+  'provider_fitbit',
+  'provider_garmin',
+  'mcp_network',
+  'monitoring',
+]);
+
+const INTELLIGENCE_CATEGORIES = new Set([
+  'heart_rate_zones',
+  'recommendation_engine',
+  'sleep_recovery',
+  'training_stress',
+  'weather_analysis',
+  'nutrition',
+  'algorithms',
+]);
+
+type ConfigGroup = 'server' | 'intelligence';
+
 export default function AdminConfiguration() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'parameters' | 'history'>('parameters');
+  const [configGroup, setConfigGroup] = useState<ConfigGroup>('server');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [pendingChanges, setPendingChanges] = useState<Record<string, unknown>>({});
   const [changeReason, setChangeReason] = useState('');
@@ -61,6 +112,16 @@ export default function AdminConfiguration() {
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetTarget, setResetTarget] = useState<{ category?: string; key?: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [copiedEnvVar, setCopiedEnvVar] = useState<string | null>(null);
+
+  // Handle copy to clipboard with feedback
+  const handleCopyEnvVar = useCallback(async (envVar: string) => {
+    const success = await copyToClipboard(envVar);
+    if (success) {
+      setCopiedEnvVar(envVar);
+      setTimeout(() => setCopiedEnvVar(null), 2000);
+    }
+  }, []);
 
   // Fetch configuration catalog
   const { data: catalogData, isLoading, error } = useQuery({
@@ -107,11 +168,18 @@ export default function AdminConfiguration() {
     return [...catalogData.data.categories].sort((a, b) => a.display_order - b.display_order);
   }, [catalogData]);
 
-  // Filter categories and parameters based on search query
+  // Filter categories by config group (server vs intelligence), search query, and non-empty
   const filteredCategories = useMemo(() => {
-    if (!searchQuery.trim()) return categories;
+    // First, filter by config group
+    const groupSet = configGroup === 'server' ? SERVER_CATEGORIES : INTELLIGENCE_CATEGORIES;
+    const groupCategories = categories.filter((cat) => groupSet.has(cat.name));
+
+    // Then, filter out empty categories (those with 0 parameters)
+    const nonEmptyCategories = groupCategories.filter((cat) => cat.parameters.length > 0);
+
+    if (!searchQuery.trim()) return nonEmptyCategories;
     const query = searchQuery.toLowerCase();
-    return categories
+    return nonEmptyCategories
       .map((cat) => ({
         ...cat,
         parameters: cat.parameters.filter(
@@ -122,14 +190,13 @@ export default function AdminConfiguration() {
         ),
       }))
       .filter((cat) => cat.parameters.length > 0);
-  }, [categories, searchQuery]);
+  }, [categories, configGroup, searchQuery]);
 
-  // Get current category parameters
+  // Get current category parameters (always use filtered to exclude empty categories)
   const currentCategory = useMemo(() => {
-    const cats = searchQuery ? filteredCategories : categories;
-    if (!selectedCategory) return cats[0] || null;
-    return cats.find((c) => c.name === selectedCategory) || cats[0] || null;
-  }, [categories, filteredCategories, searchQuery, selectedCategory]);
+    if (!selectedCategory) return filteredCategories[0] || null;
+    return filteredCategories.find((c) => c.name === selectedCategory) || filteredCategories[0] || null;
+  }, [filteredCategories, selectedCategory]);
 
   // Check if there are pending changes
   const hasPendingChanges = Object.keys(pendingChanges).length > 0;
@@ -184,6 +251,15 @@ export default function AdminConfiguration() {
     }
     return param.current_value;
   };
+
+  // Get original value for a parameter key (for old→new comparison in modal)
+  const getOriginalValue = useCallback((key: string): unknown => {
+    for (const cat of categories) {
+      const param = cat.parameters.find((p: ConfigParameter) => p.key === key);
+      if (param) return param.current_value;
+    }
+    return undefined;
+  }, [categories]);
 
   // Render parameter input based on data type
   const renderParameterInput = (param: ConfigParameter) => {
@@ -306,8 +382,8 @@ export default function AdminConfiguration() {
         <div>
           <h1 className="text-2xl font-bold text-pierre-gray-900">Configuration Management</h1>
           <p className="text-sm text-pierre-gray-500 mt-1">
-            {catalogData?.data?.total_parameters ?? 0} parameters &bull;{' '}
-            {categories.length} categories
+            {filteredCategories.reduce((sum, cat) => sum + cat.parameters.length, 0)} parameters &bull;{' '}
+            {filteredCategories.length} categories
           </p>
         </div>
         {hasPendingChanges && (
@@ -374,6 +450,47 @@ export default function AdminConfiguration() {
             {/* Category sidebar */}
             <div className="col-span-3">
               <Card className="sticky top-4">
+                {/* Config group selector */}
+                <div className="mb-4">
+                  <div className="flex rounded-lg bg-pierre-gray-100 p-1">
+                    <button
+                      onClick={() => {
+                        setConfigGroup('server');
+                        setSelectedCategory(null);
+                      }}
+                      className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                        configGroup === 'server'
+                          ? 'bg-white text-pierre-violet shadow-sm'
+                          : 'text-pierre-gray-600 hover:text-pierre-gray-900'
+                      }`}
+                    >
+                      <div className="flex items-center justify-center gap-1.5">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+                        </svg>
+                        Server
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setConfigGroup('intelligence');
+                        setSelectedCategory(null);
+                      }}
+                      className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                        configGroup === 'intelligence'
+                          ? 'bg-white text-pierre-violet shadow-sm'
+                          : 'text-pierre-gray-600 hover:text-pierre-gray-900'
+                      }`}
+                    >
+                      <div className="flex items-center justify-center gap-1.5">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
+                        Intelligence
+                      </div>
+                    </button>
+                  </div>
+                </div>
                 <h3 className="font-semibold text-pierre-gray-900 mb-3">Categories</h3>
                 <nav className="space-y-1">
                   {filteredCategories.map((cat: ConfigCategory) => (
@@ -418,16 +535,26 @@ export default function AdminConfiguration() {
                   </div>
 
                   <div className="divide-y divide-pierre-gray-100">
-                    {currentCategory.parameters.map((param: ConfigParameter) => (
-                      <div key={param.key} className="py-4">
+                    {currentCategory.parameters.map((param: ConfigParameter) => {
+                      const hasPendingChange = param.key in pendingChanges;
+                      const isModifiedFromDefault = param.is_modified || hasPendingChange;
+                      return (
+                      <div key={param.key} className={`py-4 ${hasPendingChange ? 'bg-pierre-violet/5 -mx-4 px-4 rounded-lg' : ''}`}>
                         <div className="flex items-start justify-between">
                           <div className="flex-1 mr-4">
                             <div className="flex items-center gap-2">
+                              {/* Visual indicator dot for pending changes */}
+                              {hasPendingChange && (
+                                <span className="w-2 h-2 rounded-full bg-pierre-violet animate-pulse" title="Pending change" />
+                              )}
                               <h4 className="font-medium text-pierre-gray-900">
                                 {param.display_name}
                               </h4>
-                              {param.is_modified && (
+                              {param.is_modified && !hasPendingChange && (
                                 <Badge variant="warning">Modified</Badge>
+                              )}
+                              {hasPendingChange && (
+                                <Badge variant="info">Unsaved</Badge>
                               )}
                               {param.requires_restart && (
                                 <Badge variant="destructive">Requires Restart</Badge>
@@ -446,7 +573,25 @@ export default function AdminConfiguration() {
                                 <span>Range: {param.valid_range.min} - {param.valid_range.max}</span>
                               )}
                               {param.env_variable && (
-                                <span>Env: <code className="bg-pierre-gray-100 px-1 rounded">{param.env_variable}</code></span>
+                                <span className="flex items-center gap-1">
+                                  Env:{' '}
+                                  <code className="bg-pierre-gray-100 px-1 rounded">{param.env_variable}</code>
+                                  <button
+                                    onClick={() => handleCopyEnvVar(param.env_variable!)}
+                                    className="p-0.5 hover:bg-pierre-gray-200 rounded transition-colors"
+                                    title="Copy to clipboard"
+                                  >
+                                    {copiedEnvVar === param.env_variable ? (
+                                      <svg className="w-3.5 h-3.5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                      </svg>
+                                    ) : (
+                                      <svg className="w-3.5 h-3.5 text-pierre-gray-400 hover:text-pierre-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                      </svg>
+                                    )}
+                                  </button>
+                                </span>
                               )}
                             </div>
                             {param.scientific_basis && (
@@ -457,11 +602,15 @@ export default function AdminConfiguration() {
                           </div>
                           <div className="flex items-center gap-2">
                             {renderParameterInput(param)}
-                            {param.is_modified && (
+                            {/* Show reset button when value differs from default (either saved override or pending change) */}
+                            {(isModifiedFromDefault || hasPendingChange) && param.is_runtime_configurable && (
                               <button
-                                onClick={() => handleReset(undefined, param.key)}
-                                className="p-1 text-pierre-gray-400 hover:text-pierre-gray-600"
-                                title="Reset to default"
+                                onClick={() => hasPendingChange
+                                  ? handleValueChange(param.key, param.default_value, param.current_value)
+                                  : handleReset(undefined, param.key)
+                                }
+                                className="p-1 text-pierre-gray-400 hover:text-pierre-gray-600 transition-colors"
+                                title={hasPendingChange ? "Revert pending change" : "Reset to default"}
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -471,7 +620,7 @@ export default function AdminConfiguration() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                    );})}
                   </div>
                 </Card>
               </>
@@ -538,13 +687,28 @@ export default function AdminConfiguration() {
             You are about to update {Object.keys(pendingChanges).length} configuration parameter(s).
           </p>
 
-          <div className="bg-pierre-gray-50 rounded-lg p-3 max-h-48 overflow-y-auto">
-            {Object.entries(pendingChanges).map(([key, value]) => (
-              <div key={key} className="flex justify-between text-sm py-1">
-                <span className="text-pierre-gray-600">{key}</span>
-                <span className="font-medium">{formatValue(value)}</span>
-              </div>
-            ))}
+          <div className="bg-pierre-gray-50 rounded-lg p-3 max-h-64 overflow-y-auto">
+            <div className="space-y-3">
+              {Object.entries(pendingChanges).map(([key, newValue]) => {
+                const oldValue = getOriginalValue(key);
+                return (
+                  <div key={key} className="text-sm border-b border-pierre-gray-200 pb-2 last:border-b-0 last:pb-0">
+                    <div className="font-medium text-pierre-gray-700 mb-1">{key}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-pierre-gray-500 bg-pierre-gray-100 px-2 py-0.5 rounded line-through">
+                        {formatValue(oldValue)}
+                      </span>
+                      <svg className="w-4 h-4 text-pierre-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                      </svg>
+                      <span className="font-medium text-pierre-violet bg-pierre-violet/10 px-2 py-0.5 rounded">
+                        {formatValue(newValue)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <Input

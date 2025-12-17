@@ -281,6 +281,34 @@ pub struct CacheConfig {
     /// Redis connection configuration
     #[serde(default)]
     pub redis_connection: RedisConnectionConfig,
+    /// Cache TTL configuration
+    #[serde(default)]
+    pub ttl: CacheTtlConfig,
+}
+
+/// Cache TTL configuration for different resource types
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CacheTtlConfig {
+    /// Athlete profile cache TTL in seconds (default: 24 hours)
+    pub profile_secs: u64,
+    /// Activity list cache TTL in seconds (default: 15 minutes)
+    pub activity_list_secs: u64,
+    /// Individual activity cache TTL in seconds (default: 1 hour)
+    pub activity_secs: u64,
+    /// Stats cache TTL in seconds (default: 6 hours)
+    pub stats_secs: u64,
+}
+
+impl Default for CacheTtlConfig {
+    fn default() -> Self {
+        use crate::constants::cache;
+        Self {
+            profile_secs: cache::TTL_PROFILE_SECS,
+            activity_list_secs: cache::TTL_ACTIVITY_LIST_SECS,
+            activity_secs: cache::TTL_ACTIVITY_SECS,
+            stats_secs: cache::TTL_STATS_SECS,
+        }
+    }
 }
 
 /// Redis connection and retry configuration
@@ -489,6 +517,16 @@ pub struct GarminApiConfig {
     pub token_url: String,
     /// Garmin revoke URL
     pub revoke_url: String,
+    /// Default activities per page when fetching
+    pub default_activities_per_page: usize,
+    /// Maximum activities per API request
+    pub max_activities_per_request: usize,
+    /// Recommended maximum requests per hour per user
+    pub recommended_max_requests_per_hour: usize,
+    /// Recommended minimum interval between login attempts (seconds)
+    pub recommended_min_login_interval_secs: u64,
+    /// Estimated rate limit block duration (seconds)
+    pub estimated_rate_limit_block_duration_secs: u64,
 }
 
 /// MCP (Model Context Protocol) server configuration
@@ -500,6 +538,16 @@ pub struct McpConfig {
     pub server_name: String,
     /// MCP session cache size
     pub session_cache_size: usize,
+    /// Maximum request size in bytes
+    pub max_request_size: usize,
+    /// Maximum response size in bytes
+    pub max_response_size: usize,
+    /// Notification broadcast channel size
+    pub notification_channel_size: usize,
+    /// WebSocket channel capacity
+    pub websocket_channel_capacity: usize,
+    /// TCP keep-alive timeout in seconds
+    pub tcp_keep_alive_secs: u64,
 }
 
 /// Tokio runtime configuration for controlling async execution
@@ -663,6 +711,27 @@ pub struct ServerConfig {
     pub tokio_runtime: TokioRuntimeConfig,
     /// `SQLx` connection pool configuration
     pub sqlx: SqlxConfig,
+    /// System monitoring configuration
+    pub monitoring: MonitoringConfig,
+}
+
+/// System monitoring configuration for health checks and alerts
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MonitoringConfig {
+    /// Memory warning threshold percentage (0-100)
+    pub memory_warning_threshold: f64,
+    /// Disk warning threshold percentage (0-100)
+    pub disk_warning_threshold: f64,
+}
+
+impl Default for MonitoringConfig {
+    fn default() -> Self {
+        use crate::constants::system_monitoring;
+        Self {
+            memory_warning_threshold: system_monitoring::MEMORY_WARNING_THRESHOLD,
+            disk_warning_threshold: system_monitoring::DISK_WARNING_THRESHOLD,
+        }
+    }
 }
 
 /// Database connection and management configuration
@@ -1175,6 +1244,14 @@ pub struct StravaApiConfig {
     pub token_url: String,
     /// Strava deauthorize URL
     pub deauthorize_url: String,
+    /// Default activities per page when fetching
+    pub default_activities_per_page: usize,
+    /// Maximum activities per API request
+    pub max_activities_per_request: usize,
+    /// Rate limit for 15-minute window
+    pub rate_limit_15min: u32,
+    /// Rate limit for daily window
+    pub rate_limit_daily: u32,
 }
 
 /// Fitbit API configuration for OAuth and data fetching
@@ -1188,6 +1265,10 @@ pub struct FitbitApiConfig {
     pub token_url: String,
     /// Fitbit revoke URL
     pub revoke_url: String,
+    /// Rate limit for hourly window
+    pub rate_limit_hourly: u32,
+    /// Rate limit for daily window
+    pub rate_limit_daily: u32,
 }
 
 /// Application behavior and feature flags configuration
@@ -1262,6 +1343,10 @@ pub struct SseConfig {
     pub max_buffer_size: usize,
     /// Behavior when buffer is full
     pub buffer_overflow_strategy: SseBufferStrategy,
+    /// Broadcast channel size for SSE events
+    pub broadcast_channel_size: usize,
+    /// Maximum SSE connections per user
+    pub max_connections_per_user: usize,
 }
 
 /// Strategy for handling SSE buffer overflow
@@ -1301,6 +1386,7 @@ impl Default for HttpClientConfig {
 
 impl Default for SseConfig {
     fn default() -> Self {
+        use crate::constants::network_config;
         Self {
             cleanup_interval_secs: timeouts::SSE_CLEANUP_INTERVAL_SECS,
             connection_timeout_secs: timeouts::SSE_CONNECTION_TIMEOUT_SECS,
@@ -1308,6 +1394,8 @@ impl Default for SseConfig {
             session_cookie_secure: false, // Default to false for development, override in production
             max_buffer_size: 1000,
             buffer_overflow_strategy: SseBufferStrategy::default(),
+            broadcast_channel_size: network_config::SSE_BROADCAST_CHANNEL_SIZE,
+            max_connections_per_user: network_config::SSE_MAX_CONNECTIONS_PER_USER,
         }
     }
 }
@@ -1358,6 +1446,7 @@ impl ServerConfig {
             training_zones: Self::load_training_zones_config(),
             tokio_runtime: TokioRuntimeConfig::from_env(),
             sqlx: SqlxConfig::from_env(),
+            monitoring: Self::load_monitoring_config(),
         };
 
         config.validate()?;
@@ -1915,6 +2004,9 @@ impl ServerConfig {
 
     /// Load Strava API configuration from environment
     fn load_strava_api_config() -> StravaApiConfig {
+        use crate::constants::api_provider_limits::{
+            strava, STRAVA_RATE_LIMIT_15MIN, STRAVA_RATE_LIMIT_DAILY,
+        };
         StravaApiConfig {
             base_url: env_var_or("STRAVA_API_BASE", "https://www.strava.com/api/v3"),
             auth_url: env_var_or("STRAVA_AUTH_URL", "https://www.strava.com/oauth/authorize"),
@@ -1923,16 +2015,43 @@ impl ServerConfig {
                 "STRAVA_DEAUTHORIZE_URL",
                 "https://www.strava.com/oauth/deauthorize",
             ),
+            default_activities_per_page: env::var("STRAVA_DEFAULT_ACTIVITIES_PER_PAGE")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(strava::DEFAULT_ACTIVITIES_PER_PAGE),
+            max_activities_per_request: env::var("STRAVA_MAX_ACTIVITIES_PER_REQUEST")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(strava::MAX_ACTIVITIES_PER_REQUEST),
+            rate_limit_15min: env::var("STRAVA_RATE_LIMIT_15MIN")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(STRAVA_RATE_LIMIT_15MIN),
+            rate_limit_daily: env::var("STRAVA_RATE_LIMIT_DAILY")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(STRAVA_RATE_LIMIT_DAILY),
         }
     }
 
     /// Load Fitbit API configuration from environment
     fn load_fitbit_api_config() -> FitbitApiConfig {
+        use crate::constants::api_provider_limits::{
+            FITBIT_RATE_LIMIT_DAILY, FITBIT_RATE_LIMIT_HOURLY,
+        };
         FitbitApiConfig {
             base_url: env_var_or("FITBIT_API_BASE", "https://api.fitbit.com"),
             auth_url: env_var_or("FITBIT_AUTH_URL", "https://www.fitbit.com/oauth2/authorize"),
             token_url: env_var_or("FITBIT_TOKEN_URL", "https://api.fitbit.com/oauth2/token"),
             revoke_url: env_var_or("FITBIT_REVOKE_URL", "https://api.fitbit.com/oauth2/revoke"),
+            rate_limit_hourly: env::var("FITBIT_RATE_LIMIT_HOURLY")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(FITBIT_RATE_LIMIT_HOURLY),
+            rate_limit_daily: env::var("FITBIT_RATE_LIMIT_DAILY")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(FITBIT_RATE_LIMIT_DAILY),
         }
     }
 
@@ -1984,6 +2103,7 @@ impl ServerConfig {
 
     /// Load Garmin API configuration from environment
     fn load_garmin_api_config() -> GarminApiConfig {
+        use crate::constants::api_provider_limits::garmin;
         GarminApiConfig {
             base_url: env_var_or(
                 "GARMIN_API_BASE",
@@ -1998,11 +2118,34 @@ impl ServerConfig {
                 "GARMIN_REVOKE_URL",
                 "https://connectapi.garmin.com/oauth-service/oauth/revoke",
             ),
+            default_activities_per_page: env::var("GARMIN_DEFAULT_ACTIVITIES_PER_PAGE")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(garmin::DEFAULT_ACTIVITIES_PER_PAGE),
+            max_activities_per_request: env::var("GARMIN_MAX_ACTIVITIES_PER_REQUEST")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(garmin::MAX_ACTIVITIES_PER_REQUEST),
+            recommended_max_requests_per_hour: env::var("GARMIN_MAX_REQUESTS_PER_HOUR")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(garmin::RECOMMENDED_MAX_REQUESTS_PER_HOUR),
+            recommended_min_login_interval_secs: env::var("GARMIN_MIN_LOGIN_INTERVAL_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(garmin::RECOMMENDED_MIN_LOGIN_INTERVAL_SECS),
+            estimated_rate_limit_block_duration_secs: env::var(
+                "GARMIN_RATE_LIMIT_BLOCK_DURATION_SECS",
+            )
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(garmin::ESTIMATED_RATE_LIMIT_BLOCK_DURATION_SECS),
         }
     }
 
     /// Load MCP server configuration from environment
     fn load_mcp_config() -> McpConfig {
+        use crate::constants::{limits, mcp_transport, network_config, rate_limits};
         McpConfig {
             protocol_version: env_var_or("MCP_PROTOCOL_VERSION", "2025-06-18"),
             server_name: env_var_or("SERVER_NAME", "pierre-mcp-server"),
@@ -2010,6 +2153,26 @@ impl ServerConfig {
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(100),
+            max_request_size: env::var("MCP_MAX_REQUEST_SIZE")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(limits::MAX_REQUEST_SIZE),
+            max_response_size: env::var("MCP_MAX_RESPONSE_SIZE")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(limits::MAX_RESPONSE_SIZE),
+            notification_channel_size: env::var("MCP_NOTIFICATION_CHANNEL_SIZE")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(mcp_transport::NOTIFICATION_CHANNEL_SIZE),
+            websocket_channel_capacity: env::var("MCP_WEBSOCKET_CHANNEL_CAPACITY")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(rate_limits::WEBSOCKET_CHANNEL_CAPACITY),
+            tcp_keep_alive_secs: env::var("TCP_KEEP_ALIVE_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(network_config::TCP_KEEP_ALIVE_SECS),
         }
     }
 
@@ -2037,6 +2200,30 @@ impl ServerConfig {
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(300),
             redis_connection: Self::load_redis_connection_config(),
+            ttl: Self::load_cache_ttl_config(),
+        }
+    }
+
+    /// Load cache TTL configuration from environment
+    fn load_cache_ttl_config() -> CacheTtlConfig {
+        use crate::constants::cache;
+        CacheTtlConfig {
+            profile_secs: env::var("CACHE_TTL_PROFILE_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(cache::TTL_PROFILE_SECS),
+            activity_list_secs: env::var("CACHE_TTL_ACTIVITY_LIST_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(cache::TTL_ACTIVITY_LIST_SECS),
+            activity_secs: env::var("CACHE_TTL_ACTIVITY_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(cache::TTL_ACTIVITY_SECS),
+            stats_secs: env::var("CACHE_TTL_STATS_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(cache::TTL_STATS_SECS),
         }
     }
 
@@ -2352,6 +2539,7 @@ impl ServerConfig {
     ///
     /// Returns an error if SSE environment variables are invalid
     fn load_sse_config() -> AppResult<SseConfig> {
+        use crate::constants::network_config;
         let strategy_str = env_var_or("SSE_BUFFER_OVERFLOW_STRATEGY", "drop_oldest");
         let buffer_overflow_strategy = match strategy_str.as_str() {
             "drop_new" => SseBufferStrategy::DropNew,
@@ -2395,7 +2583,38 @@ impl ServerConfig {
                     AppError::invalid_input(format!("Invalid SSE_MAX_BUFFER_SIZE value: {e}"))
                 })?,
             buffer_overflow_strategy,
+            broadcast_channel_size: env_var_or(
+                "SSE_BROADCAST_CHANNEL_SIZE",
+                &network_config::SSE_BROADCAST_CHANNEL_SIZE.to_string(),
+            )
+            .parse()
+            .map_err(|e| {
+                AppError::invalid_input(format!("Invalid SSE_BROADCAST_CHANNEL_SIZE value: {e}"))
+            })?,
+            max_connections_per_user: env_var_or(
+                "SSE_MAX_CONNECTIONS_PER_USER",
+                &network_config::SSE_MAX_CONNECTIONS_PER_USER.to_string(),
+            )
+            .parse()
+            .map_err(|e| {
+                AppError::invalid_input(format!("Invalid SSE_MAX_CONNECTIONS_PER_USER value: {e}"))
+            })?,
         })
+    }
+
+    /// Load monitoring configuration from environment
+    fn load_monitoring_config() -> MonitoringConfig {
+        use crate::constants::system_monitoring;
+        MonitoringConfig {
+            memory_warning_threshold: env::var("MONITORING_MEMORY_WARNING_THRESHOLD")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(system_monitoring::MEMORY_WARNING_THRESHOLD),
+            disk_warning_threshold: env::var("MONITORING_DISK_WARNING_THRESHOLD")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(system_monitoring::DISK_WARNING_THRESHOLD),
+        }
     }
 }
 

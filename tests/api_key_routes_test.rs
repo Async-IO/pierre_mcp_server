@@ -20,10 +20,11 @@ use pierre_mcp_server::{
         AppBehaviorConfig, AuthConfig, BackupConfig, CacheConfig, CorsConfig, DatabaseConfig,
         DatabaseUrl, Environment, ExternalServicesConfig, FirebaseConfig, FitbitApiConfig,
         GarminApiConfig, GeocodingServiceConfig, GoalManagementConfig, HttpClientConfig, LogLevel,
-        LoggingConfig, McpConfig, OAuth2ServerConfig, OAuthConfig, OAuthProviderConfig,
-        PostgresPoolConfig, ProtocolConfig, RateLimitConfig, RouteTimeoutConfig, SecurityConfig,
-        SecurityHeadersConfig, ServerConfig, SleepRecoveryConfig, SqlxConfig, SseConfig,
-        StravaApiConfig, TlsConfig, TokioRuntimeConfig, TrainingZonesConfig, WeatherServiceConfig,
+        LoggingConfig, McpConfig, MonitoringConfig, OAuth2ServerConfig, OAuthConfig,
+        OAuthProviderConfig, PostgresPoolConfig, ProtocolConfig, RateLimitConfig,
+        RouteTimeoutConfig, SecurityConfig, SecurityHeadersConfig, ServerConfig,
+        SleepRecoveryConfig, SqlxConfig, SseConfig, StravaApiConfig, TlsConfig, TokioRuntimeConfig,
+        TrainingZonesConfig, WeatherServiceConfig,
     },
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
@@ -181,12 +182,14 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
                         auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
                         token_url: "https://www.strava.com/oauth/token".to_owned(),
                         deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
+                        ..Default::default()
                     },
                     fitbit_api: FitbitApiConfig {
                         base_url: "https://api.fitbit.com".to_owned(),
                         auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
                         token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
                         revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
+                        ..Default::default()
                     },
                     garmin_api: GarminApiConfig {
                         base_url: "https://apis.garmin.com".to_owned(),
@@ -195,6 +198,7 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
                             .to_owned(),
                         revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke"
                             .to_owned(),
+                        ..Default::default()
                     },
                 },
                 app_behavior: AppBehaviorConfig {
@@ -217,6 +221,7 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
                     protocol_version: "2025-06-18".to_owned(),
                     server_name: "pierre-mcp-server-test".to_owned(),
                     session_cache_size: 1000,
+                    ..Default::default()
                 },
                 cors: CorsConfig {
                     allowed_origins: "*".to_owned(),
@@ -236,6 +241,7 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
                 firebase: FirebaseConfig::default(),
                 tokio_runtime: TokioRuntimeConfig::default(),
                 sqlx: SqlxConfig::default(),
+                monitoring: MonitoringConfig::default(),
             }
         }),
         cache,

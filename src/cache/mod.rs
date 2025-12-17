@@ -109,6 +109,47 @@ pub struct CacheConfig {
     pub enable_background_cleanup: bool,
     /// Redis connection and retry configuration
     pub redis_connection: RedisConnectionConfig,
+    /// Cache TTL configuration
+    pub ttl: CacheTtlConfig,
+}
+
+/// Cache TTL configuration for different resource types
+#[derive(Debug, Clone)]
+pub struct CacheTtlConfig {
+    /// Athlete profile cache TTL in seconds (default: 24 hours)
+    pub profile_secs: u64,
+    /// Activity list cache TTL in seconds (default: 15 minutes)
+    pub activity_list_secs: u64,
+    /// Individual activity cache TTL in seconds (default: 1 hour)
+    pub activity_secs: u64,
+    /// Stats cache TTL in seconds (default: 6 hours)
+    pub stats_secs: u64,
+}
+
+impl Default for CacheTtlConfig {
+    fn default() -> Self {
+        Self {
+            profile_secs: TTL_PROFILE_SECS,
+            activity_list_secs: TTL_ACTIVITY_LIST_SECS,
+            activity_secs: TTL_ACTIVITY_SECS,
+            stats_secs: TTL_STATS_SECS,
+        }
+    }
+}
+
+impl CacheTtlConfig {
+    /// Get TTL duration for a specific cache resource type
+    #[must_use]
+    pub const fn ttl_for_resource(&self, resource: &CacheResource) -> Duration {
+        match resource {
+            CacheResource::AthleteProfile => Duration::from_secs(self.profile_secs),
+            CacheResource::ActivityList { .. } => Duration::from_secs(self.activity_list_secs),
+            CacheResource::Activity { .. } | CacheResource::DetailedActivity { .. } => {
+                Duration::from_secs(self.activity_secs)
+            }
+            CacheResource::Stats { .. } => Duration::from_secs(self.stats_secs),
+        }
+    }
 }
 
 impl Default for CacheConfig {
@@ -121,6 +162,7 @@ impl Default for CacheConfig {
             // Tests can explicitly disable by setting to false
             enable_background_cleanup: true,
             redis_connection: RedisConnectionConfig::default(),
+            ttl: CacheTtlConfig::default(),
         }
     }
 }

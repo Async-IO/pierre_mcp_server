@@ -67,6 +67,7 @@ impl Cache {
                 cleanup_interval: Duration::from_secs(300),
                 enable_background_cleanup: true,
                 redis_connection: RedisConnectionConfig::default(),
+                ttl: super::CacheTtlConfig::default(),
             },
             |server_config| CacheConfig {
                 max_entries: server_config.cache.max_entries,
@@ -74,6 +75,12 @@ impl Cache {
                 cleanup_interval: Duration::from_secs(server_config.cache.cleanup_interval_secs),
                 enable_background_cleanup: true,
                 redis_connection: server_config.cache.redis_connection.clone(),
+                ttl: super::CacheTtlConfig {
+                    profile_secs: server_config.cache.ttl.profile_secs,
+                    activity_list_secs: server_config.cache.ttl.activity_list_secs,
+                    activity_secs: server_config.cache.ttl.activity_secs,
+                    stats_secs: server_config.cache.ttl.stats_secs,
+                },
             },
         );
 

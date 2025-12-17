@@ -1589,10 +1589,11 @@ fn create_test_server_config() -> ServerConfig {
         AppBehaviorConfig, AuthConfig, BackupConfig, CacheConfig, CorsConfig, DatabaseConfig,
         DatabaseUrl, Environment, ExternalServicesConfig, FirebaseConfig, FitbitApiConfig,
         GarminApiConfig, GeocodingServiceConfig, GoalManagementConfig, HttpClientConfig, LogLevel,
-        LoggingConfig, McpConfig, OAuth2ServerConfig, OAuthConfig, OAuthProviderConfig,
-        PostgresPoolConfig, ProtocolConfig, RateLimitConfig, RouteTimeoutConfig, SecurityConfig,
-        SecurityHeadersConfig, SleepRecoveryConfig, SqlxConfig, SseConfig, StravaApiConfig,
-        TlsConfig, TokioRuntimeConfig, TrainingZonesConfig, WeatherServiceConfig,
+        LoggingConfig, McpConfig, MonitoringConfig, OAuth2ServerConfig, OAuthConfig,
+        OAuthProviderConfig, PostgresPoolConfig, ProtocolConfig, RateLimitConfig,
+        RouteTimeoutConfig, SecurityConfig, SecurityHeadersConfig, SleepRecoveryConfig, SqlxConfig,
+        SseConfig, StravaApiConfig, TlsConfig, TokioRuntimeConfig, TrainingZonesConfig,
+        WeatherServiceConfig,
     };
     use std::path::PathBuf;
 
@@ -1677,12 +1678,14 @@ fn create_test_server_config() -> ServerConfig {
                 auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
                 token_url: "https://www.strava.com/oauth/token".to_owned(),
                 deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
+                ..Default::default()
             },
             fitbit_api: FitbitApiConfig {
                 base_url: "https://api.fitbit.com".to_owned(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
                 token_url: "https://www.fitbit.com/oauth/token".to_owned(),
                 revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
+                ..Default::default()
             },
             geocoding: GeocodingServiceConfig {
                 base_url: "https://nominatim.openstreetmap.org".to_owned(),
@@ -1694,6 +1697,7 @@ fn create_test_server_config() -> ServerConfig {
                 token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
                     .to_string(),
                 revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_owned(),
+                ..Default::default()
             },
         },
         app_behavior: AppBehaviorConfig {
@@ -1716,6 +1720,7 @@ fn create_test_server_config() -> ServerConfig {
             protocol_version: "2025-06-18".to_owned(),
             server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
+            ..Default::default()
         },
         cors: CorsConfig {
             allowed_origins: "*".to_owned(),
@@ -1735,5 +1740,6 @@ fn create_test_server_config() -> ServerConfig {
         firebase: FirebaseConfig::default(),
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
+        monitoring: MonitoringConfig::default(),
     }
 }

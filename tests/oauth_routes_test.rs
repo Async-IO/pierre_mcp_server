@@ -17,10 +17,10 @@ use pierre_mcp_server::{
         AppBehaviorConfig, AuthConfig, BackupConfig, CacheConfig, CorsConfig, DatabaseConfig,
         DatabaseUrl, Environment, ExternalServicesConfig, FirebaseConfig, FitbitApiConfig,
         GeocodingServiceConfig, GoalManagementConfig, HttpClientConfig, LogLevel, LoggingConfig,
-        McpConfig, OAuth2ServerConfig, OAuthConfig, OAuthProviderConfig, PostgresPoolConfig,
-        ProtocolConfig, RateLimitConfig, RouteTimeoutConfig, SecurityConfig, SecurityHeadersConfig,
-        ServerConfig, SleepRecoveryConfig, SqlxConfig, SseConfig, StravaApiConfig, TlsConfig,
-        TokioRuntimeConfig, TrainingZonesConfig, WeatherServiceConfig,
+        McpConfig, MonitoringConfig, OAuth2ServerConfig, OAuthConfig, OAuthProviderConfig,
+        PostgresPoolConfig, ProtocolConfig, RateLimitConfig, RouteTimeoutConfig, SecurityConfig,
+        SecurityHeadersConfig, ServerConfig, SleepRecoveryConfig, SqlxConfig, SseConfig,
+        StravaApiConfig, TlsConfig, TokioRuntimeConfig, TrainingZonesConfig, WeatherServiceConfig,
     },
     context::ServerContext,
     database::generate_encryption_key,
@@ -119,12 +119,14 @@ async fn test_email_validation() {
                 auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
                 token_url: "https://www.strava.com/oauth/token".to_owned(),
                 deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
+                ..Default::default()
             },
             fitbit_api: FitbitApiConfig {
                 base_url: "https://api.fitbit.com".to_owned(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
                 token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
                 revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
+                ..Default::default()
             },
             ..Default::default()
         },
@@ -148,6 +150,7 @@ async fn test_email_validation() {
             protocol_version: "2025-06-18".to_owned(),
             server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
+            ..Default::default()
         },
         cors: CorsConfig {
             allowed_origins: "*".to_owned(),
@@ -167,6 +170,7 @@ async fn test_email_validation() {
         firebase: FirebaseConfig::default(),
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
+        monitoring: MonitoringConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -327,12 +331,14 @@ async fn test_password_validation() {
                 auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
                 token_url: "https://www.strava.com/oauth/token".to_owned(),
                 deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
+                ..Default::default()
             },
             fitbit_api: FitbitApiConfig {
                 base_url: "https://api.fitbit.com".to_owned(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
                 token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
                 revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
+                ..Default::default()
             },
             ..Default::default()
         },
@@ -356,6 +362,7 @@ async fn test_password_validation() {
             protocol_version: "2025-06-18".to_owned(),
             server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
+            ..Default::default()
         },
         cors: CorsConfig {
             allowed_origins: "*".to_owned(),
@@ -375,6 +382,7 @@ async fn test_password_validation() {
         firebase: FirebaseConfig::default(),
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
+        monitoring: MonitoringConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -507,12 +515,14 @@ async fn test_duplicate_user_registration() {
                 auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
                 token_url: "https://www.strava.com/oauth/token".to_owned(),
                 deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
+                ..Default::default()
             },
             fitbit_api: FitbitApiConfig {
                 base_url: "https://api.fitbit.com".to_owned(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
                 token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
                 revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
+                ..Default::default()
             },
             ..Default::default()
         },
@@ -536,6 +546,7 @@ async fn test_duplicate_user_registration() {
             protocol_version: "2025-06-18".to_owned(),
             server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
+            ..Default::default()
         },
         cors: CorsConfig {
             allowed_origins: "*".to_owned(),
@@ -555,6 +566,7 @@ async fn test_duplicate_user_registration() {
         firebase: FirebaseConfig::default(),
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
+        monitoring: MonitoringConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -678,12 +690,14 @@ async fn test_login_with_correct_credentials() {
                 auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
                 token_url: "https://www.strava.com/oauth/token".to_owned(),
                 deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
+                ..Default::default()
             },
             fitbit_api: FitbitApiConfig {
                 base_url: "https://api.fitbit.com".to_owned(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
                 token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
                 revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
+                ..Default::default()
             },
             ..Default::default()
         },
@@ -707,6 +721,7 @@ async fn test_login_with_correct_credentials() {
             protocol_version: "2025-06-18".to_owned(),
             server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
+            ..Default::default()
         },
         cors: CorsConfig {
             allowed_origins: "*".to_owned(),
@@ -726,6 +741,7 @@ async fn test_login_with_correct_credentials() {
         firebase: FirebaseConfig::default(),
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
+        monitoring: MonitoringConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -892,12 +908,14 @@ async fn test_login_with_wrong_password() {
                 auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
                 token_url: "https://www.strava.com/oauth/token".to_owned(),
                 deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
+                ..Default::default()
             },
             fitbit_api: FitbitApiConfig {
                 base_url: "https://api.fitbit.com".to_owned(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
                 token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
                 revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
+                ..Default::default()
             },
             ..Default::default()
         },
@@ -921,6 +939,7 @@ async fn test_login_with_wrong_password() {
             protocol_version: "2025-06-18".to_owned(),
             server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
+            ..Default::default()
         },
         cors: CorsConfig {
             allowed_origins: "*".to_owned(),
@@ -940,6 +959,7 @@ async fn test_login_with_wrong_password() {
         firebase: FirebaseConfig::default(),
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
+        monitoring: MonitoringConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -1070,12 +1090,14 @@ async fn test_login_with_non_existent_user() {
                 auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
                 token_url: "https://www.strava.com/oauth/token".to_owned(),
                 deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
+                ..Default::default()
             },
             fitbit_api: FitbitApiConfig {
                 base_url: "https://api.fitbit.com".to_owned(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
                 token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
                 revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
+                ..Default::default()
             },
             ..Default::default()
         },
@@ -1099,6 +1121,7 @@ async fn test_login_with_non_existent_user() {
             protocol_version: "2025-06-18".to_owned(),
             server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
+            ..Default::default()
         },
         cors: CorsConfig {
             allowed_origins: "*".to_owned(),
@@ -1118,6 +1141,7 @@ async fn test_login_with_non_existent_user() {
         firebase: FirebaseConfig::default(),
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
+        monitoring: MonitoringConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();

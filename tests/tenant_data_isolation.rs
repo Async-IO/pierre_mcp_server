@@ -19,9 +19,9 @@ use pierre_mcp_server::{
     config::environment::{
         AppBehaviorConfig, AuthConfig, BackupConfig, DatabaseConfig, DatabaseUrl, Environment,
         ExternalServicesConfig, FitbitApiConfig, GeocodingServiceConfig, HttpClientConfig,
-        LogLevel, LoggingConfig, OAuth2ServerConfig, OAuthConfig, OAuthProviderConfig,
-        PostgresPoolConfig, ProtocolConfig, RouteTimeoutConfig, SecurityConfig,
-        SecurityHeadersConfig, ServerConfig, SseConfig, StravaApiConfig, TlsConfig,
+        LogLevel, LoggingConfig, MonitoringConfig, OAuth2ServerConfig, OAuthConfig,
+        OAuthProviderConfig, PostgresPoolConfig, ProtocolConfig, RouteTimeoutConfig,
+        SecurityConfig, SecurityHeadersConfig, ServerConfig, SseConfig, StravaApiConfig, TlsConfig,
         WeatherServiceConfig,
     },
     database_plugins::{factory::Database, DatabaseProvider},
@@ -102,12 +102,14 @@ fn create_test_server_config() -> Arc<ServerConfig> {
                 auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
                 token_url: "https://www.strava.com/oauth/token".to_owned(),
                 deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
+                ..Default::default()
             },
             fitbit_api: FitbitApiConfig {
                 base_url: "https://api.fitbit.com".to_owned(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
                 token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
                 revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
+                ..Default::default()
             },
             geocoding: GeocodingServiceConfig {
                 base_url: "https://nominatim.openstreetmap.org".to_owned(),
@@ -129,6 +131,7 @@ fn create_test_server_config() -> Arc<ServerConfig> {
         sse: SseConfig::default(),
         oauth2_server: OAuth2ServerConfig::default(),
         route_timeouts: RouteTimeoutConfig::default(),
+        monitoring: MonitoringConfig::default(),
         ..Default::default()
     })
 }

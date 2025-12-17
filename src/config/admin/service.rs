@@ -747,6 +747,704 @@ impl AdminConfigService {
             },
         );
 
+        // Cache TTL Configuration
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "cache.profile_ttl_secs".to_owned(),
+                display_name: "Profile Cache TTL".to_owned(),
+                description: "Time-to-live for cached athlete profiles".to_owned(),
+                category: "cache_ttl".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(3600),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(60),
+                    max: serde_json::json!(86400),
+                    step: Some(60.0),
+                }),
+                enum_options: None,
+                units: Some("seconds".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("CACHE_PROFILE_TTL_SECS".to_owned()),
+                is_runtime_configurable: true,
+                requires_restart: false,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "cache.activity_list_ttl_secs".to_owned(),
+                display_name: "Activity List Cache TTL".to_owned(),
+                description: "Time-to-live for cached activity lists".to_owned(),
+                category: "cache_ttl".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(300),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(30),
+                    max: serde_json::json!(3600),
+                    step: Some(30.0),
+                }),
+                enum_options: None,
+                units: Some("seconds".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("CACHE_ACTIVITY_LIST_TTL_SECS".to_owned()),
+                is_runtime_configurable: true,
+                requires_restart: false,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "cache.activity_ttl_secs".to_owned(),
+                display_name: "Activity Cache TTL".to_owned(),
+                description: "Time-to-live for cached individual activities".to_owned(),
+                category: "cache_ttl".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(1800),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(60),
+                    max: serde_json::json!(7200),
+                    step: Some(60.0),
+                }),
+                enum_options: None,
+                units: Some("seconds".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("CACHE_ACTIVITY_TTL_SECS".to_owned()),
+                is_runtime_configurable: true,
+                requires_restart: false,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "cache.stats_ttl_secs".to_owned(),
+                display_name: "Stats Cache TTL".to_owned(),
+                description: "Time-to-live for cached athlete statistics".to_owned(),
+                category: "cache_ttl".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(3600),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(300),
+                    max: serde_json::json!(86400),
+                    step: Some(300.0),
+                }),
+                enum_options: None,
+                units: Some("seconds".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("CACHE_STATS_TTL_SECS".to_owned()),
+                is_runtime_configurable: true,
+                requires_restart: false,
+            },
+        );
+
+        // Strava Provider Settings
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "provider.strava_rate_limit_15min".to_owned(),
+                display_name: "Strava 15-Min Rate Limit".to_owned(),
+                description: "Maximum Strava API requests per 15 minutes".to_owned(),
+                category: "provider_strava".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(100),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(10),
+                    max: serde_json::json!(1000),
+                    step: Some(10.0),
+                }),
+                enum_options: None,
+                units: Some("requests".to_owned()),
+                scientific_basis: Some("Strava API documentation".to_owned()),
+                env_variable: Some("STRAVA_RATE_LIMIT_15MIN".to_owned()),
+                is_runtime_configurable: true,
+                requires_restart: false,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "provider.strava_rate_limit_daily".to_owned(),
+                display_name: "Strava Daily Rate Limit".to_owned(),
+                description: "Maximum Strava API requests per day".to_owned(),
+                category: "provider_strava".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(1000),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(100),
+                    max: serde_json::json!(10000),
+                    step: Some(100.0),
+                }),
+                enum_options: None,
+                units: Some("requests".to_owned()),
+                scientific_basis: Some("Strava API documentation".to_owned()),
+                env_variable: Some("STRAVA_RATE_LIMIT_DAILY".to_owned()),
+                is_runtime_configurable: true,
+                requires_restart: false,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "provider.strava_default_activities_per_page".to_owned(),
+                display_name: "Strava Default Page Size".to_owned(),
+                description: "Default number of activities per API page request".to_owned(),
+                category: "provider_strava".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(30),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(1),
+                    max: serde_json::json!(200),
+                    step: Some(1.0),
+                }),
+                enum_options: None,
+                units: Some("activities".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("STRAVA_DEFAULT_ACTIVITIES_PER_PAGE".to_owned()),
+                is_runtime_configurable: true,
+                requires_restart: false,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "provider.strava_max_activities_per_request".to_owned(),
+                display_name: "Strava Max Activities Per Request".to_owned(),
+                description: "Maximum activities allowed in a single request".to_owned(),
+                category: "provider_strava".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(200),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(10),
+                    max: serde_json::json!(500),
+                    step: Some(10.0),
+                }),
+                enum_options: None,
+                units: Some("activities".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("STRAVA_MAX_ACTIVITIES_PER_REQUEST".to_owned()),
+                is_runtime_configurable: true,
+                requires_restart: false,
+            },
+        );
+
+        // Fitbit Provider Settings
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "provider.fitbit_rate_limit_hourly".to_owned(),
+                display_name: "Fitbit Hourly Rate Limit".to_owned(),
+                description: "Maximum Fitbit API requests per hour".to_owned(),
+                category: "provider_fitbit".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(150),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(10),
+                    max: serde_json::json!(500),
+                    step: Some(10.0),
+                }),
+                enum_options: None,
+                units: Some("requests".to_owned()),
+                scientific_basis: Some("Fitbit API documentation".to_owned()),
+                env_variable: Some("FITBIT_RATE_LIMIT_HOURLY".to_owned()),
+                is_runtime_configurable: true,
+                requires_restart: false,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "provider.fitbit_rate_limit_daily".to_owned(),
+                display_name: "Fitbit Daily Rate Limit".to_owned(),
+                description: "Maximum Fitbit API requests per day".to_owned(),
+                category: "provider_fitbit".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(2000),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(100),
+                    max: serde_json::json!(10000),
+                    step: Some(100.0),
+                }),
+                enum_options: None,
+                units: Some("requests".to_owned()),
+                scientific_basis: Some("Fitbit API documentation".to_owned()),
+                env_variable: Some("FITBIT_RATE_LIMIT_DAILY".to_owned()),
+                is_runtime_configurable: true,
+                requires_restart: false,
+            },
+        );
+
+        // Garmin Provider Settings
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "provider.garmin_rate_limit_hourly".to_owned(),
+                display_name: "Garmin Hourly Rate Limit".to_owned(),
+                description: "Maximum Garmin API requests per hour".to_owned(),
+                category: "provider_garmin".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(100),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(10),
+                    max: serde_json::json!(500),
+                    step: Some(10.0),
+                }),
+                enum_options: None,
+                units: Some("requests".to_owned()),
+                scientific_basis: Some("Garmin API documentation".to_owned()),
+                env_variable: Some("GARMIN_RATE_LIMIT_HOURLY".to_owned()),
+                is_runtime_configurable: true,
+                requires_restart: false,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "provider.garmin_rate_limit_daily".to_owned(),
+                display_name: "Garmin Daily Rate Limit".to_owned(),
+                description: "Maximum Garmin API requests per day".to_owned(),
+                category: "provider_garmin".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(1000),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(100),
+                    max: serde_json::json!(5000),
+                    step: Some(100.0),
+                }),
+                enum_options: None,
+                units: Some("requests".to_owned()),
+                scientific_basis: Some("Garmin API documentation".to_owned()),
+                env_variable: Some("GARMIN_RATE_LIMIT_DAILY".to_owned()),
+                is_runtime_configurable: true,
+                requires_restart: false,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "provider.garmin_default_activities_per_page".to_owned(),
+                display_name: "Garmin Default Page Size".to_owned(),
+                description: "Default number of activities per API page request".to_owned(),
+                category: "provider_garmin".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(20),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(1),
+                    max: serde_json::json!(100),
+                    step: Some(1.0),
+                }),
+                enum_options: None,
+                units: Some("activities".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("GARMIN_DEFAULT_ACTIVITIES_PER_PAGE".to_owned()),
+                is_runtime_configurable: true,
+                requires_restart: false,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "provider.garmin_max_activities_per_request".to_owned(),
+                display_name: "Garmin Max Activities Per Request".to_owned(),
+                description: "Maximum activities allowed in a single request".to_owned(),
+                category: "provider_garmin".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(100),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(10),
+                    max: serde_json::json!(200),
+                    step: Some(10.0),
+                }),
+                enum_options: None,
+                units: Some("activities".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("GARMIN_MAX_ACTIVITIES_PER_REQUEST".to_owned()),
+                is_runtime_configurable: true,
+                requires_restart: false,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "provider.garmin_rate_limit_block_secs".to_owned(),
+                display_name: "Garmin Rate Limit Block Duration".to_owned(),
+                description: "Estimated block duration when rate limited".to_owned(),
+                category: "provider_garmin".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(3600),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(60),
+                    max: serde_json::json!(86400),
+                    step: Some(60.0),
+                }),
+                enum_options: None,
+                units: Some("seconds".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("GARMIN_RATE_LIMIT_BLOCK_SECS".to_owned()),
+                is_runtime_configurable: true,
+                requires_restart: false,
+            },
+        );
+
+        // MCP Network Settings
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "mcp.max_request_size".to_owned(),
+                display_name: "Max Request Size".to_owned(),
+                description: "Maximum size for incoming MCP requests".to_owned(),
+                category: "mcp_network".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(16_777_216),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(1_048_576),
+                    max: serde_json::json!(104_857_600),
+                    step: Some(1_048_576.0),
+                }),
+                enum_options: None,
+                units: Some("bytes".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("MCP_MAX_REQUEST_SIZE".to_owned()),
+                is_runtime_configurable: false,
+                requires_restart: true,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "mcp.max_response_size".to_owned(),
+                display_name: "Max Response Size".to_owned(),
+                description: "Maximum size for outgoing MCP responses".to_owned(),
+                category: "mcp_network".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(67_108_864),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(1_048_576),
+                    max: serde_json::json!(268_435_456),
+                    step: Some(1_048_576.0),
+                }),
+                enum_options: None,
+                units: Some("bytes".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("MCP_MAX_RESPONSE_SIZE".to_owned()),
+                is_runtime_configurable: false,
+                requires_restart: true,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "mcp.notification_channel_size".to_owned(),
+                display_name: "Notification Channel Size".to_owned(),
+                description: "Buffer size for notification channels".to_owned(),
+                category: "mcp_network".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(100),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(10),
+                    max: serde_json::json!(1000),
+                    step: Some(10.0),
+                }),
+                enum_options: None,
+                units: Some("messages".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("MCP_NOTIFICATION_CHANNEL_SIZE".to_owned()),
+                is_runtime_configurable: false,
+                requires_restart: true,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "mcp.websocket_channel_capacity".to_owned(),
+                display_name: "WebSocket Channel Capacity".to_owned(),
+                description: "Buffer capacity for WebSocket message channels".to_owned(),
+                category: "mcp_network".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(256),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(32),
+                    max: serde_json::json!(2048),
+                    step: Some(32.0),
+                }),
+                enum_options: None,
+                units: Some("messages".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("MCP_WEBSOCKET_CHANNEL_CAPACITY".to_owned()),
+                is_runtime_configurable: false,
+                requires_restart: true,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "mcp.tcp_keep_alive_secs".to_owned(),
+                display_name: "TCP Keep-Alive Interval".to_owned(),
+                description: "TCP keep-alive interval for connections".to_owned(),
+                category: "mcp_network".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(30),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(10),
+                    max: serde_json::json!(300),
+                    step: Some(10.0),
+                }),
+                enum_options: None,
+                units: Some("seconds".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("MCP_TCP_KEEP_ALIVE_SECS".to_owned()),
+                is_runtime_configurable: false,
+                requires_restart: true,
+            },
+        );
+
+        // Monitoring Thresholds
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "monitoring.memory_warn_mb".to_owned(),
+                display_name: "Memory Warning Threshold".to_owned(),
+                description: "Memory usage threshold for warning alerts".to_owned(),
+                category: "monitoring".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(512),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(128),
+                    max: serde_json::json!(4096),
+                    step: Some(64.0),
+                }),
+                enum_options: None,
+                units: Some("MB".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("MONITORING_MEMORY_WARN_MB".to_owned()),
+                is_runtime_configurable: true,
+                requires_restart: false,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "monitoring.memory_critical_mb".to_owned(),
+                display_name: "Memory Critical Threshold".to_owned(),
+                description: "Memory usage threshold for critical alerts".to_owned(),
+                category: "monitoring".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(1024),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(256),
+                    max: serde_json::json!(8192),
+                    step: Some(128.0),
+                }),
+                enum_options: None,
+                units: Some("MB".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("MONITORING_MEMORY_CRITICAL_MB".to_owned()),
+                is_runtime_configurable: true,
+                requires_restart: false,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "monitoring.latency_warn_ms".to_owned(),
+                display_name: "Latency Warning Threshold".to_owned(),
+                description: "Request latency threshold for warning alerts".to_owned(),
+                category: "monitoring".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(500),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(100),
+                    max: serde_json::json!(5000),
+                    step: Some(100.0),
+                }),
+                enum_options: None,
+                units: Some("ms".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("MONITORING_LATENCY_WARN_MS".to_owned()),
+                is_runtime_configurable: true,
+                requires_restart: false,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "monitoring.latency_critical_ms".to_owned(),
+                display_name: "Latency Critical Threshold".to_owned(),
+                description: "Request latency threshold for critical alerts".to_owned(),
+                category: "monitoring".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(2000),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(500),
+                    max: serde_json::json!(30000),
+                    step: Some(500.0),
+                }),
+                enum_options: None,
+                units: Some("ms".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("MONITORING_LATENCY_CRITICAL_MS".to_owned()),
+                is_runtime_configurable: true,
+                requires_restart: false,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "monitoring.error_rate_warn_pct".to_owned(),
+                display_name: "Error Rate Warning Threshold".to_owned(),
+                description: "Error rate percentage for warning alerts".to_owned(),
+                category: "monitoring".to_owned(),
+                data_type: ConfigDataType::Float,
+                default_value: serde_json::json!(1.0),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(0.1),
+                    max: serde_json::json!(10.0),
+                    step: Some(0.1),
+                }),
+                enum_options: None,
+                units: Some("%".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("MONITORING_ERROR_RATE_WARN_PCT".to_owned()),
+                is_runtime_configurable: true,
+                requires_restart: false,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "monitoring.error_rate_critical_pct".to_owned(),
+                display_name: "Error Rate Critical Threshold".to_owned(),
+                description: "Error rate percentage for critical alerts".to_owned(),
+                category: "monitoring".to_owned(),
+                data_type: ConfigDataType::Float,
+                default_value: serde_json::json!(5.0),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(1.0),
+                    max: serde_json::json!(25.0),
+                    step: Some(0.5),
+                }),
+                enum_options: None,
+                units: Some("%".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("MONITORING_ERROR_RATE_CRITICAL_PCT".to_owned()),
+                is_runtime_configurable: true,
+                requires_restart: false,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "monitoring.pool_usage_warn_pct".to_owned(),
+                display_name: "Connection Pool Warning Threshold".to_owned(),
+                description: "Connection pool usage percentage for warning alerts".to_owned(),
+                category: "monitoring".to_owned(),
+                data_type: ConfigDataType::Float,
+                default_value: serde_json::json!(70.0),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(50.0),
+                    max: serde_json::json!(90.0),
+                    step: Some(5.0),
+                }),
+                enum_options: None,
+                units: Some("%".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("MONITORING_POOL_USAGE_WARN_PCT".to_owned()),
+                is_runtime_configurable: true,
+                requires_restart: false,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "monitoring.pool_usage_critical_pct".to_owned(),
+                display_name: "Connection Pool Critical Threshold".to_owned(),
+                description: "Connection pool usage percentage for critical alerts".to_owned(),
+                category: "monitoring".to_owned(),
+                data_type: ConfigDataType::Float,
+                default_value: serde_json::json!(90.0),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(70.0),
+                    max: serde_json::json!(99.0),
+                    step: Some(5.0),
+                }),
+                enum_options: None,
+                units: Some("%".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("MONITORING_POOL_USAGE_CRITICAL_PCT".to_owned()),
+                is_runtime_configurable: true,
+                requires_restart: false,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "monitoring.cache_hit_rate_warn_pct".to_owned(),
+                display_name: "Cache Hit Rate Warning Threshold".to_owned(),
+                description: "Cache hit rate percentage below which warning alerts are triggered"
+                    .to_owned(),
+                category: "monitoring".to_owned(),
+                data_type: ConfigDataType::Float,
+                default_value: serde_json::json!(80.0),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(50.0),
+                    max: serde_json::json!(95.0),
+                    step: Some(5.0),
+                }),
+                enum_options: None,
+                units: Some("%".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("MONITORING_CACHE_HIT_RATE_WARN_PCT".to_owned()),
+                is_runtime_configurable: true,
+                requires_restart: false,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "monitoring.cache_miss_rate_critical_pct".to_owned(),
+                display_name: "Cache Miss Rate Critical Threshold".to_owned(),
+                description: "Cache miss rate percentage above which critical alerts are triggered"
+                    .to_owned(),
+                category: "monitoring".to_owned(),
+                data_type: ConfigDataType::Float,
+                default_value: serde_json::json!(50.0),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(20.0),
+                    max: serde_json::json!(80.0),
+                    step: Some(5.0),
+                }),
+                enum_options: None,
+                units: Some("%".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("MONITORING_CACHE_MISS_RATE_CRITICAL_PCT".to_owned()),
+                is_runtime_configurable: true,
+                requires_restart: false,
+            },
+        );
+
         // Acquire lock briefly and insert all definitions at once
         let def_count = defs.len();
         self.definitions.write().await.extend(defs);

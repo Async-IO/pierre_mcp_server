@@ -10,7 +10,7 @@
 
 use anyhow::Result;
 use pierre_mcp_server::{
-    cache::{factory::Cache, CacheConfig},
+    cache::{factory::Cache, CacheConfig, CacheTtlConfig},
     config::environment::{
         AppBehaviorConfig, AuthConfig, BackupConfig, DatabaseConfig, DatabaseUrl, Environment,
         ExternalServicesConfig, HttpClientConfig, LogLevel, LoggingConfig, OAuth2ServerConfig,
@@ -69,6 +69,7 @@ impl IntegrationTestServer {
             cleanup_interval: Duration::from_secs(60),
             enable_background_cleanup: false,
             redis_connection: RedisConnectionConfig::default(),
+            ttl: CacheTtlConfig::default(),
         })
         .await?;
 
