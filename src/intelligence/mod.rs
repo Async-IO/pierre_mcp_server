@@ -86,6 +86,11 @@ pub mod recipes;
 /// Pluggable algorithms for FTP, LTHR, VO2max, etc.
 pub mod algorithms;
 
+// Visitor pattern for time series processing
+
+/// Visitor pattern for single-pass activity time series analysis
+pub mod visitor;
+
 // Activity analysis capabilities
 
 /// Trait for activity analysis implementations
@@ -293,6 +298,25 @@ pub use recipes::RecipeIngredient;
 pub use recipes::SkillLevel;
 /// USDA-validated nutrition data
 pub use recipes::ValidatedNutrition;
+
+// Re-export visitor pattern types
+
+/// Cardiac decoupling detector
+pub use visitor::DecouplingDetector;
+/// Normalized power calculator using 30-second rolling average
+pub use visitor::NormalizedPowerCalculator;
+/// Statistics collector for all numeric streams
+pub use visitor::StatsCollector;
+/// Statistics for a single numeric stream
+pub use visitor::StreamStats;
+/// Visitor trait for single-pass time series processing
+pub use visitor::TimeSeriesVisitor;
+/// Zone boundary percentages for HR zone calculation
+pub use visitor::ZoneBoundaries;
+/// Result of zone time calculation
+pub use visitor::ZoneDistributionResult;
+/// Heart rate zone time calculator
+pub use visitor::ZoneTimeCalculator;
 
 // Re-export configuration types for external use
 pub use crate::config::intelligence::{
