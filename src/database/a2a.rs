@@ -12,6 +12,7 @@ use crate::a2a::{
     client::A2ASession,
     protocol::{A2ATask, TaskStatus},
 };
+use crate::database_plugins::shared::transactions::SqliteTransactionGuard;
 use crate::database_plugins::shared::{enums, mappers};
 use crate::errors::{AppError, AppResult};
 use chrono::{DateTime, Duration, NaiveDate, Utc};
@@ -136,6 +137,9 @@ fn safe_f64_to_u32(value: f64) -> u32 {
 impl Database {
     /// Create a new A2A client
     ///
+    /// Uses a transaction to ensure atomicity - if the API key association fails,
+    /// the client insertion is rolled back to prevent orphaned client records.
+    ///
     /// # Errors
     /// Returns an error if database operations fail or JSON serialization fails
     pub async fn create_a2a_client(
@@ -144,6 +148,15 @@ impl Database {
         client_secret: &str,
         api_key_id: &str,
     ) -> AppResult<String> {
+        // Begin transaction for atomic client + API key association
+        let tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| AppError::database(format!("Failed to begin transaction: {e}")))?;
+        let mut guard = SqliteTransactionGuard::new(tx);
+
+        // Insert A2A client within transaction
         sqlx::query(
             r"
             INSERT INTO a2a_clients (
@@ -168,11 +181,11 @@ impl Database {
         .bind(client.is_active)
         .bind(client.created_at)
         .bind(client.updated_at)
-        .execute(&self.pool)
+        .execute(guard.executor()?)
         .await
         .map_err(|e| AppError::database(format!("Failed to insert A2A client: {e}")))?;
 
-        // Associate A2A client with API key
+        // Associate A2A client with API key within same transaction
         sqlx::query(
             r"
             INSERT INTO a2a_client_api_keys (client_id, api_key_id, created_at)
@@ -182,13 +195,16 @@ impl Database {
         .bind(&client.id)
         .bind(api_key_id)
         .bind(Utc::now())
-        .execute(&self.pool)
+        .execute(guard.executor()?)
         .await
         .map_err(|e| {
             AppError::database(format!(
                 "Failed to insert A2A client API key association: {e}"
             ))
         })?;
+
+        // Commit transaction - if not reached, guard will auto-rollback on drop
+        guard.commit().await?;
 
         debug!(
             "Created A2A client {} with API key {} association",
