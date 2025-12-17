@@ -21,7 +21,7 @@ jobs:
           bun-version: latest
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.91.0
+        uses: dtolnay/rust-toolchain@1.92.0
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4
@@ -31,9 +31,9 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-sdk-1.91.0-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-sdk-1.92.0-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-sdk-1.91.0-
+            ${{ runner.os }}-cargo-sdk-1.92.0-
             ${{ runner.os }}-cargo-
 
       - name: Install SDK dependencies

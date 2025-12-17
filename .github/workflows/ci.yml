@@ -34,7 +34,7 @@ jobs:
           swap-storage: true
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.91.0
+        uses: dtolnay/rust-toolchain@1.92.0
         with:
           components: rustfmt, clippy
 
@@ -47,7 +47,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-clippy-1.91.0-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-clippy-1.92.0-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -75,7 +75,7 @@ jobs:
           swap-storage: true
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.91.0
+        uses: dtolnay/rust-toolchain@1.92.0
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4
@@ -86,7 +86,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-1.91.0-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-1.92.0-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install cargo-deny
         uses: taiki-e/install-action@cargo-deny
@@ -191,7 +191,7 @@ jobs:
           swap-storage: true
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.91.0
+        uses: dtolnay/rust-toolchain@1.92.0
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4
@@ -202,7 +202,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-postgres-1.91.0-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-postgres-1.92.0-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Wait for PostgreSQL
         run: |
@@ -272,7 +272,7 @@ jobs:
           swap-storage: true
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.91.0
+        uses: dtolnay/rust-toolchain@1.92.0
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4
@@ -283,7 +283,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-redis-1.91.0-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-redis-1.92.0-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install Redis tools
         run: sudo apt-get update && sudo apt-get install -y redis-tools
@@ -335,7 +335,7 @@ jobs:
           swap-storage: true
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.91.0
+        uses: dtolnay/rust-toolchain@1.92.0
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4
@@ -346,9 +346,9 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-release-1.91.0-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-release-1.92.0-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-release-1.91.0-
+            ${{ runner.os }}-cargo-release-1.92.0-
 
       # SDK build removed - release binary validation focuses on Rust binary only
       # Full test suite with SDK is covered by backend-tests job

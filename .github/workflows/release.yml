@@ -223,7 +223,7 @@ jobs:
           df -h
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.91.0
+        uses: dtolnay/rust-toolchain@1.92.0
         with:
           targets: ${{ matrix.target }}
 

@@ -27,7 +27,7 @@ jobs:
           swap-storage: true
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.91.0
+        uses: dtolnay/rust-toolchain@1.92.0
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -47,9 +47,9 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-1.91.0-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-1.92.0-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-1.91.0-
+            ${{ runner.os }}-cargo-1.92.0-
 
       - name: Install MCP Validator
         run: |

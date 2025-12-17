@@ -30,7 +30,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.91.0
+        uses: dtolnay/rust-toolchain@1.92.0
 
       - name: Cache example dependencies
         uses: actions/cache@v4
@@ -87,7 +87,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.91.0
+        uses: dtolnay/rust-toolchain@1.92.0
 
       - name: Cache example dependencies
         uses: actions/cache@v4
@@ -115,7 +115,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.91.0
+        uses: dtolnay/rust-toolchain@1.92.0
 
       - name: Build Pierre server
         run: cargo build --release --bin pierre-mcp-server

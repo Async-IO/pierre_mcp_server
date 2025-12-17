@@ -127,7 +127,7 @@
     clippy::trait_duplication_in_bounds,
     clippy::transmute_ptr_to_ptr,
     clippy::tuple_array_conversions,
-    clippy::unchecked_duration_subtraction,
+    clippy::unchecked_time_subtraction,
     clippy::unicode_not_nfc,
     clippy::unimplemented,
     clippy::unnecessary_box_returns,

@@ -111,11 +111,13 @@ async fn test_admin_authentication_flow() {
         )
         .await;
 
-    if result.is_err() {
-        println!("Auth test error: {}", result.as_ref().unwrap_err());
-    }
-    assert!(result.is_ok());
-    let validated = result.unwrap();
+    let validated = match result {
+        Ok(v) => v,
+        Err(e) => {
+            println!("Auth test error: {e}");
+            panic!("Expected successful authentication");
+        }
+    };
     assert_eq!(validated.service_name, "test_service");
     assert!(validated
         .permissions

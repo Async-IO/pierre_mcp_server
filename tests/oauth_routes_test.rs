@@ -205,8 +205,8 @@ async fn test_email_validation() {
         // Should not fail on email validation
         let result = auth_routes.register(request).await;
         // May fail on duplicate email, but not on validation
-        if result.is_err() {
-            let err = result.unwrap_err().to_string();
+        if let Err(e) = result {
+            let err = e.to_string();
             assert!(
                 !err.contains("Invalid email format"),
                 "Email {email} should be valid"

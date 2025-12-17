@@ -92,7 +92,11 @@ impl OAuth2RateLimiter {
         // Calculate reset time (convert Instant to Unix timestamp)
         let now_system = SystemTime::now();
         let elapsed_from_window_start = now.duration_since(result_window_start);
-        let reset_system = now_system + (window - elapsed_from_window_start);
+        // Use checked_sub to handle edge case where elapsed time exceeds window
+        let time_until_reset = window
+            .checked_sub(elapsed_from_window_start)
+            .unwrap_or(Duration::ZERO);
+        let reset_system = now_system + time_until_reset;
         #[allow(clippy::cast_possible_wrap)]
         // Safe: Unix timestamps fit in i64 range for next several centuries
         let reset_at = reset_system
