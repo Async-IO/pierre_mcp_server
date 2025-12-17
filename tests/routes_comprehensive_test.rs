@@ -20,8 +20,8 @@ use pierre_mcp_server::{
         HttpClientConfig, LogLevel, LoggingConfig, McpConfig, OAuth2ServerConfig, OAuthConfig,
         OAuthProviderConfig, PostgresPoolConfig, ProtocolConfig, RateLimitConfig,
         RouteTimeoutConfig, SecurityConfig, SecurityHeadersConfig, ServerConfig,
-        SleepRecoveryConfig, SseConfig, StravaApiConfig, TlsConfig, TrainingZonesConfig,
-        WeatherServiceConfig,
+        SleepRecoveryConfig, SqlxConfig, SseConfig, StravaApiConfig, TlsConfig, TokioRuntimeConfig,
+        TrainingZonesConfig, WeatherServiceConfig,
     },
     context::ServerContext,
     database_plugins::{factory::Database, DatabaseProvider},
@@ -299,6 +299,8 @@ async fn create_test_oauth_routes() -> Result<(OAuthService, Uuid, Arc<Database>
         goal_management: GoalManagementConfig::default(),
         training_zones: TrainingZonesConfig::default(),
         firebase: FirebaseConfig::default(),
+        tokio_runtime: TokioRuntimeConfig::default(),
+        sqlx: SqlxConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -583,6 +585,8 @@ async fn test_user_login_success() -> Result<()> {
         goal_management: GoalManagementConfig::default(),
         training_zones: TrainingZonesConfig::default(),
         firebase: FirebaseConfig::default(),
+        tokio_runtime: TokioRuntimeConfig::default(),
+        sqlx: SqlxConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -864,6 +868,8 @@ async fn test_token_refresh_success() -> Result<()> {
         goal_management: GoalManagementConfig::default(),
         training_zones: TrainingZonesConfig::default(),
         firebase: FirebaseConfig::default(),
+        tokio_runtime: TokioRuntimeConfig::default(),
+        sqlx: SqlxConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -1093,6 +1099,8 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
         goal_management: GoalManagementConfig::default(),
         training_zones: TrainingZonesConfig::default(),
         firebase: FirebaseConfig::default(),
+        tokio_runtime: TokioRuntimeConfig::default(),
+        sqlx: SqlxConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -1579,6 +1587,8 @@ async fn test_complete_auth_flow() -> Result<()> {
         goal_management: GoalManagementConfig::default(),
         training_zones: TrainingZonesConfig::default(),
         firebase: FirebaseConfig::default(),
+        tokio_runtime: TokioRuntimeConfig::default(),
+        sqlx: SqlxConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -1887,6 +1897,8 @@ async fn test_concurrent_logins() -> Result<()> {
         goal_management: GoalManagementConfig::default(),
         training_zones: TrainingZonesConfig::default(),
         firebase: FirebaseConfig::default(),
+        tokio_runtime: TokioRuntimeConfig::default(),
+        sqlx: SqlxConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();

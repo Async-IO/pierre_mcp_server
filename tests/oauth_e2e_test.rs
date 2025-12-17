@@ -156,8 +156,8 @@ use pierre_mcp_server::{
         HttpClientConfig, LogLevel, LoggingConfig, McpConfig, OAuth2ServerConfig, OAuthConfig,
         OAuthProviderConfig, PostgresPoolConfig, ProtocolConfig, RateLimitConfig,
         RouteTimeoutConfig, SecurityConfig, SecurityHeadersConfig, ServerConfig,
-        SleepRecoveryConfig, SseConfig, StravaApiConfig, TlsConfig, TrainingZonesConfig,
-        WeatherServiceConfig,
+        SleepRecoveryConfig, SqlxConfig, SseConfig, StravaApiConfig, TlsConfig, TokioRuntimeConfig,
+        TrainingZonesConfig, WeatherServiceConfig,
     },
     context::ServerContext,
     database::generate_encryption_key,
@@ -332,6 +332,8 @@ async fn test_oauth_flow_through_mcp() {
         goal_management: GoalManagementConfig::default(),
         training_zones: TrainingZonesConfig::default(),
         firebase: FirebaseConfig::default(),
+        tokio_runtime: TokioRuntimeConfig::default(),
+        sqlx: SqlxConfig::default(),
     });
 
     // Create server instance
@@ -629,6 +631,8 @@ async fn test_oauth_callback_error_handling() {
         goal_management: GoalManagementConfig::default(),
         training_zones: TrainingZonesConfig::default(),
         firebase: FirebaseConfig::default(),
+        tokio_runtime: TokioRuntimeConfig::default(),
+        sqlx: SqlxConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -890,6 +894,8 @@ async fn test_oauth_state_csrf_protection() {
         goal_management: GoalManagementConfig::default(),
         training_zones: TrainingZonesConfig::default(),
         firebase: FirebaseConfig::default(),
+        tokio_runtime: TokioRuntimeConfig::default(),
+        sqlx: SqlxConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -1069,6 +1075,8 @@ async fn test_connection_status_tracking() {
         goal_management: GoalManagementConfig::default(),
         training_zones: TrainingZonesConfig::default(),
         firebase: FirebaseConfig::default(),
+        tokio_runtime: TokioRuntimeConfig::default(),
+        sqlx: SqlxConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();

@@ -154,8 +154,8 @@ use pierre_mcp_server::{
         GarminApiConfig, GeocodingServiceConfig, GoalManagementConfig, HttpClientConfig, LogLevel,
         LoggingConfig, McpConfig, OAuth2ServerConfig, OAuthConfig, OAuthProviderConfig,
         PostgresPoolConfig, ProtocolConfig, RateLimitConfig, RouteTimeoutConfig, SecurityConfig,
-        SecurityHeadersConfig, ServerConfig, SleepRecoveryConfig, SseConfig, StravaApiConfig,
-        TlsConfig, TrainingZonesConfig, WeatherServiceConfig,
+        SecurityHeadersConfig, ServerConfig, SleepRecoveryConfig, SqlxConfig, SseConfig,
+        StravaApiConfig, TlsConfig, TokioRuntimeConfig, TrainingZonesConfig, WeatherServiceConfig,
     },
     constants::oauth_providers,
     context::ServerContext,
@@ -330,6 +330,8 @@ async fn test_multitenant_auth_flow() -> Result<()> {
         goal_management: GoalManagementConfig::default(),
         training_zones: TrainingZonesConfig::default(),
         firebase: FirebaseConfig::default(),
+        tokio_runtime: TokioRuntimeConfig::default(),
+        sqlx: SqlxConfig::default(),
     });
 
     // Create test cache with background cleanup disabled
@@ -813,6 +815,8 @@ async fn test_input_validation() -> Result<()> {
         goal_management: GoalManagementConfig::default(),
         training_zones: TrainingZonesConfig::default(),
         firebase: FirebaseConfig::default(),
+        tokio_runtime: TokioRuntimeConfig::default(),
+        sqlx: SqlxConfig::default(),
     });
 
     // Create test cache with background cleanup disabled

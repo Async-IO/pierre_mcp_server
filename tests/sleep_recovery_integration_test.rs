@@ -180,6 +180,8 @@ fn create_test_config() -> Arc<ServerConfig> {
         goal_management: GoalManagementConfig::default(),
         training_zones: TrainingZonesConfig::default(),
         firebase: FirebaseConfig::default(),
+        tokio_runtime: TokioRuntimeConfig::default(),
+        sqlx: SqlxConfig::default(),
     })
 }
 

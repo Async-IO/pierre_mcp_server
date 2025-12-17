@@ -74,7 +74,9 @@ INSERT OR IGNORE INTO admin_config_categories (id, name, display_name, descripti
     ('cat_tsb', 'training_stress', 'Training Stress', 'Training stress balance (TSB) thresholds', 80, 'trending'),
     ('cat_weather', 'weather_analysis', 'Weather Analysis', 'Weather impact analysis thresholds', 90, 'cloud'),
     ('cat_nutrition', 'nutrition', 'Nutrition', 'Nutrition and macronutrient recommendations', 100, 'utensils'),
-    ('cat_algorithms', 'algorithms', 'Algorithms', 'Algorithm selection for physiological calculations', 110, 'calculator');
+    ('cat_algorithms', 'algorithms', 'Algorithms', 'Algorithm selection for physiological calculations', 110, 'calculator'),
+    ('cat_tokio_runtime', 'tokio_runtime', 'Tokio Runtime', 'Async runtime worker threads and stack settings', 120, 'cpu'),
+    ('cat_sqlx_config', 'sqlx_config', 'Database Pool', 'SQLx connection pool configuration', 130, 'database');
 
 -- Index for category ordering
 CREATE INDEX IF NOT EXISTS idx_admin_config_categories_order ON admin_config_categories(display_order);

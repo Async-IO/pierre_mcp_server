@@ -162,8 +162,8 @@ use pierre_mcp_server::{
         GarminApiConfig, GeocodingServiceConfig, GoalManagementConfig, HttpClientConfig, LogLevel,
         LoggingConfig, McpConfig, OAuth2ServerConfig, OAuthConfig, OAuthProviderConfig,
         PostgresPoolConfig, ProtocolConfig, RateLimitConfig, RouteTimeoutConfig, SecurityConfig,
-        SecurityHeadersConfig, ServerConfig, SleepRecoveryConfig, SseConfig, StravaApiConfig,
-        TlsConfig, TrainingZonesConfig, WeatherServiceConfig,
+        SecurityHeadersConfig, ServerConfig, SleepRecoveryConfig, SqlxConfig, SseConfig,
+        StravaApiConfig, TlsConfig, TokioRuntimeConfig, TrainingZonesConfig, WeatherServiceConfig,
     },
     dashboard_routes::DashboardRoutes,
     database_plugins::{factory::Database, DatabaseProvider},
@@ -326,6 +326,8 @@ impl DashboardTestSetup {
             goal_management: GoalManagementConfig::default(),
             training_zones: TrainingZonesConfig::default(),
             firebase: FirebaseConfig::default(),
+            tokio_runtime: TokioRuntimeConfig::default(),
+            sqlx: SqlxConfig::default(),
         });
 
         // Create test cache
@@ -726,6 +728,8 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
         goal_management: GoalManagementConfig::default(),
         training_zones: TrainingZonesConfig::default(),
         firebase: FirebaseConfig::default(),
+        tokio_runtime: TokioRuntimeConfig::default(),
+        sqlx: SqlxConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();

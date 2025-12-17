@@ -1585,7 +1585,15 @@ async fn test_multiple_auth_sessions() {
 
 /// Create a minimal test server configuration
 fn create_test_server_config() -> ServerConfig {
-    use pierre_mcp_server::config::environment::*;
+    use pierre_mcp_server::config::environment::{
+        AppBehaviorConfig, AuthConfig, BackupConfig, CacheConfig, CorsConfig, DatabaseConfig,
+        DatabaseUrl, Environment, ExternalServicesConfig, FirebaseConfig, FitbitApiConfig,
+        GarminApiConfig, GeocodingServiceConfig, GoalManagementConfig, HttpClientConfig, LogLevel,
+        LoggingConfig, McpConfig, OAuth2ServerConfig, OAuthConfig, OAuthProviderConfig,
+        PostgresPoolConfig, ProtocolConfig, RateLimitConfig, RouteTimeoutConfig, SecurityConfig,
+        SecurityHeadersConfig, SleepRecoveryConfig, SqlxConfig, SseConfig, StravaApiConfig,
+        TlsConfig, TokioRuntimeConfig, TrainingZonesConfig, WeatherServiceConfig,
+    };
     use std::path::PathBuf;
 
     ServerConfig {
@@ -1725,5 +1733,7 @@ fn create_test_server_config() -> ServerConfig {
         goal_management: GoalManagementConfig::default(),
         training_zones: TrainingZonesConfig::default(),
         firebase: FirebaseConfig::default(),
+        tokio_runtime: TokioRuntimeConfig::default(),
+        sqlx: SqlxConfig::default(),
     }
 }

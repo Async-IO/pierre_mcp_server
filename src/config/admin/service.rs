@@ -586,6 +586,167 @@ impl AdminConfigService {
             },
         );
 
+        // Tokio Runtime Configuration
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "tokio_runtime.worker_threads".to_owned(),
+                display_name: "Worker Threads".to_owned(),
+                description: "Number of Tokio runtime worker threads. Default: CPU core count"
+                    .to_owned(),
+                category: "tokio_runtime".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(null),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(1),
+                    max: serde_json::json!(256),
+                    step: Some(1.0),
+                }),
+                enum_options: None,
+                units: Some("threads".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("TOKIO_WORKER_THREADS".to_owned()),
+                is_runtime_configurable: false,
+                requires_restart: true,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "tokio_runtime.thread_stack_size".to_owned(),
+                display_name: "Thread Stack Size".to_owned(),
+                description: "Stack size for worker threads in bytes. Default: ~2MB".to_owned(),
+                category: "tokio_runtime".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(null),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(524_288),
+                    max: serde_json::json!(16_777_216),
+                    step: Some(524_288.0),
+                }),
+                enum_options: None,
+                units: Some("bytes".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("TOKIO_THREAD_STACK_SIZE".to_owned()),
+                is_runtime_configurable: false,
+                requires_restart: true,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "tokio_runtime.thread_name".to_owned(),
+                display_name: "Thread Name Prefix".to_owned(),
+                description: "Name prefix for worker threads".to_owned(),
+                category: "tokio_runtime".to_owned(),
+                data_type: ConfigDataType::String,
+                default_value: serde_json::json!("pierre-worker"),
+                valid_range: None,
+                enum_options: None,
+                units: None,
+                scientific_basis: None,
+                env_variable: Some("TOKIO_THREAD_NAME".to_owned()),
+                is_runtime_configurable: false,
+                requires_restart: true,
+            },
+        );
+
+        // SQLx Connection Pool Configuration
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "sqlx.idle_timeout_secs".to_owned(),
+                display_name: "Idle Timeout".to_owned(),
+                description:
+                    "Maximum time a connection can sit idle before being closed. Default: 10 min"
+                        .to_owned(),
+                category: "sqlx_config".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(null),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(30),
+                    max: serde_json::json!(3600),
+                    step: Some(30.0),
+                }),
+                enum_options: None,
+                units: Some("seconds".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("SQLX_IDLE_TIMEOUT_SECS".to_owned()),
+                is_runtime_configurable: false,
+                requires_restart: true,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "sqlx.max_lifetime_secs".to_owned(),
+                display_name: "Max Lifetime".to_owned(),
+                description:
+                    "Maximum lifetime of a connection before it is closed. Default: 30 min"
+                        .to_owned(),
+                category: "sqlx_config".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(null),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(60),
+                    max: serde_json::json!(7200),
+                    step: Some(60.0),
+                }),
+                enum_options: None,
+                units: Some("seconds".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("SQLX_MAX_LIFETIME_SECS".to_owned()),
+                is_runtime_configurable: false,
+                requires_restart: true,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "sqlx.test_before_acquire".to_owned(),
+                display_name: "Test Before Acquire".to_owned(),
+                description: "Whether to test connections before acquiring from pool".to_owned(),
+                category: "sqlx_config".to_owned(),
+                data_type: ConfigDataType::Boolean,
+                default_value: serde_json::json!(true),
+                valid_range: None,
+                enum_options: None,
+                units: None,
+                scientific_basis: None,
+                env_variable: Some("SQLX_TEST_BEFORE_ACQUIRE".to_owned()),
+                is_runtime_configurable: false,
+                requires_restart: true,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "sqlx.statement_cache_capacity".to_owned(),
+                display_name: "Statement Cache Capacity".to_owned(),
+                description: "Number of prepared statements to cache per connection. Default: 100"
+                    .to_owned(),
+                category: "sqlx_config".to_owned(),
+                data_type: ConfigDataType::Integer,
+                default_value: serde_json::json!(null),
+                valid_range: Some(ParameterRange {
+                    min: serde_json::json!(0),
+                    max: serde_json::json!(1000),
+                    step: Some(10.0),
+                }),
+                enum_options: None,
+                units: Some("statements".to_owned()),
+                scientific_basis: None,
+                env_variable: Some("SQLX_STATEMENT_CACHE_CAPACITY".to_owned()),
+                is_runtime_configurable: false,
+                requires_restart: true,
+            },
+        );
+
         // Acquire lock briefly and insert all definitions at once
         let def_count = defs.len();
         self.definitions.write().await.extend(defs);

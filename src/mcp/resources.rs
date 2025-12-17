@@ -575,6 +575,7 @@ impl ServerResourcesBuilder {
             self.rsa_key_size_bits,
             self.jwks_manager,
         );
+
         Ok(resources)
     }
 

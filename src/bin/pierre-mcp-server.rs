@@ -17,7 +17,7 @@ use clap::{error::ErrorKind, Parser};
 use pierre_mcp_server::{
     auth::AuthManager,
     cache::factory::Cache,
-    config::environment::ServerConfig,
+    config::environment::{ServerConfig, TokioRuntimeConfig},
     constants::init_server_config,
     database_plugins::{factory::Database, DatabaseProvider},
     errors::AppError,
@@ -28,6 +28,7 @@ use pierre_mcp_server::{
     utils::{http_client::initialize_http_clients, route_timeout::initialize_route_timeouts},
 };
 use std::{env, sync::Arc};
+use tokio::runtime::{Builder, Runtime};
 use tracing::{error, info};
 
 /// Command-line arguments for the Pierre MCP server
@@ -45,11 +46,51 @@ pub struct Args {
     http_port: Option<u16>,
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let args = parse_args_or_default();
-    let config = setup_configuration(&args)?;
-    bootstrap_server(config).await
+
+    // Load runtime config first to build the Tokio runtime
+    let runtime_config = TokioRuntimeConfig::from_env();
+    let runtime = build_tokio_runtime(&runtime_config)?;
+
+    // Run the async server on our configured runtime
+    runtime.block_on(async {
+        let config = setup_configuration(&args)?;
+        bootstrap_server(config).await
+    })
+}
+
+/// Build a Tokio runtime with configurable worker threads
+fn build_tokio_runtime(config: &TokioRuntimeConfig) -> Result<Runtime> {
+    let mut builder = Builder::new_multi_thread();
+
+    // Configure worker threads if specified
+    if let Some(workers) = config.worker_threads {
+        builder.worker_threads(workers);
+        eprintln!("Tokio runtime: {workers} worker threads (from TOKIO_WORKER_THREADS)");
+    }
+
+    // Configure thread stack size if specified
+    if let Some(stack_size) = config.thread_stack_size {
+        builder.thread_stack_size(stack_size);
+        let stack_kb = stack_size / 1024;
+        eprintln!("Tokio runtime: {stack_kb}KB thread stack (from TOKIO_THREAD_STACK_SIZE)");
+    }
+
+    // Configure thread naming
+    builder.thread_name(&config.thread_name);
+
+    // Enable drivers
+    if config.enable_io {
+        builder.enable_io();
+    }
+    if config.enable_time {
+        builder.enable_time();
+    }
+
+    builder
+        .build()
+        .map_err(|e| AppError::internal(format!("Failed to build Tokio runtime: {e}")).into())
 }
 
 /// Parse command line arguments or use defaults on failure

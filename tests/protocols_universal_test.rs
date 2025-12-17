@@ -209,6 +209,8 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
         goal_management: GoalManagementConfig::default(),
         training_zones: TrainingZonesConfig::default(),
         firebase: FirebaseConfig::default(),
+        tokio_runtime: TokioRuntimeConfig::default(),
+        sqlx: SqlxConfig::default(),
     });
 
     // Create ServerResources for the test
@@ -607,6 +609,8 @@ async fn test_set_goal_tool() -> Result<()> {
         goal_management: GoalManagementConfig::default(),
         training_zones: TrainingZonesConfig::default(),
         firebase: FirebaseConfig::default(),
+        tokio_runtime: TokioRuntimeConfig::default(),
+        sqlx: SqlxConfig::default(),
     });
 
     // Create ServerResources for the test
@@ -1310,6 +1314,8 @@ async fn test_disconnect_provider_tool() -> Result<()> {
         goal_management: GoalManagementConfig::default(),
         training_zones: TrainingZonesConfig::default(),
         firebase: FirebaseConfig::default(),
+        tokio_runtime: TokioRuntimeConfig::default(),
+        sqlx: SqlxConfig::default(),
     });
 
     // Create ServerResources for the test

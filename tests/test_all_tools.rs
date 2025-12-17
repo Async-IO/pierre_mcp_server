@@ -268,6 +268,8 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
         goal_management: GoalManagementConfig::default(),
         training_zones: TrainingZonesConfig::default(),
         firebase: FirebaseConfig::default(),
+        tokio_runtime: TokioRuntimeConfig::default(),
+        sqlx: SqlxConfig::default(),
     });
 
     // Create ServerResources for the test
