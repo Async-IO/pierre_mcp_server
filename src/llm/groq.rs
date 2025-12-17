@@ -47,7 +47,7 @@ use tracing::{debug, error, info, instrument, warn};
 
 use super::{
     ChatMessage, ChatRequest, ChatResponse, ChatResponseWithTools, ChatStream, FunctionCall,
-    FunctionDeclaration, LlmCapabilities, LlmProvider, StreamChunk, TokenUsage, Tool,
+    LlmCapabilities, LlmProvider, StreamChunk, TokenUsage, Tool,
 };
 use crate::errors::AppError;
 
@@ -314,18 +314,24 @@ impl GroqProvider {
             .collect()
     }
 
-    /// Convert Groq tool calls to internal FunctionCall format
+    /// Convert Groq tool calls to internal `FunctionCall` format
     fn convert_tool_calls(tool_calls: &[GroqToolCall]) -> Vec<FunctionCall> {
         tool_calls
             .iter()
-            .filter_map(|call| {
+            .map(|call| {
+                debug!(
+                    tool_call_id = %call.id,
+                    tool_call_type = %call.call_type,
+                    function_name = %call.function.name,
+                    "Converting Groq tool call to FunctionCall"
+                );
                 // Parse the arguments JSON string
                 let args: Value =
                     serde_json::from_str(&call.function.arguments).unwrap_or_default();
-                Some(FunctionCall {
+                FunctionCall {
                     name: call.function.name.clone(),
                     args,
-                })
+                }
             })
             .collect()
     }
@@ -457,6 +463,8 @@ impl LlmProvider for GroqProvider {
             temperature: request.temperature,
             max_tokens: request.max_tokens,
             stream: Some(false),
+            tools: None,
+            tool_choice: None,
         };
 
         let response = self
@@ -525,6 +533,8 @@ impl LlmProvider for GroqProvider {
             temperature: request.temperature,
             max_tokens: request.max_tokens,
             stream: Some(true),
+            tools: None,
+            tool_choice: None,
         };
 
         let response = self
