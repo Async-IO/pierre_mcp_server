@@ -997,6 +997,16 @@ pub struct RouteTimeoutConfig {
     pub sse_event_timeout_secs: u64,
     /// OAuth token operations timeout in seconds
     pub oauth_operation_timeout_secs: u64,
+    /// Default timeout for general operations in seconds
+    pub default_timeout_secs: u64,
+    /// Upload operation timeout in seconds (longer for large files)
+    pub upload_timeout_secs: u64,
+    /// Long polling operation timeout in seconds
+    pub long_polling_timeout_secs: u64,
+    /// MCP sampling operation timeout in seconds
+    pub mcp_sampling_timeout_secs: u64,
+    /// Geocoding/location lookup timeout in seconds
+    pub geocoding_timeout_secs: u64,
 }
 
 impl Default for RouteTimeoutConfig {
@@ -1006,6 +1016,11 @@ impl Default for RouteTimeoutConfig {
             provider_api_timeout_secs: 60,
             sse_event_timeout_secs: 5,
             oauth_operation_timeout_secs: 15,
+            default_timeout_secs: 30,
+            upload_timeout_secs: 300,
+            long_polling_timeout_secs: 300,
+            mcp_sampling_timeout_secs: 30,
+            geocoding_timeout_secs: 10,
         }
     }
 }
@@ -1870,6 +1885,21 @@ impl ServerConfig {
             oauth_operation_timeout_secs: env_var_or("ROUTE_TIMEOUT_OAUTH_SECS", "15")
                 .parse()
                 .unwrap_or(15),
+            default_timeout_secs: env_var_or("ROUTE_TIMEOUT_DEFAULT_SECS", "30")
+                .parse()
+                .unwrap_or(30),
+            upload_timeout_secs: env_var_or("ROUTE_TIMEOUT_UPLOAD_SECS", "300")
+                .parse()
+                .unwrap_or(300),
+            long_polling_timeout_secs: env_var_or("ROUTE_TIMEOUT_LONG_POLLING_SECS", "300")
+                .parse()
+                .unwrap_or(300),
+            mcp_sampling_timeout_secs: env_var_or("ROUTE_TIMEOUT_MCP_SAMPLING_SECS", "30")
+                .parse()
+                .unwrap_or(30),
+            geocoding_timeout_secs: env_var_or("ROUTE_TIMEOUT_GEOCODING_SECS", "10")
+                .parse()
+                .unwrap_or(10),
         }
     }
 

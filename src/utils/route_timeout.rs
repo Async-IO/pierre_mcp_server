@@ -244,3 +244,193 @@ pub fn sse_timeout_duration() -> Duration {
 pub fn oauth_timeout_duration() -> Duration {
     Duration::from_secs(get_config().oauth_operation_timeout_secs)
 }
+
+/// Execute a default operation with configured timeout
+///
+/// # Arguments
+/// * `operation` - The async operation to execute
+///
+/// # Returns
+/// Result with the operation's value or a timeout error
+///
+/// # Errors
+/// Returns an error if the operation times out or the operation itself fails
+pub async fn with_default_timeout<F, T, E>(operation: F) -> AppResult<T>
+where
+    F: Future<Output = Result<T, E>>,
+    E: Into<AppError>,
+{
+    let config = get_config();
+    let duration = Duration::from_secs(config.default_timeout_secs);
+
+    (timeout(duration, operation).await).map_or_else(
+        |_| {
+            Err(AppError::internal(format!(
+                "Operation timed out after {}s",
+                config.default_timeout_secs
+            )))
+        },
+        |result| result.map_err(Into::into),
+    )
+}
+
+/// Execute an upload operation with configured timeout
+///
+/// # Arguments
+/// * `operation` - The async upload operation to execute
+///
+/// # Returns
+/// Result with the operation's value or a timeout error
+///
+/// # Errors
+/// Returns an error if the operation times out or the operation itself fails
+pub async fn with_upload_timeout<F, T, E>(operation: F) -> AppResult<T>
+where
+    F: Future<Output = Result<T, E>>,
+    E: Into<AppError>,
+{
+    let config = get_config();
+    let duration = Duration::from_secs(config.upload_timeout_secs);
+
+    (timeout(duration, operation).await).map_or_else(
+        |_| {
+            Err(AppError::internal(format!(
+                "Upload operation timed out after {}s",
+                config.upload_timeout_secs
+            )))
+        },
+        |result| result.map_err(Into::into),
+    )
+}
+
+/// Execute a long polling operation with configured timeout
+///
+/// # Arguments
+/// * `operation` - The async long polling operation to execute
+///
+/// # Returns
+/// Result with the operation's value or a timeout error
+///
+/// # Errors
+/// Returns an error if the operation times out or the operation itself fails
+pub async fn with_long_polling_timeout<F, T, E>(operation: F) -> AppResult<T>
+where
+    F: Future<Output = Result<T, E>>,
+    E: Into<AppError>,
+{
+    let config = get_config();
+    let duration = Duration::from_secs(config.long_polling_timeout_secs);
+
+    (timeout(duration, operation).await).map_or_else(
+        |_| {
+            Err(AppError::internal(format!(
+                "Long polling operation timed out after {}s",
+                config.long_polling_timeout_secs
+            )))
+        },
+        |result| result.map_err(Into::into),
+    )
+}
+
+/// Execute an MCP sampling operation with configured timeout
+///
+/// # Arguments
+/// * `operation` - The async MCP sampling operation to execute
+///
+/// # Returns
+/// Result with the operation's value or a timeout error
+///
+/// # Errors
+/// Returns an error if the operation times out or the operation itself fails
+pub async fn with_mcp_sampling_timeout<F, T, E>(operation: F) -> AppResult<T>
+where
+    F: Future<Output = Result<T, E>>,
+    E: Into<AppError>,
+{
+    let config = get_config();
+    let duration = Duration::from_secs(config.mcp_sampling_timeout_secs);
+
+    (timeout(duration, operation).await).map_or_else(
+        |_| {
+            Err(AppError::internal(format!(
+                "MCP sampling operation timed out after {}s",
+                config.mcp_sampling_timeout_secs
+            )))
+        },
+        |result| result.map_err(Into::into),
+    )
+}
+
+/// Execute a geocoding operation with configured timeout
+///
+/// # Arguments
+/// * `operation` - The async geocoding operation to execute
+///
+/// # Returns
+/// Result with the operation's value or a timeout error
+///
+/// # Errors
+/// Returns an error if the operation times out or the operation itself fails
+pub async fn with_geocoding_timeout<F, T, E>(operation: F) -> AppResult<T>
+where
+    F: Future<Output = Result<T, E>>,
+    E: Into<AppError>,
+{
+    let config = get_config();
+    let duration = Duration::from_secs(config.geocoding_timeout_secs);
+
+    (timeout(duration, operation).await).map_or_else(
+        |_| {
+            Err(AppError::internal(format!(
+                "Geocoding operation timed out after {}s",
+                config.geocoding_timeout_secs
+            )))
+        },
+        |result| result.map_err(Into::into),
+    )
+}
+
+/// Get default timeout duration for manual timeout handling
+///
+/// # Returns
+/// Duration for default operations
+#[must_use]
+pub fn default_timeout_duration() -> Duration {
+    Duration::from_secs(get_config().default_timeout_secs)
+}
+
+/// Get upload timeout duration for manual timeout handling
+///
+/// # Returns
+/// Duration for upload operations
+#[must_use]
+pub fn upload_timeout_duration() -> Duration {
+    Duration::from_secs(get_config().upload_timeout_secs)
+}
+
+/// Get long polling timeout duration for manual timeout handling
+///
+/// # Returns
+/// Duration for long polling operations
+#[must_use]
+pub fn long_polling_timeout_duration() -> Duration {
+    Duration::from_secs(get_config().long_polling_timeout_secs)
+}
+
+/// Get MCP sampling timeout duration for manual timeout handling
+///
+/// # Returns
+/// Duration for MCP sampling operations
+#[must_use]
+pub fn mcp_sampling_timeout_duration() -> Duration {
+    Duration::from_secs(get_config().mcp_sampling_timeout_secs)
+}
+
+/// Get geocoding timeout duration for manual timeout handling
+///
+/// # Returns
+/// Duration for geocoding operations
+#[must_use]
+pub fn geocoding_timeout_duration() -> Duration {
+    Duration::from_secs(get_config().geocoding_timeout_secs)
+}
