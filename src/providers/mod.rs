@@ -103,3 +103,5 @@ pub use spi::{OAuthEndpoints, ProviderBundle, ProviderCapabilities, ProviderDesc
 pub use terra::{
     TerraDataCache, TerraDescriptor, TerraProvider, TerraProviderFactory, TerraWebhookHandler,
 };
+/// Re-export retry utilities for production resilience
+pub use utils::{with_retry, with_retry_default, RetryBackoffConfig};
