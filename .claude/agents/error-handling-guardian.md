@@ -1,5 +1,6 @@
 ---
 name: error-handling-guardian
+description: Guards structured error handling, preventing regression to anyhow and ensuring AppResult usage
 ---
 
 # Error Handling Guardian Agent

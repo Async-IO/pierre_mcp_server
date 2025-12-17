@@ -1,5 +1,6 @@
 ---
 name: repository-pattern-guardian
+description: Guards the repository pattern refactoring, preventing regression to monolithic database patterns
 ---
 
 # Repository Pattern Guardian Agent

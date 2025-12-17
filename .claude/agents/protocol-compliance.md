@@ -1,5 +1,6 @@
 ---
 name: protocol-compliance
+description: Validates MCP and A2A protocol compliance, ensuring JSON-RPC 2.0 and OAuth 2.0 RFC adherence
 ---
 
 # Protocol Compliance Guardian Agent

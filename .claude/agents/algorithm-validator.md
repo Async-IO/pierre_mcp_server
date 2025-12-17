@@ -1,5 +1,6 @@
 ---
 name: algorithm-validator
+description: Validates sports science algorithms (VDOT, TSS, TRIMP, FTP, VO2max) for mathematical correctness and physiological plausibility
 ---
 
 # Intelligence Algorithm Validator Agent

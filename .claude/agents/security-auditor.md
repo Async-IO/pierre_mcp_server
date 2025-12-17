@@ -1,5 +1,6 @@
 ---
 name: security-auditor
+description: Comprehensive security audit agent ensuring tenant isolation, cryptographic best practices, and OWASP compliance
 ---
 
 # Security & Multi-Tenancy Auditor Agent
