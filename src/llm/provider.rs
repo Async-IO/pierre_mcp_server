@@ -127,8 +127,8 @@ impl ChatProvider {
 
     /// Perform a chat completion with tool/function calling support
     ///
-    /// For Gemini: Uses native function calling API with full tool support
-    /// For Groq: Falls back to basic completion (returns response without tool calls)
+    /// Both Gemini and Groq support native function/tool calling via their
+    /// respective APIs (Gemini native, Groq OpenAI-compatible).
     ///
     /// # Errors
     ///
@@ -140,24 +140,7 @@ impl ChatProvider {
     ) -> Result<ChatResponseWithTools, AppError> {
         match self {
             Self::Gemini(provider) => provider.complete_with_tools(request, tools).await,
-            Self::Groq(_provider) => {
-                // Groq uses OpenAI-compatible API format for function calling.
-                // Currently returns basic completion; tool responses are handled
-                // by the conversation history mechanism.
-                if tools.is_some() {
-                    debug!(
-                        "Groq provider: tool definitions provided but using basic completion mode"
-                    );
-                }
-                let response = self.complete(request).await?;
-                Ok(ChatResponseWithTools {
-                    content: Some(response.content),
-                    function_calls: None,
-                    model: response.model,
-                    usage: response.usage,
-                    finish_reason: response.finish_reason,
-                })
-            }
+            Self::Groq(provider) => provider.complete_with_tools(request, tools).await,
         }
     }
 
