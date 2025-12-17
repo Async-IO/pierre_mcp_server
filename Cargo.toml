@@ -148,6 +148,8 @@ sysinfo = "0.31"
 redis = { version = "0.28", features = ["tokio-comp", "connection-manager", "aio"] }
 
 num-traits = "0.2"
+# Rayon for CPU-bound parallel data processing (zone analysis, fitness calculations)
+rayon = "1.10"
 rsa = "0.9"
 x509-parser = "0.18.0"
 # TOON format for token-efficient LLM serialization (~40% token reduction vs JSON)

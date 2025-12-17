@@ -1,3 +1,7 @@
+---
+name: security-auditor
+---
+
 # Security & Multi-Tenancy Auditor Agent
 
 ## Overview

@@ -1,0 +1,72 @@
+# ABOUTME: GitHub Actions workflow for static deadlock detection using lockbud.
+# ABOUTME: Analyzes Rust code for potential deadlocks, double-locks, and lock ordering issues.
+
+name: Deadlock Detection
+
+on:
+  push:
+    branches: [ "main", "feature/*", "claude/*" ]
+    paths:
+      - '**.rs'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - '**.rs'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+  # Allow manual triggering for on-demand analysis
+  workflow_dispatch:
+  # Weekly scheduled run to catch issues in dependencies
+  schedule:
+    - cron: '0 3 * * 0'  # Sundays at 3 AM UTC
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  deadlock-analysis:
+    name: Static Deadlock Analysis
+    runs-on: ubuntu-latest
+    container:
+      image: burtonqin/lockbud
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run lockbud deadlock detection
+        run: |
+          echo "🔒 Running static deadlock analysis with lockbud..."
+          echo "Analyzing: std::sync::{Mutex, RwLock}, parking_lot, spin locks"
+          echo ""
+          cargo lockbud -k deadlock 2>&1 | tee deadlock-report.txt
+
+          # Check if any deadlocks were found
+          if grep -q "Double Lock\|Conflicting Lock Order" deadlock-report.txt; then
+            echo ""
+            echo "⚠️  Potential deadlock issues detected!"
+            echo "Review the report above for details."
+            # Don't fail the build - these are warnings for review
+            exit 0
+          else
+            echo ""
+            echo "✅ No deadlock issues detected"
+          fi
+
+      - name: Run atomicity violation detection
+        run: |
+          echo "⚛️  Running atomicity violation analysis..."
+          cargo lockbud -k atomicity_violation 2>&1 | tee atomicity-report.txt || true
+          echo "✅ Atomicity analysis complete"
+
+      - name: Upload analysis reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lockbud-reports
+          path: |
+            deadlock-report.txt
+            atomicity-report.txt
+          retention-days: 30

@@ -1,3 +1,7 @@
+---
+name: error-handling-guardian
+---
+
 # Error Handling Guardian Agent
 
 ## Overview

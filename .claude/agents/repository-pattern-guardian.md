@@ -1,3 +1,7 @@
+---
+name: repository-pattern-guardian
+---
+
 # Repository Pattern Guardian Agent
 
 ## Overview

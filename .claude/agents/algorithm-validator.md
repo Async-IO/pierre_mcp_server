@@ -1,3 +1,7 @@
+---
+name: algorithm-validator
+---
+
 # Intelligence Algorithm Validator Agent
 
 ## Overview

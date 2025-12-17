@@ -1,3 +1,7 @@
+---
+name: protocol-compliance
+---
+
 # Protocol Compliance Guardian Agent
 
 ## Overview
