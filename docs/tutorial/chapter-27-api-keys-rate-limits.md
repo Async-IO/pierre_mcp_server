@@ -1,4 +1,4 @@
-# Appendix E: API Keys, Rate Limiting & Real-Time Dashboard
+# Chapter 27: API Keys, Rate Limiting & Real-Time Dashboard
 
 This appendix covers Pierre's B2B API key system, unified rate limiting engine, and real-time usage dashboard/WebSocket updates. You'll learn how API keys are modeled, how quotas and bursts are enforced, and how the dashboard surfaces this information to end users.
 

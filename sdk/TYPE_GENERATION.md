@@ -5,7 +5,7 @@ This document explains how to generate TypeScript type definitions for all Pierr
 ## Overview
 
 The Pierre SDK includes an **auto-generation script** that fetches tool schemas from the running Pierre server and generates TypeScript interfaces for:
-- Tool parameter types (45 interfaces)
+- Tool parameter types (47 interfaces)
 - Tool response types
 - Common data structures (Activity, Athlete, Stats, etc.)
 - Tool name union types
@@ -40,7 +40,7 @@ npm run generate-types
 ### 3. Verify Output
 
 The script will create `sdk/src/types.ts` with:
-- 45 parameter interfaces (`GetActivitiesParams`, `GetAthleteParams`, etc.)
+- 47 parameter interfaces (`GetActivitiesParams`, `GetAthleteParams`, etc.)
 - Common data types (`Activity`, `Athlete`, `Stats`, etc.)
 - Type unions and mappings
 
@@ -210,13 +210,13 @@ node ../scripts/generate-sdk-types.js
 
 ## What Gets Generated
 
-### 1. Tool Parameter Types (45 interfaces)
+### 1. Tool Parameter Types (47 interfaces)
 
 One interface per tool for type-safe parameter passing:
 - `GetActivitiesParams`
 - `GetAthleteParams`
 - `SetGoalParams`
-- ... (44 more)
+- ... (46 more)
 
 ### 2. Common Data Types
 
@@ -237,7 +237,7 @@ Shared structures used across multiple tools:
 
 ### 4. Type Utilities
 
-- `ToolName` - Union of all 45 tool names
+- `ToolName` - Union of all 47 tool names
 - `ToolParamsMap` - Map tool names to parameter types
 
 ## Benefits

@@ -43,6 +43,27 @@ export POSTGRES_MIN_CONNECTIONS="0"
 export POSTGRES_ACQUIRE_TIMEOUT="30"
 ```
 
+### SQLx Pool Configuration
+
+Fine-tune database connection pool behavior:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SQLX_IDLE_TIMEOUT_SECS` | `600` | Seconds before idle connections are closed |
+| `SQLX_MAX_LIFETIME_SECS` | `1800` | Maximum connection lifetime in seconds |
+| `SQLX_TEST_BEFORE_ACQUIRE` | `true` | Validate connections before use |
+| `SQLX_STATEMENT_CACHE_CAPACITY` | `100` | Prepared statement cache size |
+
+## Tokio Runtime Configuration
+
+Configure the async runtime for performance tuning:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TOKIO_WORKER_THREADS` | CPU cores | Number of worker threads |
+| `TOKIO_THREAD_STACK_SIZE` | OS default | Thread stack size in bytes |
+| `TOKIO_THREAD_NAME` | `pierre-worker` | Worker thread name prefix |
+
 ## Provider Configuration
 
 ### Default Provider

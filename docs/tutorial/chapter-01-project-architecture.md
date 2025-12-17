@@ -10,7 +10,7 @@
 
 ## Introduction
 
-Pierre Fitness Platform is a production Rust application with 258 source files organized into a coherent module hierarchy. This chapter teaches you how to navigate the codebase, understand the module system, and recognize organizational patterns used throughout.
+Pierre Fitness Platform is a production Rust application with 287 source files organized into a coherent module hierarchy. This chapter teaches you how to navigate the codebase, understand the module system, and recognize organizational patterns used throughout.
 
 The codebase follows a **"library + binaries"** pattern where most functionality lives in `src/lib.rs` and binary entry points import from the library.
 
@@ -49,7 +49,7 @@ pierre_mcp_server/
 │   ├── helpers/
 │   │   ├── synthetic_data.rs   # fitness data generator
 │   │   └── test_utils.rs       # shared test utilities
-│   └── [166 test files]
+│   └── [190 test files]
 │
 ├── scripts/                    # build & utility scripts
 │   ├── generate-sdk-types.js   # typescript type generation
@@ -139,9 +139,10 @@ The `src/lib.rs` file is the central hub of the Pierre library. It declares all 
 //!
 //! ```rust,no_run
 //! use pierre_mcp_server::config::environment::ServerConfig;
+//! use pierre_mcp_server::errors::AppResult;
 //!
 //! #[tokio::main]
-//! async fn main() -> anyhow::Result<()> {
+//! async fn main() -> AppResult<()> {
 //!     // Load configuration
 //!     let config = ServerConfig::from_env()?;
 //!
@@ -296,13 +297,13 @@ Rust crates can define multiple binary targets. Pierre has two main binaries:
 //! This binary starts the multi-protocol Pierre Fitness API with user authentication,
 //! secure token storage, and database management.
 
-use anyhow::Result;
 use clap::Parser;
 use pierre_mcp_server::{
     auth::AuthManager,
     cache::factory::Cache,
     config::environment::ServerConfig,
     database_plugins::factory::Database,  // Repository pattern: Database provides accessor methods
+    errors::AppResult,
     logging,
     mcp::{multitenant::MultiTenantMcpServer, resources::ServerResources},
 };
@@ -324,7 +325,7 @@ pub struct Args {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> AppResult<()> {
     let args = parse_args_or_default();
     let config = setup_configuration(&args)?;
     bootstrap_server(config).await
@@ -631,7 +632,7 @@ pub async fn new(
 
 ## Documentation Patterns
 
-Pierre follows consistent documentation practices across all 224 files.
+Pierre follows consistent documentation practices across all 287 source files.
 
 ### Dual-Comment Pattern
 
@@ -732,7 +733,6 @@ use crate::protocols::universal::executor::UniversalToolExecutor;  // Better
 
 ```rust
 // Group 1: External crates
-use anyhow::Result;
 use clap::Parser;
 use std::sync::Arc;
 use tracing::{error, info};
@@ -743,13 +743,14 @@ use pierre_mcp_server::{
     cache::factory::Cache,
     config::environment::ServerConfig,
     database_plugins::{factory::Database, DatabaseProvider},
+    errors::AppResult,
     logging,
     mcp::{multitenant::MultiTenantMcpServer, resources::ServerResources},
 };
 ```
 
 **Convention**:
-1. External dependencies (`anyhow`, `clap`, `std`, `tracing`)
+1. External dependencies (`clap`, `std`, `tracing`)
 2. Internal crate (`pierre_mcp_server::...`)
 3. Blank line between groups
 

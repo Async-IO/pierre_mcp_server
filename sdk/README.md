@@ -53,7 +53,7 @@ No manual token management required!
 
 ## Available Tools
 
-Once connected, your AI assistant can access 45 fitness tools including:
+Once connected, your AI assistant can access 47 fitness tools including:
 - Activity retrieval and analysis
 - Goal setting and progress tracking
 - Performance trend analysis
@@ -104,7 +104,7 @@ The SDK provides comprehensive TypeScript type definitions auto-generated from t
 ┌─────────────────────────────────────────────────────────────────┐
 │  TypeScript (SDK)                                               │
 │  sdk/src/types.ts                                               │
-│  45 tool parameter interfaces                                   │
+│  47 tool parameter interfaces                                   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -206,7 +206,7 @@ npm run generate-types
 2. Sends `tools/list` JSON-RPC request
 3. Converts JSON schemas to TypeScript interfaces
 4. Writes to `sdk/src/types.ts`
-5. Generates 45 tool parameter interfaces
+5. Generates 47 tool parameter interfaces
 
 **Output**: `src/types.ts` (~500 lines with full type definitions)
 

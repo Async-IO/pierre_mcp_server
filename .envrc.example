@@ -149,3 +149,32 @@ export OAUTH_DEFAULT_PASSWORD="userpass123"
 # Admin User Defaults (for dev/test scripts - leave empty in production)
 export ADMIN_EMAIL="admin@pierre.mcp"
 export ADMIN_PASSWORD="adminpass123"
+
+# ============================================================================
+# TOKIO RUNTIME CONFIGURATION (Advanced)
+# ============================================================================
+# Configure async runtime for performance tuning (optional - uses defaults if not set)
+
+# Worker threads (default: number of CPU cores)
+# export TOKIO_WORKER_THREADS="4"
+
+# Thread stack size in bytes (default: OS default)
+# export TOKIO_THREAD_STACK_SIZE="2097152"  # 2MB
+
+# Worker thread name prefix (default: pierre-worker)
+# export TOKIO_THREAD_NAME="pierre-worker"
+
+# ============================================================================
+# SQLX POOL CONFIGURATION (Advanced)
+# ============================================================================
+# Fine-tune database connection pool behavior (optional - uses defaults if not set)
+
+# Connection lifecycle
+# export SQLX_IDLE_TIMEOUT_SECS="600"        # close idle connections after (default: 600)
+# export SQLX_MAX_LIFETIME_SECS="1800"       # max connection lifetime (default: 1800)
+
+# Connection validation
+# export SQLX_TEST_BEFORE_ACQUIRE="true"     # validate before use (default: true)
+
+# Performance
+# export SQLX_STATEMENT_CACHE_CAPACITY="100" # prepared statement cache (default: 100)

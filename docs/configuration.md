@@ -467,6 +467,37 @@ POSTGRES_MIN_CONNECTIONS=2        # min pool size (default: 2)
 POSTGRES_ACQUIRE_TIMEOUT=30       # connection timeout seconds (default: 30)
 ```
 
+#### SQLx Pool Configuration
+
+Fine-tune database connection pool behavior for production workloads:
+
+```bash
+# connection lifecycle
+SQLX_IDLE_TIMEOUT_SECS=600        # close idle connections after (default: 600)
+SQLX_MAX_LIFETIME_SECS=1800       # max connection lifetime (default: 1800)
+
+# connection validation
+SQLX_TEST_BEFORE_ACQUIRE=true     # validate before use (default: true)
+
+# performance
+SQLX_STATEMENT_CACHE_CAPACITY=100 # prepared statement cache (default: 100)
+```
+
+### Tokio Runtime Configuration
+
+Configure async runtime for performance tuning:
+
+```bash
+# worker threads (default: number of CPU cores)
+TOKIO_WORKER_THREADS=4
+
+# thread stack size in bytes (default: OS default)
+TOKIO_THREAD_STACK_SIZE=2097152   # 2MB
+
+# worker thread name prefix (default: pierre-worker)
+TOKIO_THREAD_NAME=pierre-worker
+```
+
 ### Cache Configuration
 
 ```bash

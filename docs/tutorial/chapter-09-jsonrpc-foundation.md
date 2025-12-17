@@ -80,7 +80,7 @@ JSON-RPC is a lightweight remote procedure call (RPC) protocol encoded in JSON. 
 pub const JSONRPC_VERSION: &str = "2.0";
 ```
 
-**Design decision**: Pierre uses a unified JSON-RPC implementation shared by MCP and A2A protocols. This "single source of truth" approach prevents duplication and ensures consistent behavior.
+**Note**: Pierre uses a unified JSON-RPC implementation shared by MCP and A2A protocols. This ensures consistent behavior across all protocol handlers.
 
 ## Request Structure
 
@@ -626,7 +626,7 @@ pub auth_token: Option<String>,
 }
 ```
 
-**Design decision**: The `auth_token` field (Rust name) serializes as `"auth"` (JSON name) using `#[serde(rename = "auth")]`. This keeps JSON messages concise while maintaining clear Rust naming.
+**Note**: The `auth_token` field (Rust name) serializes as `"auth"` (JSON name) via `#[serde(rename = "auth")]`. This keeps JSON messages concise while maintaining clear Rust naming.
 
 ### Headers Field
 

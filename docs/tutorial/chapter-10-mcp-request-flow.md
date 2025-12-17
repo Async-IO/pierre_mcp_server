@@ -11,6 +11,7 @@ This chapter explores how the Pierre Fitness Platform processes Model Context Pr
 - Tenant context extraction for multi-tenancy
 - Tool handler dispatch and execution
 - Response serialization and error handling
+- Output formatters (JSON and TOON for LLM efficiency)
 - Notification handling (no response)
 - Structured logging with tracing spans
 - Performance measurement and monitoring
@@ -345,7 +346,7 @@ fn handle_tools_list(request: &McpRequest) -> McpResponse {
 }
 ```
 
-**Design decision**: tools/list does NOT require authentication per MCP spec. This allows AI assistants to discover tools before users authenticate. Authentication is enforced at `tools/call` time.
+**Note**: Per MCP spec, `tools/list` does not require authentication. This allows AI assistants to discover available tools before users authenticate. Authentication is enforced at `tools/call` time.
 
 ### tools/call Handler
 
@@ -659,6 +660,87 @@ let response = match self.process_request(request.clone()).await {
 - Full error chain with `{:#}` formatter
 
 **Response structure**: All errors return `ERROR_INTERNAL_ERROR` (-32603) code. More specific codes (METHOD_NOT_FOUND, INVALID_PARAMS) are returned by individual handlers.
+
+## Output Formatters (TOON Support)
+
+Pierre supports multiple output formats for tool responses, optimized for different consumers.
+
+**Source**: src/formatters/mod.rs
+
+```rust
+/// Output serialization format selector
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum OutputFormat {
+    /// JSON format (default) - universal compatibility
+    #[default]
+    Json,
+    /// TOON format - Token-Oriented Object Notation for LLM efficiency
+    /// Achieves ~40% token reduction compared to JSON
+    Toon,
+}
+
+impl OutputFormat {
+    /// Parse format from string parameter (case-insensitive)
+    #[must_use]
+    pub fn from_str_param(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "toon" => Self::Toon,
+            _ => Self::Json,
+        }
+    }
+
+    /// Get the MIME content type for this format
+    #[must_use]
+    pub const fn content_type(&self) -> &'static str {
+        match self {
+            Self::Json => "application/json",
+            Self::Toon => "application/vnd.toon",
+        }
+    }
+}
+```
+
+**Why TOON?**
+
+When LLMs process large datasets (e.g., a year of fitness activities), token count directly impacts:
+- API costs (tokens × price per token)
+- Context window usage (limited tokens available)
+- Response latency (more tokens = slower processing)
+
+TOON achieves ~40% token reduction by:
+- Eliminating redundant JSON syntax (quotes, colons, commas)
+- Using whitespace-based structure
+- Preserving semantic meaning for LLM comprehension
+
+**Usage in tools**:
+
+```rust
+use crate::formatters::{format_output, OutputFormat};
+
+// Tool receives format preference from client
+let format = params.output_format
+    .map(|s| OutputFormat::from_str_param(&s))
+    .unwrap_or_default();
+
+// Serialize response in requested format
+let output = format_output(&activities, format)?;
+// output.data contains the serialized string
+// output.content_type contains the MIME type
+```
+
+**Format comparison**:
+
+```json
+// JSON (default): 847 tokens for 100 activities
+{"activities":[{"id":"act_001","type":"Run","distance":5000,...},...]}
+
+// TOON (~40% fewer tokens): 508 tokens for same data
+activities
+  act_001
+    type Run
+    distance 5000
+    ...
+```
 
 ## Key Takeaways
 

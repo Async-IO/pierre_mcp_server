@@ -60,24 +60,23 @@
 
 28. [Chapter 26: LLM Provider Architecture & Gemini Integration](tutorial/chapter-26-llm-providers.md)
 
+## Part IX: Operations & Advanced Topics
+
+29. [Chapter 27: API Keys, Rate Limits & Dashboard](tutorial/chapter-27-api-keys-rate-limits.md)
+30. [Chapter 28: Tenant Admin & Fitness Configuration](tutorial/chapter-28-tenant-admin-config.md)
+31. [Chapter 29: SDK & CLI Usage Guide](tutorial/chapter-29-sdk-cli-usage.md)
+32. [Chapter 30: Performance Characteristics & Benchmarks](tutorial/chapter-30-performance.md)
+33. [Chapter 31: Adding New Tools - Developer Guide](tutorial/chapter-31-adding-new-tools.md)
+
 ---
 
-## Appendices
+## Appendices (Reference Material)
 
-### Reference
 - [Appendix A: Rust Idioms Reference](tutorial/appendix-a-rust-idioms.md)
 - [Appendix B: CLAUDE.md Compliance Checklist](tutorial/appendix-b-claude-md.md)
 - [Appendix C: Pierre Codebase Map](tutorial/appendix-c-codebase-map.md)
 - [Appendix D: Natural Language to Tool Mapping](tutorial/appendix-d-tool-mapping.md)
-
-### Operations
-- [Appendix E: API Keys, Rate Limits & Dashboard](tutorial/appendix-e-api-keys-rate-limits-dashboard.md)
-- [Appendix F: Tenant Admin & Fitness Configuration](tutorial/appendix-f-tenant-admin-fitness-config.md)
-- [Appendix G: SDK & CLI Usage Guide](tutorial/appendix-g-sdk-cli-usage.md)
-
-### Architecture
 - [Appendix H: Error Code Reference](tutorial/appendix-h-error-reference.md)
-- [Appendix I: Performance Characteristics & Benchmarks](tutorial/appendix-i-performance.md)
 
 ---
 
@@ -99,6 +98,20 @@ For developers working on authentication and security:
 4. Chapter 8 (Middleware)
 5. Chapter 15 (OAuth 2.0 Server)
 
+### Operations Path
+For developers managing production deployments:
+1. Chapter 27 (API Keys & Rate Limits)
+2. Chapter 28 (Tenant Admin)
+3. Chapter 30 (Performance)
+4. Chapter 25 (Deployment)
+
+### Tool Developer Path
+For developers adding new MCP tools:
+1. Chapter 12 (Tool Registry)
+2. Chapter 19 (Tools Guide)
+3. Chapter 31 (Adding New Tools)
+4. Chapter 14 (Type Generation)
+
 ### Full Stack Path
 Complete tutorial from start to finish - recommended for thorough understanding.
 
@@ -106,6 +119,6 @@ Complete tutorial from start to finish - recommended for thorough understanding.
 
 ## Summary
 
-**Total**: 26 Chapters + 1 Database Architecture Chapter + 9 Appendices
+**Total**: 31 Chapters + 5 Appendices
 **Focus**: Rust idioms, real code examples, progressive complexity
 **Code Citations**: All examples reference actual Pierre codebase with file:line numbers

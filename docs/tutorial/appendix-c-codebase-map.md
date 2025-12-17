@@ -66,11 +66,26 @@ Quick reference for navigating the Pierre codebase.
 - **src/a2a/auth.rs**: A2A authentication
 - **src/a2a/agent_card.rs**: Capability discovery
 - **src/a2a/client.rs**: A2A client implementation
+- **src/a2a_routes.rs**: HTTP endpoints for A2A protocol
+
+## Output Formatters
+
+- **src/formatters/mod.rs**: Output format abstraction layer
+  - **OutputFormat**: Enum for JSON (default) or TOON format selection
+  - **format_output()**: Serialize data to selected format
+  - **TOON**: Token-Oriented Object Notation (~40% token reduction for LLMs)
+
+## API Key Routes
+
+- **src/api_key_routes.rs**: HTTP endpoints for API key management
+  - Trial key requests
+  - API key status and listing
+  - User self-service key operations
 
 ## SDK (TypeScript)
 
 - **sdk/src/bridge.ts**: SDK bridge (stdio ↔ HTTP)
-- **sdk/src/types.ts**: Generated tool types (45 interfaces)
+- **sdk/src/types.ts**: Generated tool types (47 interfaces)
 - **sdk/src/secure-storage.ts**: OS keychain integration
 - **sdk/src/cli.ts**: CLI wrapper for MCP hosts
 

@@ -266,9 +266,9 @@ pub fn extract_tenant_id(&self, user: &crate::models::User) -> Result<Uuid> {
 }
 ```
 
-**Design decision**: Users have a `tenant_id` string field (not foreign key constraint) to support:
-- UUID-based tenant IDs: `"550e8400-e29b-41d4-a716-446655440000"`
-- Slug-based tenant IDs: `"acme-corp"` for vanity URLs
+**Note**: The `tenant_id` is stored as a string to support both formats:
+- UUID-based: `"550e8400-e29b-41d4-a716-446655440000"`
+- Slug-based: `"acme-corp"` for vanity URLs
 
 The platform attempts UUID parsing first, then falls back to slug lookup.
 

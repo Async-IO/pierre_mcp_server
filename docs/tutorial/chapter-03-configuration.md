@@ -55,10 +55,10 @@ export PIERRE_VDOT_ALGORITHM=daniels
 **Source**: `src/bin/pierre-mcp-server.rs` (implicit via dotenvy)
 
 ```rust
-use anyhow::Result;
+use crate::errors::AppResult;
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> AppResult<()> {
     // Load .envrc if present (development only)
     dotenvy::dotenv().ok();  // ← Silently ignores if file doesn't exist
 
@@ -538,10 +538,10 @@ use std::sync::OnceLock;
 static SERVER_CONFIG: OnceLock<ServerConfig> = OnceLock::new();
 
 /// Initialize global configuration (call once at startup)
-pub fn init_server_config() -> Result<()> {
+pub fn init_server_config() -> AppResult<()> {
     let config = ServerConfig::from_env()?;
     SERVER_CONFIG.set(config)
-        .map_err(|_| anyhow::anyhow!("Config already initialized"))?;
+        .map_err(|_| AppError::internal("Config already initialized"))?;
     Ok(())
 }
 

@@ -949,7 +949,7 @@ pub fn generate_client_credentials_token(
 }
 ```
 
-**Design decision**: Client credentials tokens use `sub: format!("client:{client_id}")` to distinguish them from user tokens. The prefix allows middleware to apply different authorization rules.
+**Note**: Client credentials tokens use `sub: format!("client:{client_id}")` to distinguish them from user tokens. The `client:` prefix allows middleware to apply different authorization rules for machine-to-machine vs user authentication.
 
 ## Web Application Security: Cookies and CSRF
 
@@ -1064,10 +1064,10 @@ impl CsrfTokenManager {
 }
 ```
 
-**Key design decisions**:
+**Implementation notes**:
 1. **User-scoped tokens**: Token validation requires matching user_id from JWT. Attacker cannot use victim's CSRF token even if stolen.
 2. **Cryptographic randomness**: 256-bit tokens (32 bytes) provide sufficient entropy to prevent brute force.
-3. **Short expiration**: 30-minute lifetime limits exposure window. JWT tokens last 24 hours, CSRF tokens expire much sooner.
+3. **Short expiration**: 30-minute lifetime limits exposure window. JWT tokens last 24 hours, CSRF tokens expire sooner.
 4. **In-memory storage**: HashMap provides fast lookups. For distributed systems, use Redis instead.
 
 #### CSRF Middleware Validation
