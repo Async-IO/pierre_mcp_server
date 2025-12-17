@@ -8,10 +8,22 @@
 //!
 //! Implementation of the `LlmProvider` trait for Groq's LPU-accelerated inference.
 //!
+//! ## Features
+//!
+//! - **Tool/Function Calling**: Full support via OpenAI-compatible tool calling API
+//! - **Streaming**: Real-time response streaming for better UX
+//! - **Fast Inference**: Groq's LPU provides low-latency responses
+//!
 //! ## Configuration
 //!
 //! Set the `GROQ_API_KEY` environment variable with your API key from
 //! Groq Console: <https://console.groq.com/keys>
+//!
+//! ## Rate Limits
+//!
+//! The free tier has a 12,000 tokens-per-minute (TPM) limit. For tool-heavy
+//! workflows with multiple iterations, consider using Gemini which has more
+//! generous rate limits. Set `PIERRE_LLM_PROVIDER=gemini` to switch.
 //!
 //! ## Supported Models
 //!
