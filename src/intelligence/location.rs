@@ -11,6 +11,7 @@
 use crate::constants::project::user_agent;
 use crate::errors::{AppError, AppResult};
 use crate::utils::http_client::shared_client;
+use crate::utils::route_timeout::geocoding_timeout_duration;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -101,7 +102,7 @@ impl LocationService {
     pub fn with_config(base_url: String, enabled: bool) -> Self {
         let client = Client::builder()
             .user_agent(user_agent())
-            .timeout(Duration::from_secs(10))
+            .timeout(geocoding_timeout_duration())
             .build()
             .unwrap_or_else(|e| {
                 warn!(

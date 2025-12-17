@@ -6,12 +6,13 @@
 
 use super::schema::{CreateMessageRequest, CreateMessageResult};
 use crate::errors::{AppError, AppResult};
+use crate::utils::route_timeout::mcp_sampling_timeout_duration;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::io::Stdout;
 use tokio::sync::{oneshot, Mutex, RwLock};
-use tokio::time::{timeout, Duration};
+use tokio::time::timeout;
 use tracing::{debug, warn};
 
 /// Type alias for pending request sender
@@ -58,7 +59,7 @@ impl SamplingPeer {
     /// Returns an error if:
     /// - Request serialization fails
     /// - Writing to stdout fails
-    /// - Response timeout occurs (30 seconds)
+    /// - Response timeout occurs (configurable via `ROUTE_TIMEOUT_MCP_SAMPLING_SECS`)
     /// - Client returns an error response
     pub async fn create_message(
         &self,
@@ -104,9 +105,15 @@ impl SamplingPeer {
         }
 
         // Wait for response with timeout
-        let response = timeout(Duration::from_secs(30), rx)
+        let timeout_duration = mcp_sampling_timeout_duration();
+        let response = timeout(timeout_duration, rx)
             .await
-            .map_err(|_| AppError::internal("Sampling request timed out after 30 seconds"))?
+            .map_err(|_| {
+                AppError::internal(format!(
+                    "Sampling request timed out after {} seconds",
+                    timeout_duration.as_secs()
+                ))
+            })?
             .map_err(|_| AppError::internal("Channel closed before receiving response"))?;
 
         // Parse response as CreateMessageResult
