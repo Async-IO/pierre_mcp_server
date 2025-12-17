@@ -196,6 +196,31 @@ export HTTP_CLIENT_RETRY_MAX_DELAY_MS="5000"
 export HTTP_CLIENT_RETRY_JITTER_ENABLED="true"
 
 # ============================================================================
+# PROVIDER RETRY CONFIGURATION - Exponential Backoff
+# ============================================================================
+# These settings control retry behavior for provider API calls (Strava, Garmin, etc.)
+# Uses exponential backoff with jitter to prevent thundering herd problems.
+
+# Maximum retry attempts (not counting initial attempt)
+# Valid range: 1-100, Default: 3
+export PIERRE_RETRY_MAX_ATTEMPTS="3"
+
+# Base delay for exponential backoff (milliseconds)
+# Delay doubles with each retry: 1000ms, 2000ms, 4000ms...
+# Valid range: 100-300000, Default: 1000
+export PIERRE_RETRY_BASE_DELAY_MS="1000"
+
+# Maximum delay between retries (milliseconds)
+# Caps the exponential growth to prevent excessive waits
+# Valid range: 1000-600000, Default: 30000
+export PIERRE_RETRY_MAX_DELAY_MS="30000"
+
+# Jitter factor (0.0 to 1.0) to randomize delays
+# Prevents synchronized retries across multiple clients
+# Valid range: 0.0-1.0, Default: 0.1
+export PIERRE_RETRY_JITTER_FACTOR="0.1"
+
+# ============================================================================
 # SSE (SERVER-SENT EVENTS) CONFIGURATION
 # ============================================================================
 
