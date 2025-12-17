@@ -214,7 +214,8 @@ async function navigateToAdminConfig(page: Page) {
   await navigateToTab(page, 'Configuration');
   await page.waitForSelector('h1:has-text("Configuration Management")', { timeout: 10000 });
   // Switch to Intelligence tab since mock data uses Intelligence categories
-  await page.getByRole('button', { name: 'Intelligence' }).click();
+  // Use locator chain: find button containing the Intelligence text
+  await page.locator('button:has-text("Intelligence")').click();
   await page.waitForTimeout(300);
 }
 
