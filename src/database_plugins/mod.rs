@@ -116,6 +116,9 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Update user's password hash
     async fn update_user_password(&self, user_id: Uuid, password_hash: &str) -> AppResult<()>;
 
+    /// Update user's display name
+    async fn update_user_display_name(&self, user_id: Uuid, display_name: &str) -> AppResult<User>;
+
     // ================================
     // User OAuth Tokens (Multi-Tenant)
     // ================================

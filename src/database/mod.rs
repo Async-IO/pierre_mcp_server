@@ -2267,6 +2267,10 @@ impl DatabaseProvider for Database {
         Self::update_user_password(self, user_id, password_hash).await
     }
 
+    async fn update_user_display_name(&self, user_id: Uuid, display_name: &str) -> AppResult<User> {
+        Self::update_user_display_name(self, user_id, display_name).await
+    }
+
     async fn upsert_user_profile(&self, user_id: Uuid, profile_data: Value) -> AppResult<()> {
         Self::upsert_user_profile_impl(self, user_id, profile_data).await
     }
