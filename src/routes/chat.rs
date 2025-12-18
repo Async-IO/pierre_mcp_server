@@ -47,6 +47,9 @@ use uuid::Uuid;
 /// Maximum number of tool call iterations before forcing a text response
 const MAX_TOOL_ITERATIONS: usize = 10;
 
+/// Default model to use when LLM provider is not configured
+const DEFAULT_FALLBACK_MODEL: &str = "llama-3.3-70b-versatile";
+
 // ============================================================================
 // Internal Types
 // ============================================================================
@@ -652,12 +655,15 @@ impl ChatRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
 
-        // Use provider's default model if none specified
-        let provider = Self::get_llm_provider()?;
-        let model = request
-            .model
-            .as_deref()
-            .unwrap_or_else(|| provider.default_model());
+        // Use provider's default model only if none specified (defers LLM init)
+        let model = request.model.as_ref().map_or_else(
+            || {
+                Self::get_llm_provider()
+                    .map(|p| p.default_model())
+                    .unwrap_or(DEFAULT_FALLBACK_MODEL)
+            },
+            |model_name| model_name.as_str(),
+        );
         let chat_manager = Self::create_chat_manager(&resources)?;
 
         let conv = chat_manager
