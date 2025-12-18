@@ -7,6 +7,8 @@ import { format } from 'date-fns';
 import { Button, Card, CardHeader, Badge, ConfirmDialog } from './ui';
 import { useAuth } from '../hooks/useAuth';
 import { apiService } from '../services/api';
+import A2AClientList from './A2AClientList';
+import CreateA2AClient from './CreateA2AClient';
 
 interface McpToken {
   id: string;
@@ -31,6 +33,7 @@ export default function MCPTokensTab() {
     name: string;
   } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showCreateA2AClient, setShowCreateA2AClient] = useState(false);
 
   const { data: tokensResponse, isLoading, error } = useQuery({
     queryKey: ['mcp-tokens'],
@@ -308,6 +311,24 @@ export default function MCPTokensTab() {
 Token: <your-token-here>`}
             </pre>
           </div>
+        </div>
+      </Card>
+
+      {/* Connected Apps Section */}
+      <Card>
+        <CardHeader
+          title="Connected Apps"
+          subtitle="Third-party applications authorized to access your fitness data via OAuth"
+        />
+        <div className="px-6 pb-6">
+          {showCreateA2AClient ? (
+            <CreateA2AClient
+              onSuccess={() => setShowCreateA2AClient(false)}
+              onCancel={() => setShowCreateA2AClient(false)}
+            />
+          ) : (
+            <A2AClientList onCreateClient={() => setShowCreateA2AClient(true)} />
+          )}
         </div>
       </Card>
 
