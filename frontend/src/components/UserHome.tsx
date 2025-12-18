@@ -5,7 +5,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 import { useAuth } from '../hooks/useAuth';
-import { Card, Button } from './ui';
+import { Card } from './ui';
 
 interface UserHomeProps {
   onNavigate: (tab: string) => void;
@@ -115,11 +115,6 @@ export default function UserHome({ onNavigate }: UserHomeProps) {
             </div>
             <p className="text-sm text-pierre-gray-500">Explore your fitness insights with AI</p>
           </div>
-        </div>
-        <div className="mt-4">
-          <Button variant="gradient" onClick={() => onNavigate('connections')}>
-            Connect a Provider
-          </Button>
         </div>
       </Card>
     </div>

@@ -91,7 +91,7 @@ export default function MCPTokensTab() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <div>
-            <h3 className="text-lg font-medium text-red-900">Failed to load MCP tokens</h3>
+            <h3 className="text-lg font-medium text-red-900">Failed to load tokens</h3>
             <p className="text-red-700 mt-1">
               {error instanceof Error ? error.message : 'An unknown error occurred'}
             </p>
@@ -143,7 +143,7 @@ export default function MCPTokensTab() {
       {/* Main Card */}
       <Card>
         <CardHeader
-          title="MCP Tokens"
+          title="Tokens"
           subtitle={`${activeTokens.length} active tokens for AI client connections`}
         />
 
@@ -155,7 +155,7 @@ export default function MCPTokensTab() {
             </Button>
           ) : (
             <div className="bg-pierre-gray-50 rounded-lg p-4 space-y-4">
-              <h4 className="font-medium text-pierre-gray-900">Create MCP Token</h4>
+              <h4 className="font-medium text-pierre-gray-900">Create Token</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-pierre-gray-700 mb-1">
@@ -206,7 +206,7 @@ export default function MCPTokensTab() {
         {tokens.length === 0 ? (
           <div className="text-center py-8 text-pierre-gray-500 px-6 pb-6">
             <div className="text-4xl mb-4">🔑</div>
-            <p className="text-lg mb-2">No MCP tokens yet</p>
+            <p className="text-lg mb-2">No tokens yet</p>
             <p>Create a token to connect AI clients like Claude Desktop or Cursor to Pierre</p>
           </div>
         ) : (
@@ -274,7 +274,7 @@ export default function MCPTokensTab() {
       <Card>
         <CardHeader
           title="Connect AI Clients"
-          subtitle="Use your MCP tokens to connect AI clients to Pierre"
+          subtitle="Use your tokens to connect AI clients to Pierre"
         />
         <div className="px-6 pb-6 space-y-4">
           <div className="bg-pierre-gray-50 rounded-lg p-4">
