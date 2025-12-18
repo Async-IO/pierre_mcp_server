@@ -1014,7 +1014,20 @@ impl OAuthService {
         provider: &str,
         expires_at: &chrono::DateTime<chrono::Utc>,
     ) -> AppResult<()> {
-        // Store notification in database
+        let notification_id = self
+            .store_oauth_notification(user_id, provider, expires_at)
+            .await?;
+        self.broadcast_oauth_notification(&notification_id, user_id, provider);
+        Ok(())
+    }
+
+    /// Store OAuth notification in database
+    async fn store_oauth_notification(
+        &self,
+        user_id: uuid::Uuid,
+        provider: &str,
+        expires_at: &chrono::DateTime<chrono::Utc>,
+    ) -> AppResult<String> {
         let notification_id = self
             .data
             .database()
@@ -1033,47 +1046,54 @@ impl OAuthService {
             notification_id, user_id, provider
         );
 
-        // Broadcast OAuth completion notification via WebSocket/SSE
-        if let Some(sender) = self.notifications.oauth_notification_sender() {
-            let notification = OAuthCompletedNotification::new(
-                provider.to_owned(),
-                true,
-                format!("{provider} connected successfully"),
-                Some(user_id.to_string()),
-            );
+        Ok(notification_id)
+    }
 
-            match sender.send(notification) {
-                Ok(receiver_count) => {
-                    info!(
-                        notification_id = %notification_id,
-                        user_id = %user_id,
-                        provider = %provider,
-                        receiver_count = %receiver_count,
-                        "OAuth notification broadcast to {} receivers",
-                        receiver_count
-                    );
-                }
-                Err(e) => {
-                    // No active receivers is not an error - user may not have websocket open
-                    debug!(
-                        notification_id = %notification_id,
-                        user_id = %user_id,
-                        provider = %provider,
-                        error = %e,
-                        "No active receivers for OAuth notification (this is normal if no MCP clients connected)"
-                    );
-                }
-            }
-        } else {
+    /// Broadcast OAuth completion notification via WebSocket/SSE
+    fn broadcast_oauth_notification(
+        &self,
+        notification_id: &str,
+        user_id: uuid::Uuid,
+        provider: &str,
+    ) {
+        let Some(sender) = self.notifications.oauth_notification_sender() else {
             debug!(
                 notification_id = %notification_id,
                 user_id = %user_id,
                 provider = %provider,
                 "OAuth notification sender not configured"
             );
-        }
+            return;
+        };
 
-        Ok(())
+        let notification = OAuthCompletedNotification::new(
+            provider.to_owned(),
+            true,
+            format!("{provider} connected successfully"),
+            Some(user_id.to_string()),
+        );
+
+        match sender.send(notification) {
+            Ok(receiver_count) => {
+                info!(
+                    notification_id = %notification_id,
+                    user_id = %user_id,
+                    provider = %provider,
+                    receiver_count = %receiver_count,
+                    "OAuth notification broadcast to {} receivers",
+                    receiver_count
+                );
+            }
+            Err(e) => {
+                debug!(
+                    notification_id = %notification_id,
+                    user_id = %user_id,
+                    provider = %provider,
+                    error = %e,
+                    "No active receivers for OAuth notification"
+                );
+            }
+        }
     }
 
     /// Build OAuth token data for bridge notification
