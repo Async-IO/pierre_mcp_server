@@ -10,33 +10,38 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const backendUrl = env.VITE_BACKEND_URL || 'http://localhost:8081'
 
+  // Disable proxy during E2E tests since Playwright mocks all API routes
+  const isE2EMode = process.env.E2E_TEST === 'true'
+
   return {
     plugins: [react()],
-    server: {
-      proxy: {
-        '/oauth': {
-          target: backendUrl,
-          changeOrigin: true,
+    server: isE2EMode
+      ? {}
+      : {
+          proxy: {
+            '/oauth': {
+              target: backendUrl,
+              changeOrigin: true,
+            },
+            '/api': {
+              target: backendUrl,
+              changeOrigin: true,
+            },
+            '/admin': {
+              target: backendUrl,
+              changeOrigin: true,
+            },
+            '/a2a': {
+              target: backendUrl,
+              changeOrigin: true,
+            },
+            '/ws': {
+              target: backendUrl,
+              ws: true,
+              changeOrigin: true,
+            },
+          },
         },
-        '/api': {
-          target: backendUrl,
-          changeOrigin: true,
-        },
-        '/admin': {
-          target: backendUrl,
-          changeOrigin: true,
-        },
-        '/a2a': {
-          target: backendUrl,
-          changeOrigin: true,
-        },
-        '/ws': {
-          target: backendUrl,
-          ws: true,
-          changeOrigin: true,
-        },
-      },
-    },
     test: {
       globals: true,
       environment: 'jsdom',
