@@ -804,7 +804,7 @@ impl DatabaseProvider for PostgresDatabase {
             return Err(AppError::not_found(format!("User with ID: {user_id}")));
         }
 
-        self.get_user_by_id(user_id)
+        self.get_user(user_id)
             .await?
             .ok_or_else(|| AppError::not_found("User after display name update"))
     }
