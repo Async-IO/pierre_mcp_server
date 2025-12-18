@@ -32,8 +32,8 @@
 use crate::constants::oauth_providers;
 use crate::errors::AppResult;
 use crate::models::{
-    Activity, Athlete, PersonalRecord, PrMetric, SleepSession, SleepStage, SleepStageType,
-    SportType, Stats,
+    Activity, ActivityBuilder, Athlete, PersonalRecord, PrMetric, SleepSession, SleepStage,
+    SleepStageType, SportType, Stats,
 };
 use crate::pagination::{Cursor, CursorPage, PaginationParams};
 use crate::providers::core::{
@@ -44,6 +44,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
+use std::cmp::Reverse;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
@@ -153,7 +154,7 @@ impl SyntheticProvider {
         // Build activity index for O(1) lookup by ID
         let mut index = HashMap::new();
         for activity in &activities {
-            index.insert(activity.id.clone(), activity.clone());
+            index.insert(activity.id().to_owned(), activity.clone());
         }
 
         Self {
@@ -503,55 +504,31 @@ impl SyntheticProvider {
             // Calories estimation
             let calories = Some(rng.gen_range(150..800));
 
-            activities.push(Activity {
-                id: format!("synthetic_activity_{}_{}", seed_fingerprint(rng), i),
-                name: format!("{} #{}", name, i + 1),
-                sport_type,
-                start_date,
-                duration_seconds,
-                distance_meters,
-                elevation_gain,
-                average_heart_rate,
-                max_heart_rate,
-                average_speed,
-                max_speed,
-                calories,
-                steps: None,
-                heart_rate_zones: None,
-                average_power: None,
-                max_power: None,
-                normalized_power: None,
-                power_zones: None,
-                ftp: None,
-                average_cadence: None,
-                max_cadence: None,
-                hrv_score: None,
-                recovery_heart_rate: None,
-                temperature: Some(rng.gen_range(10.0..30.0)),
-                humidity: Some(rng.gen_range(30.0..80.0)),
-                average_altitude: None,
-                wind_speed: None,
-                ground_contact_time: None,
-                vertical_oscillation: None,
-                stride_length: None,
-                running_power: None,
-                breathing_rate: None,
-                spo2: None,
-                training_stress_score: None,
-                intensity_factor: None,
-                suffer_score: None,
-                time_series_data: None,
-                start_latitude: Some(45.5017 + rng.gen_range(-0.1..0.1)),
-                start_longitude: Some(-73.5673 + rng.gen_range(-0.1..0.1)),
-                city: Some("Montreal".to_owned()),
-                region: Some("Quebec".to_owned()),
-                country: Some("Canada".to_owned()),
-                trail_name: None,
-                provider: oauth_providers::SYNTHETIC.to_owned(),
-                workout_type: None,
-                sport_type_detail: None,
-                segment_efforts: None,
-            });
+            activities.push(
+                ActivityBuilder::new(
+                    format!("synthetic_activity_{}_{}", seed_fingerprint(rng), i),
+                    format!("{} #{}", name, i + 1),
+                    sport_type,
+                    start_date,
+                    duration_seconds,
+                    oauth_providers::SYNTHETIC,
+                )
+                .distance_meters_opt(distance_meters)
+                .elevation_gain_opt(elevation_gain)
+                .average_heart_rate_opt(average_heart_rate)
+                .max_heart_rate_opt(max_heart_rate)
+                .average_speed_opt(average_speed)
+                .max_speed_opt(max_speed)
+                .calories_opt(calories)
+                .temperature(rng.gen_range(10.0..30.0))
+                .humidity(rng.gen_range(30.0..80.0))
+                .start_latitude(45.5017 + rng.gen_range(-0.1..0.1))
+                .start_longitude(-73.5673 + rng.gen_range(-0.1..0.1))
+                .city("Montreal".to_owned())
+                .region("Quebec".to_owned())
+                .country("Canada".to_owned())
+                .build(),
+            );
         }
 
         activities
@@ -643,7 +620,7 @@ impl SyntheticProvider {
                 provider: oauth_providers::SYNTHETIC.to_owned(),
                 details: "RwLock poisoned: index lock".to_owned(),
             })?
-            .insert(activity.id.clone(), activity.clone());
+            .insert(activity.id().to_owned(), activity.clone());
 
         self.activities
             .write()
@@ -678,7 +655,7 @@ impl SyntheticProvider {
 
             index.clear();
             for activity in &new_activities {
-                index.insert(activity.id.clone(), activity.clone());
+                index.insert(activity.id().to_owned(), activity.clone());
             }
         } // Drop index lock here
 
@@ -732,9 +709,12 @@ impl SyntheticProvider {
             #[allow(clippy::cast_possible_truncation)]
             let total_activities = activities.len() as u64;
 
-            let total_distance = activities.iter().filter_map(|a| a.distance_meters).sum();
-            let total_duration = activities.iter().map(|a| a.duration_seconds).sum();
-            let total_elevation_gain = activities.iter().filter_map(|a| a.elevation_gain).sum();
+            let total_distance = activities
+                .iter()
+                .filter_map(Activity::distance_meters)
+                .sum();
+            let total_duration = activities.iter().map(Activity::duration_seconds).sum();
+            let total_elevation_gain = activities.iter().filter_map(Activity::elevation_gain).sum();
             drop(activities);
 
             (
@@ -772,99 +752,99 @@ impl SyntheticProvider {
         for activity in &activities_snapshot {
             // Fastest pace (lowest seconds per meter)
             if let (Some(distance), true) =
-                (activity.distance_meters, activity.duration_seconds > 0)
+                (activity.distance_meters(), activity.duration_seconds() > 0)
             {
                 if distance > 0.0 {
                     // Duration in seconds, precision loss acceptable for pace calculation
                     #[allow(clippy::cast_precision_loss)]
-                    let pace_sec_per_meter = activity.duration_seconds as f64 / distance;
+                    let pace_sec_per_meter = activity.duration_seconds() as f64 / distance;
 
                     let entry =
                         records
                             .entry(PrMetric::FastestPace)
                             .or_insert_with(|| PersonalRecord {
-                                activity_id: activity.id.clone(),
+                                activity_id: activity.id().to_owned(),
                                 metric: PrMetric::FastestPace,
                                 value: pace_sec_per_meter,
-                                date: activity.start_date,
+                                date: activity.start_date(),
                             });
 
                     if pace_sec_per_meter < entry.value {
                         *entry = PersonalRecord {
-                            activity_id: activity.id.clone(),
+                            activity_id: activity.id().to_owned(),
                             metric: PrMetric::FastestPace,
                             value: pace_sec_per_meter,
-                            date: activity.start_date,
+                            date: activity.start_date(),
                         };
                     }
                 }
             }
 
             // Longest distance
-            if let Some(distance) = activity.distance_meters {
+            if let Some(distance) = activity.distance_meters() {
                 let entry =
                     records
                         .entry(PrMetric::LongestDistance)
                         .or_insert_with(|| PersonalRecord {
-                            activity_id: activity.id.clone(),
+                            activity_id: activity.id().to_owned(),
                             metric: PrMetric::LongestDistance,
                             value: distance,
-                            date: activity.start_date,
+                            date: activity.start_date(),
                         });
 
                 if distance > entry.value {
                     *entry = PersonalRecord {
-                        activity_id: activity.id.clone(),
+                        activity_id: activity.id().to_owned(),
                         metric: PrMetric::LongestDistance,
                         value: distance,
-                        date: activity.start_date,
+                        date: activity.start_date(),
                     };
                 }
             }
 
             // Highest elevation
-            if let Some(elevation) = activity.elevation_gain {
+            if let Some(elevation) = activity.elevation_gain() {
                 let entry = records
                     .entry(PrMetric::HighestElevation)
                     .or_insert_with(|| PersonalRecord {
-                        activity_id: activity.id.clone(),
+                        activity_id: activity.id().to_owned(),
                         metric: PrMetric::HighestElevation,
                         value: elevation,
-                        date: activity.start_date,
+                        date: activity.start_date(),
                     });
 
                 if elevation > entry.value {
                     *entry = PersonalRecord {
-                        activity_id: activity.id.clone(),
+                        activity_id: activity.id().to_owned(),
                         metric: PrMetric::HighestElevation,
                         value: elevation,
-                        date: activity.start_date,
+                        date: activity.start_date(),
                     };
                 }
             }
 
             // Fastest time (for any activity)
-            if activity.duration_seconds > 0 {
+            if activity.duration_seconds() > 0 {
                 // Duration in seconds, precision loss acceptable for time comparison
                 #[allow(clippy::cast_precision_loss)]
-                let duration = activity.duration_seconds as f64;
+                let duration = activity.duration_seconds() as f64;
 
                 let entry =
                     records
                         .entry(PrMetric::FastestTime)
                         .or_insert_with(|| PersonalRecord {
-                            activity_id: activity.id.clone(),
+                            activity_id: activity.id().to_owned(),
                             metric: PrMetric::FastestTime,
                             value: duration,
-                            date: activity.start_date,
+                            date: activity.start_date(),
                         });
 
                 if duration < entry.value {
                     *entry = PersonalRecord {
-                        activity_id: activity.id.clone(),
+                        activity_id: activity.id().to_owned(),
                         metric: PrMetric::FastestTime,
                         value: duration,
-                        date: activity.start_date,
+                        date: activity.start_date(),
                     };
                 }
             }
@@ -947,17 +927,17 @@ impl FitnessProvider for SyntheticProvider {
         let limit = params.limit.unwrap_or(30);
 
         // Sort by start_date descending (most recent first)
-        sorted.sort_by(|a, b| b.start_date.cmp(&a.start_date));
+        sorted.sort_by_key(|b| Reverse(b.start_date()));
 
         // Apply time filtering if before/after specified
         if let Some(after_ts) = params.after {
             if let Some(after_dt) = chrono::DateTime::from_timestamp(after_ts, 0) {
-                sorted.retain(|a| a.start_date >= after_dt);
+                sorted.retain(|a| a.start_date() >= after_dt);
             }
         }
         if let Some(before_ts) = params.before {
             if let Some(before_dt) = chrono::DateTime::from_timestamp(before_ts, 0) {
-                sorted.retain(|a| a.start_date < before_dt);
+                sorted.retain(|a| a.start_date() < before_dt);
             }
         }
 
@@ -993,14 +973,14 @@ impl FitnessProvider for SyntheticProvider {
         }; // Drop activities lock here
 
         // Sort by start_date descending (most recent first)
-        sorted.sort_by(|a, b| b.start_date.cmp(&a.start_date));
+        sorted.sort_by_key(|b| Reverse(b.start_date()));
 
         // Find starting position based on cursor
         let start_index = params.cursor.as_ref().map_or(0, |cursor| {
             cursor.decode().map_or(0, |(_timestamp, id)| {
                 sorted
                     .iter()
-                    .position(|a| a.id == id)
+                    .position(|a| a.id() == id)
                     .map_or(0, |pos| pos + 1)
             })
         });
@@ -1018,7 +998,7 @@ impl FitnessProvider for SyntheticProvider {
         // Create next cursor using the last item's timestamp and ID
         let next_cursor = if has_more && !items.is_empty() {
             let last_item = &items[items.len() - 1];
-            Some(Cursor::new(last_item.start_date, &last_item.id))
+            Some(Cursor::new(last_item.start_date(), last_item.id()))
         } else {
             None
         };

@@ -112,10 +112,10 @@ impl PatternDetector {
         let mut hour_counts: HashMap<u32, u32> = HashMap::new();
 
         for activity in activities {
-            let weekday = activity.start_date.weekday();
+            let weekday = activity.start_date().weekday();
             *day_counts.entry(weekday).or_insert(0) += 1;
 
-            let hour = activity.start_date.hour();
+            let hour = activity.start_date().hour();
             *hour_counts.entry(hour).or_insert(0) += 1;
         }
 
@@ -348,7 +348,7 @@ impl PatternDetector {
             return 1.0;
         }
 
-        let mut dates: Vec<_> = activities.iter().map(|a| a.start_date).collect();
+        let mut dates: Vec<_> = activities.iter().map(Activity::start_date).collect();
         dates.sort();
 
         #[allow(clippy::cast_precision_loss)]
@@ -361,14 +361,14 @@ impl PatternDetector {
 
     fn is_hard_activity(activity: &Activity) -> bool {
         // Classify as hard if: high HR, long duration, or high speed
-        let high_hr = activity.average_heart_rate.is_some_and(|hr| hr > 150);
+        let high_hr = activity.average_heart_rate().is_some_and(|hr| hr > 150);
 
-        let long_duration = activity.duration_seconds > 3600; // >1 hour
+        let long_duration = activity.duration_seconds() > 3600; // >1 hour
 
         #[allow(clippy::cast_precision_loss)]
         let high_speed = activity
-            .distance_meters
-            .is_some_and(|d| (d / activity.duration_seconds as f64) > 3.5); // >3.5 m/s (~4:45 min/km)
+            .distance_meters()
+            .is_some_and(|d| (d / activity.duration_seconds() as f64) > 3.5); // >3.5 m/s (~4:45 min/km)
 
         high_hr || (long_duration && high_speed)
     }
@@ -431,12 +431,12 @@ impl PatternDetector {
 
         let avg_hr_first: Vec<u32> = first_third
             .iter()
-            .filter_map(|a| a.average_heart_rate)
+            .filter_map(Activity::average_heart_rate)
             .collect();
 
         let avg_hr_last: Vec<u32> = last_third
             .iter()
-            .filter_map(|a| a.average_heart_rate)
+            .filter_map(Activity::average_heart_rate)
             .collect();
 
         if avg_hr_first.is_empty() || avg_hr_last.is_empty() {
@@ -480,8 +480,8 @@ impl PatternDetector {
         let paces: Vec<f64> = activities
             .iter()
             .filter_map(|a| {
-                let distance = a.distance_meters?;
-                let duration = a.duration_seconds;
+                let distance = a.distance_meters()?;
+                let duration = a.duration_seconds();
                 #[allow(clippy::cast_precision_loss)]
                 if distance > 0.0 && duration > 0 {
                     Some(duration as f64 / distance) // seconds per meter
@@ -526,17 +526,17 @@ impl PatternDetector {
         }
 
         // Safe: we just checked activities is not empty
-        let Some(first_date) = activities.iter().map(|a| a.start_date).min() else {
+        let Some(first_date) = activities.iter().map(Activity::start_date).min() else {
             return Vec::new();
         };
 
         for activity in activities {
-            let days_since_start = (activity.start_date - first_date).num_days();
+            let days_since_start = (activity.start_date() - first_date).num_days();
             #[allow(clippy::cast_possible_truncation)]
             #[allow(clippy::cast_sign_loss)]
             let week_num = (days_since_start / 7) as u32;
 
-            let distance_km = activity.distance_meters.unwrap_or(0.0) / 1000.0;
+            let distance_km = activity.distance_meters().unwrap_or(0.0) / 1000.0;
             *weekly_volumes.entry(week_num).or_insert(0.0) += distance_km;
         }
 

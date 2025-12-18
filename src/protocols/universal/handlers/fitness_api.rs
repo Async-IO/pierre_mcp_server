@@ -48,12 +48,12 @@ pub struct ActivitySummary {
 impl From<&Activity> for ActivitySummary {
     fn from(activity: &Activity) -> Self {
         Self {
-            id: activity.id.clone(),
-            name: activity.name.clone(),
-            sport_type: activity.sport_type.clone(),
-            start_date: activity.start_date.to_rfc3339(),
-            distance_meters: activity.distance_meters.unwrap_or(0.0),
-            duration_seconds: activity.duration_seconds,
+            id: activity.id().to_owned(),
+            name: activity.name().to_owned(),
+            sport_type: activity.sport_type().clone(),
+            start_date: activity.start_date().to_rfc3339(),
+            distance_meters: activity.distance_meters().unwrap_or(0.0),
+            duration_seconds: activity.duration_seconds(),
         }
     }
 }
@@ -325,7 +325,7 @@ fn filter_activities_by_sport_type(
                 .into_iter()
                 .filter(|a| {
                     // Serialize sport_type to JSON and compare case-insensitively
-                    let Ok(v) = to_value(&a.sport_type) else {
+                    let Ok(v) = to_value(a.sport_type()) else {
                         return false;
                     };
 

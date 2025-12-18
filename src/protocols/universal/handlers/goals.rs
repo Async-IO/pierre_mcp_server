@@ -658,7 +658,7 @@ fn calculate_training_history_weeks(activities: &[Activity], min_activities: usi
     }
 
     // Find earliest and latest activity dates
-    let mut dates: Vec<DateTime<Utc>> = activities.iter().map(|a| a.start_date).collect();
+    let mut dates: Vec<DateTime<Utc>> = activities.iter().map(Activity::start_date).collect();
     dates.sort();
 
     if let (Some(first), Some(last)) = (dates.first(), dates.last()) {
@@ -689,7 +689,7 @@ fn analyze_distance_goal_feasibility(
     // Calculate average distance per activity in last 30 days
     let recent_total_distance: f64 = activities
         .iter()
-        .filter_map(|a| a.distance_meters)
+        .filter_map(Activity::distance_meters)
         .sum::<f64>()
         / METERS_PER_KILOMETER;
 
@@ -748,7 +748,7 @@ fn analyze_duration_goal_feasibility(
         );
     }
 
-    let total_duration: u64 = activities.iter().map(|a| a.duration_seconds).sum();
+    let total_duration: u64 = activities.iter().map(Activity::duration_seconds).sum();
     let current_hours = match u32::try_from(total_duration.min(u64::from(u32::MAX))) {
         Ok(duration_u32) => f64::from(duration_u32) / SECONDS_PER_HOUR_F64,
         Err(e) => {
@@ -815,7 +815,7 @@ fn calculate_training_history_months(activities: &[Activity]) -> i32 {
     }
 
     // Find earliest activity date
-    let Some(earliest_date) = activities.iter().map(|a| a.start_date).min() else {
+    let Some(earliest_date) = activities.iter().map(Activity::start_date).min() else {
         warn!("No activities found for training history calculation, returning 0 months");
         return 0;
     };
@@ -843,7 +843,7 @@ fn detect_primary_sport(activities: &[Activity]) -> Vec<String> {
     // Count activities by sport type
     let mut sport_counts: HashMap<String, usize> = HashMap::new();
     for activity in activities {
-        let sport_name = format!("{:?}", activity.sport_type);
+        let sport_name = format!("{:?}", activity.sport_type());
         *sport_counts.entry(sport_name).or_insert(0) += 1;
     }
 
@@ -979,13 +979,13 @@ fn calculate_current_progress(goal_type: &str, activities: &[&Activity]) -> (f64
         "distance" => {
             let total_distance: f64 = activities
                 .iter()
-                .filter_map(|a| a.distance_meters)
+                .filter_map(|a| a.distance_meters())
                 .sum::<f64>()
                 / METERS_PER_KILOMETER;
             (total_distance, "km")
         }
         "duration" => {
-            let total_duration: u64 = activities.iter().map(|a| a.duration_seconds).sum();
+            let total_duration: u64 = activities.iter().map(|a| a.duration_seconds()).sum();
             let hours = match u32::try_from(total_duration.min(u64::from(u32::MAX))) {
                 Ok(duration_u32) => f64::from(duration_u32) / SECONDS_PER_HOUR_F64,
                 Err(e) => {
@@ -1060,7 +1060,7 @@ fn build_progress_response(params: &ProgressResponseParams) -> UniversalResponse
             "timeframe": params.details.timeframe,
             "summary": {
                 "total_activities": params.relevant_activities.len(),
-                "total_distance_km": params.relevant_activities.iter().filter_map(|a| a.distance_meters).sum::<f64>() / METERS_PER_KILOMETER,
+                "total_distance_km": params.relevant_activities.iter().filter_map(|a| a.distance_meters()).sum::<f64>() / METERS_PER_KILOMETER,
                 "total_duration_hours": match u32::try_from(params.total_duration.min(u64::from(u32::MAX))) {
                     Ok(duration_u32) => f64::from(duration_u32) / SECONDS_PER_HOUR_F64,
                     Err(e) => {
@@ -1193,7 +1193,7 @@ fn filter_relevant_activities(
         |created| {
             activities
                 .iter()
-                .filter(|a| a.start_date > created)
+                .filter(|a| a.start_date() > created)
                 .collect::<Vec<_>>()
         },
     )
@@ -1288,7 +1288,10 @@ pub fn handle_track_progress(
             details.goal_target,
         );
 
-        let total_duration: u64 = relevant_activities.iter().map(|a| a.duration_seconds).sum();
+        let total_duration: u64 = relevant_activities
+            .iter()
+            .map(|a| a.duration_seconds())
+            .sum();
         let projected_completion =
             calculate_projected_completion(current_value, details.goal_target, details.created_at);
 

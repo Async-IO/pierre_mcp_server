@@ -105,10 +105,11 @@ if [ -f "$PROJECT_ROOT/.git/ccfw_mode" ] || ! command -v gh &> /dev/null; then
     echo ""
 
     # CCFW gets strict clippy validation since they can't easily check CI
+    # Uses Cargo.toml [lints.clippy] configuration for lint levels
     echo "🔬 Running STRICT clippy validation..."
     echo ""
     cd "$PROJECT_ROOT"
-    if ! cargo clippy --all-targets --all-features --quiet -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery; then
+    if ! cargo clippy --all-targets --all-features --quiet; then
         echo ""
         echo "❌ Strict clippy validation failed!"
         echo ""

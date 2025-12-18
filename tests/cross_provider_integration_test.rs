@@ -31,59 +31,36 @@ mod common;
 
 /// Create test activities for the synthetic provider
 fn create_test_activities(count: usize) -> Vec<Activity> {
+    use pierre_mcp_server::models::ActivityBuilder;
+
     let mut activities = Vec::with_capacity(count);
     let base_date = Utc::now();
 
     for i in 0..count {
-        activities.push(Activity {
-            id: format!("activity_{i}"),
-            name: format!("Test Run {}", i + 1),
-            sport_type: SportType::Run,
-            start_date: base_date - chrono::Duration::days(i as i64),
-            duration_seconds: 3600 + (i as u64 * 60),
-            distance_meters: Some(10000.0 + (i as f64 * 500.0)),
-            elevation_gain: Some(100.0 + (i as f64 * 10.0)),
-            average_heart_rate: Some(145 + (i as u32 % 20)),
-            max_heart_rate: Some(175 + (i as u32 % 10)),
-            average_speed: Some(2.8 + (i as f64 * 0.1)),
-            max_speed: Some(3.5 + (i as f64 * 0.1)),
-            calories: Some(600 + (i as u32 * 50)),
-            steps: None,
-            heart_rate_zones: None,
-            average_power: None,
-            max_power: None,
-            normalized_power: None,
-            power_zones: None,
-            ftp: None,
-            average_cadence: Some(170 + (i as u32 % 10)),
-            max_cadence: None,
-            hrv_score: None,
-            recovery_heart_rate: None,
-            temperature: None,
-            humidity: None,
-            average_altitude: None,
-            wind_speed: None,
-            ground_contact_time: None,
-            vertical_oscillation: None,
-            stride_length: None,
-            running_power: None,
-            breathing_rate: None,
-            spo2: None,
-            training_stress_score: None,
-            intensity_factor: None,
-            suffer_score: None,
-            time_series_data: None,
-            start_latitude: None,
-            start_longitude: None,
-            city: None,
-            region: None,
-            country: None,
-            trail_name: None,
-            workout_type: None,
-            sport_type_detail: None,
-            segment_efforts: None,
-            provider: "synthetic".to_owned(),
-        });
+        #[allow(
+            clippy::cast_precision_loss,
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss
+        )]
+        let activity = ActivityBuilder::new(
+            format!("activity_{i}"),
+            format!("Test Run {}", i + 1),
+            SportType::Run,
+            base_date - chrono::Duration::days(i as i64),
+            3600 + (i as u64 * 60),
+            "synthetic",
+        )
+        .distance_meters(10000.0 + (i as f64 * 500.0))
+        .elevation_gain(100.0 + (i as f64 * 10.0))
+        .average_heart_rate(145 + (i as u32 % 20))
+        .max_heart_rate(175 + (i as u32 % 10))
+        .average_speed(2.8 + (i as f64 * 0.1))
+        .max_speed(3.5 + (i as f64 * 0.1))
+        .calories(600 + (i as u32 * 50))
+        .average_cadence(170 + (i as u32 % 10))
+        .build();
+
+        activities.push(activity);
     }
 
     activities
@@ -353,55 +330,25 @@ fn create_activities_with_duration(count: usize, hours_per_day: f64) -> Vec<Acti
     let duration_seconds = (hours_per_day * 3600.0) as u64;
 
     for i in 0..count {
-        activities.push(Activity {
-            id: format!("intensity_test_{i}"),
-            name: format!("Workout {}", i + 1),
-            sport_type: SportType::Run,
-            start_date: base_date - chrono::Duration::days(i as i64),
+        use pierre_mcp_server::models::ActivityBuilder;
+
+        #[allow(clippy::cast_sign_loss)]
+        let activity = ActivityBuilder::new(
+            format!("intensity_test_{i}"),
+            format!("Workout {}", i + 1),
+            SportType::Run,
+            base_date - chrono::Duration::days(i as i64),
             duration_seconds,
-            distance_meters: Some(10000.0),
-            elevation_gain: Some(100.0),
-            average_heart_rate: None, // No HR for volume-based inference
-            max_heart_rate: None,
-            average_speed: Some(3.0),
-            max_speed: Some(4.0),
-            calories: Some(500),
-            steps: None,
-            heart_rate_zones: None,
-            average_power: None,
-            max_power: None,
-            normalized_power: None,
-            power_zones: None,
-            ftp: None,
-            average_cadence: None,
-            max_cadence: None,
-            hrv_score: None,
-            recovery_heart_rate: None,
-            temperature: None,
-            humidity: None,
-            average_altitude: None,
-            wind_speed: None,
-            ground_contact_time: None,
-            vertical_oscillation: None,
-            stride_length: None,
-            running_power: None,
-            breathing_rate: None,
-            spo2: None,
-            training_stress_score: None,
-            intensity_factor: None,
-            suffer_score: None,
-            time_series_data: None,
-            start_latitude: None,
-            start_longitude: None,
-            city: None,
-            region: None,
-            country: None,
-            trail_name: None,
-            workout_type: None,
-            sport_type_detail: None,
-            segment_efforts: None,
-            provider: "synthetic".to_owned(),
-        });
+            "synthetic",
+        )
+        .distance_meters(10000.0)
+        .elevation_gain(100.0)
+        .average_speed(3.0)
+        .max_speed(4.0)
+        .calories(500)
+        .build();
+
+        activities.push(activity);
     }
 
     activities
@@ -413,55 +360,27 @@ fn create_activities_with_heart_rate(count: usize, avg_hr: u32) -> Vec<Activity>
     let base_date = Utc::now();
 
     for i in 0..count {
-        activities.push(Activity {
-            id: format!("hr_test_{i}"),
-            name: format!("HR Workout {}", i + 1),
-            sport_type: SportType::Run,
-            start_date: base_date - chrono::Duration::days(i as i64),
-            duration_seconds: 1800, // 30 min - low volume
-            distance_meters: Some(5000.0),
-            elevation_gain: Some(50.0),
-            average_heart_rate: Some(avg_hr),
-            max_heart_rate: Some(avg_hr + 20),
-            average_speed: Some(2.8),
-            max_speed: Some(3.5),
-            calories: Some(300),
-            steps: None,
-            heart_rate_zones: None,
-            average_power: None,
-            max_power: None,
-            normalized_power: None,
-            power_zones: None,
-            ftp: None,
-            average_cadence: None,
-            max_cadence: None,
-            hrv_score: None,
-            recovery_heart_rate: None,
-            temperature: None,
-            humidity: None,
-            average_altitude: None,
-            wind_speed: None,
-            ground_contact_time: None,
-            vertical_oscillation: None,
-            stride_length: None,
-            running_power: None,
-            breathing_rate: None,
-            spo2: None,
-            training_stress_score: None,
-            intensity_factor: None,
-            suffer_score: None,
-            time_series_data: None,
-            start_latitude: None,
-            start_longitude: None,
-            city: None,
-            region: None,
-            country: None,
-            trail_name: None,
-            workout_type: None,
-            sport_type_detail: None,
-            segment_efforts: None,
-            provider: "synthetic".to_owned(),
-        });
+        use pierre_mcp_server::models::ActivityBuilder;
+
+        #[allow(clippy::cast_sign_loss)]
+        let activity = ActivityBuilder::new(
+            format!("hr_test_{i}"),
+            format!("HR Workout {}", i + 1),
+            SportType::Run,
+            base_date - chrono::Duration::days(i as i64),
+            1800, // 30 min - low volume
+            "synthetic",
+        )
+        .distance_meters(5000.0)
+        .elevation_gain(50.0)
+        .average_heart_rate(avg_hr)
+        .max_heart_rate(avg_hr + 20)
+        .average_speed(2.8)
+        .max_speed(3.5)
+        .calories(300)
+        .build();
+
+        activities.push(activity);
     }
 
     activities

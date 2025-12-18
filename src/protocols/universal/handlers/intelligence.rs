@@ -480,10 +480,10 @@ async fn fetch_and_calculate_metrics(
         params_obj.insert(
             "activity".to_owned(),
             serde_json::json!({
-                "distance": activity.distance_meters,
-                "duration": activity.duration_seconds,
-                "elevation_gain": activity.elevation_gain,
-                "average_heart_rate": activity.average_heart_rate,
+                "distance": activity.distance_meters(),
+                "duration": activity.duration_seconds(),
+                "elevation_gain": activity.elevation_gain(),
+                "average_heart_rate": activity.average_heart_rate(),
             }),
         );
     } else {
@@ -559,7 +559,7 @@ fn generate_activity_insights(activity: &Activity) -> (Vec<String>, Vec<&'static
     let mut recommendations = Vec::new();
 
     // Analyze distance
-    if let Some(distance) = activity.distance_meters {
+    if let Some(distance) = activity.distance_meters() {
         let km = distance / METERS_PER_KILOMETER;
         insights.push(format!("Activity covered {km:.2} km"));
         if km > ACHIEVEMENT_DISTANCE_THRESHOLD_KM {
@@ -568,7 +568,7 @@ fn generate_activity_insights(activity: &Activity) -> (Vec<String>, Vec<&'static
     }
 
     // Analyze elevation
-    if let Some(elevation) = activity.elevation_gain {
+    if let Some(elevation) = activity.elevation_gain() {
         insights.push(format!("Total elevation gain: {elevation:.0} meters"));
         if elevation > ACHIEVEMENT_ELEVATION_THRESHOLD_M {
             recommendations.push("Significant elevation - consider targeted hill training");
@@ -576,7 +576,7 @@ fn generate_activity_insights(activity: &Activity) -> (Vec<String>, Vec<&'static
     }
 
     // Analyze heart rate
-    if let Some(avg_hr) = activity.average_heart_rate {
+    if let Some(avg_hr) = activity.average_heart_rate() {
         insights.push(format!("Average heart rate: {avg_hr} bpm"));
         if avg_hr > HIGH_INTENSITY_HR_THRESHOLD {
             recommendations.push("High-intensity effort detected - monitor recovery");
@@ -584,7 +584,7 @@ fn generate_activity_insights(activity: &Activity) -> (Vec<String>, Vec<&'static
     }
 
     // Analyze calories
-    if let Some(calories) = activity.calories {
+    if let Some(calories) = activity.calories() {
         insights.push(format!("Calories burned: {calories}"));
     }
 
@@ -680,29 +680,29 @@ async fn create_intelligence_response(
 
     let summary = format!(
         "{:?} activity completed. {} insights generated.",
-        activity.sport_type,
+        activity.sport_type(),
         insights.len()
     );
 
     let duration_minutes = f64::from(
-        u32::try_from(activity.duration_seconds.min(u64::from(u32::MAX))).unwrap_or(u32::MAX),
+        u32::try_from(activity.duration_seconds().min(u64::from(u32::MAX))).unwrap_or(u32::MAX),
     ) / 60.0;
 
     let analysis = serde_json::json!({
         "activity_id": activity_id,
-        "activity_type": format!("{:?}", activity.sport_type),
+        "activity_type": format!("{:?}", activity.sport_type()),
         "timestamp": chrono::Utc::now().to_rfc3339(),
         "intelligence": {
             "summary": summary,
             "insights": insights,
             "recommendations": recommendations,
             "performance_metrics": {
-                "distance_km": activity.distance_meters.map(|d| d / METERS_PER_KILOMETER),
+                "distance_km": activity.distance_meters().map(|d| d / METERS_PER_KILOMETER),
                 "duration_minutes": Some(duration_minutes),
-                "elevation_meters": activity.elevation_gain,
-                "average_heart_rate": activity.average_heart_rate,
-                "max_heart_rate": activity.max_heart_rate,
-                "calories": activity.calories
+                "elevation_meters": activity.elevation_gain(),
+                "average_heart_rate": activity.average_heart_rate(),
+                "max_heart_rate": activity.max_heart_rate(),
+                "calories": activity.calories()
             }
         }
     });
@@ -759,10 +759,10 @@ async fn fetch_and_analyze_activity(
                             .map(|a| {
                                 format!(
                                     "- {} (ID: {}): {} - {:?}",
-                                    a.start_date.format("%Y-%m-%d"),
-                                    a.id,
-                                    a.name,
-                                    a.sport_type
+                                    a.start_date().format("%Y-%m-%d"),
+                                    a.id(),
+                                    a.name(),
+                                    a.sport_type()
                                 )
                             })
                             .collect();
@@ -772,7 +772,7 @@ async fn fetch_and_analyze_activity(
                         // Analyze the most recent activity automatically
                         let mut response = create_intelligence_response(
                             most_recent,
-                            &most_recent.id,
+                            most_recent.id(),
                             user_uuid,
                             tenant_id,
                             None, // No sampling in fallback path
@@ -783,9 +783,9 @@ async fn fetch_and_analyze_activity(
                         if let Some(result) = response.result.as_mut() {
                             result["auto_selected"] = serde_json::json!({
                                 "reason": format!("Activity '{activity_id}' not found"),
-                                "selected_activity": most_recent.id.clone(),
-                                "selected_activity_name": most_recent.name.clone(),
-                                "selected_activity_date": most_recent.start_date.format("%Y-%m-%d").to_string(),
+                                "selected_activity": most_recent.id(),
+                                "selected_activity_name": most_recent.name(),
+                                "selected_activity_date": most_recent.start_date().format("%Y-%m-%d").to_string(),
                                 "available_activities": activity_list
                             });
                         }
@@ -2179,7 +2179,7 @@ fn analyze_performance_trend(
     let cutoff_date = calculate_cutoff_date(timeframe);
     let filtered_activities: Vec<Activity> = activities
         .iter()
-        .filter(|a| a.start_date >= cutoff_date)
+        .filter(|a| a.start_date() >= cutoff_date)
         .cloned()
         .collect();
 
@@ -2434,16 +2434,16 @@ fn compare_with_similar_activities(
     let similar: Vec<&Activity> = all_activities
         .iter()
         .filter(|a| {
-            a.id != target.id
-                && a.sport_type == target.sport_type
-                && is_similar_distance(a.distance_meters, target.distance_meters)
+            a.id() != target.id()
+                && a.sport_type() == target.sport_type()
+                && is_similar_distance(a.distance_meters(), target.distance_meters())
         })
         .take(5)
         .collect();
 
     if similar.is_empty() {
         return serde_json::json!({
-            "activity_id": target.id,
+            "activity_id": target.id(),
             "comparison_type": "similar_activities",
             "comparison_count": 0,
             "insights": ["No similar activities found for comparison"],
@@ -2457,7 +2457,7 @@ fn compare_with_similar_activities(
 
     // Calculate target metrics
     let target_pace = calculate_pace(target);
-    let target_hr = target.average_heart_rate.map(f64::from);
+    let target_hr = target.average_heart_rate().map(f64::from);
 
     // Generate comparisons
     let mut comparisons = Vec::new();
@@ -2502,7 +2502,7 @@ fn compare_with_similar_activities(
         }
     }
 
-    if let (Some(target_elev), Some(avg_elev)) = (target.elevation_gain, avg_elevation) {
+    if let (Some(target_elev), Some(avg_elev)) = (target.elevation_gain(), avg_elevation) {
         let elev_diff_pct = ((target_elev - avg_elev) / avg_elev) * 100.0;
         comparisons.push(serde_json::json!({
             "metric": "elevation_gain",
@@ -2520,10 +2520,10 @@ fn compare_with_similar_activities(
     }
 
     serde_json::json!({
-        "activity_id": target.id,
+        "activity_id": target.id(),
         "comparison_type": "similar_activities",
         "comparison_count": similar.len(),
-        "sport_type": format!("{:?}", target.sport_type),
+        "sport_type": format!("{:?}", target.sport_type()),
         "comparisons": comparisons,
         "insights": insights,
     })
@@ -2537,12 +2537,12 @@ fn compare_with_personal_records(
     // Find same sport activities
     let same_sport: Vec<&Activity> = all_activities
         .iter()
-        .filter(|a| a.sport_type == target.sport_type)
+        .filter(|a| a.sport_type() == target.sport_type())
         .collect();
 
     if same_sport.is_empty() {
         return serde_json::json!({
-            "activity_id": target.id,
+            "activity_id": target.id(),
             "comparison_type": "pr_comparison",
             "insights": ["No other activities of this sport type found"],
         });
@@ -2552,10 +2552,10 @@ fn compare_with_personal_records(
     let mut insights = Vec::new();
 
     // Compare with longest distance
-    if let Some(distance) = target.distance_meters {
+    if let Some(distance) = target.distance_meters() {
         let max_distance = same_sport
             .iter()
-            .filter_map(|a| a.distance_meters)
+            .filter_map(|a| a.distance_meters())
             .max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
 
         if let Some(max_d) = max_distance {
@@ -2596,8 +2596,8 @@ fn compare_with_personal_records(
     }
 
     // Compare with highest power (if available)
-    if let Some(power) = target.average_power {
-        let max_power = same_sport.iter().filter_map(|a| a.average_power).max();
+    if let Some(power) = target.average_power() {
+        let max_power = same_sport.iter().filter_map(|a| a.average_power()).max();
 
         if let Some(max_p) = max_power {
             let is_pr = power >= max_p;
@@ -2622,9 +2622,9 @@ fn compare_with_personal_records(
     }
 
     serde_json::json!({
-        "activity_id": target.id,
+        "activity_id": target.id(),
         "comparison_type": "pr_comparison",
-        "sport_type": format!("{:?}", target.sport_type),
+        "sport_type": format!("{:?}", target.sport_type()),
         "pr_comparisons": pr_comparisons,
         "insights": insights,
     })
@@ -2637,11 +2637,11 @@ fn compare_with_specific_activity(
     compare_id: &str,
 ) -> serde_json::Value {
     // Find the specific activity to compare with
-    let compare_activity = all_activities.iter().find(|a| a.id == compare_id);
+    let compare_activity = all_activities.iter().find(|a| a.id() == compare_id);
 
     let Some(compare) = compare_activity else {
         return serde_json::json!({
-            "activity_id": target.id,
+            "activity_id": target.id(),
             "comparison_type": "specific_activity",
             "error": format!("Activity with ID '{compare_id}' not found"),
             "insights": [format!("Could not find activity '{compare_id}' for comparison")],
@@ -2651,15 +2651,15 @@ fn compare_with_specific_activity(
     // Calculate metrics for both activities
     let target_pace = calculate_pace(target);
     let compare_pace = calculate_pace(compare);
-    let target_hr = target.average_heart_rate.map(f64::from);
-    let compare_hr = compare.average_heart_rate.map(f64::from);
+    let target_hr = target.average_heart_rate().map(f64::from);
+    let compare_hr = compare.average_heart_rate().map(f64::from);
 
     let mut comparisons = Vec::new();
     let mut insights = Vec::new();
 
     // Distance comparison
     if let (Some(target_dist), Some(compare_dist)) =
-        (target.distance_meters, compare.distance_meters)
+        (target.distance_meters(), compare.distance_meters())
     {
         let dist_diff_pct = ((target_dist - compare_dist) / compare_dist) * 100.0;
         comparisons.push(serde_json::json!({
@@ -2698,18 +2698,20 @@ fn compare_with_specific_activity(
 
     // Duration comparison
     #[allow(clippy::cast_precision_loss)]
-    let duration_diff_pct = ((target.duration_seconds as f64 - compare.duration_seconds as f64)
-        / compare.duration_seconds as f64)
+    let duration_diff_pct = ((target.duration_seconds() as f64
+        - compare.duration_seconds() as f64)
+        / compare.duration_seconds() as f64)
         * 100.0;
     comparisons.push(serde_json::json!({
         "metric": "duration",
-        "current": target.duration_seconds,
-        "comparison": compare.duration_seconds,
+        "current": target.duration_seconds(),
+        "comparison": compare.duration_seconds(),
         "difference_percent": duration_diff_pct,
     }));
 
     // Elevation comparison
-    if let (Some(target_elev), Some(compare_elev)) = (target.elevation_gain, compare.elevation_gain)
+    if let (Some(target_elev), Some(compare_elev)) =
+        (target.elevation_gain(), compare.elevation_gain())
     {
         let elev_diff_pct = ((target_elev - compare_elev) / compare_elev) * 100.0;
         comparisons.push(serde_json::json!({
@@ -2721,7 +2723,8 @@ fn compare_with_specific_activity(
     }
 
     // Power comparison (if available)
-    if let (Some(target_power), Some(compare_power)) = (target.average_power, compare.average_power)
+    if let (Some(target_power), Some(compare_power)) =
+        (target.average_power(), compare.average_power())
     {
         let power_diff_pct = ((f64::from(target_power) - f64::from(compare_power))
             / f64::from(compare_power))
@@ -2741,11 +2744,11 @@ fn compare_with_specific_activity(
     }
 
     serde_json::json!({
-        "activity_id": target.id,
+        "activity_id": target.id(),
         "comparison_type": "specific_activity",
         "comparison_activity_id": compare_id,
-        "comparison_activity_name": compare.name,
-        "sport_type": format!("{:?}", target.sport_type),
+        "comparison_activity_name": compare.name(),
+        "sport_type": format!("{:?}", target.sport_type()),
         "comparisons": comparisons,
         "insights": insights,
     })
@@ -2799,10 +2802,10 @@ fn is_similar_distance(dist1: Option<f64>, dist2: Option<f64>) -> bool {
 
 /// Calculate pace in min/km
 fn calculate_pace(activity: &Activity) -> Option<f64> {
-    if let Some(distance) = activity.distance_meters {
-        if distance > 0.0 && activity.duration_seconds > 0 {
+    if let Some(distance) = activity.distance_meters() {
+        if distance > 0.0 && activity.duration_seconds() > 0 {
             #[allow(clippy::cast_precision_loss)]
-            let seconds_per_km = (activity.duration_seconds as f64 / distance) * METERS_PER_KM;
+            let seconds_per_km = (activity.duration_seconds() as f64 / distance) * METERS_PER_KM;
             return Some(seconds_per_km / 60.0); // convert to min/km
         }
     }
@@ -2827,7 +2830,7 @@ fn calculate_average_pace(activities: &[&Activity]) -> Option<f64> {
 fn calculate_average_hr(activities: &[&Activity]) -> Option<f64> {
     let hrs: Vec<f64> = activities
         .iter()
-        .filter_map(|a| a.average_heart_rate.map(f64::from))
+        .filter_map(|a| a.average_heart_rate().map(f64::from))
         .collect();
     if hrs.is_empty() {
         return None;
@@ -2839,7 +2842,10 @@ fn calculate_average_hr(activities: &[&Activity]) -> Option<f64> {
 
 /// Calculate average elevation from activities
 fn calculate_average_elevation(activities: &[&Activity]) -> Option<f64> {
-    let elevs: Vec<f64> = activities.iter().filter_map(|a| a.elevation_gain).collect();
+    let elevs: Vec<f64> = activities
+        .iter()
+        .filter_map(|a| a.elevation_gain())
+        .collect();
     if elevs.is_empty() {
         return None;
     }
@@ -3114,10 +3120,10 @@ async fn generate_activity_intelligence_via_sampling(
 
     // Prepare activity data for LLM analysis
     #[allow(clippy::cast_precision_loss)]
-    let duration_min = activity.duration_seconds as f64 / 60.0;
-    let distance_km = activity.distance_meters.map(|d| d / 1000.0);
+    let duration_min = activity.duration_seconds() as f64 / 60.0;
+    let distance_km = activity.distance_meters().map(|d| d / 1000.0);
     let avg_pace = activity
-        .average_speed
+        .average_speed()
         .map(|s| if s > 0.0 { 1000.0 / (s * 60.0) } else { 0.0 });
 
     let activity_summary = format!(
@@ -3127,14 +3133,14 @@ async fn generate_activity_intelligence_via_sampling(
          Average Pace: {}\n\
          Average Heart Rate: {}\n\
          Calories: {}",
-        activity.sport_type,
+        activity.sport_type(),
         distance_km.map_or_else(|| "N/A".to_owned(), |d| format!("{d:.2} km")),
         avg_pace.map_or_else(|| "N/A".to_owned(), |p| format!("{p:.2} min/km")),
         activity
-            .average_heart_rate
+            .average_heart_rate()
             .map_or_else(|| "N/A".to_owned(), |hr| format!("{hr} bpm")),
         activity
-            .calories
+            .calories()
             .map_or_else(|| "N/A".to_owned(), |c| c.to_string())
     );
 
@@ -3223,12 +3229,15 @@ async fn generate_recommendations_via_sampling(
 
         let total_distance: f64 = recent_activities
             .iter()
-            .filter_map(|a| a.distance_meters)
+            .filter_map(Activity::distance_meters)
             .sum();
-        let total_duration: u64 = recent_activities.iter().map(|a| a.duration_seconds).sum();
+        let total_duration: u64 = recent_activities
+            .iter()
+            .map(Activity::duration_seconds)
+            .sum();
         let activity_types: Vec<String> = recent_activities
             .iter()
-            .map(|a| format!("{:?}", a.sport_type))
+            .map(|a| format!("{:?}", a.sport_type()))
             .collect();
 
         {
@@ -3318,7 +3327,7 @@ fn generate_training_recommendations(
     let four_weeks_ago = Utc::now() - Duration::days(28);
     let recent_activities: Vec<_> = activities
         .iter()
-        .filter(|a| a.start_date >= four_weeks_ago)
+        .filter(|a| a.start_date() >= four_weeks_ago)
         .cloned()
         .collect();
 
@@ -3688,7 +3697,7 @@ fn generate_goal_specific_recommendations(activities: &[Activity]) -> serde_json
     // Detect primary sport
     let mut sport_counts: HashMap<String, usize> = HashMap::new();
     for activity in activities {
-        let sport = format!("{:?}", activity.sport_type);
+        let sport = format!("{:?}", activity.sport_type());
         *sport_counts.entry(sport).or_insert(0) += 1;
     }
 
@@ -3700,11 +3709,11 @@ fn generate_goal_specific_recommendations(activities: &[Activity]) -> serde_json
     // Find best recent performance for predictions
     let best_performance = activities
         .iter()
-        .filter(|a| a.distance_meters.is_some() && a.duration_seconds > 0)
+        .filter(|a| a.distance_meters().is_some() && a.duration_seconds() > 0)
         .filter_map(|a| {
-            let distance = a.distance_meters?;
+            let distance = a.distance_meters()?;
             #[allow(clippy::cast_precision_loss)]
-            let time_secs = a.duration_seconds as f64;
+            let time_secs = a.duration_seconds() as f64;
             if distance > 3_000.0 && distance < 50_000.0 && time_secs > 0.0 {
                 Some((distance, time_secs))
             } else {
@@ -3774,15 +3783,15 @@ fn calculate_nutrition_metrics(activity: &Activity) -> (f64, f64, &'static str) 
     use time_constants;
 
     let duration_hours = f64::from(
-        u32::try_from(activity.duration_seconds.min(u64::from(u32::MAX))).unwrap_or(u32::MAX),
+        u32::try_from(activity.duration_seconds().min(u64::from(u32::MAX))).unwrap_or(u32::MAX),
     ) / time_constants::SECONDS_PER_HOUR_F64;
 
-    let calories_burned = f64::from(activity.calories.unwrap_or_else(|| {
-        let duration_mins = u32::try_from(activity.duration_seconds / 60).unwrap_or(u32::MAX);
+    let calories_burned = f64::from(activity.calories().unwrap_or_else(|| {
+        let duration_mins = u32::try_from(activity.duration_seconds() / 60).unwrap_or(u32::MAX);
         duration_mins * 10
     }));
 
-    let intensity = activity.average_heart_rate.map_or(
+    let intensity = activity.average_heart_rate().map_or(
         if duration_hours > 1.5 {
             "moderate"
         } else {
@@ -3857,7 +3866,7 @@ fn build_meal_suggestions(intensity: &str) -> Vec<serde_json::Value> {
 }
 
 fn generate_nutrition_recommendations(activities: &[Activity]) -> serde_json::Value {
-    let most_recent = activities.iter().max_by_key(|a| a.start_date);
+    let most_recent = activities.iter().max_by_key(|a| a.start_date());
 
     if most_recent.is_none() {
         return serde_json::json!({
@@ -3923,7 +3932,7 @@ fn generate_nutrition_recommendations(activities: &[Activity]) -> serde_json::Va
         "reasoning": format!(
             "Based on {:.1} hour {intensity} intensity {:?} with {:.0} calories burned",
             duration_hours,
-            activity.sport_type,
+            activity.sport_type(),
             calories_burned
         ),
         "recovery_window": "Critical recovery period: 0-2 hours post-workout",
@@ -3936,10 +3945,10 @@ fn generate_nutrition_recommendations(activities: &[Activity]) -> serde_json::Va
             "hydration_ml": hydration_ml.round(),
         },
         "activity_summary": {
-            "name": &activity.name,
-            "type": &activity.sport_type,
-            "duration_minutes": activity.duration_seconds / 60,
-            "distance_km": activity.distance_meters.map(|d| (d / 1000.0).round()),
+            "name": &activity.name(),
+            "type": &activity.sport_type(),
+            "duration_minutes": activity.duration_seconds() / 60,
+            "distance_km": activity.distance_meters().map(|d| (d / 1000.0).round()),
             "calories": calories_burned.round(),
         }
     })
@@ -4074,7 +4083,7 @@ fn calculate_fitness_metrics(activities: &[Activity], timeframe: &str) -> serde_
     let cutoff_date = now - Duration::days(timeframe_days);
     let filtered_activities: Vec<_> = activities
         .iter()
-        .filter(|a| a.start_date >= cutoff_date)
+        .filter(|a| a.start_date() >= cutoff_date)
         .cloned()
         .collect();
 
@@ -4152,8 +4161,8 @@ fn calculate_consistency_score(activities: &[Activity]) -> f64 {
     }
 
     // Get the date range
-    let first_date = activities.iter().map(|a| a.start_date).min();
-    let last_date = activities.iter().map(|a| a.start_date).max();
+    let first_date = activities.iter().map(Activity::start_date).min();
+    let last_date = activities.iter().map(Activity::start_date).max();
 
     let (Some(first), Some(last)) = (first_date, last_date) else {
         return 0.0;
@@ -4166,7 +4175,7 @@ fn calculate_consistency_score(activities: &[Activity]) -> f64 {
     let mut activities_per_week: HashMap<i64, u32> = HashMap::new();
 
     for activity in activities {
-        let days_since_first = (activity.start_date - first).num_days();
+        let days_since_first = (activity.start_date() - first).num_days();
         let week_number = days_since_first / 7;
         *activities_per_week.entry(week_number).or_insert(0) += 1;
     }
@@ -4187,7 +4196,7 @@ fn calculate_consistency_score(activities: &[Activity]) -> f64 {
 fn calculate_performance_trend(activities: &[Activity]) -> f64 {
     let activities_with_pace: Vec<_> = activities
         .iter()
-        .filter(|a| a.distance_meters.is_some() && a.duration_seconds > 0)
+        .filter(|a| a.distance_meters().is_some() && a.duration_seconds() > 0)
         .collect();
 
     if activities_with_pace.len() < 4 {
@@ -4204,14 +4213,14 @@ fn calculate_performance_trend(activities: &[Activity]) -> f64 {
     let first_avg_pace: f64 = first_half
         .iter()
         .map(|a| {
-            let distance = a.distance_meters.unwrap_or_else(|| {
+            let distance = a.distance_meters().unwrap_or_else(|| {
                 warn!(
-                    activity_id = a.id,
+                    activity_id = a.id(),
                     "Activity missing distance_meters in pace calculation, using 1.0m fallback"
                 );
                 1.0
             });
-            a.duration_seconds as f64 / distance
+            a.duration_seconds() as f64 / distance
         })
         .sum::<f64>()
         / first_half.len() as f64;
@@ -4220,14 +4229,14 @@ fn calculate_performance_trend(activities: &[Activity]) -> f64 {
     let second_avg_pace: f64 = second_half
         .iter()
         .map(|a| {
-            let distance = a.distance_meters.unwrap_or_else(|| {
+            let distance = a.distance_meters().unwrap_or_else(|| {
                 warn!(
-                    activity_id = a.id,
+                    activity_id = a.id(),
                     "Activity missing distance_meters in pace calculation, using 1.0m fallback"
                 );
                 1.0
             });
-            a.duration_seconds as f64 / distance
+            a.duration_seconds() as f64 / distance
         })
         .sum::<f64>()
         / second_half.len() as f64;
@@ -4267,11 +4276,17 @@ fn calculate_trend(activities: &[Activity]) -> &'static str {
     let recent_half = &activities[mid_point..];
 
     #[allow(clippy::cast_precision_loss)]
-    let older_avg_duration =
-        older_half.iter().map(|a| a.duration_seconds).sum::<u64>() as f64 / older_half.len() as f64;
+    let older_avg_duration = older_half
+        .iter()
+        .map(Activity::duration_seconds)
+        .sum::<u64>() as f64
+        / older_half.len() as f64;
 
     #[allow(clippy::cast_precision_loss)]
-    let recent_avg_duration = recent_half.iter().map(|a| a.duration_seconds).sum::<u64>() as f64
+    let recent_avg_duration = recent_half
+        .iter()
+        .map(Activity::duration_seconds)
+        .sum::<u64>() as f64
         / recent_half.len() as f64;
 
     let change_pct = ((recent_avg_duration - older_avg_duration) / older_avg_duration) * 100.0;
@@ -4297,7 +4312,7 @@ fn predict_race_performance(activities: &[Activity], target_sport: &str) -> serd
     // Filter activities by sport type
     let running_activities: Vec<&Activity> = activities
         .iter()
-        .filter(|a| format!("{:?}", a.sport_type).contains("Run"))
+        .filter(|a| format!("{:?}", a.sport_type()).contains("Run"))
         .collect();
 
     if running_activities.is_empty() {
@@ -4318,22 +4333,22 @@ fn predict_race_performance(activities: &[Activity], target_sport: &str) -> serd
         });
     };
 
-    let best_distance = best_activity.distance_meters.unwrap_or_else(|| {
+    let best_distance = best_activity.distance_meters().unwrap_or_else(|| {
         warn!(
-            activity_id = best_activity.id,
+            activity_id = best_activity.id(),
             "Best activity missing distance_meters despite find_best_performance validation, using 0.0m"
         );
         0.0
     });
     #[allow(clippy::cast_precision_loss)]
-    let best_time = best_activity.duration_seconds as f64;
+    let best_time = best_activity.duration_seconds() as f64;
 
     // Generate race predictions using PerformancePredictor (includes VDOT calculation)
     match PerformancePredictor::generate_race_predictions(best_distance, best_time) {
         Ok(race_predictions) => {
             // Calculate confidence based on data quality
             let confidence =
-                calculate_prediction_confidence(&running_activities, &best_activity.start_date);
+                calculate_prediction_confidence(&running_activities, &best_activity.start_date());
 
             // Convert predictions HashMap to JSON array format for consistency
             let predictions_array: Vec<serde_json::Value> = race_predictions
@@ -4370,7 +4385,7 @@ fn predict_race_performance(activities: &[Activity], target_sport: &str) -> serd
                     "distance_meters": best_distance,
                     "time_seconds": best_time,
                     "pace_min_km": PerformancePredictor::format_pace_per_km(best_distance / best_time),
-                    "date": best_activity.start_date.to_rfc3339(),
+                    "date": best_activity.start_date().to_rfc3339(),
                 },
                 "predictions": predictions_array,
                 "confidence": confidence,

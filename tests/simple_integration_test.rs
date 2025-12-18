@@ -143,70 +143,39 @@
 )]
 use anyhow::Result;
 use chrono::{Duration, Utc};
-use pierre_mcp_server::{
-    errors::ErrorCode,
-    intelligence::ActivityAnalyzer,
-    models::{Activity, SportType},
-};
+use pierre_mcp_server::{errors::ErrorCode, intelligence::ActivityAnalyzer, models::SportType};
 use uuid::Uuid;
 
 #[tokio::test]
 async fn test_intelligence_analysis_integration() -> Result<()> {
+    use pierre_mcp_server::models::ActivityBuilder;
+
     let analyzer = ActivityAnalyzer::new();
 
-    // Create a test activity using the correct structure
-    let activity = Activity {
-        id: format!("test_{}", Uuid::new_v4().simple()),
-        name: "Integration Test Run".to_owned(),
-        sport_type: SportType::Run,
-        start_date: Utc::now() - Duration::hours(1),
-        duration_seconds: 3600,         // 1 hour
-        distance_meters: Some(10000.0), // 10km
-        elevation_gain: Some(100.0),
-        average_heart_rate: Some(150),
-        max_heart_rate: Some(180),
-        average_speed: Some(2.78), // ~10 km/h
-        max_speed: Some(3.33),
-        calories: Some(400),
-        steps: Some(12000),
-        heart_rate_zones: None,
-
-        // Advanced power metrics (all None for basic test)
-        average_power: None,
-        max_power: None,
-        normalized_power: None,
-        power_zones: None,
-        ftp: None,
-        average_cadence: None,
-        max_cadence: None,
-        hrv_score: None,
-        recovery_heart_rate: None,
-        temperature: None,
-        humidity: None,
-        average_altitude: None,
-        wind_speed: None,
-        ground_contact_time: None,
-        vertical_oscillation: None,
-        stride_length: None,
-        running_power: None,
-        breathing_rate: None,
-        spo2: None,
-        training_stress_score: None,
-        intensity_factor: None,
-        suffer_score: None,
-        time_series_data: None,
-
-        start_latitude: Some(45.5017), // Montreal
-        start_longitude: Some(-73.5673),
-        city: Some("Montreal".to_owned()),
-        region: Some("Quebec".to_owned()),
-        country: Some("Canada".to_owned()),
-        trail_name: Some("Test Trail".to_owned()),
-        workout_type: None,
-        sport_type_detail: None,
-        segment_efforts: None,
-        provider: "test".to_owned(),
-    };
+    // Create a test activity using ActivityBuilder
+    let activity = ActivityBuilder::new(
+        format!("test_{}", Uuid::new_v4().simple()),
+        "Integration Test Run",
+        SportType::Run,
+        Utc::now() - Duration::hours(1),
+        3600, // 1 hour
+        "test",
+    )
+    .distance_meters(10000.0) // 10km
+    .elevation_gain(100.0)
+    .average_heart_rate(150)
+    .max_heart_rate(180)
+    .average_speed(2.78) // ~10 km/h
+    .max_speed(3.33)
+    .calories(400)
+    .steps(12000)
+    .start_latitude(45.5017) // Montreal
+    .start_longitude(-73.5673)
+    .city("Montreal".to_owned())
+    .region("Quebec".to_owned())
+    .country("Canada".to_owned())
+    .trail_name("Test Trail".to_owned())
+    .build();
 
     // Analyze the activity
     let analysis = analyzer.analyze_activity(&activity, None)?;
@@ -249,61 +218,28 @@ async fn test_activity_model_creation() -> Result<()> {
     ];
 
     for sport in sports {
-        let activity = Activity {
-            id: format!("sport_test_{sport:?}"),
-            name: format!("Test {:?} Activity", sport),
-            sport_type: sport.clone(),
-            start_date: Utc::now(),
-            duration_seconds: 1800, // 30 minutes
-            distance_meters: Some(5000.0),
-            elevation_gain: Some(50.0),
-            average_heart_rate: Some(140),
-            max_heart_rate: Some(160),
-            average_speed: Some(3.0),
-            max_speed: Some(4.0),
-            calories: Some(200),
-            steps: Some(10000),
-            heart_rate_zones: None,
+        use pierre_mcp_server::models::ActivityBuilder;
 
-            // All advanced metrics as None
-            average_power: None,
-            max_power: None,
-            normalized_power: None,
-            power_zones: None,
-            ftp: None,
-            average_cadence: None,
-            max_cadence: None,
-            hrv_score: None,
-            recovery_heart_rate: None,
-            temperature: None,
-            humidity: None,
-            average_altitude: None,
-            wind_speed: None,
-            ground_contact_time: None,
-            vertical_oscillation: None,
-            stride_length: None,
-            running_power: None,
-            breathing_rate: None,
-            spo2: None,
-            training_stress_score: None,
-            intensity_factor: None,
-            suffer_score: None,
-            time_series_data: None,
+        let activity = ActivityBuilder::new(
+            format!("sport_test_{sport:?}"),
+            format!("Test {:?} Activity", sport),
+            sport.clone(),
+            Utc::now(),
+            1800, // 30 minutes
+            "test",
+        )
+        .distance_meters(5000.0)
+        .elevation_gain(50.0)
+        .average_heart_rate(140)
+        .max_heart_rate(160)
+        .average_speed(3.0)
+        .max_speed(4.0)
+        .calories(200)
+        .steps(10000)
+        .build();
 
-            start_latitude: None,
-            start_longitude: None,
-            city: None,
-            region: None,
-            country: None,
-            trail_name: None,
-            workout_type: None,
-            sport_type_detail: None,
-            segment_efforts: None,
-            provider: "test".to_owned(),
-        };
-
-        assert_eq!(activity.sport_type, sport);
-        assert!(activity.duration_seconds > 0);
+        assert_eq!(*activity.sport_type(), sport);
+        assert!(activity.duration_seconds() > 0);
     }
 
     Ok(())
@@ -318,58 +254,26 @@ async fn test_concurrent_analysis() -> Result<()> {
 
     for i in 0..5 {
         let handle = tokio::spawn(async move {
-            let activity = Activity {
-                id: format!("concurrent_test_{i}"),
-                name: format!("Concurrent Test {i}"),
-                sport_type: SportType::Run,
-                start_date: Utc::now(),
-                duration_seconds: 3600 + (i as u64 * 300),
-                distance_meters: Some(f64::from(i).mul_add(1000.0, 5000.0)),
-                elevation_gain: Some(50.0),
-                average_heart_rate: Some(150),
-                max_heart_rate: Some(170),
-                average_speed: Some(3.0),
-                max_speed: Some(4.0),
-                calories: Some(300),
-                steps: Some(8000 + (i as u32 * 1000)),
-                heart_rate_zones: None,
+            use pierre_mcp_server::models::ActivityBuilder;
 
-                // All advanced metrics as None
-                average_power: None,
-                max_power: None,
-                normalized_power: None,
-                power_zones: None,
-                ftp: None,
-                average_cadence: None,
-                max_cadence: None,
-                hrv_score: None,
-                recovery_heart_rate: None,
-                temperature: None,
-                humidity: None,
-                average_altitude: None,
-                wind_speed: None,
-                ground_contact_time: None,
-                vertical_oscillation: None,
-                stride_length: None,
-                running_power: None,
-                breathing_rate: None,
-                spo2: None,
-                training_stress_score: None,
-                intensity_factor: None,
-                suffer_score: None,
-                time_series_data: None,
-
-                start_latitude: None,
-                start_longitude: None,
-                city: None,
-                region: None,
-                country: None,
-                trail_name: None,
-                workout_type: None,
-                sport_type_detail: None,
-                segment_efforts: None,
-                provider: "test".to_owned(),
-            };
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let activity = ActivityBuilder::new(
+                format!("concurrent_test_{i}"),
+                format!("Concurrent Test {i}"),
+                SportType::Run,
+                Utc::now(),
+                3600 + (i as u64 * 300),
+                "test",
+            )
+            .distance_meters(f64::from(i).mul_add(1000.0, 5000.0))
+            .elevation_gain(50.0)
+            .average_heart_rate(150)
+            .max_heart_rate(170)
+            .average_speed(3.0)
+            .max_speed(4.0)
+            .calories(300)
+            .steps(8000 + (i as u32 * 1000))
+            .build();
 
             let analyzer_local = ActivityAnalyzer::new();
             analyzer_local.analyze_activity(&activity, None)

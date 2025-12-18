@@ -108,91 +108,68 @@ fn build_activity(
     distance_meters: f64,
     avg_hr: u32,
 ) -> Activity {
+    use pierre_mcp_server::models::ActivityBuilder;
+
     let is_run = sport_type == SportType::Run;
     let is_walk = sport_type == SportType::Walk;
     let is_ride = sport_type == SportType::Ride;
 
-    Activity {
-        id: format!("bench_activity_{index}"),
-        name: format!("Benchmark Activity {index}"),
+    let mut builder = ActivityBuilder::new(
+        format!("bench_activity_{index}"),
+        format!("Benchmark Activity {index}"),
         sport_type,
         start_date,
         duration_seconds,
-        distance_meters: Some(distance_meters),
-        elevation_gain: Some(((index * 31) % 500) as f64),
-        average_heart_rate: Some(avg_hr),
-        max_heart_rate: Some(avg_hr + 25),
-        average_speed: Some(distance_meters / duration_seconds as f64),
-        max_speed: Some(distance_meters / duration_seconds as f64 * 1.5),
-        calories: Some(((duration_seconds / 60) * 10) as u32),
-        steps: if is_run || is_walk {
-            Some((duration_seconds * 3) as u32)
-        } else {
-            None
-        },
-        heart_rate_zones: None,
-        average_power: if is_ride {
-            Some(200 + ((index * 13) % 100) as u32)
-        } else {
-            None
-        },
-        max_power: if is_ride {
-            Some(350 + ((index * 17) % 150) as u32)
-        } else {
-            None
-        },
-        normalized_power: if is_ride {
-            Some(210 + ((index * 11) % 90) as u32)
-        } else {
-            None
-        },
-        power_zones: None,
-        ftp: if is_ride { Some(250) } else { None },
-        average_cadence: Some(80 + ((index * 7) % 30) as u32),
-        max_cadence: Some(100 + ((index * 9) % 40) as u32),
-        hrv_score: Some(50.0 + ((index * 19) % 50) as f64),
-        recovery_heart_rate: Some(40 + ((index * 3) % 30) as u32),
-        temperature: Some(15.0 + ((index * 5) % 20) as f32),
-        humidity: Some(50.0 + ((index * 7) % 40) as f32),
-        average_altitude: Some(100.0 + ((index * 23) % 500) as f32),
-        wind_speed: Some(((index * 11) % 20) as f32),
-        ground_contact_time: if is_run {
-            Some(250 + ((index * 13) % 50) as u32)
-        } else {
-            None
-        },
-        vertical_oscillation: if is_run {
-            Some(8.0 + ((index * 3) % 4) as f32)
-        } else {
-            None
-        },
-        stride_length: if is_run {
-            Some(1.0 + ((index * 5) % 50) as f32 / 100.0)
-        } else {
-            None
-        },
-        running_power: if is_run {
-            Some(200 + ((index * 7) % 100) as u32)
-        } else {
-            None
-        },
-        breathing_rate: Some(15 + ((index * 3) % 15) as u32),
-        spo2: Some(95.0 + ((index * 2) % 5) as f32),
-        training_stress_score: Some(50.0 + ((index * 17) % 150) as f32),
-        intensity_factor: Some(0.7 + ((index * 3) % 30) as f32 / 100.0),
-        suffer_score: Some(50 + ((index * 11) % 150) as u32),
-        time_series_data: None,
-        start_latitude: Some(45.5017 + ((index * 7) % 100) as f64 / 10000.0),
-        start_longitude: Some(-73.5673 + ((index * 11) % 100) as f64 / 10000.0),
-        city: Some("Montreal".to_owned()),
-        region: Some("Quebec".to_owned()),
-        country: Some("Canada".to_owned()),
-        trail_name: None,
-        workout_type: Some((index % 4) as u32),
-        sport_type_detail: None,
-        segment_efforts: None,
-        provider: "benchmark".to_owned(),
+        "benchmark",
+    )
+    .distance_meters(distance_meters)
+    .elevation_gain(((index * 31) % 500) as f64)
+    .average_heart_rate(avg_hr)
+    .max_heart_rate(avg_hr + 25)
+    .average_speed(distance_meters / duration_seconds as f64)
+    .max_speed(distance_meters / duration_seconds as f64 * 1.5)
+    .calories(((duration_seconds / 60) * 10) as u32)
+    .average_cadence(80 + ((index * 7) % 30) as u32)
+    .max_cadence(100 + ((index * 9) % 40) as u32)
+    .hrv_score(50.0 + ((index * 19) % 50) as f64)
+    .recovery_heart_rate(40 + ((index * 3) % 30) as u32)
+    .temperature(15.0 + ((index * 5) % 20) as f32)
+    .humidity(50.0 + ((index * 7) % 40) as f32)
+    .average_altitude(100.0 + ((index * 23) % 500) as f32)
+    .wind_speed(((index * 11) % 20) as f32)
+    .breathing_rate(15 + ((index * 3) % 15) as u32)
+    .spo2(95.0 + ((index * 2) % 5) as f32)
+    .training_stress_score(50.0 + ((index * 17) % 150) as f32)
+    .intensity_factor(0.7 + ((index * 3) % 30) as f32 / 100.0)
+    .suffer_score(50 + ((index * 11) % 150) as u32)
+    .start_latitude(45.5017 + ((index * 7) % 100) as f64 / 10000.0)
+    .start_longitude(-73.5673 + ((index * 11) % 100) as f64 / 10000.0)
+    .city("Montreal".to_owned())
+    .region("Quebec".to_owned())
+    .country("Canada".to_owned())
+    .workout_type((index % 4) as u32);
+
+    if is_run || is_walk {
+        builder = builder.steps((duration_seconds * 3) as u32);
     }
+
+    if is_ride {
+        builder = builder
+            .average_power(200 + ((index * 13) % 100) as u32)
+            .max_power(350 + ((index * 17) % 150) as u32)
+            .normalized_power(210 + ((index * 11) % 90) as u32)
+            .ftp(250);
+    }
+
+    if is_run {
+        builder = builder
+            .ground_contact_time(250 + ((index * 13) % 50) as u32)
+            .vertical_oscillation(8.0 + ((index * 3) % 4) as f32)
+            .stride_length(1.0 + ((index * 5) % 50) as f32 / 100.0)
+            .running_power(200 + ((index * 7) % 100) as u32);
+    }
+
+    builder.build()
 }
 
 /// Generate a batch of activities for benchmarking

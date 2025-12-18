@@ -255,7 +255,7 @@ async fn test_performance_prediction() {
     // Filter to only running activities for performance prediction
     let running_activities: Vec<_> = activities
         .iter()
-        .filter(|a| a.sport_type == SportType::Run)
+        .filter(|a| a.sport_type() == &SportType::Run)
         .cloned()
         .collect();
 

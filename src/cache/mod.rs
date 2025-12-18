@@ -23,6 +23,56 @@ use std::time::Duration;
 use uuid::Uuid;
 
 /// Cache provider trait for pluggable backend implementations
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use pierre_mcp_server::cache::{CacheConfig, CacheKey, CacheProvider, CacheResource};
+/// use pierre_mcp_server::cache::memory::InMemoryCache;
+/// use serde::{Deserialize, Serialize};
+/// use std::time::Duration;
+/// use uuid::Uuid;
+/// # async fn example() -> Result<(), pierre_mcp_server::errors::AppError> {
+///
+/// #[derive(Serialize, Deserialize)]
+/// struct AthleteProfile {
+///     name: String,
+///     total_activities: u32,
+/// }
+///
+/// // Create cache with default configuration
+/// let config = CacheConfig {
+///     enable_background_cleanup: false, // Disable for example
+///     ..Default::default()
+/// };
+/// let cache: InMemoryCache = InMemoryCache::new(config).await?;
+///
+/// // Create a cache key for an athlete profile
+/// let key = CacheKey {
+///     tenant_id: Uuid::new_v4(),
+///     user_id: Uuid::new_v4(),
+///     provider: "strava".to_owned(),
+///     resource: CacheResource::AthleteProfile,
+/// };
+///
+/// // Store data in cache
+/// let profile = AthleteProfile {
+///     name: "John Doe".to_owned(),
+///     total_activities: 42,
+/// };
+/// cache.set(&key, &profile, Duration::from_secs(3600)).await?;
+///
+/// // Retrieve data from cache
+/// let cached: Option<AthleteProfile> = cache.get(&key).await?;
+/// if let Some(profile) = cached {
+///     println!("Found cached profile: {}", profile.name);
+/// }
+///
+/// // Invalidate cache entry
+/// cache.invalidate(&key).await?;
+/// # Ok(())
+/// # }
+/// ```
 #[async_trait::async_trait]
 pub trait CacheProvider: Send + Sync + Clone {
     /// Create new cache instance with configuration
@@ -39,6 +89,22 @@ pub trait CacheProvider: Send + Sync + Clone {
     /// # Errors
     ///
     /// Returns an error if serialization or storage fails
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use pierre_mcp_server::cache::{CacheConfig, CacheKey, CacheProvider, CacheResource};
+    /// # use pierre_mcp_server::cache::memory::InMemoryCache;
+    /// # use std::time::Duration;
+    /// # use uuid::Uuid;
+    /// # async fn example() -> Result<(), pierre_mcp_server::errors::AppError> {
+    /// # let cache: InMemoryCache = InMemoryCache::new(CacheConfig { enable_background_cleanup: false, ..Default::default() }).await?;
+    /// # let key = CacheKey { tenant_id: Uuid::new_v4(), user_id: Uuid::new_v4(), provider: "strava".to_owned(), resource: CacheResource::AthleteProfile };
+    /// // Store a string value with 1 hour TTL
+    /// cache.set(&key, &"cached_value", Duration::from_secs(3600)).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     async fn set<T: Serialize + Send + Sync>(
         &self,
         key: &CacheKey,
@@ -51,6 +117,25 @@ pub trait CacheProvider: Send + Sync + Clone {
     /// # Errors
     ///
     /// Returns an error if deserialization fails
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use pierre_mcp_server::cache::{CacheConfig, CacheKey, CacheProvider, CacheResource};
+    /// # use pierre_mcp_server::cache::memory::InMemoryCache;
+    /// # use uuid::Uuid;
+    /// # async fn example() -> Result<(), pierre_mcp_server::errors::AppError> {
+    /// # let cache: InMemoryCache = InMemoryCache::new(CacheConfig { enable_background_cleanup: false, ..Default::default() }).await?;
+    /// # let key = CacheKey { tenant_id: Uuid::new_v4(), user_id: Uuid::new_v4(), provider: "strava".to_owned(), resource: CacheResource::AthleteProfile };
+    /// // Retrieve a cached value (returns None if not found or expired)
+    /// let value: Option<String> = cache.get(&key).await?;
+    /// match value {
+    ///     Some(data) => println!("Cache hit: {}", data),
+    ///     None => println!("Cache miss"),
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
     async fn get<T: for<'de> Deserialize<'de>>(&self, key: &CacheKey) -> AppResult<Option<T>>;
 
     /// Remove single cache entry
@@ -58,6 +143,21 @@ pub trait CacheProvider: Send + Sync + Clone {
     /// # Errors
     ///
     /// Returns an error if invalidation fails
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use pierre_mcp_server::cache::{CacheConfig, CacheKey, CacheProvider, CacheResource};
+    /// # use pierre_mcp_server::cache::memory::InMemoryCache;
+    /// # use uuid::Uuid;
+    /// # async fn example() -> Result<(), pierre_mcp_server::errors::AppError> {
+    /// # let cache: InMemoryCache = InMemoryCache::new(CacheConfig { enable_background_cleanup: false, ..Default::default() }).await?;
+    /// # let key = CacheKey { tenant_id: Uuid::new_v4(), user_id: Uuid::new_v4(), provider: "strava".to_owned(), resource: CacheResource::AthleteProfile };
+    /// // Invalidate a specific cache entry (e.g., after user updates their profile)
+    /// cache.invalidate(&key).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     async fn invalidate(&self, key: &CacheKey) -> AppResult<()>;
 
     /// Remove all cache entries matching pattern (e.g., "tenant:*:strava:*")

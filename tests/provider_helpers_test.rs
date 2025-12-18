@@ -106,28 +106,17 @@ fn test_auth_error_response_metadata() {
 #[test]
 fn test_build_activities_success_response() {
     use chrono::Utc;
-    use pierre_mcp_server::models::{Activity, SportType};
+    use pierre_mcp_server::models::{ActivityBuilder, SportType};
     use uuid::Uuid;
 
+    let now = Utc::now();
     let activities = vec![
-        Activity {
-            id: "123".to_owned(),
-            name: "Morning Run".to_owned(),
-            sport_type: SportType::Run,
-            start_date: Utc::now(),
-            distance_meters: Some(5000.0),
-            duration_seconds: 1800,
-            ..Default::default()
-        },
-        Activity {
-            id: "456".to_owned(),
-            name: "Evening Ride".to_owned(),
-            sport_type: SportType::Ride,
-            start_date: Utc::now(),
-            distance_meters: Some(25000.0),
-            duration_seconds: 3600,
-            ..Default::default()
-        },
+        ActivityBuilder::new("123", "Morning Run", SportType::Run, now, 1800, "test")
+            .distance_meters(5000.0)
+            .build(),
+        ActivityBuilder::new("456", "Evening Ride", SportType::Ride, now, 3600, "test")
+            .distance_meters(25000.0)
+            .build(),
     ];
 
     let user_id = Uuid::new_v4();

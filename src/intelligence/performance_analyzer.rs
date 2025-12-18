@@ -350,7 +350,7 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         let filtered_activities: Vec<_> = activities
             .iter()
             .filter(|a| {
-                let activity_utc = a.start_date;
+                let activity_utc = a.start_date();
                 activity_utc >= start_date && activity_utc <= end_date
             })
             .collect();
@@ -365,18 +365,18 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         let mut data_points = Vec::new();
 
         for activity in filtered_activities {
-            let activity_utc = activity.start_date;
+            let activity_utc = activity.start_date();
 
             let value = match metric {
-                "pace" | "speed" => activity.average_speed,
-                "heart_rate" => activity.average_heart_rate.map(f64::from),
-                "distance" => activity.distance_meters,
-                "duration" => Some(if activity.duration_seconds > u64::from(u32::MAX) {
+                "pace" | "speed" => activity.average_speed(),
+                "heart_rate" => activity.average_heart_rate().map(f64::from),
+                "distance" => activity.distance_meters(),
+                "duration" => Some(if activity.duration_seconds() > u64::from(u32::MAX) {
                     f64::from(u32::MAX)
                 } else {
-                    f64::from(u32::try_from(activity.duration_seconds).unwrap_or(u32::MAX))
+                    f64::from(u32::try_from(activity.duration_seconds()).unwrap_or(u32::MAX))
                 }),
-                "elevation" => activity.elevation_gain,
+                "elevation" => activity.elevation_gain(),
                 _ => None,
             };
 
@@ -465,7 +465,7 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         let recent_activities: Vec<_> = activities
             .iter()
             .filter(|a| {
-                let activity_utc = a.start_date;
+                let activity_utc = a.start_date();
                 let days_ago = (Utc::now() - activity_utc).num_days();
                 days_ago <= 42 // Last 6 weeks
             })
@@ -496,8 +496,8 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         let mut aerobic_count = 0;
 
         for activity in &recent_activities {
-            if let Some(hr) = activity.average_heart_rate {
-                let duration = activity.duration_seconds;
+            if let Some(hr) = activity.average_heart_rate() {
+                let duration = activity.duration_seconds();
                 if hr > RECOVERY_HR_THRESHOLD && duration > MIN_AEROBIC_DURATION {
                     // Above aerobic threshold with sufficient duration
                     let duration_hours = if duration > u64::from(u32::MAX) {
@@ -524,8 +524,8 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
 
         for activity in &recent_activities {
             // Use heart rate as proxy for intensity since power data is not available
-            if let Some(hr) = activity.average_heart_rate {
-                let duration = activity.duration_seconds;
+            if let Some(hr) = activity.average_heart_rate() {
+                let duration = activity.duration_seconds();
 
                 // High intensity workouts contribute to strength endurance
                 if hr > HIGH_INTENSITY_HR_THRESHOLD {
@@ -591,7 +591,7 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         // Simple performance prediction based on recent trends
         let similar_activities: Vec<_> = activities
             .iter()
-            .filter(|a| format!("{:?}", a.sport_type) == target.sport_type)
+            .filter(|a| format!("{:?}", a.sport_type()) == target.sport_type)
             .collect();
 
         if similar_activities.is_empty() {
@@ -605,17 +605,17 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
             similar_activities
                 .last()
                 .map_or(0.0, |last_activity| match target.metric.as_str() {
-                    "distance" => last_activity.distance_meters.unwrap_or(0.0),
+                    "distance" => last_activity.distance_meters().unwrap_or(0.0),
                     "time" => {
-                        if last_activity.duration_seconds > u64::from(u32::MAX) {
+                        if last_activity.duration_seconds() > u64::from(u32::MAX) {
                             f64::from(u32::MAX)
                         } else {
                             f64::from(
-                                u32::try_from(last_activity.duration_seconds).unwrap_or(u32::MAX),
+                                u32::try_from(last_activity.duration_seconds()).unwrap_or(u32::MAX),
                             )
                         }
                     }
-                    "pace" => last_activity.average_speed.unwrap_or(0.0),
+                    "pace" => last_activity.average_speed().unwrap_or(0.0),
                     _ => 0.0,
                 });
 
@@ -672,7 +672,7 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         let recent_activities: Vec<_> = activities
             .iter()
             .filter(|a| {
-                let activity_utc = a.start_date;
+                let activity_utc = a.start_date();
                 activity_utc >= start_date
             })
             .collect();
@@ -686,16 +686,16 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
             let week_activities: Vec<_> = recent_activities
                 .iter()
                 .filter(|a| {
-                    let activity_utc = a.start_date;
+                    let activity_utc = a.start_date();
                     activity_utc >= week_start && activity_utc < week_end
                 })
                 .collect();
 
-            let total_duration: u64 = week_activities.iter().map(|a| a.duration_seconds).sum();
+            let total_duration: u64 = week_activities.iter().map(|a| a.duration_seconds()).sum();
 
             let total_distance: f64 = week_activities
                 .iter()
-                .filter_map(|a| a.distance_meters)
+                .filter_map(|a| a.distance_meters())
                 .sum();
 
             weekly_loads.push(WeeklyLoad {
@@ -706,7 +706,7 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
                 intensity_score: week_activities
                     .iter()
                     // Heart rates are small values (30-220), safe to cast to f32
-                    .filter_map(|a| a.average_heart_rate.map(safe_u32_to_f32))
+                    .filter_map(|a| a.average_heart_rate().map(safe_u32_to_f32))
                     .map(f64::from)
                     .sum::<f64>()
                     / f64::from(u32::try_from(week_activities.len().max(1)).unwrap_or(u32::MAX)),

@@ -144,7 +144,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
         let recent_activities: Vec<Activity> = activities
             .iter()
             .filter(|a| {
-                let activity_utc = a.start_date;
+                let activity_utc = a.start_date();
                 let weeks_ago = (Utc::now() - activity_utc).num_weeks();
                 weeks_ago <= TRAINING_PATTERN_ANALYSIS_WEEKS
             })
@@ -158,17 +158,17 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
 
         for activity in &recent_activities {
             *sport_frequency
-                .entry(format!("{:?}", activity.sport_type))
+                .entry(format!("{:?}", activity.sport_type()))
                 .or_insert(0) += 1;
 
-            let duration = activity.duration_seconds;
+            let duration = activity.duration_seconds();
             // Safe: duration represents time in seconds, precision loss acceptable for hour calculations
             {
                 weekly_load += duration as f64 / 3600.0;
             } // Hours
             _total_duration += duration;
 
-            if let Some(avg_hr) = activity.average_heart_rate {
+            if let Some(avg_hr) = activity.average_heart_rate() {
                 // Use configurable heart rate thresholds
                 let hr_config = &self.config.thresholds;
                 // Safe: heart rate thresholds are small positive values (80-220 bpm)
@@ -258,14 +258,14 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
 
         let mut sorted_activities = activities.to_vec();
         sorted_activities.sort_by(|a, b| {
-            let date_a = Some(a.start_date);
-            let date_b = Some(b.start_date);
+            let date_a = Some(a.start_date());
+            let date_b = Some(b.start_date());
             date_a.cmp(&date_b)
         });
 
         for i in 1..sorted_activities.len() {
-            let prev_date = sorted_activities[i - 1].start_date;
-            let curr_date = sorted_activities[i].start_date;
+            let prev_date = sorted_activities[i - 1].start_date();
+            let curr_date = sorted_activities[i].start_date();
             let gap_days = (curr_date - prev_date).num_days();
 
             if gap_days > SHORT_TRAINING_GAP_DAYS {
@@ -283,7 +283,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
         }
 
         // Check for missing training types
-        let sports: HashSet<_> = activities.iter().map(|a| &a.sport_type).collect();
+        let sports: HashSet<_> = activities.iter().map(Activity::sport_type).collect();
 
         if let Some(profile) = &self.user_profile {
             for primary_sport in &profile.primary_sports {
@@ -664,17 +664,20 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         let recent_activities: Vec<Activity> = activities
             .iter()
             .filter(|a| {
-                let activity_utc = a.start_date;
+                let activity_utc = a.start_date();
                 let days_ago = (Utc::now() - activity_utc).num_days();
                 days_ago <= RECOVERY_ANALYSIS_DAYS
             })
             .cloned()
             .collect();
-        let total_duration: u64 = recent_activities.iter().map(|a| a.duration_seconds).sum();
+        let total_duration: u64 = recent_activities
+            .iter()
+            .map(Activity::duration_seconds)
+            .sum();
 
         let high_intensity_sessions = recent_activities
             .iter()
-            .filter(|a| a.average_heart_rate.unwrap_or(0) > HIGH_INTENSITY_HR_THRESHOLD)
+            .filter(|a| a.average_heart_rate().unwrap_or(0) > HIGH_INTENSITY_HR_THRESHOLD)
             .count();
 
         // Check if recovery is needed
@@ -728,9 +731,9 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         let mut recommendations = Vec::new();
 
         // Safe: duration conversion to hours, precision loss acceptable for nutrition calculations
-        let duration_hours = activity.duration_seconds as f64 / 3600.0;
+        let duration_hours = activity.duration_seconds() as f64 / 3600.0;
         let high_intensity =
-            activity.average_heart_rate.unwrap_or(0) > MODERATE_NUTRITION_HR_THRESHOLD;
+            activity.average_heart_rate().unwrap_or(0) > MODERATE_NUTRITION_HR_THRESHOLD;
 
         // Pre-activity nutrition
         if duration_hours > PRE_EXERCISE_DURATION_THRESHOLD {
@@ -800,7 +803,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         let mut sport_counts: HashMap<String, usize> = HashMap::new();
         for activity in activities {
             *sport_counts
-                .entry(format!("{:?}", activity.sport_type))
+                .entry(format!("{:?}", activity.sport_type()))
                 .or_insert(0) += 1;
         }
 
@@ -847,7 +850,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         }
 
         // General monitoring equipment
-        let has_hr_data = activities.iter().any(|a| a.average_heart_rate.is_some());
+        let has_hr_data = activities.iter().any(|a| a.average_heart_rate().is_some());
         // Safe: weekly frequency is small positive value (1-20 activities)
         if !has_hr_data && activities.len() > (MAX_WEEKLY_FREQUENCY as usize) {
             recommendations.push(TrainingRecommendation {
@@ -879,13 +882,13 @@ impl AdvancedRecommendationEngine {
         // Sort activities by date (most recent first)
         let mut sorted_activities = activities.to_vec();
         sorted_activities.sort_by(|a, b| {
-            let date_a = Some(a.start_date);
-            let date_b = Some(b.start_date);
+            let date_a = Some(a.start_date());
+            let date_b = Some(b.start_date());
             date_b.cmp(&date_a) // Reverse order (newest first)
         });
 
         for activity in sorted_activities {
-            let activity_naive = activity.start_date.naive_utc().date();
+            let activity_naive = activity.start_date().naive_utc().date();
 
             if activity_naive == current_date || activity_naive == current_date - Days::new(1) {
                 consecutive += 1;

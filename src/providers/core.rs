@@ -293,6 +293,20 @@ pub trait FitnessProvider: Send + Sync {
     async fn refresh_token_if_needed(&self) -> AppResult<()>;
 
     /// Get user's athlete profile
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use pierre_mcp_server::providers::core::FitnessProvider;
+    /// # async fn example(provider: &impl FitnessProvider) -> Result<(), pierre_mcp_server::errors::AppError> {
+    /// let athlete = provider.get_athlete().await?;
+    /// println!("Athlete: {} (ID: {})", athlete.username, athlete.id);
+    /// if let Some(first) = &athlete.firstname {
+    ///     println!("Name: {}", first);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
     async fn get_athlete(&self) -> AppResult<Athlete>;
 
     /// Get user's activities with offset-based pagination (legacy)
@@ -317,6 +331,28 @@ pub trait FitnessProvider: Send + Sync {
     ///
     /// For Strava, `before` and `after` map directly to API parameters, enabling
     /// efficient date range queries without fetching all activities first.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use pierre_mcp_server::providers::core::{FitnessProvider, ActivityQueryParams};
+    /// # use chrono::{Duration, Utc};
+    /// # async fn example(provider: &impl FitnessProvider) -> Result<(), pierre_mcp_server::errors::AppError> {
+    /// // Get last 10 activities
+    /// let params = ActivityQueryParams::with_pagination(Some(10), None);
+    /// let activities = provider.get_activities_with_params(&params).await?;
+    ///
+    /// // Get activities from the last 30 days
+    /// let thirty_days_ago = (Utc::now() - Duration::days(30)).timestamp();
+    /// let time_params = ActivityQueryParams::with_time_range(None, Some(thirty_days_ago));
+    /// let recent = provider.get_activities_with_params(&time_params).await?;
+    ///
+    /// for activity in &recent {
+    ///     println!("{}: {:.1} km", activity.name(), activity.distance_meters().unwrap_or(0.0) / 1000.0);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
     async fn get_activities_with_params(
         &self,
         params: &ActivityQueryParams,
@@ -332,9 +368,38 @@ pub trait FitnessProvider: Send + Sync {
     ) -> AppResult<CursorPage<Activity>>;
 
     /// Get specific activity by ID
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use pierre_mcp_server::providers::core::FitnessProvider;
+    /// # async fn example(provider: &impl FitnessProvider) -> Result<(), pierre_mcp_server::errors::AppError> {
+    /// let activity = provider.get_activity("12345678").await?;
+    /// println!("Activity: {}", activity.name());
+    /// println!("Type: {:?}", activity.sport_type());
+    /// if let Some(distance) = activity.distance_meters() {
+    ///     println!("Distance: {:.2} km", distance / 1000.0);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
     async fn get_activity(&self, id: &str) -> AppResult<Activity>;
 
     /// Get user's aggregate statistics
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use pierre_mcp_server::providers::core::FitnessProvider;
+    /// # async fn example(provider: &impl FitnessProvider) -> Result<(), pierre_mcp_server::errors::AppError> {
+    /// let stats = provider.get_stats().await?;
+    /// println!("Total activities: {}", stats.total_activities);
+    /// println!("Total distance: {:.1} km", stats.total_distance / 1000.0);
+    /// println!("Total duration: {} hours", stats.total_duration / 3600);
+    /// println!("Total elevation: {:.0} m", stats.total_elevation_gain);
+    /// # Ok(())
+    /// # }
+    /// ```
     async fn get_stats(&self) -> AppResult<Stats>;
 
     /// Get user's personal records

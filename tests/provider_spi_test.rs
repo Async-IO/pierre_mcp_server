@@ -251,69 +251,69 @@ mod activity_query_params_tests {
 
     /// Helper to create a synthetic provider with sample activities spanning multiple dates
     fn create_provider_with_activities() -> SyntheticProvider {
-        use pierre_mcp_server::models::{Activity, SportType};
+        use pierre_mcp_server::models::{ActivityBuilder, SportType};
 
         let provider = SyntheticProvider::new();
         let now = Utc::now();
 
-        // Add activities at different times using struct update syntax with Default
+        // Add activities at different times using ActivityBuilder
         let activities = vec![
-            Activity {
-                id: "activity_1".to_owned(),
-                name: "Morning Run".to_owned(),
-                sport_type: SportType::Run,
-                start_date: now - Duration::hours(1),
-                distance_meters: Some(5000.0),
-                duration_seconds: 1800,
-                elevation_gain: Some(50.0),
-                average_heart_rate: Some(150),
-                max_heart_rate: Some(175),
-                calories: Some(300),
-                provider: "synthetic".to_owned(),
-                ..Default::default()
-            },
-            Activity {
-                id: "activity_2".to_owned(),
-                name: "Yesterday Run".to_owned(),
-                sport_type: SportType::Run,
-                start_date: now - Duration::days(1),
-                distance_meters: Some(10000.0),
-                duration_seconds: 3600,
-                elevation_gain: Some(100.0),
-                average_heart_rate: Some(145),
-                max_heart_rate: Some(170),
-                calories: Some(600),
-                provider: "synthetic".to_owned(),
-                ..Default::default()
-            },
-            Activity {
-                id: "activity_3".to_owned(),
-                name: "Last Week Ride".to_owned(),
-                sport_type: SportType::Ride,
-                start_date: now - Duration::days(7),
-                distance_meters: Some(50000.0),
-                duration_seconds: 7200,
-                elevation_gain: Some(500.0),
-                average_heart_rate: Some(135),
-                max_heart_rate: Some(160),
-                calories: Some(1200),
-                provider: "synthetic".to_owned(),
-                ..Default::default()
-            },
-            Activity {
-                id: "activity_4".to_owned(),
-                name: "Old Ski".to_owned(),
-                sport_type: SportType::CrossCountrySkiing,
-                start_date: now - Duration::days(30),
-                distance_meters: Some(15000.0),
-                duration_seconds: 5400,
-                elevation_gain: Some(200.0),
-                average_heart_rate: Some(140),
-                max_heart_rate: Some(165),
-                calories: Some(800),
-                provider: "synthetic".to_owned(),
-                ..Default::default()
-            },
+            ActivityBuilder::new(
+                "activity_1",
+                "Morning Run",
+                SportType::Run,
+                now - Duration::hours(1),
+                1800,
+                "synthetic",
+            )
+            .distance_meters(5000.0)
+            .elevation_gain(50.0)
+            .average_heart_rate(150)
+            .max_heart_rate(175)
+            .calories(300)
+            .build(),
+            ActivityBuilder::new(
+                "activity_2",
+                "Yesterday Run",
+                SportType::Run,
+                now - Duration::days(1),
+                3600,
+                "synthetic",
+            )
+            .distance_meters(10000.0)
+            .elevation_gain(100.0)
+            .average_heart_rate(145)
+            .max_heart_rate(170)
+            .calories(600)
+            .build(),
+            ActivityBuilder::new(
+                "activity_3",
+                "Last Week Ride",
+                SportType::Ride,
+                now - Duration::days(7),
+                7200,
+                "synthetic",
+            )
+            .distance_meters(50000.0)
+            .elevation_gain(500.0)
+            .average_heart_rate(135)
+            .max_heart_rate(160)
+            .calories(1200)
+            .build(),
+            ActivityBuilder::new(
+                "activity_4",
+                "Old Ski",
+                SportType::CrossCountrySkiing,
+                now - Duration::days(30),
+                5400,
+                "synthetic",
+            )
+            .distance_meters(15000.0)
+            .elevation_gain(200.0)
+            .average_heart_rate(140)
+            .max_heart_rate(165)
+            .calories(800)
+            .build(),
         ];
 
         for activity in activities {
@@ -355,7 +355,7 @@ mod activity_query_params_tests {
         assert_eq!(activities.len(), 2);
         assert!(activities
             .iter()
-            .all(|a| a.start_date.timestamp() >= after_timestamp));
+            .all(|a| a.start_date().timestamp() >= after_timestamp));
     }
 
     #[tokio::test]
@@ -378,7 +378,7 @@ mod activity_query_params_tests {
         assert_eq!(activities.len(), 2);
         assert!(activities
             .iter()
-            .all(|a| a.start_date.timestamp() < before_timestamp));
+            .all(|a| a.start_date().timestamp() < before_timestamp));
     }
 
     #[tokio::test]
@@ -401,7 +401,7 @@ mod activity_query_params_tests {
 
         // Should only get the ride from 7 days ago
         assert_eq!(activities.len(), 1);
-        assert_eq!(activities[0].id, "activity_3");
+        assert_eq!(activities[0].id(), "activity_3");
     }
 
     #[tokio::test]

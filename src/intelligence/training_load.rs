@@ -141,7 +141,7 @@ impl TrainingLoadCalculator {
             if let Ok(tss) = self.calculate_tss(activity, ftp, lthr, max_hr, resting_hr, weight_kg)
             {
                 tss_data.push(TssDataPoint {
-                    date: activity.start_date,
+                    date: activity.start_date(),
                     tss,
                 });
             }

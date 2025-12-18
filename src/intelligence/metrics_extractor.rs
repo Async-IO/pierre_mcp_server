@@ -35,12 +35,12 @@ impl MetricType {
     /// Extract metric value from an activity
     pub fn extract_value(self, activity: &Activity) -> Option<f64> {
         match self {
-            Self::Pace | Self::Speed => activity.average_speed,
-            Self::HeartRate => activity.average_heart_rate.map(f64::from),
-            Self::Distance => activity.distance_meters,
-            Self::Duration => Some(activity.duration_seconds as f64), // Safe: fitness duration fits in f64
-            Self::Elevation => activity.elevation_gain,
-            Self::Power => activity.average_power.map(f64::from),
+            Self::Pace | Self::Speed => activity.average_speed(),
+            Self::HeartRate => activity.average_heart_rate().map(f64::from),
+            Self::Distance => activity.distance_meters(),
+            Self::Duration => Some(activity.duration_seconds() as f64), // Safe: fitness duration fits in f64
+            Self::Elevation => activity.elevation_gain(),
+            Self::Power => activity.average_power().map(f64::from),
         }
     }
 
@@ -96,7 +96,7 @@ impl SafeMetricExtractor {
             .filter_map(|activity| {
                 metric_type
                     .extract_value(activity)
-                    .map(|value| (activity.start_date, value))
+                    .map(|value| (activity.start_date(), value))
             })
             .collect();
 
@@ -124,7 +124,9 @@ impl SafeMetricExtractor {
     ) -> AppResult<Vec<(DateTime<Utc>, f64)>> {
         let filtered_activities: Vec<_> = activities
             .iter()
-            .filter(|activity| activity.start_date >= start_date && activity.start_date <= end_date)
+            .filter(|activity| {
+                activity.start_date() >= start_date && activity.start_date() <= end_date
+            })
             .cloned()
             .collect();
 

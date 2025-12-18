@@ -27,6 +27,7 @@
 
 use crate::models::{Activity, HealthMetrics, NutritionLog, RecoveryMetrics, SleepSession};
 use chrono::{DateTime, Duration, Utc};
+use std::cmp::Reverse;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -83,14 +84,14 @@ impl UserCache {
     /// Add an activity to the cache, avoiding duplicates and enforcing limits
     fn add_activity(&mut self, activity: Activity, max_items: usize) {
         // Check for duplicate by ID
-        if !self.activities.iter().any(|e| e.data.id == activity.id) {
+        if !self.activities.iter().any(|e| e.data.id() == activity.id()) {
             self.activities.push(CacheEntry::new(activity));
 
             // Enforce max items limit
             if self.activities.len() > max_items {
                 // Remove oldest entries
                 self.activities
-                    .sort_by(|a, b| b.data.start_date.cmp(&a.data.start_date));
+                    .sort_by(|a, b| b.data.start_date().cmp(&a.data.start_date()));
                 self.activities.truncate(max_items);
             }
         }
@@ -244,7 +245,7 @@ impl TerraDataCache {
             return Vec::new();
         };
 
-        activities.sort_by(|a, b| b.start_date.cmp(&a.start_date));
+        activities.sort_by_key(|b| Reverse(b.start_date()));
 
         let offset = offset.unwrap_or(0);
         let limit = limit.unwrap_or(usize::MAX);
@@ -262,7 +263,7 @@ impl TerraDataCache {
             .get(terra_user_id)?
             .activities
             .iter()
-            .find(|e| e.data.id == activity_id && !e.is_expired(ttl))
+            .find(|e| e.data.id() == activity_id && !e.is_expired(ttl))
             .map(|e| e.data.clone())
     }
 

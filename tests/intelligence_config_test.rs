@@ -605,72 +605,29 @@ mod integration_tests {
     use pierre_mcp_server::models::{Activity, SportType};
 
     fn create_test_activity() -> Activity {
-        Activity {
-            id: "test_123".to_owned(),
-            name: "Test Run".to_owned(),
-            sport_type: SportType::Run,
-            start_date: Utc::now(),
-            duration_seconds: 3600,         // 1 hour
-            distance_meters: Some(10000.0), // 10km
-            elevation_gain: Some(100.0),
-            average_heart_rate: Some(150),
-            max_heart_rate: Some(170),
-            steps: Some(12000),
-            heart_rate_zones: None,
-            average_speed: Some(2.78), // m/s for 10km/h
-            max_speed: Some(3.33),     // m/s
-            calories: Some(500),
+        use pierre_mcp_server::models::ActivityBuilder;
 
-            // Advanced power metrics
-            average_power: None,
-            max_power: None,
-            normalized_power: None,
-            power_zones: None,
-            ftp: None,
-
-            // Cadence metrics
-            average_cadence: None,
-            max_cadence: None,
-
-            // Advanced heart rate metrics
-            hrv_score: None,
-            recovery_heart_rate: None,
-
-            // Environmental conditions
-            temperature: None,
-            humidity: None,
-            average_altitude: None,
-            wind_speed: None,
-
-            // Biomechanical metrics
-            ground_contact_time: None,
-            vertical_oscillation: None,
-            stride_length: None,
-            running_power: None,
-
-            // Respiratory metrics
-            breathing_rate: None,
-            spo2: None,
-
-            // Training load metrics
-            training_stress_score: None,
-            intensity_factor: None,
-            suffer_score: None,
-
-            // Time series data
-            time_series_data: None,
-
-            start_latitude: Some(37.7749),
-            start_longitude: Some(-122.4194),
-            city: Some("San Francisco".to_owned()),
-            country: Some("United States".to_owned()),
-            provider: "test".to_owned(),
-            region: None,
-            trail_name: None,
-            workout_type: None,
-            sport_type_detail: None,
-            segment_efforts: None,
-        }
+        ActivityBuilder::new(
+            "test_123",
+            "Test Run",
+            SportType::Run,
+            Utc::now(),
+            3600, // 1 hour
+            "test",
+        )
+        .distance_meters(10000.0) // 10km
+        .elevation_gain(100.0)
+        .average_heart_rate(150)
+        .max_heart_rate(170)
+        .steps(12000)
+        .average_speed(2.78) // m/s for 10km/h
+        .max_speed(3.33) // m/s
+        .calories(500)
+        .start_latitude(37.7749)
+        .start_longitude(-122.4194)
+        .city("San Francisco".to_owned())
+        .country("United States".to_owned())
+        .build()
     }
 
     #[tokio::test]

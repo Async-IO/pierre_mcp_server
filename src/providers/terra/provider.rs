@@ -15,6 +15,7 @@
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use std::cmp::Reverse;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::instrument;
@@ -215,12 +216,12 @@ impl FitnessProvider for TerraProvider {
         // Apply time filtering if before/after specified
         if let Some(after_ts) = params.after {
             if let Some(after_dt) = chrono::DateTime::from_timestamp(after_ts, 0) {
-                activities.retain(|a| a.start_date >= after_dt);
+                activities.retain(|a| a.start_date() >= after_dt);
             }
         }
         if let Some(before_ts) = params.before {
             if let Some(before_dt) = chrono::DateTime::from_timestamp(before_ts, 0) {
-                activities.retain(|a| a.start_date < before_dt);
+                activities.retain(|a| a.start_date() < before_dt);
             }
         }
 
@@ -235,14 +236,14 @@ impl FitnessProvider for TerraProvider {
 
         // Get all activities and sort by start_date descending
         let mut activities = self.cache.get_activities(&user_id, None, None).await;
-        activities.sort_by(|a, b| b.start_date.cmp(&a.start_date));
+        activities.sort_by_key(|b| Reverse(b.start_date()));
 
         // Find starting position based on cursor
         let start_index = params.cursor.as_ref().map_or(0, |cursor| {
             cursor.decode().map_or(0, |(_timestamp, id)| {
                 activities
                     .iter()
-                    .position(|a| a.id == id)
+                    .position(|a| a.id() == id)
                     .map_or(0, |pos| pos + 1)
             })
         });
@@ -261,7 +262,7 @@ impl FitnessProvider for TerraProvider {
         // Create next cursor using the last item's timestamp and ID
         let next_cursor = if has_more && !items.is_empty() {
             let last_item = &items[items.len() - 1];
-            Some(Cursor::new(last_item.start_date, &last_item.id))
+            Some(Cursor::new(last_item.start_date(), last_item.id()))
         } else {
             None
         };
@@ -294,9 +295,13 @@ impl FitnessProvider for TerraProvider {
         let activities = self.cache.get_activities(&user_id, None, None).await;
 
         let total_activities = activities.len() as u64;
-        let total_distance: f64 = activities.iter().filter_map(|a| a.distance_meters).sum();
-        let total_duration: u64 = activities.iter().map(|a| a.duration_seconds).sum();
-        let total_elevation_gain: f64 = activities.iter().filter_map(|a| a.elevation_gain).sum();
+        let total_distance: f64 = activities
+            .iter()
+            .filter_map(Activity::distance_meters)
+            .sum();
+        let total_duration: u64 = activities.iter().map(Activity::duration_seconds).sum();
+        let total_elevation_gain: f64 =
+            activities.iter().filter_map(Activity::elevation_gain).sum();
 
         Ok(Stats {
             total_activities,

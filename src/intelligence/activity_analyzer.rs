@@ -160,7 +160,7 @@ impl AdvancedActivityAnalyzer {
 
         // Efficiency component - based on completion and metrics quality
         let mut efficiency_score = 0.0;
-        if activity.distance_meters.unwrap_or(0.0) > 0.0 {
+        if activity.distance_meters().unwrap_or(0.0) > 0.0 {
             efficiency_score += COMPLETION_BONUS;
         }
         if metrics.trimp.is_some() {
@@ -173,7 +173,7 @@ impl AdvancedActivityAnalyzer {
 
         // Intensity component - based on effort level using physiological thresholds
         let mut intensity_score = 0.0;
-        if let Some(avg_hr) = activity.average_heart_rate {
+        if let Some(avg_hr) = activity.average_heart_rate() {
             if avg_hr > MODERATE_HR_THRESHOLD {
                 intensity_score += HR_ZONE_BONUS;
             }
@@ -185,7 +185,7 @@ impl AdvancedActivityAnalyzer {
 
         // Duration component - based on duration thresholds
         let mut duration_score = 0.0;
-        let duration = activity.duration_seconds;
+        let duration = activity.duration_seconds();
         if duration > MIN_AEROBIC_DURATION {
             duration_score += DURATION_BONUS;
         }
@@ -196,10 +196,10 @@ impl AdvancedActivityAnalyzer {
 
         // Consistency component - based on data completeness and quality
         let mut consistency_score = 0.0;
-        if activity.average_heart_rate.is_some() && activity.max_heart_rate.is_some() {
+        if activity.average_heart_rate().is_some() && activity.max_heart_rate().is_some() {
             consistency_score += STANDARD_BONUS;
         }
-        if activity.average_speed.is_some() && activity.max_speed.is_some() {
+        if activity.average_speed().is_some() && activity.max_speed().is_some() {
             consistency_score += STANDARD_BONUS;
         }
         score += consistency_score * scoring_config.consistency_weight;
@@ -215,8 +215,8 @@ impl AdvancedActivityAnalyzer {
         let mut insights = Vec::new();
 
         // Heart rate insights
-        if let Some(avg_hr) = activity.average_heart_rate {
-            if let Some(max_hr) = activity.max_heart_rate {
+        if let Some(avg_hr) = activity.average_heart_rate() {
+            if let Some(max_hr) = activity.max_heart_rate() {
                 // Heart rates are small values (30-220), use safe conversion
                 let hr_reserve_used = (f32::from(safe_u32_to_u16(avg_hr))
                     / f32::from(safe_u32_to_u16(max_hr)))
@@ -327,7 +327,7 @@ impl AdvancedActivityAnalyzer {
         let mut recommendations = Vec::new();
 
         // Duration-based recommendations using physiological thresholds
-        let duration = activity.duration_seconds;
+        let duration = activity.duration_seconds();
         if duration < MIN_AEROBIC_DURATION {
             recommendations
                 .push("Consider extending workout duration for better aerobic benefits".into());
@@ -337,7 +337,7 @@ impl AdvancedActivityAnalyzer {
         }
 
         // Heart rate based recommendations using established zones
-        if let Some(avg_hr) = activity.average_heart_rate {
+        if let Some(avg_hr) = activity.average_heart_rate() {
             if avg_hr < RECOVERY_HR_THRESHOLD {
                 recommendations.push(
                     "Consider increasing intensity for better cardiovascular stimulus".into(),
@@ -360,9 +360,9 @@ impl AdvancedActivityAnalyzer {
         }
 
         // Sport-specific recommendations
-        match activity.sport_type {
+        match *activity.sport_type() {
             SportType::Run => {
-                if let Some(pace) = activity.average_speed {
+                if let Some(pace) = activity.average_speed() {
                     if pace > FAST_PACE_THRESHOLD {
                         recommendations
                             .push("Excellent pace! Focus on maintaining form at speed".into());
@@ -389,10 +389,10 @@ impl AdvancedActivityAnalyzer {
         activity: &Activity,
         same_sport_activities: &[&Activity],
     ) -> Option<Vec<AdvancedInsight>> {
-        let current_speed = activity.average_speed?;
+        let current_speed = activity.average_speed()?;
         let historical_speeds: Vec<f32> = same_sport_activities
             .iter()
-            .filter_map(|a| a.average_speed.map(safe_f64_to_f32))
+            .filter_map(|a| a.average_speed().map(safe_f64_to_f32))
             .collect();
 
         if historical_speeds.is_empty() {
@@ -465,14 +465,14 @@ impl AdvancedActivityAnalyzer {
         activity: &Activity,
         same_sport_activities: &[&Activity],
     ) -> Option<Vec<AdvancedInsight>> {
-        let current_hr = activity.average_heart_rate?;
-        let current_speed = activity.average_speed?;
+        let current_hr = activity.average_heart_rate()?;
+        let current_speed = activity.average_speed()?;
         let current_efficiency = current_speed / f64::from(current_hr);
 
         let historical_efficiencies: Vec<f32> = same_sport_activities
             .iter()
             .filter_map(|a| {
-                if let (Some(hr), Some(speed)) = (a.average_heart_rate, a.average_speed) {
+                if let (Some(hr), Some(speed)) = (a.average_heart_rate(), a.average_speed()) {
                     Some(safe_f64_to_f32(speed / f64::from(hr)))
                 } else {
                     None
@@ -547,7 +547,7 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
             .map_err(|e| AppError::internal(format!("Anomaly detection failed: {e}")))?;
 
         Ok(ActivityInsights {
-            activity_id: activity.id.clone(),
+            activity_id: activity.id().to_owned(),
             overall_score,
             insights,
             metrics,
@@ -568,7 +568,7 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
         let mut anomalies = Vec::new();
 
         // Check for unrealistic heart rate values using physiological limits
-        if let Some(max_hr) = activity.max_heart_rate {
+        if let Some(max_hr) = activity.max_heart_rate() {
             if max_hr > MAX_REALISTIC_HEART_RATE {
                 anomalies.push(Anomaly {
                     anomaly_type: "unrealistic_heart_rate".into(),
@@ -586,8 +586,8 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
         // Skip power anomaly detection
 
         // Check for unrealistic speed values using sport-specific limits
-        if let Some(max_speed) = activity.max_speed {
-            let expected_max_speed = match activity.sport_type {
+        if let Some(max_speed) = activity.max_speed() {
+            let expected_max_speed = match *activity.sport_type() {
                 SportType::Run => MAX_RUNNING_SPEED,
                 SportType::Ride => MAX_CYCLING_SPEED,
                 SportType::Swim => MAX_SWIMMING_SPEED,
@@ -599,7 +599,7 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
                     anomaly_type: "unrealistic_speed".into(),
                     description: format!(
                         "Maximum speed seems unusually high for {sport_type:?}",
-                        sport_type = activity.sport_type
+                        sport_type = activity.sport_type()
                     ),
                     severity: InsightSeverity::Warning,
                     confidence: Confidence::Medium,
@@ -611,7 +611,7 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
         }
 
         // Check for missing expected data
-        if activity.average_heart_rate.is_none() && activity.sport_type != SportType::Swim {
+        if activity.average_heart_rate().is_none() && *activity.sport_type() != SportType::Swim {
             anomalies.push(Anomaly {
                 anomaly_type: "missing_heart_rate".into(),
                 description: "Heart rate data missing - consider using HR monitor".into(),
@@ -640,7 +640,7 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
         let mut load = 0.0;
 
         // Base load on duration
-        let duration = activity.duration_seconds;
+        let duration = activity.duration_seconds();
         {
             // Safe conversion for duration to f64
             let duration_f64 = if duration > u64::from(u32::MAX) {
@@ -652,7 +652,7 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
         }
 
         // Multiply by intensity factor using heart rate zones
-        if let Some(avg_hr) = activity.average_heart_rate {
+        if let Some(avg_hr) = activity.average_heart_rate() {
             let intensity_multiplier = if avg_hr > HIGH_INTENSITY_HR_THRESHOLD {
                 2.0
             } else if avg_hr > MODERATE_HR_THRESHOLD {
@@ -687,7 +687,7 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
         // Filter historical activities by sport type
         let same_sport_activities: Vec<_> = historical_activities
             .iter()
-            .filter(|a| a.sport_type == activity.sport_type)
+            .filter(|a| *a.sport_type() == *activity.sport_type())
             .collect();
 
         if same_sport_activities.is_empty() {

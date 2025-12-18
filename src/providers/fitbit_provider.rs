@@ -15,8 +15,8 @@ use super::errors::ProviderError;
 use crate::constants::oauth_providers;
 use crate::errors::{AppError, AppResult};
 use crate::models::{
-    Activity, Athlete, HealthMetrics, HeartRateZone, PersonalRecord, RecoveryMetrics, SleepSession,
-    SleepStage, SleepStageType, SportType, Stats,
+    Activity, ActivityBuilder, Athlete, HealthMetrics, HeartRateZone, PersonalRecord,
+    RecoveryMetrics, SleepSession, SleepStage, SleepStageType, SportType, Stats,
 };
 use crate::pagination::{CursorPage, PaginationParams};
 use crate::utils::http_client::shared_client;
@@ -442,72 +442,40 @@ impl FitbitProvider {
 
         let duration_seconds = activity.duration / 1000; // Convert ms to seconds
 
-        Ok(Activity {
-            id: activity.log_id.to_string(),
-            name: activity.activity_name.clone(),
-            sport_type: Self::parse_sport_type(activity.activity_type_id, &activity.activity_name),
+        Ok(ActivityBuilder::new(
+            activity.log_id.to_string(),
+            activity.activity_name.clone(),
+            Self::parse_sport_type(activity.activity_type_id, &activity.activity_name),
             start_date,
-            distance_meters: activity.distance.map(|d| d * 1000.0), // Convert km to meters
             duration_seconds,
-            elevation_gain: activity.elevation_gain,
-            average_speed: activity.distance.and_then(|d| {
-                if duration_seconds > 0 {
-                    #[allow(clippy::cast_precision_loss)]
-                    Some((d * 1000.0) / (duration_seconds as f64)) // m/s
-                } else {
-                    None
-                }
-            }),
-            max_speed: None, // Fitbit API doesn't provide max speed
-            average_heart_rate: activity.average_heart_rate,
-            max_heart_rate: None, // Would need to calculate from zones
-            average_cadence: None,
-            average_power: None,
-            max_power: None,
-            calories: activity.calories,
-            steps: activity.steps,
-            heart_rate_zones: activity.heart_rate_zones.map(|zones| {
-                zones
-                    .into_iter()
-                    .map(|zone| HeartRateZone {
-                        name: zone.name,
-                        min_hr: zone.min,
-                        max_hr: zone.max,
-                        minutes: zone.minutes,
-                    })
-                    .collect()
-            }),
-            normalized_power: None,
-            power_zones: None,
-            ftp: None,
-            max_cadence: None,
-            hrv_score: None,
-            recovery_heart_rate: None,
-            temperature: None,
-            humidity: None,
-            average_altitude: None,
-            wind_speed: None,
-            ground_contact_time: None,
-            vertical_oscillation: None,
-            stride_length: None,
-            running_power: None,
-            breathing_rate: None,
-            spo2: None,
-            training_stress_score: None,
-            intensity_factor: None,
-            suffer_score: None,
-            time_series_data: None,
-            start_latitude: None, // Fitbit requires separate GPS endpoint
-            start_longitude: None,
-            city: None,
-            region: None,
-            country: None,
-            trail_name: None,
-            workout_type: None,
-            sport_type_detail: Some(activity.activity_name.clone()),
-            segment_efforts: None,
-            provider: oauth_providers::FITBIT.to_owned(),
-        })
+            oauth_providers::FITBIT,
+        )
+        .distance_meters_opt(activity.distance.map(|d| d * 1000.0)) // Convert km to meters
+        .elevation_gain_opt(activity.elevation_gain)
+        .average_speed_opt(activity.distance.and_then(|d| {
+            if duration_seconds > 0 {
+                #[allow(clippy::cast_precision_loss)]
+                Some((d * 1000.0) / (duration_seconds as f64)) // m/s
+            } else {
+                None
+            }
+        }))
+        .average_heart_rate_opt(activity.average_heart_rate)
+        .calories_opt(activity.calories)
+        .steps_opt(activity.steps)
+        .heart_rate_zones_opt(activity.heart_rate_zones.map(|zones| {
+            zones
+                .into_iter()
+                .map(|zone| HeartRateZone {
+                    name: zone.name,
+                    min_hr: zone.min,
+                    max_hr: zone.max,
+                    minutes: zone.minutes,
+                })
+                .collect()
+        }))
+        .sport_type_detail(activity.activity_name.clone())
+        .build())
     }
 
     /// Convert Fitbit sleep log to internal `SleepSession` model

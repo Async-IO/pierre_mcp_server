@@ -129,7 +129,7 @@ impl PerformanceAnalyzerV2 {
 
         let recent_activities: Vec<_> = activities
             .iter()
-            .filter(|a| a.start_date >= cutoff_date)
+            .filter(|a| a.start_date() >= cutoff_date)
             .collect();
 
         if recent_activities.is_empty() {
@@ -186,7 +186,7 @@ impl PerformanceAnalyzerV2 {
         // Filter to similar sport activities
         let similar_activities: Vec<_> = activities
             .iter()
-            .filter(|a| format!("{:?}", a.sport_type) == target.sport_type)
+            .filter(|a| format!("{:?}", a.sport_type()) == target.sport_type)
             .cloned()
             .collect();
 
@@ -259,7 +259,7 @@ impl PerformanceAnalyzerV2 {
 
         let recent_activities: Vec<_> = activities
             .iter()
-            .filter(|a| a.start_date >= start_date)
+            .filter(|a| a.start_date() >= start_date)
             .collect();
 
         let mut weekly_loads = Vec::new();
@@ -270,7 +270,7 @@ impl PerformanceAnalyzerV2 {
 
             let week_activities: Vec<&Activity> = recent_activities
                 .iter()
-                .filter(|&a| a.start_date >= week_start && a.start_date < week_end)
+                .filter(|&a| a.start_date() >= week_start && a.start_date() < week_end)
                 .copied()
                 .collect();
 
@@ -305,7 +305,7 @@ impl PerformanceAnalyzerV2 {
 
         let filtered: Vec<_> = activities
             .iter()
-            .filter(|a| a.start_date >= start_date && a.start_date <= end_date)
+            .filter(|a| a.start_date() >= start_date && a.start_date() <= end_date)
             .cloned()
             .collect();
 
@@ -464,8 +464,8 @@ impl PerformanceAnalyzerV2 {
         let mut count = 0;
 
         for activity in activities {
-            if let Some(hr) = activity.average_heart_rate {
-                let duration_seconds = activity.duration_seconds;
+            if let Some(hr) = activity.average_heart_rate() {
+                let duration_seconds = activity.duration_seconds();
                 let recovery_threshold =
                     (self.config.performance.recovery_hr_percentage * 200.0) as u32; // Assume max HR ~200
 
@@ -495,9 +495,9 @@ impl PerformanceAnalyzerV2 {
             (self.config.performance.high_intensity_hr_percentage * 200.0) as u32;
 
         for activity in activities {
-            if let Some(hr) = activity.average_heart_rate {
+            if let Some(hr) = activity.average_heart_rate() {
                 if hr > high_intensity_threshold {
-                    let duration_hours = activity.duration_seconds as f64 / 3600.0;
+                    let duration_hours = activity.duration_seconds() as f64 / 3600.0;
                     strength_score += f64::from(hr) * duration_hours.min(2.0); // Cap contribution
                     count += 1;
                 }
@@ -603,12 +603,12 @@ impl PerformanceAnalyzerV2 {
     }
 
     fn calculate_weekly_load(activities: &[&Activity]) -> WeeklyLoad {
-        let total_duration: u64 = activities.iter().map(|a| a.duration_seconds).sum();
-        let total_distance: f64 = activities.iter().filter_map(|a| a.distance_meters).sum();
+        let total_duration: u64 = activities.iter().map(|a| a.duration_seconds()).sum();
+        let total_distance: f64 = activities.iter().filter_map(|a| a.distance_meters()).sum();
 
         let intensity_score = activities
             .iter()
-            .filter_map(|a| a.average_heart_rate.map(f64::from))
+            .filter_map(|a| a.average_heart_rate().map(f64::from))
             .sum::<f64>()
             / activities.len().max(1) as f64;
 

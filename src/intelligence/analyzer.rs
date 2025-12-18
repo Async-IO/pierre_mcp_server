@@ -97,8 +97,8 @@ impl ActivityAnalyzer {
         fields(
             service = "analyzer",
             operation = "analyze_activity",
-            activity_id = %activity.id,
-            sport_type = ?activity.sport_type,
+            activity_id = %activity.id(),
+            sport_type = ?activity.sport_type(),
         )
     )]
     pub fn analyze_activity(
@@ -149,7 +149,7 @@ impl ActivityAnalyzer {
         let mut effort = 1.0;
 
         // Base effort from duration
-        let duration = activity.duration_seconds;
+        let duration = activity.duration_seconds();
         // Safe conversion: clamp duration to avoid precision loss
         let duration_f32 = if duration > u64::from(u32::MAX) {
             f32::MAX
@@ -162,7 +162,8 @@ impl ActivityAnalyzer {
         effort += (duration_f32 / 3600.0) * EFFORT_HOUR_FACTOR; // Duration-based effort
 
         // Heart rate intensity
-        if let (Some(avg_hr), Some(max_hr)) = (activity.average_heart_rate, activity.max_heart_rate)
+        if let (Some(avg_hr), Some(max_hr)) =
+            (activity.average_heart_rate(), activity.max_heart_rate())
         {
             // Heart rates are typically in range 30-220, safe conversion with bounds check
             let hr_intensity =
@@ -172,9 +173,9 @@ impl ActivityAnalyzer {
         }
 
         // Distance factor
-        if let Some(distance_m) = activity.distance_meters {
+        if let Some(distance_m) = activity.distance_meters() {
             let distance_km = distance_m / 1000.0;
-            match activity.sport_type {
+            match activity.sport_type() {
                 SportType::Run => {
                     let distance_factor =
                         safe_f64_to_f32(distance_km / f64::from(RUN_DISTANCE_DIVISOR));
@@ -194,7 +195,7 @@ impl ActivityAnalyzer {
         }
 
         // Elevation factor
-        if let Some(elevation) = activity.elevation_gain {
+        if let Some(elevation) = activity.elevation_gain() {
             let elevation_factor = safe_f64_to_f32(elevation / f64::from(ELEVATION_EFFORT_DIVISOR));
             effort += elevation_factor * ELEVATION_EFFORT_FACTOR;
         }
@@ -205,7 +206,8 @@ impl ActivityAnalyzer {
     /// Calculate heart rate zone distribution
     fn calculate_zone_distribution(activity: &Activity) -> Option<ZoneDistribution> {
         // Estimates zone distribution from avg/max heart rate (detailed HR timeseries not available from all providers)
-        if let (Some(avg_hr), Some(max_hr)) = (activity.average_heart_rate, activity.max_heart_rate)
+        if let (Some(avg_hr), Some(max_hr)) =
+            (activity.average_heart_rate(), activity.max_heart_rate())
         {
             let hr_reserve = max_hr - ASSUMED_RESTING_HR; // Using configured resting HR
             let hr_diff = avg_hr.saturating_sub(ASSUMED_RESTING_HR);
@@ -266,7 +268,7 @@ impl ActivityAnalyzer {
         let mut records = Vec::new();
 
         // Example: Distance PR detection (would normally compare with historical data)
-        if let Some(distance_m) = activity.distance_meters {
+        if let Some(distance_m) = activity.distance_meters() {
             let distance_km = distance_m / 1000.0;
             if distance_km > DISTANCE_PR_THRESHOLD_KM {
                 // Use default baseline for performance comparison
@@ -284,7 +286,7 @@ impl ActivityAnalyzer {
         }
 
         // Example: Speed PR detection
-        if let Some(avg_speed) = activity.average_speed {
+        if let Some(avg_speed) = activity.average_speed() {
             let pace_per_km = f64::from(PACE_PER_KM_FACTOR) / avg_speed;
             if pace_per_km < PACE_PR_THRESHOLD_SECONDS {
                 const PREVIOUS_BEST_PACE: f64 = DEFAULT_PREVIOUS_BEST_PACE;
@@ -309,7 +311,7 @@ impl ActivityAnalyzer {
 
         // Heart rate efficiency
         if let (Some(avg_hr), Some(avg_speed)) =
-            (activity.average_heart_rate, activity.average_speed)
+            (activity.average_heart_rate(), activity.average_speed())
         {
             let pace_per_km = PACE_PER_KM_FACTOR / safe_f64_to_f32(avg_speed);
             // Heart rates are typically small values (30-220), safe to convert to f32
@@ -320,7 +322,8 @@ impl ActivityAnalyzer {
         }
 
         // Consistency factor calculation
-        if let (Some(avg_speed), Some(max_speed)) = (activity.average_speed, activity.max_speed) {
+        if let (Some(avg_speed), Some(max_speed)) = (activity.average_speed(), activity.max_speed())
+        {
             let speed_variance = max_speed - avg_speed;
             let consistency = 1.0 - safe_f64_to_f32((speed_variance / max_speed).min(1.0));
             efficiency += consistency * CONSISTENCY_MULTIPLIER;
@@ -345,7 +348,7 @@ impl ActivityAnalyzer {
         activity: &Activity,
         context: Option<&ActivityContext>,
     ) -> ContextualFactors {
-        let time_of_day = Self::determine_time_of_day(&activity.start_date);
+        let time_of_day = Self::determine_time_of_day(&activity.start_date());
 
         ContextualFactors {
             weather: None, // Weather analysis was removed
@@ -380,7 +383,7 @@ impl ActivityAnalyzer {
         let mut summary_parts = Vec::new();
 
         // Activity type with weather context - use the display_name method
-        let activity_type = activity.sport_type.display_name();
+        let activity_type = activity.sport_type().display_name();
 
         // Add weather context if available
         let weather_context = context.weather.as_ref().map_or("", |weather| {
@@ -461,7 +464,7 @@ impl ActivityAnalyzer {
         let mut summary = summary_parts.join("");
 
         // Add detailed insights
-        if let Some(distance) = activity.distance_meters {
+        if let Some(distance) = activity.distance_meters() {
             let distance_km = distance / 1000.0;
             let _ = write!(summary, ". During this {distance_km:.1} km session");
         }

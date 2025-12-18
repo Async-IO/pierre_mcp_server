@@ -19,55 +19,26 @@ fn create_test_activity(
     avg_power: Option<u32>,
     avg_hr: Option<u32>,
 ) -> Activity {
-    Activity {
-        id: format!("test_{}", date.timestamp()),
-        name: "Test Activity".to_owned(),
-        sport_type: SportType::Run,
-        start_date: date,
-        duration_seconds: u64::from(duration_seconds),
-        distance_meters: Some(10000.0),
-        average_power: avg_power,
-        average_heart_rate: avg_hr,
-        elevation_gain: None,
-        max_heart_rate: None,
-        average_speed: None,
-        max_speed: None,
-        calories: None,
-        steps: None,
-        heart_rate_zones: None,
-        max_power: None,
-        normalized_power: None,
-        power_zones: None,
-        ftp: None,
-        average_cadence: None,
-        max_cadence: None,
-        hrv_score: None,
-        recovery_heart_rate: None,
-        temperature: None,
-        humidity: None,
-        average_altitude: None,
-        wind_speed: None,
-        ground_contact_time: None,
-        vertical_oscillation: None,
-        stride_length: None,
-        running_power: None,
-        breathing_rate: None,
-        spo2: None,
-        training_stress_score: None,
-        intensity_factor: None,
-        suffer_score: None,
-        time_series_data: None,
-        start_latitude: None,
-        start_longitude: None,
-        city: None,
-        region: None,
-        country: None,
-        trail_name: None,
-        workout_type: None,
-        sport_type_detail: None,
-        segment_efforts: None,
-        provider: "test".to_owned(),
+    use pierre_mcp_server::models::ActivityBuilder;
+
+    let mut builder = ActivityBuilder::new(
+        format!("test_{}", date.timestamp()),
+        "Test Activity",
+        SportType::Run,
+        date,
+        u64::from(duration_seconds),
+        "test",
+    )
+    .distance_meters(10000.0);
+
+    if let Some(power) = avg_power {
+        builder = builder.average_power(power);
     }
+    if let Some(hr) = avg_hr {
+        builder = builder.average_heart_rate(hr);
+    }
+
+    builder.build()
 }
 
 #[test]

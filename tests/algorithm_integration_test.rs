@@ -9,61 +9,54 @@
 
 use chrono::Utc;
 use pierre_mcp_server::intelligence::algorithms::{TssAlgorithm, Vo2maxAlgorithm};
-use pierre_mcp_server::models::{Activity, SportType};
+use pierre_mcp_server::models::{Activity, ActivityBuilder, SportType};
 
 // === TSS Algorithm Integration Tests ===
 
 /// Create a test activity with basic power data
 fn create_test_activity_with_power(avg_power: u32, duration_seconds: u64) -> Activity {
-    Activity {
-        id: "test_tss_1".to_owned(),
-        name: "Test Ride".to_owned(),
-        sport_type: SportType::Ride,
-        start_date: Utc::now(),
+    ActivityBuilder::new(
+        "test_tss_1",
+        "Test Ride",
+        SportType::Ride,
+        Utc::now(),
         duration_seconds,
-        distance_meters: Some(30000.0),
-        elevation_gain: Some(500.0),
-        average_heart_rate: Some(150),
-        max_heart_rate: Some(180),
-        average_speed: Some(8.33),
-        max_speed: Some(12.0),
-        calories: Some(1200),
-        steps: None,
-        heart_rate_zones: None,
-        average_power: Some(avg_power),
-        max_power: Some(avg_power + 50),
-        normalized_power: None,
-        power_zones: None,
-        ftp: None,
-        average_cadence: Some(85),
-        max_cadence: Some(110),
-        hrv_score: None,
-        recovery_heart_rate: None,
-        temperature: None,
-        humidity: None,
-        average_altitude: None,
-        wind_speed: None,
-        ground_contact_time: None,
-        vertical_oscillation: None,
-        stride_length: None,
-        running_power: None,
-        breathing_rate: None,
-        spo2: None,
-        training_stress_score: None,
-        intensity_factor: None,
-        suffer_score: None,
-        time_series_data: None,
-        start_latitude: None,
-        start_longitude: None,
-        city: None,
-        region: None,
-        country: None,
-        trail_name: None,
-        workout_type: None,
-        sport_type_detail: None,
-        segment_efforts: None,
-        provider: "test".to_owned(),
-    }
+        "test",
+    )
+    .distance_meters(30000.0)
+    .elevation_gain(500.0)
+    .average_heart_rate(150)
+    .max_heart_rate(180)
+    .average_speed(8.33)
+    .max_speed(12.0)
+    .calories(1200)
+    .average_power(avg_power)
+    .max_power(avg_power + 50)
+    .average_cadence(85)
+    .max_cadence(110)
+    .build()
+}
+
+/// Create a test activity without power data (for testing missing power scenarios)
+fn create_test_activity_without_power(duration_seconds: u64) -> Activity {
+    ActivityBuilder::new(
+        "test_no_power",
+        "Test Ride No Power",
+        SportType::Ride,
+        Utc::now(),
+        duration_seconds,
+        "test",
+    )
+    .distance_meters(30000.0)
+    .elevation_gain(500.0)
+    .average_heart_rate(150)
+    .max_heart_rate(180)
+    .average_speed(8.33)
+    .max_speed(12.0)
+    .calories(1200)
+    .average_cadence(85)
+    .max_cadence(110)
+    .build()
 }
 
 #[test]
@@ -128,8 +121,7 @@ fn test_tss_avg_power_algorithm_negative_duration() {
 
 #[test]
 fn test_tss_avg_power_algorithm_missing_power_data() {
-    let mut activity = create_test_activity_with_power(200, 3600);
-    activity.average_power = None;
+    let activity = create_test_activity_without_power(3600);
     let ftp = 250.0;
     let duration_hours = 1.0;
 

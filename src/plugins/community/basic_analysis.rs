@@ -148,9 +148,10 @@ async fn perform_basic_analysis(
     })?;
 
     // Calculate real pace metrics if distance and duration are available
-    let pace_metrics = if let (Some(distance), Some(duration)) =
-        (activity.distance_meters, Some(activity.duration_seconds))
-    {
+    let pace_metrics = if let (Some(distance), Some(duration)) = (
+        activity.distance_meters(),
+        Some(activity.duration_seconds()),
+    ) {
         let distance_km = distance / 1000.0; // Convert meters to km
                                              // Safe: duration_seconds represents activity time, precision loss acceptable for human-readable metrics
         let duration_hours = duration as f64 / 3600.0;
@@ -177,22 +178,22 @@ async fn perform_basic_analysis(
 
     // Calculate effort metrics from available data
     let effort_metrics = serde_json::json!({
-        "average_heart_rate": activity.average_heart_rate,
-        "max_heart_rate": activity.max_heart_rate,
-        "average_power": activity.average_power,
-        "max_power": activity.max_power,
-        "elevation_gain_m": activity.elevation_gain
+        "average_heart_rate": activity.average_heart_rate(),
+        "max_heart_rate": activity.max_heart_rate(),
+        "average_power": activity.average_power(),
+        "max_power": activity.max_power(),
+        "elevation_gain_m": activity.elevation_gain()
     });
 
     let mut analysis = serde_json::json!({
-        "activity_name": activity.name,
-        "activity_type": format!("{:?}", activity.sport_type),
+        "activity_name": activity.name(),
+        "activity_type": format!("{:?}", activity.sport_type()),
         "pace_metrics": pace_metrics,
         "effort_metrics": effort_metrics
     });
 
     // Add zone analysis only if specifically requested and heart rate data is available
-    if include_zones && activity.average_heart_rate.is_some() {
+    if include_zones && activity.average_heart_rate().is_some() {
         analysis["zones_note"] =
             serde_json::json!("Zone analysis requires additional fitness configuration data");
     }

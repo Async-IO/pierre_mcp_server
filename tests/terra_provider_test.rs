@@ -18,7 +18,7 @@
 
 use chrono::{Duration, Utc};
 use pierre_mcp_server::models::{
-    Activity, HealthMetrics, MealType, RecoveryMetrics, SleepSession, SportType,
+    Activity, ActivityBuilder, HealthMetrics, MealType, RecoveryMetrics, SleepSession, SportType,
 };
 use pierre_mcp_server::pagination::{PaginationDirection, PaginationParams};
 use pierre_mcp_server::providers::core::FitnessProvider;
@@ -50,15 +50,15 @@ fn make_test_user() -> TerraUser {
 }
 
 fn make_test_activity(id: &str, hours_ago: i64) -> Activity {
-    Activity {
-        id: id.to_owned(),
-        name: format!("Test Activity {id}"),
-        sport_type: SportType::Run,
-        start_date: Utc::now() - Duration::hours(hours_ago),
-        duration_seconds: 3600,
-        provider: "terra:garmin".to_owned(),
-        ..Default::default()
-    }
+    ActivityBuilder::new(
+        id,
+        format!("Test Activity {id}"),
+        SportType::Run,
+        Utc::now() - Duration::hours(hours_ago),
+        3600,
+        "terra:garmin",
+    )
+    .build()
 }
 
 // ============================================================================
@@ -94,15 +94,15 @@ fn test_activity_conversion() {
     let user = make_test_user();
     let activity = TerraConverters::activity_from_terra(&terra_activity, &user);
 
-    assert_eq!(activity.id, "act_123");
-    assert_eq!(activity.name, "Morning Run");
-    assert_eq!(activity.sport_type, SportType::Run);
-    assert_eq!(activity.distance_meters, Some(5000.0));
-    assert_eq!(activity.elevation_gain, Some(50.0));
-    assert_eq!(activity.calories, Some(400));
-    assert_eq!(activity.steps, Some(5500));
-    assert_eq!(activity.city, Some("Montreal".to_owned()));
-    assert_eq!(activity.provider, "terra:garmin");
+    assert_eq!(activity.id(), "act_123");
+    assert_eq!(activity.name(), "Morning Run");
+    assert_eq!(activity.sport_type(), &SportType::Run);
+    assert_eq!(activity.distance_meters(), Some(5000.0));
+    assert_eq!(activity.elevation_gain(), Some(50.0));
+    assert_eq!(activity.calories(), Some(400));
+    assert_eq!(activity.steps(), Some(5500));
+    assert_eq!(activity.city(), Some("Montreal"));
+    assert_eq!(activity.provider(), "terra:garmin");
 }
 
 #[test]
@@ -157,8 +157,8 @@ async fn test_store_and_retrieve_activities() {
     let activities = cache.get_activities(user_id, None, None).await;
     assert_eq!(activities.len(), 2);
     // Should be sorted by start_date descending (newest first)
-    assert_eq!(activities[0].id, "act2");
-    assert_eq!(activities[1].id, "act1");
+    assert_eq!(activities[0].id(), "act2");
+    assert_eq!(activities[1].id(), "act1");
 }
 
 #[tokio::test]
@@ -277,17 +277,17 @@ async fn test_stats_calculation() {
     provider.set_terra_user_id("test_user").await;
 
     // Add test activities to cache
-    let activity = Activity {
-        id: "act1".to_owned(),
-        name: "Test Run".to_owned(),
-        sport_type: SportType::Run,
-        start_date: Utc::now(),
-        duration_seconds: 3600,
-        distance_meters: Some(5000.0),
-        elevation_gain: Some(100.0),
-        provider: "terra:garmin".to_owned(),
-        ..Default::default()
-    };
+    let activity = ActivityBuilder::new(
+        "act1",
+        "Test Run",
+        SportType::Run,
+        Utc::now(),
+        3600,
+        "terra:garmin",
+    )
+    .distance_meters(5000.0)
+    .elevation_gain(100.0)
+    .build();
     cache.store_activity("test_user", activity).await;
 
     let stats = provider.get_stats().await;
@@ -419,16 +419,16 @@ async fn test_get_activities_cursor_pagination() {
 
     // Add 10 activities with different timestamps
     for i in 0..10 {
-        let activity = Activity {
-            id: format!("act_{i:02}"),
-            name: format!("Activity {i}"),
-            sport_type: SportType::Run,
-            start_date: Utc::now() - Duration::hours(i),
-            duration_seconds: 3600,
-            distance_meters: Some((i as f64).mul_add(100.0, 5000.0)),
-            provider: "terra:garmin".to_owned(),
-            ..Default::default()
-        };
+        let activity = ActivityBuilder::new(
+            format!("act_{i:02}"),
+            format!("Activity {i}"),
+            SportType::Run,
+            Utc::now() - Duration::hours(i),
+            3600,
+            "terra:garmin",
+        )
+        .distance_meters((i as f64).mul_add(100.0, 5000.0))
+        .build();
         cache.store_activity(user_id, activity).await;
     }
 
@@ -446,9 +446,9 @@ async fn test_get_activities_cursor_pagination() {
     assert!(page1.has_more);
     assert!(page1.next_cursor.is_some());
     // Should be sorted newest first
-    assert_eq!(page1.items[0].id, "act_00");
-    assert_eq!(page1.items[1].id, "act_01");
-    assert_eq!(page1.items[2].id, "act_02");
+    assert_eq!(page1.items[0].id(), "act_00");
+    assert_eq!(page1.items[1].id(), "act_01");
+    assert_eq!(page1.items[2].id(), "act_02");
 
     // Test second page (with cursor)
     let params2 = PaginationParams {
@@ -462,9 +462,9 @@ async fn test_get_activities_cursor_pagination() {
     let page2 = page2.unwrap();
     assert_eq!(page2.items.len(), 3);
     assert!(page2.has_more);
-    assert_eq!(page2.items[0].id, "act_03");
-    assert_eq!(page2.items[1].id, "act_04");
-    assert_eq!(page2.items[2].id, "act_05");
+    assert_eq!(page2.items[0].id(), "act_03");
+    assert_eq!(page2.items[1].id(), "act_04");
+    assert_eq!(page2.items[2].id(), "act_05");
 }
 
 #[tokio::test]
@@ -606,7 +606,7 @@ async fn test_webhook_handler_activity_event() {
     // Verify activity was cached
     let activities = cache.get_activities("test_user_123", None, None).await;
     assert_eq!(activities.len(), 1);
-    assert_eq!(activities[0].name, "Morning Run");
+    assert_eq!(activities[0].name(), "Morning Run");
 }
 
 #[tokio::test]

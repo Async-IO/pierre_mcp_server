@@ -11,7 +11,7 @@ use super::utils::{self, RetryConfig};
 use crate::constants::oauth::GARMIN_DEFAULT_SCOPES;
 use crate::constants::{api_provider_limits, get_server_config, oauth_providers};
 use crate::errors::{AppError, AppResult};
-use crate::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
+use crate::models::{Activity, ActivityBuilder, Athlete, PersonalRecord, SportType, Stats};
 use crate::pagination::{CursorPage, PaginationParams};
 use crate::utils::http_client::shared_client;
 use async_trait::async_trait;
@@ -275,61 +275,29 @@ impl GarminProvider {
             .map_err(|e| AppError::internal(format!("Failed to parse activity start date: {e}")))?
             .with_timezone(&Utc);
 
-        Ok(Activity {
-            id: activity.activity_id.to_string(),
-            name: activity.activity_name,
-            sport_type: Self::parse_sport_type(&activity.activity_type),
+        Ok(ActivityBuilder::new(
+            activity.activity_id.to_string(),
+            activity.activity_name,
+            Self::parse_sport_type(&activity.activity_type),
             start_date,
-            distance_meters: activity.distance,
-            duration_seconds: activity.duration.map_or(0, utils::conversions::f64_to_u64),
-            elevation_gain: activity.elevation_gain,
-            average_speed: activity.average_speed,
-            max_speed: activity.max_speed,
-            average_heart_rate: activity.average_hr.map(utils::conversions::f32_to_u32),
-            max_heart_rate: activity.max_hr.map(utils::conversions::f32_to_u32),
-            average_cadence: activity
+            activity.duration.map_or(0, utils::conversions::f64_to_u64),
+            oauth_providers::GARMIN,
+        )
+        .distance_meters_opt(activity.distance)
+        .elevation_gain_opt(activity.elevation_gain)
+        .average_speed_opt(activity.average_speed)
+        .max_speed_opt(activity.max_speed)
+        .average_heart_rate_opt(activity.average_hr.map(utils::conversions::f32_to_u32))
+        .max_heart_rate_opt(activity.max_hr.map(utils::conversions::f32_to_u32))
+        .average_cadence_opt(
+            activity
                 .average_running_cadence
                 .map(utils::conversions::f32_to_u32),
-            average_power: activity.average_power.map(utils::conversions::f32_to_u32),
-            max_power: activity.max_power.map(utils::conversions::f32_to_u32),
-            calories: activity.calories.map(utils::conversions::f64_to_u32),
-            steps: None,
-            heart_rate_zones: None,
-            normalized_power: None,
-            power_zones: None,
-            ftp: None,
-            max_cadence: None,
-            hrv_score: None,
-            recovery_heart_rate: None,
-            temperature: None,
-            humidity: None,
-            average_altitude: None,
-            wind_speed: None,
-            ground_contact_time: None,
-            vertical_oscillation: None,
-            stride_length: None,
-            running_power: None,
-            breathing_rate: None,
-            spo2: None,
-            training_stress_score: None,
-            intensity_factor: None,
-            suffer_score: None,
-            time_series_data: None,
-            start_latitude: None,
-            start_longitude: None,
-            city: None,
-            region: None,
-            country: None,
-            trail_name: None,
-
-            // Optional fields pending Garmin API documentation
-            // These will be populated from GarminActivityResponse once API schema is available
-            workout_type: None,
-            sport_type_detail: None,
-            segment_efforts: None,
-
-            provider: oauth_providers::GARMIN.to_owned(),
-        })
+        )
+        .average_power_opt(activity.average_power.map(utils::conversions::f32_to_u32))
+        .max_power_opt(activity.max_power.map(utils::conversions::f32_to_u32))
+        .calories_opt(activity.calories.map(utils::conversions::f64_to_u32))
+        .build())
     }
 }
 

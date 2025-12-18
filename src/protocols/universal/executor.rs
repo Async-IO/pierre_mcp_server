@@ -57,11 +57,11 @@ impl IntelligenceService {
         // Calculate basic efficiency score
         let efficiency_score =
             activity
-                .distance_meters
+                .distance_meters()
                 .map_or(DEFAULT_EFFICIENCY_WITH_DISTANCE, |distance| {
-                    if activity.duration_seconds > 0 && distance > f64::from(MIN_VALID_DISTANCE) {
+                    if activity.duration_seconds() > 0 && distance > f64::from(MIN_VALID_DISTANCE) {
                         let duration_f64 = f64::from(
-                            u32::try_from(activity.duration_seconds.min(u64::from(u32::MAX)))
+                            u32::try_from(activity.duration_seconds().min(u64::from(u32::MAX)))
                                 .unwrap_or(u32::MAX),
                         );
                         let speed_ms = distance / duration_f64;
@@ -72,15 +72,15 @@ impl IntelligenceService {
                 });
 
         // Calculate effort score based on duration and distance
-        let effort_score = if activity.duration_seconds > 0 {
+        let effort_score = if activity.duration_seconds() > 0 {
             let duration_hours = f64::from(
-                u32::try_from(activity.duration_seconds.min(u64::from(u32::MAX)))
+                u32::try_from(activity.duration_seconds().min(u64::from(u32::MAX)))
                     .unwrap_or(u32::MAX),
             ) / SECONDS_PER_HOUR_F64;
             let base_effort = duration_hours * f64::from(DURATION_SCORE_FACTOR);
 
             // Add distance component if available
-            activity.distance_meters.map_or(base_effort, |d| {
+            activity.distance_meters().map_or(base_effort, |d| {
                 let distance_km = d / 1000.0;
                 base_effort + (distance_km / f64::from(DISTANCE_SCORE_DIVISOR))
             })
@@ -89,7 +89,7 @@ impl IntelligenceService {
         };
 
         Ok(serde_json::json!({
-            "activity_id": activity.id,
+            "activity_id": activity.id(),
             "analysis_type": "intelligence_engine",
             "timestamp": chrono::Utc::now().to_rfc3339(),
             "efficiency_score": efficiency_score,
@@ -119,7 +119,7 @@ impl IntelligenceService {
             recommendations.push("High effort detected - ensure adequate recovery time".to_owned());
         }
 
-        if activity.distance_meters.is_none() {
+        if activity.distance_meters().is_none() {
             recommendations.push("Track distance for more comprehensive analysis".to_owned());
         }
 

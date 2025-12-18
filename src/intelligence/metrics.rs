@@ -170,21 +170,21 @@ impl MetricsCalculator {
         metrics: &mut AdvancedMetrics,
     ) -> AppResult<()> {
         // Calculate TRIMP if heart rate data is available
-        if let Some(avg_hr) = activity.average_heart_rate {
-            let duration = i32::try_from(activity.duration_seconds)
+        if let Some(avg_hr) = activity.average_heart_rate() {
+            let duration = i32::try_from(activity.duration_seconds())
                 .map_err(|e| AppError::internal(format!("Duration conversion failed: {e}")))?;
             metrics.trimp = self.calculate_trimp(avg_hr, duration);
         }
 
         // Use actual TSS if available, otherwise calculate
         metrics.training_stress_score = activity
-            .training_stress_score
+            .training_stress_score()
             .map(f64::from)
             .or_else(|| self.calculate_tss_from_data(activity));
 
         // Use actual intensity factor if available, otherwise calculate
         metrics.intensity_factor = activity
-            .intensity_factor
+            .intensity_factor()
             .map(f64::from)
             .or_else(|| self.calculate_intensity_factor(activity));
 
@@ -194,15 +194,15 @@ impl MetricsCalculator {
     /// Calculate TSS from activity data
     fn calculate_tss_from_data(&self, activity: &Activity) -> Option<f64> {
         // Helper to calculate duration in hours
-        let duration_hours = if activity.duration_seconds > u64::from(u32::MAX) {
+        let duration_hours = if activity.duration_seconds() > u64::from(u32::MAX) {
             f64::from(u32::MAX) / SECONDS_PER_HOUR_F64
         } else {
-            match u32::try_from(activity.duration_seconds) {
+            match u32::try_from(activity.duration_seconds()) {
                 Ok(duration_u32) => f64::from(duration_u32) / SECONDS_PER_HOUR_F64,
                 Err(e) => {
                     debug!(
-                        activity_id = activity.id,
-                        duration = activity.duration_seconds,
+                        activity_id = activity.id(),
+                        duration = activity.duration_seconds(),
                         error = %e,
                         "Duration conversion to u32 failed during TSS calculation, using u32::MAX"
                     );
@@ -219,7 +219,7 @@ impl MetricsCalculator {
                 Ok(algo) => algo,
                 Err(e) => {
                     warn!(
-                        activity_id = activity.id,
+                        activity_id = activity.id(),
                         tss_config = %config.algorithms.tss,
                         error = %e,
                         "Failed to parse TSS algorithm from config, using default"
@@ -237,19 +237,19 @@ impl MetricsCalculator {
         }
 
         // 2. Try HR-based TSS using LTHR (per methodology.md line 347)
-        if let (Some(avg_hr), Some(lthr)) = (activity.average_heart_rate, self.lthr) {
+        if let (Some(avg_hr), Some(lthr)) = (activity.average_heart_rate(), self.lthr) {
             let hr_ratio = f64::from(avg_hr) / lthr;
             let tss = duration_hours * hr_ratio.powi(2) * 100.0;
             return Some(tss);
         }
 
         // 3. Fallback: Pace-based TSS estimation for running activities without sensors
-        if let Some(distance_m) = activity.distance_meters {
-            if distance_m > 0.0 && activity.duration_seconds > 0 {
+        if let Some(distance_m) = activity.distance_meters() {
+            if distance_m > 0.0 && activity.duration_seconds() > 0 {
                 // Estimate TSS from pace relative to moderate effort
                 // Assumes 10 min/km as baseline moderate effort (TSS = duration in hours * 100)
                 #[allow(clippy::cast_precision_loss)]
-                let pace_s_per_km = activity.duration_seconds as f64 / (distance_m / 1000.0);
+                let pace_s_per_km = activity.duration_seconds() as f64 / (distance_m / 1000.0);
                 let baseline_pace = 600.0; // 10 min/km in seconds
 
                 // Intensity factor: faster pace = higher intensity
@@ -269,7 +269,7 @@ impl MetricsCalculator {
 
     /// Calculate intensity factor from activity data
     fn calculate_intensity_factor(&self, activity: &Activity) -> Option<f64> {
-        if let (Some(avg_power), Some(ftp)) = (activity.average_power, self.ftp) {
+        if let (Some(avg_power), Some(ftp)) = (activity.average_power(), self.ftp) {
             Some(f64::from(avg_power) / ftp)
         } else {
             None
@@ -279,32 +279,31 @@ impl MetricsCalculator {
     /// Calculate power-based metrics
     fn calculate_power_metrics(&self, activity: &Activity, metrics: &mut AdvancedMetrics) {
         // Calculate power-to-weight ratio if power and weight available
-        if let (Some(avg_power), Some(weight)) = (activity.average_power, self.weight_kg) {
+        if let (Some(avg_power), Some(weight)) = (activity.average_power(), self.weight_kg) {
             let power_to_weight = f64::from(avg_power) / weight;
             metrics.power_to_weight_ratio = Some(power_to_weight);
             metrics.avg_power_to_weight = Some(power_to_weight);
         }
 
         // Use actual normalized power or calculate from time series data
-        metrics.normalized_power = activity.normalized_power.map(f64::from).or_else(|| {
+        metrics.normalized_power = activity.normalized_power().map(f64::from).or_else(|| {
             activity
-                .time_series_data
-                .as_ref()
+                .time_series_data()
                 .and_then(|ts| ts.power.as_ref())
                 .and_then(|power_data| self.calculate_normalized_power(power_data))
         });
 
         // Calculate work (energy) if power is available
-        if let Some(avg_power) = activity.average_power {
-            let duration_hours = if activity.duration_seconds > u64::from(u32::MAX) {
+        if let Some(avg_power) = activity.average_power() {
+            let duration_hours = if activity.duration_seconds() > u64::from(u32::MAX) {
                 f64::from(u32::MAX) / SECONDS_PER_HOUR_F64
             } else {
-                match u32::try_from(activity.duration_seconds) {
+                match u32::try_from(activity.duration_seconds()) {
                     Ok(duration_u32) => f64::from(duration_u32) / SECONDS_PER_HOUR_F64,
                     Err(e) => {
                         debug!(
-                            activity_id = activity.id,
-                            duration = activity.duration_seconds,
+                            activity_id = activity.id(),
+                            duration = activity.duration_seconds(),
                             error = %e,
                             "Duration conversion to u32 failed during work calculation, using u32::MAX"
                         );
@@ -318,7 +317,7 @@ impl MetricsCalculator {
 
         // Calculate aerobic efficiency if both HR and pace/power data available
         if let (Some(avg_hr), Some(avg_speed)) =
-            (activity.average_heart_rate, activity.average_speed)
+            (activity.average_heart_rate(), activity.average_speed())
         {
             metrics.aerobic_efficiency = Some(avg_speed / f64::from(avg_hr));
         }
@@ -327,7 +326,7 @@ impl MetricsCalculator {
     /// Calculate running-specific metrics
     fn calculate_running_metrics(activity: &Activity, metrics: &mut AdvancedMetrics) {
         if !matches!(
-            activity.sport_type,
+            *activity.sport_type(),
             SportType::Run | SportType::TrailRunning
         ) {
             return;
@@ -335,7 +334,7 @@ impl MetricsCalculator {
 
         // Running effectiveness (speed per heart rate)
         if let (Some(avg_hr), Some(avg_speed)) =
-            (activity.average_heart_rate, activity.average_speed)
+            (activity.average_heart_rate(), activity.average_speed())
         {
             let effectiveness = avg_speed / f64::from(avg_hr) * EFFICIENCY_TIME_MULTIPLIER;
             metrics.running_effectiveness = Some(effectiveness);
@@ -344,17 +343,17 @@ impl MetricsCalculator {
 
         // Stride efficiency
         if let (Some(distance), Some(avg_cadence)) =
-            (activity.distance_meters, activity.average_cadence)
+            (activity.distance_meters(), activity.average_cadence())
         {
-            let duration_minutes = if activity.duration_seconds > u64::from(u32::MAX) {
+            let duration_minutes = if activity.duration_seconds() > u64::from(u32::MAX) {
                 f64::from(u32::MAX) / 60.0
             } else {
-                match u32::try_from(activity.duration_seconds) {
+                match u32::try_from(activity.duration_seconds()) {
                     Ok(duration_u32) => f64::from(duration_u32) / 60.0,
                     Err(e) => {
                         debug!(
-                            activity_id = activity.id,
-                            duration = activity.duration_seconds,
+                            activity_id = activity.id(),
+                            duration = activity.duration_seconds(),
                             error = %e,
                             "Duration conversion to u32 failed during stride efficiency calculation, using u32::MAX"
                         );
@@ -367,14 +366,14 @@ impl MetricsCalculator {
         }
 
         // Ground contact balance calculation
-        if let Some(gct) = activity.ground_contact_time {
+        if let Some(gct) = activity.ground_contact_time() {
             metrics.ground_contact_balance = Some(Self::calculate_ground_contact_balance(gct));
         }
     }
 
     /// Calculate time series based metrics
     fn calculate_time_series_metrics(&self, activity: &Activity, metrics: &mut AdvancedMetrics) {
-        let Some(time_series) = &activity.time_series_data else {
+        let Some(time_series) = activity.time_series_data() else {
             return;
         };
 
@@ -397,11 +396,13 @@ impl MetricsCalculator {
     /// Calculate environmental impact metrics
     fn calculate_environmental_metrics(activity: &Activity, metrics: &mut AdvancedMetrics) {
         // Temperature stress
-        metrics.temperature_stress = activity.temperature.map(Self::calculate_temperature_stress);
+        metrics.temperature_stress = activity
+            .temperature()
+            .map(Self::calculate_temperature_stress);
 
         // Altitude adjustment
         metrics.altitude_adjustment = activity
-            .average_altitude
+            .average_altitude()
             .map(Self::calculate_altitude_adjustment);
 
         // Estimated recovery time based on training load
@@ -623,15 +624,15 @@ impl MetricsCalculator {
     /// This function does not return a Result but returns None if calculation cannot be performed
     #[must_use]
     pub fn calculate_training_load(&self, activity: &Activity) -> Option<f64> {
-        let duration_hours = if activity.duration_seconds > u64::from(u32::MAX) {
+        let duration_hours = if activity.duration_seconds() > u64::from(u32::MAX) {
             f64::from(u32::MAX) / 3600.0
         } else {
-            match u32::try_from(activity.duration_seconds) {
+            match u32::try_from(activity.duration_seconds()) {
                 Ok(duration_u32) => f64::from(duration_u32) / 3600.0,
                 Err(e) => {
                     debug!(
-                        activity_id = activity.id,
-                        duration = activity.duration_seconds,
+                        activity_id = activity.id(),
+                        duration = activity.duration_seconds(),
                         error = %e,
                         "Duration conversion to u32 failed during training load calculation, using u32::MAX"
                     );
@@ -642,10 +643,10 @@ impl MetricsCalculator {
 
         // Use intensity factor if available, otherwise estimate from heart rate
         let intensity = activity
-            .intensity_factor
+            .intensity_factor()
             .map(f64::from)
             .or_else(|| {
-                if let (Some(avg_hr), Some(lthr)) = (activity.average_heart_rate, self.lthr) {
+                if let (Some(avg_hr), Some(lthr)) = (activity.average_heart_rate(), self.lthr) {
                     Some((f64::from(avg_hr) / lthr).min(1.5)) // Cap at 150% of threshold
                 } else {
                     None
@@ -663,7 +664,7 @@ impl MetricsCalculator {
     #[must_use]
     pub fn calculate_aerobic_contribution(&self, activity: &Activity) -> Option<f64> {
         // Estimate based on heart rate zones or intensity
-        if let (Some(avg_hr), Some(lthr)) = (activity.average_heart_rate, self.lthr) {
+        if let (Some(avg_hr), Some(lthr)) = (activity.average_heart_rate(), self.lthr) {
             let hr_ratio = f64::from(avg_hr) / lthr;
 
             if hr_ratio <= 0.85 {

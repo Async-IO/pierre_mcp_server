@@ -9,60 +9,28 @@
 
 use chrono::{Duration, Utc};
 use pierre_mcp_server::intelligence::{PatternDetector, RiskLevel};
-use pierre_mcp_server::models::{Activity, SportType};
+use pierre_mcp_server::models::{Activity, ActivityBuilder, SportType};
 
 fn create_test_activity(days_ago: i64, distance_km: f64, avg_hr: Option<u32>) -> Activity {
     let date = Utc::now() - Duration::days(days_ago);
-    Activity {
-        id: format!("test_{}", date.timestamp()),
-        name: "Test Activity".to_owned(),
-        sport_type: SportType::Run,
-        start_date: date,
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        duration_seconds: (distance_km * 300.0) as u64, // ~5 min/km pace
-        distance_meters: Some(distance_km * 1000.0),
-        average_heart_rate: avg_hr,
-        elevation_gain: None,
-        max_heart_rate: None,
-        average_speed: None,
-        max_speed: None,
-        calories: None,
-        steps: None,
-        heart_rate_zones: None,
-        average_power: None,
-        max_power: None,
-        normalized_power: None,
-        power_zones: None,
-        ftp: None,
-        average_cadence: None,
-        max_cadence: None,
-        hrv_score: None,
-        recovery_heart_rate: None,
-        temperature: None,
-        humidity: None,
-        average_altitude: None,
-        wind_speed: None,
-        ground_contact_time: None,
-        vertical_oscillation: None,
-        stride_length: None,
-        running_power: None,
-        breathing_rate: None,
-        spo2: None,
-        training_stress_score: None,
-        intensity_factor: None,
-        suffer_score: None,
-        time_series_data: None,
-        start_latitude: None,
-        start_longitude: None,
-        city: None,
-        region: None,
-        country: None,
-        trail_name: None,
-        workout_type: None,
-        sport_type_detail: None,
-        segment_efforts: None,
-        provider: "test".to_owned(),
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let duration = (distance_km * 300.0) as u64; // ~5 min/km pace
+
+    let mut builder = ActivityBuilder::new(
+        format!("test_{}", date.timestamp()),
+        "Test Activity",
+        SportType::Run,
+        date,
+        duration,
+        "test",
+    )
+    .distance_meters(distance_km * 1000.0);
+
+    if let Some(hr) = avg_hr {
+        builder = builder.average_heart_rate(hr);
     }
+
+    builder.build()
 }
 
 #[test]
@@ -137,7 +105,7 @@ fn test_volume_spike_detection() {
     ];
 
     // Sort by date to ensure chronological order (oldest first)
-    activities.sort_by_key(|a| a.start_date);
+    activities.sort_by_key(Activity::start_date);
 
     let pattern = PatternDetector::detect_volume_progression(&activities);
 

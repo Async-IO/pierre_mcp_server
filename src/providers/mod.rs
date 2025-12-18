@@ -40,6 +40,8 @@
 
 // Core provider system
 
+/// Streaming activity iterator for memory-efficient paginated fetching
+pub mod activity_iterator;
 /// Circuit breaker pattern for provider resilience
 pub mod circuit_breaker;
 /// Core provider traits and interfaces
@@ -75,6 +77,11 @@ pub mod terra;
 pub mod whoop_provider;
 
 // Re-export key types for convenience
+/// Re-export activity iterator for memory-efficient streaming
+pub use activity_iterator::{
+    create_activity_stream, ActivityStream, ActivityStreamExt, StreamConfig, DEFAULT_PAGE_SIZE,
+    MAX_PAGE_SIZE, MIN_PAGE_SIZE,
+};
 /// Re-export circuit breaker types for provider resilience
 pub use circuit_breaker::{CircuitBreaker, CircuitBreakerConfig, CircuitState};
 pub use core::{

@@ -19,7 +19,7 @@ use pierre_mcp_server::{
         insights::ActivityContext, ActivityAnalyzer, FitnessLevel, MetricsCalculator,
         TimeAvailability, UserFitnessProfile, UserPreferences,
     },
-    models::{Activity, SportType, User},
+    models::{Activity, ActivityBuilder, SportType, User},
 };
 
 mod common;
@@ -70,58 +70,46 @@ async fn test_activity_analysis_through_universal_tools() -> Result<()> {
     database.upsert_user_profile(user.id, profile_data).await?;
 
     // Create test activity with advanced metrics
-    let activity = Activity {
-        id: "test_activity_001".to_owned(),
-        name: "Morning Tempo Run".to_owned(),
-        sport_type: SportType::Run,
-        start_date: Utc::now() - chrono::Duration::hours(2),
-        duration_seconds: 3600,         // 60 minutes
-        distance_meters: Some(10000.0), // 10km
-        elevation_gain: Some(100.0),
-        average_heart_rate: Some(165),
-        max_heart_rate: Some(185),
-        average_speed: Some(2.78), // ~4:00/km pace
-        max_speed: Some(3.33),
-        calories: Some(600),
-        steps: Some(12000),
-        heart_rate_zones: None,
-
-        // Advanced metrics for intelligence testing
-        average_power: None, // Running power not available
-        max_power: None,
-        normalized_power: None,
-        power_zones: None,
-        ftp: None,
-        average_cadence: Some(180), // steps per minute
-        max_cadence: Some(200),
-        hrv_score: Some(45.2),
-        recovery_heart_rate: Some(25), // HR drop in first minute
-        temperature: Some(18.0),
-        humidity: Some(65.0),
-        average_altitude: Some(120.0),
-        wind_speed: Some(2.0),
-        ground_contact_time: Some(240),
-        vertical_oscillation: Some(8.5),
-        stride_length: Some(1.25),
-        running_power: Some(280),
-        breathing_rate: Some(32),
-        spo2: Some(98.0),
-        training_stress_score: Some(75.0),
-        intensity_factor: Some(0.82),
-        suffer_score: Some(85),
-        time_series_data: None,
-
-        start_latitude: Some(45.5017),
-        start_longitude: Some(-73.5673),
-        city: Some("Montreal".to_owned()),
-        region: Some("Quebec".to_owned()),
-        country: Some("Canada".to_owned()),
-        trail_name: Some("Lachine Canal".to_owned()),
-        workout_type: None,
-        sport_type_detail: None,
-        segment_efforts: None,
-        provider: "strava".to_owned(),
-    };
+    let activity = ActivityBuilder::new(
+        "test_activity_001",
+        "Morning Tempo Run",
+        SportType::Run,
+        Utc::now() - chrono::Duration::hours(2),
+        3600, // 60 minutes
+        "strava",
+    )
+    .distance_meters(10000.0) // 10km
+    .elevation_gain(100.0)
+    .average_heart_rate(165)
+    .max_heart_rate(185)
+    .average_speed(2.78) // ~4:00/km pace
+    .max_speed(3.33)
+    .calories(600)
+    .steps(12000)
+    .average_cadence(180) // steps per minute
+    .max_cadence(200)
+    .hrv_score(45.2)
+    .recovery_heart_rate(25) // HR drop in first minute
+    .temperature(18.0)
+    .humidity(65.0)
+    .average_altitude(120.0)
+    .wind_speed(2.0)
+    .ground_contact_time(240)
+    .vertical_oscillation(8.5)
+    .stride_length(1.25)
+    .running_power(280)
+    .breathing_rate(32)
+    .spo2(98.0)
+    .training_stress_score(75.0)
+    .intensity_factor(0.82)
+    .suffer_score(85)
+    .start_latitude(45.5017)
+    .start_longitude(-73.5673)
+    .city("Montreal".to_owned())
+    .region("Quebec".to_owned())
+    .country("Canada".to_owned())
+    .trail_name("Lachine Canal".to_owned())
+    .build();
 
     // Test intelligence engine integration
     let analyzer = ActivityAnalyzer::new();
@@ -169,7 +157,7 @@ async fn test_activity_analysis_through_universal_tools() -> Result<()> {
     let tool_name = "analyze_activity";
     let _ = tool_name;
     let _tool_args = serde_json::json!({
-        "activity_id": activity.id,
+        "activity_id": activity.id(),
         "user_id": user.id.to_string(),
         "include_advanced_metrics": true
     });
@@ -245,58 +233,44 @@ async fn test_recommendation_engine_integration() -> Result<()> {
     database.upsert_user_profile(user.id, profile_data).await?;
 
     // Create cycling activity with power data
-    let activity = Activity {
-        id: "cycling_test_001".to_owned(),
-        name: "Threshold Intervals".to_owned(),
-        sport_type: SportType::Ride,
-        start_date: Utc::now() - chrono::Duration::hours(1),
-        duration_seconds: 4500,         // 75 minutes
-        distance_meters: Some(45000.0), // 45km
-        elevation_gain: Some(300.0),
-        average_heart_rate: Some(160),
-        max_heart_rate: Some(180),
-        average_speed: Some(11.11), // 40km/h
-        max_speed: Some(15.28),     // 55km/h
-        calories: Some(900),
-        steps: None,
-        heart_rate_zones: None,
-
-        // Power metrics for cycling analysis
-        average_power: Some(250),
-        max_power: Some(450),
-        normalized_power: Some(265),
-        power_zones: None,
-        ftp: Some(280),
-        average_cadence: Some(90),
-        max_cadence: Some(120),
-        hrv_score: Some(40.0),
-        recovery_heart_rate: Some(30),
-        temperature: Some(22.0),
-        humidity: Some(55.0),
-        average_altitude: Some(200.0),
-        wind_speed: Some(8.0),
-        ground_contact_time: None,
-        vertical_oscillation: None,
-        stride_length: None,
-        running_power: None,
-        breathing_rate: Some(28),
-        spo2: Some(97.5),
-        training_stress_score: Some(95.0),
-        intensity_factor: Some(0.89),
-        suffer_score: Some(120),
-        time_series_data: None,
-
-        start_latitude: Some(45.5017),
-        start_longitude: Some(-73.5673),
-        city: Some("Montreal".to_owned()),
-        region: Some("Quebec".to_owned()),
-        country: Some("Canada".to_owned()),
-        trail_name: None,
-        workout_type: None,
-        sport_type_detail: None,
-        segment_efforts: None,
-        provider: "strava".to_owned(),
-    };
+    let activity = ActivityBuilder::new(
+        "cycling_test_001",
+        "Threshold Intervals",
+        SportType::Ride,
+        Utc::now() - chrono::Duration::hours(1),
+        4500, // 75 minutes
+        "strava",
+    )
+    .distance_meters(45000.0) // 45km
+    .elevation_gain(300.0)
+    .average_heart_rate(160)
+    .max_heart_rate(180)
+    .average_speed(11.11) // 40km/h
+    .max_speed(15.28) // 55km/h
+    .calories(900)
+    .average_power(250)
+    .max_power(450)
+    .normalized_power(265)
+    .ftp(280)
+    .average_cadence(90)
+    .max_cadence(120)
+    .hrv_score(40.0)
+    .recovery_heart_rate(30)
+    .temperature(22.0)
+    .humidity(55.0)
+    .average_altitude(200.0)
+    .wind_speed(8.0)
+    .breathing_rate(28)
+    .spo2(97.5)
+    .training_stress_score(95.0)
+    .intensity_factor(0.89)
+    .suffer_score(120)
+    .start_latitude(45.5017)
+    .start_longitude(-73.5673)
+    .city("Montreal".to_owned())
+    .region("Quebec".to_owned())
+    .country("Canada".to_owned())
+    .build();
 
     // Test recommendation engine
     let analyzer = ActivityAnalyzer::new();
@@ -365,7 +339,10 @@ async fn test_goal_tracking_integration() -> Result<()> {
     ];
 
     // Calculate total distance from activities
-    let total_distance: f64 = activities.iter().filter_map(|a| a.distance_meters).sum();
+    let total_distance: f64 = activities
+        .iter()
+        .filter_map(Activity::distance_meters)
+        .sum();
 
     // Update goal progress
     database
@@ -434,60 +411,30 @@ async fn test_goal_tracking_integration() -> Result<()> {
 
 /// Helper function to create test activities
 fn create_test_activity(id: &str, sport_type: &SportType, distance: f64) -> Activity {
-    Activity {
-        id: id.to_owned(),
-        name: format!("Test {sport_type:?}"),
-        sport_type: sport_type.clone(),
-        start_date: Utc::now() - chrono::Duration::hours(1),
-        duration_seconds: 1800, // 30 minutes
-        distance_meters: Some(distance),
-        elevation_gain: Some(50.0),
-        average_heart_rate: Some(150),
-        max_heart_rate: Some(170),
-        average_speed: Some(distance / 1800.0), // Calculate speed
-        max_speed: Some(distance / 1500.0),
-        calories: Some(300),
-        steps: if *sport_type == SportType::Run {
-            Some(6000)
-        } else {
-            None
-        },
-        heart_rate_zones: None,
+    let mut builder = ActivityBuilder::new(
+        id,
+        format!("Test {sport_type:?}"),
+        sport_type.clone(),
+        Utc::now() - chrono::Duration::hours(1),
+        1800, // 30 minutes
+        "test",
+    )
+    .distance_meters(distance)
+    .elevation_gain(50.0)
+    .average_heart_rate(150)
+    .max_heart_rate(170)
+    .average_speed(distance / 1800.0) // Calculate speed
+    .max_speed(distance / 1500.0)
+    .calories(300)
+    .start_latitude(45.5017)
+    .start_longitude(-73.5673)
+    .city("Montreal".to_owned())
+    .region("Quebec".to_owned())
+    .country("Canada".to_owned());
 
-        // Basic metrics only for test activities
-        average_power: None,
-        max_power: None,
-        normalized_power: None,
-        power_zones: None,
-        ftp: None,
-        average_cadence: None,
-        max_cadence: None,
-        hrv_score: None,
-        recovery_heart_rate: None,
-        temperature: None,
-        humidity: None,
-        average_altitude: None,
-        wind_speed: None,
-        ground_contact_time: None,
-        vertical_oscillation: None,
-        stride_length: None,
-        running_power: None,
-        breathing_rate: None,
-        spo2: None,
-        training_stress_score: None,
-        intensity_factor: None,
-        suffer_score: None,
-        time_series_data: None,
-
-        start_latitude: Some(45.5017),
-        start_longitude: Some(-73.5673),
-        city: Some("Montreal".to_owned()),
-        region: Some("Quebec".to_owned()),
-        country: Some("Canada".to_owned()),
-        trail_name: None,
-        workout_type: None,
-        sport_type_detail: None,
-        segment_efforts: None,
-        provider: "test".to_owned(),
+    if *sport_type == SportType::Run {
+        builder = builder.steps(6000);
     }
+
+    builder.build()
 }

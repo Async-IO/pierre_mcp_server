@@ -7,7 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use chrono::{DateTime, Duration, Utc};
-use pierre_mcp_server::models::{Activity, SportType};
+use pierre_mcp_server::models::{Activity, ActivityBuilder as ModelActivityBuilder, SportType};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 
@@ -419,96 +419,97 @@ impl<'a> ActivityBuilder<'a> {
             _ => None,
         };
 
-        Activity {
+        let mut builder = ModelActivityBuilder::new(
             id,
-            name: format!("{sport_type:?} Activity"),
-            sport_type: sport_type.clone(),
-            start_date: self.start_date.unwrap_or_else(Utc::now),
-            duration_seconds: duration,
-            distance_meters: distance,
-            elevation_gain,
-            average_heart_rate: self.average_heart_rate,
-            max_heart_rate: self.max_heart_rate,
-            average_speed,
-            max_speed: average_speed.map(|s| s * 1.15), // 15% faster max
-            // Duration in seconds, division by 60 for minutes, safe truncation
-            #[allow(clippy::cast_possible_truncation)]
-            calories: Some((duration / 60) as u32 * 10), // Rough estimate
-            steps: if sport_type == SportType::Run {
-                // Duration in seconds, division by 60 for minutes, safe truncation
-                #[allow(clippy::cast_possible_truncation)]
-                Some((duration / 60) as u32 * 170) // ~170 steps/min
-            } else {
-                None
-            },
-            heart_rate_zones: None,
-            average_power: self.average_power,
-            // Max power calculation: 30% increase from average, safe precision, truncation, and sign loss
-            #[allow(
-                clippy::cast_precision_loss,
-                clippy::cast_possible_truncation,
-                clippy::cast_sign_loss
-            )]
-            max_power: self.average_power.map(|p| (f64::from(p) * 1.3) as u32),
-            normalized_power: self.average_power,
-            power_zones: None,
-            ftp: self.ftp,
-            average_cadence: match sport_type {
-                SportType::Run => Some(self.rng.gen_range(170..180)),
-                SportType::Ride => Some(self.rng.gen_range(85..95)),
-                _ => None,
-            },
-            max_cadence: None,
-            hrv_score: None,
-            recovery_heart_rate: None,
-            temperature: Some(self.rng.gen_range(10.0..25.0)),
-            humidity: Some(self.rng.gen_range(40.0..70.0)),
-            average_altitude: Some(self.rng.gen_range(100.0..500.0)),
-            wind_speed: None,
-            ground_contact_time: if sport_type == SportType::Run {
-                Some(self.rng.gen_range(200..250))
-            } else {
-                None
-            },
-            vertical_oscillation: if sport_type == SportType::Run {
-                Some(self.rng.gen_range(7.0..10.0))
-            } else {
-                None
-            },
-            stride_length: if sport_type == SportType::Run {
-                Some(self.rng.gen_range(1.1..1.4))
-            } else {
-                None
-            },
-            running_power: if sport_type == SportType::Run {
-                Some(self.rng.gen_range(200..280))
-            } else {
-                None
-            },
-            breathing_rate: None,
-            spo2: None,
-            training_stress_score: None, // Will be calculated by intelligence layer
-            intensity_factor: None,
-            suffer_score: None,
-            time_series_data: None,
-            start_latitude: Some(45.5017), // Montreal
-            start_longitude: Some(-73.5673),
-            city: Some("Montreal".to_owned()),
-            region: Some("Quebec".to_owned()),
-            country: Some("Canada".to_owned()),
-            trail_name: Some("Synthetic Training Route".to_owned()),
+            format!("{sport_type:?} Activity"),
+            sport_type.clone(),
+            self.start_date.unwrap_or_else(Utc::now),
+            duration,
+            "synthetic",
+        );
 
-            // New fields for workout classification and segments
-            workout_type: if sport_type == SportType::Run {
-                Some(10) // Trail run
-            } else {
-                None
-            },
-            sport_type_detail: Some(format!("{sport_type:?}")),
-            segment_efforts: None, // Synthetic data doesn't generate segment efforts
-
-            provider: "synthetic".to_owned(),
+        if let Some(dist) = distance {
+            builder = builder.distance_meters(dist);
         }
+        if let Some(elev) = elevation_gain {
+            builder = builder.elevation_gain(elev);
+        }
+        if let Some(hr) = self.average_heart_rate {
+            builder = builder.average_heart_rate(hr);
+        }
+        if let Some(hr) = self.max_heart_rate {
+            builder = builder.max_heart_rate(hr);
+        }
+        if let Some(speed) = average_speed {
+            builder = builder.average_speed(speed);
+        }
+        if let Some(speed) = average_speed.map(|s| s * 1.15) {
+            builder = builder.max_speed(speed);
+        }
+
+        // Duration in seconds, division by 60 for minutes, safe truncation
+        #[allow(clippy::cast_possible_truncation)]
+        let calories = (duration / 60) as u32 * 10; // Rough estimate
+        builder = builder.calories(calories);
+
+        // Duration in seconds, division by 60 for minutes, safe truncation
+        #[allow(clippy::cast_possible_truncation)]
+        let steps_value = (duration / 60) as u32 * 170; // ~170 steps/min
+
+        if sport_type == SportType::Run {
+            builder = builder.steps(steps_value);
+        }
+
+        if let Some(power) = self.average_power {
+            builder = builder.average_power(power);
+        }
+        // Max power calculation: 30% increase from average, safe precision, truncation, and sign loss
+        #[allow(
+            clippy::cast_precision_loss,
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss
+        )]
+        if let Some(max_power) = self.average_power.map(|p| (f64::from(p) * 1.3) as u32) {
+            builder = builder.max_power(max_power);
+        }
+        if let Some(norm_power) = self.average_power {
+            builder = builder.normalized_power(norm_power);
+        }
+        if let Some(ftp_val) = self.ftp {
+            builder = builder.ftp(ftp_val);
+        }
+
+        let avg_cadence = match sport_type {
+            SportType::Run => Some(self.rng.gen_range(170..180)),
+            SportType::Ride => Some(self.rng.gen_range(85..95)),
+            _ => None,
+        };
+        if let Some(cadence) = avg_cadence {
+            builder = builder.average_cadence(cadence);
+        }
+
+        builder = builder
+            .temperature(self.rng.gen_range(10.0..25.0))
+            .humidity(self.rng.gen_range(40.0..70.0))
+            .average_altitude(self.rng.gen_range(100.0..500.0))
+            .start_latitude(45.5017) // Montreal
+            .start_longitude(-73.5673)
+            .city("Montreal".to_owned())
+            .region("Quebec".to_owned())
+            .country("Canada".to_owned())
+            .trail_name("Synthetic Training Route".to_owned())
+            .sport_type_detail(format!("{sport_type:?}"));
+
+        if sport_type == SportType::Run {
+            builder = builder
+                .ground_contact_time(self.rng.gen_range(200..250))
+                .vertical_oscillation(self.rng.gen_range(7.0..10.0))
+                .stride_length(self.rng.gen_range(1.1..1.4))
+                .running_power(self.rng.gen_range(200..280))
+                .workout_type(10); // Trail run
+        }
+
+        builder.build()
     }
 }
 
@@ -525,8 +526,8 @@ mod tests {
         let activity2 = builder2.generate_run().duration_minutes(30).build();
 
         // Same seed should produce identical activities
-        assert_eq!(activity1.id, activity2.id);
-        assert_eq!(activity1.duration_seconds, activity2.duration_seconds);
+        assert_eq!(activity1.id(), activity2.id());
+        assert_eq!(activity1.duration_seconds(), activity2.duration_seconds());
     }
 
     #[test]
@@ -541,7 +542,8 @@ mod tests {
         let first = &activities[0];
         let last = &activities[activities.len() - 1];
 
-        if let (Some(first_speed), Some(last_speed)) = (first.average_speed, last.average_speed) {
+        if let (Some(first_speed), Some(last_speed)) = (first.average_speed(), last.average_speed())
+        {
             assert!(last_speed > first_speed, "Last activity should be faster");
         }
     }
@@ -555,10 +557,12 @@ mod tests {
         assert_eq!(activities.len(), 20);
 
         // All activities should be cycling
-        assert!(activities.iter().all(|a| a.sport_type == SportType::Ride));
+        assert!(activities
+            .iter()
+            .all(|a| *a.sport_type() == SportType::Ride));
 
         // Should have consistent FTP
-        let ftp_values: Vec<_> = activities.iter().filter_map(|a| a.ftp).collect();
+        let ftp_values: Vec<_> = activities.iter().filter_map(Activity::ftp).collect();
         assert!(ftp_values.iter().all(|&ftp| ftp == 250));
     }
 
@@ -571,14 +575,14 @@ mod tests {
         let week1_avg = f64::from(
             activities[0..6]
                 .iter()
-                .filter_map(|a| a.average_heart_rate)
+                .filter_map(Activity::average_heart_rate)
                 .sum::<u32>(),
         ) / 6.0;
 
         let week3_avg = f64::from(
             activities[activities.len() - 7..]
                 .iter()
-                .filter_map(|a| a.average_heart_rate)
+                .filter_map(Activity::average_heart_rate)
                 .sum::<u32>(),
         ) / 7.0;
 
@@ -597,7 +601,7 @@ mod tests {
         assert!(activities.len() >= 15);
 
         // Check that there's a time gap (injury period)
-        let dates: Vec<_> = activities.iter().map(|a| a.start_date).collect();
+        let dates: Vec<_> = activities.iter().map(Activity::start_date).collect();
         let mut max_gap = Duration::days(0);
 
         for i in 1..dates.len() {

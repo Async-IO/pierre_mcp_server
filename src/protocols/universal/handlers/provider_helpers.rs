@@ -295,7 +295,7 @@ pub fn infer_workout_intensity(activities: &[Activity], days_back: u32) -> Strin
 
     // Calculate total training hours
     // Safe: total_seconds is sum of activity durations (typically < 10^9 seconds), well within f64 precision
-    let total_seconds: u64 = activities.iter().map(|a| a.duration_seconds).sum();
+    let total_seconds: u64 = activities.iter().map(Activity::duration_seconds).sum();
     #[allow(clippy::cast_precision_loss)]
     let total_hours = total_seconds as f64 / 3600.0;
     let avg_hours_per_day = total_hours / f64::from(days_back);
@@ -303,7 +303,7 @@ pub fn infer_workout_intensity(activities: &[Activity], days_back: u32) -> Strin
     // Calculate average heart rate if available
     let hr_activities: Vec<_> = activities
         .iter()
-        .filter_map(|a| a.average_heart_rate)
+        .filter_map(Activity::average_heart_rate)
         .collect();
     let avg_hr = if hr_activities.is_empty() {
         None

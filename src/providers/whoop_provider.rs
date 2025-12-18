@@ -24,8 +24,8 @@ use super::errors::ProviderError;
 use crate::constants::oauth_providers;
 use crate::errors::{AppError, AppResult};
 use crate::models::{
-    Activity, Athlete, HealthMetrics, PersonalRecord, RecoveryMetrics, SleepSession, SleepStage,
-    SleepStageType, SportType, Stats,
+    Activity, ActivityBuilder, Athlete, HealthMetrics, PersonalRecord, RecoveryMetrics,
+    SleepSession, SleepStage, SleepStageType, SportType, Stats,
 };
 use crate::pagination::{Cursor, CursorPage, PaginationParams};
 use crate::utils::http_client::shared_client;
@@ -367,7 +367,7 @@ impl WhoopProvider {
     }
 
     /// Convert WHOOP workout to our Activity model
-    fn convert_workout(workout: WhoopWorkout) -> AppResult<Activity> {
+    fn convert_workout(workout: &WhoopWorkout) -> AppResult<Activity> {
         let start_date = DateTime::parse_from_rfc3339(&workout.start)
             .map_err(|e| AppError::internal(format!("Failed to parse workout start date: {e}")))?
             .with_timezone(&Utc);
@@ -380,62 +380,29 @@ impl WhoopProvider {
 
         let score = workout.score.as_ref();
 
-        Ok(Activity {
-            id: workout.id,
-            name: format!(
+        Ok(ActivityBuilder::new(
+            workout.id.clone(),
+            format!(
                 "WHOOP {}",
                 Self::parse_sport_type(workout.sport_id).display_name()
             ),
-            sport_type: Self::parse_sport_type(workout.sport_id),
+            Self::parse_sport_type(workout.sport_id),
             start_date,
             duration_seconds,
-            distance_meters: score.and_then(|s| s.distance_meter),
-            elevation_gain: score.and_then(|s| s.altitude_gain_meter),
-            average_heart_rate: score.and_then(|s| s.average_heart_rate).map(|hr| hr as u32),
-            max_heart_rate: score.and_then(|s| s.max_heart_rate).map(|hr| hr as u32),
-            average_speed: None, // WHOOP doesn't provide speed directly
-            max_speed: None,
-            // Convert kilojoules to calories (1 kJ = 0.239 kcal)
-            calories: score
+            oauth_providers::WHOOP,
+        )
+        .distance_meters_opt(score.and_then(|s| s.distance_meter))
+        .elevation_gain_opt(score.and_then(|s| s.altitude_gain_meter))
+        .average_heart_rate_opt(score.and_then(|s| s.average_heart_rate).map(|hr| hr as u32))
+        .max_heart_rate_opt(score.and_then(|s| s.max_heart_rate).map(|hr| hr as u32))
+        .calories_opt(
+            score
                 .and_then(|s| s.kilojoule)
                 .map(|kj| (kj * 0.239) as u32),
-            steps: None,
-            heart_rate_zones: None, // Could be constructed from zone_duration
-            average_power: None,
-            max_power: None,
-            normalized_power: None,
-            power_zones: None,
-            ftp: None,
-            average_cadence: None,
-            max_cadence: None,
-            hrv_score: None,
-            recovery_heart_rate: None,
-            temperature: None,
-            humidity: None,
-            average_altitude: None,
-            wind_speed: None,
-            ground_contact_time: None,
-            vertical_oscillation: None,
-            stride_length: None,
-            running_power: None,
-            breathing_rate: None,
-            spo2: None,
-            // WHOOP strain score maps to training stress
-            training_stress_score: score.and_then(|s| s.strain).map(|s| s as f32),
-            intensity_factor: None,
-            suffer_score: None,
-            time_series_data: None,
-            start_latitude: None,
-            start_longitude: None,
-            city: None,
-            region: None,
-            country: None,
-            trail_name: None,
-            workout_type: None,
-            sport_type_detail: Some(format!("whoop_sport_{}", workout.sport_id)),
-            segment_efforts: None,
-            provider: oauth_providers::WHOOP.to_owned(),
-        })
+        )
+        .training_stress_score_opt(score.and_then(|s| s.strain).map(|s| s as f32))
+        .sport_type_detail_opt(Some(format!("whoop_sport_{}", workout.sport_id)))
+        .build())
     }
 
     /// Convert WHOOP sleep to our `SleepSession` model
@@ -776,7 +743,7 @@ impl FitnessProvider for WhoopProvider {
         let response: WhoopPaginatedResponse<WhoopWorkout> = self.api_request(&endpoint).await?;
 
         let mut activities = Vec::with_capacity(response.records.len());
-        for workout in response.records {
+        for workout in &response.records {
             match Self::convert_workout(workout) {
                 Ok(activity) => activities.push(activity),
                 Err(e) => {
@@ -807,7 +774,7 @@ impl FitnessProvider for WhoopProvider {
         let response: WhoopPaginatedResponse<WhoopWorkout> = self.api_request(&endpoint).await?;
 
         let mut activities = Vec::with_capacity(response.records.len());
-        for workout in response.records {
+        for workout in &response.records {
             match Self::convert_workout(workout) {
                 Ok(activity) => activities.push(activity),
                 Err(e) => {
@@ -829,7 +796,7 @@ impl FitnessProvider for WhoopProvider {
         let prev_cursor = if params.cursor.is_some() {
             activities
                 .first()
-                .map(|first| Cursor::new(first.start_date, &first.id))
+                .map(|first| Cursor::new(first.start_date(), first.id()))
         } else {
             None
         };
@@ -849,7 +816,7 @@ impl FitnessProvider for WhoopProvider {
     async fn get_activity(&self, id: &str) -> AppResult<Activity> {
         let endpoint = format!("activity/workout/{id}");
         let workout: WhoopWorkout = self.api_request(&endpoint).await?;
-        Self::convert_workout(workout)
+        Self::convert_workout(&workout)
     }
 
     async fn get_stats(&self) -> AppResult<Stats> {

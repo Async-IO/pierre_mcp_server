@@ -119,7 +119,7 @@ impl TssAlgorithm {
     ) -> AppResult<f64> {
         let avg_power = f64::from(
             activity
-                .average_power
+                .average_power()
                 .ok_or_else(|| AppError::not_found("average power data".to_owned()))?,
         );
 

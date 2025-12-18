@@ -193,7 +193,7 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
         activities
             .iter()
             .filter(|a| {
-                let weeks_ago = (Utc::now() - a.start_date).num_weeks();
+                let weeks_ago = (Utc::now() - a.start_date()).num_weeks();
                 weeks_ago <= GOAL_ANALYSIS_WEEKS
             })
             .collect()
@@ -204,24 +204,24 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
         let mut sport_stats = HashMap::new();
 
         for activity in activities {
-            let sport = format!("{:?}", activity.sport_type);
+            let sport = format!("{:?}", activity.sport_type());
             let stats = sport_stats.entry(sport).or_insert_with(SportStats::new);
 
             stats.activity_count += 1;
-            if let Some(distance) = activity.distance_meters {
+            if let Some(distance) = activity.distance_meters() {
                 stats.total_distance += distance;
                 stats.max_distance = stats.max_distance.max(distance);
             }
 
-            let duration_seconds = if activity.duration_seconds > u64::from(u32::MAX) {
+            let duration_seconds = if activity.duration_seconds() > u64::from(u32::MAX) {
                 f64::from(u32::MAX)
             } else {
-                activity.duration_seconds as f64
+                activity.duration_seconds() as f64
             };
             stats.total_duration += duration_seconds;
             stats.max_duration = stats.max_duration.max(duration_seconds);
 
-            if let Some(speed) = activity.average_speed {
+            if let Some(speed) = activity.average_speed() {
                 stats.speeds.push(speed);
             }
         }
@@ -393,8 +393,8 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
         activities
             .iter()
             .filter(|a| {
-                format!("{:?}", a.sport_type) == goal.goal_type.sport_type()
-                    && a.start_date >= goal.created_at
+                format!("{:?}", a.sport_type()) == goal.goal_type.sport_type()
+                    && a.start_date() >= goal.created_at
             })
             .collect()
     }
@@ -405,17 +405,17 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
                 let timeframe_start = Self::get_timeframe_start(timeframe, goal.created_at);
                 relevant_activities
                     .iter()
-                    .filter(|a| a.start_date >= timeframe_start)
-                    .filter_map(|a| a.distance_meters)
+                    .filter(|a| a.start_date() >= timeframe_start)
+                    .filter_map(|a| a.distance_meters())
                     .sum::<f64>()
             }
             GoalType::Time { distance, .. } => relevant_activities
                 .iter()
                 .filter(|a| {
-                    a.distance_meters
+                    a.distance_meters()
                         .is_some_and(|d| (d - distance).abs() < distance * GOAL_DISTANCE_PRECISION)
                 })
-                .map(|a| a.duration_seconds as f64)
+                .map(|a| a.duration_seconds() as f64)
                 .fold(f64::MAX, f64::min),
             GoalType::Frequency { .. } => {
                 let weeks_elapsed = (Utc::now() - goal.created_at).num_weeks().max(1) as f64;
@@ -424,7 +424,7 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
             GoalType::Performance { metric, .. } => match metric.as_str() {
                 "speed" => relevant_activities
                     .last()
-                    .and_then(|a| a.average_speed)
+                    .and_then(|a| a.average_speed())
                     .unwrap_or(0.0),
                 _ => 0.0,
             },
@@ -535,7 +535,7 @@ impl<S: IntelligenceStrategy> GoalEngineTrait for AdvancedGoalEngine<S> {
         let on_track = Self::is_on_track(goal, progress_percentage);
 
         let mut progress_report = ProgressReport {
-            goal_id: goal.id.clone(), // Safe: String ownership for progress report
+            goal_id: goal.id.clone(),
             progress_percentage,
             completion_date_estimate,
             milestones_achieved: achieved_milestones,

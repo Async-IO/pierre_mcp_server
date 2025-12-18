@@ -13,7 +13,7 @@ use super::errors::ProviderError;
 use crate::constants::oauth::STRAVA_DEFAULT_SCOPES;
 use crate::constants::{api_provider_limits, oauth_providers};
 use crate::errors::{AppError, AppResult};
-use crate::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
+use crate::models::{Activity, ActivityBuilder, Athlete, PersonalRecord, SportType, Stats};
 use crate::pagination::{Cursor, CursorPage, PaginationDirection, PaginationParams};
 use crate::utils::http_client::shared_client;
 use async_trait::async_trait;
@@ -460,67 +460,42 @@ impl StravaProvider {
             u64::from,
         );
 
-        Ok(Activity {
-            id: activity.id.to_string(),
-            name: activity.name,
-            sport_type: Self::parse_sport_type(&activity.activity_type),
+        Ok(ActivityBuilder::new(
+            activity.id.to_string(),
+            &activity.name,
+            Self::parse_sport_type(&activity.activity_type),
             start_date,
-            distance_meters: activity.distance.map(f64::from),
             duration_seconds,
-            elevation_gain: activity.total_elevation_gain.map(f64::from),
-            average_speed: activity.average_speed.map(f64::from),
-            max_speed: activity.max_speed.map(f64::from),
-            average_heart_rate: activity.average_heartrate.map(f32_to_u32),
-            max_heart_rate: activity.max_heartrate.map(f32_to_u32),
-            average_cadence: activity.average_cadence.map(f32_to_u32),
-            average_power: activity.average_watts.map(f32_to_u32),
-            max_power: activity.max_watts.map(f32_to_u32),
-            // Calories from summary endpoint
-            calories: activity.calories.map(f32_to_u32),
-            steps: None,
-            heart_rate_zones: None,
-            normalized_power: None,
-            power_zones: None,
-            ftp: None,
-            max_cadence: None,
-            hrv_score: None,
-            recovery_heart_rate: None,
-            temperature: None,
-            humidity: None,
-            average_altitude: None,
-            wind_speed: None,
-            ground_contact_time: None,
-            vertical_oscillation: None,
-            stride_length: None,
-            running_power: None,
-            breathing_rate: None,
-            spo2: None,
-            training_stress_score: None,
-            intensity_factor: None,
-            suffer_score: activity.suffer_score.map(f32_to_u32),
-            time_series_data: None,
-            // GPS coordinates from summary endpoint
-            start_latitude: activity
+            oauth_providers::STRAVA,
+        )
+        .distance_meters_opt(activity.distance.map(f64::from))
+        .elevation_gain_opt(activity.total_elevation_gain.map(f64::from))
+        .average_speed_opt(activity.average_speed.map(f64::from))
+        .max_speed_opt(activity.max_speed.map(f64::from))
+        .average_heart_rate_opt(activity.average_heartrate.map(f32_to_u32))
+        .max_heart_rate_opt(activity.max_heartrate.map(f32_to_u32))
+        .average_cadence_opt(activity.average_cadence.map(f32_to_u32))
+        .average_power_opt(activity.average_watts.map(f32_to_u32))
+        .max_power_opt(activity.max_watts.map(f32_to_u32))
+        .calories_opt(activity.calories.map(f32_to_u32))
+        .suffer_score_opt(activity.suffer_score.map(f32_to_u32))
+        .start_latitude_opt(
+            activity
                 .start_latlng
                 .as_ref()
                 .and_then(|latlng| latlng.first().copied()),
-            start_longitude: activity
+        )
+        .start_longitude_opt(
+            activity
                 .start_latlng
                 .as_ref()
                 .and_then(|latlng| latlng.get(1).copied()),
-            // Location data from summary endpoint
-            city: activity.location_city,
-            region: activity.location_state,
-            country: activity.location_country,
-            trail_name: None,
-
-            // Detailed activity classification - available from detailed endpoint
-            workout_type: None,
-            sport_type_detail: Some(activity.activity_type.clone()),
-            segment_efforts: None,
-
-            provider: oauth_providers::STRAVA.to_owned(),
-        })
+        )
+        .city_opt(activity.location_city)
+        .region_opt(activity.location_state)
+        .country_opt(activity.location_country)
+        .sport_type_detail_opt(Some(activity.activity_type.clone()))
+        .build())
     }
 
     /// Convert detailed Strava activity response to internal Activity model with all fields populated
@@ -598,12 +573,13 @@ impl StravaProvider {
 
         let mut detailed_activities = Vec::with_capacity(activities.len());
         for activity in activities {
-            match self.get_activity_details(&activity.id).await {
+            match self.get_activity_details(activity.id()).await {
                 Ok(detailed) => detailed_activities.push(detailed),
                 Err(e) => {
                     error!(
                         "Failed to fetch details for activity {}: {} - using summary data",
-                        activity.id, e
+                        activity.id(),
+                        e
                     );
                     // Fallback: use summary data if detail fetch fails
                     detailed_activities.push(activity);
@@ -839,7 +815,7 @@ impl FitnessProvider for StravaProvider {
         let next_cursor = if has_more {
             activities
                 .last()
-                .map(|last| Cursor::new(last.start_date, &last.id))
+                .map(|last| Cursor::new(last.start_date(), last.id()))
         } else {
             None
         };
@@ -848,7 +824,7 @@ impl FitnessProvider for StravaProvider {
         let prev_cursor = if params.cursor.is_some() {
             activities
                 .first()
-                .map(|first| Cursor::new(first.start_date, &first.id))
+                .map(|first| Cursor::new(first.start_date(), first.id()))
         } else {
             None
         };

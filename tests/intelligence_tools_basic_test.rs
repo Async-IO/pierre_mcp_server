@@ -10,7 +10,7 @@
 mod helpers;
 
 use helpers::test_utils::{create_synthetic_provider_with_scenario, TestScenario};
-use pierre_mcp_server::models::SportType;
+use pierre_mcp_server::models::{Activity, SportType};
 use pierre_mcp_server::pagination::PaginationParams;
 use pierre_mcp_server::providers::core::FitnessProvider;
 
@@ -47,7 +47,7 @@ async fn test_get_activities_with_beginner_runner() {
     // Verify activities are running activities
     let run_count = activities
         .iter()
-        .filter(|a| a.sport_type == SportType::Run)
+        .filter(|a| *a.sport_type() == SportType::Run)
         .count();
     assert!(
         run_count > 0,
@@ -79,8 +79,8 @@ async fn test_get_activities_cursor_pagination() {
         assert_eq!(page2.items.len(), 10, "Second page should have 10 items");
 
         // Verify no duplicate activities
-        let first_ids: Vec<_> = page.items.iter().map(|a| &a.id).collect();
-        let second_ids: Vec<_> = page2.items.iter().map(|a| &a.id).collect();
+        let first_ids: Vec<_> = page.items.iter().map(Activity::id).collect();
+        let second_ids: Vec<_> = page2.items.iter().map(Activity::id).collect();
 
         for id in &second_ids {
             assert!(
@@ -104,7 +104,7 @@ async fn test_get_activity_by_id() {
     assert!(!activities.is_empty(), "Should have activities to test");
 
     // Get first activity by ID
-    let first_activity_id = &activities[0].id;
+    let first_activity_id = activities[0].id();
     let result = provider.get_activity(first_activity_id).await;
 
     assert!(
@@ -113,12 +113,12 @@ async fn test_get_activity_by_id() {
     );
 
     let activity = result.unwrap();
-    assert_eq!(&activity.id, first_activity_id, "IDs should match");
+    assert_eq!(activity.id(), first_activity_id, "IDs should match");
     assert!(
-        activity.duration_seconds > 0,
+        activity.duration_seconds() > 0,
         "Activity should have duration"
     );
-    assert!(activity.distance_meters.is_some(), "Should have distance");
+    assert!(activity.distance_meters().is_some(), "Should have distance");
 }
 
 #[tokio::test]
@@ -174,21 +174,22 @@ async fn test_compare_activities_different_patterns() {
 
     // Verify both are running activities with comparable data
     assert_eq!(
-        first.sport_type, last.sport_type,
+        *first.sport_type(),
+        *last.sport_type(),
         "Should compare same sport"
     );
     assert!(
-        first.duration_seconds > 0 && last.duration_seconds > 0,
+        first.duration_seconds() > 0 && last.duration_seconds() > 0,
         "Both should have duration"
     );
 
     // For beginner improving pattern, later activities should show better performance
-    if let (Some(first_dist), Some(last_dist)) = (first.distance_meters, last.distance_meters) {
+    if let (Some(first_dist), Some(last_dist)) = (first.distance_meters(), last.distance_meters()) {
         // Duration in seconds, precision loss acceptable for pace calculation
         #[allow(clippy::cast_precision_loss)]
-        let first_pace = first.duration_seconds as f64 / first_dist;
+        let first_pace = first.duration_seconds() as f64 / first_dist;
         #[allow(clippy::cast_precision_loss)]
-        let last_pace = last.duration_seconds as f64 / last_dist;
+        let last_pace = last.duration_seconds() as f64 / last_dist;
 
         // Beginner improving should show faster pace over time (lower seconds per meter)
         assert!(
@@ -216,7 +217,7 @@ async fn test_overtraining_pattern_detection() {
     // activities are already sorted descending (most recent first), so just take first 7
     let recent_activities: Vec<_> = activities.iter().take(7).collect();
 
-    let total_duration: u64 = recent_activities.iter().map(|a| a.duration_seconds).sum();
+    let total_duration: u64 = recent_activities.iter().map(|a| a.duration_seconds()).sum();
 
     // Overtraining pattern should have high weekly training volume
     assert!(
@@ -237,7 +238,7 @@ async fn test_injury_recovery_pattern() {
     // Injury recovery pattern should show a gap followed by gradual return
     let timestamps: Vec<_> = activities
         .iter()
-        .map(|a| a.start_date.timestamp())
+        .map(|a| a.start_date().timestamp())
         .collect();
 
     // Check for gaps in training (indicators of recovery period)

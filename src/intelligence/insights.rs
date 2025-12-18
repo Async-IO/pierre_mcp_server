@@ -179,7 +179,7 @@ impl InsightGenerator {
         let mut insights = Vec::new();
 
         // Example: Distance PR detection
-        if let Some(distance_m) = activity.distance_meters {
+        if let Some(distance_m) = activity.distance_meters() {
             let distance_km = distance_m / 1000.0;
             if distance_km > ACHIEVEMENT_DISTANCE_THRESHOLD_KM {
                 // Achievement threshold for distance milestones
@@ -205,7 +205,8 @@ impl InsightGenerator {
         let mut insights = Vec::new();
 
         // Analyze heart rate zones if available
-        if let (Some(avg_hr), Some(max_hr)) = (activity.average_heart_rate, activity.max_heart_rate)
+        if let (Some(avg_hr), Some(max_hr)) =
+            (activity.average_heart_rate(), activity.max_heart_rate())
         {
             // Heart rates are small values (30-220), use safe conversion
             let hr_intensity =
@@ -240,7 +241,7 @@ impl InsightGenerator {
         let mut insights = Vec::new();
 
         // Analyze effort based on duration and intensity
-        let duration = activity.duration_seconds;
+        let duration = activity.duration_seconds();
         let effort_score = Self::calculate_relative_effort(activity);
 
         let effort_description = match effort_score {
@@ -279,7 +280,7 @@ impl InsightGenerator {
         let mut effort_score = safe_f64_to_f32(COMPLETION_BONUS);
 
         // Factor in duration
-        let duration = activity.duration_seconds;
+        let duration = activity.duration_seconds();
         let duration_f32 = if duration > u64::from(u32::MAX) {
             f32::MAX
         } else {
@@ -292,7 +293,8 @@ impl InsightGenerator {
         }
 
         // Factor in heart rate intensity
-        if let (Some(avg_hr), Some(max_hr)) = (activity.average_heart_rate, activity.max_heart_rate)
+        if let (Some(avg_hr), Some(max_hr)) =
+            (activity.average_heart_rate(), activity.max_heart_rate())
         {
             // Heart rates are small values (30-220), use safe conversion
             let hr_intensity =
@@ -303,7 +305,7 @@ impl InsightGenerator {
         }
 
         // Factor in elevation gain
-        if let Some(elevation) = activity.elevation_gain {
+        if let Some(elevation) = activity.elevation_gain() {
             {
                 effort_score +=
                     safe_f64_to_f32(elevation / 100.0) * safe_f64_to_f32(STANDARD_BONUS);
@@ -325,18 +327,18 @@ impl InsightGenerator {
                     insight_type: InsightType::LocationInsight,
                     message: format!(
                         "Explored the {trail_name} route, a great choice for your {} training",
-                        activity.sport_type.display_name()
+                        activity.sport_type().display_name()
                     ),
                     confidence: 80.0,
                     data: Some(serde_json::json!({
                         "trail_name": trail_name,
-                        "activity_type": activity.sport_type.display_name()
+                        "activity_type": activity.sport_type().display_name()
                     })),
                 });
             }
 
             // Elevation and terrain analysis
-            if let Some(elevation_gain) = activity.elevation_gain {
+            if let Some(elevation_gain) = activity.elevation_gain() {
                 if elevation_gain > 500.0 {
                     let location_desc = location
                         .city

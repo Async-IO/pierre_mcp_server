@@ -9,83 +9,64 @@
 #![allow(missing_docs)]
 
 use chrono::Utc;
-use pierre_mcp_server::models::*;
+use pierre_mcp_server::models::{ActivityBuilder, *};
 
 #[test]
 fn test_enhanced_activity_with_power_metrics() {
-    let activity = Activity {
-        id: "power_test".to_owned(),
-        name: "Cycling Workout".to_owned(),
-        sport_type: SportType::Ride,
-        start_date: Utc::now(),
-        duration_seconds: 3600,         // 1 hour
-        distance_meters: Some(40000.0), // 40km
-        elevation_gain: Some(500.0),
-        average_heart_rate: Some(160),
-        max_heart_rate: Some(185),
-        average_speed: Some(11.11), // 40km/h
-        max_speed: Some(15.28),     // 55km/h
-        calories: Some(800),
-        steps: None,
-        heart_rate_zones: None,
-
-        // Power metrics
-        average_power: Some(250),
-        max_power: Some(450),
-        normalized_power: Some(265),
-        ftp: Some(280),
-        power_zones: Some(vec![
-            PowerZone {
-                name: "Zone 1".to_owned(),
-                min_power: 0,
-                max_power: 140,    // 50% FTP
-                time_in_zone: 600, // 10 minutes
-            },
-            PowerZone {
-                name: "Zone 2".to_owned(),
-                min_power: 140,
-                max_power: 196,     // 70% FTP
-                time_in_zone: 2400, // 40 minutes
-            },
-        ]),
-
-        // Cadence
-        average_cadence: Some(85),
-        max_cadence: Some(120),
-
-        // Environmental
-        temperature: Some(22.0),
-        humidity: Some(65.0),
-        average_altitude: Some(150.0),
-        wind_speed: Some(5.0),
-
-        // Training metrics
-        training_stress_score: Some(95.0),
-        intensity_factor: Some(0.85),
-        suffer_score: Some(120),
-
-        // Other advanced metrics (None for this test)
-        hrv_score: None,
-        recovery_heart_rate: None,
-        ground_contact_time: None,
-        vertical_oscillation: None,
-        stride_length: None,
-        running_power: None,
-        breathing_rate: None,
-        spo2: None,
-        time_series_data: None,
-
-        start_latitude: Some(45.5017),
-        start_longitude: Some(-73.5673),
-        city: Some("Montreal".to_owned()),
-        region: Some("Quebec".to_owned()),
-        country: Some("Canada".to_owned()),
-        trail_name: Some("Lachine Canal".to_owned()),
-        workout_type: None,
-        sport_type_detail: None,
-        segment_efforts: None,
-        provider: "strava".to_owned(),
-    };
+    let activity = ActivityBuilder::new(
+        "power_test",
+        "Cycling Workout",
+        SportType::Ride,
+        Utc::now(),
+        3600, // 1 hour
+        "strava",
+    )
+    .distance_meters(40000.0) // 40km
+    .elevation_gain(500.0)
+    .average_heart_rate(160)
+    .max_heart_rate(185)
+    .average_speed(11.11) // 40km/h
+    .max_speed(15.28) // 55km/h
+    .calories(800)
+    // Power metrics
+    .average_power(250)
+    .max_power(450)
+    .normalized_power(265)
+    .ftp(280)
+    .power_zones(vec![
+        PowerZone {
+            name: "Zone 1".to_owned(),
+            min_power: 0,
+            max_power: 140,    // 50% FTP
+            time_in_zone: 600, // 10 minutes
+        },
+        PowerZone {
+            name: "Zone 2".to_owned(),
+            min_power: 140,
+            max_power: 196,     // 70% FTP
+            time_in_zone: 2400, // 40 minutes
+        },
+    ])
+    // Cadence
+    .average_cadence(85)
+    .max_cadence(120)
+    // Environmental
+    .temperature(22.0)
+    .humidity(65.0)
+    .average_altitude(150.0)
+    .wind_speed(5.0)
+    // Training metrics
+    .training_stress_score(95.0)
+    .intensity_factor(0.85)
+    .suffer_score(120)
+    // Location
+    .start_latitude(45.5017)
+    .start_longitude(-73.5673)
+    .city("Montreal".to_owned())
+    .region("Quebec".to_owned())
+    .country("Canada".to_owned())
+    .trail_name("Lachine Canal".to_owned())
+    .build();
 
     // Test serialization
     let json = serde_json::to_string(&activity).expect("Failed to serialize enhanced activity");
@@ -96,83 +77,67 @@ fn test_enhanced_activity_with_power_metrics() {
     // Test deserialization
     let deserialized: Activity =
         serde_json::from_str(&json).expect("Failed to deserialize enhanced activity");
-    assert_eq!(deserialized.average_power, Some(250));
-    assert_eq!(deserialized.normalized_power, Some(265));
-    assert_eq!(deserialized.training_stress_score, Some(95.0));
+    assert_eq!(deserialized.average_power(), Some(250));
+    assert_eq!(deserialized.normalized_power(), Some(265));
+    assert_eq!(deserialized.training_stress_score(), Some(95.0));
 }
 
 #[test]
 fn test_running_activity_with_biomechanical_data() {
-    let activity = Activity {
-        id: "run_test".to_owned(),
-        name: "Tempo Run".to_owned(),
-        sport_type: SportType::Run,
-        start_date: Utc::now(),
-        duration_seconds: 2700,         // 45 minutes
-        distance_meters: Some(10000.0), // 10km
-        elevation_gain: Some(50.0),
-        average_heart_rate: Some(165),
-        max_heart_rate: Some(180),
-        average_speed: Some(3.7), // ~4:30/km pace
-        max_speed: Some(4.5),
-        calories: Some(550),
-        steps: Some(12000),
-        heart_rate_zones: None,
-
-        // Running-specific biomechanics
-        average_cadence: Some(180), // steps per minute
-        max_cadence: Some(200),
-        ground_contact_time: Some(240),  // milliseconds
-        vertical_oscillation: Some(8.5), // centimeters
-        stride_length: Some(1.2),        // meters
-        running_power: Some(280),        // watts
-
-        // Respiratory
-        breathing_rate: Some(35),
-        spo2: Some(98.5),
-
-        // HRV and recovery
-        hrv_score: Some(45.2),
-        recovery_heart_rate: Some(25), // HR drop in first minute
-
-        // Power metrics (None for running)
-        average_power: None,
-        max_power: None,
-        normalized_power: None,
-        power_zones: None,
-        ftp: None,
-
-        // Environmental
-        temperature: Some(18.0),
-        humidity: Some(70.0),
-        average_altitude: Some(100.0),
-        wind_speed: Some(3.0),
-
-        // Training
-        training_stress_score: Some(75.0),
-        intensity_factor: Some(0.78),
-        suffer_score: Some(85),
-
-        time_series_data: None,
-        start_latitude: Some(45.5017),
-        start_longitude: Some(-73.5673),
-        city: Some("Montreal".to_owned()),
-        region: Some("Quebec".to_owned()),
-        country: Some("Canada".to_owned()),
-        trail_name: Some("Mount Royal".to_owned()),
-        workout_type: None,
-        sport_type_detail: None,
-        segment_efforts: None,
-        provider: "garmin".to_owned(),
-    };
+    let activity = ActivityBuilder::new(
+        "run_test",
+        "Tempo Run",
+        SportType::Run,
+        Utc::now(),
+        2700, // 45 minutes
+        "garmin",
+    )
+    .distance_meters(10000.0) // 10km
+    .elevation_gain(50.0)
+    .average_heart_rate(165)
+    .max_heart_rate(180)
+    .average_speed(3.7) // ~4:30/km pace
+    .max_speed(4.5)
+    .calories(550)
+    .steps(12000)
+    // Running-specific biomechanics
+    .average_cadence(180) // steps per minute
+    .max_cadence(200)
+    .ground_contact_time(240) // milliseconds
+    .vertical_oscillation(8.5) // centimeters
+    .stride_length(1.2) // meters
+    .running_power(280) // watts
+    // Respiratory
+    .breathing_rate(35)
+    .spo2(98.5)
+    // HRV and recovery
+    .hrv_score(45.2)
+    .recovery_heart_rate(25) // HR drop in first minute
+    // Environmental
+    .temperature(18.0)
+    .humidity(70.0)
+    .average_altitude(100.0)
+    .wind_speed(3.0)
+    // Training
+    .training_stress_score(75.0)
+    .intensity_factor(0.78)
+    .suffer_score(85)
+    // Location
+    .start_latitude(45.5017)
+    .start_longitude(-73.5673)
+    .city("Montreal".to_owned())
+    .region("Quebec".to_owned())
+    .country("Canada".to_owned())
+    .trail_name("Mount Royal".to_owned())
+    .build();
 
     // Verify running-specific metrics
-    assert_eq!(activity.ground_contact_time, Some(240));
-    assert_eq!(activity.vertical_oscillation, Some(8.5));
-    assert_eq!(activity.stride_length, Some(1.2));
-    assert_eq!(activity.running_power, Some(280));
-    assert_eq!(activity.breathing_rate, Some(35));
-    assert_eq!(activity.spo2, Some(98.5));
+    assert_eq!(activity.ground_contact_time(), Some(240));
+    assert_eq!(activity.vertical_oscillation(), Some(8.5));
+    assert_eq!(activity.stride_length(), Some(1.2));
+    assert_eq!(activity.running_power(), Some(280));
+    assert_eq!(activity.breathing_rate(), Some(35));
+    assert_eq!(activity.spo2(), Some(98.5));
 }
 
 #[test]
@@ -389,65 +354,36 @@ fn test_power_zone_model() {
 #[test]
 fn test_backward_compatibility() {
     // Test that existing Activity model still works without advanced metrics
-    let basic_activity = Activity {
-        id: "basic_test".to_owned(),
-        name: "Simple Run".to_owned(),
-        sport_type: SportType::Run,
-        start_date: Utc::now(),
-        duration_seconds: 1800,
-        distance_meters: Some(5000.0),
-        elevation_gain: Some(100.0),
-        average_heart_rate: Some(150),
-        max_heart_rate: Some(175),
-        average_speed: Some(2.78),
-        max_speed: Some(4.17),
-        calories: Some(300),
-        steps: Some(7500),
-        heart_rate_zones: None,
-
-        // All advanced metrics should be None
-        average_power: None,
-        max_power: None,
-        normalized_power: None,
-        power_zones: None,
-        ftp: None,
-        average_cadence: None,
-        max_cadence: None,
-        hrv_score: None,
-        recovery_heart_rate: None,
-        temperature: None,
-        humidity: None,
-        average_altitude: None,
-        wind_speed: None,
-        ground_contact_time: None,
-        vertical_oscillation: None,
-        stride_length: None,
-        running_power: None,
-        breathing_rate: None,
-        spo2: None,
-        training_stress_score: None,
-        intensity_factor: None,
-        suffer_score: None,
-        time_series_data: None,
-
-        start_latitude: Some(45.5017),
-        start_longitude: Some(-73.5673),
-        city: Some("Montreal".to_owned()),
-        region: Some("Quebec".to_owned()),
-        country: Some("Canada".to_owned()),
-        trail_name: Some("Mount Royal Trail".to_owned()),
-        workout_type: None,
-        sport_type_detail: None,
-        segment_efforts: None,
-        provider: "strava".to_owned(),
-    };
+    let basic_activity = ActivityBuilder::new(
+        "basic_test",
+        "Simple Run",
+        SportType::Run,
+        Utc::now(),
+        1800,
+        "strava",
+    )
+    .distance_meters(5000.0)
+    .elevation_gain(100.0)
+    .average_heart_rate(150)
+    .max_heart_rate(175)
+    .average_speed(2.78)
+    .max_speed(4.17)
+    .calories(300)
+    .steps(7500)
+    .start_latitude(45.5017)
+    .start_longitude(-73.5673)
+    .city("Montreal".to_owned())
+    .region("Quebec".to_owned())
+    .country("Canada".to_owned())
+    .trail_name("Mount Royal Trail".to_owned())
+    .build();
 
     // Should serialize and deserialize correctly
     let json = serde_json::to_string(&basic_activity).expect("Failed to serialize basic activity");
     let deserialized: Activity =
         serde_json::from_str(&json).expect("Failed to deserialize basic activity");
 
-    assert_eq!(deserialized.id, "basic_test");
-    assert_eq!(deserialized.average_power, None);
-    assert!(deserialized.time_series_data.is_none());
+    assert_eq!(deserialized.id(), "basic_test");
+    assert_eq!(deserialized.average_power(), None);
+    assert!(deserialized.time_series_data().is_none());
 }

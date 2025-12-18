@@ -15,55 +15,49 @@ use pierre_mcp_server::intelligence::{MetricType, SafeMetricExtractor};
 use pierre_mcp_server::models::{Activity, SportType};
 
 fn create_test_activity() -> Activity {
-    Activity {
-        id: "test_activity".to_owned(),
-        name: "Test Run".to_owned(),
-        sport_type: SportType::Run,
-        start_date: Utc::now(),
-        duration_seconds: 3600,         // 1 hour
-        distance_meters: Some(10000.0), // 10km
-        average_speed: Some(2.78),      // ~10 km/h
-        max_speed: Some(3.33),
-        average_heart_rate: Some(150),
-        max_heart_rate: Some(180),
-        elevation_gain: Some(100.0),
-        calories: Some(500),
-        average_power: Some(200),
-        max_power: Some(300),
-        temperature: None,
-        provider: "test_provider".to_owned(),
-        steps: None,
-        heart_rate_zones: None,
-        normalized_power: None,
-        power_zones: None,
-        ftp: None,
-        average_cadence: None,
-        max_cadence: None,
-        hrv_score: None,
-        recovery_heart_rate: None,
-        humidity: None,
-        average_altitude: None,
-        wind_speed: None,
-        ground_contact_time: None,
-        vertical_oscillation: None,
-        stride_length: None,
-        running_power: None,
-        breathing_rate: None,
-        spo2: None,
-        training_stress_score: None,
-        intensity_factor: None,
-        suffer_score: None,
-        time_series_data: None,
-        start_latitude: None,
-        start_longitude: None,
-        city: None,
-        region: None,
-        country: None,
-        trail_name: None,
-        workout_type: None,
-        sport_type_detail: None,
-        segment_efforts: None,
-    }
+    use pierre_mcp_server::models::ActivityBuilder;
+
+    ActivityBuilder::new(
+        "test_activity",
+        "Test Run",
+        SportType::Run,
+        Utc::now(),
+        3600, // 1 hour
+        "test_provider",
+    )
+    .distance_meters(10000.0) // 10km
+    .average_speed(2.78) // ~10 km/h
+    .max_speed(3.33)
+    .average_heart_rate(150)
+    .max_heart_rate(180)
+    .elevation_gain(100.0)
+    .calories(500)
+    .average_power(200)
+    .max_power(300)
+    .build()
+}
+
+fn create_test_activity_with_distance(distance: f64) -> Activity {
+    use pierre_mcp_server::models::ActivityBuilder;
+
+    ActivityBuilder::new(
+        "test_activity",
+        "Test Run",
+        SportType::Run,
+        Utc::now(),
+        3600, // 1 hour
+        "test_provider",
+    )
+    .distance_meters(distance)
+    .average_speed(2.78)
+    .max_speed(3.33)
+    .average_heart_rate(150)
+    .max_heart_rate(180)
+    .elevation_gain(100.0)
+    .calories(500)
+    .average_power(200)
+    .max_power(300)
+    .build()
 }
 
 #[test]
@@ -114,21 +108,9 @@ fn test_safe_metric_extractor_empty_activities() {
 #[test]
 fn test_metric_summary_calculation() {
     let activities = vec![
-        {
-            let mut activity = create_test_activity();
-            activity.distance_meters = Some(9000.0);
-            activity
-        },
-        {
-            let mut activity = create_test_activity();
-            activity.distance_meters = Some(10000.0);
-            activity
-        },
-        {
-            let mut activity = create_test_activity();
-            activity.distance_meters = Some(11000.0);
-            activity
-        },
+        create_test_activity_with_distance(9000.0),
+        create_test_activity_with_distance(10000.0),
+        create_test_activity_with_distance(11000.0),
     ];
 
     let summary =

@@ -478,7 +478,7 @@ async fn determine_intensity_from_provider(
             let cutoff_date = Utc::now() - Duration::days(i64::from(days_back));
             let recent: Vec<_> = activities
                 .into_iter()
-                .filter(|a| a.start_date >= cutoff_date)
+                .filter(|a| a.start_date() >= cutoff_date)
                 .collect();
 
             let inferred = infer_workout_intensity(&recent, days_back);

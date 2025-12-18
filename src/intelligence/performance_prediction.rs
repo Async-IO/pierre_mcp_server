@@ -150,10 +150,10 @@ impl PerformancePredictor {
         activity: &Activity,
     ) -> Result<RacePredictions, AppError> {
         let distance = activity
-            .distance_meters
+            .distance_meters()
             .ok_or_else(|| AppError::invalid_input("Activity must have distance".to_owned()))?;
 
-        let duration = activity.duration_seconds;
+        let duration = activity.duration_seconds();
 
         #[allow(clippy::cast_precision_loss)]
         let duration_f64 = duration as f64;
@@ -169,8 +169,8 @@ impl PerformancePredictor {
             .iter()
             .filter(|a| {
                 // Filter for likely race efforts
-                a.distance_meters.is_some_and(|distance| {
-                    let duration = a.duration_seconds;
+                a.distance_meters().is_some_and(|distance| {
+                    let duration = a.duration_seconds();
                     #[allow(clippy::cast_precision_loss)]
                     let duration_f64 = duration as f64;
                     // At least 3K distance
@@ -185,12 +185,12 @@ impl PerformancePredictor {
                 // Find fastest pace
                 #[allow(clippy::cast_precision_loss)]
                 let pace_a = a
-                    .distance_meters
-                    .map_or(0.0, |d| d / a.duration_seconds as f64);
+                    .distance_meters()
+                    .map_or(0.0, |d| d / a.duration_seconds() as f64);
                 #[allow(clippy::cast_precision_loss)]
                 let pace_b = b
-                    .distance_meters
-                    .map_or(0.0, |d| d / b.duration_seconds as f64);
+                    .distance_meters()
+                    .map_or(0.0, |d| d / b.duration_seconds() as f64);
                 pace_a.partial_cmp(&pace_b).unwrap_or(Ordering::Equal)
             })
     }

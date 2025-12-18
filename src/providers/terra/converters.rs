@@ -10,8 +10,8 @@
 //! to Pierre's unified fitness data models.
 
 use crate::models::{
-    Activity, Athlete, FoodItem, HealthMetrics, MealEntry, MealType, NutritionLog, RecoveryMetrics,
-    SleepSession, SleepStage, SleepStageType, SportType,
+    Activity, ActivityBuilder, Athlete, FoodItem, HealthMetrics, MealEntry, MealType, NutritionLog,
+    RecoveryMetrics, SleepSession, SleepStage, SleepStageType, SportType,
 };
 use chrono::Utc;
 
@@ -145,59 +145,44 @@ impl TerraConverters {
         let sport_type =
             Self::map_terra_activity_type(metadata.and_then(|m| m.activity_type).unwrap_or(0));
 
-        Activity {
-            id: metadata
+        ActivityBuilder::new(
+            metadata
                 .and_then(|m| m.summary_id.clone())
                 .unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
-            name: metadata
+            metadata
                 .and_then(|m| m.name.clone())
                 .unwrap_or_else(|| sport_type.display_name().to_owned()),
             sport_type,
             start_date,
             duration_seconds,
-            distance_meters: metrics.distance_meters,
-            elevation_gain: metrics.elevation_gain,
-            average_heart_rate: metrics.average_heart_rate,
-            max_heart_rate: metrics.max_heart_rate,
-            average_speed: metrics.average_speed,
-            max_speed: metrics.max_speed,
-            calories: metrics.calories,
-            steps: metrics.steps,
-            heart_rate_zones: None,
-            average_power: metrics.average_power,
-            max_power: metrics.max_power,
-            normalized_power: metrics.normalized_power,
-            power_zones: None,
-            ftp: metrics.ftp,
-            average_cadence: metrics.average_cadence,
-            max_cadence: metrics.max_cadence,
-            hrv_score: metrics.hrv_score,
-            recovery_heart_rate: None,
-            temperature: None,
-            humidity: None,
-            average_altitude: metrics.average_altitude,
-            wind_speed: None,
-            ground_contact_time: None,
-            vertical_oscillation: None,
-            stride_length: None,
-            running_power: None,
-            breathing_rate: None,
-            spo2: metrics.spo2,
-            training_stress_score: metrics.training_stress_score,
-            intensity_factor: metrics.intensity_factor,
-            suffer_score: metrics.suffer_score,
-            time_series_data: None,
-            start_latitude: metrics.start_latitude,
-            start_longitude: metrics.start_longitude,
-            city: metadata.and_then(|m| m.city.clone()),
-            region: None,
-            country: metadata.and_then(|m| m.country.clone()),
-            trail_name: None,
-            workout_type: None,
-            sport_type_detail: metadata.and_then(|m| m.name.clone()),
-            segment_efforts: None,
-            provider: provider_name,
-        }
+            provider_name,
+        )
+        .distance_meters_opt(metrics.distance_meters)
+        .elevation_gain_opt(metrics.elevation_gain)
+        .average_heart_rate_opt(metrics.average_heart_rate)
+        .max_heart_rate_opt(metrics.max_heart_rate)
+        .average_speed_opt(metrics.average_speed)
+        .max_speed_opt(metrics.max_speed)
+        .calories_opt(metrics.calories)
+        .steps_opt(metrics.steps)
+        .average_power_opt(metrics.average_power)
+        .max_power_opt(metrics.max_power)
+        .normalized_power_opt(metrics.normalized_power)
+        .ftp_opt(metrics.ftp)
+        .average_cadence_opt(metrics.average_cadence)
+        .max_cadence_opt(metrics.max_cadence)
+        .hrv_score_opt(metrics.hrv_score)
+        .average_altitude_opt(metrics.average_altitude)
+        .spo2_opt(metrics.spo2)
+        .training_stress_score_opt(metrics.training_stress_score)
+        .intensity_factor_opt(metrics.intensity_factor)
+        .suffer_score_opt(metrics.suffer_score)
+        .start_latitude_opt(metrics.start_latitude)
+        .start_longitude_opt(metrics.start_longitude)
+        .city_opt(metadata.and_then(|m| m.city.clone()))
+        .country_opt(metadata.and_then(|m| m.country.clone()))
+        .sport_type_detail_opt(metadata.and_then(|m| m.name.clone()))
+        .build()
     }
 
     /// Convert Terra sleep data to Pierre `SleepSession`

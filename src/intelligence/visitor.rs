@@ -294,7 +294,34 @@ impl StreamStats {
 
 /// Collects basic statistics for all numeric streams in a single pass.
 ///
-/// See module-level documentation for a complete usage example.
+/// # Example
+///
+/// ```rust,no_run
+/// use pierre_mcp_server::intelligence::visitor::{TimeSeriesVisitor, StatsCollector};
+/// use pierre_mcp_server::models::TimeSeriesData;
+///
+/// let time_series = TimeSeriesData {
+///     timestamps: vec![0, 1, 2, 3, 4],
+///     heart_rate: Some(vec![120, 130, 140, 135, 125]),
+///     power: Some(vec![200, 220, 240, 230, 210]),
+///     cadence: None,
+///     speed: None,
+///     altitude: None,
+///     temperature: None,
+///     gps_coordinates: None,
+/// };
+///
+/// let mut stats = StatsCollector::default();
+/// time_series.accept(&mut stats);
+///
+/// // Access statistics for each stream
+/// if let Some(avg_hr) = stats.heart_rate.average() {
+///     println!("Average HR: {:.1} bpm", avg_hr);
+/// }
+/// if let (Some(min), Some(max)) = (stats.power.min, stats.power.max) {
+///     println!("Power range: {:.0}-{:.0} watts", min, max);
+/// }
+/// ```
 #[derive(Debug, Clone, Default)]
 pub struct StatsCollector {
     /// Heart rate statistics
@@ -363,7 +390,38 @@ impl Default for ZoneBoundaries {
 
 /// Calculates time spent in each heart rate zone.
 ///
-/// See module-level documentation for usage pattern.
+/// # Example
+///
+/// ```rust,no_run
+/// use pierre_mcp_server::intelligence::visitor::{
+///     TimeSeriesVisitor, ZoneTimeCalculator, ZoneBoundaries
+/// };
+/// use pierre_mcp_server::models::TimeSeriesData;
+///
+/// // Create calculator with max HR of 185 bpm
+/// let boundaries = ZoneBoundaries::default(); // 60%, 70%, 80%, 90% thresholds
+/// let mut zones = ZoneTimeCalculator::new(185, boundaries);
+///
+/// let time_series = TimeSeriesData {
+///     timestamps: vec![0, 1, 2, 3, 4, 5],
+///     heart_rate: Some(vec![100, 120, 140, 160, 170, 150]),
+///     power: None,
+///     cadence: None,
+///     speed: None,
+///     altitude: None,
+///     temperature: None,
+///     gps_coordinates: None,
+/// };
+///
+/// time_series.accept(&mut zones);
+///
+/// let distribution = zones.zone_distribution();
+/// println!("Zone 1 (Recovery): {:.1}%", distribution.zone1_pct);
+/// println!("Zone 2 (Endurance): {:.1}%", distribution.zone2_pct);
+/// println!("Zone 3 (Tempo): {:.1}%", distribution.zone3_pct);
+/// println!("Zone 4 (Threshold): {:.1}%", distribution.zone4_pct);
+/// println!("Zone 5 (VO2max): {:.1}%", distribution.zone5_pct);
+/// ```
 #[derive(Debug, Clone)]
 pub struct ZoneTimeCalculator {
     max_hr: u32,
@@ -483,7 +541,34 @@ impl TimeSeriesVisitor for ZoneTimeCalculator {
 /// Normalized Power (NP) represents the metabolic cost of an activity,
 /// accounting for the non-linear physiological response to varying power outputs.
 ///
-/// See module-level documentation for usage pattern.
+/// # Example
+///
+/// ```rust,no_run
+/// use pierre_mcp_server::intelligence::visitor::{TimeSeriesVisitor, NormalizedPowerCalculator};
+/// use pierre_mcp_server::models::TimeSeriesData;
+///
+/// // Create power data (at least 30 seconds needed for NP calculation)
+/// let power_values: Vec<u32> = (0..60).map(|i| 200 + (i % 50)).collect();
+/// let timestamps: Vec<u32> = (0..60).collect();
+///
+/// let time_series = TimeSeriesData {
+///     timestamps,
+///     heart_rate: None,
+///     power: Some(power_values),
+///     cadence: None,
+///     speed: None,
+///     altitude: None,
+///     temperature: None,
+///     gps_coordinates: None,
+/// };
+///
+/// let mut np_calc = NormalizedPowerCalculator::default();
+/// time_series.accept(&mut np_calc);
+///
+/// if let Some(np) = np_calc.normalized_power() {
+///     println!("Normalized Power: {:.0} watts", np);
+/// }
+/// ```
 #[derive(Debug, Clone, Default)]
 pub struct NormalizedPowerCalculator {
     /// Rolling window of last 30 power values
@@ -535,7 +620,38 @@ impl TimeSeriesVisitor for NormalizedPowerCalculator {
 /// indicating cardiovascular fatigue. A decoupling >5% suggests the activity
 /// was too intense for the athlete's current aerobic fitness.
 ///
-/// See module-level documentation for usage pattern.
+/// # Example
+///
+/// ```rust,no_run
+/// use pierre_mcp_server::intelligence::visitor::{TimeSeriesVisitor, DecouplingDetector};
+/// use pierre_mcp_server::models::TimeSeriesData;
+///
+/// // Simulate HR drift: same speed but increasing heart rate over time
+/// let timestamps: Vec<u32> = (0..40).collect();
+/// let heart_rates: Vec<u32> = (0..40).map(|i| 140 + i / 2).collect(); // HR drifts up
+/// let speeds: Vec<f32> = vec![3.5; 40]; // Constant pace
+///
+/// let time_series = TimeSeriesData {
+///     timestamps,
+///     heart_rate: Some(heart_rates),
+///     power: None,
+///     cadence: None,
+///     speed: Some(speeds),
+///     altitude: None,
+///     temperature: None,
+///     gps_coordinates: None,
+/// };
+///
+/// let mut detector = DecouplingDetector::default();
+/// time_series.accept(&mut detector);
+///
+/// if let Some(decoupling) = detector.decoupling_percentage() {
+///     println!("Cardiac decoupling: {:.1}%", decoupling);
+///     if decoupling > 5.0 {
+///         println!("Warning: Activity may have been too intense");
+///     }
+/// }
+/// ```
 #[derive(Debug, Clone, Default)]
 pub struct DecouplingDetector {
     /// Current heart rate value waiting for paired speed

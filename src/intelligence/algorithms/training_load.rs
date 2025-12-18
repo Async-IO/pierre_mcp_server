@@ -126,6 +126,36 @@ impl TrainingLoadAlgorithm {
     /// - TSS data is empty
     /// - Dates are not properly ordered
     /// - Window sizes are invalid
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use pierre_mcp_server::intelligence::algorithms::training_load::{
+    ///     TrainingLoadAlgorithm, TssDataPoint,
+    /// };
+    /// use chrono::{Duration, Utc};
+    /// # fn example() -> Result<(), pierre_mcp_server::errors::AppError> {
+    ///
+    /// // Create TSS data for the past week
+    /// let now = Utc::now();
+    /// let tss_data: Vec<TssDataPoint> = (0..7)
+    ///     .map(|day| TssDataPoint {
+    ///         date: now - Duration::days(6 - day),
+    ///         tss: 50.0 + (day as f64 * 10.0), // 50, 60, 70, 80, 90, 100, 110
+    ///     })
+    ///     .collect();
+    ///
+    /// // Use default EMA algorithm (42-day CTL, 7-day ATL)
+    /// let algorithm = TrainingLoadAlgorithm::default();
+    /// let ctl = algorithm.calculate_ctl(&tss_data)?;
+    /// println!("CTL (fitness): {:.1}", ctl);
+    ///
+    /// // Use different algorithm variants
+    /// let sma = TrainingLoadAlgorithm::Sma { ctl_days: 42, atl_days: 7 };
+    /// let ctl_sma = sma.calculate_ctl(&tss_data)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn calculate_ctl(&self, tss_data: &[TssDataPoint]) -> AppResult<f64> {
         if tss_data.is_empty() {
             return Ok(0.0);
