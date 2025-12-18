@@ -6,7 +6,7 @@ This document outlines the multi-tier testing strategy for Pierre MCP Server. Th
 
 ## Test Suite Statistics
 
-- **Total test files:** 166
+- **Total test files:** 194
 - **Total test code:** ~62,000 lines
 - **E2E tests:** 11 files
 - **Comprehensive tests:** 9 files

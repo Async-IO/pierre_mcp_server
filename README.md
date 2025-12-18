@@ -173,7 +173,7 @@ See [Frontend Documentation](frontend/README.md) for detailed dashboard document
 - [Contributing](docs/contributing.md) - code standards, PR workflow
 
 ### Learning
-- [Tutorial (25 chapters)](docs/tutorial-table-of-contents.md) - comprehensive Rust learning path
+- [Tutorial (31 chapters)](docs/tutorial-table-of-contents.md) - comprehensive Rust learning path
 
 ### Components
 - [SDK](sdk/README.md) - TypeScript client for MCP integration

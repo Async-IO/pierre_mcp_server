@@ -883,20 +883,30 @@ let pool = PgPoolOptions::new()
 
 Pierre uses SQLx migrations for schema management. See [migrations/README.md](../../migrations/README.md) for comprehensive documentation.
 
-**10 migration files covering 27+ tables**:
+**20 migration files covering 40+ tables**:
 
-| Migration | Tables |
-|-----------|--------|
+| Migration | Tables/Changes |
+|-----------|----------------|
 | `20250120000001_users_schema.sql` | users, user_profiles, user_oauth_app_credentials |
 | `20250120000002_api_keys_schema.sql` | api_keys, api_key_usage |
-| `20250120000003_analytics_schema.sql` | analytics, goals, insights, request_logs |
+| `20250120000003_analytics_schema.sql` | jwt_usage, goals, insights, request_logs |
 | `20250120000004_a2a_schema.sql` | a2a_clients, a2a_sessions, a2a_tasks, a2a_usage |
-| `20250120000005_admin_schema.sql` | admin_tokens, system_secrets |
+| `20250120000005_admin_schema.sql` | admin_tokens, admin_token_usage, admin_provisioned_keys, system_secrets, rsa_keypairs |
 | `20250120000006_oauth_tokens_schema.sql` | user_oauth_tokens |
 | `20250120000007_oauth_notifications_schema.sql` | oauth_notifications |
-| `20250120000008_oauth2_schema.sql` | oauth2_clients, oauth2_tokens, oauth2_authorization_codes |
+| `20250120000008_oauth2_schema.sql` | oauth2_clients, oauth2_auth_codes, oauth2_refresh_tokens, oauth2_states |
 | `20250120000009_tenant_management_schema.sql` | tenants, tenant_oauth_credentials, oauth_apps, key_versions, audit_events, tenant_users |
 | `20250120000010_fitness_configurations_schema.sql` | fitness_configurations |
+| `20250120000011_expand_oauth_provider_constraints.sql` | Adds garmin, whoop, terra to provider CHECK constraints |
+| `20250120000012_user_roles_permissions.sql` | impersonation_sessions, permission_delegations, user_mcp_tokens; adds role column to users |
+| `20250120000013_system_settings_schema.sql` | system_settings |
+| `20250120000014_add_missing_foreign_keys.sql` | Adds FK constraints to a2a_clients.user_id, user_configurations.user_id |
+| `20250120000015_remove_legacy_user_token_columns.sql` | Removes legacy OAuth columns from users; adds last_sync to user_oauth_tokens |
+| `20250120000017_chat_schema.sql` | chat_conversations, chat_messages |
+| `20250120000018_firebase_auth.sql` | Adds firebase_uid, auth_provider columns to users |
+| `20250120000019_recipes_schema.sql` | recipes, recipe_ingredients |
+| `20250120000020_admin_config_schema.sql` | admin_config_overrides, admin_config_audit, admin_config_categories |
+| `20250120000021_add_config_categories.sql` | Adds provider, cache, MCP, monitoring categories |
 
 **Example schema** (migrations/20250120000006_oauth_tokens_schema.sql):
 ```sql

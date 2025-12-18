@@ -10,7 +10,7 @@
 
 ## Introduction
 
-Pierre Fitness Platform is a production Rust application with 287 source files organized into a coherent module hierarchy. This chapter teaches you how to navigate the codebase, understand the module system, and recognize organizational patterns used throughout.
+Pierre Fitness Platform is a production Rust application with 290 source files organized into a coherent module hierarchy. This chapter teaches you how to navigate the codebase, understand the module system, and recognize organizational patterns used throughout.
 
 The codebase follows a **"library + binaries"** pattern where most functionality lives in `src/lib.rs` and binary entry points import from the library.
 
@@ -49,7 +49,7 @@ pierre_mcp_server/
 │   ├── helpers/
 │   │   ├── synthetic_data.rs   # fitness data generator
 │   │   └── test_utils.rs       # shared test utilities
-│   └── [190 test files]
+│   └── [194 test files]
 │
 ├── scripts/                    # build & utility scripts
 │   ├── generate-sdk-types.js   # typescript type generation
@@ -87,7 +87,7 @@ The `src/lib.rs` file is the central hub of the Pierre library. It declares all 
 
 1. **`// ABOUTME:` comments** - Human-readable file purpose (not rustdoc)
    - Quick context for developers scanning the codebase
-   - Appears at top of all 224 source files
+   - Appears at top of all 290 source files
 
 2. **Crate-level attributes** `#![...]`
    - `#![recursion_limit = "256"]`: Increases macro recursion limit
@@ -280,14 +280,11 @@ Rust crates can define multiple binary targets. Pierre has two main binaries:
 
 ### Main Server Binary
 
-**Source**: `src/bin/pierre-mcp-server.rs:1-42`
+**Source**: `src/bin/pierre-mcp-server.rs:1-61`
 
 ```rust
 // ABOUTME: Server implementation for serving users with isolated data access
 // ABOUTME: Production-ready server with authentication and user isolation capabilities
-//
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
 
 #![recursion_limit = "256"]
 #![deny(unsafe_code)]
@@ -297,22 +294,20 @@ Rust crates can define multiple binary targets. Pierre has two main binaries:
 //! This binary starts the multi-protocol Pierre Fitness API with user authentication,
 //! secure token storage, and database management.
 
+use anyhow::Result;
 use clap::Parser;
 use pierre_mcp_server::{
-    auth::AuthManager,
-    cache::factory::Cache,
-    config::environment::ServerConfig,
-    database_plugins::factory::Database,  // Repository pattern: Database provides accessor methods
-    errors::AppResult,
-    logging,
+    config::environment::{ServerConfig, TokioRuntimeConfig},
+    database_plugins::factory::Database,
     mcp::{multitenant::MultiTenantMcpServer, resources::ServerResources},
+    // ... other imports
 };
-use std::sync::Arc;
-use tracing::{error, info};
+use tokio::runtime::{Builder, Runtime};
 
 /// Command-line arguments for the Pierre MCP server
 #[derive(Parser)]
 #[command(name = "pierre-mcp-server")]
+#[command(version = env!("CARGO_PKG_VERSION"))]
 #[command(about = "Pierre Fitness API - Multi-protocol fitness data API for LLMs")]
 pub struct Args {
     /// Configuration file path for providers
@@ -324,11 +319,18 @@ pub struct Args {
     http_port: Option<u16>,
 }
 
-#[tokio::main]
-async fn main() -> AppResult<()> {
+fn main() -> Result<()> {
     let args = parse_args_or_default();
-    let config = setup_configuration(&args)?;
-    bootstrap_server(config).await
+
+    // Load runtime config first to build the Tokio runtime
+    let runtime_config = TokioRuntimeConfig::from_env();
+    let runtime = build_tokio_runtime(&runtime_config)?;
+
+    // Run the async server on our configured runtime
+    runtime.block_on(async {
+        let config = setup_configuration(&args)?;
+        bootstrap_server(config).await
+    })
 }
 ```
 
@@ -349,18 +351,19 @@ async fn main() -> AppResult<()> {
    - `#[arg(...)]` attributes for options
    - Generates `--help` automatically
 
-4. **`#[tokio::main]` macro**
-   - Transforms `async fn main()` into sync entry point
-   - Sets up tokio async runtime
-   - Equivalent to manual runtime setup:
+4. **Manual Tokio runtime building**
+   - Pierre uses `TokioRuntimeConfig::from_env()` for configurable runtime
+   - Worker threads and stack size configurable via environment
+   - More control than `#[tokio::main]` macro:
 
 ```rust
-// Manual equivalent of #[tokio::main]
-fn main() -> Result<()> {
-    tokio::runtime::Runtime::new()?
-        .block_on(async {
-            // async main body here
-        })
+// Pierre's configurable runtime builder
+fn build_tokio_runtime(config: &TokioRuntimeConfig) -> Result<Runtime> {
+    let mut builder = Builder::new_multi_thread();
+    if let Some(workers) = config.worker_threads {
+        builder.worker_threads(workers);
+    }
+    builder.enable_all().build().map_err(Into::into)
 }
 ```
 

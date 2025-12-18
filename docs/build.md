@@ -5,13 +5,13 @@ Technical documentation for build system configuration, linting enforcement, and
 ## Rust Toolchain Management
 
 **File**: `rust-toolchain`
-**Current version**: `1.91.0`
+**Current version**: `1.92.0`
 
 ### Version Pinning Strategy
 
 The project pins the exact Rust version to ensure reproducible builds across development and CI/CD environments. This eliminates "works on my machine" issues and enforces consistent compiler behavior.
 
-**Rationale for 1.91.0**:
+**Rationale for 1.92.0**:
 - Stable rust 2021 edition support
 - clippy lint groups fully stabilized
 - sqlx compile-time query checking compatibility

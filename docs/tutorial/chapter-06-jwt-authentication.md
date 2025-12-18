@@ -25,7 +25,7 @@ JWT tokens consist of three base64-encoded parts separated by dots: `header.payl
 
 The platform follows RFC 7519 for standard JWT claims:
 
-**Source**: src/auth.rs:108-130
+**Source**: src/auth.rs:125-153
 ```rust
 /// JWT claims for user authentication
 #[derive(Debug, Serialize, Deserialize)]
@@ -49,6 +49,12 @@ pub struct Claims {
     /// Tenant ID (optional for backward compatibility with existing tokens)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tenant_id: Option<String>,
+    /// Original user ID when impersonating (the super admin)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub impersonator_id: Option<String>,
+    /// Impersonation session ID for audit trail
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub impersonation_session_id: Option<String>,
 }
 ```
 

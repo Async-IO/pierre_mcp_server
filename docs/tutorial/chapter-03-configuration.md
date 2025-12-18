@@ -92,7 +92,7 @@ Pierre uses enums to represent configuration values, gaining compile-time type s
 
 ### Loglevel Enum
 
-**Source**: `src/config/environment.rs:18-71`
+**Source**: `src/config/environment.rs:25-63`
 
 ```rust
 /// Strongly typed log level configuration

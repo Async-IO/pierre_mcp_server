@@ -89,7 +89,7 @@ Pierre Fitness Platform is a multi-protocol fitness data platform that connects 
 - goal feasibility analysis
 
 ### Database (`src/database/`)
-- **repository pattern**: 13 focused repositories following SOLID principles
+- **repository pattern**: 14 focused repositories following SOLID principles
 - repository accessors: `db.users()`, `db.oauth_tokens()`, `db.api_keys()`, `db.profiles()`, etc.
 - pluggable backend (sqlite, postgresql) via `src/database_plugins/`
 - encrypted token storage
@@ -99,7 +99,7 @@ Pierre Fitness Platform is a multi-protocol fitness data platform that connects 
 
 The database layer implements the repository pattern with focused, cohesive repositories:
 
-**13 focused repositories** (`src/database/repositories/`):
+**14 focused repositories** (`src/database/repositories/`):
 1. `UserRepository` - user account management
 2. `OAuthTokenRepository` - oauth token storage (tenant-scoped)
 3. `ApiKeyRepository` - api key management
@@ -113,6 +113,7 @@ The database layer implements the repository pattern with focused, cohesive repo
 11. `SecurityRepository` - key rotation and audit
 12. `NotificationRepository` - oauth notifications
 13. `FitnessConfigRepository` - fitness configuration management
+14. `RecipeRepository` - recipe and nutrition management
 
 **accessor pattern** (`src/database/mod.rs:139-245`):
 ```rust

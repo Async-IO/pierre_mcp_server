@@ -63,7 +63,7 @@ See [tools-reference.md](../tools-reference.md) for the complete list of 47 tool
 
 Each tool has a name, description, and JSON Schema for parameters:
 
-**Source**: src/mcp/schema.rs:54-64
+**Source**: src/mcp/schema.rs:57-67
 ```rust
 /// MCP Tool Schema Definition
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,7 +87,7 @@ pub struct ToolSchema {
 
 JSON Schema describes parameter structure:
 
-**Source**: src/mcp/schema.rs:66-78
+**Source**: src/mcp/schema.rs:69-81
 ```rust
 /// JSON Schema Definition
 #[derive(Debug, Clone, Serialize, Deserialize)]

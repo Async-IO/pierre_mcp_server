@@ -27,6 +27,16 @@ Migrations are numbered sequentially and named descriptively:
 | `20250120000008_oauth2_schema.sql` | OAuth2 server (RFC 7591) |
 | `20250120000009_tenant_management_schema.sql` | Multi-tenant infrastructure |
 | `20250120000010_fitness_configurations_schema.sql` | Fitness-specific configurations |
+| `20250120000011_expand_oauth_provider_constraints.sql` | Add garmin, whoop, terra to OAuth provider constraints |
+| `20250120000012_user_roles_permissions.sql` | Role-based permissions, impersonation sessions, user MCP tokens |
+| `20250120000013_system_settings_schema.sql` | System settings key-value store for admin configuration |
+| `20250120000014_add_missing_foreign_keys.sql` | Add FK constraints to a2a_clients and user_configurations |
+| `20250120000015_remove_legacy_user_token_columns.sql` | Remove legacy OAuth columns from users, add last_sync |
+| `20250120000017_chat_schema.sql` | Chat conversations and messages for AI assistant |
+| `20250120000018_firebase_auth.sql` | Firebase authentication (firebase_uid, auth_provider) |
+| `20250120000019_recipes_schema.sql` | Recipes and ingredients with USDA nutrition validation |
+| `20250120000020_admin_config_schema.sql` | Runtime config overrides and audit logging |
+| `20250120000021_add_config_categories.sql` | Additional config categories for providers, caching, MCP |
 
 ## How Migrations Work
 
@@ -227,5 +237,6 @@ For migration issues:
 
 ## Version History
 
+- **v0.3.0** (2025-12): Added chat, recipes, admin config, Firebase auth, role-based permissions
 - **v0.2.0** (2025-01-20): Migrated from embedded migrations to sqlx-cli
-- Initial migrations cover 10 functional areas with 27+ tables
+- 20 migration files covering 40+ tables across 15 functional domains
