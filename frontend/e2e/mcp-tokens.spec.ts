@@ -96,29 +96,31 @@ async function setupMcpTokenMocks(page: Page, options: { tokens?: typeof mockTok
 async function loginAndGoToMcpTokens(page: Page) {
   await loginToDashboard(page);
   await page.waitForSelector('nav', { timeout: 10000 });
-  await navigateToTab(page, 'MCP Tokens');
-  // Wait for lazy-loaded MCP Tokens tab content to appear
-  await page.waitForSelector('text=MCP Tokens', { timeout: 10000 });
+  // Tab is named "Tokens" in the user sidebar (see Dashboard.tsx userTabs)
+  await navigateToTab(page, 'Tokens');
+  // Wait for lazy-loaded MCPTokensTab content - CardHeader has title "Tokens"
+  // and subtitle contains "active tokens for AI client connections"
+  await page.waitForSelector('text=active tokens for AI client connections', { timeout: 10000 });
   await page.waitForTimeout(500);
 }
 
 test.describe('MCP Tokens Tab Navigation', () => {
-  test('MCP Tokens tab is visible for regular users', async ({ page }) => {
+  test('Tokens tab is visible for regular users', async ({ page }) => {
     await setupMcpTokenMocks(page);
     await loginToDashboard(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
-    // MCP Tokens tab should be visible in sidebar
-    await expect(page.locator('nav button').filter({ hasText: 'MCP Tokens' })).toBeVisible();
+    // Tokens tab should be visible in sidebar (named "Tokens" in Dashboard.tsx userTabs)
+    await expect(page.locator('nav button').filter({ hasText: 'Tokens' })).toBeVisible();
   });
 
   test('navigates to MCP Tokens tab', async ({ page }) => {
     await setupMcpTokenMocks(page);
     await loginAndGoToMcpTokens(page);
 
-    // Should see MCP Tokens header (CardHeader component)
-    await expect(page.locator('h3:has-text("MCP Tokens")')).toBeVisible({ timeout: 10000 });
+    // Should see Tokens header (CardHeader component in MCPTokensTab)
+    await expect(page.locator('h3:has-text("Tokens")')).toBeVisible({ timeout: 10000 });
   });
 });
 
@@ -127,8 +129,8 @@ test.describe('MCP Tokens List', () => {
     await setupMcpTokenMocks(page, { tokens: [] });
     await loginAndGoToMcpTokens(page);
 
-    // Should show empty state message
-    await expect(page.getByText('No MCP tokens yet')).toBeVisible();
+    // Should show empty state message (MCPTokensTab shows "No tokens yet")
+    await expect(page.getByText('No tokens yet')).toBeVisible();
     await expect(page.getByText('Create a token to connect AI clients')).toBeVisible();
   });
 
@@ -392,11 +394,12 @@ test.describe('MCP Tokens Error Handling', () => {
 
     await loginToDashboard(page);
     await page.waitForSelector('nav', { timeout: 10000 });
-    await navigateToTab(page, 'MCP Tokens');
+    // Tab is named "Tokens" in Dashboard.tsx userTabs
+    await navigateToTab(page, 'Tokens');
     await page.waitForTimeout(1000);
 
-    // Should show error message - the component shows "Failed to load MCP tokens"
-    await expect(page.getByText('Failed to load MCP tokens')).toBeVisible({ timeout: 10000 });
+    // Should show error message - the component shows "Failed to load tokens"
+    await expect(page.getByText('Failed to load tokens')).toBeVisible({ timeout: 10000 });
   });
 });
 

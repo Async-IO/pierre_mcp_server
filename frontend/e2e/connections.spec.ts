@@ -390,7 +390,8 @@ test.describe('Connections Tab - API Tokens', () => {
 
 test.describe('Connections Tab - Connected Apps (A2A)', () => {
   test.beforeEach(async ({ page }) => {
-    await setupConnectionsMocks(page, { isAdmin: false });
+    // Connections tab is only available to admin users
+    await setupConnectionsMocks(page, { isAdmin: true });
     await loginAndNavigateToConnections(page);
     // Switch to Connected Apps tab
     await page.locator('.tab').getByText('Connected Apps').click();
@@ -571,9 +572,11 @@ test.describe('Connections Tab - Empty States', () => {
   });
 
   test('shows empty state when no A2A clients', async ({ page }) => {
-    await setupDashboardMocks(page, { role: 'user' });
+    // Connections tab is only available to admin users
+    // Use setupConnectionsMocks to get full admin mock setup including A2A endpoints
+    await setupConnectionsMocks(page, { isAdmin: true });
 
-    // Override mock with empty responses
+    // Override mock with empty responses (routes are LIFO, so this overrides the default)
     await page.route('**/a2a/clients', async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
@@ -588,7 +591,10 @@ test.describe('Connections Tab - Empty States', () => {
     await navigateToTab(page, 'Connections');
     await page.waitForTimeout(500);
 
-    // Non-admin users land on Connected Apps tab by default
+    // Navigate to Connected Apps tab
+    await page.locator('button').filter({ hasText: 'Connected Apps' }).click();
+    await page.waitForTimeout(500);
+
     // Should show empty state
     await expect(page.getByText('No Connected Apps Yet')).toBeVisible();
     await expect(page.getByRole('button', { name: /Register Your First App/i })).toBeVisible();
@@ -617,7 +623,11 @@ test.describe('Connections Tab - Error Handling', () => {
   });
 
   test('handles API error gracefully for A2A clients', async ({ page }) => {
-    // Set up error mock FIRST before dashboard mocks (routes are LIFO)
+    // Connections tab is only available to admin users
+    // Use setupConnectionsMocks to get full admin mock setup
+    await setupConnectionsMocks(page, { isAdmin: true });
+
+    // Override A2A mock with error response (routes are LIFO, so this overrides the default)
     await page.route('**/a2a/clients', async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
@@ -630,13 +640,14 @@ test.describe('Connections Tab - Error Handling', () => {
       }
     });
 
-    await setupDashboardMocks(page, { role: 'user' });
-
     await loginToDashboard(page);
     await navigateToTab(page, 'Connections');
+    await page.waitForTimeout(500);
+
+    // Navigate to Connected Apps tab
+    await page.locator('button').filter({ hasText: 'Connected Apps' }).click();
     await page.waitForTimeout(1000); // Longer wait for error state
 
-    // Non-admin users land on Connected Apps tab by default
     // Should show error state
     await expect(page.getByText('Failed to load A2A clients')).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole('button', { name: 'Try Again' })).toBeVisible();
@@ -698,7 +709,8 @@ test.describe('Connections Tab - API Token Usage Modal', () => {
 
 test.describe('Connections Tab - A2A Client Expansion', () => {
   test('expands client details on click', async ({ page }) => {
-    await setupConnectionsMocks(page);
+    // Connections tab is only available to admin users
+    await setupConnectionsMocks(page, { isAdmin: true });
     await loginToDashboard(page);
     await navigateToTab(page, 'Connections');
     await page.waitForTimeout(500);
@@ -716,7 +728,8 @@ test.describe('Connections Tab - A2A Client Expansion', () => {
   });
 
   test('shows usage statistics when client selected', async ({ page }) => {
-    await setupConnectionsMocks(page);
+    // Connections tab is only available to admin users
+    await setupConnectionsMocks(page, { isAdmin: true });
     await loginToDashboard(page);
     await navigateToTab(page, 'Connections');
     await page.waitForTimeout(500);
@@ -735,7 +748,8 @@ test.describe('Connections Tab - A2A Client Expansion', () => {
   });
 
   test('shows rate limit tier', async ({ page }) => {
-    await setupConnectionsMocks(page);
+    // Connections tab is only available to admin users
+    await setupConnectionsMocks(page, { isAdmin: true });
     await loginToDashboard(page);
     await navigateToTab(page, 'Connections');
     await page.waitForTimeout(500);
@@ -752,7 +766,8 @@ test.describe('Connections Tab - A2A Client Expansion', () => {
   });
 
   test('shows top tools section', async ({ page }) => {
-    await setupConnectionsMocks(page);
+    // Connections tab is only available to admin users
+    await setupConnectionsMocks(page, { isAdmin: true });
     await loginToDashboard(page);
     await navigateToTab(page, 'Connections');
     await page.waitForTimeout(500);
@@ -779,13 +794,13 @@ test.describe('Connections Tab - API Tokens Tab Visibility', () => {
     await expect(page.locator('.tab').getByText('API Tokens')).toBeVisible();
   });
 
-  test('does not show API Tokens tab for non-admin users', async ({ page }) => {
+  test('does not show Connections tab for non-admin users', async ({ page }) => {
+    // Non-admin users don't have access to the Connections tab at all
     await setupConnectionsMocks(page, { isAdmin: false });
     await loginToDashboard(page);
-    await navigateToTab(page, 'Connections');
-    await page.waitForTimeout(500);
+    await page.waitForSelector('nav', { timeout: 10000 });
 
-    // API Tokens tab should not be visible for non-admin
-    await expect(page.locator('.tab').getByText('API Tokens')).not.toBeVisible();
+    // Connections tab should not be visible in sidebar for non-admin users
+    await expect(page.locator('nav button').filter({ hasText: 'Connections' })).not.toBeVisible();
   });
 });

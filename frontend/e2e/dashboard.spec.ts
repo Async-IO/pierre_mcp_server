@@ -101,6 +101,29 @@ async function setupFullDashboardMocks(page: Page, options: { isAdmin?: boolean 
       ]),
     });
   });
+
+  // Mock admin tokens endpoint for Connections tab (ApiKeyList component)
+  await page.route('**/api/admin/tokens**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        tokens: [
+          {
+            id: 'token-1',
+            service_name: 'Test Service',
+            service_description: 'Test API token',
+            token_prefix: 'pmcp_test',
+            is_active: true,
+            is_super_admin: false,
+            created_at: new Date().toISOString(),
+            expires_at: null,
+            last_used_at: null,
+          },
+        ],
+      }),
+    });
+  });
 }
 
 async function loginAndGoToDashboard(page: Page) {
@@ -150,16 +173,21 @@ test.describe('Dashboard Navigation', () => {
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
-    // Start at Overview
-    await expect(page.locator('h1').first()).toContainText('Overview');
+    // Start at Overview - check tab is active (has gradient background)
+    const overviewTab = page.locator('button').filter({ has: page.locator('span:has-text("Overview")') });
+    await expect(overviewTab).toHaveClass(/bg-gradient/);
 
-    // Navigate to Connections
+    // Navigate to Connections - check tab becomes active
     await navigateToTab(page, 'Connections');
-    await expect(page.locator('h1').first()).toContainText('Connections');
+    const connectionsTab = page.locator('button').filter({ has: page.locator('span:has-text("Connections")') });
+    await expect(connectionsTab).toHaveClass(/bg-gradient/);
+    await expect(overviewTab).not.toHaveClass(/bg-gradient/);
 
-    // Navigate to Analytics (reduced test scope to avoid timeout)
+    // Navigate to Analytics - check tab becomes active
     await navigateToTab(page, 'Analytics');
-    await expect(page.locator('h1').first()).toContainText('Analytics');
+    const analyticsTab = page.locator('button').filter({ has: page.locator('span:has-text("Analytics")') });
+    await expect(analyticsTab).toHaveClass(/bg-gradient/);
+    await expect(connectionsTab).not.toHaveClass(/bg-gradient/);
   });
 
   test('highlights active tab in sidebar', async ({ page }) => {
@@ -187,8 +215,8 @@ test.describe('Dashboard Sidebar', () => {
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
-    // Check for Pierre branding text
-    await expect(page.getByText('Pierre')).toBeVisible();
+    // Check for Pierre branding text (use exact match to avoid matching "Chat with Pierre")
+    await expect(page.getByText('Pierre', { exact: true })).toBeVisible();
     await expect(page.getByText('Fitness Intelligence')).toBeVisible();
   });
 
@@ -229,9 +257,10 @@ test.describe('Dashboard Sidebar', () => {
     const collapseButton = page.locator('button[title="Collapse sidebar"]');
     await collapseButton.click();
 
-    // Hover over a nav button to trigger tooltip - use Connections which exists for regular users
-    const connectionsButton = page.locator('button[title="Connections"]');
-    await connectionsButton.hover();
+    // Hover over a nav button to trigger tooltip - use Tokens which exists for regular users
+    // (Non-admin users don't have Connections tab)
+    const tokensButton = page.locator('button[title="Tokens"]');
+    await tokensButton.hover();
 
     // Wait for tooltip
     await page.waitForTimeout(300);

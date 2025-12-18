@@ -120,6 +120,77 @@ export async function setupDashboardMocks(page: Page, userOptions: UserOptions =
       body: JSON.stringify({ users: [], total_count: 0 }),
     });
   });
+
+  // Mock user stats endpoint (used by UserHome component for non-admin users)
+  await page.route('**/api/user/stats', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        connected_providers: 1,
+        activities_synced: 42,
+        days_active: 7,
+      }),
+    });
+  });
+
+  // Mock OAuth status endpoint (used by Connections tab)
+  await page.route('**/api/oauth/status', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ providers: [] }),
+    });
+  });
+
+  // Mock MCP tokens endpoint (used by MCPTokensTab for non-admin users)
+  await page.route('**/api/user/mcp-tokens', async (route, request) => {
+    if (request.method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ tokens: [] }),
+      });
+    } else {
+      await route.fallback();
+    }
+  });
+
+  // Mock chat conversations endpoint
+  await page.route('**/api/chat/conversations**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ conversations: [], total: 0, limit: 50, offset: 0 }),
+    });
+  });
+
+  // Mock user OAuth apps endpoint
+  await page.route('**/api/users/oauth-apps', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ apps: [] }),
+    });
+  });
+
+  // Mock A2A clients endpoint (used by A2AClientList in MCPTokensTab)
+  await page.route('**/a2a/clients', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([]),
+    });
+  });
+
+  // Mock A2A client individual endpoints
+  await page.route('**/a2a/clients/*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({}),
+    });
+  });
 }
 
 /**
