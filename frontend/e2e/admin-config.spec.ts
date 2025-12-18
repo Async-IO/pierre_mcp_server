@@ -9,13 +9,40 @@ import { setupDashboardMocks, loginToDashboard, navigateToTab } from './test-hel
 
 // Mock configuration catalog data
 // Uses real category names that match AdminConfiguration.tsx groupings:
+// - Server categories: rate_limiting (required so Server/Intelligence toggle appears on load)
 // - Intelligence categories: training_stress, heart_rate_zones, algorithms
 const mockConfigCatalog = {
   success: true,
   data: {
-    total_parameters: 12,
-    runtime_configurable_count: 10,
+    total_parameters: 13,
+    runtime_configurable_count: 11,
     categories: [
+      // Server category - MUST be first so component shows toggle buttons on initial load
+      {
+        id: 'rate_limiting',
+        name: 'rate_limiting',
+        display_name: 'Rate Limiting',
+        description: 'API rate limiting configuration',
+        display_order: 0,
+        is_active: true,
+        parameters: [
+          {
+            key: 'rate_limiting.requests_per_minute',
+            display_name: 'Requests Per Minute',
+            description: 'Maximum API requests allowed per minute',
+            category: 'rate_limiting',
+            data_type: 'integer',
+            current_value: 60,
+            default_value: 60,
+            is_modified: false,
+            valid_range: { min: 10, max: 1000, step: 10 },
+            units: 'requests/min',
+            is_runtime_configurable: true,
+            requires_restart: false,
+          },
+        ],
+      },
+      // Intelligence categories
       {
         id: 'training_stress',
         name: 'training_stress',
@@ -156,8 +183,8 @@ async function setupAdminConfigMocks(page: Page) {
   // Set up base dashboard mocks with admin role
   await setupDashboardMocks(page, { role: 'admin' });
 
-  // Mock configuration catalog endpoint
-  await page.route('**/api/admin/config/catalog**', async (route) => {
+  // Mock configuration catalog endpoint - use regex for exact matching
+  await page.route(/\/api\/admin\/config\/catalog/, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -165,8 +192,8 @@ async function setupAdminConfigMocks(page: Page) {
     });
   });
 
-  // Mock configuration audit log endpoint
-  await page.route('**/api/admin/config/audit**', async (route) => {
+  // Mock configuration audit log endpoint - use regex for exact matching
+  await page.route(/\/api\/admin\/config\/audit/, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -174,8 +201,9 @@ async function setupAdminConfigMocks(page: Page) {
     });
   });
 
-  // Mock configuration update endpoint
-  await page.route('**/api/admin/config', async (route) => {
+  // Mock configuration update endpoint (PUT only, exact path match)
+  // Use regex to match exact path, not subpaths like /catalog or /audit
+  await page.route(/\/api\/admin\/config$/, async (route) => {
     if (route.request().method() === 'PUT') {
       await route.fulfill({
         status: 200,
@@ -193,8 +221,8 @@ async function setupAdminConfigMocks(page: Page) {
     }
   });
 
-  // Mock configuration reset endpoint
-  await page.route('**/api/admin/config/reset**', async (route) => {
+  // Mock configuration reset endpoint - use regex for exact matching
+  await page.route(/\/api\/admin\/config\/reset/, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -227,8 +255,9 @@ test.describe('Admin Configuration - Loading and Display', () => {
     // Check header - dashboard h1 shows "Configuration", component has "Configuration Management"
     await expect(page.getByText('Configuration Management')).toBeVisible();
 
-    // Check parameter count info
-    await expect(page.getByText(/12 parameters/)).toBeVisible();
+    // Check parameter count info for Intelligence view (5 params across 3 categories)
+    // Component shows filtered counts based on current view, not API total_parameters
+    await expect(page.getByText(/5 parameters/)).toBeVisible();
     await expect(page.getByText(/3 categories/)).toBeVisible();
   });
 
@@ -291,7 +320,8 @@ test.describe('Admin Configuration - Search and Filter', () => {
     await navigateToAdminConfig(page);
 
     const searchInput = page.getByPlaceholder('Search parameters');
-    await searchInput.fill('hr.zone1');
+    // Search by actual key substring: heart_rate_zones.zone1_max_percent
+    await searchInput.fill('zone1_max');
 
     // Should show HR parameter
     await expect(page.getByText('Zone 1 Max Percentage')).toBeVisible();
