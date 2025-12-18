@@ -37,7 +37,10 @@ use crate::{
     context::{AuthContext, ConfigContext, DataContext, NotificationContext, ServerContext},
     database_plugins::{factory::Database, DatabaseProvider},
     errors::{AppError, AppResult, ErrorCode},
-    mcp::{oauth_flow_manager::OAuthTemplateRenderer, resources::ServerResources},
+    mcp::{
+        oauth_flow_manager::OAuthTemplateRenderer, resources::ServerResources,
+        schema::OAuthCompletedNotification,
+    },
     models::{Tenant, User, UserOAuthToken, UserStatus, UserTier},
     oauth2_client::{OAuth2Client, OAuth2Config, OAuth2Token},
     permissions::UserRole,
@@ -724,7 +727,7 @@ impl AuthService {
 pub struct OAuthService {
     data: DataContext,
     config: ConfigContext,
-    _notifications: NotificationContext,
+    notifications: NotificationContext,
 }
 
 impl OAuthService {
@@ -738,7 +741,7 @@ impl OAuthService {
         Self {
             data: data_context,
             config: config_context,
-            _notifications: notification_context,
+            notifications: notification_context,
         }
     }
 
@@ -1014,13 +1017,45 @@ impl OAuthService {
             notification_id, user_id, provider
         );
 
-        // OAuth notification - SSE notification sending disabled
-        info!(
-            notification_id = %notification_id,
-            user_id = %user_id,
-            provider = %provider,
-            "OAuth notification processed (SSE disabled)"
-        );
+        // Broadcast OAuth completion notification via WebSocket/SSE
+        if let Some(sender) = self.notifications.oauth_notification_sender() {
+            let notification = OAuthCompletedNotification::new(
+                provider.to_owned(),
+                true,
+                format!("{provider} connected successfully"),
+                Some(user_id.to_string()),
+            );
+
+            match sender.send(notification) {
+                Ok(receiver_count) => {
+                    info!(
+                        notification_id = %notification_id,
+                        user_id = %user_id,
+                        provider = %provider,
+                        receiver_count = %receiver_count,
+                        "OAuth notification broadcast to {} receivers",
+                        receiver_count
+                    );
+                }
+                Err(e) => {
+                    // No active receivers is not an error - user may not have websocket open
+                    debug!(
+                        notification_id = %notification_id,
+                        user_id = %user_id,
+                        provider = %provider,
+                        error = %e,
+                        "No active receivers for OAuth notification (this is normal if no MCP clients connected)"
+                    );
+                }
+            }
+        } else {
+            debug!(
+                notification_id = %notification_id,
+                user_id = %user_id,
+                provider = %provider,
+                "OAuth notification sender not configured"
+            );
+        }
 
         Ok(())
     }
@@ -1746,8 +1781,25 @@ impl AuthRoutes {
             .get("state")
             .ok_or_else(|| AppError::auth_invalid("Missing OAuth state parameter"))?;
 
+        // Check if we should redirect to a separate frontend URL
+        let frontend_url = server_context.config().config().frontend_url.clone();
+
         match oauth_routes.handle_callback(code, state, &provider).await {
             Ok(response) => {
+                // If frontend URL is configured, redirect to frontend with success params
+                if let Some(url) = frontend_url {
+                    let redirect_url = format!(
+                        "{}/oauth-callback?provider={}&success=true",
+                        url.trim_end_matches('/'),
+                        encode(&provider)
+                    );
+                    info!("Redirecting OAuth success to frontend: {}", redirect_url);
+                    return Ok(
+                        (StatusCode::FOUND, [(header::LOCATION, redirect_url)], "").into_response()
+                    );
+                }
+
+                // Otherwise serve the success page directly (same-origin production)
                 let html = OAuthTemplateRenderer::render_success_template(&provider, &response)
                     .map_err(|e| {
                         error!("Failed to render OAuth success template: {}", e);
@@ -1761,6 +1813,20 @@ impl AuthRoutes {
 
                 // Determine error message and description based on error type
                 let (error_msg, description) = Self::categorize_oauth_error(&e);
+
+                // If frontend URL is configured, redirect to frontend with error params
+                if let Some(url) = frontend_url {
+                    let redirect_url = format!(
+                        "{}/oauth-callback?provider={}&success=false&error={}",
+                        url.trim_end_matches('/'),
+                        encode(&provider),
+                        encode(error_msg)
+                    );
+                    info!("Redirecting OAuth error to frontend: {}", redirect_url);
+                    return Ok(
+                        (StatusCode::FOUND, [(header::LOCATION, redirect_url)], "").into_response()
+                    );
+                }
 
                 let html =
                     OAuthTemplateRenderer::render_error_template(&provider, error_msg, description)

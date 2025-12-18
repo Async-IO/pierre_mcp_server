@@ -26,6 +26,7 @@ impl OAuthTemplateRenderer {
 
         let rendered = TEMPLATE
             .replace("{{PROVIDER}}", &capitalized_provider)
+            .replace("{{PROVIDER_LOWER}}", &provider.to_lowercase())
             .replace("{{USER_ID}}", &callback_response.user_id);
 
         Ok(rendered)

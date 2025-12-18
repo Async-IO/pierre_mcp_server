@@ -133,5 +133,37 @@
         <h1>{{PROVIDER}} Connected</h1>
         <p>You can close this window.</p>
     </div>
+    <script>
+        // Notify parent window that OAuth completed successfully
+        // This allows the main app to refresh connection status
+        (function() {
+            const message = {
+                type: 'oauth_completed',
+                provider: '{{PROVIDER_LOWER}}',
+                success: true,
+                message: '{{PROVIDER}} connected successfully'
+            };
+
+            // Send message to parent window (works for popups opened by window.open)
+            if (window.opener) {
+                window.opener.postMessage(message, '*');
+            }
+
+            // Also try localStorage for same-origin communication (works for new tabs)
+            try {
+                localStorage.setItem('pierre_oauth_result', JSON.stringify({
+                    ...message,
+                    timestamp: Date.now()
+                }));
+            } catch (e) {
+                // localStorage may not be available
+            }
+
+            // Auto-close after a brief delay to let user see the success message
+            setTimeout(function() {
+                window.close();
+            }, 2000);
+        })();
+    </script>
 </body>
 </html>

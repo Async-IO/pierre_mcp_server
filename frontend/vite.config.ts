@@ -14,7 +14,13 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     server: {
       proxy: {
-        '/oauth': {
+        // OAuth token endpoint (not /oauth-callback which is handled by frontend)
+        '/oauth/token': {
+          target: backendUrl,
+          changeOrigin: true,
+        },
+        // OAuth2 server endpoints
+        '/oauth2': {
           target: backendUrl,
           changeOrigin: true,
         },

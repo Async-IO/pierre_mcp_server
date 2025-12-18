@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-import { useState } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import Login from './components/Login';
 import Register from './components/Register';
 import PendingApproval from './components/PendingApproval';
 import Dashboard from './components/Dashboard';
 import ImpersonationBanner from './components/ImpersonationBanner';
 import ConnectionBanner from './components/ConnectionBanner';
+import OAuthCallback from './components/OAuthCallback';
 import { AuthProvider } from './contexts/AuthContext';
 import { WebSocketProvider } from './contexts/WebSocketProvider';
 import { useAuth } from './hooks/useAuth';
@@ -16,12 +17,59 @@ import './App.css';
 
 const queryClient = new QueryClient();
 
+/**
+ * Check if the current URL has OAuth callback parameters
+ */
+function getOAuthCallbackParams(): { provider: string; success: boolean; error?: string } | null {
+  const urlParams = new URLSearchParams(window.location.search);
+  const provider = urlParams.get('provider');
+  const success = urlParams.get('success');
+
+  if (provider && success !== null) {
+    return {
+      provider,
+      success: success === 'true',
+      error: urlParams.get('error') || undefined,
+    };
+  }
+  return null;
+}
+
 type AuthView = 'login' | 'register';
 
 function AppContent() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const [authView, setAuthView] = useState<AuthView>('login');
   const [registrationMessage, setRegistrationMessage] = useState<string | null>(null);
+  const [oauthCallback, setOauthCallback] = useState<{ provider: string; success: boolean; error?: string } | null>(null);
+  const localQueryClient = useQueryClient();
+
+  // Check for OAuth callback params on mount
+  useEffect(() => {
+    const params = getOAuthCallbackParams();
+    if (params) {
+      setOauthCallback(params);
+      // Invalidate OAuth status queries to refresh connection state
+      localQueryClient.invalidateQueries({ queryKey: ['oauth-status'] });
+      localQueryClient.invalidateQueries({ queryKey: ['connections'] });
+    }
+  }, [localQueryClient]);
+
+  // Show OAuth callback result page
+  if (oauthCallback) {
+    return (
+      <OAuthCallback
+        provider={oauthCallback.provider}
+        success={oauthCallback.success}
+        error={oauthCallback.error}
+        onClose={() => {
+          // Clear URL params and close the callback view
+          window.history.replaceState({}, document.title, window.location.pathname);
+          setOauthCallback(null);
+        }}
+      />
+    );
+  }
 
   if (isLoading) {
     return (
