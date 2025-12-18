@@ -171,6 +171,7 @@ async fn test_email_validation() {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -383,6 +384,7 @@ async fn test_password_validation() {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -567,6 +569,7 @@ async fn test_duplicate_user_registration() {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -742,6 +745,7 @@ async fn test_login_with_correct_credentials() {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -960,6 +964,7 @@ async fn test_login_with_wrong_password() {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -1142,6 +1147,7 @@ async fn test_login_with_non_existent_user() {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();

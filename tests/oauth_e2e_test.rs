@@ -338,6 +338,7 @@ async fn test_oauth_flow_through_mcp() {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     // Create server instance
@@ -642,6 +643,7 @@ async fn test_oauth_callback_error_handling() {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -910,6 +912,7 @@ async fn test_oauth_state_csrf_protection() {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -1095,6 +1098,7 @@ async fn test_connection_status_tracking() {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();
