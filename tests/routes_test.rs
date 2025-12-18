@@ -217,6 +217,7 @@ async fn test_register_user() {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
@@ -392,6 +393,7 @@ async fn test_register_duplicate_user() {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(

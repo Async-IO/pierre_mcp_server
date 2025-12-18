@@ -201,6 +201,7 @@ async fn test_oauth_authorization_url_generation() {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -493,6 +494,7 @@ async fn test_oauth_state_validation() {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -687,6 +689,7 @@ async fn test_connection_status_no_providers() {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     let user_id = Uuid::new_v4();
@@ -914,6 +917,7 @@ async fn test_invalid_provider_error() {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
@@ -1104,6 +1108,7 @@ async fn test_disconnect_provider() {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
@@ -1392,6 +1397,7 @@ async fn test_oauth_urls_contain_required_parameters() {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(

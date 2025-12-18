@@ -306,6 +306,7 @@ async fn create_test_oauth_routes() -> Result<(OAuthService, Uuid, Arc<Database>
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -597,6 +598,7 @@ async fn test_user_login_success() -> Result<()> {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -885,6 +887,7 @@ async fn test_token_refresh_success() -> Result<()> {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -1121,6 +1124,7 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -1614,6 +1618,7 @@ async fn test_complete_auth_flow() -> Result<()> {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -1929,6 +1934,7 @@ async fn test_concurrent_logins() -> Result<()> {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();

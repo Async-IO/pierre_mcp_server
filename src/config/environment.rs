@@ -661,6 +661,8 @@ pub struct ServerConfig {
     pub http_port: u16,
     /// OAuth callback port for bridge focus recovery
     pub oauth_callback_port: u16,
+    /// Frontend URL for OAuth redirects (development uses separate port)
+    pub frontend_url: Option<String>,
     /// Log level
     pub log_level: LogLevel,
     /// Logging and PII redaction configuration
@@ -1434,6 +1436,7 @@ impl ServerConfig {
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(35535),
+            frontend_url: env::var("FRONTEND_URL").ok(),
             log_level: LogLevel::from_str_or_default(
                 &env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_owned()),
             ),

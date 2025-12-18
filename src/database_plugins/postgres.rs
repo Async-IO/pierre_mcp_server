@@ -786,6 +786,29 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(())
     }
 
+    async fn update_user_display_name(&self, user_id: Uuid, display_name: &str) -> AppResult<User> {
+        let result = sqlx::query(
+            r"
+            UPDATE users
+            SET display_name = $1, last_active = CURRENT_TIMESTAMP
+            WHERE id = $2
+            ",
+        )
+        .bind(display_name)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to update user display name: {e}")))?;
+
+        if result.rows_affected() == 0 {
+            return Err(AppError::not_found(format!("User with ID: {user_id}")));
+        }
+
+        self.get_user_by_id(user_id)
+            .await?
+            .ok_or_else(|| AppError::not_found("User after display name update"))
+    }
+
     async fn upsert_user_profile(&self, user_id: Uuid, profile_data: Value) -> AppResult<()> {
         let now = chrono::Utc::now().to_rfc3339();
         sqlx::query(

@@ -4,8 +4,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
-import { Card, Button } from './ui';
+import { apiService } from '../services/api';
+import { Card } from './ui';
 
 interface UserHomeProps {
   onNavigate: (tab: string) => void;
@@ -13,6 +15,13 @@ interface UserHomeProps {
 
 export default function UserHome({ onNavigate }: UserHomeProps) {
   const { user } = useAuth();
+
+  // Fetch user stats for dashboard
+  const { data: stats, isLoading: statsLoading } = useQuery({
+    queryKey: ['userStats'],
+    queryFn: () => apiService.getUserStats(),
+    staleTime: 30000, // Cache for 30 seconds
+  });
 
   return (
     <div className="space-y-6">
@@ -39,19 +48,25 @@ export default function UserHome({ onNavigate }: UserHomeProps) {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <div className="text-center">
-            <div className="text-3xl font-bold text-pierre-violet">-</div>
+            <div className="text-3xl font-bold text-pierre-violet">
+              {statsLoading ? '...' : (stats?.connected_providers ?? 0)}
+            </div>
             <div className="text-sm text-pierre-gray-600 mt-1">Connected Providers</div>
           </div>
         </Card>
         <Card>
           <div className="text-center">
-            <div className="text-3xl font-bold text-pierre-activity">-</div>
+            <div className="text-3xl font-bold text-pierre-activity">
+              {statsLoading ? '...' : (stats?.activities_synced ?? 0)}
+            </div>
             <div className="text-sm text-pierre-gray-600 mt-1">Activities Synced</div>
           </div>
         </Card>
         <Card>
           <div className="text-center">
-            <div className="text-3xl font-bold text-pierre-nutrition">-</div>
+            <div className="text-3xl font-bold text-pierre-nutrition">
+              {statsLoading ? '...' : (stats?.days_active ?? 0)}
+            </div>
             <div className="text-sm text-pierre-gray-600 mt-1">Days Active</div>
           </div>
         </Card>
@@ -115,11 +130,6 @@ export default function UserHome({ onNavigate }: UserHomeProps) {
             </div>
             <p className="text-sm text-pierre-gray-500">Explore your fitness insights with AI</p>
           </div>
-        </div>
-        <div className="mt-4">
-          <Button variant="gradient" onClick={() => onNavigate('connections')}>
-            Connect a Provider
-          </Button>
         </div>
       </Card>
     </div>

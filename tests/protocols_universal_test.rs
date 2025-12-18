@@ -216,6 +216,7 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     // Create ServerResources for the test
@@ -621,6 +622,7 @@ async fn test_set_goal_tool() -> Result<()> {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     // Create ServerResources for the test
@@ -1331,6 +1333,7 @@ async fn test_disconnect_provider_tool() -> Result<()> {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     // Create ServerResources for the test

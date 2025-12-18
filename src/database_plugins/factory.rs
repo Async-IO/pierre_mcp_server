@@ -507,6 +507,18 @@ impl DatabaseProvider for Database {
         }
     }
 
+    async fn update_user_display_name(
+        &self,
+        user_id: uuid::Uuid,
+        display_name: &str,
+    ) -> AppResult<User> {
+        match self {
+            Self::SQLite(db) => db.update_user_display_name(user_id, display_name).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.update_user_display_name(user_id, display_name).await,
+        }
+    }
+
     /// Create or update a user profile with the provided data
     ///
     /// # Errors

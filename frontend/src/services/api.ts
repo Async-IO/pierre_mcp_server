@@ -755,6 +755,25 @@ class ApiService {
     return response.data;
   }
 
+  async updateProfile(data: {
+    display_name: string;
+  }): Promise<{
+    message: string;
+    user: { id: string; email: string; display_name?: string };
+  }> {
+    const response = await axios.put('/api/user/profile', data);
+    return response.data;
+  }
+
+  async getUserStats(): Promise<{
+    connected_providers: number;
+    activities_synced: number;
+    days_active: number;
+  }> {
+    const response = await axios.get('/api/user/stats');
+    return response.data;
+  }
+
   // Chat Conversations endpoints
   async getConversations(limit: number = 50, offset: number = 0): Promise<{
     conversations: Array<{

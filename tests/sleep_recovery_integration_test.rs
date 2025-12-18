@@ -187,6 +187,7 @@ fn create_test_config() -> Arc<ServerConfig> {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     })
 }
 

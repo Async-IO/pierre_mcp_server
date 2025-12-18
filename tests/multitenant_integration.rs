@@ -338,6 +338,7 @@ async fn test_multitenant_auth_flow() -> Result<()> {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     // Create test cache with background cleanup disabled
@@ -828,6 +829,7 @@ async fn test_input_validation() -> Result<()> {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     // Create test cache with background cleanup disabled

@@ -1741,5 +1741,6 @@ fn create_test_server_config() -> ServerConfig {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     }
 }

@@ -272,6 +272,7 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthService, OAuthSe
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     let cache_config = MemoryCacheConfig {

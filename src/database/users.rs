@@ -742,6 +742,40 @@ impl Database {
         self.update_user_tenant_id_impl(user_id, tenant_id).await
     }
 
+    /// Update user's display name
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the user is not found or database update fails
+    pub async fn update_user_display_name(
+        &self,
+        user_id: Uuid,
+        display_name: &str,
+    ) -> AppResult<User> {
+        let result = sqlx::query(
+            r"
+            UPDATE users SET
+                display_name = ?1,
+                last_active = CURRENT_TIMESTAMP
+            WHERE id = ?2
+            ",
+        )
+        .bind(display_name)
+        .bind(user_id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to update user display name: {e}")))?;
+
+        if result.rows_affected() == 0 {
+            return Err(AppError::not_found(format!("User with ID: {user_id}")));
+        }
+
+        // Return updated user
+        self.get_user_impl(user_id)
+            .await?
+            .ok_or_else(|| AppError::not_found("User after display name update"))
+    }
+
     /// Update user's password hash
     ///
     /// # Errors

@@ -37,11 +37,14 @@ use crate::{
     context::{AuthContext, ConfigContext, DataContext, NotificationContext, ServerContext},
     database_plugins::{factory::Database, DatabaseProvider},
     errors::{AppError, AppResult, ErrorCode},
-    mcp::{oauth_flow_manager::OAuthTemplateRenderer, resources::ServerResources},
+    mcp::{
+        oauth_flow_manager::OAuthTemplateRenderer, resources::ServerResources,
+        schema::OAuthCompletedNotification,
+    },
     models::{Tenant, User, UserOAuthToken, UserStatus, UserTier},
     oauth2_client::{OAuth2Client, OAuth2Config, OAuth2Token},
     permissions::UserRole,
-    security::cookies::{clear_auth_cookie, set_auth_cookie, set_csrf_cookie},
+    security::cookies::{clear_auth_cookie, get_cookie_value, set_auth_cookie, set_csrf_cookie},
     utils::{
         auth::extract_bearer_token_owned,
         errors::{auth_error, user_state_error, validation_error},
@@ -114,6 +117,22 @@ pub struct LoginResponse {
     /// When the token expires (ISO 8601 format)
     pub expires_at: String,
     /// User information
+    pub user: UserInfo,
+}
+
+/// User profile update request
+#[derive(Debug, Deserialize)]
+pub struct UpdateProfileRequest {
+    /// New display name for the user
+    pub display_name: String,
+}
+
+/// User profile update response
+#[derive(Debug, Serialize)]
+pub struct UpdateProfileResponse {
+    /// Success message
+    pub message: String,
+    /// Updated user information
     pub user: UserInfo,
 }
 
@@ -724,7 +743,7 @@ impl AuthService {
 pub struct OAuthService {
     data: DataContext,
     config: ConfigContext,
-    _notifications: NotificationContext,
+    notifications: NotificationContext,
 }
 
 impl OAuthService {
@@ -738,7 +757,7 @@ impl OAuthService {
         Self {
             data: data_context,
             config: config_context,
-            _notifications: notification_context,
+            notifications: notification_context,
         }
     }
 
@@ -1014,13 +1033,45 @@ impl OAuthService {
             notification_id, user_id, provider
         );
 
-        // OAuth notification - SSE notification sending disabled
-        info!(
-            notification_id = %notification_id,
-            user_id = %user_id,
-            provider = %provider,
-            "OAuth notification processed (SSE disabled)"
-        );
+        // Broadcast OAuth completion notification via WebSocket/SSE
+        if let Some(sender) = self.notifications.oauth_notification_sender() {
+            let notification = OAuthCompletedNotification::new(
+                provider.to_owned(),
+                true,
+                format!("{provider} connected successfully"),
+                Some(user_id.to_string()),
+            );
+
+            match sender.send(notification) {
+                Ok(receiver_count) => {
+                    info!(
+                        notification_id = %notification_id,
+                        user_id = %user_id,
+                        provider = %provider,
+                        receiver_count = %receiver_count,
+                        "OAuth notification broadcast to {} receivers",
+                        receiver_count
+                    );
+                }
+                Err(e) => {
+                    // No active receivers is not an error - user may not have websocket open
+                    debug!(
+                        notification_id = %notification_id,
+                        user_id = %user_id,
+                        provider = %provider,
+                        error = %e,
+                        "No active receivers for OAuth notification (this is normal if no MCP clients connected)"
+                    );
+                }
+            }
+        } else {
+            debug!(
+                notification_id = %notification_id,
+                user_id = %user_id,
+                provider = %provider,
+                "OAuth notification sender not configured"
+            );
+        }
 
         Ok(())
     }
@@ -1303,7 +1354,7 @@ impl AuthRoutes {
     /// Create all authentication routes (Axum)
     pub fn routes(resources: Arc<ServerResources>) -> Router {
         use axum::{
-            routing::{get, post},
+            routing::{get, post, put},
             Router,
         };
 
@@ -1313,6 +1364,7 @@ impl AuthRoutes {
             .route("/api/auth/firebase", post(Self::handle_firebase_login))
             .route("/api/auth/logout", post(Self::handle_logout))
             .route("/api/auth/refresh", post(Self::handle_refresh))
+            .route("/api/user/profile", put(Self::handle_update_profile))
             // OAuth2 ROPC endpoint (RFC 6749 Section 4.3) - unified login for all clients
             .route("/oauth/token", post(Self::handle_oauth2_token))
             .route(
@@ -1593,6 +1645,79 @@ impl AuthRoutes {
             .into_response())
     }
 
+    /// Handle user profile update (Axum)
+    ///
+    /// Updates the authenticated user's display name.
+    /// Requires valid JWT authentication via cookie or Bearer token.
+    #[tracing::instrument(
+        skip(resources, headers, request),
+        fields(
+            route = "update_profile",
+            success = Empty,
+        )
+    )]
+    async fn handle_update_profile(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Json(request): Json<UpdateProfileRequest>,
+    ) -> Result<Response, AppError> {
+        // Extract JWT from cookie or Authorization header
+        let auth_value =
+            if let Some(auth_header) = headers.get("authorization").and_then(|h| h.to_str().ok()) {
+                auth_header.to_owned()
+            } else if let Some(token) = get_cookie_value(&headers, "auth_token") {
+                // Fall back to auth_token cookie, format as Bearer token
+                format!("Bearer {token}")
+            } else {
+                return Err(AppError::auth_invalid(
+                    "Missing authorization header or cookie",
+                ));
+            };
+
+        // Authenticate and get user ID
+        let auth = resources
+            .auth_middleware
+            .authenticate_request(Some(&auth_value))
+            .await
+            .map_err(|e| AppError::auth_invalid(format!("Authentication failed: {e}")))?;
+
+        let user_id = auth.user_id;
+
+        // Validate display name
+        let display_name = request.display_name.trim();
+        if display_name.is_empty() {
+            return Err(AppError::invalid_input("Display name cannot be empty"));
+        }
+        if display_name.len() > 100 {
+            return Err(AppError::invalid_input(
+                "Display name must be 100 characters or less",
+            ));
+        }
+
+        // Update user in database
+        let updated_user = resources
+            .database
+            .update_user_display_name(user_id, display_name)
+            .await?;
+
+        // Build response
+        let response = UpdateProfileResponse {
+            message: "Profile updated successfully".to_owned(),
+            user: UserInfo {
+                user_id: updated_user.id.to_string(),
+                email: updated_user.email,
+                display_name: updated_user.display_name,
+                is_admin: updated_user.is_admin,
+                role: updated_user.role.to_string(),
+                user_status: updated_user.user_status.to_string(),
+            },
+        };
+
+        info!(user_id = %user_id, "User profile updated successfully");
+
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
     /// Handle `OAuth2` ROPC (Resource Owner Password Credentials) token request
     ///
     /// This endpoint implements RFC 6749 Section 4.3 for MCP and CLI clients
@@ -1746,8 +1871,25 @@ impl AuthRoutes {
             .get("state")
             .ok_or_else(|| AppError::auth_invalid("Missing OAuth state parameter"))?;
 
+        // Check if we should redirect to a separate frontend URL
+        let frontend_url = server_context.config().config().frontend_url.clone();
+
         match oauth_routes.handle_callback(code, state, &provider).await {
             Ok(response) => {
+                // If frontend URL is configured, redirect to frontend with success params
+                if let Some(url) = frontend_url {
+                    let redirect_url = format!(
+                        "{}/oauth-callback?provider={}&success=true",
+                        url.trim_end_matches('/'),
+                        encode(&provider)
+                    );
+                    info!("Redirecting OAuth success to frontend: {}", redirect_url);
+                    return Ok(
+                        (StatusCode::FOUND, [(header::LOCATION, redirect_url)], "").into_response()
+                    );
+                }
+
+                // Otherwise serve the success page directly (same-origin production)
                 let html = OAuthTemplateRenderer::render_success_template(&provider, &response)
                     .map_err(|e| {
                         error!("Failed to render OAuth success template: {}", e);
@@ -1761,6 +1903,20 @@ impl AuthRoutes {
 
                 // Determine error message and description based on error type
                 let (error_msg, description) = Self::categorize_oauth_error(&e);
+
+                // If frontend URL is configured, redirect to frontend with error params
+                if let Some(url) = frontend_url {
+                    let redirect_url = format!(
+                        "{}/oauth-callback?provider={}&success=false&error={}",
+                        url.trim_end_matches('/'),
+                        encode(&provider),
+                        encode(error_msg)
+                    );
+                    info!("Redirecting OAuth error to frontend: {}", redirect_url);
+                    return Ok(
+                        (StatusCode::FOUND, [(header::LOCATION, redirect_url)], "").into_response()
+                    );
+                }
 
                 let html =
                     OAuthTemplateRenderer::render_error_template(&provider, error_msg, description)

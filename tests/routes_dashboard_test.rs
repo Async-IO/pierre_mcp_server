@@ -334,6 +334,7 @@ impl DashboardTestSetup {
             tokio_runtime: TokioRuntimeConfig::default(),
             sqlx: SqlxConfig::default(),
             monitoring: MonitoringConfig::default(),
+            frontend_url: None,
         });
 
         // Create test cache
@@ -741,6 +742,7 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
         tokio_runtime: TokioRuntimeConfig::default(),
         sqlx: SqlxConfig::default(),
         monitoring: MonitoringConfig::default(),
+        frontend_url: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();

@@ -51,6 +51,45 @@ const MAX_TOOL_ITERATIONS: usize = 10;
 const DEFAULT_FALLBACK_MODEL: &str = "llama-3.3-70b-versatile";
 
 // ============================================================================
+// Helper Functions
+// ============================================================================
+
+/// Strip synthetic function call syntax from LLM content
+///
+/// Some models (like Llama via Groq) output function calls both as proper `tool_calls`
+/// AND as text content using syntax like `<function(name)>{...}</function>`.
+/// This helper removes that synthetic syntax to avoid displaying it to users.
+fn strip_synthetic_function_calls(content: &str) -> Cow<'_, str> {
+    use regex::Regex;
+    use std::sync::OnceLock;
+
+    fn function_pattern() -> Option<&'static Regex> {
+        static PATTERN: OnceLock<Option<Regex>> = OnceLock::new();
+        PATTERN
+            .get_or_init(|| {
+                // Match patterns like <function(name)>...</function> or <function(name){...}</function>
+                Regex::new(r"<function\([^)]+\)[\s\S]*?</function>").ok()
+            })
+            .as_ref()
+    }
+
+    let Some(pattern) = function_pattern() else {
+        return Cow::Borrowed(content);
+    };
+
+    let cleaned = pattern.replace_all(content, "");
+    let trimmed = cleaned.trim();
+
+    if trimmed.is_empty() {
+        Cow::Borrowed("")
+    } else if trimmed.len() == content.len() {
+        Cow::Borrowed(content)
+    } else {
+        Cow::Owned(trimmed.to_owned())
+    }
+}
+
+// ============================================================================
 // Internal Types
 // ============================================================================
 
@@ -535,10 +574,11 @@ impl ChatRoutes {
                         Self::execute_function_calls(executor, function_calls, user_id, tenant_id)
                             .await?;
 
-                    // Add assistant's text to messages if present
+                    // Add assistant's text to messages if present (strip synthetic function syntax)
                     if let Some(ref text) = response.content {
-                        if !text.is_empty() {
-                            llm_messages.push(ChatMessage::assistant(text));
+                        let cleaned = strip_synthetic_function_calls(text);
+                        if !cleaned.is_empty() {
+                            llm_messages.push(ChatMessage::assistant(&*cleaned));
                         }
                     }
 
@@ -548,9 +588,13 @@ impl ChatRoutes {
                 }
             }
 
-            // No function calls - we have a text response
+            // No function calls - we have a text response (strip any synthetic function syntax)
+            let content = response
+                .content
+                .map(|c| strip_synthetic_function_calls(&c).into_owned())
+                .unwrap_or_default();
             return Ok(ToolLoopResult {
-                content: response.content.unwrap_or_default(),
+                content,
                 usage: response.usage,
                 finish_reason: response.finish_reason,
             });

@@ -1,3 +1,6 @@
+// ABOUTME: MCP Tokens management tab for user dashboard
+// ABOUTME: Allows users to create/revoke tokens and view setup instructions for AI clients
+//
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
@@ -7,6 +10,8 @@ import { format } from 'date-fns';
 import { Button, Card, CardHeader, Badge, ConfirmDialog } from './ui';
 import { useAuth } from '../hooks/useAuth';
 import { apiService } from '../services/api';
+import A2AClientList from './A2AClientList';
+import CreateA2AClient from './CreateA2AClient';
 
 interface McpToken {
   id: string;
@@ -31,6 +36,8 @@ export default function MCPTokensTab() {
     name: string;
   } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showCreateA2AClient, setShowCreateA2AClient] = useState(false);
+  const [showSetupInstructions, setShowSetupInstructions] = useState(false);
 
   const { data: tokensResponse, isLoading, error } = useQuery({
     queryKey: ['mcp-tokens'],
@@ -91,7 +98,7 @@ export default function MCPTokensTab() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <div>
-            <h3 className="text-lg font-medium text-red-900">Failed to load MCP tokens</h3>
+            <h3 className="text-lg font-medium text-red-900">Failed to load tokens</h3>
             <p className="text-red-700 mt-1">
               {error instanceof Error ? error.message : 'An unknown error occurred'}
             </p>
@@ -143,7 +150,7 @@ export default function MCPTokensTab() {
       {/* Main Card */}
       <Card>
         <CardHeader
-          title="MCP Tokens"
+          title="Tokens"
           subtitle={`${activeTokens.length} active tokens for AI client connections`}
         />
 
@@ -155,7 +162,7 @@ export default function MCPTokensTab() {
             </Button>
           ) : (
             <div className="bg-pierre-gray-50 rounded-lg p-4 space-y-4">
-              <h4 className="font-medium text-pierre-gray-900">Create MCP Token</h4>
+              <h4 className="font-medium text-pierre-gray-900">Create Token</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-pierre-gray-700 mb-1">
@@ -206,7 +213,7 @@ export default function MCPTokensTab() {
         {tokens.length === 0 ? (
           <div className="text-center py-8 text-pierre-gray-500 px-6 pb-6">
             <div className="text-4xl mb-4">🔑</div>
-            <p className="text-lg mb-2">No MCP tokens yet</p>
+            <p className="text-lg mb-2">No tokens yet</p>
             <p>Create a token to connect AI clients like Claude Desktop or Cursor to Pierre</p>
           </div>
         ) : (
@@ -268,21 +275,38 @@ export default function MCPTokensTab() {
             ))}
           </div>
         )}
-      </Card>
 
-      {/* Setup Instructions Card */}
-      <Card>
-        <CardHeader
-          title="Connect AI Clients"
-          subtitle="Use your MCP tokens to connect AI clients to Pierre"
-        />
-        <div className="px-6 pb-6 space-y-4">
-          <div className="bg-pierre-gray-50 rounded-lg p-4">
-            <h4 className="font-medium text-pierre-gray-900 mb-2">Claude Desktop</h4>
-            <p className="text-sm text-pierre-gray-600 mb-3">
-              Add the following to your Claude Desktop config file:
-            </p>
-            <pre className="text-xs bg-pierre-gray-800 text-pierre-gray-100 p-3 rounded overflow-x-auto">
+        {/* Setup Instructions - Collapsible */}
+        <div className="border-t border-pierre-gray-200 px-6 py-4">
+          <button
+            onClick={() => setShowSetupInstructions(!showSetupInstructions)}
+            className="flex items-center justify-between w-full text-left"
+          >
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-pierre-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="font-medium text-pierre-gray-900">Setup Instructions</span>
+              <span className="text-sm text-pierre-gray-500">for Claude & ChatGPT</span>
+            </div>
+            <svg
+              className={`w-5 h-5 text-pierre-gray-400 transition-transform ${showSetupInstructions ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {showSetupInstructions && (
+            <div className="mt-4 space-y-4">
+              <div className="bg-pierre-gray-50 rounded-lg p-4">
+                <h4 className="font-medium text-pierre-gray-900 mb-2">Claude Desktop</h4>
+                <p className="text-sm text-pierre-gray-600 mb-3">
+                  Add the following to your Claude Desktop config file:
+                </p>
+                <pre className="text-xs bg-pierre-gray-800 text-pierre-gray-100 p-3 rounded overflow-x-auto">
 {`{
   "mcpServers": {
     "pierre": {
@@ -295,19 +319,39 @@ export default function MCPTokensTab() {
     }
   }
 }`}
-            </pre>
-          </div>
+                </pre>
+              </div>
 
-          <div className="bg-pierre-gray-50 rounded-lg p-4">
-            <h4 className="font-medium text-pierre-gray-900 mb-2">Cursor IDE</h4>
-            <p className="text-sm text-pierre-gray-600 mb-3">
-              Configure in Cursor settings under MCP Servers:
-            </p>
-            <pre className="text-xs bg-pierre-gray-800 text-pierre-gray-100 p-3 rounded overflow-x-auto">
+              <div className="bg-pierre-gray-50 rounded-lg p-4">
+                <h4 className="font-medium text-pierre-gray-900 mb-2">ChatGPT</h4>
+                <p className="text-sm text-pierre-gray-600 mb-3">
+                  Configure in ChatGPT MCP settings:
+                </p>
+                <pre className="text-xs bg-pierre-gray-800 text-pierre-gray-100 p-3 rounded overflow-x-auto">
 {`Server URL: ${window.location.origin}/mcp
-Token: <your-token-here>`}
-            </pre>
-          </div>
+Authorization: Bearer <your-token-here>`}
+                </pre>
+              </div>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* Connected Apps Section */}
+      <Card>
+        <CardHeader
+          title="Connected Apps"
+          subtitle="Third-party applications authorized to access your fitness data via OAuth"
+        />
+        <div className="px-6 pb-6">
+          {showCreateA2AClient ? (
+            <CreateA2AClient
+              onSuccess={() => setShowCreateA2AClient(false)}
+              onCancel={() => setShowCreateA2AClient(false)}
+            />
+          ) : (
+            <A2AClientList onCreateClient={() => setShowCreateA2AClient(true)} />
+          )}
         </div>
       </Card>
 

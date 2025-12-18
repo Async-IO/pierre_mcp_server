@@ -81,15 +81,27 @@ export default function UserSettings() {
     },
   });
 
+  // Profile update mutation
+  const profileMutation = useMutation({
+    mutationFn: (data: { display_name: string }) => apiService.updateProfile(data),
+    onSuccess: (response) => {
+      setMessage({ type: 'success', text: response.message });
+      // Update the user in localStorage and invalidate relevant queries
+      apiService.setUser(response.user);
+      queryClient.invalidateQueries({ queryKey: ['user'] });
+    },
+    onError: (error: Error) => {
+      setMessage({ type: 'error', text: error.message || 'Failed to update profile' });
+    },
+    onSettled: () => {
+      setIsSaving(false);
+    },
+  });
+
   const handleSaveProfile = async () => {
     setIsSaving(true);
     setMessage(null);
-
-    // Profile update functionality will be added later
-    setTimeout(() => {
-      setIsSaving(false);
-      setMessage({ type: 'success', text: 'Profile updated successfully' });
-    }, 500);
+    profileMutation.mutate({ display_name: displayName.trim() });
   };
 
   const handleAddCredentials = () => {

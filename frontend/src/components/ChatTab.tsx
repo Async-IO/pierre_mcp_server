@@ -115,6 +115,91 @@ export default function ChatTab() {
     }
   }, [selectedConversation]);
 
+  // Listen for OAuth completion from popup/new tab
+  useEffect(() => {
+    // Check localStorage for OAuth result and process if found
+    const checkAndProcessOAuthResult = () => {
+      try {
+        const stored = localStorage.getItem('pierre_oauth_result');
+        if (stored) {
+          const result = JSON.parse(stored);
+          // Only process if it's recent (within last 5 minutes)
+          const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+          if (result.type === 'oauth_completed' && result.success && result.timestamp > fiveMinutesAgo) {
+            console.log(`OAuth completed (detected on focus): ${result.provider} connected successfully`);
+            queryClient.invalidateQueries({ queryKey: ['oauth-status'] });
+            queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+            // Clean up the storage item
+            localStorage.removeItem('pierre_oauth_result');
+          } else if (result.timestamp <= fiveMinutesAgo) {
+            // Clean up stale entries
+            localStorage.removeItem('pierre_oauth_result');
+          }
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    };
+
+    const handleOAuthMessage = (event: MessageEvent) => {
+      // Validate message structure
+      if (event.data?.type === 'oauth_completed') {
+        const { provider, success } = event.data;
+        if (success) {
+          // Show success notification in console (toast could be added)
+          console.log(`OAuth completed: ${provider} connected successfully`);
+          // Invalidate any queries that depend on connection status
+          queryClient.invalidateQueries({ queryKey: ['oauth-status'] });
+          queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+        }
+      }
+    };
+
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'pierre_oauth_result' && event.newValue) {
+        try {
+          const result = JSON.parse(event.newValue);
+          if (result.type === 'oauth_completed' && result.success) {
+            console.log(`OAuth completed (via storage): ${result.provider} connected successfully`);
+            queryClient.invalidateQueries({ queryKey: ['oauth-status'] });
+            queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+            // Clean up the storage item
+            localStorage.removeItem('pierre_oauth_result');
+          }
+        } catch {
+          // Ignore parse errors
+        }
+      }
+    };
+
+    // Check when tab becomes visible (user returns from OAuth tab)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkAndProcessOAuthResult();
+      }
+    };
+
+    // Check when window gains focus (alternative to visibility change)
+    const handleFocus = () => {
+      checkAndProcessOAuthResult();
+    };
+
+    window.addEventListener('message', handleOAuthMessage);
+    window.addEventListener('storage', handleStorageChange);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    // Also check on mount in case OAuth completed while component was being rendered
+    checkAndProcessOAuthResult();
+
+    return () => {
+      window.removeEventListener('message', handleOAuthMessage);
+      window.removeEventListener('storage', handleStorageChange);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [queryClient]);
+
   const handleSendMessage = useCallback(async () => {
     if (!newMessage.trim() || !selectedConversation || isStreaming) return;
 
