@@ -6,6 +6,7 @@
 
 use crate::errors::{AppError, AppResult};
 use chrono::{TimeZone, Utc};
+use rand::Rng;
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 use std::env;
@@ -522,15 +523,13 @@ impl RetryBackoffConfig {
             .saturating_mul(2_u64.saturating_pow(attempt));
         let capped_delay = exponential_delay.min(self.max_delay_ms);
 
-        // Add jitter to prevent thundering herd
+        // Add random jitter to prevent thundering herd
         // jitter_factor is always positive (0.0 to 1.0), and capped_delay is u64,
         // so the product is always non-negative. Truncation is acceptable for jitter.
         let jitter_range = (f64::from(u32::try_from(capped_delay).unwrap_or(u32::MAX))
             * self.jitter_factor) as u64;
         let jitter = if jitter_range > 0 {
-            // Simple deterministic jitter based on attempt number
-            // Avoids need for random number generator
-            (u64::from(attempt) * 17) % jitter_range
+            rand::thread_rng().gen_range(0..jitter_range)
         } else {
             0
         };
