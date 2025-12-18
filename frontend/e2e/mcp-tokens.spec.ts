@@ -345,25 +345,32 @@ test.describe('MCP Setup Instructions', () => {
     await setupMcpTokenMocks(page);
     await loginAndGoToMcpTokens(page);
 
-    // Should show Claude Desktop instructions section (use heading role to avoid matching paragraph)
-    await expect(page.getByRole('heading', { name: 'Connect AI Clients' })).toBeVisible({ timeout: 10000 });
-    // Claude Desktop appears multiple times (sidebar nav + instructions), use locator filter
+    // Click to expand setup instructions (collapsible section)
+    await page.locator('button:has-text("Setup Instructions")').click();
+
+    // Should show Claude Desktop instructions section
     await expect(page.locator('h4:has-text("Claude Desktop")')).toBeVisible();
     await expect(page.locator('pre:has-text("mcpServers")')).toBeVisible();
   });
 
-  test('displays Cursor IDE setup instructions', async ({ page }) => {
+  test('displays ChatGPT setup instructions', async ({ page }) => {
     await setupMcpTokenMocks(page);
     await loginAndGoToMcpTokens(page);
 
-    // Should show Cursor IDE instructions section
-    await expect(page.locator('h4:has-text("Cursor IDE")')).toBeVisible();
+    // Click to expand setup instructions (collapsible section)
+    await page.locator('button:has-text("Setup Instructions")').click();
+
+    // Should show ChatGPT instructions section
+    await expect(page.locator('h4:has-text("ChatGPT")')).toBeVisible();
     await expect(page.locator('pre:has-text("Server URL")')).toBeVisible();
   });
 
   test('shows MCP endpoint in instructions', async ({ page }) => {
     await setupMcpTokenMocks(page);
     await loginAndGoToMcpTokens(page);
+
+    // Click to expand setup instructions (collapsible section)
+    await page.locator('button:has-text("Setup Instructions")').click();
 
     // Instructions should contain the MCP server endpoint (origin + /mcp)
     await expect(page.locator('pre').filter({ hasText: '/mcp' }).first()).toBeVisible();
