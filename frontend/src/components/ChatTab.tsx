@@ -6,16 +6,51 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button } from './ui';
+import { Button, ConfirmDialog } from './ui';
 import { clsx } from 'clsx';
 import { apiService } from '../services/api';
 import Markdown from 'react-markdown';
 
-// Convert plain URLs to markdown links for clickability
+// Convert plain URLs to markdown links with friendly display names
 // Matches http/https URLs that aren't already in markdown link format
 const urlRegex = /(?<!\]\()(?<!\[)(https?:\/\/[^\s<>[\]()]+)/g;
+
+// Generate a friendly display name for a URL
+const getFriendlyUrlName = (url: string): string => {
+  try {
+    const parsed = new URL(url);
+    // Special handling for OAuth URLs
+    if (parsed.hostname.includes('strava.com') && parsed.pathname.includes('oauth')) {
+      return 'Connect to Strava →';
+    }
+    if (parsed.hostname.includes('fitbit.com') && parsed.pathname.includes('oauth')) {
+      return 'Connect to Fitbit →';
+    }
+    if (parsed.hostname.includes('garmin.com') && parsed.pathname.includes('oauth')) {
+      return 'Connect to Garmin →';
+    }
+    // For other URLs, show domain + truncated path
+    const path = parsed.pathname.length > 20
+      ? parsed.pathname.slice(0, 20) + '...'
+      : parsed.pathname;
+    return `${parsed.hostname}${path !== '/' ? path : ''}`;
+  } catch {
+    // If URL parsing fails, truncate to reasonable length
+    return url.length > 50 ? url.slice(0, 47) + '...' : url;
+  }
+};
+
+// Also match existing markdown links where the text is a URL: [url](url)
+const markdownLinkRegex = /\[(https?:\/\/[^\]]+)\]\((https?:\/\/[^)]+)\)/g;
+
 const linkifyUrls = (text: string): string => {
-  return text.replace(urlRegex, (url) => `[${url}](${url})`);
+  // First, replace existing markdown links that have URL as text with friendly names
+  let result = text.replace(markdownLinkRegex, (_match, _linkText, href) => {
+    return `[${getFriendlyUrlName(href)}](${href})`;
+  });
+  // Then, convert any remaining plain URLs to markdown links
+  result = result.replace(urlRegex, (url) => `[${getFriendlyUrlName(url)}](${url})`);
+  return result;
 };
 
 interface Conversation {
@@ -51,6 +86,8 @@ export default function ChatTab() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
   const [editedTitleValue, setEditedTitleValue] = useState('');
+  const [oauthNotification, setOauthNotification] = useState<{ provider: string; timestamp: number } | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{ id: string; title: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -108,10 +145,12 @@ export default function ChatTab() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messagesData?.messages, streamingContent]);
 
-  // Focus input when conversation is selected
+  // Focus input and clear notification when conversation is selected
   useEffect(() => {
     if (selectedConversation) {
       inputRef.current?.focus();
+      // Clear notification when switching conversations
+      setOauthNotification(null);
     }
   }, [selectedConversation]);
 
@@ -129,6 +168,9 @@ export default function ChatTab() {
             console.log(`OAuth completed (detected on focus): ${result.provider} connected successfully`);
             queryClient.invalidateQueries({ queryKey: ['oauth-status'] });
             queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+            // Show visible notification in chat
+            const providerDisplay = result.provider.charAt(0).toUpperCase() + result.provider.slice(1);
+            setOauthNotification({ provider: providerDisplay, timestamp: Date.now() });
             // Clean up the storage item
             localStorage.removeItem('pierre_oauth_result');
           } else if (result.timestamp <= fiveMinutesAgo) {
@@ -146,11 +188,13 @@ export default function ChatTab() {
       if (event.data?.type === 'oauth_completed') {
         const { provider, success } = event.data;
         if (success) {
-          // Show success notification in console (toast could be added)
           console.log(`OAuth completed: ${provider} connected successfully`);
           // Invalidate any queries that depend on connection status
           queryClient.invalidateQueries({ queryKey: ['oauth-status'] });
           queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+          // Show visible notification in chat
+          const providerDisplay = provider.charAt(0).toUpperCase() + provider.slice(1);
+          setOauthNotification({ provider: providerDisplay, timestamp: Date.now() });
         }
       }
     };
@@ -163,6 +207,9 @@ export default function ChatTab() {
             console.log(`OAuth completed (via storage): ${result.provider} connected successfully`);
             queryClient.invalidateQueries({ queryKey: ['oauth-status'] });
             queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+            // Show visible notification in chat
+            const providerDisplay = result.provider.charAt(0).toUpperCase() + result.provider.slice(1);
+            setOauthNotification({ provider: providerDisplay, timestamp: Date.now() });
             // Clean up the storage item
             localStorage.removeItem('pierre_oauth_result');
           }
@@ -322,10 +369,15 @@ export default function ChatTab() {
     setEditedTitleValue('');
   };
 
-  const handleDeleteConversation = (e: React.MouseEvent, convId: string) => {
+  const handleDeleteConversation = (e: React.MouseEvent, conv: Conversation) => {
     e.stopPropagation();
-    if (confirm('Delete this conversation?')) {
-      deleteConversation.mutate(convId);
+    setDeleteConfirmation({ id: conv.id, title: conv.title });
+  };
+
+  const handleConfirmDelete = () => {
+    if (deleteConfirmation) {
+      deleteConversation.mutate(deleteConfirmation.id);
+      setDeleteConfirmation(null);
     }
   };
 
@@ -431,7 +483,7 @@ export default function ChatTab() {
                       </button>
                       {/* Delete button */}
                       <button
-                        onClick={(e) => handleDeleteConversation(e, conv.id)}
+                        onClick={(e) => handleDeleteConversation(e, conv)}
                         className="opacity-0 group-hover:opacity-100 text-pierre-gray-400 hover:text-red-500 transition-all p-1"
                         title="Delete"
                       >
@@ -514,6 +566,33 @@ export default function ChatTab() {
                         </div>
                       </div>
                     ))}
+
+                    {/* OAuth connection notification */}
+                    {oauthNotification && (
+                      <div className="flex gap-3 animate-fadeIn">
+                        <div className="flex-shrink-0">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pierre-violet to-pierre-cyan flex items-center justify-center">
+                            <span className="text-white text-xs font-bold">P</span>
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0 pt-1">
+                          <div className="font-medium text-pierre-gray-900 text-sm mb-1 flex items-center gap-2">
+                            Pierre
+                            <button
+                              onClick={() => setOauthNotification(null)}
+                              className="text-pierre-gray-400 hover:text-pierre-gray-600"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                          <div className="text-pierre-gray-700 text-sm leading-relaxed bg-pierre-activity-light/50 rounded-lg px-3 py-2">
+                            {oauthNotification.provider} connected successfully. You can now access your {oauthNotification.provider} data.
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Streaming response */}
                     {isStreaming && streamingContent && (
@@ -636,6 +715,19 @@ export default function ChatTab() {
           </>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={!!deleteConfirmation}
+        onClose={() => setDeleteConfirmation(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Conversation"
+        message={`Are you sure you want to delete "${deleteConfirmation?.title || 'this conversation'}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        isLoading={deleteConversation.isPending}
+      />
     </div>
   );
 }

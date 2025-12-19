@@ -767,7 +767,6 @@ class ApiService {
 
   async getUserStats(): Promise<{
     connected_providers: number;
-    activities_synced: number;
     days_active: number;
   }> {
     const response = await axios.get('/api/user/stats');

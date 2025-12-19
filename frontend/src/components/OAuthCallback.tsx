@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+import { useEffect } from 'react';
+
 interface OAuthCallbackProps {
   provider: string;
   success: boolean;
@@ -14,6 +16,17 @@ interface OAuthCallbackProps {
  */
 export default function OAuthCallback({ provider, success, error, onClose }: OAuthCallbackProps) {
   const providerDisplay = provider.charAt(0).toUpperCase() + provider.slice(1);
+
+  // Store OAuth result in localStorage so ChatTab can display connection status
+  useEffect(() => {
+    localStorage.setItem('pierre_oauth_result', JSON.stringify({
+      type: 'oauth_completed',
+      provider,
+      success,
+      error,
+      timestamp: Date.now(),
+    }));
+  }, [provider, success, error]);
 
   return (
     <div className="min-h-screen bg-pierre-gray-50 flex items-center justify-center px-4">

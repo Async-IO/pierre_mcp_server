@@ -19,9 +19,17 @@ export default defineConfig(({ mode }) => {
       ? {}
       : {
           proxy: {
+            // Proxy backend OAuth endpoints but NOT /oauth-callback (frontend route)
             '/oauth': {
               target: backendUrl,
               changeOrigin: true,
+              bypass: (req) => {
+                // Don't proxy /oauth-callback - it's a frontend route
+                if (req.url?.startsWith('/oauth-callback')) {
+                  return req.url;
+                }
+                return undefined;
+              },
             },
             '/api': {
               target: backendUrl,

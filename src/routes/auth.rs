@@ -27,7 +27,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
 use tokio::task;
-use tracing::{debug, error, field::Empty, info, warn};
+use tracing::{debug, error, field::Empty, info, warn, Span};
 use urlencoding::encode;
 
 use crate::{
@@ -134,6 +134,15 @@ pub struct UpdateProfileResponse {
     pub message: String,
     /// Updated user information
     pub user: UserInfo,
+}
+
+/// User stats response for dashboard
+#[derive(Debug, Serialize)]
+pub struct UserStatsResponse {
+    /// Number of connected fitness providers
+    pub connected_providers: i64,
+    /// Number of days the user has been active
+    pub days_active: i64,
 }
 
 /// Refresh token request
@@ -1385,6 +1394,7 @@ impl AuthRoutes {
             .route("/api/auth/logout", post(Self::handle_logout))
             .route("/api/auth/refresh", post(Self::handle_refresh))
             .route("/api/user/profile", put(Self::handle_update_profile))
+            .route("/api/user/stats", get(Self::handle_user_stats))
             // OAuth2 ROPC endpoint (RFC 6749 Section 4.3) - unified login for all clients
             .route("/oauth/token", post(Self::handle_oauth2_token))
             .route(
@@ -1734,6 +1744,65 @@ impl AuthRoutes {
         };
 
         info!(user_id = %user_id, "User profile updated successfully");
+
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Handle user stats request for dashboard
+    ///
+    /// Returns aggregated stats: connected providers, activities synced, and days active.
+    #[tracing::instrument(
+        skip(resources, headers),
+        fields(
+            route = "user_stats",
+            user_id = Empty,
+        )
+    )]
+    async fn handle_user_stats(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+    ) -> Result<Response, AppError> {
+        // Extract JWT from cookie or Authorization header
+        let auth_value =
+            if let Some(auth_header) = headers.get("authorization").and_then(|h| h.to_str().ok()) {
+                auth_header.to_owned()
+            } else if let Some(token) = get_cookie_value(&headers, "auth_token") {
+                format!("Bearer {token}")
+            } else {
+                return Err(AppError::auth_invalid(
+                    "Missing authorization header or cookie",
+                ));
+            };
+
+        // Authenticate and get user ID
+        let auth = resources
+            .auth_middleware
+            .authenticate_request(Some(&auth_value))
+            .await
+            .map_err(|e| AppError::auth_invalid(format!("Authentication failed: {e}")))?;
+
+        let user_id = auth.user_id;
+        Span::current().record("user_id", user_id.to_string());
+
+        // Get connected providers count from OAuth tokens
+        let oauth_tokens = resources.database.get_user_oauth_tokens(user_id).await?;
+        let connected_providers = i64::try_from(oauth_tokens.len()).unwrap_or(0);
+
+        // Get user creation date to calculate days active
+        let user = resources.database.get_user(user_id).await?;
+        let days_active = match user {
+            Some(u) => {
+                let now = chrono::Utc::now();
+                let duration = now.signed_duration_since(u.created_at);
+                duration.num_days().max(1)
+            }
+            None => 1,
+        };
+
+        let response = UserStatsResponse {
+            connected_providers,
+            days_active,
+        };
 
         Ok((StatusCode::OK, Json(response)).into_response())
     }

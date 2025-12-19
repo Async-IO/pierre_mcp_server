@@ -45,21 +45,13 @@ export default function UserHome({ onNavigate }: UserHomeProps) {
       </Card>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <div className="text-center">
             <div className="text-3xl font-bold text-pierre-violet">
               {statsLoading ? '...' : (stats?.connected_providers ?? 0)}
             </div>
             <div className="text-sm text-pierre-gray-600 mt-1">Connected Providers</div>
-          </div>
-        </Card>
-        <Card>
-          <div className="text-center">
-            <div className="text-3xl font-bold text-pierre-activity">
-              {statsLoading ? '...' : (stats?.activities_synced ?? 0)}
-            </div>
-            <div className="text-sm text-pierre-gray-600 mt-1">Activities Synced</div>
           </div>
         </Card>
         <Card>

@@ -63,6 +63,12 @@ function AppContent() {
         success={oauthCallback.success}
         error={oauthCallback.error}
         onClose={() => {
+          // Dispatch event for ChatTab to detect OAuth completion
+          window.postMessage({
+            type: 'oauth_completed',
+            provider: oauthCallback.provider,
+            success: oauthCallback.success,
+          }, window.location.origin);
           // Clear URL params and close the callback view
           window.history.replaceState({}, document.title, window.location.pathname);
           setOauthCallback(null);
