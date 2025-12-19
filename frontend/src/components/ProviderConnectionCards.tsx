@@ -220,7 +220,7 @@ export default function ProviderConnectionCards({
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-pierre-gray-900 text-sm">{provider.name}</span>
                       {connected && (
-                        <Badge variant="success" size="sm">
+                        <Badge variant="success">
                           Connected
                         </Badge>
                       )}

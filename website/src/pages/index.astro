@@ -134,15 +134,54 @@ import '../styles/global.css';
                     Connect your devices and ask questions in natural language. Pierre analyzes your activities and provides personalized insights.
                 </p>
             </div>
-            <div class="relative rounded-xl overflow-hidden border border-white/10 shadow-2xl shadow-violet-500/10">
-                <img
-                    src="/images/chat-screenshot.png"
-                    alt="Pierre chat interface showing activity analysis with training metrics, heart rate zones, nutrition recovery, and rest recommendations"
-                    class="w-full"
-                    loading="lazy"
-                />
-                <!-- Gradient overlay at bottom for smooth transition -->
-                <div class="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[#0F0F1A] to-transparent"></div>
+            <!-- Carousel Container -->
+            <div class="relative">
+                <div id="chat-carousel" class="relative rounded-xl overflow-hidden border border-white/10 shadow-2xl shadow-violet-500/10">
+                    <!-- Slide 1: Provider Connection -->
+                    <div class="carousel-slide" data-slide="0">
+                        <img
+                            src="/images/chat-new-conversation.png"
+                            alt="Pierre chat interface showing provider connection options for Strava, Fitbit, Garmin, WHOOP, and Terra"
+                            class="w-full"
+                            loading="lazy"
+                        />
+                    </div>
+                    <!-- Slide 2: Connected State with Prompts -->
+                    <div class="carousel-slide hidden" data-slide="1">
+                        <img
+                            src="/images/chat-connected-state.png"
+                            alt="Pierre chat interface showing connected state with training, nutrition, recovery, and recipe prompt suggestions"
+                            class="w-full"
+                            loading="lazy"
+                        />
+                    </div>
+                    <!-- Gradient overlay at bottom for smooth transition -->
+                    <div class="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[#0F0F1A] to-transparent pointer-events-none"></div>
+                </div>
+
+                <!-- Carousel Navigation Arrows -->
+                <button id="carousel-prev" class="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500" aria-label="Previous slide">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                    </svg>
+                </button>
+                <button id="carousel-next" class="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500" aria-label="Next slide">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                </button>
+
+                <!-- Carousel Indicators -->
+                <div class="flex justify-center gap-2 mt-4">
+                    <button class="carousel-dot w-2.5 h-2.5 rounded-full bg-violet-500 transition-all" data-slide="0" aria-label="Go to slide 1"></button>
+                    <button class="carousel-dot w-2.5 h-2.5 rounded-full bg-white/30 hover:bg-white/50 transition-all" data-slide="1" aria-label="Go to slide 2"></button>
+                </div>
+
+                <!-- Slide Labels -->
+                <div class="flex justify-center gap-8 mt-3">
+                    <span class="carousel-label text-sm text-violet-400 font-medium" data-slide="0">Connect Providers</span>
+                    <span class="carousel-label text-sm text-gray-500" data-slide="1">Get Insights</span>
+                </div>
             </div>
         </div>
     </section>
@@ -725,6 +764,76 @@ import '../styles/global.css';
                     submitBtn.disabled = false;
                 }
             });
+        })();
+    </script>
+
+    <!-- Chat Carousel Logic -->
+    <script>
+        (function() {
+            const slides = document.querySelectorAll('.carousel-slide');
+            const dots = document.querySelectorAll('.carousel-dot');
+            const labels = document.querySelectorAll('.carousel-label');
+            const prevBtn = document.getElementById('carousel-prev');
+            const nextBtn = document.getElementById('carousel-next');
+            let currentSlide = 0;
+            let autoPlayInterval;
+
+            function showSlide(index) {
+                // Wrap around
+                if (index >= slides.length) index = 0;
+                if (index < 0) index = slides.length - 1;
+                currentSlide = index;
+
+                // Update slides
+                slides.forEach((slide, i) => {
+                    slide.classList.toggle('hidden', i !== index);
+                });
+
+                // Update dots
+                dots.forEach((dot, i) => {
+                    dot.classList.toggle('bg-violet-500', i === index);
+                    dot.classList.toggle('bg-white/30', i !== index);
+                });
+
+                // Update labels
+                labels.forEach((label, i) => {
+                    label.classList.toggle('text-violet-400', i === index);
+                    label.classList.toggle('font-medium', i === index);
+                    label.classList.toggle('text-gray-500', i !== index);
+                });
+            }
+
+            function nextSlide() {
+                showSlide(currentSlide + 1);
+            }
+
+            function prevSlide() {
+                showSlide(currentSlide - 1);
+            }
+
+            function startAutoPlay() {
+                autoPlayInterval = setInterval(nextSlide, 5000);
+            }
+
+            function stopAutoPlay() {
+                clearInterval(autoPlayInterval);
+            }
+
+            // Event listeners
+            if (prevBtn) prevBtn.addEventListener('click', () => { stopAutoPlay(); prevSlide(); startAutoPlay(); });
+            if (nextBtn) nextBtn.addEventListener('click', () => { stopAutoPlay(); nextSlide(); startAutoPlay(); });
+
+            dots.forEach((dot, i) => {
+                dot.addEventListener('click', () => { stopAutoPlay(); showSlide(i); startAutoPlay(); });
+            });
+
+            labels.forEach((label, i) => {
+                label.addEventListener('click', () => { stopAutoPlay(); showSlide(i); startAutoPlay(); });
+                label.style.cursor = 'pointer';
+            });
+
+            // Start auto-play
+            startAutoPlay();
         })();
     </script>
 
