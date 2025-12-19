@@ -108,11 +108,19 @@ const ProviderIcon = ({ providerId, className }: { providerId: string; className
 
 interface ProviderConnectionCardsProps {
   onProviderConnected?: () => void;
+  onConnectProvider?: (providerName: string) => void;
+  connectingProvider?: string | null;
   onSkip?: () => void;
   isSkipPending?: boolean;
 }
 
-export default function ProviderConnectionCards({ onProviderConnected, onSkip, isSkipPending }: ProviderConnectionCardsProps) {
+export default function ProviderConnectionCards({
+  onProviderConnected,
+  onConnectProvider,
+  connectingProvider,
+  onSkip,
+  isSkipPending
+}: ProviderConnectionCardsProps) {
   // Fetch OAuth connection status
   const { data: oauthStatus, isLoading } = useQuery({
     queryKey: ['oauth-status'],
@@ -128,12 +136,18 @@ export default function ProviderConnectionCards({ onProviderConnected, onSkip, i
   };
 
   // Handle provider card click
-  const handleConnect = (providerId: string) => {
-    const connected = isConnected(providerId);
+  const handleConnect = (provider: Provider) => {
+    const connected = isConnected(provider.id);
     if (connected) return;
 
-    // Navigate to OAuth authorization endpoint
-    const authUrl = apiService.getOAuthAuthorizeUrl(providerId);
+    // Use callback if provided (for chat-based connection flow)
+    if (onConnectProvider) {
+      onConnectProvider(provider.name);
+      return;
+    }
+
+    // Fallback: Navigate directly to OAuth authorization endpoint
+    const authUrl = apiService.getOAuthAuthorizeUrl(provider.id);
     window.location.href = authUrl;
   };
 
@@ -170,12 +184,13 @@ export default function ProviderConnectionCards({ onProviderConnected, onSkip, i
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {PROVIDERS.map((provider) => {
           const connected = isConnected(provider.id);
+          const isConnecting = connectingProvider === provider.name;
           return (
             <button
               key={provider.id}
               type="button"
-              onClick={() => handleConnect(provider.id)}
-              disabled={connected}
+              onClick={() => handleConnect(provider)}
+              disabled={connected || isConnecting || !!connectingProvider}
               className="text-left focus:outline-none focus:ring-2 focus:ring-pierre-violet/50 rounded-xl disabled:cursor-default group"
               aria-label={connected ? `${provider.name} is connected` : `Connect to ${provider.name}`}
             >
@@ -183,14 +198,23 @@ export default function ProviderConnectionCards({ onProviderConnected, onSkip, i
                 className={`p-4 transition-all duration-200 h-full border-2 ${
                   connected
                     ? 'bg-pierre-gray-50/50 border-emerald-200'
-                    : `border-transparent ${provider.hoverColor} hover:shadow-lg hover:-translate-y-0.5`
+                    : isConnecting
+                      ? 'border-pierre-violet bg-pierre-violet/5'
+                      : `border-transparent ${provider.hoverColor} hover:shadow-lg hover:-translate-y-0.5`
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <div
                     className={`w-10 h-10 rounded-xl ${provider.brandColor} flex items-center justify-center text-white shadow-sm`}
                   >
-                    <ProviderIcon providerId={provider.id} />
+                    {isConnecting ? (
+                      <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
+                        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                      </svg>
+                    ) : (
+                      <ProviderIcon providerId={provider.id} />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">

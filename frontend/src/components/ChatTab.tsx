@@ -94,6 +94,7 @@ export default function ChatTab() {
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [showIdeas, setShowIdeas] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
 
   const sidebarPanelRef = usePanelRef();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -188,6 +189,7 @@ export default function ChatTab() {
             // Show visible notification in chat
             const providerDisplay = result.provider.charAt(0).toUpperCase() + result.provider.slice(1);
             setOauthNotification({ provider: providerDisplay, timestamp: Date.now() });
+            setConnectingProvider(null);
             // Clean up the storage item
             localStorage.removeItem('pierre_oauth_result');
           } else if (result.timestamp <= fiveMinutesAgo) {
@@ -212,6 +214,7 @@ export default function ChatTab() {
           // Show visible notification in chat
           const providerDisplay = provider.charAt(0).toUpperCase() + provider.slice(1);
           setOauthNotification({ provider: providerDisplay, timestamp: Date.now() });
+          setConnectingProvider(null);
         }
       }
     };
@@ -227,6 +230,7 @@ export default function ChatTab() {
             // Show visible notification in chat
             const providerDisplay = result.provider.charAt(0).toUpperCase() + result.provider.slice(1);
             setOauthNotification({ provider: providerDisplay, timestamp: Date.now() });
+            setConnectingProvider(null);
             // Clean up the storage item
             localStorage.removeItem('pierre_oauth_result');
           }
@@ -358,15 +362,36 @@ export default function ChatTab() {
       // Refresh messages after streaming completes
       queryClient.invalidateQueries({ queryKey: ['chat-messages', selectedConversation] });
       queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
+
+      // Auto-redirect to OAuth URL if we're connecting a provider
+      if (connectingProvider && fullContent) {
+        // Look for OAuth URLs in the response
+        const oauthUrlMatch = fullContent.match(/https?:\/\/[^\s<>[\]()]+oauth[^\s<>[\]()]*/i) ||
+                             fullContent.match(/https?:\/\/[^\s<>[\]()]*strava\.com[^\s<>[\]()]*/i) ||
+                             fullContent.match(/https?:\/\/[^\s<>[\]()]*fitbit\.com[^\s<>[\]()]*/i) ||
+                             fullContent.match(/https?:\/\/[^\s<>[\]()]*garmin\.com[^\s<>[\]()]*/i) ||
+                             fullContent.match(/https?:\/\/[^\s<>[\]()]*whoop\.com[^\s<>[\]()]*/i);
+        if (oauthUrlMatch) {
+          console.log(`Auto-redirecting to OAuth URL for ${connectingProvider}: ${oauthUrlMatch[0]}`);
+          // Small delay to let user see the response before redirect
+          setTimeout(() => {
+            window.location.href = oauthUrlMatch[0];
+          }, 500);
+        } else {
+          // No OAuth URL found, clear the connecting state
+          setConnectingProvider(null);
+        }
+      }
     } catch (error) {
       console.error('Failed to send message:', error);
       const errorMsg = error instanceof Error ? error.message : 'Failed to send message';
       setErrorMessage(errorMsg);
+      setConnectingProvider(null);
     } finally {
       setIsStreaming(false);
       setStreamingContent('');
     }
-  }, [newMessage, selectedConversation, isStreaming, queryClient]);
+  }, [newMessage, selectedConversation, isStreaming, queryClient, connectingProvider]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -388,6 +413,12 @@ export default function ChatTab() {
     setNewMessage(prompt);
     setShowIdeas(false);
     inputRef.current?.focus();
+  };
+
+  const handleConnectProvider = (providerName: string) => {
+    setConnectingProvider(providerName);
+    setPendingPrompt(`Connect to ${providerName}`);
+    createConversation.mutate();
   };
 
   const handleStartRename = (e: React.MouseEvent, conv: Conversation) => {
@@ -606,6 +637,8 @@ export default function ChatTab() {
                   </div>
 
                   <ProviderConnectionCards
+                    onConnectProvider={handleConnectProvider}
+                    connectingProvider={connectingProvider}
                     onSkip={handleNewChat}
                     isSkipPending={createConversation.isPending}
                   />
