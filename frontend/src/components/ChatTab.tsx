@@ -620,8 +620,9 @@ export default function ChatTab() {
 
       {/* Main Chat Area */}
       <Panel className="flex flex-col bg-white">
-        {!selectedConversation ? (
-          // Empty state - clean, minimal design
+        {/* Show empty state when no conversation selected OR when conversation has no messages */}
+        {(!selectedConversation || (selectedConversation && !messagesLoading && (!messagesData?.messages || messagesData.messages.length === 0))) ? (
+          // Empty state - clean, minimal design showing provider cards and activity analysis button
           <div className="flex-1 flex items-center justify-center overflow-y-auto py-12">
             <div className="w-full max-w-3xl px-6">
               {/* Step 1: Show provider connection cards if no providers connected */}
