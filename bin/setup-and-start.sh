@@ -26,10 +26,24 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$PROJECT_ROOT"
 
-# Load environment
-if [ -f .envrc ]; then
-    source .envrc
+# Require .envrc file - fail early if missing
+if [ ! -f .envrc ]; then
+    echo -e "${RED}ERROR: .envrc file not found at $PROJECT_ROOT/.envrc${NC}"
+    echo -e "${RED}This file is required for environment configuration.${NC}"
+    echo -e ""
+    echo -e "To fix this:"
+    echo -e "  1. Copy .envrc.example to .envrc (if available)"
+    echo -e "  2. Or create .envrc with required environment variables"
+    echo -e ""
+    echo -e "Required variables:"
+    echo -e "  - PIERRE_MASTER_ENCRYPTION_KEY"
+    echo -e "  - DATABASE_URL"
+    echo -e "  - STRAVA_CLIENT_ID / STRAVA_CLIENT_SECRET (optional)"
+    exit 1
 fi
+
+# Load environment
+source .envrc
 
 HTTP_PORT=${HTTP_PORT:-8081}
 

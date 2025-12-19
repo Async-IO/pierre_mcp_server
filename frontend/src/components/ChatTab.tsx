@@ -6,10 +6,13 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, ConfirmDialog } from './ui';
+import { Panel, Group as PanelGroup, Separator as PanelResizeHandle, usePanelRef } from 'react-resizable-panels';
+import { ConfirmDialog } from './ui';
 import { clsx } from 'clsx';
 import { apiService } from '../services/api';
 import Markdown from 'react-markdown';
+import PromptSuggestions, { WELCOME_ANALYSIS_PROMPT } from './PromptSuggestions';
+import ProviderConnectionCards from './ProviderConnectionCards';
 
 // Convert plain URLs to markdown links with friendly display names
 // Matches http/https URLs that aren't already in markdown link format
@@ -88,6 +91,12 @@ export default function ChatTab() {
   const [editedTitleValue, setEditedTitleValue] = useState('');
   const [oauthNotification, setOauthNotification] = useState<{ provider: string; timestamp: number } | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ id: string; title: string } | null>(null);
+  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
+  const [showIdeas, setShowIdeas] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
+
+  const sidebarPanelRef = usePanelRef();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -97,6 +106,15 @@ export default function ChatTab() {
     queryKey: ['chat-conversations'],
     queryFn: () => apiService.getConversations(),
   });
+
+  // Fetch OAuth status to determine if any providers are connected
+  const { data: oauthStatus } = useQuery({
+    queryKey: ['oauth-status'],
+    queryFn: () => apiService.getOAuthStatus(),
+  });
+
+  // Check if any provider is connected
+  const hasConnectedProvider = oauthStatus?.providers?.some(p => p.connected) ?? false;
 
   // Fetch messages for selected conversation
   const { data: messagesData, isLoading: messagesLoading } = useQuery<{ messages: Message[] }>({
@@ -171,6 +189,7 @@ export default function ChatTab() {
             // Show visible notification in chat
             const providerDisplay = result.provider.charAt(0).toUpperCase() + result.provider.slice(1);
             setOauthNotification({ provider: providerDisplay, timestamp: Date.now() });
+            setConnectingProvider(null);
             // Clean up the storage item
             localStorage.removeItem('pierre_oauth_result');
           } else if (result.timestamp <= fiveMinutesAgo) {
@@ -195,6 +214,7 @@ export default function ChatTab() {
           // Show visible notification in chat
           const providerDisplay = provider.charAt(0).toUpperCase() + provider.slice(1);
           setOauthNotification({ provider: providerDisplay, timestamp: Date.now() });
+          setConnectingProvider(null);
         }
       }
     };
@@ -210,6 +230,7 @@ export default function ChatTab() {
             // Show visible notification in chat
             const providerDisplay = result.provider.charAt(0).toUpperCase() + result.provider.slice(1);
             setOauthNotification({ provider: providerDisplay, timestamp: Date.now() });
+            setConnectingProvider(null);
             // Clean up the storage item
             localStorage.removeItem('pierre_oauth_result');
           }
@@ -246,6 +267,20 @@ export default function ChatTab() {
       window.removeEventListener('focus', handleFocus);
     };
   }, [queryClient]);
+
+  // Handle sending a pending prompt when conversation is ready
+  useEffect(() => {
+    if (pendingPrompt && selectedConversation && !isStreaming) {
+      const promptToSend = pendingPrompt;
+      setPendingPrompt(null);
+      setNewMessage(promptToSend);
+      // Small delay to ensure state is updated before sending
+      setTimeout(() => {
+        const sendButton = document.querySelector('[aria-label="Send message"]') as HTMLButtonElement;
+        sendButton?.click();
+      }, 100);
+    }
+  }, [pendingPrompt, selectedConversation, isStreaming]);
 
   const handleSendMessage = useCallback(async () => {
     if (!newMessage.trim() || !selectedConversation || isStreaming) return;
@@ -327,15 +362,36 @@ export default function ChatTab() {
       // Refresh messages after streaming completes
       queryClient.invalidateQueries({ queryKey: ['chat-messages', selectedConversation] });
       queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
+
+      // Auto-redirect to OAuth URL if we're connecting a provider
+      if (connectingProvider && fullContent) {
+        // Look for OAuth URLs in the response
+        const oauthUrlMatch = fullContent.match(/https?:\/\/[^\s<>[\]()]+oauth[^\s<>[\]()]*/i) ||
+                             fullContent.match(/https?:\/\/[^\s<>[\]()]*strava\.com[^\s<>[\]()]*/i) ||
+                             fullContent.match(/https?:\/\/[^\s<>[\]()]*fitbit\.com[^\s<>[\]()]*/i) ||
+                             fullContent.match(/https?:\/\/[^\s<>[\]()]*garmin\.com[^\s<>[\]()]*/i) ||
+                             fullContent.match(/https?:\/\/[^\s<>[\]()]*whoop\.com[^\s<>[\]()]*/i);
+        if (oauthUrlMatch) {
+          console.log(`Auto-redirecting to OAuth URL for ${connectingProvider}: ${oauthUrlMatch[0]}`);
+          // Small delay to let user see the response before redirect
+          setTimeout(() => {
+            window.location.href = oauthUrlMatch[0];
+          }, 500);
+        } else {
+          // No OAuth URL found, clear the connecting state
+          setConnectingProvider(null);
+        }
+      }
     } catch (error) {
       console.error('Failed to send message:', error);
       const errorMsg = error instanceof Error ? error.message : 'Failed to send message';
       setErrorMessage(errorMsg);
+      setConnectingProvider(null);
     } finally {
       setIsStreaming(false);
       setStreamingContent('');
     }
-  }, [newMessage, selectedConversation, isStreaming, queryClient]);
+  }, [newMessage, selectedConversation, isStreaming, queryClient, connectingProvider]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -345,6 +401,23 @@ export default function ChatTab() {
   };
 
   const handleNewChat = () => {
+    createConversation.mutate();
+  };
+
+  const handleSelectPrompt = (prompt: string) => {
+    setPendingPrompt(prompt);
+    createConversation.mutate();
+  };
+
+  const handleFillPrompt = (prompt: string) => {
+    setNewMessage(prompt);
+    setShowIdeas(false);
+    inputRef.current?.focus();
+  };
+
+  const handleConnectProvider = (providerName: string) => {
+    setConnectingProvider(providerName);
+    setPendingPrompt(`Connect to ${providerName}`);
     createConversation.mutate();
   };
 
@@ -368,6 +441,20 @@ export default function ChatTab() {
     setEditingTitle(null);
     setEditedTitleValue('');
   };
+
+  // Toggle sidebar collapse/expand
+  const toggleSidebar = useCallback(() => {
+    const panel = sidebarPanelRef.current;
+    if (panel) {
+      if (panel.isCollapsed()) {
+        panel.expand();
+        setSidebarCollapsed(false);
+      } else {
+        panel.collapse();
+        setSidebarCollapsed(true);
+      }
+    }
+  }, [sidebarPanelRef]);
 
   const handleDeleteConversation = (e: React.MouseEvent, conv: Conversation) => {
     e.stopPropagation();
@@ -394,34 +481,44 @@ export default function ChatTab() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] -mx-6 -mt-6">
-      {/* Left Sidebar - Conversation List */}
-      <div className="w-72 flex-shrink-0 border-r border-pierre-gray-200 bg-pierre-gray-50 flex flex-col">
+    <PanelGroup
+      orientation="horizontal"
+      className="h-[calc(100vh-8rem)] -mx-6 -mt-6"
+    >
+      {/* Left Sidebar - Conversation List (collapsible) */}
+      <Panel
+        panelRef={sidebarPanelRef}
+        defaultSize="25%"
+        minSize="15%"
+        maxSize="40%"
+        collapsible
+        collapsedSize="0%"
+        onResize={(size) => setSidebarCollapsed(size.asPercentage === 0)}
+        className="bg-pierre-gray-50 flex flex-col"
+      >
         {/* Header with New Chat Button */}
-        <div className="p-3 flex items-center justify-between">
+        <div className="py-2">
           <button
             onClick={handleNewChat}
             disabled={createConversation.isPending}
             title="New conversation"
             aria-label="New conversation"
-            className="w-8 h-8 flex items-center justify-center rounded-lg bg-pierre-violet text-white hover:bg-pierre-violet/90 transition-colors disabled:opacity-50 shadow-sm"
+            className="relative px-3 py-2 mx-2 flex items-center gap-2.5 rounded-lg hover:bg-pierre-gray-100 transition-colors disabled:opacity-50"
           >
-            {createConversation.isPending ? (
-              <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
-                <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-              </svg>
-            ) : (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-            )}
+            <div className="w-7 h-7 flex items-center justify-center rounded-lg bg-pierre-violet text-white shadow-sm flex-shrink-0">
+              {createConversation.isPending ? (
+                <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
+                  <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                </svg>
+              ) : (
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                </svg>
+              )}
+            </div>
+            <span className="text-sm font-medium text-pierre-gray-800">Add chat</span>
           </button>
-          {conversationsData?.conversations && conversationsData.conversations.length > 0 && (
-            <span className="text-xs text-pierre-gray-500">
-              {conversationsData.conversations.length} chats
-            </span>
-          )}
         </div>
 
         {/* Conversation List */}
@@ -498,26 +595,126 @@ export default function ChatTab() {
             </div>
           )}
         </div>
-      </div>
+      </Panel>
+
+      {/* Resize Handle with Toggle Button */}
+      <PanelResizeHandle className="w-2 bg-pierre-gray-200 hover:bg-pierre-violet/50 transition-colors relative group">
+        {/* Toggle button - appears on hover or when collapsed */}
+        <button
+          onClick={toggleSidebar}
+          className={clsx(
+            'absolute top-3 -left-3 w-6 h-6 rounded-full bg-white border border-pierre-gray-200 shadow-sm flex items-center justify-center text-pierre-gray-500 hover:text-pierre-violet hover:border-pierre-violet transition-all z-10',
+            sidebarCollapsed ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+          )}
+          title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+        >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {sidebarCollapsed ? (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            ) : (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            )}
+          </svg>
+        </button>
+      </PanelResizeHandle>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col bg-white">
-        {!selectedConversation ? (
-          // Empty state - centered hero
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center max-w-md px-6">
-              <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-pierre-violet to-pierre-cyan rounded-2xl flex items-center justify-center shadow-lg">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                </svg>
-              </div>
-              <h2 className="text-xl font-semibold text-pierre-gray-900 mb-2">Pierre Fitness Intelligence Assistant</h2>
-              <p className="text-pierre-gray-600 text-sm mb-4">
-                Ask about your fitness data, get training insights, analyze activities, or explore personalized recommendations.
-              </p>
-              <Button onClick={handleNewChat} variant="primary" disabled={createConversation.isPending}>
-                {createConversation.isPending ? 'Creating...' : 'Start a conversation'}
-              </Button>
+      <Panel className="flex flex-col bg-white">
+        {/* Show empty state when no conversation selected OR when conversation has no messages */}
+        {(!selectedConversation || (selectedConversation && !messagesLoading && (!messagesData?.messages || messagesData.messages.length === 0))) ? (
+          // Empty state - clean, minimal design showing provider cards and activity analysis button
+          <div className="flex-1 flex items-center justify-center overflow-y-auto py-12">
+            <div className="w-full max-w-3xl px-6">
+              {/* Step 1: Show provider connection cards if no providers connected */}
+              {!hasConnectedProvider && (
+                <>
+                  <div className="text-center mb-8">
+                    <h2 className="text-2xl font-semibold text-pierre-gray-900 mb-2">
+                      Connect your fitness data
+                    </h2>
+                    <p className="text-pierre-gray-500 text-sm">
+                      Link a provider to unlock personalized insights
+                    </p>
+                  </div>
+
+                  <ProviderConnectionCards
+                    onConnectProvider={handleConnectProvider}
+                    connectingProvider={connectingProvider}
+                    onSkip={handleNewChat}
+                    isSkipPending={createConversation.isPending}
+                  />
+                </>
+              )}
+
+              {/* Step 2: Show welcome state with activity analysis button once a provider is connected */}
+              {hasConnectedProvider && (
+                <>
+                  <div className="text-center mb-8">
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-sm font-medium rounded-full mb-4">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      {oauthStatus?.providers?.filter(p => p.connected).map(p =>
+                        p.provider.charAt(0).toUpperCase() + p.provider.slice(1)
+                      ).join(', ')} connected
+                    </div>
+                    <h2 className="text-2xl font-semibold text-pierre-gray-900 mb-2">
+                      Ready to analyze your fitness
+                    </h2>
+                    <p className="text-pierre-gray-500 text-sm">
+                      Get personalized insights from your activity data
+                    </p>
+                  </div>
+
+                  {/* Featured action: Analyze recent activities */}
+                  <div className="text-center mb-8">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectPrompt(WELCOME_ANALYSIS_PROMPT)}
+                      disabled={createConversation.isPending}
+                      className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-pierre-violet to-pierre-cyan text-white font-semibold rounded-xl shadow-lg shadow-pierre-violet/25 hover:shadow-xl hover:shadow-pierre-violet/30 hover:-translate-y-0.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-offset-2 disabled:opacity-50"
+                    >
+                      {createConversation.isPending ? (
+                        <>
+                          <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
+                            <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                          </svg>
+                          Analyzing...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                          </svg>
+                          Analyze my last 20 activities
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="flex items-center gap-4 my-8">
+                    <div className="flex-1 h-px bg-pierre-gray-200" />
+                    <span className="text-pierre-gray-400 text-xs uppercase tracking-wider">Or ask something else</span>
+                    <div className="flex-1 h-px bg-pierre-gray-200" />
+                  </div>
+
+                  {/* Additional prompt suggestions */}
+                  <PromptSuggestions onSelectPrompt={handleSelectPrompt} />
+
+                  <div className="mt-8 text-center">
+                    <button
+                      type="button"
+                      onClick={handleNewChat}
+                      disabled={createConversation.isPending}
+                      className="text-pierre-gray-500 hover:text-pierre-violet text-sm font-medium transition-colors"
+                    >
+                      Start a blank conversation
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         ) : (
@@ -680,6 +877,21 @@ export default function ChatTab() {
             {/* Input Area */}
             <div className="border-t border-pierre-gray-100 p-4 bg-white">
               <div className="max-w-3xl mx-auto">
+                {/* Ideas popover */}
+                {showIdeas && (
+                  <div className="mb-4 p-4 bg-pierre-gray-50 rounded-xl border border-pierre-gray-200 relative">
+                    <button
+                      onClick={() => setShowIdeas(false)}
+                      className="absolute top-2 right-2 text-pierre-gray-400 hover:text-pierre-gray-600"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                    <p className="text-xs text-pierre-gray-500 mb-3">Click a suggestion to fill the input:</p>
+                    <PromptSuggestions onSelectPrompt={handleFillPrompt} />
+                  </div>
+                )}
                 <div className="relative">
                   <textarea
                     ref={inputRef}
@@ -707,14 +919,26 @@ export default function ChatTab() {
                     </svg>
                   </button>
                 </div>
-                <p className="text-xs text-pierre-gray-400 mt-2 text-center">
-                  Press Enter to send, Shift+Enter for new line
-                </p>
+                <div className="flex items-center justify-center gap-2 mt-2">
+                  <p className="text-xs text-pierre-gray-400">
+                    Press Enter to send, Shift+Enter for new line
+                  </p>
+                  <span className="text-pierre-gray-300">|</span>
+                  <button
+                    onClick={() => setShowIdeas(!showIdeas)}
+                    className="text-xs text-pierre-violet hover:text-pierre-violet/80 flex items-center gap-1"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                    Need ideas?
+                  </button>
+                </div>
               </div>
             </div>
           </>
         )}
-      </div>
+      </Panel>
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog
@@ -728,6 +952,6 @@ export default function ChatTab() {
         variant="danger"
         isLoading={deleteConversation.isPending}
       />
-    </div>
+    </PanelGroup>
   );
 }
