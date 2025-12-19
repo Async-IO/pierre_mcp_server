@@ -196,23 +196,7 @@ impl ServerResources {
 
         // Create admin config service if SQLite is available
         // This provides runtime-configurable parameters via admin API
-        let admin_config = if let Some(pool) = database_arc.sqlite_pool() {
-            match AdminConfigService::new(pool.clone()).await {
-                Ok(service) => {
-                    info!("Admin configuration service initialized successfully");
-                    Some(Arc::new(service))
-                }
-                Err(e) => {
-                    warn!(
-                        "Failed to initialize admin config service: {}. Runtime config will not be available.",
-                        e
-                    );
-                    None
-                }
-            }
-        } else {
-            None
-        };
+        let admin_config = Self::init_admin_config_service(&database_arc).await;
 
         Self {
             database: database_arc,
@@ -306,6 +290,28 @@ impl ServerResources {
 
         info!("Generated and persisted new RSA keypair: {}", kid);
         Ok(())
+    }
+
+    /// Initialize admin config service if `SQLite` is available
+    ///
+    /// Returns None if no `SQLite` pool or initialization fails.
+    async fn init_admin_config_service(
+        database: &Arc<Database>,
+    ) -> Option<Arc<AdminConfigService>> {
+        let pool = database.sqlite_pool()?;
+        match AdminConfigService::new(pool.clone()).await {
+            Ok(service) => {
+                info!("Admin configuration service initialized successfully");
+                Some(Arc::new(service))
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to initialize admin config service: {}. Runtime config will not be available.",
+                    e
+                );
+                None
+            }
+        }
     }
 
     /// Resolve JWKS manager from provided instance or create new one
