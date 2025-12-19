@@ -341,15 +341,18 @@ impl DashboardTestSetup {
         let cache = common::create_test_cache().await?;
 
         // Create ServerResources using proper constructor
-        let server_resources = Arc::new(ServerResources::new(
-            (*database).clone(),
-            (*auth_manager).clone(),
-            "test_jwt_secret",
-            config,
-            cache,
-            2048, // Use 2048-bit RSA keys for faster test execution
-            Some(common::get_shared_test_jwks()),
-        ));
+        let server_resources = Arc::new(
+            ServerResources::new(
+                (*database).clone(),
+                (*auth_manager).clone(),
+                "test_jwt_secret",
+                config,
+                cache,
+                2048, // Use 2048-bit RSA keys for faster test execution
+                Some(common::get_shared_test_jwks()),
+            )
+            .await,
+        );
 
         // Create dashboard routes
         let dashboard_routes = DashboardRoutes::new(server_resources);
@@ -747,15 +750,18 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
 
     let cache = common::create_test_cache().await.unwrap();
 
-    let server_resources = Arc::new(ServerResources::new(
-        database.as_ref().clone(),
-        auth_manager.as_ref().clone(),
-        "test_jwt_secret",
-        config,
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let server_resources = Arc::new(
+        ServerResources::new(
+            database.as_ref().clone(),
+            auth_manager.as_ref().clone(),
+            "test_jwt_secret",
+            config,
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
 
     let dashboard_routes = DashboardRoutes::new(server_resources);
 

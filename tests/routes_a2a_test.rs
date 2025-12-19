@@ -248,15 +248,18 @@ impl A2ATestSetup {
             .expect("Failed to create test cache");
 
         // Create ServerResources for A2A routes
-        let server_resources = Arc::new(ServerResources::new(
-            (*database).clone(),
-            (*auth_manager).clone(),
-            "test_jwt_secret",
-            config,
-            cache,
-            2048, // Use 2048-bit RSA keys for faster test execution
-            Some(common::get_shared_test_jwks()),
-        ));
+        let server_resources = Arc::new(
+            ServerResources::new(
+                (*database).clone(),
+                (*auth_manager).clone(),
+                "test_jwt_secret",
+                config,
+                cache,
+                2048, // Use 2048-bit RSA keys for faster test execution
+                Some(common::get_shared_test_jwks()),
+            )
+            .await,
+        );
 
         // Create A2A routes
         let routes = A2ARoutes::new(server_resources.clone());

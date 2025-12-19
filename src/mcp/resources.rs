@@ -42,11 +42,8 @@ use crate::tenant::{oauth_manager::TenantOAuthManager, TenantOAuthClient};
 use crate::websocket::WebSocketManager;
 use chrono::Utc;
 use std::collections::HashMap;
-use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
-use tokio::runtime::Handle;
 use tokio::sync::{broadcast, mpsc, RwLock};
-use tokio::task;
 use tracing::{error, info, warn};
 
 /// Centralized resource container for dependency injection
@@ -116,7 +113,7 @@ impl ServerResources {
     // Function exceeds line limit because it assembles 20+ interdependent resources
     // Splitting would reduce clarity without improving maintainability
     #[allow(clippy::too_many_lines)]
-    pub fn new(
+    pub async fn new(
         database: Database,
         auth_manager: AuthManager,
         admin_jwt_secret: &str,
@@ -157,32 +154,8 @@ impl ServerResources {
         );
 
         // Use provided JWKS manager or load/create new one for RS256 JWT signing
-        let jwks_manager_arc = jwks_manager.unwrap_or_else(|| {
-            // Try to load persisted keys from database, blocking on async call
-            let loaded_jwks = task::block_in_place(|| {
-                Handle::current().block_on(async {
-                    Self::load_or_create_jwks_manager(&database_arc, rsa_key_size_bits).await
-                })
-            });
-
-            match loaded_jwks {
-                Ok(jwks) => Arc::new(jwks),
-                Err(e) => {
-                    error!(
-                        "Failed to initialize JWKS manager: {}. Creating new keys without persistence.",
-                        e
-                    );
-                    let mut new_jwks = JwksManager::new();
-                    if let Err(e) = new_jwks.generate_rsa_key_pair_with_size("initial_key", rsa_key_size_bits) {
-                        warn!(
-                            "Failed to generate initial JWKS key pair: {}. RS256 tokens will not be available.",
-                            e
-                        );
-                    }
-                    Arc::new(new_jwks)
-                }
-            }
-        });
+        let jwks_manager_arc =
+            Self::resolve_jwks_manager(jwks_manager, &database_arc, rsa_key_size_bits).await;
 
         // Create websocket manager after jwks_manager is initialized
         let websocket_manager = Arc::new(WebSocketManager::new(
@@ -223,38 +196,23 @@ impl ServerResources {
 
         // Create admin config service if SQLite is available
         // This provides runtime-configurable parameters via admin API
-        // Note: block_in_place only works on multi-threaded runtime, so we use catch_unwind
-        // to gracefully handle single-threaded test environments
-        let admin_config = database_arc.sqlite_pool().and_then(|pool| {
-            let pool_clone = pool.clone();
-            let result = catch_unwind(AssertUnwindSafe(|| {
-                task::block_in_place(|| {
-                    Handle::current()
-                        .block_on(async { AdminConfigService::new(pool_clone).await })
-                })
-            }));
-            match result {
-                Ok(Ok(service)) => {
+        let admin_config = if let Some(pool) = database_arc.sqlite_pool() {
+            match AdminConfigService::new(pool.clone()).await {
+                Ok(service) => {
                     info!("Admin configuration service initialized successfully");
                     Some(Arc::new(service))
                 }
-                Ok(Err(e)) => {
+                Err(e) => {
                     warn!(
                         "Failed to initialize admin config service: {}. Runtime config will not be available.",
                         e
                     );
                     None
                 }
-                Err(_) => {
-                    // Panic occurred - likely single-threaded runtime where block_in_place is not supported
-                    warn!(
-                        "Admin config service not initialized - requires multi-threaded runtime. \
-                        Runtime config will use defaults."
-                    );
-                    None
-                }
             }
-        });
+        } else {
+            None
+        };
 
         Self {
             database: database_arc,
@@ -348,6 +306,39 @@ impl ServerResources {
 
         info!("Generated and persisted new RSA keypair: {}", kid);
         Ok(())
+    }
+
+    /// Resolve JWKS manager from provided instance or create new one
+    ///
+    /// Uses provided manager if available, otherwise loads from database or creates new keys.
+    async fn resolve_jwks_manager(
+        provided: Option<Arc<JwksManager>>,
+        database: &Arc<Database>,
+        rsa_key_size_bits: usize,
+    ) -> Arc<JwksManager> {
+        if let Some(mgr) = provided {
+            return mgr;
+        }
+
+        match Self::load_or_create_jwks_manager(database, rsa_key_size_bits).await {
+            Ok(jwks) => Arc::new(jwks),
+            Err(e) => {
+                error!(
+                    "Failed to initialize JWKS manager: {}. Creating new keys without persistence.",
+                    e
+                );
+                let mut new_jwks = JwksManager::new();
+                if let Err(e) =
+                    new_jwks.generate_rsa_key_pair_with_size("initial_key", rsa_key_size_bits)
+                {
+                    warn!(
+                        "Failed to generate initial JWKS key pair: {}. RS256 tokens will not be available.",
+                        e
+                    );
+                }
+                Arc::new(new_jwks)
+            }
+        }
     }
 
     /// Load persisted RSA keys from database or create new ones
@@ -557,7 +548,7 @@ impl ServerResourcesBuilder {
     /// # Errors
     ///
     /// Returns an error if any required fields are missing
-    pub fn build(self) -> Result<ServerResources, &'static str> {
+    pub async fn build(self) -> Result<ServerResources, &'static str> {
         let database = self.database.ok_or("Database is required")?;
         let auth_manager = self.auth_manager.ok_or("AuthManager is required")?;
         let admin_jwt_secret = self
@@ -574,8 +565,8 @@ impl ServerResourcesBuilder {
             cache,
             self.rsa_key_size_bits,
             self.jwks_manager,
-        );
-
+        )
+        .await;
         Ok(resources)
     }
 
@@ -584,8 +575,8 @@ impl ServerResourcesBuilder {
     /// # Errors
     ///
     /// Returns an error if any required fields are missing
-    pub fn build_arc(self) -> Result<Arc<ServerResources>, &'static str> {
-        Ok(Arc::new(self.build()?))
+    pub async fn build_arc(self) -> Result<Arc<ServerResources>, &'static str> {
+        Ok(Arc::new(self.build().await?))
     }
 }
 

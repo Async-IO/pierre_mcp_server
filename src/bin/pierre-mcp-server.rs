@@ -262,7 +262,7 @@ async fn bootstrap_server(config: ServerConfig) -> Result<()> {
     initialize_global_configs(&config)?;
     let (database, auth_manager, jwt_secret) = initialize_core_systems(&config).await?;
     let cache = initialize_cache().await?;
-    let server = create_server(database, auth_manager, &jwt_secret, &config, cache);
+    let server = create_server(database, auth_manager, &jwt_secret, &config, cache).await;
     run_server(server, &config).await
 }
 
@@ -386,7 +386,7 @@ fn create_auth_manager(config: &ServerConfig) -> AuthManager {
 }
 
 /// Create server instance with all resources
-fn create_server(
+async fn create_server(
     database: Database,
     auth_manager: AuthManager,
     jwt_secret: &str,
@@ -404,7 +404,8 @@ fn create_server(
         cache,
         rsa_key_size,
         None, // Generate new JWKS manager for production
-    );
+    )
+    .await;
 
     // Wrap in Arc for plugin executor initialization
     let resources_arc = Arc::new(resources_instance.clone());

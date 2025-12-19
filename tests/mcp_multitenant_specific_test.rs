@@ -32,15 +32,18 @@ async fn test_unknown_method_handler() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
     let cache = create_test_cache().await?;
 
-    let resources = Arc::new(ServerResources::new(
-        (*database).clone(),
-        (*auth_manager).clone(),
-        TEST_JWT_SECRET,
-        config,
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let resources = Arc::new(
+        ServerResources::new(
+            (*database).clone(),
+            (*auth_manager).clone(),
+            TEST_JWT_SECRET,
+            config,
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
     let server = MultiTenantMcpServer::new(resources);
 
     // Create test user
@@ -78,15 +81,18 @@ async fn test_connect_strava_handler_errors() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
     let cache = create_test_cache().await?;
 
-    let resources = Arc::new(ServerResources::new(
-        (*database).clone(),
-        (*auth_manager).clone(),
-        TEST_JWT_SECRET,
-        config,
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let resources = Arc::new(
+        ServerResources::new(
+            (*database).clone(),
+            (*auth_manager).clone(),
+            TEST_JWT_SECRET,
+            config,
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
     let server = MultiTenantMcpServer::new(resources);
 
     // Create test user
@@ -108,15 +114,18 @@ async fn test_disconnect_provider_handler() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
     let cache = create_test_cache().await?;
 
-    let resources = Arc::new(ServerResources::new(
-        (*database).clone(),
-        (*auth_manager).clone(),
-        TEST_JWT_SECRET,
-        config,
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let resources = Arc::new(
+        ServerResources::new(
+            (*database).clone(),
+            (*auth_manager).clone(),
+            TEST_JWT_SECRET,
+            config,
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
     let server = MultiTenantMcpServer::new(resources);
 
     // Create test user
@@ -139,15 +148,18 @@ async fn test_authentication_error_handling() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
     let cache = create_test_cache().await?;
 
-    let resources = Arc::new(ServerResources::new(
-        (*database).clone(),
-        (*auth_manager).clone(),
-        TEST_JWT_SECRET,
-        config,
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let resources = Arc::new(
+        ServerResources::new(
+            (*database).clone(),
+            (*auth_manager).clone(),
+            TEST_JWT_SECRET,
+            config,
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
     let _server = MultiTenantMcpServer::new(resources);
 
     // Test invalid token format
@@ -178,15 +190,18 @@ async fn test_rate_limiting_enforcement() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
     let cache = create_test_cache().await?;
 
-    let resources = Arc::new(ServerResources::new(
-        (*database).clone(),
-        (*auth_manager).clone(),
-        TEST_JWT_SECRET,
-        config,
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let resources = Arc::new(
+        ServerResources::new(
+            (*database).clone(),
+            (*auth_manager).clone(),
+            TEST_JWT_SECRET,
+            config,
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
     let server = MultiTenantMcpServer::new(resources);
 
     // Create test user with starter tier (should have rate limits)
@@ -216,15 +231,18 @@ async fn test_provider_initialization_errors() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
     let cache = create_test_cache().await?;
 
-    let resources = Arc::new(ServerResources::new(
-        (*database).clone(),
-        (*auth_manager).clone(),
-        TEST_JWT_SECRET,
-        config,
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let resources = Arc::new(
+        ServerResources::new(
+            (*database).clone(),
+            (*auth_manager).clone(),
+            TEST_JWT_SECRET,
+            config,
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
     let server = MultiTenantMcpServer::new(resources);
 
     // Create test user
@@ -247,15 +265,18 @@ async fn test_jsonrpc_error_responses() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
     let cache = create_test_cache().await?;
 
-    let resources = Arc::new(ServerResources::new(
-        (*database).clone(),
-        (*auth_manager).clone(),
-        TEST_JWT_SECRET,
-        config,
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let resources = Arc::new(
+        ServerResources::new(
+            (*database).clone(),
+            (*auth_manager).clone(),
+            TEST_JWT_SECRET,
+            config,
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
     let _server = MultiTenantMcpServer::new(resources);
 
     // Test malformed JSON-RPC requests
@@ -276,15 +297,18 @@ async fn test_session_state_edge_cases() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
     let cache = create_test_cache().await?;
 
-    let resources = Arc::new(ServerResources::new(
-        (*database).clone(),
-        (*auth_manager).clone(),
-        TEST_JWT_SECRET,
-        config,
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let resources = Arc::new(
+        ServerResources::new(
+            (*database).clone(),
+            (*auth_manager).clone(),
+            TEST_JWT_SECRET,
+            config,
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
     let _server = MultiTenantMcpServer::new(resources);
 
     // Test concurrent session modifications
@@ -305,15 +329,18 @@ async fn test_database_error_handling() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
     let cache = create_test_cache().await?;
 
-    let resources = Arc::new(ServerResources::new(
-        (*database).clone(),
-        (*auth_manager).clone(),
-        TEST_JWT_SECRET,
-        config,
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let resources = Arc::new(
+        ServerResources::new(
+            (*database).clone(),
+            (*auth_manager).clone(),
+            TEST_JWT_SECRET,
+            config,
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
     let _server = MultiTenantMcpServer::new(resources);
 
     // Test database connection failures
@@ -334,15 +361,18 @@ async fn test_tool_call_parameter_validation() -> Result<()> {
     let config = Arc::new(ServerConfig::from_env()?);
     let cache = create_test_cache().await?;
 
-    let resources = Arc::new(ServerResources::new(
-        (*database).clone(),
-        (*auth_manager).clone(),
-        TEST_JWT_SECRET,
-        config,
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let resources = Arc::new(
+        ServerResources::new(
+            (*database).clone(),
+            (*auth_manager).clone(),
+            TEST_JWT_SECRET,
+            config,
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
     let server = MultiTenantMcpServer::new(resources);
 
     // Create test user

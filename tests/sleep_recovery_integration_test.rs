@@ -210,15 +210,18 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
     };
     let cache = Cache::new(cache_config).await?;
 
-    let server_resources = Arc::new(ServerResources::new(
-        (*database).clone(),
-        auth_manager,
-        "test_secret",
-        config,
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let server_resources = Arc::new(
+        ServerResources::new(
+            (*database).clone(),
+            auth_manager,
+            "test_secret",
+            config,
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
 
     Ok(UniversalToolExecutor::new(server_resources))
 }

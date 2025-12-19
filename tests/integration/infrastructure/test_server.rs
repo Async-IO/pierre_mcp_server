@@ -73,15 +73,18 @@ impl IntegrationTestServer {
         })
         .await?;
 
-        let resources = Arc::new(ServerResources::new(
-            (*database).clone(),
-            (*auth_manager).clone(),
-            "integration_test_jwt_secret",
-            config,
-            cache,
-            2048,
-            Some(jwks_manager),
-        ));
+        let resources = Arc::new(
+            ServerResources::new(
+                (*database).clone(),
+                (*auth_manager).clone(),
+                "integration_test_jwt_secret",
+                config,
+                cache,
+                2048,
+                Some(jwks_manager),
+            )
+            .await,
+        );
 
         Ok(Self {
             port,

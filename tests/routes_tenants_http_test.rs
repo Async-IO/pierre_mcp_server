@@ -73,15 +73,18 @@ impl TenantTestSetup {
             ..Default::default()
         });
 
-        let resources = Arc::new(ServerResources::new(
-            (*database).clone(),
-            (*auth_manager).clone(),
-            "test_jwt_secret",
-            config,
-            cache,
-            2048,
-            Some(common::get_shared_test_jwks()),
-        ));
+        let resources = Arc::new(
+            ServerResources::new(
+                (*database).clone(),
+                (*auth_manager).clone(),
+                "test_jwt_secret",
+                config,
+                cache,
+                2048,
+                Some(common::get_shared_test_jwks()),
+            )
+            .await,
+        );
 
         // Generate JWT token for the user
         let jwt_token = auth_manager

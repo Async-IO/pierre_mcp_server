@@ -178,15 +178,18 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
     // Create ServerResources for the test
     let auth_manager = AuthManager::new(24);
     let cache = common::create_test_cache().await.unwrap();
-    let server_resources = Arc::new(ServerResources::new(
-        (*database).clone(),
-        auth_manager,
-        "test_secret",
-        config,
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let server_resources = Arc::new(
+        ServerResources::new(
+            (*database).clone(),
+            auth_manager,
+            "test_secret",
+            config,
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
     Ok(UniversalToolExecutor::new(server_resources))
 }
 
@@ -224,15 +227,18 @@ async fn create_executor_no_oauth() -> Result<UniversalToolExecutor> {
     // Create ServerResources for the test
     let auth_manager = AuthManager::new(24);
     let cache = common::create_test_cache().await.unwrap();
-    let server_resources = Arc::new(ServerResources::new(
-        (*database).clone(),
-        auth_manager,
-        "test_secret",
-        config,
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let server_resources = Arc::new(
+        ServerResources::new(
+            (*database).clone(),
+            auth_manager,
+            "test_secret",
+            config,
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
 
     Ok(UniversalToolExecutor::new(server_resources))
 }

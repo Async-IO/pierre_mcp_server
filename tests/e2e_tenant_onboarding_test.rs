@@ -251,15 +251,18 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
     // Create ServerResources for the test
     let auth_manager = AuthManager::new(24);
     let cache = common::create_test_cache().await.unwrap();
-    let server_resources = Arc::new(ServerResources::new(
-        (*database).clone(),
-        auth_manager,
-        "test_secret",
-        config,
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let server_resources = Arc::new(
+        ServerResources::new(
+            (*database).clone(),
+            auth_manager,
+            "test_secret",
+            config,
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
     let executor = UniversalToolExecutor::new(server_resources);
 
     // Step 8: Test tenant-aware tool execution for Acme

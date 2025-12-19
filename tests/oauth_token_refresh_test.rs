@@ -457,15 +457,18 @@ async fn create_test_executor() -> (Arc<UniversalToolExecutor>, Arc<Database>) {
     // Create ServerResources for the test
     let auth_manager = AuthManager::new(24);
     let cache = common::create_test_cache().await.unwrap();
-    let server_resources = Arc::new(ServerResources::new(
-        (*database).clone(),
-        auth_manager,
-        "test_secret",
-        create_test_server_config(),
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let server_resources = Arc::new(
+        ServerResources::new(
+            (*database).clone(),
+            auth_manager,
+            "test_secret",
+            create_test_server_config(),
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
     let executor = Arc::new(UniversalToolExecutor::new(server_resources));
 
     (executor, database)
@@ -518,15 +521,18 @@ async fn create_test_executor_without_oauth() -> (Arc<UniversalToolExecutor>, Ar
     // Create ServerResources for the test
     let auth_manager = AuthManager::new(24);
     let cache = common::create_test_cache().await.unwrap();
-    let server_resources = Arc::new(ServerResources::new(
-        (*database).clone(),
-        auth_manager,
-        "test_secret",
-        create_test_server_config_without_oauth(),
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let server_resources = Arc::new(
+        ServerResources::new(
+            (*database).clone(),
+            auth_manager,
+            "test_secret",
+            create_test_server_config_without_oauth(),
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
     let executor = Arc::new(UniversalToolExecutor::new(server_resources));
 
     (executor, database)

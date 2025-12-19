@@ -119,15 +119,18 @@ async fn create_test_tool_executor_with_user() -> (Arc<UniversalToolExecutor>, S
         .await
         .expect("Failed to create test user");
 
-    let server_resources = Arc::new(ServerResources::new(
-        (*database).clone(),
-        auth_manager,
-        "test_secret",
-        config,
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let server_resources = Arc::new(
+        ServerResources::new(
+            (*database).clone(),
+            auth_manager,
+            "test_secret",
+            config,
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
     (
         Arc::new(UniversalToolExecutor::new(server_resources)),
         user_id.to_string(),

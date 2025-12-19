@@ -401,15 +401,18 @@ pub async fn create_test_server_resources() -> Result<Arc<ServerResources>> {
     // Use shared JWKS manager to eliminate expensive RSA key generation (250-350ms per test)
     let jwks_manager = get_shared_test_jwks();
 
-    Ok(Arc::new(ServerResources::new(
-        database,
-        auth_manager,
-        admin_jwt_secret,
-        config,
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution (if new keys needed)
-        Some(jwks_manager),
-    )))
+    Ok(Arc::new(
+        ServerResources::new(
+            database,
+            auth_manager,
+            admin_jwt_secret,
+            config,
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution (if new keys needed)
+            Some(jwks_manager),
+        )
+        .await,
+    ))
 }
 
 /// Complete test environment setup using `ServerResources` pattern

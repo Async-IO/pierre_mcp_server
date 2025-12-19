@@ -521,15 +521,18 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
     })
     .await?;
 
-    let resources = Arc::new(ServerResources::new(
-        database,
-        auth_manager,
-        &stored_jwt_secret,
-        create_test_config(server_port),
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let resources = Arc::new(
+        ServerResources::new(
+            database,
+            auth_manager,
+            &stored_jwt_secret,
+            create_test_config(server_port),
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
         tokio::select! {
@@ -697,15 +700,18 @@ async fn test_mcp_authentication_required() -> Result<()> {
     })
     .await?;
 
-    let resources = Arc::new(ServerResources::new(
-        database,
-        auth_manager,
-        &stored_jwt_secret,
-        create_test_config(server_port),
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let resources = Arc::new(
+        ServerResources::new(
+            database,
+            auth_manager,
+            &stored_jwt_secret,
+            create_test_config(server_port),
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
         tokio::select! {
@@ -788,15 +794,18 @@ async fn test_mcp_initialization_no_auth() -> Result<()> {
     })
     .await?;
 
-    let resources = Arc::new(ServerResources::new(
-        database,
-        auth_manager,
-        &stored_jwt_secret,
-        create_test_config(server_port),
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let resources = Arc::new(
+        ServerResources::new(
+            database,
+            auth_manager,
+            &stored_jwt_secret,
+            create_test_config(server_port),
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
         tokio::select! {
@@ -870,15 +879,18 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
     })
     .await?;
 
-    let resources = Arc::new(ServerResources::new(
-        database,
-        auth_manager,
-        &stored_jwt_secret,
-        create_test_config(server_port),
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let resources = Arc::new(
+        ServerResources::new(
+            database,
+            auth_manager,
+            &stored_jwt_secret,
+            create_test_config(server_port),
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
         tokio::select! {
@@ -977,15 +989,18 @@ async fn test_multitenant_server_config() -> Result<()> {
     .await?;
 
     // Test server creation
-    let resources = Arc::new(ServerResources::new(
-        database,
-        auth_manager,
-        &stored_jwt_secret,
-        config.clone(),
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let resources = Arc::new(
+        ServerResources::new(
+            database,
+            auth_manager,
+            &stored_jwt_secret,
+            config.clone(),
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
     let _server = MultiTenantMcpServer::new(resources);
 
     // Verify configuration (port is dynamically allocated)

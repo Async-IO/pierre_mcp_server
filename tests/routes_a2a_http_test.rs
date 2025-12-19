@@ -59,15 +59,18 @@ async fn create_a2a_test_resources() -> Arc<ServerResources> {
         ..Default::default()
     });
 
-    Arc::new(ServerResources::new(
-        (*database).clone(),
-        (*auth_manager).clone(),
-        "test_jwt_secret",
-        config,
-        cache,
-        2048,
-        Some(common::get_shared_test_jwks()),
-    ))
+    Arc::new(
+        ServerResources::new(
+            (*database).clone(),
+            (*auth_manager).clone(),
+            "test_jwt_secret",
+            config,
+            cache,
+            2048,
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    )
 }
 
 /// Get A2A routes for testing

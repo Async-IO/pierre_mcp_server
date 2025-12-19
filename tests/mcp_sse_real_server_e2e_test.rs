@@ -90,15 +90,18 @@ impl TestServer {
         })
         .await?;
 
-        let resources = Arc::new(ServerResources::new(
-            (*self.database).clone(),
-            (*self.auth_manager).clone(),
-            &self.jwt_secret,
-            config,
-            cache,
-            2048,
-            Some(common::get_shared_test_jwks()),
-        ));
+        let resources = Arc::new(
+            ServerResources::new(
+                (*self.database).clone(),
+                (*self.auth_manager).clone(),
+                &self.jwt_secret,
+                config,
+                cache,
+                2048,
+                Some(common::get_shared_test_jwks()),
+            )
+            .await,
+        );
 
         let server = MultiTenantMcpServer::new(resources);
         let port = self.port;

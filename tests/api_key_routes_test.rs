@@ -89,166 +89,170 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
     let cache = common::create_test_cache().await.unwrap();
 
     // Create ServerResources for API key routes
-    let server_resources = Arc::new(ServerResources::new(
-        database.clone(),
-        auth_manager.clone(),
-        "test_jwt_secret",
-        Arc::new({
-            // Create temporary directory for test config files
-            let temp_dir = tempfile::tempdir().unwrap();
+    let server_resources = Arc::new(
+        ServerResources::new(
+            database.clone(),
+            auth_manager.clone(),
+            "test_jwt_secret",
+            Arc::new({
+                // Create temporary directory for test config files
+                let temp_dir = tempfile::tempdir().unwrap();
 
-            ServerConfig {
-                http_port: 8081,
-                oauth_callback_port: 35535,
-                log_level: LogLevel::Info,
-                logging: LoggingConfig::default(),
-                http_client: HttpClientConfig::default(),
-                database: DatabaseConfig {
-                    url: DatabaseUrl::Memory,
-                    auto_migrate: true,
-                    backup: BackupConfig {
-                        enabled: false,
-                        interval_seconds: 3600,
-                        retention_count: 7,
-                        directory: temp_dir.path().to_path_buf(),
+                ServerConfig {
+                    http_port: 8081,
+                    oauth_callback_port: 35535,
+                    log_level: LogLevel::Info,
+                    logging: LoggingConfig::default(),
+                    http_client: HttpClientConfig::default(),
+                    database: DatabaseConfig {
+                        url: DatabaseUrl::Memory,
+                        auto_migrate: true,
+                        backup: BackupConfig {
+                            enabled: false,
+                            interval_seconds: 3600,
+                            retention_count: 7,
+                            directory: temp_dir.path().to_path_buf(),
+                        },
+                        postgres_pool: PostgresPoolConfig::default(),
                     },
-                    postgres_pool: PostgresPoolConfig::default(),
-                },
-                auth: AuthConfig {
-                    jwt_expiry_hours: 24,
-                    enable_refresh_tokens: false,
-                    ..AuthConfig::default()
-                },
-                oauth: OAuthConfig {
-                    strava: OAuthProviderConfig {
-                        client_id: None,
-                        client_secret: None,
-                        redirect_uri: None,
-                        scopes: vec![],
-                        enabled: false,
+                    auth: AuthConfig {
+                        jwt_expiry_hours: 24,
+                        enable_refresh_tokens: false,
+                        ..AuthConfig::default()
                     },
-                    fitbit: OAuthProviderConfig {
-                        client_id: None,
-                        client_secret: None,
-                        redirect_uri: None,
-                        scopes: vec![],
-                        enabled: false,
+                    oauth: OAuthConfig {
+                        strava: OAuthProviderConfig {
+                            client_id: None,
+                            client_secret: None,
+                            redirect_uri: None,
+                            scopes: vec![],
+                            enabled: false,
+                        },
+                        fitbit: OAuthProviderConfig {
+                            client_id: None,
+                            client_secret: None,
+                            redirect_uri: None,
+                            scopes: vec![],
+                            enabled: false,
+                        },
+                        garmin: OAuthProviderConfig {
+                            client_id: None,
+                            client_secret: None,
+                            redirect_uri: None,
+                            scopes: vec![],
+                            enabled: false,
+                        },
+                        whoop: OAuthProviderConfig {
+                            client_id: None,
+                            client_secret: None,
+                            redirect_uri: None,
+                            scopes: vec![],
+                            enabled: false,
+                        },
+                        terra: OAuthProviderConfig {
+                            client_id: None,
+                            client_secret: None,
+                            redirect_uri: None,
+                            scopes: vec![],
+                            enabled: false,
+                        },
                     },
-                    garmin: OAuthProviderConfig {
-                        client_id: None,
-                        client_secret: None,
-                        redirect_uri: None,
-                        scopes: vec![],
-                        enabled: false,
+                    security: SecurityConfig {
+                        cors_origins: vec!["*".to_owned()],
+                        tls: TlsConfig {
+                            enabled: false,
+                            cert_path: None,
+                            key_path: None,
+                        },
+                        headers: SecurityHeadersConfig {
+                            environment: Environment::Testing,
+                        },
                     },
-                    whoop: OAuthProviderConfig {
-                        client_id: None,
-                        client_secret: None,
-                        redirect_uri: None,
-                        scopes: vec![],
-                        enabled: false,
+                    external_services: ExternalServicesConfig {
+                        weather: WeatherServiceConfig {
+                            api_key: None,
+                            base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
+                            enabled: false,
+                        },
+                        geocoding: GeocodingServiceConfig {
+                            base_url: "https://nominatim.openstreetmap.org".to_owned(),
+                            enabled: false,
+                        },
+                        strava_api: StravaApiConfig {
+                            base_url: "https://www.strava.com/api/v3".to_owned(),
+                            auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                            token_url: "https://www.strava.com/oauth/token".to_owned(),
+                            deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
+                            ..Default::default()
+                        },
+                        fitbit_api: FitbitApiConfig {
+                            base_url: "https://api.fitbit.com".to_owned(),
+                            auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                            token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
+                            revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
+                            ..Default::default()
+                        },
+                        garmin_api: GarminApiConfig {
+                            base_url: "https://apis.garmin.com".to_owned(),
+                            auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
+                            token_url:
+                                "https://connect.garmin.com/oauth-service/oauth/access_token"
+                                    .to_owned(),
+                            revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke"
+                                .to_owned(),
+                            ..Default::default()
+                        },
                     },
-                    terra: OAuthProviderConfig {
-                        client_id: None,
-                        client_secret: None,
-                        redirect_uri: None,
-                        scopes: vec![],
-                        enabled: false,
+                    app_behavior: AppBehaviorConfig {
+                        max_activities_fetch: 100,
+                        default_activities_limit: 20,
+                        ci_mode: true,
+                        auto_approve_users: false,
+                        protocol: ProtocolConfig {
+                            mcp_version: "2025-06-18".to_owned(),
+                            server_name: "pierre-mcp-server-test".to_owned(),
+                            server_version: env!("CARGO_PKG_VERSION").to_owned(),
+                        },
                     },
-                },
-                security: SecurityConfig {
-                    cors_origins: vec!["*".to_owned()],
-                    tls: TlsConfig {
-                        enabled: false,
-                        cert_path: None,
-                        key_path: None,
-                    },
-                    headers: SecurityHeadersConfig {
-                        environment: Environment::Testing,
-                    },
-                },
-                external_services: ExternalServicesConfig {
-                    weather: WeatherServiceConfig {
-                        api_key: None,
-                        base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
-                        enabled: false,
-                    },
-                    geocoding: GeocodingServiceConfig {
-                        base_url: "https://nominatim.openstreetmap.org".to_owned(),
-                        enabled: false,
-                    },
-                    strava_api: StravaApiConfig {
-                        base_url: "https://www.strava.com/api/v3".to_owned(),
-                        auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
-                        token_url: "https://www.strava.com/oauth/token".to_owned(),
-                        deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
-                        ..Default::default()
-                    },
-                    fitbit_api: FitbitApiConfig {
-                        base_url: "https://api.fitbit.com".to_owned(),
-                        auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
-                        token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
-                        revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
-                        ..Default::default()
-                    },
-                    garmin_api: GarminApiConfig {
-                        base_url: "https://apis.garmin.com".to_owned(),
-                        auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
-                        token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
-                            .to_owned(),
-                        revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke"
-                            .to_owned(),
-                        ..Default::default()
-                    },
-                },
-                app_behavior: AppBehaviorConfig {
-                    max_activities_fetch: 100,
-                    default_activities_limit: 20,
-                    ci_mode: true,
-                    auto_approve_users: false,
-                    protocol: ProtocolConfig {
-                        mcp_version: "2025-06-18".to_owned(),
+                    sse: SseConfig::default(),
+                    oauth2_server: OAuth2ServerConfig::default(),
+                    route_timeouts: RouteTimeoutConfig::default(),
+                    host: "localhost".to_owned(),
+                    base_url: "http://localhost:8081".to_owned(),
+                    mcp: McpConfig {
+                        protocol_version: "2025-06-18".to_owned(),
                         server_name: "pierre-mcp-server-test".to_owned(),
-                        server_version: env!("CARGO_PKG_VERSION").to_owned(),
+                        session_cache_size: 1000,
+                        ..Default::default()
                     },
-                },
-                sse: SseConfig::default(),
-                oauth2_server: OAuth2ServerConfig::default(),
-                route_timeouts: RouteTimeoutConfig::default(),
-                host: "localhost".to_owned(),
-                base_url: "http://localhost:8081".to_owned(),
-                mcp: McpConfig {
-                    protocol_version: "2025-06-18".to_owned(),
-                    server_name: "pierre-mcp-server-test".to_owned(),
-                    session_cache_size: 1000,
-                    ..Default::default()
-                },
-                cors: CorsConfig {
-                    allowed_origins: "*".to_owned(),
-                    allow_localhost_dev: true,
-                },
-                cache: CacheConfig {
-                    redis_url: None,
-                    max_entries: 10000,
-                    cleanup_interval_secs: 300,
-                    ..Default::default()
-                },
-                usda_api_key: None,
-                rate_limiting: RateLimitConfig::default(),
-                sleep_recovery: SleepRecoveryConfig::default(),
-                goal_management: GoalManagementConfig::default(),
-                training_zones: TrainingZonesConfig::default(),
-                firebase: FirebaseConfig::default(),
-                tokio_runtime: TokioRuntimeConfig::default(),
-                sqlx: SqlxConfig::default(),
-                monitoring: MonitoringConfig::default(),
-                frontend_url: None,
-            }
-        }),
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+                    cors: CorsConfig {
+                        allowed_origins: "*".to_owned(),
+                        allow_localhost_dev: true,
+                    },
+                    cache: CacheConfig {
+                        redis_url: None,
+                        max_entries: 10000,
+                        cleanup_interval_secs: 300,
+                        ..Default::default()
+                    },
+                    usda_api_key: None,
+                    rate_limiting: RateLimitConfig::default(),
+                    sleep_recovery: SleepRecoveryConfig::default(),
+                    goal_management: GoalManagementConfig::default(),
+                    training_zones: TrainingZonesConfig::default(),
+                    firebase: FirebaseConfig::default(),
+                    tokio_runtime: TokioRuntimeConfig::default(),
+                    sqlx: SqlxConfig::default(),
+                    monitoring: MonitoringConfig::default(),
+                    frontend_url: None,
+                }
+            }),
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
 
     // Create API key routes
     let api_key_routes = ApiKeyRoutes::new(server_resources);

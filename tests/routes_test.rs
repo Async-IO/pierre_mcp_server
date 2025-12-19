@@ -220,15 +220,18 @@ async fn test_register_user() {
         frontend_url: None,
     });
     let cache = common::create_test_cache().await.unwrap();
-    let server_resources = Arc::new(ServerResources::new(
-        database.clone(),
-        auth_manager.clone(),
-        "test_jwt_secret",
-        config,
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let server_resources = Arc::new(
+        ServerResources::new(
+            database.clone(),
+            auth_manager.clone(),
+            "test_jwt_secret",
+            config,
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
 
     let server_context = ServerContext::from(server_resources.as_ref());
     let routes = AuthService::new(
@@ -396,15 +399,18 @@ async fn test_register_duplicate_user() {
         frontend_url: None,
     });
     let cache = common::create_test_cache().await.unwrap();
-    let server_resources = Arc::new(ServerResources::new(
-        database.clone(),
-        auth_manager.clone(),
-        "test_jwt_secret",
-        config,
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let server_resources = Arc::new(
+        ServerResources::new(
+            database.clone(),
+            auth_manager.clone(),
+            "test_jwt_secret",
+            config,
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
 
     let server_context = ServerContext::from(server_resources.as_ref());
     let routes = AuthService::new(

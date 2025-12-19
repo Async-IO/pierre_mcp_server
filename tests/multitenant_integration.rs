@@ -353,15 +353,18 @@ async fn test_multitenant_auth_flow() -> Result<()> {
         .await
         .expect("Failed to create test cache");
 
-    let server_resources = Arc::new(ServerResources::new(
-        database.clone(),
-        auth_manager.clone(),
-        "test_jwt_secret",
-        config,
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let server_resources = Arc::new(
+        ServerResources::new(
+            database.clone(),
+            auth_manager.clone(),
+            "test_jwt_secret",
+            config,
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
 
     let server_context = ServerContext::from(server_resources.as_ref());
     let auth_routes = AuthService::new(
@@ -844,15 +847,18 @@ async fn test_input_validation() -> Result<()> {
         .await
         .expect("Failed to create test cache");
 
-    let server_resources = Arc::new(ServerResources::new(
-        database.clone(),
-        auth_manager.clone(),
-        "test_jwt_secret",
-        config,
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let server_resources = Arc::new(
+        ServerResources::new(
+            database.clone(),
+            auth_manager.clone(),
+            "test_jwt_secret",
+            config,
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
 
     let server_context = ServerContext::from(server_resources.as_ref());
     let auth_routes = AuthService::new(

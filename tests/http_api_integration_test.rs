@@ -284,15 +284,18 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthService, OAuthSe
     };
     let cache = Cache::new(cache_config).await.unwrap();
 
-    let server_resources = Arc::new(ServerResources::new(
-        (*database).clone(),
-        (*auth_manager).clone(),
-        "test_jwt_secret",
-        config,
-        cache,
-        2048, // Use 2048-bit RSA keys for faster test execution
-        Some(common::get_shared_test_jwks()),
-    ));
+    let server_resources = Arc::new(
+        ServerResources::new(
+            (*database).clone(),
+            (*auth_manager).clone(),
+            "test_jwt_secret",
+            config,
+            cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
+        )
+        .await,
+    );
 
     let server_context = ServerContext::from(server_resources.as_ref());
     let auth_routes = AuthService::new(
