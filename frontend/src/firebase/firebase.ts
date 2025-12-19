@@ -17,23 +17,44 @@ import {
   type User,
 } from 'firebase/auth';
 
-// Firebase configuration for Pierre Fitness Intelligence
+// Firebase configuration - all values from environment variables
+// Set these in frontend/.env or frontend/.env.local:
+//   VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, VITE_FIREBASE_PROJECT_ID,
+//   VITE_FIREBASE_STORAGE_BUCKET, VITE_FIREBASE_MESSAGING_SENDER_ID, VITE_FIREBASE_APP_ID
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyAYYmGwtoZK1xWdZqkrKHQTgsw6I3ExZjY',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'pierre-fitness-intelligence.firebaseapp.com',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'pierre-fitness-intelligence',
-  storageBucket: 'pierre-fitness-intelligence.firebasestorage.app',
-  messagingSenderId: '779931405774',
-  appId: '1:779931405774:web:949695e2beb6e3f5da6f9f',
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
+
+// Check if Firebase is configured
+const isFirebaseConfigured = Boolean(
+  firebaseConfig.apiKey &&
+  firebaseConfig.authDomain &&
+  firebaseConfig.projectId
+);
 
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 
 /**
- * Initialize Firebase app (lazy initialization)
+ * Check if Firebase is properly configured via environment variables
  */
-export function getFirebaseApp(): FirebaseApp {
+export function isFirebaseEnabled(): boolean {
+  return isFirebaseConfigured;
+}
+
+/**
+ * Initialize Firebase app (lazy initialization)
+ * Returns null if Firebase is not configured
+ */
+export function getFirebaseApp(): FirebaseApp | null {
+  if (!isFirebaseConfigured) {
+    return null;
+  }
   if (!app) {
     app = initializeApp(firebaseConfig);
   }
@@ -42,10 +63,18 @@ export function getFirebaseApp(): FirebaseApp {
 
 /**
  * Get Firebase Auth instance
+ * Returns null if Firebase is not configured
  */
-export function getFirebaseAuth(): Auth {
+export function getFirebaseAuth(): Auth | null {
+  if (!isFirebaseConfigured) {
+    return null;
+  }
   if (!auth) {
-    auth = getAuth(getFirebaseApp());
+    const firebaseApp = getFirebaseApp();
+    if (!firebaseApp) {
+      return null;
+    }
+    auth = getAuth(firebaseApp);
   }
   return auth;
 }
@@ -54,9 +83,13 @@ export function getFirebaseAuth(): Auth {
  * Initiate Google sign-in via redirect flow
  * After calling this, the page will redirect to Google's login page.
  * On return, call checkGoogleRedirectResult() to get the authentication result.
+ * Throws if Firebase is not configured.
  */
 export async function signInWithGoogle(): Promise<void> {
   const firebaseAuth = getFirebaseAuth();
+  if (!firebaseAuth) {
+    throw new Error('Google Sign-In is not available. Firebase is not configured.');
+  }
 
   const provider = new GoogleAuthProvider();
   provider.addScope('email');
@@ -67,7 +100,7 @@ export async function signInWithGoogle(): Promise<void> {
 
 /**
  * Check for Google sign-in redirect result on page load
- * Returns null if no redirect result is pending, otherwise returns user data
+ * Returns null if no redirect result is pending or Firebase not configured
  */
 export async function checkGoogleRedirectResult(): Promise<{
   idToken: string;
@@ -75,6 +108,9 @@ export async function checkGoogleRedirectResult(): Promise<{
   displayName: string | null;
 } | null> {
   const firebaseAuth = getFirebaseAuth();
+  if (!firebaseAuth) {
+    return null;
+  }
 
   const result: UserCredential | null = await getRedirectResult(firebaseAuth);
   if (!result) {
@@ -92,33 +128,46 @@ export async function checkGoogleRedirectResult(): Promise<{
 
 /**
  * Sign out from Firebase
+ * No-op if Firebase is not configured
  */
 export async function signOutFromFirebase(): Promise<void> {
   const firebaseAuth = getFirebaseAuth();
+  if (!firebaseAuth) {
+    return;
+  }
   await signOut(firebaseAuth);
 }
 
 /**
  * Subscribe to Firebase auth state changes
- * Returns an unsubscribe function
+ * Returns an unsubscribe function (no-op if Firebase not configured)
  */
 export function subscribeToAuthState(
   callback: (user: User | null) => void
 ): () => void {
   const firebaseAuth = getFirebaseAuth();
+  if (!firebaseAuth) {
+    // Return no-op unsubscribe if Firebase not configured
+    return () => {};
+  }
   return onAuthStateChanged(firebaseAuth, callback);
 }
 
 /**
  * Get the current Firebase user (if signed in)
+ * Returns null if Firebase not configured
  */
 export function getCurrentFirebaseUser(): User | null {
   const firebaseAuth = getFirebaseAuth();
+  if (!firebaseAuth) {
+    return null;
+  }
   return firebaseAuth.currentUser;
 }
 
 /**
  * Get ID token for current user
+ * Returns null if Firebase not configured or no user
  */
 export async function getFirebaseIdToken(): Promise<string | null> {
   const user = getCurrentFirebaseUser();
