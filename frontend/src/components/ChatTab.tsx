@@ -6,10 +6,12 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, ConfirmDialog } from './ui';
+import { ConfirmDialog } from './ui';
 import { clsx } from 'clsx';
 import { apiService } from '../services/api';
 import Markdown from 'react-markdown';
+import PromptSuggestions, { WELCOME_ANALYSIS_PROMPT } from './PromptSuggestions';
+import ProviderConnectionCards from './ProviderConnectionCards';
 
 // Convert plain URLs to markdown links with friendly display names
 // Matches http/https URLs that aren't already in markdown link format
@@ -88,6 +90,8 @@ export default function ChatTab() {
   const [editedTitleValue, setEditedTitleValue] = useState('');
   const [oauthNotification, setOauthNotification] = useState<{ provider: string; timestamp: number } | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ id: string; title: string } | null>(null);
+  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
+  const [showIdeas, setShowIdeas] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -97,6 +101,15 @@ export default function ChatTab() {
     queryKey: ['chat-conversations'],
     queryFn: () => apiService.getConversations(),
   });
+
+  // Fetch OAuth status to determine if any providers are connected
+  const { data: oauthStatus } = useQuery({
+    queryKey: ['oauth-status'],
+    queryFn: () => apiService.getOAuthStatus(),
+  });
+
+  // Check if any provider is connected
+  const hasConnectedProvider = oauthStatus?.providers?.some(p => p.connected) ?? false;
 
   // Fetch messages for selected conversation
   const { data: messagesData, isLoading: messagesLoading } = useQuery<{ messages: Message[] }>({
@@ -247,6 +260,20 @@ export default function ChatTab() {
     };
   }, [queryClient]);
 
+  // Handle sending a pending prompt when conversation is ready
+  useEffect(() => {
+    if (pendingPrompt && selectedConversation && !isStreaming) {
+      const promptToSend = pendingPrompt;
+      setPendingPrompt(null);
+      setNewMessage(promptToSend);
+      // Small delay to ensure state is updated before sending
+      setTimeout(() => {
+        const sendButton = document.querySelector('[aria-label="Send message"]') as HTMLButtonElement;
+        sendButton?.click();
+      }, 100);
+    }
+  }, [pendingPrompt, selectedConversation, isStreaming]);
+
   const handleSendMessage = useCallback(async () => {
     if (!newMessage.trim() || !selectedConversation || isStreaming) return;
 
@@ -346,6 +373,17 @@ export default function ChatTab() {
 
   const handleNewChat = () => {
     createConversation.mutate();
+  };
+
+  const handleSelectPrompt = (prompt: string) => {
+    setPendingPrompt(prompt);
+    createConversation.mutate();
+  };
+
+  const handleFillPrompt = (prompt: string) => {
+    setNewMessage(prompt);
+    setShowIdeas(false);
+    inputRef.current?.focus();
   };
 
   const handleStartRename = (e: React.MouseEvent, conv: Conversation) => {
@@ -503,21 +541,95 @@ export default function ChatTab() {
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col bg-white">
         {!selectedConversation ? (
-          // Empty state - centered hero
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center max-w-md px-6">
-              <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-pierre-violet to-pierre-cyan rounded-2xl flex items-center justify-center shadow-lg">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                </svg>
-              </div>
-              <h2 className="text-xl font-semibold text-pierre-gray-900 mb-2">Pierre Fitness Intelligence Assistant</h2>
-              <p className="text-pierre-gray-600 text-sm mb-4">
-                Ask about your fitness data, get training insights, analyze activities, or explore personalized recommendations.
-              </p>
-              <Button onClick={handleNewChat} variant="primary" disabled={createConversation.isPending}>
-                {createConversation.isPending ? 'Creating...' : 'Start a conversation'}
-              </Button>
+          // Empty state - clean, minimal design
+          <div className="flex-1 flex items-center justify-center overflow-y-auto py-12">
+            <div className="w-full max-w-3xl px-6">
+              {/* Step 1: Show provider connection cards if no providers connected */}
+              {!hasConnectedProvider && (
+                <>
+                  <div className="text-center mb-8">
+                    <h2 className="text-2xl font-semibold text-pierre-gray-900 mb-2">
+                      Connect your fitness data
+                    </h2>
+                    <p className="text-pierre-gray-500 text-sm">
+                      Link a provider to unlock personalized insights
+                    </p>
+                  </div>
+
+                  <ProviderConnectionCards
+                    onSkip={handleNewChat}
+                    isSkipPending={createConversation.isPending}
+                  />
+                </>
+              )}
+
+              {/* Step 2: Show welcome state with activity analysis button once a provider is connected */}
+              {hasConnectedProvider && (
+                <>
+                  <div className="text-center mb-8">
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-sm font-medium rounded-full mb-4">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      Provider connected
+                    </div>
+                    <h2 className="text-2xl font-semibold text-pierre-gray-900 mb-2">
+                      Ready to analyze your fitness
+                    </h2>
+                    <p className="text-pierre-gray-500 text-sm">
+                      Get personalized insights from your activity data
+                    </p>
+                  </div>
+
+                  {/* Featured action: Analyze recent activities */}
+                  <div className="text-center mb-8">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectPrompt(WELCOME_ANALYSIS_PROMPT)}
+                      disabled={createConversation.isPending}
+                      className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-pierre-violet to-pierre-cyan text-white font-semibold rounded-xl shadow-lg shadow-pierre-violet/25 hover:shadow-xl hover:shadow-pierre-violet/30 hover:-translate-y-0.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-offset-2 disabled:opacity-50"
+                    >
+                      {createConversation.isPending ? (
+                        <>
+                          <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
+                            <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                          </svg>
+                          Analyzing...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                          </svg>
+                          Analyze my last 20 activities
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="flex items-center gap-4 my-8">
+                    <div className="flex-1 h-px bg-pierre-gray-200" />
+                    <span className="text-pierre-gray-400 text-xs uppercase tracking-wider">Or ask something else</span>
+                    <div className="flex-1 h-px bg-pierre-gray-200" />
+                  </div>
+
+                  {/* Additional prompt suggestions */}
+                  <PromptSuggestions onSelectPrompt={handleSelectPrompt} />
+
+                  <div className="mt-8 text-center">
+                    <button
+                      type="button"
+                      onClick={handleNewChat}
+                      disabled={createConversation.isPending}
+                      className="text-pierre-gray-500 hover:text-pierre-violet text-sm font-medium transition-colors"
+                    >
+                      Start a blank conversation
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         ) : (
@@ -680,6 +792,21 @@ export default function ChatTab() {
             {/* Input Area */}
             <div className="border-t border-pierre-gray-100 p-4 bg-white">
               <div className="max-w-3xl mx-auto">
+                {/* Ideas popover */}
+                {showIdeas && (
+                  <div className="mb-4 p-4 bg-pierre-gray-50 rounded-xl border border-pierre-gray-200 relative">
+                    <button
+                      onClick={() => setShowIdeas(false)}
+                      className="absolute top-2 right-2 text-pierre-gray-400 hover:text-pierre-gray-600"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                    <p className="text-xs text-pierre-gray-500 mb-3">Click a suggestion to fill the input:</p>
+                    <PromptSuggestions onSelectPrompt={handleFillPrompt} />
+                  </div>
+                )}
                 <div className="relative">
                   <textarea
                     ref={inputRef}
@@ -707,9 +834,21 @@ export default function ChatTab() {
                     </svg>
                   </button>
                 </div>
-                <p className="text-xs text-pierre-gray-400 mt-2 text-center">
-                  Press Enter to send, Shift+Enter for new line
-                </p>
+                <div className="flex items-center justify-center gap-2 mt-2">
+                  <p className="text-xs text-pierre-gray-400">
+                    Press Enter to send, Shift+Enter for new line
+                  </p>
+                  <span className="text-pierre-gray-300">|</span>
+                  <button
+                    onClick={() => setShowIdeas(!showIdeas)}
+                    className="text-xs text-pierre-violet hover:text-pierre-violet/80 flex items-center gap-1"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                    Need ideas?
+                  </button>
+                </div>
               </div>
             </div>
           </>

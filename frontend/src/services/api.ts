@@ -886,6 +886,24 @@ class ApiService {
   async deleteUserOAuthApp(provider: string): Promise<void> {
     await axios.delete(`/api/users/oauth-apps/${provider}`);
   }
+
+  // OAuth Provider Connection Status
+  async getOAuthStatus(): Promise<{
+    providers: Array<{
+      provider: string;
+      connected: boolean;
+      last_sync: string | null;
+    }>;
+  }> {
+    const response = await axios.get('/api/oauth/status');
+    // Backend returns array directly, wrap for consistency
+    return { providers: response.data };
+  }
+
+  // Get OAuth authorization URL for a provider (redirects to provider)
+  getOAuthAuthorizeUrl(provider: string): string {
+    return `/api/oauth/authorize/${provider}`;
+  }
 }
 
 export const apiService = new ApiService();
