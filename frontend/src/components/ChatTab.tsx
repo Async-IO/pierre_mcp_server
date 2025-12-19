@@ -92,6 +92,14 @@ export default function ChatTab() {
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ id: string; title: string } | null>(null);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [showIdeas, setShowIdeas] = useState(false);
+
+  // Sidebar resize state with localStorage persistence
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const stored = localStorage.getItem('pierre_sidebar_width');
+    return stored ? parseInt(stored, 10) : 288; // Default to w-72 (288px)
+  });
+  const [isResizing, setIsResizing] = useState(false);
+  const sidebarRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -274,6 +282,45 @@ export default function ChatTab() {
     }
   }, [pendingPrompt, selectedConversation, isStreaming]);
 
+  // Sidebar resize handlers
+  const startResizing = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+      const newWidth = e.clientX;
+      // Constrain between 200px and 500px
+      const constrainedWidth = Math.max(200, Math.min(500, newWidth));
+      setSidebarWidth(constrainedWidth);
+    };
+
+    const handleMouseUp = () => {
+      if (isResizing) {
+        setIsResizing(false);
+        // Persist to localStorage
+        localStorage.setItem('pierre_sidebar_width', sidebarWidth.toString());
+      }
+    };
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      // Prevent text selection while resizing
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'col-resize';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+  }, [isResizing, sidebarWidth]);
+
   const handleSendMessage = useCallback(async () => {
     if (!newMessage.trim() || !selectedConversation || isStreaming) return;
 
@@ -434,7 +481,11 @@ export default function ChatTab() {
   return (
     <div className="flex h-[calc(100vh-8rem)] -mx-6 -mt-6">
       {/* Left Sidebar - Conversation List */}
-      <div className="w-72 flex-shrink-0 border-r border-pierre-gray-200 bg-pierre-gray-50 flex flex-col">
+      <div
+        ref={sidebarRef}
+        style={{ width: sidebarWidth }}
+        className="flex-shrink-0 bg-pierre-gray-50 flex flex-col"
+      >
         {/* Header with New Chat Button */}
         <div className="p-3 flex items-center justify-between">
           <button
@@ -536,6 +587,24 @@ export default function ChatTab() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Resize Handle - wider hit area for easier grabbing */}
+      <div
+        onMouseDown={startResizing}
+        className={clsx(
+          'w-4 cursor-col-resize transition-colors flex-shrink-0 flex items-center justify-center',
+          isResizing ? 'bg-pierre-violet/20' : 'hover:bg-pierre-gray-100'
+        )}
+        title="Drag to resize sidebar"
+      >
+        {/* Visible handle bar */}
+        <div
+          className={clsx(
+            'w-1 h-16 rounded-full transition-colors',
+            isResizing ? 'bg-pierre-violet' : 'bg-pierre-gray-300 group-hover:bg-pierre-gray-400'
+          )}
+        />
       </div>
 
       {/* Main Chat Area */}
