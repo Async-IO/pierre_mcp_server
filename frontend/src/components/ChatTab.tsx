@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Panel, Group as PanelGroup, Separator as PanelResizeHandle, usePanelRef } from 'react-resizable-panels';
 import { ConfirmDialog } from './ui';
 import { clsx } from 'clsx';
 import { apiService } from '../services/api';
@@ -92,14 +93,9 @@ export default function ChatTab() {
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ id: string; title: string } | null>(null);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [showIdeas, setShowIdeas] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // Sidebar resize state with localStorage persistence
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const stored = localStorage.getItem('pierre_sidebar_width');
-    return stored ? parseInt(stored, 10) : 288; // Default to w-72 (288px)
-  });
-  const [isResizing, setIsResizing] = useState(false);
-  const sidebarRef = useRef<HTMLDivElement>(null);
+  const sidebarPanelRef = usePanelRef();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -282,45 +278,6 @@ export default function ChatTab() {
     }
   }, [pendingPrompt, selectedConversation, isStreaming]);
 
-  // Sidebar resize handlers
-  const startResizing = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizing(true);
-  }, []);
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing) return;
-      const newWidth = e.clientX;
-      // Constrain between 200px and 500px
-      const constrainedWidth = Math.max(200, Math.min(500, newWidth));
-      setSidebarWidth(constrainedWidth);
-    };
-
-    const handleMouseUp = () => {
-      if (isResizing) {
-        setIsResizing(false);
-        // Persist to localStorage
-        localStorage.setItem('pierre_sidebar_width', sidebarWidth.toString());
-      }
-    };
-
-    if (isResizing) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      // Prevent text selection while resizing
-      document.body.style.userSelect = 'none';
-      document.body.style.cursor = 'col-resize';
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.body.style.userSelect = '';
-      document.body.style.cursor = '';
-    };
-  }, [isResizing, sidebarWidth]);
-
   const handleSendMessage = useCallback(async () => {
     if (!newMessage.trim() || !selectedConversation || isStreaming) return;
 
@@ -454,6 +411,20 @@ export default function ChatTab() {
     setEditedTitleValue('');
   };
 
+  // Toggle sidebar collapse/expand
+  const toggleSidebar = useCallback(() => {
+    const panel = sidebarPanelRef.current;
+    if (panel) {
+      if (panel.isCollapsed()) {
+        panel.expand();
+        setSidebarCollapsed(false);
+      } else {
+        panel.collapse();
+        setSidebarCollapsed(true);
+      }
+    }
+  }, [sidebarPanelRef]);
+
   const handleDeleteConversation = (e: React.MouseEvent, conv: Conversation) => {
     e.stopPropagation();
     setDeleteConfirmation({ id: conv.id, title: conv.title });
@@ -479,38 +450,44 @@ export default function ChatTab() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] -mx-6 -mt-6">
-      {/* Left Sidebar - Conversation List */}
-      <div
-        ref={sidebarRef}
-        style={{ width: sidebarWidth }}
-        className="flex-shrink-0 bg-pierre-gray-50 flex flex-col"
+    <PanelGroup
+      orientation="horizontal"
+      className="h-[calc(100vh-8rem)] -mx-6 -mt-6"
+    >
+      {/* Left Sidebar - Conversation List (collapsible) */}
+      <Panel
+        panelRef={sidebarPanelRef}
+        defaultSize="25%"
+        minSize="15%"
+        maxSize="40%"
+        collapsible
+        collapsedSize="0%"
+        onResize={(size) => setSidebarCollapsed(size.asPercentage === 0)}
+        className="bg-pierre-gray-50 flex flex-col"
       >
         {/* Header with New Chat Button */}
-        <div className="p-3 flex items-center justify-between">
+        <div className="py-2">
           <button
             onClick={handleNewChat}
             disabled={createConversation.isPending}
             title="New conversation"
             aria-label="New conversation"
-            className="w-8 h-8 flex items-center justify-center rounded-lg bg-pierre-violet text-white hover:bg-pierre-violet/90 transition-colors disabled:opacity-50 shadow-sm"
+            className="relative px-3 py-2 mx-2 flex items-center gap-2.5 rounded-lg hover:bg-pierre-gray-100 transition-colors disabled:opacity-50"
           >
-            {createConversation.isPending ? (
-              <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
-                <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-              </svg>
-            ) : (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-            )}
+            <div className="w-7 h-7 flex items-center justify-center rounded-lg bg-pierre-violet text-white shadow-sm flex-shrink-0">
+              {createConversation.isPending ? (
+                <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
+                  <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                </svg>
+              ) : (
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                </svg>
+              )}
+            </div>
+            <span className="text-sm font-medium text-pierre-gray-800">Add chat</span>
           </button>
-          {conversationsData?.conversations && conversationsData.conversations.length > 0 && (
-            <span className="text-xs text-pierre-gray-500">
-              {conversationsData.conversations.length} chats
-            </span>
-          )}
         </div>
 
         {/* Conversation List */}
@@ -587,28 +564,31 @@ export default function ChatTab() {
             </div>
           )}
         </div>
-      </div>
+      </Panel>
 
-      {/* Resize Handle - wider hit area for easier grabbing */}
-      <div
-        onMouseDown={startResizing}
-        className={clsx(
-          'w-4 cursor-col-resize transition-colors flex-shrink-0 flex items-center justify-center',
-          isResizing ? 'bg-pierre-violet/20' : 'hover:bg-pierre-gray-100'
-        )}
-        title="Drag to resize sidebar"
-      >
-        {/* Visible handle bar */}
-        <div
+      {/* Resize Handle with Toggle Button */}
+      <PanelResizeHandle className="w-2 bg-pierre-gray-200 hover:bg-pierre-violet/50 transition-colors relative group">
+        {/* Toggle button - appears on hover or when collapsed */}
+        <button
+          onClick={toggleSidebar}
           className={clsx(
-            'w-1 h-16 rounded-full transition-colors',
-            isResizing ? 'bg-pierre-violet' : 'bg-pierre-gray-300 group-hover:bg-pierre-gray-400'
+            'absolute top-3 -left-3 w-6 h-6 rounded-full bg-white border border-pierre-gray-200 shadow-sm flex items-center justify-center text-pierre-gray-500 hover:text-pierre-violet hover:border-pierre-violet transition-all z-10',
+            sidebarCollapsed ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
           )}
-        />
-      </div>
+          title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+        >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {sidebarCollapsed ? (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            ) : (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            )}
+          </svg>
+        </button>
+      </PanelResizeHandle>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col bg-white">
+      <Panel className="flex flex-col bg-white">
         {!selectedConversation ? (
           // Empty state - clean, minimal design
           <div className="flex-1 flex items-center justify-center overflow-y-auto py-12">
@@ -922,7 +902,7 @@ export default function ChatTab() {
             </div>
           </>
         )}
-      </div>
+      </Panel>
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog
@@ -936,6 +916,6 @@ export default function ChatTab() {
         variant="danger"
         isLoading={deleteConversation.isPending}
       />
-    </div>
+    </PanelGroup>
   );
 }
