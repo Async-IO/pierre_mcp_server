@@ -37,6 +37,7 @@
 
 mod gemini;
 mod groq;
+mod openai_compatible;
 pub mod prompts;
 mod provider;
 
@@ -45,6 +46,7 @@ pub use gemini::{
     Tool,
 };
 pub use groq::GroqProvider;
+pub use openai_compatible::{OpenAiCompatibleConfig, OpenAiCompatibleProvider};
 pub use prompts::get_pierre_system_prompt;
 pub use provider::ChatProvider;
 

@@ -79,6 +79,7 @@ interface AuditEntry {
 const SERVER_CATEGORIES = new Set([
   'rate_limiting',
   'feature_flags',
+  'llm_provider',
   'tokio_runtime',
   'sqlx_config',
   'cache_ttl',
