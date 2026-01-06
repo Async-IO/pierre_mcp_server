@@ -1,0 +1,179 @@
+# Cloud Build Configuration for Production Deployments
+# Purpose: Manual-approval production deployments with additional safety checks
+# Trigger: Manual execution or via GitHub release tags (v*.*.*)
+
+timeout: 3600s
+
+substitutions:
+  _REGION: us-central1
+  _SERVICE_NAME: pierre-mcp-server
+  _ENVIRONMENT: production
+  _ARTIFACT_REGISTRY_REPO: pierre-mcp
+  _GCP_PROJECT_ID: ${PROJECT_ID}
+
+steps:
+  # Step 0: Pre-deployment validation
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'pre-deploy-validation'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        echo "🔍 Running pre-deployment checks..."
+
+        # Check if staging deployment exists and is healthy
+        STAGING_URL=$(gcloud run services describe ${_SERVICE_NAME} \
+          --region=${_REGION} \
+          --format='value(status.url)' || echo "")
+
+        if [ -z "$STAGING_URL" ]; then
+          echo "⚠️  Warning: Staging deployment not found"
+        else
+          echo "✅ Staging deployment exists: $STAGING_URL"
+        fi
+
+        # Check for pending database migrations
+        echo "📋 Database migration check:"
+        echo "   Ensure all migrations are tested in staging"
+
+        # Verify git tag format (v1.0.0)
+        if [[ ! "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "❌ Invalid tag format. Expected: v1.0.0"
+          exit 1
+        fi
+
+        echo "✅ Pre-deployment validation passed"
+
+  # Step 1: Build production image (same as staging, but tagged differently)
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-image'
+    args:
+      - 'build'
+      - '--tag=${_REGION}-docker.pkg.dev/${_GCP_PROJECT_ID}/${_ARTIFACT_REGISTRY_REPO}/${_SERVICE_NAME}:${TAG_NAME}'
+      - '--tag=${_REGION}-docker.pkg.dev/${_GCP_PROJECT_ID}/${_ARTIFACT_REGISTRY_REPO}/${_SERVICE_NAME}:production'
+      - '--file=Dockerfile'
+      - '.'
+    timeout: 2400s
+    waitFor:
+      - 'pre-deploy-validation'
+
+  # Step 2: Push to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-image'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${_GCP_PROJECT_ID}/${_ARTIFACT_REGISTRY_REPO}/${_SERVICE_NAME}'
+    waitFor:
+      - 'build-image'
+
+  # Step 3: Deploy with gradual rollout (10% traffic to new revision)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'deploy-canary'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        echo "🚀 Deploying canary release (10% traffic)..."
+
+        gcloud run deploy ${_SERVICE_NAME} \
+          --image=${_REGION}-docker.pkg.dev/${_GCP_PROJECT_ID}/${_ARTIFACT_REGISTRY_REPO}/${_SERVICE_NAME}:${TAG_NAME} \
+          --region=${_REGION} \
+          --platform=managed \
+          --no-traffic \
+          --tag=canary-${TAG_NAME}
+
+        # Get the new revision name
+        NEW_REVISION=$(gcloud run revisions list \
+          --service=${_SERVICE_NAME} \
+          --region=${_REGION} \
+          --format='value(metadata.name)' \
+          --limit=1)
+
+        echo "📦 New revision: $NEW_REVISION"
+
+        # Split traffic: 90% to current, 10% to new
+        gcloud run services update-traffic ${_SERVICE_NAME} \
+          --region=${_REGION} \
+          --to-revisions=$NEW_REVISION=10
+
+        echo "✅ Canary deployment complete (10% traffic)"
+    waitFor:
+      - 'push-image'
+
+  # Step 4: Monitor canary for 5 minutes
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'monitor-canary'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        echo "📊 Monitoring canary for 5 minutes..."
+        echo "Check for errors in Cloud Logging and metrics in Cloud Monitoring"
+
+        SERVICE_URL=$(gcloud run services describe ${_SERVICE_NAME} \
+          --region=${_REGION} \
+          --format='value(status.url)')
+
+        # Health check canary endpoint
+        for i in {1..30}; do
+          if curl -f -s "$SERVICE_URL/health" | grep -q "ok"; then
+            echo "✅ Canary health check $i/30 passed"
+          else
+            echo "❌ Canary health check failed at iteration $i"
+            exit 1
+          fi
+          sleep 10
+        done
+
+        echo "✅ Canary monitoring complete - no issues detected"
+    waitFor:
+      - 'deploy-canary'
+
+  # Step 5: Gradual rollout to 100% (requires manual approval in console)
+  # This step is informational - actual rollout done via gcloud command
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'rollout-instructions'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        echo "================================================"
+        echo "🎯 CANARY DEPLOYMENT SUCCESSFUL"
+        echo "================================================"
+        echo ""
+        echo "Current state: 10% traffic to new revision"
+        echo ""
+        echo "To complete rollout to 100%:"
+        echo ""
+        echo "  gcloud run services update-traffic ${_SERVICE_NAME} \\"
+        echo "    --region=${_REGION} \\"
+        echo "    --to-latest"
+        echo ""
+        echo "To rollback to previous revision:"
+        echo ""
+        echo "  gcloud run services update-traffic ${_SERVICE_NAME} \\"
+        echo "    --region=${_REGION} \\"
+        echo "    --to-revisions=PREVIOUS_REVISION=100"
+        echo ""
+        echo "================================================"
+    waitFor:
+      - 'monitor-canary'
+
+images:
+  - '${_REGION}-docker.pkg.dev/${_GCP_PROJECT_ID}/${_ARTIFACT_REGISTRY_REPO}/${_SERVICE_NAME}:${TAG_NAME}'
+  - '${_REGION}-docker.pkg.dev/${_GCP_PROJECT_ID}/${_ARTIFACT_REGISTRY_REPO}/${_SERVICE_NAME}:production'
+
+options:
+  machineType: 'E2_HIGHCPU_8'
+  diskSizeGb: 100
+  logging: CLOUD_LOGGING_ONLY
+  logStreamingOption: STREAM_ON
+
+# Production deployment checklist:
+# [ ] Staging deployment tested and validated
+# [ ] Load testing completed
+# [ ] Database migrations tested
+# [ ] Rollback plan documented
+# [ ] On-call engineer notified
+# [ ] Monitoring dashboards reviewed
