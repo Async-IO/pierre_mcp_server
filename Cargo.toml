@@ -62,8 +62,9 @@ provider-garmin = []
 provider-terra = []
 provider-fitbit = []
 provider-whoop = []
+provider-coros = []
 provider-synthetic = []
-all-providers = ["provider-strava", "provider-garmin", "provider-terra", "provider-fitbit", "provider-whoop", "provider-synthetic"]
+all-providers = ["provider-strava", "provider-garmin", "provider-terra", "provider-fitbit", "provider-whoop", "provider-coros", "provider-synthetic"]
 
 [profile.dev]
 debug = 1

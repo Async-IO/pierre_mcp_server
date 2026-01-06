@@ -19,10 +19,14 @@ use tracing::info;
 use uuid::Uuid;
 
 // Conditional imports for provider-specific types
+#[cfg(feature = "provider-coros")]
+use super::coros_provider::CorosProviderFactory;
 #[cfg(feature = "provider-fitbit")]
 use super::fitbit_provider::FitbitProviderFactory;
 #[cfg(feature = "provider-garmin")]
 use super::garmin_provider::GarminProviderFactory;
+#[cfg(feature = "provider-coros")]
+use super::spi::CorosDescriptor;
 #[cfg(feature = "provider-fitbit")]
 use super::spi::FitbitDescriptor;
 #[cfg(feature = "provider-garmin")]
@@ -85,6 +89,7 @@ impl ProviderRegistry {
         Self::register_fitbit(&mut registry);
         Self::register_terra(&mut registry);
         Self::register_whoop(&mut registry);
+        Self::register_coros(&mut registry);
         Self::register_synthetic(&mut registry);
 
         // Log registered providers at startup
@@ -254,6 +259,43 @@ impl ProviderRegistry {
 
     #[cfg(not(feature = "provider-whoop"))]
     fn register_whoop(_registry: &mut Self) {}
+
+    /// Register COROS provider with environment-based configuration
+    ///
+    /// Note: COROS API documentation is private. OAuth endpoints are placeholders
+    /// until official documentation is received.
+    #[cfg(feature = "provider-coros")]
+    fn register_coros(registry: &mut Self) {
+        registry.register_factory(oauth_providers::COROS, Box::new(CorosProviderFactory));
+        registry.register_descriptor(oauth_providers::COROS, Box::new(CorosDescriptor));
+        let (_, _, auth_url, token_url, api_base_url, revoke_url, scopes) =
+            load_provider_env_config(
+                oauth_providers::COROS,
+                // Placeholder URLs - update when COROS provides official API documentation
+                "https://open.coros.com/oauth2/authorize",
+                "https://open.coros.com/oauth2/token",
+                "https://open.coros.com/api/v1",
+                Some("https://open.coros.com/oauth2/revoke"),
+                &oauth_providers::COROS_DEFAULT_SCOPES
+                    .split(' ')
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>(),
+            );
+        registry.set_default_config(
+            oauth_providers::COROS,
+            ProviderConfig {
+                name: oauth_providers::COROS.to_owned(),
+                auth_url,
+                token_url,
+                api_base_url,
+                revoke_url,
+                default_scopes: scopes,
+            },
+        );
+    }
+
+    #[cfg(not(feature = "provider-coros"))]
+    fn register_coros(_registry: &mut Self) {}
 
     /// Register Synthetic provider for development and testing
     #[cfg(feature = "provider-synthetic")]
