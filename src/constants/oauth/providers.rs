@@ -30,6 +30,10 @@ pub const TERRA: &str = "terra";
 #[cfg(feature = "provider-whoop")]
 pub const WHOOP: &str = "whoop";
 
+/// COROS fitness provider identifier (GPS sports watches)
+#[cfg(feature = "provider-coros")]
+pub const COROS: &str = "coros";
+
 /// Synthetic fitness provider identifier (for testing)
 #[cfg(feature = "provider-synthetic")]
 pub const SYNTHETIC: &str = "synthetic";
@@ -52,7 +56,7 @@ pub const SYNTHETIC_SLEEP: &str = "synthetic_sleep";
 pub const fn all() -> &'static [&'static str] {
     // This is a compile-time constant, so we include all potential providers
     // For runtime checking, use the registry
-    &["strava", "fitbit", "garmin", "whoop", "synthetic"]
+    &["strava", "fitbit", "garmin", "whoop", "coros", "synthetic"]
 }
 
 /// Check if a provider is statically known
@@ -96,3 +100,12 @@ pub const TERRA_DEFAULT_SCOPES: &str = "activity,sleep,body,daily,nutrition";
 #[cfg(feature = "provider-whoop")]
 pub const WHOOP_DEFAULT_SCOPES: &str =
     "offline read:profile read:body_measurement read:workout read:sleep read:recovery read:cycles";
+
+/// COROS default scopes (placeholder - update when API docs received).
+///
+/// COROS API documentation is private. Apply at:
+/// <https://support.coros.com/hc/en-us/articles/17085887816340>
+///
+/// Known data types from Terra integration: activities, sleep, daily summaries.
+#[cfg(feature = "provider-coros")]
+pub const COROS_DEFAULT_SCOPES: &str = "read:workouts read:sleep read:daily";

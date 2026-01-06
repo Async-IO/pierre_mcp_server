@@ -584,3 +584,60 @@ impl ProviderDescriptor for WhoopDescriptor {
         ]
     }
 }
+
+/// COROS provider descriptor
+///
+/// COROS is a GPS sports watch manufacturer supporting activities, sleep,
+/// and daily health summaries through their API.
+///
+/// Note: COROS API documentation is private. OAuth endpoints are placeholders
+/// until official documentation is received. Apply for access at:
+/// <https://support.coros.com/hc/en-us/articles/17085887816340>
+#[cfg(feature = "provider-coros")]
+pub struct CorosDescriptor;
+
+#[cfg(feature = "provider-coros")]
+impl ProviderDescriptor for CorosDescriptor {
+    fn name(&self) -> &'static str {
+        "coros"
+    }
+
+    fn display_name(&self) -> &'static str {
+        "COROS"
+    }
+
+    fn capabilities(&self) -> ProviderCapabilities {
+        // COROS supports activities, sleep tracking, and daily health summaries
+        ProviderCapabilities::OAUTH
+            .union(ProviderCapabilities::ACTIVITIES)
+            .union(ProviderCapabilities::SLEEP_TRACKING)
+            .union(ProviderCapabilities::RECOVERY_METRICS)
+    }
+
+    fn oauth_endpoints(&self) -> Option<OAuthEndpoints> {
+        // Placeholder URLs - update when COROS provides official API documentation
+        Some(OAuthEndpoints {
+            auth_url: "https://open.coros.com/oauth2/authorize",
+            token_url: "https://open.coros.com/oauth2/token",
+            revoke_url: Some("https://open.coros.com/oauth2/revoke"),
+        })
+    }
+
+    fn oauth_params(&self) -> Option<OAuthParams> {
+        Some(OAuthParams {
+            scope_separator: " ", // Placeholder - update when docs received
+            use_pkce: true,
+            additional_auth_params: &[],
+        })
+    }
+
+    fn api_base_url(&self) -> &'static str {
+        // Placeholder URL - update when COROS provides official API documentation
+        "https://open.coros.com/api/v1"
+    }
+
+    fn default_scopes(&self) -> &'static [&'static str] {
+        // Placeholder scopes - update when docs received
+        &["read:workouts", "read:sleep", "read:daily"]
+    }
+}

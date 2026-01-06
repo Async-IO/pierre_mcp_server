@@ -57,6 +57,9 @@ pub mod utils;
 
 // Provider implementations (conditionally compiled based on feature flags)
 
+/// COROS provider for GPS sports watch data (activities, sleep, daily summaries)
+#[cfg(feature = "provider-coros")]
+pub mod coros_provider;
 /// Fitbit API provider implementation
 #[cfg(feature = "provider-fitbit")]
 pub mod fitbit_provider;
@@ -97,6 +100,8 @@ pub use registry::{
     create_provider, create_registry_with_external_providers, create_tenant_provider,
     get_supported_providers, global_registry, is_provider_supported, ProviderRegistry,
 };
+#[cfg(feature = "provider-coros")]
+pub use spi::CorosDescriptor;
 #[cfg(feature = "provider-fitbit")]
 pub use spi::FitbitDescriptor;
 #[cfg(feature = "provider-garmin")]

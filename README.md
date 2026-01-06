@@ -9,7 +9,7 @@
 [![SDK Tests](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/sdk-tests.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/sdk-tests.yml)
 [![MCP Compliance](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/mcp-compliance.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/mcp-compliance.yml)
 
-Pierre Fitness Platform connects AI assistants to fitness data from Strava, Garmin, Fitbit, WHOOP, and Terra (150+ wearables). Implements Model Context Protocol (MCP), A2A protocol, OAuth 2.0, and REST APIs for Claude, ChatGPT, and other AI assistants.
+Pierre Fitness Platform connects AI assistants to fitness data from Strava, Garmin, Fitbit, WHOOP, COROS, and Terra (150+ wearables). Implements Model Context Protocol (MCP), A2A protocol, OAuth 2.0, and REST APIs for Claude, ChatGPT, and other AI assistants.
 
 ## Intelligence System
 
@@ -42,6 +42,7 @@ See [Intelligence Methodology](docs/intelligence-methodology.md) and [Nutrition 
 | Garmin | `provider-garmin` | Activities, Sleep, Health |
 | WHOOP | `provider-whoop` | Sleep, Recovery, Strain |
 | Fitbit | `provider-fitbit` | Activities, Sleep, Health |
+| COROS | `provider-coros` | Activities, Sleep, Recovery |
 | Terra | `provider-terra` | 150+ wearables, Activities, Sleep, Health |
 | Synthetic | `provider-synthetic` | Development/Testing |
 
