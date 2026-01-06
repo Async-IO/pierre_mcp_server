@@ -1,42 +1,43 @@
 # Chapter 26: LLM Provider Architecture
 
-This chapter explores Pierre's LLM (Large Language Model) provider abstraction layer, which enables pluggable AI model integration for chat functionality. The architecture mirrors the fitness provider SPI pattern, providing a consistent approach to external service integration.
+This chapter explores Pierre's LLM (Large Language Model) provider abstraction layer, which enables pluggable AI model integration for chat functionality and recipe generation. The architecture mirrors the fitness provider SPI pattern, providing a consistent approach to external service integration.
 
 ## What You'll Learn
 
 - Trait-based LLM provider abstraction
-- Capability detection with bitflags
-- Implementing the Gemini provider
+- Runtime provider selection with `ChatProvider`
+- Implementing Gemini and Groq providers
 - Streaming responses with SSE
-- Provider registry pattern
+- Tool/function calling support
+- Recipe generation integration ("Combat des Chefs")
 - Adding custom LLM providers
 - Error handling best practices
-- Testing LLM integrations
 
 ## Architecture Overview
 
-The LLM module follows the same pluggable architecture pattern used for fitness providers. This design allows runtime registration of multiple AI providers while maintaining a consistent interface.
+The LLM module uses a **runtime provider selector** pattern. The `ChatProvider` enum wraps the underlying providers and selects based on the `PIERRE_LLM_PROVIDER` environment variable.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Chat System                                         │
 │   ┌─────────────────────────────────────────────────────────────────────┐  │
-│   │                    LlmProviderRegistry                               │  │
-│   │              Default provider + named lookup                         │  │
+│   │                      ChatProvider                                    │  │
+│   │         Runtime selector: PIERRE_LLM_PROVIDER=groq|gemini           │  │
 │   └────────────────────────────┬────────────────────────────────────────┘  │
 │                                │                                            │
-│         ┌──────────────────────┼──────────────────────┐                    │
-│         │                      │                      │                    │
-│         ▼                      ▼                      ▼                    │
-│   ┌───────────┐         ┌───────────┐         ┌───────────┐               │
-│   │  Gemini   │         │  OpenAI   │         │  Ollama   │               │
-│   │ Provider  │         │ Provider  │         │ Provider  │               │
-│   │           │         │  (future) │         │  (future) │               │
-│   └─────┬─────┘         └─────┬─────┘         └─────┬─────┘               │
-│         │                     │                     │                      │
-│         └─────────────────────┴─────────────────────┘                      │
-│                               │                                            │
-│                               ▼                                            │
+│              ┌─────────────────┴─────────────────┐                         │
+│              │                                   │                          │
+│              ▼                                   ▼                          │
+│       ┌─────────────┐                     ┌─────────────┐                  │
+│       │   Gemini    │                     │    Groq     │                  │
+│       │  Provider   │                     │  Provider   │                  │
+│       │  (vision,   │                     │  (fast LPU  │                  │
+│       │   tools)    │                     │  inference) │                  │
+│       └──────┬──────┘                     └──────┬──────┘                  │
+│              │                                   │                          │
+│              └───────────────┬───────────────────┘                          │
+│                              │                                              │
+│                              ▼                                              │
 │               ┌───────────────────────────────┐                            │
 │               │      LlmProvider Trait        │                            │
 │               │  ┌─────────────────────────┐  │                            │
@@ -54,8 +55,12 @@ The LLM module follows the same pluggable architecture pattern used for fitness 
 
 ```
 src/llm/
-├── mod.rs      # Trait definitions, types, registry
-└── gemini.rs   # Google Gemini implementation
+├── mod.rs          # Trait definitions, types, registry, exports
+├── provider.rs     # ChatProvider enum (runtime selector)
+├── gemini.rs       # Google Gemini implementation
+├── groq.rs         # Groq LPU implementation
+└── prompts/
+    └── mod.rs      # System prompts (pierre_system.md)
 ```
 
 **Source**: `src/lib.rs`
@@ -63,6 +68,29 @@ src/llm/
 /// LLM provider abstraction for AI chat integration
 pub mod llm;
 ```
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PIERRE_LLM_PROVIDER` | Provider selector: `groq` or `gemini` | `groq` |
+| `GROQ_API_KEY` | Groq API key | Required for Groq |
+| `GEMINI_API_KEY` | Google Gemini API key | Required for Gemini |
+
+### Provider Comparison
+
+| Feature | Groq | Gemini |
+|---------|------|--------|
+| Default | ✓ | |
+| Streaming | ✓ | ✓ |
+| Function Calling | ✓ | ✓ |
+| Vision | ✗ | ✓ |
+| JSON Mode | ✓ | ✓ |
+| System Messages | ✓ | ✓ |
+| Rate Limits | 12K TPM (free) | More generous |
+| Speed | Very fast (LPU) | Fast |
 
 ## Capability Detection with Bitflags
 
@@ -134,7 +162,7 @@ pub type ChatStream = Pin<Box<dyn Stream<Item = Result<StreamChunk, AppError>> +
 
 #[async_trait]
 pub trait LlmProvider: Send + Sync {
-    /// Unique provider identifier (e.g., "gemini", "openai")
+    /// Unique provider identifier (e.g., "gemini", "groq")
     fn name(&self) -> &'static str;
 
     /// Human-readable display name for the provider
@@ -155,8 +183,61 @@ pub trait LlmProvider: Send + Sync {
     /// Perform a streaming chat completion
     async fn complete_stream(&self, request: &ChatRequest) -> Result<ChatStream, AppError>;
 
-    /// Check if the provider is healthy and reachable
+    /// Check if the provider is healthy and API key is valid
     async fn health_check(&self) -> Result<bool, AppError>;
+}
+```
+
+## ChatProvider: Runtime Selection
+
+The `ChatProvider` enum provides runtime provider selection based on environment configuration:
+
+**Source**: `src/llm/provider.rs`
+```rust
+/// Unified chat provider that wraps either Gemini or Groq
+pub enum ChatProvider {
+    /// Google Gemini provider with full tool calling support
+    Gemini(GeminiProvider),
+    /// Groq provider for fast, cost-effective inference
+    Groq(GroqProvider),
+}
+
+impl ChatProvider {
+    /// Create a provider from environment configuration
+    ///
+    /// Reads `PIERRE_LLM_PROVIDER` to determine which provider to use:
+    /// - `groq` (default): Creates `GroqProvider` (requires `GROQ_API_KEY`)
+    /// - `gemini`: Creates `GeminiProvider` (requires `GEMINI_API_KEY`)
+    pub fn from_env() -> Result<Self, AppError> {
+        let provider_type = LlmProviderType::from_env();
+
+        info!(
+            "Initializing LLM provider: {} (set {} to change)",
+            provider_type,
+            LlmProviderType::ENV_VAR
+        );
+
+        match provider_type {
+            LlmProviderType::Groq => {
+                let provider = GroqProvider::from_env()?;
+                Ok(Self::Groq(provider))
+            }
+            LlmProviderType::Gemini => {
+                let provider = GeminiProvider::from_env()?;
+                Ok(Self::Gemini(provider))
+            }
+        }
+    }
+
+    /// Create a Gemini provider explicitly
+    pub fn gemini() -> Result<Self, AppError> {
+        Ok(Self::Gemini(GeminiProvider::from_env()?))
+    }
+
+    /// Create a Groq provider explicitly
+    pub fn groq() -> Result<Self, AppError> {
+        Ok(Self::Groq(GroqProvider::from_env()?))
+    }
 }
 ```
 
@@ -199,33 +280,24 @@ pub struct ChatMessage {
 impl ChatMessage {
     /// Create a system message
     pub fn system(content: impl Into<String>) -> Self {
-        Self {
-            role: MessageRole::System,
-            content: content.into(),
-        }
+        Self::new(MessageRole::System, content)
     }
 
     /// Create a user message
     pub fn user(content: impl Into<String>) -> Self {
-        Self {
-            role: MessageRole::User,
-            content: content.into(),
-        }
+        Self::new(MessageRole::User, content)
     }
 
     /// Create an assistant message
     pub fn assistant(content: impl Into<String>) -> Self {
-        Self {
-            role: MessageRole::Assistant,
-            content: content.into(),
-        }
+        Self::new(MessageRole::Assistant, content)
     }
 }
 ```
 
 ### ChatRequest (Builder Pattern)
 
-Request configuration using the builder pattern with const fn methods:
+Request configuration using the builder pattern:
 
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -249,7 +321,7 @@ impl ChatRequest {
         }
     }
 
-    /// Set the model to use (consuming builder)
+    /// Set the model to use
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
         self.model = Some(model.into());
         self
@@ -275,66 +347,95 @@ impl ChatRequest {
 }
 ```
 
+## Groq Provider Implementation
+
+The Groq provider uses an OpenAI-compatible API for fast inference:
+
+**Source**: `src/llm/groq.rs`
+
+### Configuration
+
+```rust
+/// Environment variable for Groq API key
+const GROQ_API_KEY_ENV: &str = "GROQ_API_KEY";
+
+/// Default model to use
+const DEFAULT_MODEL: &str = "llama-3.3-70b-versatile";
+
+/// Available Groq models
+const AVAILABLE_MODELS: &[&str] = &[
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "llama-3.1-70b-versatile",
+    "mixtral-8x7b-32768",
+    "gemma2-9b-it",
+];
+
+/// Base URL for the Groq API (OpenAI-compatible)
+const API_BASE_URL: &str = "https://api.groq.com/openai/v1";
+```
+
+### Capabilities
+
+```rust
+#[async_trait]
+impl LlmProvider for GroqProvider {
+    fn name(&self) -> &'static str {
+        "groq"
+    }
+
+    fn display_name(&self) -> &'static str {
+        "Groq (Llama/Mixtral)"
+    }
+
+    fn capabilities(&self) -> LlmCapabilities {
+        // Groq supports streaming, function calling, and system messages
+        // but does not support vision (yet)
+        LlmCapabilities::STREAMING
+            | LlmCapabilities::FUNCTION_CALLING
+            | LlmCapabilities::SYSTEM_MESSAGES
+            | LlmCapabilities::JSON_MODE
+    }
+
+    fn default_model(&self) -> &'static str {
+        DEFAULT_MODEL
+    }
+
+    fn available_models(&self) -> &'static [&'static str] {
+        AVAILABLE_MODELS
+    }
+}
+```
+
 ## Gemini Provider Implementation
 
-The Gemini provider demonstrates the implementation pattern:
+The Gemini provider supports full-featured capabilities including vision:
 
 **Source**: `src/llm/gemini.rs`
 
-### Structure
+### Configuration
 
 ```rust
 /// Environment variable for Gemini API key
 const GEMINI_API_KEY_ENV: &str = "GEMINI_API_KEY";
 
 /// Default model to use
-const DEFAULT_MODEL: &str = "gemini-2.0-flash-exp";
-
-/// API base URL
-const API_BASE_URL: &str = "https://generativelanguage.googleapis.com/v1beta";
+const DEFAULT_MODEL: &str = "gemini-2.5-flash";
 
 /// Available Gemini models
 const AVAILABLE_MODELS: &[&str] = &[
+    "gemini-2.5-flash",
     "gemini-2.0-flash-exp",
     "gemini-1.5-pro",
     "gemini-1.5-flash",
     "gemini-1.0-pro",
 ];
 
-pub struct GeminiProvider {
-    api_key: String,
-    client: Client,
-    default_model: String,
-}
+/// Base URL for the Gemini API
+const API_BASE_URL: &str = "https://generativelanguage.googleapis.com/v1beta";
 ```
 
-### API Request/Response Types
-
-```rust
-/// Gemini API request format
-#[derive(Debug, Serialize)]
-struct GeminiRequest {
-    contents: Vec<GeminiContent>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    system_instruction: Option<GeminiContent>,
-    #[serde(rename = "generationConfig", skip_serializing_if = "Option::is_none")]
-    generation_config: Option<GenerationConfig>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct GeminiContent {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    role: Option<String>,
-    parts: Vec<ContentPart>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct ContentPart {
-    text: String,
-}
-```
-
-### Message Conversion
+### System Message Handling
 
 Gemini handles system messages differently - via a separate `system_instruction` field:
 
@@ -350,14 +451,14 @@ impl GeminiProvider {
                 // Gemini uses separate system_instruction field
                 system_instruction = Some(GeminiContent {
                     role: None,
-                    parts: vec![ContentPart {
+                    parts: vec![ContentPart::Text {
                         text: message.content.clone(),
                     }],
                 });
             } else {
                 contents.push(GeminiContent {
                     role: Some(Self::convert_role(message.role).to_owned()),
-                    parts: vec![ContentPart {
+                    parts: vec![ContentPart::Text {
                         text: message.content.clone(),
                     }],
                 });
@@ -377,104 +478,6 @@ impl GeminiProvider {
 }
 ```
 
-### Non-Streaming Implementation
-
-```rust
-#[async_trait]
-impl LlmProvider for GeminiProvider {
-    async fn complete(&self, request: &ChatRequest) -> Result<ChatResponse, AppError> {
-        let model = request.model.as_deref().unwrap_or(&self.default_model);
-        let url = self.build_url(model, "generateContent");
-
-        let gemini_request = Self::build_gemini_request(request);
-
-        let response = self
-            .client
-            .post(&url)
-            .json(&gemini_request)
-            .send()
-            .await
-            .map_err(|e| AppError::internal(format!("HTTP request failed: {e}")))?;
-
-        let status = response.status();
-        let gemini_response: GeminiResponse = response
-            .json()
-            .await
-            .map_err(|e| AppError::internal(format!("Failed to parse response: {e}")))?;
-
-        // Check for API errors
-        if let Some(error) = gemini_response.error {
-            return Err(AppError::internal(format!("Gemini API error: {}", error.message)));
-        }
-
-        let content = Self::extract_content(&gemini_response)?;
-        let usage = gemini_response
-            .usage_metadata
-            .as_ref()
-            .map(Self::convert_usage);
-
-        Ok(ChatResponse {
-            content,
-            model: model.to_owned(),
-            usage,
-            finish_reason: /* ... */,
-        })
-    }
-}
-```
-
-### Streaming with SSE
-
-Gemini uses Server-Sent Events (SSE) for streaming:
-
-```rust
-async fn complete_stream(&self, request: &ChatRequest) -> Result<ChatStream, AppError> {
-    let model = request.model.as_deref().unwrap_or(&self.default_model);
-    let url = self.build_url(model, "streamGenerateContent");
-
-    let gemini_request = Self::build_gemini_request(request);
-
-    let response = self
-        .client
-        .post(&url)
-        .query(&[("alt", "sse")])  // Request SSE format
-        .json(&gemini_request)
-        .send()
-        .await?;
-
-    // Create a stream from the SSE response
-    let byte_stream = response.bytes_stream();
-
-    let stream = byte_stream.filter_map(|result| async move {
-        match result {
-            Ok(bytes) => {
-                let text = String::from_utf8_lossy(&bytes);
-
-                // Parse SSE format: lines starting with "data: "
-                for line in text.lines() {
-                    if let Some(data) = line.strip_prefix("data: ") {
-                        if let Ok(response) = serde_json::from_str::<StreamingResponse>(data) {
-                            // Extract text delta from response
-                            if let Some(text) = /* extract text */ {
-                                return Some(Ok(StreamChunk {
-                                    delta: text,
-                                    is_final: /* check finish_reason */,
-                                    finish_reason: /* ... */,
-                                }));
-                            }
-                        }
-                    }
-                }
-                None
-            }
-            Err(e) => Some(Err(AppError::internal(format!("Stream error: {e}")))),
-        }
-    });
-
-    Ok(Box::pin(stream))
-}
-```
-
 ### Debug Implementation (API Key Redaction)
 
 Never expose API keys in logs:
@@ -491,61 +494,85 @@ impl std::fmt::Debug for GeminiProvider {
 }
 ```
 
-## Provider Registry
+## Tool/Function Calling
 
-The registry manages multiple providers with default selection:
+Both providers support tool calling for structured interactions:
 
 ```rust
-pub struct LlmProviderRegistry {
-    providers: HashMap<String, Box<dyn LlmProvider>>,
-    default_provider: Option<String>,
-}
-
-impl LlmProviderRegistry {
-    /// Create a new empty registry
-    pub fn new() -> Self {
-        Self {
-            providers: HashMap::new(),
-            default_provider: None,
-        }
-    }
-
-    /// Register a provider
-    pub fn register(&mut self, provider: Box<dyn LlmProvider>) {
-        let name = provider.name().to_string();
-        if self.default_provider.is_none() {
-            self.default_provider = Some(name.clone());
-        }
-        self.providers.insert(name, provider);
-    }
-
-    /// Get a provider by name
-    pub fn get(&self, name: &str) -> Option<&dyn LlmProvider> {
-        self.providers.get(name).map(|p| p.as_ref())
-    }
-
-    /// Get the default provider
-    pub fn default_provider(&self) -> Option<&dyn LlmProvider> {
-        self.default_provider
-            .as_ref()
-            .and_then(|name| self.get(name))
-    }
-
-    /// Set the default provider
-    pub fn set_default(&mut self, name: &str) -> Result<(), AppError> {
-        if self.providers.contains_key(name) {
-            self.default_provider = Some(name.to_string());
-            Ok(())
-        } else {
-            Err(AppError::not_found(format!("Provider '{name}' not found")))
-        }
-    }
-
-    /// List all registered provider names
-    pub fn list(&self) -> Vec<&str> {
-        self.providers.keys().map(String::as_str).collect()
+/// Complete a chat request with function calling support
+pub async fn complete_with_tools(
+    &self,
+    request: &ChatRequest,
+    tools: Option<Vec<Tool>>,
+) -> Result<ChatResponseWithTools, AppError> {
+    match self {
+        Self::Gemini(provider) => provider.complete_with_tools(request, tools).await,
+        Self::Groq(provider) => provider.complete_with_tools(request, tools).await,
     }
 }
+```
+
+### Tool Definition
+
+```rust
+/// Tool definition for function calling
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Tool {
+    pub function_declarations: Vec<FunctionDeclaration>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FunctionDeclaration {
+    pub name: String,
+    pub description: String,
+    pub parameters: Option<serde_json::Value>,
+}
+```
+
+## Recipe Generation Integration
+
+Pierre uses LLM providers for the "Combat des Chefs" recipe architecture:
+
+### LLM Clients (Claude, ChatGPT)
+
+External LLM clients generate recipes themselves:
+
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│  LLM Client  │────▶│ Pierre MCP   │────▶│    USDA      │
+│  (Claude)    │     │   Server     │     │  Database    │
+└──────────────┘     └──────────────┘     └──────────────┘
+       │                    │                    │
+       │  1. get_recipe_    │                    │
+       │     constraints    │                    │
+       │───────────────────▶│                    │
+       │                    │                    │
+       │  2. Returns macro  │                    │
+       │     targets, hints │                    │
+       │◀───────────────────│                    │
+       │                    │                    │
+       │  [LLM generates    │                    │
+       │   recipe locally]  │                    │
+       │                    │                    │
+       │  3. validate_      │                    │
+       │     recipe         │                    │
+       │───────────────────▶│                    │
+       │                    │  Lookup nutrition  │
+       │                    │───────────────────▶│
+       │                    │◀───────────────────│
+       │  4. Validation     │                    │
+       │     result + macros│                    │
+       │◀───────────────────│                    │
+```
+
+### Non-LLM Clients
+
+For clients without LLM capabilities, Pierre uses its internal LLM:
+
+```rust
+// The suggest_recipe tool uses Pierre's configured LLM
+let provider = ChatProvider::from_env()?;
+let recipe = generate_recipe_with_llm(&provider, constraints).await?;
 ```
 
 ## Error Handling
@@ -555,14 +582,15 @@ All LLM operations use structured error types:
 ```rust
 // Good: Structured errors
 return Err(AppError::config(format!(
-    "{GEMINI_API_KEY_ENV} environment variable not set"
+    "{GROQ_API_KEY_ENV} environment variable not set"
 )));
 
-return Err(AppError::internal(format!(
-    "Gemini API error ({status}): {error_text}"
-)));
+return Err(AppError::external_service(
+    "Groq",
+    format!("API error ({status}): {error_text}"),
+));
 
-return Err(AppError::internal("No content in Gemini response"));
+return Err(AppError::internal("No content in response"));
 
 // Bad: Never use anyhow! in production code
 // return Err(anyhow!("API failed")); // FORBIDDEN
@@ -594,12 +622,12 @@ fn test_gemini_debug_redacts_api_key() {
 #[test]
 fn test_chat_request_builder() {
     let request = ChatRequest::new(vec![ChatMessage::user("Hello")])
-        .with_model("gemini-pro")
+        .with_model("llama-3.3-70b-versatile")
         .with_temperature(0.7)
         .with_max_tokens(1000)
         .with_streaming();
 
-    assert_eq!(request.model, Some("gemini-pro".to_string()));
+    assert_eq!(request.model, Some("llama-3.3-70b-versatile".to_string()));
     assert!(request.stream);
 }
 ```
@@ -611,21 +639,23 @@ cargo test --test llm_test -- --nocapture
 
 ## Adding a New Provider
 
-To add a new LLM provider (e.g., OpenAI):
+To add a new LLM provider:
 
-1. **Create the provider file** (`src/llm/openai.rs`):
+1. **Create the provider file** (`src/llm/my_provider.rs`):
 
 ```rust
-pub struct OpenAIProvider {
+pub struct MyProvider {
     api_key: String,
     client: Client,
-    default_model: String,
 }
 
 #[async_trait]
-impl LlmProvider for OpenAIProvider {
-    fn name(&self) -> &'static str { "openai" }
-    fn display_name(&self) -> &'static str { "OpenAI GPT" }
+impl LlmProvider for MyProvider {
+    fn name(&self) -> &'static str { "myprovider" }
+    fn display_name(&self) -> &'static str { "My Provider" }
+    fn capabilities(&self) -> LlmCapabilities {
+        LlmCapabilities::STREAMING | LlmCapabilities::SYSTEM_MESSAGES
+    }
     // ... implement all trait methods
 }
 ```
@@ -633,44 +663,60 @@ impl LlmProvider for OpenAIProvider {
 2. **Export from mod.rs**:
 
 ```rust
-mod openai;
-pub use openai::OpenAIProvider;
+mod my_provider;
+pub use my_provider::MyProvider;
 ```
 
-3. **Add tests** in `tests/llm_test.rs`
-
-4. **Register in application startup**:
+3. **Add to ChatProvider enum** in `src/llm/provider.rs`:
 
 ```rust
-let mut registry = LlmProviderRegistry::new();
-registry.register(Box::new(GeminiProvider::from_env()?));
-registry.register(Box::new(OpenAIProvider::from_env()?));
+pub enum ChatProvider {
+    Gemini(GeminiProvider),
+    Groq(GroqProvider),
+    MyProvider(MyProvider),  // Add variant
+}
 ```
+
+4. **Update environment config** in `src/config/environment.rs`:
+
+```rust
+pub enum LlmProviderType {
+    Groq,
+    Gemini,
+    MyProvider,  // Add variant
+}
+```
+
+5. **Add tests** in `tests/llm_test.rs`
 
 ## Best Practices
 
 1. **API Key Security**: Always redact in Debug impls, never log
 2. **Capability Checks**: Query capabilities before using features
 3. **Timeout Handling**: Configure appropriate timeouts for HTTP clients
-4. **Rate Limiting**: Respect provider rate limits
+4. **Rate Limiting**: Respect provider rate limits (Groq: 12K TPM on free tier)
 5. **Error Context**: Provide meaningful error messages
 6. **Streaming**: Prefer streaming for long responses
 7. **Model Selection**: Allow users to override default models
+8. **Provider Selection**: Use Groq for cost-effective inference, Gemini for vision
 
 ## Summary
 
 The LLM provider architecture provides:
 
+- **Runtime Selection**: `ChatProvider` selects provider from environment
 - **Pluggable Design**: Add providers without changing consumer code
 - **Capability Detection**: Query features at runtime
 - **Type Safety**: Structured messages and responses
 - **Streaming Support**: SSE-based streaming responses
-- **Registry Pattern**: Manage multiple providers
+- **Tool Calling**: Both providers support function calling
+- **Recipe Integration**: Powers the "Combat des Chefs" architecture
 - **Security**: API key redaction built-in
 
 ## See Also
 
 - [LLM Providers Reference](../llm-providers.md)
+- [Tools Reference - Recipe Management](../tools-reference.md#recipe-management)
 - [Chapter 17.5: Pluggable Provider Architecture](chapter-17.5-pluggable-providers.md)
 - [Chapter 2: Error Handling](chapter-02-error-handling.md)
 - [Appendix H: Error Reference](appendix-h-error-reference.md)

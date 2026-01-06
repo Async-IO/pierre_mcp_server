@@ -1,32 +1,47 @@
 # LLM Provider Integration
 
-This document describes Pierre's LLM (Large Language Model) provider abstraction layer, which enables pluggable AI model integration with streaming support for the chat functionality.
+This document describes Pierre's LLM (Large Language Model) provider abstraction layer, which enables pluggable AI model integration with streaming support for chat functionality and recipe generation.
 
 ## Overview
 
-The LLM module provides a trait-based abstraction that allows Pierre to integrate with multiple AI providers (Gemini, OpenAI, Ollama, etc.) through a unified interface. The design mirrors the fitness provider SPI pattern for consistency.
+The LLM module provides a trait-based abstraction that allows Pierre to integrate with multiple AI providers through a unified interface. The design mirrors the fitness provider SPI pattern for consistency.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    LlmProviderRegistry                          │
-│              Manages multiple LLM providers                     │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
-         ┌───────────────────┼───────────────────┐
-         │                   │                   │
-         ▼                   ▼                   ▼
-   ┌───────────┐      ┌───────────┐      ┌───────────┐
-   │  Gemini   │      │  OpenAI   │      │  Ollama   │
-   │ Provider  │      │ Provider  │      │ Provider  │
-   └─────┬─────┘      └─────┬─────┘      └─────┬─────┘
-         │                  │                   │
-         └──────────────────┴───────────────────┘
-                           │
-                           ▼
-               ┌───────────────────────┐
-               │   LlmProvider Trait   │
-               │   (shared interface)  │
-               └───────────────────────┘
+│                      ChatProvider                                │
+│            Runtime provider selector (from env)                  │
+│              PIERRE_LLM_PROVIDER=groq|gemini                     │
+└────────────────────────────────┬────────────────────────────────┘
+                                 │
+              ┌──────────────────┴──────────────────┐
+              │                                     │
+              ▼                                     ▼
+       ┌─────────────┐                       ┌─────────────┐
+       │   Gemini    │                       │    Groq     │
+       │  Provider   │                       │  Provider   │
+       │  (vision,   │                       │  (fast LPU  │
+       │   tools)    │                       │  inference) │
+       └──────┬──────┘                       └──────┬──────┘
+              │                                     │
+              └─────────────────┬───────────────────┘
+                                │
+                                ▼
+                   ┌───────────────────────┐
+                   │   LlmProvider Trait   │
+                   │   (shared interface)  │
+                   └───────────────────────┘
+```
+
+## Quick Start
+
+```bash
+# Option 1: Use Groq (default, cost-effective)
+export GROQ_API_KEY="your-groq-api-key"
+export PIERRE_LLM_PROVIDER=groq  # optional, groq is default
+
+# Option 2: Use Gemini (full-featured with vision)
+export GEMINI_API_KEY="your-gemini-api-key"
+export PIERRE_LLM_PROVIDER=gemini
 ```
 
 ## Configuration
@@ -35,30 +50,59 @@ The LLM module provides a trait-based abstraction that allows Pierre to integrat
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `GEMINI_API_KEY` | Google Gemini API key | Yes (for Gemini) |
+| `PIERRE_LLM_PROVIDER` | Provider selector: `groq` (default) or `gemini` | No |
+| `GROQ_API_KEY` | Groq API key from [console.groq.com](https://console.groq.com/keys) | Yes (for Groq) |
+| `GEMINI_API_KEY` | Google Gemini API key from [AI Studio](https://makersuite.google.com/app/apikey) | Yes (for Gemini) |
 
 ### Supported Models
 
-#### Gemini (Default Provider)
+#### Groq (Default Provider)
+
+Groq provides LPU-accelerated inference for open-source models with extremely fast response times.
 
 | Model | Description | Default |
 |-------|-------------|---------|
-| `gemini-2.0-flash-exp` | Latest experimental flash model | ✓ |
-| `gemini-1.5-pro` | Production-ready pro model | |
-| `gemini-1.5-flash` | Fast, efficient model | |
+| `llama-3.3-70b-versatile` | High-quality general purpose | ✓ |
+| `llama-3.1-8b-instant` | Fast responses for simple tasks | |
+| `llama-3.1-70b-versatile` | Versatile 70B model | |
+| `mixtral-8x7b-32768` | Long context window (32K tokens) | |
+| `gemma2-9b-it` | Google's Gemma 2 instruction-tuned | |
+
+**Rate Limits**: Free tier has 12,000 tokens-per-minute limit. For tool-heavy workflows, consider Gemini.
+
+#### Gemini
+
+Google's Gemini models with full vision and function calling support.
+
+| Model | Description | Default |
+|-------|-------------|---------|
+| `gemini-2.5-flash` | Latest fast model with improved capabilities | ✓ |
+| `gemini-2.0-flash-exp` | Experimental fast model | |
+| `gemini-1.5-pro` | Advanced reasoning capabilities | |
+| `gemini-1.5-flash` | Balanced performance and cost | |
 | `gemini-1.0-pro` | Legacy pro model | |
 
-## Quick Start
+### Provider Capabilities
 
-### Basic Usage
+| Capability | Groq | Gemini |
+|------------|------|--------|
+| Streaming | ✓ | ✓ |
+| Function/Tool Calling | ✓ | ✓ |
+| Vision/Image Input | ✗ | ✓ |
+| JSON Mode | ✓ | ✓ |
+| System Messages | ✓ | ✓ |
+
+## Basic Usage
+
+### Using ChatProvider (Recommended)
+
+The `ChatProvider` enum automatically selects the provider based on environment configuration:
 
 ```rust
-use pierre_mcp_server::llm::{
-    GeminiProvider, LlmProvider, ChatMessage, ChatRequest,
-};
+use pierre_mcp_server::llm::{ChatProvider, ChatMessage, ChatRequest};
 
-// Create provider from environment variable
-let provider = GeminiProvider::from_env()?;
+// Create provider from environment (reads PIERRE_LLM_PROVIDER)
+let provider = ChatProvider::from_env()?;
 
 // Build a chat request
 let request = ChatRequest::new(vec![
@@ -71,6 +115,16 @@ let request = ChatRequest::new(vec![
 // Get a response
 let response = provider.complete(&request).await?;
 println!("{}", response.content);
+```
+
+### Explicit Provider Selection
+
+```rust
+// Force Gemini
+let provider = ChatProvider::gemini()?;
+
+// Force Groq
+let provider = ChatProvider::groq()?;
 ```
 
 ### Streaming Responses
@@ -97,6 +151,97 @@ while let Some(chunk) = stream.next().await {
     }
 }
 ```
+
+### Tool/Function Calling
+
+Both providers support tool calling for structured interactions:
+
+```rust
+use pierre_mcp_server::llm::{Tool, FunctionDeclaration};
+
+let tools = vec![Tool {
+    function_declarations: vec![FunctionDeclaration {
+        name: "get_weather".to_string(),
+        description: "Get current weather for a location".to_string(),
+        parameters: Some(serde_json::json!({
+            "type": "object",
+            "properties": {
+                "location": {"type": "string"}
+            },
+            "required": ["location"]
+        })),
+    }],
+}];
+
+let response = provider.complete_with_tools(&request, Some(tools)).await?;
+
+if response.has_function_calls() {
+    for call in response.function_calls.unwrap() {
+        println!("Call function: {} with args: {}", call.name, call.args);
+    }
+}
+```
+
+## Recipe Generation Integration
+
+Pierre uses LLM providers for the "Combat des Chefs" recipe generation architecture. The workflow differs based on whether the client has LLM capabilities:
+
+### LLM Clients (Claude, ChatGPT, etc.)
+
+When an LLM client connects to Pierre, it generates recipes itself:
+
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│  LLM Client  │────▶│ Pierre MCP   │────▶│    USDA      │
+│  (Claude)    │     │   Server     │     │  Database    │
+└──────────────┘     └──────────────┘     └──────────────┘
+       │                    │                    │
+       │  1. get_recipe_    │                    │
+       │     constraints    │                    │
+       │───────────────────▶│                    │
+       │                    │                    │
+       │  2. Returns macro  │                    │
+       │     targets, hints │                    │
+       │◀───────────────────│                    │
+       │                    │                    │
+       │  [LLM generates    │                    │
+       │   recipe locally]  │                    │
+       │                    │                    │
+       │  3. validate_      │                    │
+       │     recipe         │                    │
+       │───────────────────▶│                    │
+       │                    │  Lookup nutrition  │
+       │                    │───────────────────▶│
+       │                    │◀───────────────────│
+       │  4. Validation     │                    │
+       │     result + macros│                    │
+       │◀───────────────────│                    │
+       │                    │                    │
+       │  5. save_recipe    │                    │
+       │───────────────────▶│                    │
+```
+
+### Non-LLM Clients
+
+For clients without LLM capabilities, Pierre uses its internal LLM (via `ChatProvider`):
+
+```rust
+// The suggest_recipe tool uses Pierre's configured LLM
+let provider = ChatProvider::from_env()?;
+let recipe = generate_recipe_with_llm(&provider, constraints).await?;
+```
+
+### Recipe Tools
+
+| Tool | Description |
+|------|-------------|
+| `get_recipe_constraints` | Get macro targets and prompt hints for LLM recipe generation |
+| `validate_recipe` | Validate recipe nutrition via USDA FoodData Central |
+| `suggest_recipe` | Uses Pierre's internal LLM to generate recipes |
+| `save_recipe` | Save validated recipes to user collection |
+| `list_recipes` | List user's saved recipes |
+| `get_recipe` | Get recipe by ID |
+| `search_recipes` | Search recipes by name, tags, or ingredients |
 
 ## API Reference
 
@@ -164,27 +309,16 @@ Streaming chunk structure:
 | `is_final` | `bool` | Whether this is the last chunk |
 | `finish_reason` | `Option<String>` | Reason if final |
 
-## Provider Registry
+## Module Structure
 
-The `LlmProviderRegistry` manages multiple providers:
-
-```rust
-use pierre_mcp_server::llm::LlmProviderRegistry;
-
-let mut registry = LlmProviderRegistry::new();
-
-// Register providers
-registry.register(Box::new(GeminiProvider::from_env()?));
-// registry.register(Box::new(OpenAIProvider::from_env()?));
-
-// Set default
-registry.set_default("gemini")?;
-
-// Get provider by name
-let provider = registry.get("gemini");
-
-// List all registered
-let names: Vec<&str> = registry.list();
+```
+src/llm/
+├── mod.rs          # Trait definitions, types, registry, exports
+├── provider.rs     # ChatProvider enum (runtime selector)
+├── gemini.rs       # Google Gemini implementation
+├── groq.rs         # Groq LPU implementation
+└── prompts/
+    └── mod.rs      # System prompts (pierre_system.md)
 ```
 
 ## Adding New Providers
@@ -241,11 +375,19 @@ impl LlmProvider for MyProvider {
 }
 ```
 
-2. **Register the provider**:
+2. **Add to ChatProvider enum** in `src/llm/provider.rs`:
 
 ```rust
-registry.register(Box::new(MyProvider::new(api_key)));
+pub enum ChatProvider {
+    Gemini(GeminiProvider),
+    Groq(GroqProvider),
+    MyProvider(MyProvider),  // Add variant
+}
 ```
+
+3. **Update environment config** in `src/config/environment.rs`
+
+4. **Register tests** in `tests/llm_test.rs`
 
 ## Error Handling
 
@@ -279,5 +421,6 @@ cargo test --test llm_test -- --nocapture
 ## See Also
 
 - [Chapter 26: LLM Provider Architecture](tutorial/chapter-26-llm-providers.md)
+- [Tools Reference - Recipe Management](tools-reference.md#recipe-management)
 - [Configuration Guide](configuration.md)
 - [Error Reference](tutorial/appendix-h-error-reference.md)
