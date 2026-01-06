@@ -1147,8 +1147,8 @@ async fn test_connection_status_tracking() {
     );
     let statuses = oauth_routes.get_connection_status(user_id).await.unwrap();
 
-    // Verify initial state - strava, garmin, fitbit, whoop, terra OAuth providers
-    assert_eq!(statuses.len(), 5);
+    // Verify initial state - strava, garmin, fitbit, whoop, coros, terra OAuth providers
+    assert_eq!(statuses.len(), 6);
     for status in &statuses {
         assert!(!status.connected);
         assert!(status.expires_at.is_none());
