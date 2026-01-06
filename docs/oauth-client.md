@@ -1,6 +1,6 @@
 # OAuth Client (Fitness Providers)
 
-Pierre acts as an oauth 2.0 client to connect to fitness providers (strava, fitbit, garmin) on behalf of users.
+Pierre acts as an oauth 2.0 client to connect to fitness providers (strava, fitbit, garmin, whoop, coros, terra) on behalf of users.
 
 ## Overview
 
@@ -22,6 +22,7 @@ Pierre acts as an oauth 2.0 client to connect to fitness providers (strava, fitb
 | fitbit | oauth 2.0 | required | active | `activity`,`heartrate`,`location`,`nutrition`,`profile`,`settings`,`sleep`,`social`,`weight` | `src/providers/fitbit.rs` |
 | garmin | oauth 2.0 | required | active | `wellness:read`,`activities:read` | `src/providers/garmin_provider.rs` |
 | whoop | oauth 2.0 | required | active | `read:profile`,`read:body_measurement`,`read:workout`,`read:sleep`,`read:recovery`,`read:cycles` | `src/providers/whoop_provider.rs` |
+| coros | oauth 2.0 | required | active | `read:workouts`,`read:sleep`,`read:daily` | `src/providers/coros_provider.rs` |
 | terra | oauth 2.0 | required | active | device-dependent (150+ wearables) | `src/providers/terra_provider.rs` |
 
 **note**: providers require compile-time feature flags (`provider-strava`, `provider-fitbit`, `provider-whoop`, `provider-terra`, etc.).
@@ -60,12 +61,20 @@ export WHOOP_CLIENT_SECRET=your_client_secret
 export WHOOP_REDIRECT_URI=http://localhost:8081/api/oauth/callback/whoop  # dev
 ```
 
+**coros:**
+```bash
+export COROS_CLIENT_ID=your_client_id
+export COROS_CLIENT_SECRET=your_client_secret
+export COROS_REDIRECT_URI=http://localhost:8081/api/oauth/callback/coros  # dev
+```
+
 **production:** use https redirect urls:
 ```bash
 export STRAVA_REDIRECT_URI=https://api.example.com/api/oauth/callback/strava
 export FITBIT_REDIRECT_URI=https://api.example.com/api/oauth/callback/fitbit
 export GARMIN_REDIRECT_URI=https://api.example.com/api/oauth/callback/garmin
 export WHOOP_REDIRECT_URI=https://api.example.com/api/oauth/callback/whoop
+export COROS_REDIRECT_URI=https://api.example.com/api/oauth/callback/coros
 ```
 
 Constants: `src/constants/oauth/providers.rs`
@@ -129,6 +138,7 @@ Implementation: `src/oauth2_client/tenant_client.rs:21-34`
 - fitbit: 150 requests/day per tenant
 - garmin: 1000 requests/day per tenant
 - whoop: 1000 requests/day per tenant
+- coros: 1000 requests/day per tenant
 
 **rate limit enforcement:**
 ```rust
@@ -536,6 +546,31 @@ Implementation: `src/providers/garmin_provider.rs`
 - refresh token: long-lived (requires `offline` scope)
 
 Implementation: `src/providers/whoop_provider.rs`
+
+### COROS
+
+**auth url:** `https://open.coros.com/oauth2/authorize` (placeholder - update when API docs received)
+**token url:** `https://open.coros.com/oauth2/token` (placeholder - update when API docs received)
+**api base:** `https://open.coros.com/api/v1` (placeholder - update when API docs received)
+
+**note:** COROS API documentation is private. Apply for developer access at [COROS Developer Portal](https://support.coros.com/hc/en-us/articles/17085887816340).
+
+**default scopes:** `read:workouts read:sleep read:daily`
+
+**scope details:**
+- `read:workouts` - workout/activity data
+- `read:sleep` - sleep sessions and metrics
+- `read:daily` - daily summaries (steps, heart rate, recovery)
+
+**rate limits:**
+- varies by endpoint
+- standard api rate limiting applies
+
+**token lifetime:**
+- access token: varies (update when API docs received)
+- refresh token: varies (update when API docs received)
+
+Implementation: `src/providers/coros_provider.rs`
 
 ## Error Handling
 

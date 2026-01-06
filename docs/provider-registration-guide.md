@@ -17,8 +17,9 @@ This guide shows how pierre's pluggable provider architecture supports **1 to x 
 │  registry.register_factory("strava", StravaFactory)  │
 │  registry.register_factory("garmin", GarminFactory)  │
 │  registry.register_factory("fitbit", FitbitFactory)  │
-│  registry.register_factory("synthetic", SynthFactory)│
 │  registry.register_factory("whoop", WhoopFactory)    │ <- built-in
+│  registry.register_factory("coros", CorosFactory)    │ <- built-in
+│  registry.register_factory("synthetic", SynthFactory)│
 │  registry.register_factory("terra", TerraFactory)    │ <- built-in
 │  registry.register_factory("polar", PolarFactory)    │ <- custom example
 │  ... unlimited providers ...                         │
@@ -49,8 +50,8 @@ This guide shows how pierre's pluggable provider architecture supports **1 to x 
 │                                                       │
 │  // List all available providers                     │
 │  let providers = registry.supported_providers();     │
-│  // ["strava", "garmin", "fitbit", "synthetic",      │
-│  //  "whoop", "polar", ...]                          │
+│  // ["strava", "garmin", "fitbit", "whoop", "coros", │
+│  //  "synthetic", "polar", ...]                      │
 │                                                       │
 │  // Create provider instance                         │
 │  let provider = registry.create_provider("strava");  │
@@ -169,14 +170,18 @@ export PIERRE_GARMIN_CLIENT_SECRET=secret789
 export PIERRE_FITBIT_CLIENT_ID=fitbit123
 export PIERRE_FITBIT_CLIENT_SECRET=fitbit_secret
 
-# Provider 4: Synthetic (no credentials needed!)
-# Automatically available - no env vars required
-
-# Provider 5: Custom Whoop
+# Provider 4: WHOOP
 export PIERRE_WHOOP_CLIENT_ID=whoop_client
 export PIERRE_WHOOP_CLIENT_SECRET=whoop_secret
 
-# Provider 6: Custom Polar
+# Provider 5: COROS (API docs are private - apply for access first)
+export PIERRE_COROS_CLIENT_ID=coros_client
+export PIERRE_COROS_CLIENT_SECRET=coros_secret
+
+# Provider 6: Synthetic (no credentials needed!)
+# Automatically available - no env vars required
+
+# Provider 7: Custom Polar
 export PIERRE_POLAR_CLIENT_ID=polar_client
 export PIERRE_POLAR_CLIENT_SECRET=polar_secret
 
@@ -208,8 +213,9 @@ Tools automatically discover all registered providers:
       "strava": { "connected": true, "status": "connected" },
       "garmin": { "connected": true, "status": "connected" },
       "fitbit": { "connected": false, "status": "disconnected" },
-      "synthetic": { "connected": true, "status": "connected" },
       "whoop": { "connected": true, "status": "connected" },
+      "coros": { "connected": false, "status": "disconnected" },
+      "synthetic": { "connected": true, "status": "connected" },
       "polar": { "connected": false, "status": "disconnected" }
     }
   }
@@ -262,7 +268,7 @@ for provider in providers_to_check {
 ```json
 {
   "success": false,
-  "error": "Provider 'unknown_provider' is not supported. Supported providers: strava, garmin, fitbit, synthetic, whoop, polar"
+  "error": "Provider 'unknown_provider' is not supported. Supported providers: strava, garmin, fitbit, whoop, coros, synthetic, polar"
 }
 ```
 
@@ -376,7 +382,7 @@ pub async fn get_all_activities_from_all_providers(
 }
 ```
 
-**Result**: Activities from Strava, Garmin, Fitbit, Whoop, Polar all in one unified list!
+**Result**: Activities from Strava, Garmin, Fitbit, WHOOP, COROS, Polar all in one unified list!
 
 ## configuration best practices
 
@@ -400,6 +406,12 @@ export PIERRE_GARMIN_CLIENT_SECRET=${GARMIN_SECRET}
 
 export PIERRE_FITBIT_CLIENT_ID=${FITBIT_KEY}
 export PIERRE_FITBIT_CLIENT_SECRET=${FITBIT_SECRET}
+
+export PIERRE_WHOOP_CLIENT_ID=${WHOOP_KEY}
+export PIERRE_WHOOP_CLIENT_SECRET=${WHOOP_SECRET}
+
+export PIERRE_COROS_CLIENT_ID=${COROS_KEY}
+export PIERRE_COROS_CLIENT_SECRET=${COROS_SECRET}
 ```
 
 ### testing (mix synthetic + real)

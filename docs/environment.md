@@ -69,7 +69,7 @@ Configure the async runtime for performance tuning:
 ### Default Provider
 
 ```bash
-export PIERRE_DEFAULT_PROVIDER=strava  # strava, garmin, synthetic
+export PIERRE_DEFAULT_PROVIDER=strava  # strava, garmin, fitbit, whoop, coros, synthetic
 ```
 
 ### Strava
@@ -113,6 +113,21 @@ export WHOOP_CLIENT_ID=your-client-id
 export WHOOP_CLIENT_SECRET=your-client-secret
 export WHOOP_REDIRECT_URI=http://localhost:8081/api/oauth/callback/whoop
 ```
+
+### COROS
+
+```bash
+# required for coros oauth (apply for API access first)
+export PIERRE_COROS_CLIENT_ID=your-client-id
+export PIERRE_COROS_CLIENT_SECRET=your-client-secret
+
+# legacy variables (backward compatible)
+export COROS_CLIENT_ID=your-client-id
+export COROS_CLIENT_SECRET=your-client-secret
+export COROS_REDIRECT_URI=http://localhost:8081/api/oauth/callback/coros
+```
+
+**Note:** COROS API documentation is private. Apply at [COROS Developer Portal](https://support.coros.com/hc/en-us/articles/17085887816340).
 
 ### Terra (150+ Wearables)
 

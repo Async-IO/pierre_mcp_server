@@ -1,6 +1,6 @@
 # Architecture
 
-Pierre Fitness Platform is a multi-protocol fitness data platform that connects AI assistants to strava, garmin, fitbit, whoop, and terra (150+ wearables). Single binary, single port (8081), multiple protocols.
+Pierre Fitness Platform is a multi-protocol fitness data platform that connects AI assistants to strava, garmin, fitbit, whoop, coros, and terra (150+ wearables). Single binary, single port (8081), multiple protocols.
 
 ## System Design
 
@@ -33,6 +33,8 @@ Pierre Fitness Platform is a multi-protocol fitness data platform that connects 
 │   • strava                              │
 │   • garmin                              │
 │   • fitbit                              │
+│   • whoop                               │
+│   • coros                               │
 │   • synthetic (oauth-free dev/testing)  │
 │   • custom providers (pluggable)        │
 │                                          │
@@ -66,7 +68,7 @@ Pierre Fitness Platform is a multi-protocol fitness data platform that connects 
 
 ### Providers (`src/providers/`)
 - **pluggable provider architecture**: factory pattern with runtime registration
-- **feature flags**: compile-time provider selection (`provider-strava`, `provider-garmin`, `provider-fitbit`, `provider-whoop`, `provider-terra`, `provider-synthetic`)
+- **feature flags**: compile-time provider selection (`provider-strava`, `provider-garmin`, `provider-fitbit`, `provider-whoop`, `provider-coros`, `provider-terra`, `provider-synthetic`)
 - **service provider interface (spi)**: `ProviderDescriptor` trait for external provider registration
 - **bitflags capabilities**: efficient `ProviderCapabilities` with combinators (`full_health()`, `full_fitness()`)
 - **1 to x providers simultaneously**: supports strava + garmin + custom providers at once
@@ -76,7 +78,7 @@ Pierre Fitness Platform is a multi-protocol fitness data platform that connects 
   - `PIERRE_<PROVIDER>_AUTH_URL`, `PIERRE_<PROVIDER>_TOKEN_URL`, `PIERRE_<PROVIDER>_SCOPES`
   - Falls back to hardcoded defaults if env vars not set
 - **shared `FitnessProvider` trait**: uniform interface for all providers
-- **built-in providers**: strava, garmin, fitbit, whoop, terra (150+ wearables), synthetic (oauth-free dev/testing)
+- **built-in providers**: strava, garmin, fitbit, whoop, coros, terra (150+ wearables), synthetic (oauth-free dev/testing)
 - **oauth parameters**: `OAuthParams` captures provider-specific oauth differences (scope separator, pkce)
 - **dynamic discovery**: `supported_providers()` and `is_supported()` for runtime introspection
 - **zero code changes**: add new providers without modifying tools or connection handlers
@@ -242,7 +244,7 @@ client request
     └─ rest → direct handlers
     ↓
 [tool execution]
-    ├─ providers (strava/garmin/fitbit/whoop)
+    ├─ providers (strava/garmin/fitbit/whoop/coros)
     ├─ intelligence (analysis)
     └─ configuration
     ↓
