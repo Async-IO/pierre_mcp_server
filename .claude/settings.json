@@ -6,6 +6,21 @@
           {
             "type": "command",
             "command": "git config core.hooksPath .githooks"
+          },
+          {
+            "type": "command",
+            "command": "echo '✅ Pierre Design System ready - use /design-review for UI validation'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$TOOL_INPUT\" | grep -q 'frontend/src/components'; then echo '💡 Frontend component modified - consider running /design-review'; fi"
           }
         ]
       }

@@ -51,7 +51,7 @@ use super::{
     ChatMessage, ChatRequest, ChatResponse, ChatStream, LlmCapabilities, LlmProvider, MessageRole,
     StreamChunk, TokenUsage,
 };
-use crate::errors::AppError;
+use crate::errors::{AppError, ErrorCode};
 
 /// Environment variable for Gemini API key
 const GEMINI_API_KEY_ENV: &str = "GEMINI_API_KEY";
@@ -320,9 +320,7 @@ impl GeminiProvider {
 
         if !status.is_success() {
             error!(status = %status, "Gemini API error");
-            return Err(AppError::internal(format!(
-                "Gemini API error ({status}): {response_text}"
-            )));
+            return Err(Self::map_api_error(status.as_u16(), &response_text));
         }
 
         let gemini_response: GeminiResponse =
@@ -508,6 +506,49 @@ impl GeminiProvider {
             total_tokens: metadata.total.unwrap_or(0),
         }
     }
+
+    /// Map API error status to appropriate error type
+    ///
+    /// For rate limit (429) and quota errors, returns a user-friendly error
+    /// that exposes the actual message from Gemini.
+    fn map_api_error(status: u16, response_text: &str) -> AppError {
+        // Try to extract error message from JSON response
+        let message = serde_json::from_str::<GeminiResponse>(response_text)
+            .ok()
+            .and_then(|r| r.error)
+            .map_or_else(|| response_text.to_owned(), |e| e.message);
+
+        match status {
+            429 => {
+                // Extract user-friendly quota message
+                let user_message = Self::extract_quota_message(&message);
+                AppError::new(ErrorCode::ExternalRateLimited, user_message)
+            }
+            _ => AppError::internal(format!("Gemini API error ({status}): {message}")),
+        }
+    }
+
+    /// Extract a user-friendly quota/rate limit message from Gemini error
+    fn extract_quota_message(message: &str) -> String {
+        // Look for "Please retry in X" and extract the time value
+        // Example: "Please retry in 6.406453963s."
+        if let Some(retry_pos) = message.find("Please retry in ") {
+            let after_prefix = &message[retry_pos + 16..]; // Skip "Please retry in "
+                                                           // Find the 's' that ends the seconds value (e.g., "6.406453963s")
+            if let Some(s_pos) = after_prefix.find('s') {
+                let time_str = &after_prefix[..s_pos];
+                if let Ok(seconds) = time_str.parse::<f64>() {
+                    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                    let seconds_int = seconds.ceil() as u64;
+                    return format!(
+                        "AI service quota exceeded. Please try again in {seconds_int} seconds."
+                    );
+                }
+            }
+        }
+        // Fallback to a generic but informative message
+        "AI service quota exceeded. Please wait a moment and try again.".to_owned()
+    }
 }
 
 #[async_trait]
@@ -557,9 +598,7 @@ impl LlmProvider for GeminiProvider {
 
         if !status.is_success() {
             error!(status = %status, "Gemini API error");
-            return Err(AppError::internal(format!(
-                "Gemini API error ({status}): {response_text}"
-            )));
+            return Err(Self::map_api_error(status.as_u16(), &response_text));
         }
 
         let gemini_response: GeminiResponse =
@@ -620,9 +659,7 @@ impl LlmProvider for GeminiProvider {
                 .text()
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_owned());
-            return Err(AppError::internal(format!(
-                "Gemini API error ({status}): {error_text}"
-            )));
+            return Err(Self::map_api_error(status.as_u16(), &error_text));
         }
 
         // Create a stream from the SSE response

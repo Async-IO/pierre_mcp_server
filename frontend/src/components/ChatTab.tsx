@@ -13,6 +13,7 @@ import { apiService } from '../services/api';
 import Markdown from 'react-markdown';
 import PromptSuggestions, { WELCOME_ANALYSIS_PROMPT } from './PromptSuggestions';
 import ProviderConnectionCards from './ProviderConnectionCards';
+import { useAuth } from '../hooks/useAuth';
 
 // Convert plain URLs to markdown links with friendly display names
 // Matches http/https URLs that aren't already in markdown link format
@@ -56,6 +57,11 @@ const linkifyUrls = (text: string): string => {
   return result;
 };
 
+// Strip internal context prefixes from messages before displaying to user
+const stripContextPrefix = (text: string): string => {
+  return text.replace(/^\[Context:[^\]]*\]\s*/i, '');
+};
+
 interface Conversation {
   id: string;
   title: string;
@@ -80,13 +86,19 @@ interface ConversationListResponse {
   total: number;
 }
 
-export default function ChatTab() {
+interface ChatTabProps {
+  onOpenSettings?: () => void;
+}
+
+export default function ChatTab({ onOpenSettings }: ChatTabProps) {
   const queryClient = useQueryClient();
+  const { user, logout } = useAuth();
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorCountdown, setErrorCountdown] = useState<number | null>(null);
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
   const [editedTitleValue, setEditedTitleValue] = useState('');
   const [oauthNotification, setOauthNotification] = useState<{ provider: string; timestamp: number } | null>(null);
@@ -163,12 +175,10 @@ export default function ChatTab() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messagesData?.messages, streamingContent]);
 
-  // Focus input and clear notification when conversation is selected
+  // Focus input when conversation is selected
   useEffect(() => {
     if (selectedConversation) {
       inputRef.current?.focus();
-      // Clear notification when switching conversations
-      setOauthNotification(null);
     }
   }, [selectedConversation]);
 
@@ -178,27 +188,35 @@ export default function ChatTab() {
     const checkAndProcessOAuthResult = () => {
       try {
         const stored = localStorage.getItem('pierre_oauth_result');
+        const savedConversation = localStorage.getItem('pierre_oauth_conversation');
+
         if (stored) {
           const result = JSON.parse(stored);
           // Only process if it's recent (within last 5 minutes)
           const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+
           if (result.type === 'oauth_completed' && result.success && result.timestamp > fiveMinutesAgo) {
-            console.log(`OAuth completed (detected on focus): ${result.provider} connected successfully`);
             queryClient.invalidateQueries({ queryKey: ['oauth-status'] });
             queryClient.invalidateQueries({ queryKey: ['user-profile'] });
             // Show visible notification in chat
             const providerDisplay = result.provider.charAt(0).toUpperCase() + result.provider.slice(1);
             setOauthNotification({ provider: providerDisplay, timestamp: Date.now() });
             setConnectingProvider(null);
+            // Restore the conversation that was active before OAuth redirect
+            if (savedConversation) {
+              setSelectedConversation(savedConversation);
+              localStorage.removeItem('pierre_oauth_conversation');
+            }
             // Clean up the storage item
             localStorage.removeItem('pierre_oauth_result');
           } else if (result.timestamp <= fiveMinutesAgo) {
             // Clean up stale entries
             localStorage.removeItem('pierre_oauth_result');
+            localStorage.removeItem('pierre_oauth_conversation');
           }
         }
       } catch {
-        // Ignore parse errors
+        // Ignore parse errors from localStorage
       }
     };
 
@@ -207,7 +225,6 @@ export default function ChatTab() {
       if (event.data?.type === 'oauth_completed') {
         const { provider, success } = event.data;
         if (success) {
-          console.log(`OAuth completed: ${provider} connected successfully`);
           // Invalidate any queries that depend on connection status
           queryClient.invalidateQueries({ queryKey: ['oauth-status'] });
           queryClient.invalidateQueries({ queryKey: ['user-profile'] });
@@ -215,6 +232,12 @@ export default function ChatTab() {
           const providerDisplay = provider.charAt(0).toUpperCase() + provider.slice(1);
           setOauthNotification({ provider: providerDisplay, timestamp: Date.now() });
           setConnectingProvider(null);
+          // Restore the conversation that was active before OAuth redirect
+          const savedConversation = localStorage.getItem('pierre_oauth_conversation');
+          if (savedConversation) {
+            setSelectedConversation(savedConversation);
+            localStorage.removeItem('pierre_oauth_conversation');
+          }
         }
       }
     };
@@ -224,13 +247,18 @@ export default function ChatTab() {
         try {
           const result = JSON.parse(event.newValue);
           if (result.type === 'oauth_completed' && result.success) {
-            console.log(`OAuth completed (via storage): ${result.provider} connected successfully`);
             queryClient.invalidateQueries({ queryKey: ['oauth-status'] });
             queryClient.invalidateQueries({ queryKey: ['user-profile'] });
             // Show visible notification in chat
             const providerDisplay = result.provider.charAt(0).toUpperCase() + result.provider.slice(1);
             setOauthNotification({ provider: providerDisplay, timestamp: Date.now() });
             setConnectingProvider(null);
+            // Restore the conversation that was active before OAuth redirect
+            const savedConversation = localStorage.getItem('pierre_oauth_conversation');
+            if (savedConversation) {
+              setSelectedConversation(savedConversation);
+              localStorage.removeItem('pierre_oauth_conversation');
+            }
             // Clean up the storage item
             localStorage.removeItem('pierre_oauth_result');
           }
@@ -282,24 +310,85 @@ export default function ChatTab() {
     }
   }, [pendingPrompt, selectedConversation, isStreaming]);
 
+  // Parse rate limit countdown from error message and manage timer
+  useEffect(() => {
+    if (!errorMessage) {
+      setErrorCountdown(null);
+      return;
+    }
+
+    // Look for "in X seconds" pattern in error message
+    const match = errorMessage.match(/in (\d+) seconds/);
+    if (match) {
+      const seconds = parseInt(match[1], 10);
+      setErrorCountdown(seconds);
+    }
+  }, [errorMessage]);
+
+  // Countdown timer that auto-dismisses when reaching 0
+  useEffect(() => {
+    if (errorCountdown === null || errorCountdown <= 0) {
+      if (errorCountdown === 0) {
+        setErrorMessage(null);
+        setErrorCountdown(null);
+      }
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setErrorCountdown(prev => {
+        if (prev === null || prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [errorCountdown]);
+
   const handleSendMessage = useCallback(async () => {
     if (!newMessage.trim() || !selectedConversation || isStreaming) return;
 
-    const messageContent = newMessage.trim();
+    // Store conversation ID at the START if we're connecting a provider
+    // This ensures the ID is saved before any OAuth links appear that user might click
+    if (connectingProvider) {
+      localStorage.setItem('pierre_oauth_conversation', selectedConversation);
+    }
+
+    const displayContent = newMessage.trim();
+    // Add context about connected providers to help the LLM
+    let messageContent = displayContent;
+    if (oauthNotification) {
+      // OAuth just completed - mention the newly connected provider
+      messageContent = `[Context: I just connected my ${oauthNotification.provider} account successfully] ${displayContent}`;
+    } else if (hasConnectedProvider && (!messagesData?.messages || messagesData.messages.length === 0)) {
+      // First message in conversation with connected providers - add context
+      const connectedProviders = oauthStatus?.providers
+        ?.filter(p => p.connected)
+        .map(p => p.provider.charAt(0).toUpperCase() + p.provider.slice(1))
+        .join(', ');
+      if (connectedProviders) {
+        messageContent = `[Context: I have ${connectedProviders} connected] ${displayContent}`;
+      }
+    }
+
     setNewMessage('');
     setIsStreaming(true);
     setStreamingContent('');
     setErrorMessage(null);
+    setOauthNotification(null); // Clear OAuth notification when user sends a new message
 
     try {
-      // Optimistically add user message to UI
+      // Optimistically add user message to UI (without context prefix)
       queryClient.setQueryData(['chat-messages', selectedConversation], (old: { messages: Message[] } | undefined) => ({
         messages: [
           ...(old?.messages || []),
           {
             id: `temp-${Date.now()}`,
             role: 'user' as const,
-            content: messageContent,
+            content: displayContent,
             created_at: new Date().toISOString(),
           },
         ],
@@ -317,13 +406,8 @@ export default function ChatTab() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-        // Parse user-friendly error messages
-        let userMessage = errorData.message || 'Failed to send message';
-        if (userMessage.includes('quota') || userMessage.includes('429') || userMessage.includes('rate limit')) {
-          userMessage = 'AI service is temporarily unavailable due to rate limiting. Please try again in a few seconds.';
-        } else if (response.status === 500) {
-          userMessage = 'The AI service encountered an error. Please try again.';
-        }
+        // Show actual error message from backend
+        const userMessage = errorData.message || errorData.error || 'Failed to send message';
         throw new Error(userMessage);
       }
 
@@ -372,7 +456,7 @@ export default function ChatTab() {
                              fullContent.match(/https?:\/\/[^\s<>[\]()]*garmin\.com[^\s<>[\]()]*/i) ||
                              fullContent.match(/https?:\/\/[^\s<>[\]()]*whoop\.com[^\s<>[\]()]*/i);
         if (oauthUrlMatch) {
-          console.log(`Auto-redirecting to OAuth URL for ${connectingProvider}: ${oauthUrlMatch[0]}`);
+          // Conversation ID was stored at the start of handleSendMessage
           // Small delay to let user see the response before redirect
           setTimeout(() => {
             window.location.href = oauthUrlMatch[0];
@@ -391,7 +475,7 @@ export default function ChatTab() {
       setIsStreaming(false);
       setStreamingContent('');
     }
-  }, [newMessage, selectedConversation, isStreaming, queryClient, connectingProvider]);
+  }, [newMessage, selectedConversation, isStreaming, queryClient, connectingProvider, oauthNotification, hasConnectedProvider, messagesData, oauthStatus]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -401,7 +485,9 @@ export default function ChatTab() {
   };
 
   const handleNewChat = () => {
-    createConversation.mutate();
+    // Clear selection to show welcome/onboarding screen
+    // Conversation is created when user sends a message or clicks a prompt
+    setSelectedConversation(null);
   };
 
   const handleSelectPrompt = (prompt: string) => {
@@ -483,7 +569,7 @@ export default function ChatTab() {
   return (
     <PanelGroup
       orientation="horizontal"
-      className="h-[calc(100vh-8rem)] -mx-6 -mt-6"
+      className="h-full"
     >
       {/* Left Sidebar - Conversation List (collapsible) */}
       <Panel
@@ -595,6 +681,53 @@ export default function ChatTab() {
             </div>
           )}
         </div>
+
+        {/* User Profile Section - Bottom of sidebar */}
+        <div className="border-t border-pierre-gray-200 px-3 py-3">
+          <div className="flex items-center gap-3">
+            {/* User Avatar with online indicator */}
+            <div className="relative flex-shrink-0">
+              <div className="w-8 h-8 bg-gradient-to-br from-pierre-violet to-pierre-cyan rounded-full flex items-center justify-center">
+                <span className="text-xs font-bold text-white">
+                  {(user?.display_name || user?.email)?.charAt(0).toUpperCase()}
+                </span>
+              </div>
+              {/* Online status dot */}
+              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-pierre-gray-50" />
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-pierre-gray-900 truncate">
+                {user?.display_name || user?.email}
+              </p>
+              <p className="text-xs text-pierre-gray-500 truncate">
+                {user?.email}
+              </p>
+            </div>
+
+            {onOpenSettings && (
+              <button
+                onClick={onOpenSettings}
+                className="p-1.5 text-pierre-gray-400 hover:text-pierre-violet hover:bg-pierre-violet/10 rounded-lg transition-colors flex-shrink-0"
+                title="Settings"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </button>
+            )}
+            <button
+              onClick={logout}
+              className="p-1.5 text-pierre-gray-400 hover:text-pierre-red-500 hover:bg-pierre-red-50 rounded-lg transition-colors flex-shrink-0"
+              title="Sign out"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
+          </div>
+        </div>
       </Panel>
 
       {/* Resize Handle with Toggle Button */}
@@ -619,108 +752,102 @@ export default function ChatTab() {
       </PanelResizeHandle>
 
       {/* Main Chat Area */}
-      <Panel className="flex flex-col bg-white">
-        {/* Show empty state when no conversation selected OR when conversation has no messages */}
-        {(!selectedConversation || (selectedConversation && !messagesLoading && (!messagesData?.messages || messagesData.messages.length === 0))) ? (
-          // Empty state - clean, minimal design showing provider cards and activity analysis button
+      <Panel defaultSize="75%" className="flex flex-col bg-white">
+        {/* Show provider onboarding only when no conversation is selected and no providers connected */}
+        {!selectedConversation && !hasConnectedProvider ? (
           <div className="flex-1 flex items-center justify-center overflow-y-auto py-12">
             <div className="w-full max-w-3xl px-6">
-              {/* Step 1: Show provider connection cards if no providers connected */}
-              {!hasConnectedProvider && (
-                <>
-                  <div className="text-center mb-8">
-                    <h2 className="text-2xl font-semibold text-pierre-gray-900 mb-2">
-                      Connect your fitness data
-                    </h2>
-                    <p className="text-pierre-gray-500 text-sm">
-                      Link a provider to unlock personalized insights
-                    </p>
-                  </div>
+              <div className="text-center mb-8">
+                <h2 className="text-2xl font-semibold text-pierre-gray-900 mb-2">
+                  Connect your fitness data
+                </h2>
+                <p className="text-pierre-gray-500 text-sm">
+                  Link a provider to unlock personalized insights
+                </p>
+              </div>
 
-                  <ProviderConnectionCards
-                    onConnectProvider={handleConnectProvider}
-                    connectingProvider={connectingProvider}
-                    onSkip={handleNewChat}
-                    isSkipPending={createConversation.isPending}
-                  />
-                </>
-              )}
+              <ProviderConnectionCards
+                onConnectProvider={handleConnectProvider}
+                connectingProvider={connectingProvider}
+                onSkip={handleNewChat}
+                isSkipPending={createConversation.isPending}
+              />
+            </div>
+          </div>
+        ) : !selectedConversation && hasConnectedProvider ? (
+          // Welcome state when provider connected but no conversation yet
+          <div className="flex-1 flex items-center justify-center overflow-y-auto py-12">
+            <div className="w-full max-w-3xl px-6">
+              <div className="text-center mb-8">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-sm font-medium rounded-full mb-4">
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  {oauthStatus?.providers?.filter(p => p.connected).map(p =>
+                    p.provider.charAt(0).toUpperCase() + p.provider.slice(1)
+                  ).join(', ')} connected
+                </div>
+                <h2 className="text-2xl font-semibold text-pierre-gray-900 mb-2">
+                  Ready to analyze your fitness
+                </h2>
+                <p className="text-pierre-gray-500 text-sm">
+                  Get personalized insights from your activity data
+                </p>
+              </div>
 
-              {/* Step 2: Show welcome state with activity analysis button once a provider is connected */}
-              {hasConnectedProvider && (
-                <>
-                  <div className="text-center mb-8">
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-sm font-medium rounded-full mb-4">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              {/* Featured action: Analyze recent activities */}
+              <div className="text-center mb-8">
+                <button
+                  type="button"
+                  onClick={() => handleSelectPrompt(WELCOME_ANALYSIS_PROMPT)}
+                  disabled={createConversation.isPending}
+                  className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-pierre-violet to-pierre-cyan text-white font-semibold rounded-xl shadow-lg shadow-pierre-violet/25 hover:shadow-xl hover:shadow-pierre-violet/30 hover:-translate-y-0.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-offset-2 disabled:opacity-50"
+                >
+                  {createConversation.isPending ? (
+                    <>
+                      <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
+                        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
                       </svg>
-                      {oauthStatus?.providers?.filter(p => p.connected).map(p =>
-                        p.provider.charAt(0).toUpperCase() + p.provider.slice(1)
-                      ).join(', ')} connected
-                    </div>
-                    <h2 className="text-2xl font-semibold text-pierre-gray-900 mb-2">
-                      Ready to analyze your fitness
-                    </h2>
-                    <p className="text-pierre-gray-500 text-sm">
-                      Get personalized insights from your activity data
-                    </p>
-                  </div>
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                      Analyze my last 20 activities
+                    </>
+                  )}
+                </button>
+              </div>
 
-                  {/* Featured action: Analyze recent activities */}
-                  <div className="text-center mb-8">
-                    <button
-                      type="button"
-                      onClick={() => handleSelectPrompt(WELCOME_ANALYSIS_PROMPT)}
-                      disabled={createConversation.isPending}
-                      className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-pierre-violet to-pierre-cyan text-white font-semibold rounded-xl shadow-lg shadow-pierre-violet/25 hover:shadow-xl hover:shadow-pierre-violet/30 hover:-translate-y-0.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-offset-2 disabled:opacity-50"
-                    >
-                      {createConversation.isPending ? (
-                        <>
-                          <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
-                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
-                            <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-                          </svg>
-                          Analyzing...
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                          </svg>
-                          Analyze my last 20 activities
-                        </>
-                      )}
-                    </button>
-                  </div>
+              {/* Divider */}
+              <div className="flex items-center gap-4 my-8">
+                <div className="flex-1 h-px bg-pierre-gray-200" />
+                <span className="text-pierre-gray-400 text-xs uppercase tracking-wider">Or ask something else</span>
+                <div className="flex-1 h-px bg-pierre-gray-200" />
+              </div>
 
-                  {/* Divider */}
-                  <div className="flex items-center gap-4 my-8">
-                    <div className="flex-1 h-px bg-pierre-gray-200" />
-                    <span className="text-pierre-gray-400 text-xs uppercase tracking-wider">Or ask something else</span>
-                    <div className="flex-1 h-px bg-pierre-gray-200" />
-                  </div>
+              {/* Additional prompt suggestions */}
+              <PromptSuggestions onSelectPrompt={handleSelectPrompt} />
 
-                  {/* Additional prompt suggestions */}
-                  <PromptSuggestions onSelectPrompt={handleSelectPrompt} />
-
-                  <div className="mt-8 text-center">
-                    <button
-                      type="button"
-                      onClick={handleNewChat}
-                      disabled={createConversation.isPending}
-                      className="text-pierre-gray-500 hover:text-pierre-violet text-sm font-medium transition-colors"
-                    >
-                      Start a blank conversation
-                    </button>
-                  </div>
-                </>
-              )}
+              <div className="mt-8 text-center">
+                <button
+                  type="button"
+                  onClick={handleNewChat}
+                  disabled={createConversation.isPending}
+                  className="text-pierre-gray-500 hover:text-pierre-violet text-sm font-medium transition-colors"
+                >
+                  Start a blank conversation
+                </button>
+              </div>
             </div>
           </div>
         ) : (
-          <>
+          <div className="h-full flex flex-col">
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto min-h-0">
               <div className="max-w-3xl mx-auto py-6 px-6">
                 {messagesLoading ? (
                   <div className="text-center text-pierre-gray-500 py-8 text-sm">Loading messages...</div>
@@ -757,7 +884,7 @@ export default function ChatTab() {
                                 ),
                               }}
                             >
-                              {linkifyUrls(msg.content)}
+                              {linkifyUrls(stripContextPrefix(msg.content))}
                             </Markdown>
                           </div>
                         </div>
@@ -784,7 +911,7 @@ export default function ChatTab() {
                               </svg>
                             </button>
                           </div>
-                          <div className="text-pierre-gray-700 text-sm leading-relaxed bg-pierre-activity-light/50 rounded-lg px-3 py-2">
+                          <div className="text-pierre-gray-700 text-sm leading-relaxed">
                             {oauthNotification.provider} connected successfully. You can now access your {oauthNotification.provider} data.
                           </div>
                         </div>
@@ -857,9 +984,13 @@ export default function ChatTab() {
                         </div>
                         <div className="flex-1 pt-1">
                           <div className="bg-red-50 border border-red-100 rounded-lg px-4 py-3">
-                            <p className="text-red-700 text-sm">{errorMessage}</p>
+                            <p className="text-red-700 text-sm">
+                              {errorCountdown !== null
+                                ? errorMessage.replace(/in \d+ seconds/, `in ${errorCountdown} seconds`)
+                                : errorMessage}
+                            </p>
                             <button
-                              onClick={() => setErrorMessage(null)}
+                              onClick={() => { setErrorMessage(null); setErrorCountdown(null); }}
                               className="text-red-500 hover:text-red-700 text-xs mt-2 underline"
                             >
                               Dismiss
@@ -936,7 +1067,7 @@ export default function ChatTab() {
                 </div>
               </div>
             </div>
-          </>
+          </div>
         )}
       </Panel>
 

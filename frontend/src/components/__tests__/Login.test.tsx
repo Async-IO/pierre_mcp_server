@@ -126,7 +126,8 @@ describe('Login Component', () => {
     await user.click(submitButton)
 
     await waitFor(() => {
-      expect(screen.getByText('Invalid credentials')).toBeInTheDocument()
+      // Login component maps "Invalid credentials" to user-friendly message
+      expect(screen.getByText('Invalid email or password')).toBeInTheDocument()
     })
 
     // Should not be loading anymore

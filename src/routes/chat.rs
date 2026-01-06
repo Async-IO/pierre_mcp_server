@@ -619,7 +619,7 @@ impl ChatRoutes {
         for function_call in function_calls {
             info!("Executing tool: {}", function_call.name);
             let tool_response =
-                Self::execute_mcp_tool(executor, function_call, user_id, tenant_id).await?;
+                Self::execute_mcp_tool(executor, function_call, user_id, tenant_id).await;
             responses.push(Self::build_function_response(function_call, &tool_response));
         }
         Ok(responses)
@@ -641,12 +641,13 @@ impl ChatRoutes {
     }
 
     /// Execute an MCP tool call and return the result
+    /// Tool execution errors are converted to failed responses so the LLM can handle them gracefully
     async fn execute_mcp_tool(
         executor: &UniversalExecutor,
         function_call: &FunctionCall,
         user_id: &str,
         tenant_id: &str,
-    ) -> Result<UniversalResponse, AppError> {
+    ) -> UniversalResponse {
         let request = UniversalRequest {
             tool_name: function_call.name.clone(), // Ownership transfer for tool execution
             parameters: function_call.args.clone(), // Ownership transfer for parameters
@@ -658,10 +659,19 @@ impl ChatRoutes {
             progress_reporter: None,
         };
 
-        executor
-            .execute_tool(request)
-            .await
-            .map_err(|e| AppError::internal(format!("Tool execution failed: {e}")))
+        match executor.execute_tool(request).await {
+            Ok(response) => response,
+            Err(e) => {
+                // Convert tool execution errors to failed responses
+                // This allows the LLM to provide a helpful alternative response
+                UniversalResponse {
+                    success: false,
+                    result: None,
+                    error: Some(format!("Tool execution failed: {e}")),
+                    metadata: None,
+                }
+            }
+        }
     }
 
     /// Build function response for Gemini from MCP tool response

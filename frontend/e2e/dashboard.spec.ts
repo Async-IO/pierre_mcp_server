@@ -161,9 +161,10 @@ test.describe('Dashboard Navigation', () => {
     await setupFullDashboardMocks(page, { isAdmin: false });
     await loginAndGoToDashboard(page);
 
-    await page.waitForSelector('nav', { timeout: 10000 });
+    // Non-admin users see chat-first layout with header (no sidebar nav)
+    await page.waitForSelector('header', { timeout: 10000 });
 
-    // Non-admin should not see Users tab
+    // Non-admin should not see Users tab (they don't have a sidebar at all)
     await expect(page.locator('button').filter({ has: page.locator('span:has-text("Users")') })).not.toBeVisible();
   });
 
@@ -210,7 +211,8 @@ test.describe('Dashboard Navigation', () => {
 
 test.describe('Dashboard Sidebar', () => {
   test('displays Pierre logo and branding', async ({ page }) => {
-    await setupFullDashboardMocks(page, { isAdmin: false });
+    // Sidebar tests require admin users (non-admin users see chat-first layout)
+    await setupFullDashboardMocks(page, { isAdmin: true });
     await loginAndGoToDashboard(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
@@ -221,7 +223,8 @@ test.describe('Dashboard Sidebar', () => {
   });
 
   test('collapses and expands sidebar', async ({ page }) => {
-    await setupFullDashboardMocks(page, { isAdmin: false });
+    // Sidebar tests require admin users (non-admin users see chat-first layout)
+    await setupFullDashboardMocks(page, { isAdmin: true });
     await loginAndGoToDashboard(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
@@ -248,7 +251,8 @@ test.describe('Dashboard Sidebar', () => {
   });
 
   test('shows tooltips in collapsed state', async ({ page }) => {
-    await setupFullDashboardMocks(page, { isAdmin: false });
+    // Sidebar tests require admin users (non-admin users see chat-first layout)
+    await setupFullDashboardMocks(page, { isAdmin: true });
     await loginAndGoToDashboard(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
@@ -257,10 +261,9 @@ test.describe('Dashboard Sidebar', () => {
     const collapseButton = page.locator('button[title="Collapse sidebar"]');
     await collapseButton.click();
 
-    // Hover over a nav button to trigger tooltip - use Tokens which exists for regular users
-    // (Non-admin users don't have Connections tab)
-    const tokensButton = page.locator('button[title="Tokens"]');
-    await tokensButton.hover();
+    // Hover over a nav button to trigger tooltip
+    const overviewButton = page.locator('button[title="Overview"]');
+    await overviewButton.hover();
 
     // Wait for tooltip
     await page.waitForTimeout(300);
@@ -289,27 +292,29 @@ test.describe('Dashboard User Profile', () => {
   });
 
   test('displays user badge for non-admin users', async ({ page }) => {
+    // Non-admin users see chat-first layout; verify branding is visible
     await setupFullDashboardMocks(page, { isAdmin: false });
     await loginAndGoToDashboard(page);
 
-    await page.waitForSelector('nav', { timeout: 10000 });
-
-    // User badge should be visible (not Admin)
-    await expect(page.getByText('User', { exact: true })).toBeVisible();
+    // Non-admin layout has header with Pierre branding (no sidebar with user profile)
+    await page.waitForSelector('header', { timeout: 10000 });
+    await expect(page.getByText('Pierre Fitness Intelligence')).toBeVisible();
   });
 
   test('shows user display name in header', async ({ page }) => {
-    await setupFullDashboardMocks(page, { isAdmin: false });
+    // User display name is shown in admin sidebar, not in non-admin chat layout
+    await setupFullDashboardMocks(page, { isAdmin: true });
     await loginAndGoToDashboard(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
-    // User display name should be visible in header
-    await expect(page.getByText('Test Admin')).toBeVisible();
+    // User display name should be visible in sidebar for admin users
+    await expect(page.getByText('Test Admin').first()).toBeVisible();
   });
 
   test('logout button is visible and functional', async ({ page }) => {
-    await setupFullDashboardMocks(page, { isAdmin: false });
+    // Logout button is in admin sidebar, not in non-admin chat layout
+    await setupFullDashboardMocks(page, { isAdmin: true });
 
     // Mock logout endpoint
     await page.route('**/api/auth/logout', async (route) => {
@@ -418,20 +423,22 @@ test.describe('Dashboard Header', () => {
   });
 
   test('header is sticky on scroll', async ({ page }) => {
-    await setupFullDashboardMocks(page, { isAdmin: false });
+    // Admin layout has sticky header on the main content area
+    await setupFullDashboardMocks(page, { isAdmin: true });
     await loginAndGoToDashboard(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
-    // Check header has sticky positioning class
-    const header = page.locator('header');
+    // Check main content header has sticky positioning class
+    const header = page.locator('main header');
     await expect(header).toHaveClass(/sticky/);
   });
 });
 
 test.describe('Dashboard Responsive Behavior', () => {
   test('sidebar collapses for better content visibility', async ({ page }) => {
-    await setupFullDashboardMocks(page, { isAdmin: false });
+    // Sidebar tests require admin users (non-admin users see chat-first layout)
+    await setupFullDashboardMocks(page, { isAdmin: true });
     await loginAndGoToDashboard(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });

@@ -486,10 +486,14 @@ test.describe('Overview Tab - Quick Actions (Admin Only)', () => {
 
   test('hides Quick Actions for non-admin users', async ({ page }) => {
     await setupOverviewMocks(page, { isAdmin: false });
-    await loginAndGoToOverview(page);
+    await loginToDashboard(page);
+    // Non-admin users see chat-first layout with header (no sidebar nav)
+    await page.waitForSelector('header', { timeout: 10000 });
 
-    await page.waitForSelector('nav', { timeout: 10000 });
-
+    // Non-admin users don't have sidebar or Overview tab - verify chat layout
+    await expect(page.getByText('Pierre Fitness Intelligence')).toBeVisible();
+    await expect(page.locator('nav')).not.toBeVisible();
+    // Quick Actions is admin-only (Overview tab not accessible to non-admin)
     await expect(page.getByText('Quick Actions')).not.toBeVisible();
   });
 });
@@ -573,10 +577,14 @@ test.describe('Overview Tab - Alerts (Admin Only)', () => {
 
   test('hides Alerts section for non-admin users', async ({ page }) => {
     await setupOverviewMocks(page, { isAdmin: false });
-    await loginAndGoToOverview(page);
+    await loginToDashboard(page);
+    // Non-admin users see chat-first layout with header (no sidebar nav)
+    await page.waitForSelector('header', { timeout: 10000 });
 
-    await page.waitForSelector('nav', { timeout: 10000 });
-
+    // Non-admin users don't have a sidebar or Overview tab - verify chat layout
+    await expect(page.getByText('Pierre Fitness Intelligence')).toBeVisible();
+    await expect(page.locator('nav')).not.toBeVisible();
+    // Alerts section is admin-only (Overview tab not accessible to non-admin)
     await expect(page.getByText('Alerts')).not.toBeVisible();
   });
 

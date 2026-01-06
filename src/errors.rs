@@ -273,11 +273,15 @@ impl AppError {
     #[must_use]
     pub fn sanitized_message(&self) -> String {
         match self.code {
-            // Validation errors: message is already safe to expose
+            // Validation and rate limit errors: messages are safe to expose
+            // Rate limit messages help users understand wait times
             ErrorCode::InvalidInput
             | ErrorCode::MissingRequiredField
             | ErrorCode::InvalidFormat
-            | ErrorCode::ValueOutOfRange => self.message.clone(),
+            | ErrorCode::ValueOutOfRange
+            | ErrorCode::RateLimitExceeded
+            | ErrorCode::QuotaExceeded
+            | ErrorCode::ExternalRateLimited => self.message.clone(),
             // JWT validation errors: expose details to help with troubleshooting
             // (key mismatches, expiry, etc. don't contain sensitive data)
             ErrorCode::AuthInvalid if self.message.contains("JWT") => self.message.clone(),

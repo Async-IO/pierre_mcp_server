@@ -798,9 +798,12 @@ test.describe('Connections Tab - API Tokens Tab Visibility', () => {
     // Non-admin users don't have access to the Connections tab at all
     await setupConnectionsMocks(page, { isAdmin: false });
     await loginToDashboard(page);
-    await page.waitForSelector('nav', { timeout: 10000 });
+    // Non-admin users see chat-first layout with header (no sidebar nav)
+    await page.waitForSelector('header', { timeout: 10000 });
 
-    // Connections tab should not be visible in sidebar for non-admin users
-    await expect(page.locator('nav button').filter({ hasText: 'Connections' })).not.toBeVisible();
+    // Non-admin users don't have a sidebar - verify chat layout is shown
+    await expect(page.getByText('Pierre Fitness Intelligence')).toBeVisible();
+    // Connections tab should not be visible (no sidebar for non-admin users)
+    await expect(page.locator('nav')).not.toBeVisible();
   });
 });

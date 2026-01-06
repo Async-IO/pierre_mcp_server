@@ -64,6 +64,8 @@ export default function Login({ onNavigateToRegister }: LoginProps) {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const { login, loginWithFirebase } = useAuth();
   const processingAuthRef = useRef(false);
+  // Track if the user manually initiated sign-in (vs auto-login from cached Firebase state)
+  const userInitiatedSignInRef = useRef(false);
 
   // Listen for Firebase auth state changes (handles redirect result)
   useEffect(() => {
@@ -71,20 +73,28 @@ export default function Login({ onNavigateToRegister }: LoginProps) {
       if (user && !processingAuthRef.current) {
         processingAuthRef.current = true;
         setIsGoogleLoading(true);
-        setError('');
+        // Only clear error if this is a user-initiated action
+        if (userInitiatedSignInRef.current) {
+          setError('');
+        }
 
         try {
           const idToken = await user.getIdToken();
           await loginWithFirebase(idToken);
         } catch (err: unknown) {
-          const apiError = err as { response?: { data?: { error?: string } } };
-          if (apiError.response?.data?.error) {
-            setError(apiError.response.data.error);
-          } else {
-            const firebaseError = err as { message?: string };
-            setError(firebaseError.message || 'Google sign-in failed');
+          // Only show error if user manually initiated the sign-in
+          // Auto-login from cached Firebase state should fail silently
+          if (userInitiatedSignInRef.current) {
+            const apiError = err as { response?: { data?: { error?: string } } };
+            if (apiError.response?.data?.error) {
+              setError(apiError.response.data.error);
+            } else {
+              const firebaseError = err as { message?: string };
+              setError(firebaseError.message || 'Google sign-in failed');
+            }
           }
           processingAuthRef.current = false;
+          userInitiatedSignInRef.current = false;
         } finally {
           setIsGoogleLoading(false);
         }
@@ -103,7 +113,13 @@ export default function Login({ onNavigateToRegister }: LoginProps) {
       await login(email, password);
     } catch (err: unknown) {
       const apiError = err as { response?: { data?: { error?: string } } };
-      setError(apiError.response?.data?.error || 'Login failed');
+      const errorMsg = apiError.response?.data?.error || 'Login failed';
+      // Map technical errors to user-friendly messages
+      if (errorMsg === 'invalid_grant' || errorMsg.includes('Invalid') || errorMsg.includes('credentials')) {
+        setError('Invalid email or password');
+      } else {
+        setError(errorMsg);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -112,6 +128,8 @@ export default function Login({ onNavigateToRegister }: LoginProps) {
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
     setError('');
+    // Mark this as a user-initiated sign-in so errors will be displayed
+    userInitiatedSignInRef.current = true;
 
     try {
       // Initiate Google sign-in redirect (page will redirect to Google)
@@ -126,6 +144,7 @@ export default function Login({ onNavigateToRegister }: LoginProps) {
         setError(firebaseError.message || 'Google sign-in failed');
       }
       setIsGoogleLoading(false);
+      userInitiatedSignInRef.current = false;
     }
   };
 

@@ -62,7 +62,7 @@ const PROMPT_CATEGORIES: PromptCategory[] = [
 ];
 
 // Featured prompt for first-time connected users - analyzes recent activities
-export const WELCOME_ANALYSIS_PROMPT = 'Analyze my last 20 activities and give me a fitness summary with insights and recommendations';
+export const WELCOME_ANALYSIS_PROMPT = 'List my last 20 activities with their dates, distances, and durations. Then give me a fitness summary with insights and recommendations';
 
 interface PromptSuggestionsProps {
   onSelectPrompt: (prompt: string) => void;

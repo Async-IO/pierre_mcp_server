@@ -18,12 +18,10 @@ const RequestMonitor = lazy(() => import('./RequestMonitor'));
 const ToolUsageBreakdown = lazy(() => import('./ToolUsageBreakdown'));
 const UnifiedConnections = lazy(() => import('./UnifiedConnections'));
 const UserManagement = lazy(() => import('./UserManagement'));
-const UserHome = lazy(() => import('./UserHome'));
 const UserSettings = lazy(() => import('./UserSettings'));
 const AdminSettings = lazy(() => import('./AdminSettings'));
 const ApiKeyList = lazy(() => import('./ApiKeyList'));
 const ApiKeyDetails = lazy(() => import('./ApiKeyDetails'));
-const MCPTokensTab = lazy(() => import('./MCPTokensTab'));
 const ChatTab = lazy(() => import('./ChatTab'));
 const AdminConfiguration = lazy(() => import('./AdminConfiguration'));
 
@@ -55,34 +53,59 @@ const PierreLogo = () => (
   </svg>
 );
 
+const PierreLogoSmall = () => (
+  <svg width="32" height="32" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="pg-sm" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#7C3AED"/><stop offset="100%" stopColor="#06B6D4"/></linearGradient>
+      <linearGradient id="ag-sm" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#10B981"/><stop offset="100%" stopColor="#059669"/></linearGradient>
+      <linearGradient id="ng-sm" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#F59E0B"/><stop offset="100%" stopColor="#D97706"/></linearGradient>
+      <linearGradient id="rg-sm" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#6366F1"/><stop offset="100%" stopColor="#4F46E5"/></linearGradient>
+    </defs>
+    <g strokeWidth="2" opacity="0.5" strokeLinecap="round">
+      <line x1="40" y1="30" x2="52" y2="42" stroke="url(#ag-sm)"/><line x1="52" y1="42" x2="70" y2="35" stroke="url(#ag-sm)"/>
+      <line x1="52" y1="42" x2="48" y2="55" stroke="url(#pg-sm)"/><line x1="48" y1="55" x2="75" y2="52" stroke="url(#ng-sm)"/>
+      <line x1="48" y1="55" x2="55" y2="72" stroke="url(#pg-sm)"/><line x1="55" y1="72" x2="35" y2="85" stroke="url(#rg-sm)"/><line x1="55" y1="72" x2="72" y2="82" stroke="url(#rg-sm)"/>
+    </g>
+    <circle cx="40" cy="30" r="7" fill="url(#ag-sm)"/><circle cx="52" cy="42" r="5" fill="url(#ag-sm)"/><circle cx="70" cy="35" r="3.5" fill="url(#ag-sm)"/>
+    <circle cx="48" cy="55" r="6" fill="url(#pg-sm)"/><circle cx="48" cy="55" r="3" fill="#fff" opacity="0.9"/>
+    <circle cx="75" cy="52" r="4.5" fill="url(#ng-sm)"/><circle cx="88" cy="60" r="3.5" fill="url(#ng-sm)"/>
+    <circle cx="55" cy="72" r="5" fill="url(#rg-sm)"/><circle cx="35" cy="85" r="4" fill="url(#rg-sm)"/><circle cx="72" cy="82" r="4" fill="url(#rg-sm)"/>
+  </svg>
+);
+
 export default function Dashboard() {
   const { user, logout } = useAuth();
-  // Default tab depends on user role: admin sees 'overview', regular users see 'home'
+  // Default tab depends on user role: admin sees 'overview', regular users see 'chat'
   const isAdminUser = user?.role === 'admin' || user?.role === 'super_admin';
   const isSuperAdmin = user?.role === 'super_admin';
-  const [activeTab, setActiveTab] = useState(isAdminUser ? 'overview' : 'home');
+  const [activeTab, setActiveTab] = useState(isAdminUser ? 'overview' : 'chat');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedAdminToken, setSelectedAdminToken] = useState<AdminToken | null>(null);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const { lastMessage } = useWebSocketContext();
 
   const { data: overview, isLoading: overviewLoading, refetch: refetchOverview } = useQuery<DashboardOverview>({
     queryKey: ['dashboard-overview'],
     queryFn: () => apiService.getDashboardOverview(),
+    enabled: isAdminUser,
   });
 
   const { data: rateLimits } = useQuery<RateLimitOverview[]>({
     queryKey: ['rate-limits'],
     queryFn: () => apiService.getRateLimitOverview(),
+    enabled: isAdminUser,
   });
 
   const { data: weeklyUsage } = useQuery<AnalyticsData>({
     queryKey: ['usage-analytics', 7],
     queryFn: () => apiService.getUsageAnalytics(7),
+    enabled: isAdminUser,
   });
 
   const { data: a2aOverview } = useQuery({
     queryKey: ['a2a-dashboard-overview'],
     queryFn: () => apiService.getA2ADashboardOverview(),
+    enabled: isAdminUser,
   });
 
   // Pending users badge - only fetch for admin users
@@ -96,14 +119,25 @@ export default function Dashboard() {
 
   // Refresh data when WebSocket updates are received
   useEffect(() => {
-    if (lastMessage) {
+    if (lastMessage && isAdminUser) {
       if (lastMessage.type === 'usage_update' || lastMessage.type === 'system_stats') {
         refetchOverview();
       }
     }
-  }, [lastMessage, refetchOverview]);
+  }, [lastMessage, refetchOverview, isAdminUser]);
 
-  // Tab definitions
+  // Close user menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (showUserMenu && !(e.target as Element).closest('.user-menu-container')) {
+        setShowUserMenu(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [showUserMenu]);
+
+  // Tab definitions for admin users
   const adminTabs: TabDefinition[] = useMemo(() => [
     { id: 'overview', name: 'Overview', icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -160,33 +194,54 @@ export default function Dashboard() {
     ) },
   ], [adminTabs]);
 
-  const userTabs: TabDefinition[] = useMemo(() => [
-    { id: 'home', name: 'Home', icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-      </svg>
-    ) },
-    { id: 'chat', name: 'Chat with Pierre', icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-      </svg>
-    ) },
-    { id: 'mcp-tokens', name: 'Tokens', icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-      </svg>
-    ) },
-    { id: 'settings', name: 'Settings', icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-      </svg>
-    ) },
-  ], []);
+  // For admin users, use sidebar tabs
+  const tabs = isSuperAdmin ? superAdminTabs : adminTabs;
 
-  // Select tabs based on user role: super_admin gets extra tabs, admin gets admin tabs, users get user tabs
-  const tabs = isSuperAdmin ? superAdminTabs : isAdminUser ? adminTabs : userTabs;
+  // Regular user view: Clean chat interface with minimal header
+  if (!isAdminUser) {
+    return (
+      <div className="h-screen bg-white flex flex-col overflow-hidden">
+        {/* Minimal Header for Regular Users - Just branding */}
+        <header className="h-12 border-b border-pierre-gray-100 flex items-center px-4 bg-white">
+          <div className="flex items-center gap-2">
+            <PierreLogoSmall />
+            <span className="text-lg font-semibold bg-gradient-to-r from-pierre-violet to-pierre-cyan bg-clip-text text-transparent">
+              Pierre Fitness Intelligence
+            </span>
+          </div>
+        </header>
 
+        {/* Main Content - Full height chat or settings */}
+        <main className="flex-1 overflow-hidden">
+          {activeTab === 'chat' && (
+            <Suspense fallback={<div className="flex justify-center items-center h-full"><div className="pierre-spinner w-8 h-8"></div></div>}>
+              <ChatTab onOpenSettings={() => setActiveTab('settings')} />
+            </Suspense>
+          )}
+          {activeTab === 'settings' && (
+            <div className="h-full overflow-auto p-6">
+              <div className="mb-4">
+                <button
+                  onClick={() => setActiveTab('chat')}
+                  className="flex items-center gap-2 text-pierre-gray-600 hover:text-pierre-violet transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Back to Chat
+                </button>
+              </div>
+              <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner w-8 h-8"></div></div>}>
+                <UserSettings />
+              </Suspense>
+            </div>
+          )}
+        </main>
+      </div>
+    );
+  }
+
+  // Admin user view: Full sidebar with tabs
   return (
     <div className="min-h-screen bg-pierre-gray-50 flex">
       {/* Vertical Sidebar */}
@@ -423,26 +478,6 @@ export default function Dashboard() {
               <UserManagement />
             </Suspense>
           </div>
-        )}
-        {activeTab === 'home' && (
-          <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
-            <UserHome onNavigate={setActiveTab} />
-          </Suspense>
-        )}
-        {activeTab === 'chat' && (
-          <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
-            <ChatTab />
-          </Suspense>
-        )}
-        {activeTab === 'settings' && (
-          <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
-            <UserSettings />
-          </Suspense>
-        )}
-        {activeTab === 'mcp-tokens' && (
-          <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
-            <MCPTokensTab />
-          </Suspense>
         )}
         {activeTab === 'admin-settings' && (
           <div className="space-y-6">

@@ -45,8 +45,8 @@ const mockTokens = [
 async function setupMcpTokenMocks(page: Page, options: { tokens?: typeof mockTokens } = {}) {
   const { tokens = mockTokens } = options;
 
-  // Set up base dashboard mocks for regular user
-  await setupDashboardMocks(page, { role: 'user' });
+  // Set up base dashboard mocks for admin user (Tokens tab is in admin sidebar)
+  await setupDashboardMocks(page, { role: 'admin' });
 
   // Mock list tokens endpoint
   await page.route('**/api/user/mcp-tokens', async (route, request) => {
@@ -105,13 +105,13 @@ async function loginAndGoToMcpTokens(page: Page) {
 }
 
 test.describe('MCP Tokens Tab Navigation', () => {
-  test('Tokens tab is visible for regular users', async ({ page }) => {
+  test('Tokens tab is visible in admin sidebar', async ({ page }) => {
     await setupMcpTokenMocks(page);
     await loginToDashboard(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
-    // Tokens tab should be visible in sidebar (named "Tokens" in Dashboard.tsx userTabs)
+    // Tokens tab should be visible in admin sidebar
     await expect(page.locator('nav button').filter({ hasText: 'Tokens' })).toBeVisible();
   });
 
@@ -381,7 +381,8 @@ test.describe('MCP Setup Instructions', () => {
 
 test.describe('MCP Tokens Error Handling', () => {
   test('shows error state when API fails', async ({ page }) => {
-    await setupDashboardMocks(page, { role: 'user' });
+    // Tokens tab is in admin sidebar - use admin role
+    await setupDashboardMocks(page, { role: 'admin' });
 
     // Mock failing API
     await page.route('**/api/user/mcp-tokens', async (route) => {
@@ -394,7 +395,7 @@ test.describe('MCP Tokens Error Handling', () => {
 
     await loginToDashboard(page);
     await page.waitForSelector('nav', { timeout: 10000 });
-    // Tab is named "Tokens" in Dashboard.tsx userTabs
+    // Tab is named "Tokens" in admin sidebar
     await navigateToTab(page, 'Tokens');
     await page.waitForTimeout(1000);
 
