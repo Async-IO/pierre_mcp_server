@@ -135,11 +135,12 @@ export async function setupDashboardMocks(page: Page, userOptions: UserOptions =
   });
 
   // Mock OAuth status endpoint (used by Connections tab)
+  // Note: Backend returns array directly, getOAuthStatus() wraps it in { providers: ... }
   await page.route('**/api/oauth/status', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ providers: [] }),
+      body: JSON.stringify([]),
     });
   });
 

@@ -207,8 +207,9 @@ test.describe('User Prompts Display', () => {
     // Non-admin users see chat-first layout with header
     await page.waitForSelector('header', { timeout: 10000 });
 
-    // Should see the provider connection screen first - find "Skip and start chatting" button
-    const skipButton = page.getByText('Skip and start chatting');
+    // Should see the provider connection screen first - find skip button by aria-label
+    // The button shows "Start chatting" text but has aria-label "Skip and start chatting"
+    const skipButton = page.getByRole('button', { name: 'Skip and start chatting' });
     await expect(skipButton).toBeVisible({ timeout: 10000 });
 
     // Click skip to see the prompts
@@ -225,8 +226,8 @@ test.describe('User Prompts Display', () => {
     await setupPromptsMocks(page, { isAdmin: false });
     await loginToDashboard(page);
 
-    // Skip provider onboarding
-    const skipButton = page.getByText('Skip and start chatting');
+    // Skip provider onboarding - use aria-label selector
+    const skipButton = page.getByRole('button', { name: 'Skip and start chatting' });
     await skipButton.click();
     await page.waitForTimeout(300);
 
@@ -291,8 +292,8 @@ test.describe('User Prompts Display', () => {
 
     await loginToDashboard(page);
 
-    // Skip provider onboarding
-    const skipButton = page.getByText('Skip and start chatting');
+    // Skip provider onboarding - use aria-label selector
+    const skipButton = page.getByRole('button', { name: 'Skip and start chatting' });
     await skipButton.click();
     await page.waitForTimeout(300);
 
@@ -322,8 +323,8 @@ test.describe('User Prompts Display', () => {
 
     await loginToDashboard(page);
 
-    // Skip provider onboarding
-    const skipButton = page.getByText('Skip and start chatting');
+    // Skip provider onboarding - use aria-label selector
+    const skipButton = page.getByRole('button', { name: 'Skip and start chatting' });
     await skipButton.click();
 
     // Should see loading skeleton
@@ -344,8 +345,8 @@ test.describe('User Prompts Display', () => {
 
     await loginToDashboard(page);
 
-    // Skip provider onboarding
-    const skipButton = page.getByText('Skip and start chatting');
+    // Skip provider onboarding - use aria-label selector
+    const skipButton = page.getByRole('button', { name: 'Skip and start chatting' });
     await skipButton.click();
 
     // Should see error message
@@ -361,8 +362,8 @@ test.describe('Skip Onboarding Flow', () => {
     // Wait for provider connection cards
     await page.waitForSelector('header', { timeout: 10000 });
 
-    // Should see skip button
-    const skipButton = page.getByText('Skip and start chatting');
+    // Should see skip button - use aria-label selector
+    const skipButton = page.getByRole('button', { name: 'Skip and start chatting' });
     await expect(skipButton).toBeVisible();
 
     // Click skip
@@ -371,8 +372,8 @@ test.describe('Skip Onboarding Flow', () => {
     // Should now see prompts (not provider cards)
     await expect(page.getByText('Training').first()).toBeVisible({ timeout: 5000 });
 
-    // Provider connect cards should not be visible
-    await expect(page.getByText('Connect to Strava')).not.toBeVisible();
+    // Provider connect cards should not be visible - check Strava button is gone
+    await expect(page.getByRole('button', { name: /Connect to Strava/ })).not.toBeVisible();
   });
 
   test('can start new chat after skipping onboarding', async ({ page }) => {
@@ -410,8 +411,8 @@ test.describe('Skip Onboarding Flow', () => {
 
     await loginToDashboard(page);
 
-    // Skip onboarding
-    const skipButton = page.getByText('Skip and start chatting');
+    // Skip onboarding - use aria-label selector
+    const skipButton = page.getByRole('button', { name: 'Skip and start chatting' });
     await skipButton.click();
     await page.waitForTimeout(300);
 
@@ -468,7 +469,7 @@ test.describe('Admin Prompts Management', () => {
     await expect(page.getByText('Recipes').first()).toBeVisible();
   });
 
-  test('displays prompt count for each category', async ({ page }) => {
+  test('displays total prompt count in header', async ({ page }) => {
     await setupPromptsMocks(page, { isAdmin: true });
     await loginToDashboard(page);
 
@@ -480,8 +481,9 @@ test.describe('Admin Prompts Management', () => {
     // Wait for content
     await expect(page.getByText('Prompt Management')).toBeVisible({ timeout: 10000 });
 
-    // Should show prompt counts (2 prompts per category in our mock)
-    await expect(page.getByText('2 prompts').first()).toBeVisible();
+    // Should show total prompt counts in header (4 categories × 2 prompts = 8 total)
+    // UI shows: "4 categories • 8 prompts"
+    await expect(page.getByText('8 prompts')).toBeVisible();
   });
 
   test('can reset prompts to defaults', async ({ page }) => {
@@ -504,15 +506,14 @@ test.describe('Admin Prompts Management', () => {
     await navigateToTab(page, 'Prompts');
     await expect(page.getByText('Prompt Management')).toBeVisible({ timeout: 10000 });
 
-    // Click reset button
-    const resetButton = page.getByRole('button', { name: /Reset to Defaults/i });
-    await resetButton.click();
+    // Click reset button in header (first one)
+    await page.getByRole('button', { name: /Reset to Defaults/i }).first().click();
 
-    // Confirm in modal if there is one
-    const confirmButton = page.getByRole('button', { name: /Confirm|Reset/i });
-    if (await confirmButton.isVisible()) {
-      await confirmButton.click();
-    }
+    // Wait for confirmation modal to appear
+    await expect(page.getByText('Are you sure you want to reset all prompt categories')).toBeVisible();
+
+    // Click the confirmation button in the modal (use nth(1) to get the second "Reset to Defaults" button)
+    await page.getByRole('button', { name: /Reset to Defaults/i }).nth(1).click();
 
     await page.waitForTimeout(500);
     expect(resetCalled).toBe(true);
@@ -626,18 +627,17 @@ test.describe('Admin Prompts Error Handling', () => {
     await navigateToTab(page, 'Prompts');
     await expect(page.getByText('Prompt Management')).toBeVisible({ timeout: 10000 });
 
-    // Click reset button
-    const resetButton = page.getByRole('button', { name: /Reset to Defaults/i });
-    await resetButton.click();
+    // Click reset button in header (first one)
+    await page.getByRole('button', { name: /Reset to Defaults/i }).first().click();
 
-    // Confirm in modal if there is one
-    const confirmButton = page.getByRole('button', { name: /Confirm|Reset/i });
-    if (await confirmButton.isVisible()) {
-      await confirmButton.click();
-    }
+    // Wait for confirmation modal to appear
+    await expect(page.getByText('Are you sure you want to reset all prompt categories')).toBeVisible();
 
-    // Should show error toast or message
-    await expect(page.getByText(/Failed|Error/i)).toBeVisible({ timeout: 5000 });
+    // Click the confirmation button in the modal
+    await page.getByRole('button', { name: /Reset to Defaults/i }).nth(1).click();
+
+    // Should show error message in modal
+    await expect(page.getByText('Failed to reset prompts')).toBeVisible({ timeout: 5000 });
   });
 });
 
@@ -646,8 +646,8 @@ test.describe('Prompts Pillar Styling', () => {
     await setupPromptsMocks(page, { isAdmin: false });
     await loginToDashboard(page);
 
-    // Skip provider onboarding
-    const skipButton = page.getByText('Skip and start chatting');
+    // Skip provider onboarding - use aria-label selector
+    const skipButton = page.getByRole('button', { name: 'Skip and start chatting' });
     await skipButton.click();
     await page.waitForTimeout(300);
 
