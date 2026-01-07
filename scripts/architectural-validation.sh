@@ -169,7 +169,22 @@ CFG_TEST_IN_SRC=$(rg "#\[cfg\(test\)\]" src/ --count 2>/dev/null | awk -F: '{sum
 CLIPPY_ALLOWS_PROBLEMATIC=$(rg "#!?\[allow\(clippy::" src/ | rg -v "cast_possible_truncation|cast_sign_loss|cast_precision_loss|cast_possible_wrap|struct_excessive_bools|too_many_lines|let_unit_value|option_if_let_else|cognitive_complexity|bool_to_int_with_if|type_complexity|too_many_arguments" | wc -l 2>/dev/null | tr -d ' ' || echo 0)
 DEAD_CODE=$(rg "#\[allow\(dead_code\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 TEMP_SOLUTIONS=$(rg "\bhack\b|\bworkaround\b|\bquick.*fix\b|future.*implementation|temporary.*solution|temp.*fix" src/ --count-matches 2>/dev/null | cut -d: -f2 | python3 -c "import sys; lines = sys.stdin.readlines(); print(sum(int(x.strip()) for x in lines) if lines else 0)" 2>/dev/null || echo 0)
-IGNORED_TESTS=$(rg "#\[ignore\]" tests/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+# Ignored tests detection - matches both #[ignore] and #[ignore = "reason"]
+# Allowlist is defined in validation-patterns.toml [ignored_tests_allowlist]
+IGNORED_TESTS_ALLOWLIST_FILES=$(python3 -c "
+import tomllib
+with open('$SCRIPT_DIR/validation-patterns.toml', 'rb') as f:
+    config = tomllib.load(f)
+files = config.get('ignored_tests_allowlist', {}).get('files', [])
+print(' '.join(['tests/' + f for f in files]))
+" 2>/dev/null || echo "")
+IGNORED_TESTS=$(rg '#\[ignore' tests/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+if [ -n "$IGNORED_TESTS_ALLOWLIST_FILES" ]; then
+    IGNORED_TESTS_ALLOWED=$(rg '#\[ignore' $IGNORED_TESTS_ALLOWLIST_FILES --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+else
+    IGNORED_TESTS_ALLOWED=0
+fi
+IGNORED_TESTS_UNAUTHORIZED=$((IGNORED_TESTS - IGNORED_TESTS_ALLOWED))
 BACKUP_FILES=$(find src/ -name "*.bak" -o -name "*.backup" -o -name "*~" 2>/dev/null | wc -l | tr -d ' ')
 BACKUP_FILES=${BACKUP_FILES:-0}
 
@@ -623,12 +638,16 @@ else
     printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_TEMP"
 fi
 
-printf "│ %-35s │ %5d │ " "Ignored tests" "$IGNORED_TESTS"
+printf "│ %-35s │ %5d │ " "Ignored tests (total)" "$IGNORED_TESTS"
 if [ "$IGNORED_TESTS" -eq 0 ]; then
     printf "$(format_status "✅ PASS")│ %-39s │\n" "All tests run in CI/CD"
+elif [ "$IGNORED_TESTS_UNAUTHORIZED" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "All $IGNORED_TESTS in allowlist"
 else
-    FIRST_IGNORED=$(get_first_location 'rg "#\[ignore\]" tests/ -n')
-    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_IGNORED"
+    # Find first unauthorized ignored test (not in allowlist files)
+    ALLOWLIST_GREP=$(echo "$IGNORED_TESTS_ALLOWLIST_FILES" | tr ' ' '|' | sed 's/tests\///g')
+    FIRST_IGNORED=$(rg '#\[ignore' tests/ -l 2>/dev/null | grep -v -E "$ALLOWLIST_GREP" | head -1)
+    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$IGNORED_TESTS_UNAUTHORIZED in: $FIRST_IGNORED"
 fi
 
 printf "│ %-35s │ %5d │ " "Ignored doctests" "$IGNORED_DOCTESTS"

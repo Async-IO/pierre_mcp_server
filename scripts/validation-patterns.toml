@@ -399,6 +399,14 @@ max_async_antipatterns = 5
 max_lifetime_antipatterns = 3
 
 # File patterns to exclude from certain checks
+[ignored_tests_allowlist]
+# Files permitted to have #[ignore] tests with justification
+# These require external infrastructure that CI cannot provide
+files = [
+    "llm_local_integration_test.rs",   # Requires Ollama/vLLM server with downloaded models
+    "llm_openai_compatible_test.rs",   # Requires running Ollama server for API tests
+]
+
 [exclusions]
 # Files where some patterns might be legitimate
 test_files = ["tests/**", "**/*_test.rs", "**/test_*.rs"]

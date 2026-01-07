@@ -11,6 +11,33 @@
 //!
 //! These tests require a running local LLM server (Ollama recommended).
 //!
+//! ## Why Tests Are `#[ignore]`
+//!
+//! All tests in this file are marked `#[ignore]` because they require external
+//! infrastructure that CI environments cannot provide:
+//!
+//! - **Ollama/vLLM server**: Must be running locally with models downloaded
+//! - **GPU/CPU resources**: Large language models require significant compute
+//! - **Model availability**: Specific models must be pulled (9GB+ downloads)
+//!
+//! These are **development validation tests**, not CI tests. They verify that
+//! the local LLM integration works correctly when manually testing locally.
+//!
+//! ## Latency Test Thresholds
+//!
+//! The latency tests use thresholds calibrated for cloud APIs (Groq/Gemini).
+//! Local inference with a 14B parameter model will typically exceed these:
+//!
+//! | Test | Threshold | Typical Local Time |
+//! |------|-----------|-------------------|
+//! | Basic completion | 5s | 8-15s |
+//! | First token (streaming) | 2s | 8-10s |
+//! | Tool calling | 10s | 25-35s |
+//!
+//! **Latency test failures are expected** when running locally and do not
+//! indicate broken functionality. The functional tests (tool matching) are
+//! the important validation.
+//!
 //! ## Setup
 //!
 //! 1. Install Ollama: `brew install ollama` (macOS) or <https://ollama.ai/download>
