@@ -11,6 +11,7 @@ pub mod memory;
 /// Redis cache implementation
 pub mod redis;
 
+use crate::config::admin::service::AdminConfigService;
 use crate::config::environment::RedisConnectionConfig;
 use crate::constants::cache::{
     DEFAULT_CACHE_MAX_ENTRIES, DEFAULT_CLEANUP_INTERVAL_SECS, TTL_ACTIVITY_LIST_SECS,
@@ -248,6 +249,85 @@ impl CacheTtlConfig {
                 Duration::from_secs(self.activity_secs)
             }
             CacheResource::Stats { .. } => Duration::from_secs(self.stats_secs),
+        }
+    }
+
+    /// Create TTL config from admin configuration service
+    ///
+    /// Loads TTL values from the admin config service, falling back to defaults
+    /// if values are not configured or retrieval fails.
+    ///
+    /// # Arguments
+    ///
+    /// * `admin_config` - Reference to the admin configuration service
+    /// * `tenant_id` - Optional tenant ID for tenant-specific configuration
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use pierre_mcp_server::cache::CacheTtlConfig;
+    /// use pierre_mcp_server::config::admin::service::AdminConfigService;
+    ///
+    /// # async fn example(admin_config: &AdminConfigService) {
+    /// let ttl_config = CacheTtlConfig::from_admin_config(admin_config, None).await;
+    /// # }
+    /// ```
+    pub async fn from_admin_config(
+        admin_config: &AdminConfigService,
+        tenant_id: Option<&str>,
+    ) -> Self {
+        let defaults = Self::default();
+
+        let profile_secs = Self::get_ttl_value(
+            admin_config,
+            "cache.profile_ttl_secs",
+            tenant_id,
+            defaults.profile_secs,
+        )
+        .await;
+
+        let activity_list_secs = Self::get_ttl_value(
+            admin_config,
+            "cache.activity_list_ttl_secs",
+            tenant_id,
+            defaults.activity_list_secs,
+        )
+        .await;
+
+        let activity_secs = Self::get_ttl_value(
+            admin_config,
+            "cache.activity_ttl_secs",
+            tenant_id,
+            defaults.activity_secs,
+        )
+        .await;
+
+        let stats_secs = Self::get_ttl_value(
+            admin_config,
+            "cache.stats_ttl_secs",
+            tenant_id,
+            defaults.stats_secs,
+        )
+        .await;
+
+        Self {
+            profile_secs,
+            activity_list_secs,
+            activity_secs,
+            stats_secs,
+        }
+    }
+
+    /// Helper to get a TTL value from admin config with fallback
+    async fn get_ttl_value(
+        admin_config: &AdminConfigService,
+        key: &str,
+        tenant_id: Option<&str>,
+        default: u64,
+    ) -> u64 {
+        match admin_config.get_value(key, tenant_id).await {
+            Ok(Some(value)) => value.as_u64().unwrap_or(default),
+            Ok(None) | Err(_) => default,
         }
     }
 }

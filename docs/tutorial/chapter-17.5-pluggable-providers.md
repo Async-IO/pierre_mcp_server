@@ -1161,6 +1161,172 @@ base_delay_ms = 200
 timeout_secs = 60
 ```
 
+## Caching Provider Decorator
+
+Pierre provides a `CachingFitnessProvider` decorator that wraps any `FitnessProvider` with transparent caching using the cache-aside pattern. This significantly reduces API calls to external providers.
+
+### Cache-Aside Pattern
+
+**Source**: src/providers/caching_provider.rs
+```rust
+/// Caching wrapper for any FitnessProvider implementation
+pub struct CachingFitnessProvider<C: CacheProvider> {
+    /// The underlying provider being wrapped
+    inner: Box<dyn FitnessProvider>,
+    /// Cache backend (Redis or in-memory)
+    cache: Arc<C>,
+    /// Tenant ID for cache key isolation
+    tenant_id: Uuid,
+    /// User ID for cache key isolation
+    user_id: Uuid,
+    /// TTL configuration for different resource types
+    ttl_config: CacheTtlConfig,
+}
+```
+
+**How it works**:
+1. Check cache for requested data
+2. If cache hit: return cached data immediately
+3. If cache miss: fetch from provider API, store in cache, return data
+
+```rust
+// Create a caching provider
+let cached_provider = CachingFitnessProvider::new(
+    provider,        // Any Box<dyn FitnessProvider>
+    cache,           // InMemoryCache or RedisCache
+    tenant_id,
+    user_id,
+);
+
+// Use normally - caching is transparent
+let activities = cached_provider.get_activities(Some(10), None).await?;
+```
+
+### Cache Policy Control
+
+The `CachePolicy` enum allows explicit control over caching behavior:
+
+**Source**: src/providers/caching_provider.rs
+```rust
+/// Cache policy for controlling caching behavior per-request
+pub enum CachePolicy {
+    /// Use cache if available, fetch and cache on miss (default)
+    UseCache,
+    /// Bypass cache entirely, always fetch fresh data
+    Bypass,
+    /// Invalidate existing cache entry, fetch fresh, update cache
+    Refresh,
+}
+```
+
+**Usage**:
+```rust
+// Default behavior - use cache
+let activities = cached_provider.get_activities(Some(10), None).await?;
+
+// Force fresh data (user-triggered refresh)
+let fresh = cached_provider
+    .get_activities_with_policy(Some(10), None, CachePolicy::Refresh)
+    .await?;
+
+// Bypass cache entirely (debugging)
+let uncached = cached_provider
+    .get_activities_with_policy(Some(10), None, CachePolicy::Bypass)
+    .await?;
+```
+
+### TTL Configuration
+
+Different resources have different cache durations based on data volatility:
+
+| Resource | TTL | Rationale |
+|----------|-----|-----------|
+| `AthleteProfile` | 24 hours | Profiles rarely change |
+| `ActivityList` | 15 minutes | Need fresh for new activities |
+| `Activity` | 1 hour | Activity details immutable after creation |
+| `Stats` | 6 hours | Aggregates don't need real-time freshness |
+
+**Source**: src/constants/cache.rs
+```rust
+pub const DEFAULT_PROFILE_TTL_SECS: u64 = 86_400;      // 24 hours
+pub const DEFAULT_ACTIVITY_LIST_TTL_SECS: u64 = 900;   // 15 minutes
+pub const DEFAULT_ACTIVITY_TTL_SECS: u64 = 3_600;      // 1 hour
+pub const DEFAULT_STATS_TTL_SECS: u64 = 21_600;        // 6 hours
+```
+
+### Cache Key Structure
+
+Cache keys include tenant/user/provider isolation for multi-tenant safety:
+
+```
+tenant:{tenant_id}:user:{user_id}:provider:{provider}:{resource_type}
+```
+
+**Examples**:
+```
+tenant:abc123:user:def456:provider:strava:athlete_profile
+tenant:abc123:user:def456:provider:strava:activity_list:page:1:per_page:50
+tenant:abc123:user:def456:provider:strava:activity:12345678
+```
+
+### Cache Invalidation
+
+**Automatic invalidation on disconnect**:
+```rust
+// When user disconnects, cache is automatically cleared
+impl<C: CacheProvider> FitnessProvider for CachingFitnessProvider<C> {
+    async fn disconnect(&self) -> AppResult<()> {
+        // Invalidate all user's cache entries
+        self.invalidate_user_cache().await?;
+        self.inner.disconnect().await
+    }
+}
+```
+
+**Manual invalidation (for webhooks)**:
+```rust
+// Invalidate when new activity detected via webhook
+cached_provider.invalidate_activity_list_cache().await?;
+
+// Invalidate all user cache
+cached_provider.invalidate_user_cache().await?;
+```
+
+### Factory Methods
+
+**Using the registry**:
+```rust
+// Create a caching provider via registry
+let cached_provider = registry
+    .create_caching_provider("strava", cache_config, tenant_id, user_id)
+    .await?;
+
+// Or use the global convenience function
+let cached_provider = create_caching_provider_global(
+    "strava",
+    cache_config,
+    tenant_id,
+    user_id,
+).await?;
+```
+
+### Cache Backend Selection
+
+The caching provider supports both in-memory and Redis backends:
+
+```bash
+# Use Redis (production/multi-instance)
+export REDIS_URL=redis://localhost:6379
+
+# No REDIS_URL = use in-memory LRU cache (dev/single-instance)
+```
+
+**Benefits of caching**:
+- **Reduced API calls**: Bounded by TTL, not request volume
+- **Faster responses**: Sub-millisecond cache hits vs 100ms+ API calls
+- **Rate limit protection**: Fewer calls = less risk of hitting limits
+- **Resilience**: Cache can serve stale data during provider outages
+
 ## Configuration Best Practices
 
 **Cloud deployment (.envrc for GCP/AWS)**:
@@ -1226,6 +1392,12 @@ export PIERRE_STRAVA_CLIENT_SECRET=test-secret
 14. **Zero code changes**: Adding providers doesn't require modifying connection handlers, tools, or application logic.
 
 15. **Type safety**: Compiler enforces that all providers implement complete `FitnessProvider` interface.
+
+16. **Caching decorator**: `CachingFitnessProvider` wraps any provider with transparent cache-aside caching to reduce API calls.
+
+17. **Cache policy control**: `CachePolicy` enum (`UseCache`, `Bypass`, `Refresh`) enables per-request cache behavior control.
+
+18. **Multi-tenant cache isolation**: Cache keys include tenant/user/provider for safe multi-tenant deployments.
 
 ---
 

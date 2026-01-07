@@ -42,6 +42,8 @@
 
 /// Streaming activity iterator for memory-efficient paginated fetching
 pub mod activity_iterator;
+/// Caching decorator for transparent API response caching
+pub mod caching_provider;
 /// Circuit breaker pattern for provider resilience
 pub mod circuit_breaker;
 /// Core provider traits and interfaces
@@ -85,6 +87,10 @@ pub use activity_iterator::{
     create_activity_stream, ActivityStream, ActivityStreamExt, StreamConfig, DEFAULT_PAGE_SIZE,
     MAX_PAGE_SIZE, MIN_PAGE_SIZE,
 };
+/// Re-export caching provider for transparent API response caching
+pub use caching_provider::{
+    create_caching_provider, create_caching_provider_with_ttl, CachePolicy, CachingFitnessProvider,
+};
 /// Re-export circuit breaker types for provider resilience
 pub use circuit_breaker::{CircuitBreaker, CircuitBreakerConfig, CircuitState};
 pub use core::{
@@ -97,6 +103,7 @@ pub use errors::{ProviderError, ProviderResult};
 pub use registry::global_terra_cache;
 /// Re-export provider registry functions
 pub use registry::{
+    create_caching_provider_global, create_caching_provider_with_admin_config_global,
     create_provider, create_registry_with_external_providers, create_tenant_provider,
     get_supported_providers, global_registry, is_provider_supported, ProviderRegistry,
 };
