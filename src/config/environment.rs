@@ -136,6 +136,8 @@ pub enum LlmProviderType {
     Groq,
     /// Google Gemini provider - full-featured with vision support
     Gemini,
+    /// Local LLM provider - `OpenAI`-compatible endpoint (Ollama, vLLM, `LocalAI`)
+    Local,
 }
 
 impl LlmProviderType {
@@ -147,6 +149,7 @@ impl LlmProviderType {
     pub fn from_str_or_default(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "gemini" | "google" => Self::Gemini,
+            "local" | "ollama" | "vllm" | "localai" => Self::Local,
             _ => Self::Groq, // Default fallback (including "groq")
         }
     }
@@ -165,6 +168,7 @@ impl Display for LlmProviderType {
         match self {
             Self::Groq => write!(f, "groq"),
             Self::Gemini => write!(f, "gemini"),
+            Self::Local => write!(f, "local"),
         }
     }
 }

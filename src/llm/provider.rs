@@ -37,12 +37,12 @@ use tracing::{debug, info};
 
 use super::{
     ChatMessage, ChatRequest, ChatResponse, ChatResponseWithTools, ChatStream, FunctionResponse,
-    GeminiProvider, GroqProvider, LlmCapabilities, LlmProvider, Tool,
+    GeminiProvider, GroqProvider, LlmCapabilities, LlmProvider, OpenAiCompatibleProvider, Tool,
 };
 use crate::config::LlmProviderType;
 use crate::errors::AppError;
 
-/// Unified chat provider that wraps either Gemini or Groq
+/// Unified chat provider that wraps Gemini, Groq, or local LLM
 ///
 /// This enum provides a consistent interface regardless of which
 /// underlying provider is configured.
@@ -51,6 +51,8 @@ pub enum ChatProvider {
     Gemini(GeminiProvider),
     /// Groq provider for fast, cost-effective inference
     Groq(GroqProvider),
+    /// Local LLM provider via `OpenAI`-compatible API (Ollama, vLLM, `LocalAI`)
+    Local(OpenAiCompatibleProvider),
 }
 
 impl ChatProvider {
@@ -59,10 +61,12 @@ impl ChatProvider {
     /// Reads `PIERRE_LLM_PROVIDER` to determine which provider to use:
     /// - `groq` (default): Creates `GroqProvider` (requires `GROQ_API_KEY`)
     /// - `gemini`: Creates `GeminiProvider` (requires `GEMINI_API_KEY`)
+    /// - `local`/`ollama`/`vllm`/`localai`: Creates `OpenAiCompatibleProvider`
     ///
     /// # Errors
     ///
-    /// Returns an error if the required API key environment variable is missing.
+    /// Returns an error if the required API key environment variable is missing
+    /// (for cloud providers) or if the local server cannot be reached.
     pub fn from_env() -> Result<Self, AppError> {
         let provider_type = LlmProviderType::from_env();
 
@@ -72,24 +76,19 @@ impl ChatProvider {
             LlmProviderType::ENV_VAR
         );
 
-        match provider_type {
-            LlmProviderType::Groq => {
-                let provider = GroqProvider::from_env()?;
-                debug!(
-                    "Using Groq provider with model: {}",
-                    provider.default_model()
-                );
-                Ok(Self::Groq(provider))
-            }
-            LlmProviderType::Gemini => {
-                let provider = GeminiProvider::from_env()?;
-                debug!(
-                    "Using Gemini provider with model: {}",
-                    provider.default_model()
-                );
-                Ok(Self::Gemini(provider))
-            }
-        }
+        let provider = match provider_type {
+            LlmProviderType::Groq => Self::groq()?,
+            LlmProviderType::Gemini => Self::gemini()?,
+            LlmProviderType::Local => Self::local()?,
+        };
+
+        debug!(
+            "Provider {} initialized with model: {}",
+            provider.display_name(),
+            provider.default_model()
+        );
+
+        Ok(provider)
     }
 
     /// Create a Gemini provider explicitly
@@ -110,12 +109,27 @@ impl ChatProvider {
         Ok(Self::Groq(GroqProvider::from_env()?))
     }
 
+    /// Create a local LLM provider explicitly
+    ///
+    /// Uses environment variables for configuration:
+    /// - `LOCAL_LLM_BASE_URL`: API endpoint (default: Ollama at localhost:11434)
+    /// - `LOCAL_LLM_MODEL`: Model name (default: qwen2.5:14b-instruct)
+    /// - `LOCAL_LLM_API_KEY`: API key (optional)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the provider cannot be initialized.
+    pub fn local() -> Result<Self, AppError> {
+        Ok(Self::Local(OpenAiCompatibleProvider::from_env()?))
+    }
+
     /// Get the provider type
     #[must_use]
     pub const fn provider_type(&self) -> LlmProviderType {
         match self {
             Self::Gemini(_) => LlmProviderType::Gemini,
             Self::Groq(_) => LlmProviderType::Groq,
+            Self::Local(_) => LlmProviderType::Local,
         }
     }
 
@@ -127,8 +141,8 @@ impl ChatProvider {
 
     /// Perform a chat completion with tool/function calling support
     ///
-    /// Both Gemini and Groq support native function/tool calling via their
-    /// respective APIs (Gemini native, Groq OpenAI-compatible).
+    /// Gemini, Groq, and Local providers all support native function/tool calling
+    /// via their respective APIs (Gemini native, Groq/Local OpenAI-compatible).
     ///
     /// # Errors
     ///
@@ -141,6 +155,7 @@ impl ChatProvider {
         match self {
             Self::Gemini(provider) => provider.complete_with_tools(request, tools).await,
             Self::Groq(provider) => provider.complete_with_tools(request, tools).await,
+            Self::Local(provider) => provider.complete_with_tools(request, tools).await,
         }
     }
 
@@ -171,6 +186,7 @@ impl ChatProvider {
         match self {
             Self::Gemini(p) => p.name(),
             Self::Groq(p) => p.name(),
+            Self::Local(p) => p.name(),
         }
     }
 
@@ -180,6 +196,7 @@ impl ChatProvider {
         match self {
             Self::Gemini(p) => p.display_name(),
             Self::Groq(p) => p.display_name(),
+            Self::Local(p) => p.display_name(),
         }
     }
 
@@ -189,6 +206,7 @@ impl ChatProvider {
         match self {
             Self::Gemini(p) => p.capabilities(),
             Self::Groq(p) => p.capabilities(),
+            Self::Local(p) => p.capabilities(),
         }
     }
 
@@ -198,6 +216,7 @@ impl ChatProvider {
         match self {
             Self::Gemini(p) => p.default_model(),
             Self::Groq(p) => p.default_model(),
+            Self::Local(p) => p.default_model(),
         }
     }
 
@@ -207,6 +226,7 @@ impl ChatProvider {
         match self {
             Self::Gemini(p) => p.available_models(),
             Self::Groq(p) => p.available_models(),
+            Self::Local(p) => p.available_models(),
         }
     }
 
@@ -219,6 +239,7 @@ impl ChatProvider {
         match self {
             Self::Gemini(p) => p.complete(request).await,
             Self::Groq(p) => p.complete(request).await,
+            Self::Local(p) => p.complete(request).await,
         }
     }
 
@@ -231,6 +252,7 @@ impl ChatProvider {
         match self {
             Self::Gemini(p) => p.complete_stream(request).await,
             Self::Groq(p) => p.complete_stream(request).await,
+            Self::Local(p) => p.complete_stream(request).await,
         }
     }
 
@@ -243,6 +265,7 @@ impl ChatProvider {
         match self {
             Self::Gemini(p) => p.health_check().await,
             Self::Groq(p) => p.health_check().await,
+            Self::Local(p) => p.health_check().await,
         }
     }
 }
@@ -252,6 +275,7 @@ impl fmt::Debug for ChatProvider {
         match self {
             Self::Gemini(_) => f.debug_tuple("ChatProvider::Gemini").finish(),
             Self::Groq(_) => f.debug_tuple("ChatProvider::Groq").finish(),
+            Self::Local(_) => f.debug_tuple("ChatProvider::Local").finish(),
         }
     }
 }

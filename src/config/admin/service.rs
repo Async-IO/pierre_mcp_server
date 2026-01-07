@@ -207,6 +207,74 @@ impl AdminConfigService {
             },
         );
 
+        // LLM Provider Configuration
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "llm.provider".to_owned(),
+                display_name: "LLM Provider".to_owned(),
+                description:
+                    "AI model provider for chat and recipe generation. Groq for fast cloud inference, Gemini for full features, Local for privacy-first self-hosted models"
+                        .to_owned(),
+                category: "llm_provider".to_owned(),
+                data_type: ConfigDataType::Enum,
+                default_value: serde_json::json!("groq"),
+                valid_range: None,
+                enum_options: Some(vec![
+                    "groq".to_owned(),
+                    "gemini".to_owned(),
+                    "local".to_owned(),
+                ]),
+                units: None,
+                scientific_basis: None,
+                env_variable: Some("PIERRE_LLM_PROVIDER".to_owned()),
+                is_runtime_configurable: false,
+                requires_restart: true,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "llm.local_base_url".to_owned(),
+                display_name: "Local LLM Base URL".to_owned(),
+                description:
+                    "Base URL for local LLM server (Ollama, vLLM, LocalAI). Only used when provider is 'local'"
+                        .to_owned(),
+                category: "llm_provider".to_owned(),
+                data_type: ConfigDataType::String,
+                default_value: serde_json::json!("http://localhost:11434/v1"),
+                valid_range: None,
+                enum_options: None,
+                units: None,
+                scientific_basis: None,
+                env_variable: Some("LOCAL_LLM_BASE_URL".to_owned()),
+                is_runtime_configurable: false,
+                requires_restart: true,
+            },
+        );
+
+        Self::add_definition(
+            &mut defs,
+            ParameterDefinition {
+                key: "llm.local_model".to_owned(),
+                display_name: "Local LLM Model".to_owned(),
+                description:
+                    "Model name to use with local LLM server (e.g., qwen2.5:14b-instruct, llama3.1:8b-instruct)"
+                        .to_owned(),
+                category: "llm_provider".to_owned(),
+                data_type: ConfigDataType::String,
+                default_value: serde_json::json!("qwen2.5:14b-instruct"),
+                valid_range: None,
+                enum_options: None,
+                units: None,
+                scientific_basis: None,
+                env_variable: Some("LOCAL_LLM_MODEL".to_owned()),
+                is_runtime_configurable: false,
+                requires_restart: true,
+            },
+        );
+
         // Heart Rate Zones
         Self::add_definition(
             &mut defs,
