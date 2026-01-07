@@ -519,7 +519,7 @@ name = "Recovery Score"
 enum_name = "RecoveryScoreAlgorithm"
 module_path = "src/intelligence/algorithms/recovery.rs"
 # Note: OAuth scope files excluded to avoid false positives from "sleep ... weight" scope strings
-exclude_paths = ["src/intelligence/algorithms/recovery.rs", "src/intelligence/algorithms/recovery_aggregation.rs", "src/intelligence/recovery_calculator.rs", "src/protocols/universal/handlers/sleep_recovery.rs", "src/config/intelligence.rs", "src/constants/oauth/*", "src/providers/spi.rs", "tests/*"]
+exclude_paths = ["src/intelligence/algorithms/recovery.rs", "src/intelligence/algorithms/recovery_aggregation.rs", "src/intelligence/recovery_calculator.rs", "src/protocols/universal/handlers/sleep_recovery.rs", "src/config/intelligence/*", "src/constants/oauth/*", "src/providers/spi.rs", "tests/*"]
 
 [algorithm_di_patterns.recovery_score.formulas]
 score_calculation = 'overall_score.*=.*(tsb.*\+.*sleep|sleep.*\+.*tsb)'
