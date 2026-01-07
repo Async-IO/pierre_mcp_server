@@ -136,7 +136,7 @@ base64ct = "=1.6.0"
 # For documentation server
 env_logger = "0.11"
 # LRU cache for bounded session storage (DoS prevention)
-lru = "0.12"
+lru = "0.16"
 # Glob pattern matching for cache invalidation
 glob = "0.3"
 # Regex for PII redaction and pattern matching
