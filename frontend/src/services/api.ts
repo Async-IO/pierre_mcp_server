@@ -904,6 +904,121 @@ class ApiService {
   getOAuthAuthorizeUrl(provider: string): string {
     return `/api/oauth/authorize/${provider}`;
   }
+
+  // Prompt Suggestions API
+
+  async getPromptSuggestions(): Promise<{
+    categories: Array<{
+      category_key: string;
+      category_title: string;
+      category_icon: string;
+      pillar: 'activity' | 'nutrition' | 'recovery';
+      prompts: string[];
+    }>;
+    welcome_prompt: string;
+    metadata: {
+      timestamp: string;
+      api_version: string;
+    };
+  }> {
+    const response = await axios.get('/api/prompts/suggestions');
+    return response.data;
+  }
+
+  // Admin Prompts Management endpoints
+
+  async getAdminPromptCategories(): Promise<Array<{
+    id: string;
+    category_key: string;
+    category_title: string;
+    category_icon: string;
+    pillar: string;
+    prompts: string[];
+    display_order: number;
+    is_active: boolean;
+  }>> {
+    const response = await axios.get('/api/admin/prompts');
+    return response.data;
+  }
+
+  async createPromptCategory(data: {
+    category_key: string;
+    category_title: string;
+    category_icon: string;
+    pillar: 'activity' | 'nutrition' | 'recovery';
+    prompts: string[];
+    display_order?: number;
+  }): Promise<{
+    id: string;
+    category_key: string;
+    category_title: string;
+    category_icon: string;
+    pillar: string;
+    prompts: string[];
+    display_order: number;
+    is_active: boolean;
+  }> {
+    const response = await axios.post('/api/admin/prompts', data);
+    return response.data;
+  }
+
+  async getPromptCategory(categoryId: string): Promise<{
+    id: string;
+    category_key: string;
+    category_title: string;
+    category_icon: string;
+    pillar: string;
+    prompts: string[];
+    display_order: number;
+    is_active: boolean;
+  }> {
+    const response = await axios.get(`/api/admin/prompts/${categoryId}`);
+    return response.data;
+  }
+
+  async updatePromptCategory(categoryId: string, data: {
+    category_title?: string;
+    category_icon?: string;
+    pillar?: 'activity' | 'nutrition' | 'recovery';
+    prompts?: string[];
+    display_order?: number;
+    is_active?: boolean;
+  }): Promise<{
+    id: string;
+    category_key: string;
+    category_title: string;
+    category_icon: string;
+    pillar: string;
+    prompts: string[];
+    display_order: number;
+    is_active: boolean;
+  }> {
+    const response = await axios.put(`/api/admin/prompts/${categoryId}`, data);
+    return response.data;
+  }
+
+  async deletePromptCategory(categoryId: string): Promise<void> {
+    await axios.delete(`/api/admin/prompts/${categoryId}`);
+  }
+
+  async getAdminWelcomePrompt(): Promise<{
+    prompt_text: string;
+  }> {
+    const response = await axios.get('/api/admin/prompts/welcome');
+    return response.data;
+  }
+
+  async updateWelcomePrompt(promptText: string): Promise<{
+    prompt_text: string;
+  }> {
+    const response = await axios.put('/api/admin/prompts/welcome', { prompt_text: promptText });
+    return response.data;
+  }
+
+  async resetPromptsToDefaults(): Promise<{ success: boolean }> {
+    const response = await axios.post('/api/admin/prompts/reset');
+    return response.data;
+  }
 }
 
 export const apiService = new ApiService();
