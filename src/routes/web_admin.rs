@@ -180,6 +180,44 @@ async fn create_default_mcp_token_for_user(database: &impl DatabaseProvider, use
     }
 }
 
+/// Assigns a user to the admin's tenant for multi-tenant isolation.
+/// This ensures the user sees the same prompts, configuration, etc. as other users in the tenant.
+async fn assign_user_to_admin_tenant(
+    resources: &Arc<ServerResources>,
+    admin_user_id: uuid::Uuid,
+    target_user_id: uuid::Uuid,
+) -> Result<(), AppError> {
+    let admin_user = resources
+        .database
+        .get_user(admin_user_id)
+        .await
+        .map_err(|e| {
+            error!(error = %e, "Failed to fetch admin user for tenant assignment");
+            AppError::internal(format!("Failed to fetch admin user: {e}"))
+        })?
+        .ok_or_else(|| {
+            error!("Admin user not found during approval");
+            AppError::internal("Admin user not found")
+        })?;
+
+    if let Some(admin_tenant_id) = &admin_user.tenant_id {
+        resources
+            .database
+            .update_user_tenant_id(target_user_id, admin_tenant_id)
+            .await
+            .map_err(|e| {
+                error!(error = %e, "Failed to assign user to admin's tenant");
+                AppError::internal(format!("Failed to assign tenant: {e}"))
+            })?;
+        info!(
+            user_id = %target_user_id,
+            tenant_id = %admin_tenant_id,
+            "Assigned approved user to admin's tenant"
+        );
+    }
+    Ok(())
+}
+
 /// Web admin routes - accessible via browser for admin users
 pub struct WebAdminRoutes;
 
@@ -491,6 +529,9 @@ impl WebAdminRoutes {
                 error!(error = %e, "Failed to update user status in database");
                 AppError::internal(format!("Failed to approve user: {e}"))
             })?;
+
+        // Assign approved user to admin's tenant for multi-tenant isolation
+        assign_user_to_admin_tenant(&resources, auth.user_id, user_uuid).await?;
 
         // Auto-create a default MCP token for the newly approved user
         create_default_mcp_token_for_user(resources.database.as_ref(), user_uuid).await;

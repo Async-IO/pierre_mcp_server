@@ -323,4 +323,140 @@ async fn test_user_status_transitions() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test]
+#[serial]
+async fn test_approve_user_assigns_admin_tenant() -> Result<()> {
+    let (database, admin_token_id, admin_user_id) = setup_test_database().await?;
+
+    // Set up admin user with a specific tenant_id
+    let admin_tenant_id = Uuid::new_v4().to_string();
+    database
+        .update_user_tenant_id(admin_user_id, &admin_tenant_id)
+        .await?;
+
+    // Verify admin has the tenant_id set
+    let admin_user = database.get_user(admin_user_id).await?.unwrap();
+    assert_eq!(admin_user.tenant_id, Some(admin_tenant_id.clone()));
+
+    // Create a pending user (starts with their own user_id as tenant_id, simulating registration)
+    let pending_user_id = Uuid::new_v4();
+    let pending_user = User {
+        id: pending_user_id,
+        email: "pending_tenant_test@test.com".to_owned(),
+        display_name: Some("Pending User for Tenant Test".to_owned()),
+        password_hash: "hash".to_owned(),
+        tier: UserTier::Starter,
+        tenant_id: Some(pending_user_id.to_string()), // User initially has own tenant_id
+        strava_token: None,
+        fitbit_token: None,
+        is_active: true,
+        user_status: UserStatus::Pending,
+        is_admin: false,
+        role: UserRole::User,
+        approved_by: None,
+        approved_at: None,
+        created_at: chrono::Utc::now(),
+        last_active: chrono::Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
+    };
+    database.create_user(&pending_user).await?;
+
+    // Verify user has their own tenant_id initially
+    let user_before = database.get_user(pending_user_id).await?.unwrap();
+    assert_eq!(user_before.tenant_id, Some(pending_user_id.to_string()));
+    assert_ne!(user_before.tenant_id, Some(admin_tenant_id.clone()));
+
+    // Simulate approval: update user status and assign to admin's tenant
+    // This is what handle_approve_user does in web_admin.rs
+    database
+        .update_user_status(pending_user_id, UserStatus::Active, &admin_token_id)
+        .await?;
+    database
+        .update_user_tenant_id(pending_user_id, &admin_tenant_id)
+        .await?;
+
+    // Verify user now has admin's tenant_id
+    let user_after = database.get_user(pending_user_id).await?.unwrap();
+    assert_eq!(user_after.user_status, UserStatus::Active);
+    assert_eq!(
+        user_after.tenant_id,
+        Some(admin_tenant_id.clone()),
+        "Approved user should be assigned to admin's tenant"
+    );
+
+    // Clean up test environment variable
+    env::remove_var("PIERRE_MASTER_ENCRYPTION_KEY");
+
+    Ok(())
+}
+
+#[tokio::test]
+#[serial]
+async fn test_approved_users_share_tenant_with_admin() -> Result<()> {
+    let (database, admin_token_id, admin_user_id) = setup_test_database().await?;
+
+    // Set up admin user with a specific tenant_id
+    let shared_tenant_id = Uuid::new_v4().to_string();
+    database
+        .update_user_tenant_id(admin_user_id, &shared_tenant_id)
+        .await?;
+
+    // Create and approve multiple users
+    let mut approved_user_ids = Vec::new();
+    for i in 0..3 {
+        let user_id = Uuid::new_v4();
+        let user = User {
+            id: user_id,
+            email: format!("multi_tenant_user_{i}@test.com"),
+            display_name: Some(format!("Multi Tenant User {i}")),
+            password_hash: "hash".to_owned(),
+            tier: UserTier::Starter,
+            tenant_id: Some(user_id.to_string()), // Initially own tenant
+            strava_token: None,
+            fitbit_token: None,
+            is_active: true,
+            user_status: UserStatus::Pending,
+            is_admin: false,
+            role: UserRole::User,
+            approved_by: None,
+            approved_at: None,
+            created_at: chrono::Utc::now(),
+            last_active: chrono::Utc::now(),
+            firebase_uid: None,
+            auth_provider: String::new(),
+        };
+        database.create_user(&user).await?;
+
+        // Approve and assign to admin's tenant
+        database
+            .update_user_status(user_id, UserStatus::Active, &admin_token_id)
+            .await?;
+        database
+            .update_user_tenant_id(user_id, &shared_tenant_id)
+            .await?;
+
+        approved_user_ids.push(user_id);
+    }
+
+    // Verify all approved users share the same tenant_id as the admin
+    for user_id in approved_user_ids {
+        let user = database.get_user(user_id).await?.unwrap();
+        assert_eq!(
+            user.tenant_id,
+            Some(shared_tenant_id.clone()),
+            "All approved users should share admin's tenant_id"
+        );
+    }
+
+    // Verify admin still has the same tenant_id
+    let admin = database.get_user(admin_user_id).await?.unwrap();
+    assert_eq!(admin.tenant_id, Some(shared_tenant_id));
+
+    // Clean up test environment variable
+    env::remove_var("PIERRE_MASTER_ENCRYPTION_KEY");
+
+    Ok(())
+}
+
 // Note: Database cleanup is handled by the Database implementation itself
