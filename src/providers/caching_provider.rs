@@ -21,7 +21,8 @@
 //! ```rust,no_run
 //! use pierre_mcp_server::providers::caching_provider::{CachingFitnessProvider, CachePolicy};
 //! use pierre_mcp_server::providers::create_provider;
-//! use pierre_mcp_server::cache::CacheConfig;
+//! use pierre_mcp_server::providers::core::FitnessProvider;
+//! use pierre_mcp_server::cache::{CacheConfig, CacheProvider};
 //! use pierre_mcp_server::cache::memory::InMemoryCache;
 //! use uuid::Uuid;
 //!
