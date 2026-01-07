@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
+
 # Chapter 08: Middleware & Request Context
 
 This chapter explores how the Pierre Fitness Platform uses Axum middleware to extract authentication, tenant context, rate limiting information, and tracing data from HTTP requests before routing to handlers. You'll learn about middleware composition, request ID generation, CORS configuration, and PII-safe logging.

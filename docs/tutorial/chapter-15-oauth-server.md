@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
+
 # Chapter 15: OAuth 2.0 Server Implementation
 
 This chapter explores how Pierre implements a full OAuth 2.0 authorization server for secure MCP client authentication. You'll learn about RFC 7591 dynamic client registration, PKCE (RFC 7636), authorization code flow, and JWT-based access tokens.

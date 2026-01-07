@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
+
 # Appendix D: Natural Language to Tool Mapping
 
 Quick reference mapping natural language prompts to Pierre MCP tools.

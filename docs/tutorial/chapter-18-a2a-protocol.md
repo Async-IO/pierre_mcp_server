@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
+
 # Chapter 18: A2A Protocol - Agent-to-Agent Communication
 
 This chapter explores how Pierre implements the Agent-to-Agent (A2A) protocol for secure inter-agent communication. You'll learn about the A2A protocol architecture, Ed25519 signatures, agent capability discovery, and JSON-RPC-based messaging between AI agents.

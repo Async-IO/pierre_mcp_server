@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
+
 # Chapter 22: Nutrition System & USDA Integration
 
 This chapter covers Pierre's nutrition system including daily calorie/macro calculations, USDA food database integration, meal analysis, and nutrient timing for athletes. You'll learn about energy expenditure estimation, protein requirements, and post-workout nutrition windows.

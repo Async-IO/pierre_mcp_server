@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
+
 # Appendix C: Pierre Codebase Map
 
 Quick reference for navigating the Pierre codebase.

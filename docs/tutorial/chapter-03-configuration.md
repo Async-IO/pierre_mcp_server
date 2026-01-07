@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
+
 # Chapter 3: Configuration Management & Environment Variables
 
 > **Learning Objectives**: Master environment-driven configuration in Rust, understand type-safe config patterns, and learn how Pierre implements the algorithm selection system.

@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
+
 # Chapter 28: Tenant Admin APIs & Fitness Configuration
 
 This appendix explains Pierre's tenant administration HTTP APIs and how tenant-scoped fitness configurations are managed. You'll see how tenants, OAuth apps, and fitness configs are modeled and exposed via REST routes.
