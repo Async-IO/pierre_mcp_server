@@ -11,7 +11,7 @@ import { ConfirmDialog } from './ui';
 import { clsx } from 'clsx';
 import { apiService } from '../services/api';
 import Markdown from 'react-markdown';
-import PromptSuggestions, { WELCOME_ANALYSIS_PROMPT } from './PromptSuggestions';
+import PromptSuggestions, { useWelcomePrompt } from './PromptSuggestions';
 import ProviderConnectionCards from './ProviderConnectionCards';
 import { useAuth } from '../hooks/useAuth';
 
@@ -107,6 +107,7 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
   const [showIdeas, setShowIdeas] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
+  const [skippedOnboarding, setSkippedOnboarding] = useState(false);
 
   const sidebarPanelRef = usePanelRef();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -127,6 +128,9 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
 
   // Check if any provider is connected
   const hasConnectedProvider = oauthStatus?.providers?.some(p => p.connected) ?? false;
+
+  // Fetch welcome prompt from API
+  const { welcomePrompt } = useWelcomePrompt();
 
   // Fetch messages for selected conversation
   const { data: messagesData, isLoading: messagesLoading } = useQuery<{ messages: Message[] }>({
@@ -490,6 +494,12 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
     setSelectedConversation(null);
   };
 
+  const handleSkipOnboarding = () => {
+    // User explicitly skipped provider connection - show prompts
+    setSkippedOnboarding(true);
+    setSelectedConversation(null);
+  };
+
   const handleSelectPrompt = (prompt: string) => {
     setPendingPrompt(prompt);
     createConversation.mutate();
@@ -753,8 +763,8 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
 
       {/* Main Chat Area */}
       <Panel defaultSize="75%" className="flex flex-col bg-white">
-        {/* Show provider onboarding only when no conversation is selected and no providers connected */}
-        {!selectedConversation && !hasConnectedProvider ? (
+        {/* Show provider onboarding only when no conversation selected, no providers connected, and user hasn't skipped */}
+        {!selectedConversation && !hasConnectedProvider && !skippedOnboarding ? (
           <div className="flex-1 flex items-center justify-center overflow-y-auto py-12">
             <div className="w-full max-w-3xl px-6">
               <div className="text-center mb-8">
@@ -769,12 +779,12 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
               <ProviderConnectionCards
                 onConnectProvider={handleConnectProvider}
                 connectingProvider={connectingProvider}
-                onSkip={handleNewChat}
+                onSkip={handleSkipOnboarding}
                 isSkipPending={createConversation.isPending}
               />
             </div>
           </div>
-        ) : !selectedConversation && hasConnectedProvider ? (
+        ) : !selectedConversation && (hasConnectedProvider || skippedOnboarding) ? (
           // Welcome state when provider connected but no conversation yet
           <div className="flex-1 flex items-center justify-center overflow-y-auto py-12">
             <div className="w-full max-w-3xl px-6">
@@ -799,8 +809,8 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
               <div className="text-center mb-8">
                 <button
                   type="button"
-                  onClick={() => handleSelectPrompt(WELCOME_ANALYSIS_PROMPT)}
-                  disabled={createConversation.isPending}
+                  onClick={() => welcomePrompt && handleSelectPrompt(welcomePrompt)}
+                  disabled={createConversation.isPending || !welcomePrompt}
                   className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-pierre-violet to-pierre-cyan text-white font-semibold rounded-xl shadow-lg shadow-pierre-violet/25 hover:shadow-xl hover:shadow-pierre-violet/30 hover:-translate-y-0.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-offset-2 disabled:opacity-50"
                 >
                   {createConversation.isPending ? (

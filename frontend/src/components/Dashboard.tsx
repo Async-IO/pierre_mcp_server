@@ -24,6 +24,7 @@ const ApiKeyList = lazy(() => import('./ApiKeyList'));
 const ApiKeyDetails = lazy(() => import('./ApiKeyDetails'));
 const ChatTab = lazy(() => import('./ChatTab'));
 const AdminConfiguration = lazy(() => import('./AdminConfiguration'));
+const PromptsAdminTab = lazy(() => import('./PromptsAdminTab'));
 
 // Tab definition type with optional badge for notification counts
 interface TabDefinition {
@@ -174,6 +175,11 @@ export default function Dashboard() {
     { id: 'configuration', name: 'Configuration', icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+      </svg>
+    ) },
+    { id: 'prompts', name: 'Prompts', icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
       </svg>
     ) },
     { id: 'admin-settings', name: 'Settings', icon: (
@@ -495,6 +501,11 @@ export default function Dashboard() {
         {activeTab === 'configuration' && (
           <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
             <AdminConfiguration />
+          </Suspense>
+        )}
+        {activeTab === 'prompts' && (
+          <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
+            <PromptsAdminTab />
           </Suspense>
         )}
         {activeTab === 'admin-tokens' && (

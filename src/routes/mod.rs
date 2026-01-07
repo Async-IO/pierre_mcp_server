@@ -34,6 +34,8 @@ pub mod impersonation;
 pub mod mcp;
 /// OAuth 2.0 server implementation routes
 pub mod oauth2;
+/// Prompt suggestions routes for AI chat interface
+pub mod prompts;
 /// Tenant management routes
 pub mod tenants;
 /// User MCP token management routes for AI client authentication
