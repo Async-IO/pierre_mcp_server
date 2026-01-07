@@ -9,6 +9,11 @@ on:
     # Weekly release binary validation (Sundays at 2 AM UTC)
     - cron: '0 2 * * 0'
 
+# Security: Explicit permissions following principle of least privilege
+permissions:
+  contents: read
+  actions: read
+
 env:
   CARGO_TERM_COLOR: always
 

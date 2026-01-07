@@ -52,7 +52,7 @@
     "url": "https://github.com/Async-IO/pierre_mcp_server/issues"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.25.2",
     "@napi-rs/keyring": "^1.1.9",
     "@types/node-fetch": "^2.6.13",
     "ajv": "^8.17.1",

@@ -18,12 +18,15 @@ export default function OAuthCallback({ provider, success, error }: OAuthCallbac
   const providerDisplay = provider.charAt(0).toUpperCase() + provider.slice(1);
 
   // Store OAuth result in localStorage so ChatTab can display connection status
+  // Security: Only store non-sensitive data - error messages may contain sensitive info
   useEffect(() => {
     const result = {
       type: 'oauth_completed',
       provider,
       success,
-      error,
+      // Don't store raw error messages in localStorage - they may contain sensitive info
+      // Store a generic error indicator instead
+      hasError: !success && !!error,
       timestamp: Date.now(),
     };
     localStorage.setItem('pierre_oauth_result', JSON.stringify(result));

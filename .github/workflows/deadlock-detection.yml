@@ -22,6 +22,10 @@ on:
   schedule:
     - cron: '0 3 * * 0'  # Sundays at 3 AM UTC
 
+# Security: Explicit permissions following principle of least privilege
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
 

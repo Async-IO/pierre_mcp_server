@@ -19,18 +19,25 @@ import { useAuth } from '../hooks/useAuth';
 // Matches http/https URLs that aren't already in markdown link format
 const urlRegex = /(?<!\]\()(?<!\[)(https?:\/\/[^\s<>[\]()]+)/g;
 
+// Security: Check if hostname matches a trusted OAuth provider domain
+// Uses endsWith to prevent subdomain bypass attacks (e.g., strava.com.evil.com)
+const isTrustedOAuthDomain = (hostname: string, domain: string): boolean => {
+  // Exact match or subdomain of the trusted domain
+  return hostname === domain || hostname.endsWith(`.${domain}`);
+};
+
 // Generate a friendly display name for a URL
 const getFriendlyUrlName = (url: string): string => {
   try {
     const parsed = new URL(url);
-    // Special handling for OAuth URLs
-    if (parsed.hostname.includes('strava.com') && parsed.pathname.includes('oauth')) {
+    // Special handling for OAuth URLs - use strict domain validation
+    if (isTrustedOAuthDomain(parsed.hostname, 'strava.com') && parsed.pathname.includes('oauth')) {
       return 'Connect to Strava →';
     }
-    if (parsed.hostname.includes('fitbit.com') && parsed.pathname.includes('oauth')) {
+    if (isTrustedOAuthDomain(parsed.hostname, 'fitbit.com') && parsed.pathname.includes('oauth')) {
       return 'Connect to Fitbit →';
     }
-    if (parsed.hostname.includes('garmin.com') && parsed.pathname.includes('oauth')) {
+    if (isTrustedOAuthDomain(parsed.hostname, 'garmin.com') && parsed.pathname.includes('oauth')) {
       return 'Connect to Garmin →';
     }
     // For other URLs, show domain + truncated path
@@ -461,9 +468,28 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                              fullContent.match(/https?:\/\/[^\s<>[\]()]*whoop\.com[^\s<>[\]()]*/i);
         if (oauthUrlMatch) {
           // Conversation ID was stored at the start of handleSendMessage
+          // Security: Don't log the full OAuth URL as it may contain sensitive query parameters
+          console.log(`Auto-redirecting to OAuth URL for ${connectingProvider}`);
           // Small delay to let user see the response before redirect
           setTimeout(() => {
-            window.location.href = oauthUrlMatch[0];
+            // Security: Validate URL before redirect to prevent open redirect attacks
+            try {
+              const url = new URL(oauthUrlMatch[0]);
+              // Only allow redirects to known OAuth providers
+              const trustedDomains = ['strava.com', 'fitbit.com', 'garmin.com', 'whoop.com', 'coros.com'];
+              const isTrusted = trustedDomains.some(domain =>
+                url.hostname === domain || url.hostname.endsWith(`.${domain}`)
+              );
+              if (isTrusted && (url.protocol === 'http:' || url.protocol === 'https:')) {
+                window.location.href = url.href;
+              } else {
+                console.warn('OAuth redirect blocked: URL not from trusted domain');
+                setConnectingProvider(null);
+              }
+            } catch {
+              console.warn('OAuth redirect blocked: Invalid URL format');
+              setConnectingProvider(null);
+            }
           }, 500);
         } else {
           // No OAuth URL found, clear the connecting state

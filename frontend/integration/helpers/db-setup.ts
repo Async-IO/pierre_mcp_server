@@ -61,22 +61,34 @@ function getAdminSetupCommand(): string {
 export async function createTestAdminUser(user: TestUser): Promise<CreateUserResult> {
   try {
     const adminSetup = getAdminSetupCommand();
+    // Security: Don't log the full command with password - it's sensitive
+    // Security: Validate email format to prevent command injection
+    if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(user.email)) {
+      return { success: false, error: 'Invalid email format' };
+    }
+    // Security: Validate password doesn't contain shell metacharacters
+    if (/[;&|`$"'\\<>]/.test(user.password)) {
+      return { success: false, error: 'Password contains invalid characters' };
+    }
     const command = `${adminSetup} create-admin-user --email "${user.email}" --password "${user.password}"`;
-    console.log(`[DB Setup] Running: ${command}`);
-    console.log(`[DB Setup] DATABASE_URL: ${getAdminSetupEnv().DATABASE_URL}`);
+    // Security: Don't log the full command or DATABASE_URL as they may contain credentials
+    console.log(`[DB Setup] Creating admin user: ${user.email}`);
 
-    const output = execSync(command, {
+    execSync(command, {
       cwd: PROJECT_ROOT,
       env: getAdminSetupEnv(),
       stdio: 'pipe',
       timeout: 60000,
     });
 
-    console.log(`[DB Setup] Command output: ${output.toString()}`);
+    // Security: Only log success status, not the full output which may contain sensitive info
+    console.log(`[DB Setup] Admin user created successfully`);
     return { success: true };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.log(`[DB Setup] Command error: ${errorMessage}`);
+    // Security: Sanitize error message to avoid leaking sensitive info
+    const sanitizedError = errorMessage.replace(/--password\s+"[^"]*"/g, '--password "[REDACTED]"');
+    console.log(`[DB Setup] Command error: ${sanitizedError}`);
 
     if (errorMessage.includes('already exists')) {
       console.log(`[DB Setup] User already exists, treating as success`);
@@ -99,6 +111,14 @@ export async function generateApiToken(
 ): Promise<{ success: boolean; token?: string; error?: string }> {
   try {
     const adminSetup = getAdminSetupCommand();
+    // Security: Validate service name to prevent command injection
+    if (!/^[a-zA-Z0-9_-]+$/.test(service)) {
+      return { success: false, error: 'Invalid service name format' };
+    }
+    // Security: Validate expiresDays is a reasonable positive integer
+    if (!Number.isInteger(expiresDays) || expiresDays < 1 || expiresDays > 365) {
+      return { success: false, error: 'Invalid expiry days (must be 1-365)' };
+    }
     const command = `${adminSetup} generate-token --service "${service}" --expires-days ${expiresDays}`;
 
     const output = execSync(command, {
@@ -116,10 +136,11 @@ export async function generateApiToken(
     }
 
     return { success: true };
-  } catch (error) {
+  } catch {
+    // Security: Don't expose raw error details
     return {
       success: false,
-      error: `Failed to generate API token: ${error}`,
+      error: 'Failed to generate API token',
     };
   }
 }

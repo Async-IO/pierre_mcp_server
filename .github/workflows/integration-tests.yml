@@ -7,6 +7,10 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+# Security: Explicit permissions following principle of least privilege
+permissions:
+  contents: read
+
 jobs:
   integration-tests:
     name: Playwright Integration Tests (Real Server)

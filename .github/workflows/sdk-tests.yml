@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ main ]
 
+# Security: Explicit permissions following principle of least privilege
+permissions:
+  contents: read
+
 jobs:
   sdk-tests:
     name: SDK Test Suite

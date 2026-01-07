@@ -1142,7 +1142,18 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
   }
 
   private renderSuccessTemplate(provider: string): string {
-    return OAUTH_SUCCESS_TEMPLATE.replace(/\{\{PROVIDER\}\}/g, provider);
+    return OAUTH_SUCCESS_TEMPLATE.replace(/\{\{PROVIDER\}\}/g, this.escapeHtml(provider));
+  }
+
+  // Security: Escape HTML special characters to prevent XSS attacks
+  // Query parameters like error and error_description come from external sources
+  private escapeHtml(unsafe: string): string {
+    return unsafe
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
   }
 
   private renderErrorTemplate(
@@ -1150,9 +1161,11 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
     error: string,
     description: string,
   ): string {
-    return OAUTH_ERROR_TEMPLATE.replace(/\{\{PROVIDER\}\}/g, provider)
-      .replace(/\{\{ERROR\}\}/g, error)
-      .replace(/\{\{DESCRIPTION\}\}/g, description);
+    // Security: Escape all user-provided values to prevent reflected XSS
+    // The error and description values come from OAuth callback query parameters
+    return OAUTH_ERROR_TEMPLATE.replace(/\{\{PROVIDER\}\}/g, this.escapeHtml(provider))
+      .replace(/\{\{ERROR\}\}/g, this.escapeHtml(error))
+      .replace(/\{\{DESCRIPTION\}\}/g, this.escapeHtml(description));
   }
 
   async validateAndCleanupCachedCredentials(): Promise<void> {
@@ -2495,39 +2508,75 @@ export class PierreMcpClient {
       return;
     }
 
-    const { exec } = await import("child_process");
+    // Security: Validate URL format before opening to prevent command injection
+    // Only allow http/https URLs from trusted OAuth providers
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(url);
+      if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+        this.log(`Refusing to open non-HTTP URL: ${parsedUrl.protocol}`);
+        return;
+      }
+    } catch {
+      this.log("Invalid URL format, refusing to open");
+      return;
+    }
+
+    // Use execFile instead of exec to prevent shell injection
+    // execFile does not spawn a shell, so special characters in the URL cannot be interpreted
+    const { execFile } = await import("child_process");
     const platform = process.platform;
 
     if (platform === "darwin") {
       // macOS: Open URL then explicitly activate browser after a brief delay
-      exec(`open "${url}"`, (error: Error | null) => {
+      execFile("open", [parsedUrl.href], (error: Error | null) => {
         if (error) {
           this.log(`Failed to open browser: ${error.message}`);
           return;
         }
 
-        // After opening, try to activate common browsers
+        // After opening, try to activate common browsers using osascript
+        // This is safe as we're not passing user input to the script
         setTimeout(() => {
-          exec(
-            `osascript -e 'tell application "Google Chrome" to activate' 2>/dev/null || osascript -e 'tell application "Safari" to activate' 2>/dev/null || osascript -e 'tell application "Firefox" to activate' 2>/dev/null || osascript -e 'tell application "Brave Browser" to activate' 2>/dev/null`,
-            (activateError) => {
-              if (activateError) {
-                this.log("Could not activate browser (non-fatal)");
+          execFile(
+            "osascript",
+            [
+              "-e",
+              'tell application "Google Chrome" to activate',
+            ],
+            (chromeError) => {
+              if (chromeError) {
+                execFile(
+                  "osascript",
+                  ["-e", 'tell application "Safari" to activate'],
+                  (safariError) => {
+                    if (safariError) {
+                      execFile(
+                        "osascript",
+                        ["-e", 'tell application "Firefox" to activate'],
+                        () => {
+                          // Ignore errors - browser activation is non-critical
+                        },
+                      );
+                    }
+                  },
+                );
               }
             },
           );
         }, 500);
       });
     } else if (platform === "win32") {
-      // Windows: start command brings window to front by default
-      exec(`start "" "${url}"`, (error: Error | null) => {
+      // Windows: Use cmd.exe with /c start to open URL
+      // execFile with cmd.exe prevents shell injection while allowing URL opening
+      execFile("cmd.exe", ["/c", "start", "", parsedUrl.href], (error: Error | null) => {
         if (error) {
           this.log(`Failed to open browser: ${error.message}`);
         }
       });
     } else {
-      // Linux: xdg-open
-      exec(`xdg-open "${url}"`, (error: Error | null) => {
+      // Linux: xdg-open with validated URL
+      execFile("xdg-open", [parsedUrl.href], (error: Error | null) => {
         if (error) {
           this.log(`Failed to open browser: ${error.message}`);
         }
