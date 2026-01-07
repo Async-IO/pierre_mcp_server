@@ -432,7 +432,7 @@ The codebase clone usage falls into these **approved categories**:
 - Document the sharing requirement in comments
 - Consider `Rc<T>` for single-threaded shared ownership
 - Prefer `&T` references when data lifetime allows
-- **Current count: ~81 Arc usages** - appropriate for multi-tenant async architecture
+- **Current count: ~107 Arc usages** - appropriate for multi-tenant async architecture
 
 ## Documentation Standards
 
