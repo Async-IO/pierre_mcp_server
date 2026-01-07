@@ -191,6 +191,51 @@ export async function setupDashboardMocks(page: Page, userOptions: UserOptions =
       body: JSON.stringify({}),
     });
   });
+
+  // Mock prompts suggestions endpoint (public API for chat prompts)
+  await page.route('**/api/prompts/suggestions', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        categories: [
+          {
+            category_key: 'training',
+            category_title: 'Training',
+            category_icon: '🏃',
+            pillar: 'activity',
+            prompts: ['Am I ready for a hard workout today?', 'What should my training focus be this week?'],
+          },
+          {
+            category_key: 'nutrition',
+            category_title: 'Nutrition',
+            category_icon: '🥗',
+            pillar: 'nutrition',
+            prompts: ['What should I eat before my long run?', 'How can I improve my recovery nutrition?'],
+          },
+          {
+            category_key: 'recovery',
+            category_title: 'Recovery',
+            category_icon: '😴',
+            pillar: 'recovery',
+            prompts: ['Am I getting enough rest?', 'How is my sleep affecting my training?'],
+          },
+          {
+            category_key: 'recipes',
+            category_title: 'Recipes',
+            category_icon: '🍳',
+            pillar: 'nutrition',
+            prompts: ['Give me a high-protein post-workout meal idea', 'What are some easy pre-race breakfast options?'],
+          },
+        ],
+        welcome_prompt: 'List my last 20 activities with key insights about my training patterns.',
+        metadata: {
+          timestamp: new Date().toISOString(),
+          api_version: '1.0',
+        },
+      }),
+    });
+  });
 }
 
 /**
