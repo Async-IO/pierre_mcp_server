@@ -52,6 +52,33 @@ impl TransportManager {
         self.start_legacy_unified_server(port).await
     }
 
+    /// Start stdio transport only (no HTTP/SSE transports)
+    ///
+    /// This mode is useful for MCP clients that communicate via stdin/stdout
+    /// and do not need HTTP endpoints.
+    ///
+    /// # Errors
+    /// Returns an error if stdio transport setup or processing fails
+    pub async fn start_stdio_only(&self) -> AppResult<()> {
+        info!("Starting MCP server in stdio-only mode (HTTP/SSE disabled)");
+
+        let notification_receiver = self.notification_sender.subscribe();
+
+        let mut resources_clone = (*self.resources).clone();
+        resources_clone.set_oauth_notification_sender(self.notification_sender.clone());
+
+        let stdout_handle = Arc::new(Mutex::new(stdout()));
+        let sampling_peer = Arc::new(super::sampling_peer::SamplingPeer::new(stdout_handle));
+        resources_clone.set_sampling_peer(sampling_peer);
+
+        Self::spawn_progress_handler(&mut resources_clone);
+
+        let shared_resources = Arc::new(resources_clone);
+
+        let stdio_transport = StdioTransport::new(shared_resources);
+        stdio_transport.run(notification_receiver).await
+    }
+
     /// Spawn progress notification handler
     fn spawn_progress_handler(resources: &mut ServerResources) {
         let (progress_tx, mut progress_rx) = mpsc::unbounded_channel();

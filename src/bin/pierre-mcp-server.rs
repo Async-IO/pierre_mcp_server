@@ -23,7 +23,10 @@ use pierre_mcp_server::{
     errors::AppError,
     key_management::KeyManager,
     logging,
-    mcp::{multitenant::MultiTenantMcpServer, resources::ServerResources},
+    mcp::{
+        multitenant::MultiTenantMcpServer, resources::ServerResources,
+        transport_manager::TransportManager,
+    },
     plugins::executor::PluginToolExecutor,
     utils::{http_client::initialize_http_clients, route_timeout::initialize_route_timeouts},
 };
@@ -44,6 +47,10 @@ pub struct Args {
     /// Override HTTP port
     #[arg(long)]
     http_port: Option<u16>,
+
+    /// Run in stdio-only mode (disables HTTP/SSE transports)
+    #[arg(long)]
+    stdio: bool,
 }
 
 fn main() -> Result<()> {
@@ -56,7 +63,7 @@ fn main() -> Result<()> {
     // Run the async server on our configured runtime
     runtime.block_on(async {
         let config = setup_configuration(&args)?;
-        bootstrap_server(config).await
+        bootstrap_server(config, args.stdio).await
     })
 }
 
@@ -108,6 +115,7 @@ fn parse_args_or_default() -> Args {
             Args {
                 config: None,
                 http_port: None,
+                stdio: false,
             }
         }
     }
@@ -258,12 +266,12 @@ fn log_validation_result(all_valid: bool) {
 }
 
 /// Bootstrap the complete server with all dependencies
-async fn bootstrap_server(config: ServerConfig) -> Result<()> {
+async fn bootstrap_server(config: ServerConfig, stdio_only: bool) -> Result<()> {
     initialize_global_configs(&config)?;
     let (database, auth_manager, jwt_secret) = initialize_core_systems(&config).await?;
     let cache = initialize_cache().await?;
     let server = create_server(database, auth_manager, &jwt_secret, &config, cache).await;
-    run_server(server, &config).await
+    run_server(server, &config, stdio_only).await
 }
 
 fn initialize_global_configs(config: &ServerConfig) -> Result<()> {
@@ -435,7 +443,34 @@ fn get_rsa_key_size() -> usize {
 }
 
 /// Run the server after displaying endpoints
-async fn run_server(server: MultiTenantMcpServer, config: &ServerConfig) -> Result<()> {
+async fn run_server(
+    server: MultiTenantMcpServer,
+    config: &ServerConfig,
+    stdio_only: bool,
+) -> Result<()> {
+    if stdio_only {
+        run_stdio_only_mode(server).await
+    } else {
+        run_http_mode(server, config).await
+    }
+}
+
+/// Run server in stdio-only mode (no HTTP/SSE transports)
+async fn run_stdio_only_mode(server: MultiTenantMcpServer) -> Result<()> {
+    info!("Starting in stdio-only mode (HTTP/SSE transports disabled)");
+    info!("Listening on stdin/stdout for MCP JSON-RPC messages");
+
+    let transport_manager = TransportManager::new(server.resources());
+    transport_manager.start_stdio_only().await.map_err(|e| {
+        error!("Stdio transport error: {}", e);
+        e
+    })?;
+
+    Ok(())
+}
+
+/// Run server in HTTP mode with all transports
+async fn run_http_mode(server: MultiTenantMcpServer, config: &ServerConfig) -> Result<()> {
     info!(
         "Server starting on port {} (unified MCP and HTTP)",
         config.http_port

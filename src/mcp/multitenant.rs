@@ -92,6 +92,12 @@ impl MultiTenantMcpServer {
         Self { resources }
     }
 
+    /// Get shared reference to server resources
+    #[must_use]
+    pub fn resources(&self) -> Arc<ServerResources> {
+        self.resources.clone()
+    }
+
     /// Initialize security configuration based on environment
     fn setup_security_config(config: &ServerConfig) -> SecurityConfig {
         let security_config =
