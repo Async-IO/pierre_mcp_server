@@ -55,7 +55,7 @@ use super::{
     ChatMessage, ChatRequest, ChatResponse, ChatResponseWithTools, ChatStream, FunctionCall,
     LlmCapabilities, LlmProvider, StreamChunk, TokenUsage, Tool,
 };
-use crate::errors::AppError;
+use crate::errors::{AppError, ErrorCode};
 
 // ============================================================================
 // Configuration Constants
@@ -410,10 +410,12 @@ impl OpenAiCompatibleProvider {
                     "API authentication failed: {}",
                     error_response.error.message
                 )),
-                429 => AppError::external_service(
-                    "LocalLLM",
-                    format!("Rate limit exceeded: {}", error_response.error.message),
-                ),
+                429 => {
+                    // Use ExternalRateLimited for proper client-facing messages
+                    let user_message =
+                        Self::extract_rate_limit_message(&error_response.error.message);
+                    AppError::new(ErrorCode::ExternalRateLimited, user_message)
+                }
                 400 => AppError::invalid_input(format!(
                     "API validation error: {}",
                     error_response.error.message
@@ -451,6 +453,30 @@ impl OpenAiCompatibleProvider {
                 ),
             }
         }
+    }
+
+    /// Extract a user-friendly rate limit message from OpenAI-compatible error
+    ///
+    /// OpenAI-style rate limit errors may include retry-after info.
+    /// Most local LLM servers (Ollama, vLLM) rarely hit rate limits.
+    fn extract_rate_limit_message(message: &str) -> String {
+        // Try to extract "try again in X" or similar patterns
+        if let Some(retry_pos) = message.to_lowercase().find("try again in ") {
+            let after_prefix = &message[retry_pos + 13..];
+            // Find the number and unit
+            if let Some(end_pos) = after_prefix.find(|c: char| !c.is_ascii_digit() && c != '.') {
+                let time_str = &after_prefix[..end_pos];
+                if let Ok(seconds) = time_str.parse::<f64>() {
+                    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                    let seconds_int = seconds.ceil() as u64;
+                    return format!(
+                        "LLM rate limit reached. Please try again in {seconds_int} seconds."
+                    );
+                }
+            }
+        }
+        // Fallback message
+        "LLM rate limit reached. Please wait a moment and try again.".to_owned()
     }
 
     /// Convert internal Tool format to OpenAI-compatible format
