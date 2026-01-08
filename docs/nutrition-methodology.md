@@ -184,7 +184,7 @@ bmr = 1345 kcal/day
 
 #### Configuration
 
-`src/config/intelligence_config.rs:423-438`
+`src/config/intelligence/nutrition.rs:47-62`
 
 ```rust
 pub struct BmrConfig {
@@ -264,7 +264,7 @@ pub fn calculate_tdee(
 
 #### Configuration
 
-`src/config/intelligence_config.rs:444-455`
+`src/config/intelligence/nutrition.rs:68-79`
 
 ```rust
 pub struct ActivityFactorsConfig {
@@ -439,7 +439,7 @@ pub fn calculate_fat_needs(
 
 ### Configuration
 
-`src/config/intelligence_config.rs:464-487`
+`src/config/intelligence/nutrition.rs:88-111`
 
 ```rust
 pub struct MacronutrientConfig {
@@ -548,7 +548,7 @@ pub fn calculate_nutrient_timing(
 
 ### Configuration
 
-`src/config/intelligence_config.rs:495-512`
+`src/config/intelligence/nutrition.rs:119-136`
 
 ```rust
 pub struct NutrientTimingConfig {
@@ -662,7 +662,7 @@ Lower calorie intake pre-workout minimizes gastrointestinal distress while still
 
 #### Configuration
 
-`src/config/intelligence_config.rs`
+`src/config/intelligence/nutrition.rs:298-315`
 
 ```rust
 /// Meal TDEE proportion configuration based on ISSN research
@@ -820,7 +820,7 @@ impl MockUsdaClient {
 
 ### Configuration
 
-`src/config/intelligence_config.rs:514-522`
+`src/config/intelligence/nutrition.rs:140-151`
 
 ```rust
 pub struct UsdaApiConfig {
@@ -1062,7 +1062,7 @@ test result: ok. 39 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
 ## 8. Configuration and Customization
 
-All nutrition parameters are configurable via `src/config/intelligence_config.rs`:
+All nutrition parameters are configurable via `src/config/intelligence/nutrition.rs`:
 
 ```rust
 pub struct NutritionConfig {

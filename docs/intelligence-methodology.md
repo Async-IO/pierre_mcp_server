@@ -25,7 +25,7 @@ This comprehensive guide explains the scientific methods, algorithms, and decisi
 - [architecture overview](#architecture-overview)
   - [foundation modules](#foundation-modules)
   - [core modules](#core-modules)
-  - [intelligence tools (47 tools)](#intelligence-tools-45-tools)
+  - [intelligence tools (47 tools)](#intelligence-tools-47-tools)
 - [data sources and permissions](#data-sources-and-permissions)
   - [primary data](#primary-data)
   - [user profile (optional)](#user-profile-optional)
@@ -2720,7 +2720,7 @@ Training stress balance maps to recovery score using **configurable thresholds**
 **configurable TSB thresholds** (from `SleepRecoveryConfig.training_stress_balance`):
 
 ```rust
-// Default configuration values (src/config/intelligence_config.rs:1178)
+// Default configuration values (src/config/intelligence/sleep_recovery.rs:113)
 TsbConfig {
     highly_fatigued_tsb: -15.0,    // Extreme fatigue threshold
     fatigued_tsb: -10.0,            // Productive fatigue threshold

@@ -514,7 +514,7 @@ Nine algorithm categories with multiple variants each:
 
 ### Configuration Integration
 
-Algorithms configured via `src/config/intelligence_config.rs`:
+Algorithms configured via `src/config/intelligence/algorithms.rs`:
 
 ```rust
 pub struct AlgorithmConfig {
@@ -584,7 +584,7 @@ let vdot = algorithm.calculate_vdot(5000.0, 1200.0)?; // 5K in 20:00
 
 No hardcoded formulas anywhere in intelligence layer.
 
-Implementation: `src/intelligence/algorithms/`, `src/config/intelligence_config.rs`, `scripts/validate-algorithm-di.sh`
+Implementation: `src/intelligence/algorithms/`, `src/config/intelligence/algorithms.rs`, `scripts/validate-algorithm-di.sh`
 
 ## PII Redaction
 
