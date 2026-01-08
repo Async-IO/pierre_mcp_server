@@ -18,7 +18,7 @@
         "react-chartjs-2": "^5.3.0",
         "react-dom": "^19.1.0",
         "react-markdown": "^10.1.0",
-        "react-resizable-panels": "^4.0.9",
+        "react-resizable-panels": "^4.3.0",
       },
       "devDependencies": {
         "@eslint/js": "^9.25.0",
@@ -1005,7 +1005,7 @@
 
     "react-refresh": ["react-refresh@0.17.0", "", {}, "sha512-z6F7K9bV85EfseRCp2bzrpyQ0Gkw1uLoCel9XBVWPg/TjRj94SkJzUTGfOa4bs7iJvBWtQG0Wq7wnI0syw3EBQ=="],
 
-    "react-resizable-panels": ["react-resizable-panels@4.0.9", "", { "peerDependencies": { "react": "^18.0.0 || ^19.0.0", "react-dom": "^18.0.0 || ^19.0.0" } }, "sha512-Ey8TmEtwaH7sGmPUAyGWBEX1RHQuLGeffJss2RoSKkQ2Qi0R3eHh4yB9i1zxlQNuxePzvPBmfdhKMB/nyL4eVw=="],
+    "react-resizable-panels": ["react-resizable-panels@4.3.1", "", { "peerDependencies": { "react": "^18.0.0 || ^19.0.0", "react-dom": "^18.0.0 || ^19.0.0" } }, "sha512-Y+kWgV80snvOvSmWf5ivndOaaxRjaEz/b1snYJaPASqnFzYdfRd6eAXwPPKWtOm/96DNeDGdFssYR8pA8U/zRg=="],
 
     "read-cache": ["read-cache@1.0.0", "", { "dependencies": { "pify": "^2.3.0" } }, "sha512-Owdv/Ft7IjOgm/i0xvNDZ1LrRANRfew4b2prF3OWMQLxLfu3bS8FVhCsrSCMK4lR56Y9ya+AThoTpDCTxCmpRA=="],
 
