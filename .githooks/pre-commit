@@ -40,15 +40,15 @@ check_claude_docs() {
     return 0
 }
 
-# Check for *.md files in root directory (except README.md, CHANGELOG.md, and CONTRIBUTING.md)
+# Check for *.md files in root directory (except standard docs and AGENTS.md)
 check_root_markdown() {
-    local root_md_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^[^/]+\.md$' | grep -v -E '^(README|CHANGELOG|CONTRIBUTING|SECURITY|LICENSE)\.md$' || true)
+    local root_md_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^[^/]+\.md$' | grep -v -E '^(README|CHANGELOG|CONTRIBUTING|SECURITY|LICENSE|AGENTS)\.md$' || true)
     
     if [ -n "$root_md_files" ]; then
         echo "❌ ERROR: Commit blocked - Found markdown files in root directory:"
         echo "$root_md_files" | sed 's/^/  - /'
         echo ""
-        echo "Only README.md, CHANGELOG.md, CONTRIBUTING.md, SECURITY.md, and LICENSE.md are allowed in the root directory."
+        echo "Only README.md, CHANGELOG.md, CONTRIBUTING.md, SECURITY.md, LICENSE.md, and AGENTS.md are allowed in the root directory."
         echo "Please move these files to a subdirectory or remove them."
         echo "To unstage: git reset HEAD <file>"
         return 1
