@@ -305,6 +305,22 @@ Business logic in `protocols::universal` works for both mcp and a2a. Write once,
 - cache: in-memory lru or redis (distributed caching)
 - tools: compile-time plugin system via `linkme`
 
+### Runtime SQL Queries
+
+The codebase uses `sqlx::query()` (runtime validation) exclusively, not `sqlx::query!()` (compile-time validation).
+
+**Why runtime queries:**
+- **Multi-database support**: SQLite and PostgreSQL have different SQL dialects (`?1` vs `$1`). Compile-time macros lock to one database.
+- **No build-time database**: `query!` macros require `DATABASE_URL` at compile time. Runtime queries allow building without a database.
+- **CI simplicity**: No need for `sqlx prepare` or database containers during builds.
+- **Plugin architecture**: `DatabaseProvider` trait enables runtime database selection.
+
+**Trade-off:**
+- No compile-time SQL validation - typos caught at runtime, not build time
+- Mitigated by comprehensive integration tests against both databases
+
+Implementation: `src/database_plugins/mod.rs` (trait), `src/database_plugins/postgres.rs`, `src/database/`
+
 ### SDK Architecture
 
 **TypeScript SDK** (`sdk/`): stdio→http bridge for MCP clients (Claude Desktop, ChatGPT).
