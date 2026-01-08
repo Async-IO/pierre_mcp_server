@@ -148,9 +148,9 @@ Per the NO EXCEPTIONS POLICY, all tests must pass.
   - ✅ Cancellation token registry in `ServerResources` for progress token mapping
   - ✅ **`notifications/cancelled` MCP handler** triggers cancellation (`src/mcp/mcp_request_processor.rs:395-411`)
   - ✅ Cancellation tokens created and registered for all tool executions
-  - ✅ **Integrated in ALL async handlers** (17 handlers across 7 files):
-    - `intelligence.rs`, `strava_api.rs`, `configuration.rs`, `connections.rs`
-    - `goals.rs`, `nutrition.rs`, `sleep_recovery.rs`
+  - ✅ **Integrated in ALL async handlers** (17 handlers across 8 files):
+    - `intelligence.rs`, `fitness_api.rs`, `configuration.rs`, `connections.rs`
+    - `goals.rs`, `nutrition.rs`, `sleep_recovery.rs`, `recipes.rs`
   - ✅ Full MCP flow: Client → notifications/cancelled → Registry → Token → Handler
 
 ## References

@@ -744,10 +744,10 @@ if [ -f "package.json" ] && grep -q "generate-types" package.json; then
             ALL_PASSED=false
         fi
 
-        # Run SDK integration tests for all 45 tools
+        # Run SDK integration tests for all 47 tools
         echo -e "${BLUE}Running SDK integration tests...${NC}"
         if bun run test:integration -- --testPathPattern=all-tools --silent; then
-            echo -e "${GREEN}[OK] SDK integration tests passed (45 tools validated)${NC}"
+            echo -e "${GREEN}[OK] SDK integration tests passed (47 tools validated)${NC}"
         else
             echo -e "${RED}[FAIL] SDK integration tests failed${NC}"
             echo -e "${YELLOW}[INFO] Run 'cd sdk && bun run test:integration -- --testPathPattern=all-tools' for details${NC}"

@@ -46,11 +46,12 @@ src/
 │       │   ├── intelligence.rs     # activity analysis handlers
 │       │   ├── goals.rs            # goal management handlers
 │       │   ├── connections.rs      # provider connection handlers
-│       │   ├── strava_api.rs       # strava-specific handlers
+│       │   ├── fitness_api.rs      # fitness provider api handlers
 │       │   ├── configuration.rs    # configuration handlers
 │       │   ├── nutrition.rs        # nutrition calculation handlers
-│       │   └── sleep.rs            # sleep analysis handlers
-│       ├── tool_registry.rs        # 45 mcp tool definitions
+│       │   ├── recipes.rs          # recipe management handlers
+│       │   └── sleep_recovery.rs   # sleep analysis handlers
+│       ├── tool_registry.rs        # 47 mcp tool definitions
 │       ├── types.rs                # universal request/response types
 │       └── mod.rs                  # universal protocol logic
 ├── mcp/                            # mcp protocol implementation
@@ -319,7 +320,7 @@ templates/
 
 ### 1. mcp protocol implementation
 - **json-rpc 2.0**: full mcp 1.0 specification support
-- **45 tools**: comprehensive fitness analysis toolkit
+- **47 tools**: comprehensive fitness analysis toolkit
 - **http + sse transports**: traditional and streaming communication
 - **protocol abstraction**: shared logic via `protocols::universal`
 - **streamable http**: native http transport for mcp clients
