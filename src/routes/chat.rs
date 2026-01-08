@@ -657,13 +657,42 @@ impl ChatRoutes {
         llm_messages: &mut Vec<ChatMessage>,
         function_responses: &[FunctionResponse],
     ) {
+        // Track if we found an activity list to add a reminder at the end
+        let mut activity_list_content: Option<String> = None;
+
         for func_response in function_responses {
             let response_text =
                 serde_json::to_string(&func_response.response).unwrap_or_else(|_| "{}".to_owned());
-            llm_messages.push(ChatMessage::user(format!(
-                "[Tool Result for {}]: {}",
-                func_response.name, response_text
-            )));
+
+            // For get_activities, extract the activity_list for later use as a final reminder
+            if func_response.name == "get_activities" {
+                if let Some(activity_list) = func_response
+                    .response
+                    .get("activity_list")
+                    .and_then(|v| v.as_str())
+                    .filter(|s| !s.is_empty())
+                {
+                    let list_len = activity_list.len();
+                    activity_list_content = Some(activity_list.to_owned());
+                    info!("Storing activity list for final reminder ({list_len} chars)");
+                }
+            }
+
+            // All tool results use the same format
+            let name = &func_response.name;
+            let message = format!("[Tool Result for {name}]: {response_text}");
+            llm_messages.push(ChatMessage::user(message));
+        }
+
+        // Add a final reminder with the activity list that the model MUST start with
+        if let Some(list) = activity_list_content {
+            info!("Adding final activity list reminder message");
+            let reminder = format!(
+                "IMPORTANT: Before providing any analysis, you MUST first output this exact \
+                 activity list:\n\n{list}\n\n---\nStart your response with this list above, then \
+                 provide your fitness analysis."
+            );
+            llm_messages.push(ChatMessage::user(reminder));
         }
     }
 

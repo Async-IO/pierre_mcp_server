@@ -58,6 +58,47 @@ impl From<&Activity> for ActivitySummary {
     }
 }
 
+/// Format activities as a numbered human-readable list for LLM output
+/// This helps smaller models include the list in their response without transforming JSON
+fn format_activities_as_list(activities: &[Activity]) -> String {
+    let mut lines = Vec::with_capacity(activities.len() + 2);
+    lines.push("Your Activities:".to_owned());
+    lines.push(String::new());
+
+    for (i, activity) in activities.iter().enumerate() {
+        let date = activity.start_date().format("%Y-%m-%d").to_string();
+        // Format sport type cleanly - extract inner string for Other variant
+        let sport = match activity.sport_type() {
+            SportType::Other(s) => s.clone(),
+            other => format!("{other:?}"),
+        };
+        let distance_km = activity.distance_meters().unwrap_or(0.0) / 1000.0;
+        let duration_secs = activity.duration_seconds();
+        let hours = duration_secs / 3600;
+        let minutes = (duration_secs % 3600) / 60;
+        let seconds = duration_secs % 60;
+
+        let duration_str = if hours > 0 {
+            format!("{hours}:{minutes:02}:{seconds:02}")
+        } else {
+            format!("{minutes}:{seconds:02}")
+        };
+
+        lines.push(format!(
+            "{}. [{}] {} (ID: {}) - {} - {:.2} km - {}",
+            i + 1,
+            sport,
+            activity.name(),
+            activity.id(),
+            date,
+            distance_km,
+            duration_str
+        ));
+    }
+
+    lines.join("\n")
+}
+
 /// Pagination metadata for list responses
 /// Enables clients to intelligently paginate through large result sets
 #[derive(Debug, Clone, Default)]
@@ -421,11 +462,15 @@ fn build_activities_success_response(
         }
     };
 
+    // Create pre-formatted activity list for LLM output (helps models include the list)
+    let activity_list = format_activities_as_list(activities);
+
     // Format the activities data according to the requested format
     let (result_json, format_used) = match output_format {
         OutputFormat::Toon => match format_output(&data_value, OutputFormat::Toon) {
             Ok(formatted) => {
                 let mut json_val = json!({
+                    "activity_list": activity_list,
                     "activities_toon": formatted.data,
                     "provider": provider_name,
                     "count": activities.len(),
@@ -443,6 +488,7 @@ fn build_activities_success_response(
             Err(e) => {
                 warn!("TOON serialization failed, falling back to JSON: {}", e);
                 let mut json_val = json!({
+                    "activity_list": activity_list,
                     "activities": data_value,
                     "provider": provider_name,
                     "count": activities.len(),
@@ -462,6 +508,7 @@ fn build_activities_success_response(
         },
         OutputFormat::Json => {
             let mut json_val = json!({
+                "activity_list": activity_list,
                 "activities": data_value,
                 "provider": provider_name,
                 "count": activities.len(),
