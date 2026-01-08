@@ -286,8 +286,11 @@ test.describe('LLM Settings - Configuration Form', () => {
     await page.locator('button').filter({ has: page.locator('svg path[d*="M6 18L18 6"]') }).click();
     await page.waitForTimeout(300);
 
-    // Now configure Local LLM - find the provider card and click Configure
-    const localLlmCard = page.locator('div').filter({ hasText: 'Local LLM (Ollama/vLLM)' }).first();
+    // Now configure Local LLM - find the specific provider card via its heading
+    // Use p-4 class to target only provider cards (not parent containers)
+    const localLlmCard = page.locator('div.p-4').filter({
+      has: page.locator('h3', { hasText: 'Local LLM (Ollama/vLLM)' })
+    });
     await localLlmCard.getByRole('button', { name: 'Configure' }).click();
     await page.waitForTimeout(300);
 
