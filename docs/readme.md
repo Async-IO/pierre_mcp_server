@@ -33,6 +33,9 @@ Developer documentation for Pierre Fitness Platform.
 - [Configuration](configuration.md) - Settings and algorithms
 - [Environment](environment.md) - .envrc variables reference
 
+### APIs
+- [Prompts API](prompts-api.md) - REST API for managing AI chat prompts (admin)
+
 ### OAuth
 - [OAuth Client](oauth-client.md) - Fitness provider connections (Strava, Fitbit, Garmin, WHOOP, COROS, Terra)
 - [OAuth2 Server](oauth2-server.md) - MCP client authentication

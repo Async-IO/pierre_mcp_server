@@ -187,21 +187,22 @@ npm run test:coverage
 
 ### E2E Tests (Playwright)
 
-The E2E test suite covers **282 tests** across 13 spec files:
+The E2E test suite covers **294 tests** across 14 spec files:
 
 | Test File | Tests | Coverage |
 |-----------|-------|----------|
-| `login.spec.ts` | 15 | Authentication flows |
+| `login.spec.ts` | 14 | Authentication flows |
 | `registration.spec.ts` | 14 | User registration |
 | `pending-approval.spec.ts` | 10 | Approval workflow |
 | `dashboard.spec.ts` | 21 | Main dashboard |
 | `overview.spec.ts` | 45 | Overview tab |
 | `connections.spec.ts` | 37 | A2A clients, API Keys |
-| `mcp-tokens.spec.ts` | 27 | MCP token management |
 | `admin-tokens.spec.ts` | 23 | API Key management |
+| `admin-config.spec.ts` | 23 | Admin configuration |
 | `analytics.spec.ts` | 14 | Usage analytics |
 | `monitor.spec.ts` | 25 | Request monitoring |
 | `tools.spec.ts` | 27 | MCP tools display |
+| `prompts.spec.ts` | 17 | Prompt management |
 | `user-management.spec.ts` | 14 | User admin functions |
 | `impersonation.spec.ts` | 10 | Admin impersonation |
 
