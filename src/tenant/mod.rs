@@ -8,10 +8,13 @@
 //!
 //! This module implements true multi-tenancy for Pierre MCP Server, enabling:
 //! - Per-tenant OAuth credential management
+//! - Per-tenant LLM API key management
 //! - Tenant-isolated rate limiting
 //! - Enterprise-ready `SaaS` deployment
 //! - Secure tenant data isolation
 
+/// LLM credential management for tenants and users
+pub mod llm_manager;
 /// Tenant-aware OAuth client implementation
 pub mod oauth_client;
 /// OAuth credential management for tenants
@@ -19,6 +22,10 @@ pub mod oauth_manager;
 /// Tenant database schema and models
 pub mod schema;
 
+pub use llm_manager::{
+    CredentialSource, LlmCredentialRecord, LlmCredentialSummary, LlmCredentials, LlmProvider,
+    StoreLlmCredentialsRequest, TenantLlmManager,
+};
 pub use oauth_client::{StoreCredentialsRequest, TenantOAuthClient};
 pub use oauth_manager::{CredentialConfig, TenantOAuthCredentials, TenantOAuthManager};
 pub use schema::{Tenant, TenantRole, TenantUser};

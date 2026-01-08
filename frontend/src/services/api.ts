@@ -1019,6 +1019,72 @@ class ApiService {
     const response = await axios.post('/api/admin/prompts/reset');
     return response.data;
   }
+
+  // LLM Settings endpoints
+  async getLlmSettings(): Promise<{
+    current_provider: string | null;
+    providers: Array<{
+      name: string;
+      display_name: string;
+      has_credentials: boolean;
+      credential_source: string | null;
+      is_active: boolean;
+    }>;
+    user_credentials: Array<{
+      id: string;
+      provider: string;
+      user_id: string | null;
+      created_at: string;
+      updated_at: string;
+    }>;
+    tenant_credentials: Array<{
+      id: string;
+      provider: string;
+      user_id: string | null;
+      created_at: string;
+      updated_at: string;
+    }>;
+  }> {
+    const response = await axios.get('/api/user/llm-settings');
+    return response.data;
+  }
+
+  async saveLlmCredentials(data: {
+    provider: string;
+    api_key: string;
+    base_url?: string;
+    default_model?: string;
+    scope?: 'user' | 'tenant';
+  }): Promise<{
+    success: boolean;
+    id: string | null;
+    message: string;
+  }> {
+    const response = await axios.put('/api/user/llm-settings', data);
+    return response.data;
+  }
+
+  async validateLlmCredentials(data: {
+    provider: string;
+    api_key: string;
+    base_url?: string;
+  }): Promise<{
+    valid: boolean;
+    provider: string | null;
+    models: string[] | null;
+    error: string | null;
+  }> {
+    const response = await axios.post('/api/user/llm-settings/validate', data);
+    return response.data;
+  }
+
+  async deleteLlmCredentials(provider: string): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    const response = await axios.delete(`/api/user/llm-settings/${provider}`);
+    return response.data;
+  }
 }
 
 export const apiService = new ApiService();

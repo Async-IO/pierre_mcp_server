@@ -34,6 +34,7 @@ use crate::permissions::impersonation::ImpersonationSession;
 use crate::rate_limiting::JwtUsage;
 use crate::security::audit::AuditEvent;
 use crate::security::key_rotation::KeyVersion;
+use crate::tenant::llm_manager::{LlmCredentialRecord, LlmCredentialSummary};
 use crate::tenant::oauth_manager::TenantOAuthCredentials;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -2354,6 +2355,90 @@ impl DatabaseProvider for Database {
                 db.list_impersonation_sessions(impersonator_id, target_user_id, active_only, limit)
                     .await
             }
+        }
+    }
+
+    // ================================
+    // LLM Credentials Management
+    // ================================
+
+    async fn store_llm_credentials(&self, record: &LlmCredentialRecord) -> AppResult<()> {
+        match self {
+            Self::SQLite(db) => db.store_llm_credentials(record).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.store_llm_credentials(record).await,
+        }
+    }
+
+    async fn get_llm_credentials(
+        &self,
+        tenant_id: Uuid,
+        user_id: Option<Uuid>,
+        provider: &str,
+    ) -> AppResult<Option<LlmCredentialRecord>> {
+        match self {
+            Self::SQLite(db) => db.get_llm_credentials(tenant_id, user_id, provider).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_llm_credentials(tenant_id, user_id, provider).await,
+        }
+    }
+
+    async fn list_llm_credentials(&self, tenant_id: Uuid) -> AppResult<Vec<LlmCredentialSummary>> {
+        match self {
+            Self::SQLite(db) => db.list_llm_credentials(tenant_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.list_llm_credentials(tenant_id).await,
+        }
+    }
+
+    async fn delete_llm_credentials(
+        &self,
+        tenant_id: Uuid,
+        user_id: Option<Uuid>,
+        provider: &str,
+    ) -> AppResult<bool> {
+        match self {
+            Self::SQLite(db) => {
+                db.delete_llm_credentials(tenant_id, user_id, provider)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.delete_llm_credentials(tenant_id, user_id, provider)
+                    .await
+            }
+        }
+    }
+
+    async fn get_admin_config_override(
+        &self,
+        config_key: &str,
+        tenant_id: Option<&str>,
+    ) -> AppResult<Option<String>> {
+        match self {
+            Self::SQLite(db) => db.get_admin_config_override(config_key, tenant_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_admin_config_override(config_key, tenant_id).await,
+        }
+    }
+
+    // ================================
+    // Encryption Interface
+    // ================================
+
+    fn encrypt_data_with_aad(&self, data: &str, aad: &str) -> AppResult<String> {
+        match self {
+            Self::SQLite(db) => db.encrypt_data_with_aad(data, aad),
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.encrypt_data_with_aad(data, aad),
+        }
+    }
+
+    fn decrypt_data_with_aad(&self, encrypted: &str, aad: &str) -> AppResult<String> {
+        match self {
+            Self::SQLite(db) => db.decrypt_data_with_aad(encrypted, aad),
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.decrypt_data_with_aad(encrypted, aad),
         }
     }
 }

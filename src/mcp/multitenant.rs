@@ -1004,6 +1004,7 @@ impl MultiTenantMcpServer {
         use crate::routes::dashboard::DashboardRoutes;
         use crate::routes::fitness::FitnessConfigurationRoutes;
         use crate::routes::impersonation::ImpersonationRoutes;
+        use crate::routes::llm_settings::LlmSettingsRoutes;
         use crate::routes::mcp::McpRoutes;
         use crate::routes::oauth2::OAuth2Routes;
         use crate::routes::prompts::PromptRoutes;
@@ -1094,6 +1095,7 @@ impl MultiTenantMcpServer {
             .merge(UserMcpTokenRoutes::routes(Arc::clone(resources)))
             .merge(ChatRoutes::routes(Arc::clone(resources)))
             .merge(UserOAuthAppRoutes::routes(Arc::clone(resources)))
+            .merge(LlmSettingsRoutes::routes(Arc::clone(resources)))
     }
 
     /// Create health check routes for Axum

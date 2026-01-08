@@ -28,6 +28,7 @@ use crate::permissions::impersonation::ImpersonationSession;
 use crate::rate_limiting::JwtUsage;
 use crate::security::audit::AuditEvent;
 use crate::security::key_rotation::KeyVersion;
+use crate::tenant::llm_manager::{LlmCredentialRecord, LlmCredentialSummary};
 use crate::tenant::oauth_manager::TenantOAuthCredentials;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -926,4 +927,60 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         active_only: bool,
         limit: u32,
     ) -> AppResult<Vec<ImpersonationSession>>;
+
+    // ================================
+    // LLM Credentials Management
+    // ================================
+
+    /// Store LLM credentials (user-specific or tenant-level)
+    async fn store_llm_credentials(&self, record: &LlmCredentialRecord) -> AppResult<()>;
+
+    /// Get LLM credentials for a specific provider
+    ///
+    /// # Arguments
+    /// * `tenant_id` - Tenant ID
+    /// * `user_id` - User ID (None for tenant-level default)
+    /// * `provider` - LLM provider name (e.g., "gemini", "groq")
+    async fn get_llm_credentials(
+        &self,
+        tenant_id: Uuid,
+        user_id: Option<Uuid>,
+        provider: &str,
+    ) -> AppResult<Option<LlmCredentialRecord>>;
+
+    /// List all LLM credentials for a tenant (for admin UI)
+    async fn list_llm_credentials(&self, tenant_id: Uuid) -> AppResult<Vec<LlmCredentialSummary>>;
+
+    /// Delete LLM credentials
+    async fn delete_llm_credentials(
+        &self,
+        tenant_id: Uuid,
+        user_id: Option<Uuid>,
+        provider: &str,
+    ) -> AppResult<bool>;
+
+    /// Get admin config override value by key (for system-wide LLM API keys)
+    async fn get_admin_config_override(
+        &self,
+        config_key: &str,
+        tenant_id: Option<&str>,
+    ) -> AppResult<Option<String>>;
+
+    // ================================
+    // Encryption Interface
+    // ================================
+
+    /// Encrypt data with AAD (Additional Authenticated Data)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if encryption fails (e.g., invalid key, nonce generation failure)
+    fn encrypt_data_with_aad(&self, data: &str, aad: &str) -> AppResult<String>;
+
+    /// Decrypt data with AAD
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if decryption fails (e.g., invalid data, AAD mismatch, tampered data)
+    fn decrypt_data_with_aad(&self, encrypted: &str, aad: &str) -> AppResult<String>;
 }

@@ -41,6 +41,7 @@ use crate::permissions::UserRole;
 use crate::rate_limiting::JwtUsage;
 use crate::security::audit::{AuditEvent, AuditEventType, AuditSeverity};
 use crate::security::key_rotation::KeyVersion;
+use crate::tenant::llm_manager::{LlmCredentialRecord, LlmCredentialSummary};
 use crate::tenant::TenantOAuthCredentials;
 use crate::utils::uuid::parse_uuid;
 use async_trait::async_trait;
@@ -3204,7 +3205,7 @@ impl DatabaseProvider for PostgresDatabase {
             credentials.tenant_id, credentials.provider
         );
         let encrypted_secret =
-            self.encrypt_data_with_aad(&credentials.client_secret, &aad_context)?;
+            HasEncryption::encrypt_data_with_aad(self, &credentials.client_secret, &aad_context)?;
 
         // Convert scopes Vec<String> to PostgreSQL array format
         let scopes_array: Vec<&str> = credentials.scopes.iter().map(String::as_str).collect();
@@ -3267,8 +3268,11 @@ impl DatabaseProvider for PostgresDatabase {
                     // Decrypt the client secret using AAD binding
                     // AAD context format: "{tenant_id}|{provider}|tenant_oauth_credentials"
                     let aad_context = format!("{tenant_id}|{provider}|tenant_oauth_credentials");
-                    let client_secret =
-                        self.decrypt_data_with_aad(&encrypted_secret, &aad_context)?;
+                    let client_secret = HasEncryption::decrypt_data_with_aad(
+                        self,
+                        &encrypted_secret,
+                        &aad_context,
+                    )?;
 
                     Ok(TenantOAuthCredentials {
                         tenant_id,
@@ -3311,7 +3315,8 @@ impl DatabaseProvider for PostgresDatabase {
                 // Decrypt the client secret using AAD binding
                 // AAD context format: "{tenant_id}|{provider}|tenant_oauth_credentials"
                 let aad_context = format!("{tenant_id}|{provider}|tenant_oauth_credentials");
-                let client_secret = self.decrypt_data_with_aad(&encrypted_secret, &aad_context)?;
+                let client_secret =
+                    HasEncryption::decrypt_data_with_aad(self, &encrypted_secret, &aad_context)?;
 
                 Ok(Some(TenantOAuthCredentials {
                     tenant_id,
@@ -5684,6 +5689,221 @@ impl DatabaseProvider for PostgresDatabase {
         })?;
 
         Ok(result.rows_affected())
+    }
+
+    // ================================
+    // LLM Credentials Management
+    // ================================
+
+    async fn store_llm_credentials(&self, record: &LlmCredentialRecord) -> AppResult<()> {
+        sqlx::query(
+            r"
+            INSERT INTO user_llm_credentials (
+                id, tenant_id, user_id, provider, api_key_encrypted,
+                base_url, default_model, is_active, created_at, updated_at, created_by
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            ON CONFLICT(tenant_id, user_id, provider) DO UPDATE SET
+                api_key_encrypted = EXCLUDED.api_key_encrypted,
+                base_url = EXCLUDED.base_url,
+                default_model = EXCLUDED.default_model,
+                is_active = EXCLUDED.is_active,
+                updated_at = EXCLUDED.updated_at
+            ",
+        )
+        .bind(record.id)
+        .bind(record.tenant_id)
+        .bind(record.user_id)
+        .bind(&record.provider)
+        .bind(&record.api_key_encrypted)
+        .bind(&record.base_url)
+        .bind(&record.default_model)
+        .bind(record.is_active)
+        .bind(&record.created_at)
+        .bind(&record.updated_at)
+        .bind(record.created_by)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to store LLM credentials: {e}")))?;
+
+        Ok(())
+    }
+
+    async fn get_llm_credentials(
+        &self,
+        tenant_id: Uuid,
+        user_id: Option<Uuid>,
+        provider: &str,
+    ) -> AppResult<Option<LlmCredentialRecord>> {
+        let row = if let Some(uid) = user_id {
+            sqlx::query(
+                r"
+                SELECT id, tenant_id, user_id, provider, api_key_encrypted,
+                       base_url, default_model, is_active, created_at, updated_at, created_by
+                FROM user_llm_credentials
+                WHERE tenant_id = $1 AND user_id = $2 AND provider = $3 AND is_active = TRUE
+                ",
+            )
+            .bind(tenant_id)
+            .bind(uid)
+            .bind(provider)
+            .fetch_optional(&self.pool)
+            .await
+        } else {
+            sqlx::query(
+                r"
+                SELECT id, tenant_id, user_id, provider, api_key_encrypted,
+                       base_url, default_model, is_active, created_at, updated_at, created_by
+                FROM user_llm_credentials
+                WHERE tenant_id = $1 AND user_id IS NULL AND provider = $2 AND is_active = TRUE
+                ",
+            )
+            .bind(tenant_id)
+            .bind(provider)
+            .fetch_optional(&self.pool)
+            .await
+        }
+        .map_err(|e| AppError::database(format!("Failed to get LLM credentials: {e}")))?;
+
+        Ok(row.map(|r| LlmCredentialRecord {
+            id: r.get::<Uuid, _>("id"),
+            tenant_id: r.get::<Uuid, _>("tenant_id"),
+            user_id: r.get::<Option<Uuid>, _>("user_id"),
+            provider: r.get::<String, _>("provider"),
+            api_key_encrypted: r.get::<String, _>("api_key_encrypted"),
+            base_url: r.get::<Option<String>, _>("base_url"),
+            default_model: r.get::<Option<String>, _>("default_model"),
+            is_active: r.get::<bool, _>("is_active"),
+            created_at: r.get::<String, _>("created_at"),
+            updated_at: r.get::<String, _>("updated_at"),
+            created_by: r.get::<Uuid, _>("created_by"),
+        }))
+    }
+
+    async fn list_llm_credentials(&self, tenant_id: Uuid) -> AppResult<Vec<LlmCredentialSummary>> {
+        let rows = sqlx::query(
+            r"
+            SELECT id, user_id, provider, base_url, default_model, is_active, created_at, updated_at
+            FROM user_llm_credentials
+            WHERE tenant_id = $1
+            ORDER BY provider, user_id
+            ",
+        )
+        .bind(tenant_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to list LLM credentials: {e}")))?;
+
+        Ok(rows
+            .into_iter()
+            .map(|r| {
+                let user_id: Option<Uuid> = r.get("user_id");
+                LlmCredentialSummary {
+                    id: r.get::<Uuid, _>("id"),
+                    user_id,
+                    provider: r.get::<String, _>("provider"),
+                    scope: if user_id.is_some() {
+                        "user".to_owned()
+                    } else {
+                        "tenant".to_owned()
+                    },
+                    base_url: r.get::<Option<String>, _>("base_url"),
+                    default_model: r.get::<Option<String>, _>("default_model"),
+                    is_active: r.get::<bool, _>("is_active"),
+                    created_at: r.get::<String, _>("created_at"),
+                    updated_at: r.get::<String, _>("updated_at"),
+                }
+            })
+            .collect())
+    }
+
+    async fn delete_llm_credentials(
+        &self,
+        tenant_id: Uuid,
+        user_id: Option<Uuid>,
+        provider: &str,
+    ) -> AppResult<bool> {
+        let result = if let Some(uid) = user_id {
+            sqlx::query(
+                r"
+                DELETE FROM user_llm_credentials
+                WHERE tenant_id = $1 AND user_id = $2 AND provider = $3
+                ",
+            )
+            .bind(tenant_id)
+            .bind(uid)
+            .bind(provider)
+            .execute(&self.pool)
+            .await
+        } else {
+            sqlx::query(
+                r"
+                DELETE FROM user_llm_credentials
+                WHERE tenant_id = $1 AND user_id IS NULL AND provider = $2
+                ",
+            )
+            .bind(tenant_id)
+            .bind(provider)
+            .execute(&self.pool)
+            .await
+        }
+        .map_err(|e| AppError::database(format!("Failed to delete LLM credentials: {e}")))?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    async fn get_admin_config_override(
+        &self,
+        config_key: &str,
+        tenant_id: Option<&str>,
+    ) -> AppResult<Option<String>> {
+        // Extract category from key (e.g., "llm.gemini_api_key" -> "llm_provider")
+        let category = if config_key.starts_with("llm.") {
+            "llm_provider"
+        } else {
+            config_key.split('.').next().unwrap_or("unknown")
+        };
+
+        let row = if let Some(tid) = tenant_id {
+            sqlx::query(
+                r"
+                SELECT config_value
+                FROM admin_config_overrides
+                WHERE category = $1 AND config_key = $2 AND tenant_id = $3
+                ",
+            )
+            .bind(category)
+            .bind(config_key)
+            .bind(tid)
+            .fetch_optional(&self.pool)
+            .await
+        } else {
+            sqlx::query(
+                r"
+                SELECT config_value
+                FROM admin_config_overrides
+                WHERE category = $1 AND config_key = $2 AND tenant_id IS NULL
+                ",
+            )
+            .bind(category)
+            .bind(config_key)
+            .fetch_optional(&self.pool)
+            .await
+        }
+        .map_err(|e| AppError::database(format!("Failed to get admin config override: {e}")))?;
+
+        Ok(row.map(|r| r.get::<String, _>("config_value")))
+    }
+
+    // ================================
+    // Encryption Interface (delegates to HasEncryption trait)
+    // ================================
+
+    fn encrypt_data_with_aad(&self, data: &str, aad: &str) -> AppResult<String> {
+        shared::encryption::HasEncryption::encrypt_data_with_aad(self, data, aad)
+    }
+
+    fn decrypt_data_with_aad(&self, encrypted: &str, aad: &str) -> AppResult<String> {
+        shared::encryption::HasEncryption::decrypt_data_with_aad(self, encrypted, aad)
     }
 }
 

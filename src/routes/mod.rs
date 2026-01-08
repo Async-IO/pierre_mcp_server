@@ -30,6 +30,8 @@ pub mod fitness;
 pub mod health;
 /// Impersonation routes for super admin user impersonation
 pub mod impersonation;
+/// LLM provider settings routes for per-tenant API key configuration
+pub mod llm_settings;
 /// Model Context Protocol (MCP) server routes
 pub mod mcp;
 /// OAuth 2.0 server implementation routes
