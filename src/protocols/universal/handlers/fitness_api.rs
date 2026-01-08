@@ -85,11 +85,10 @@ fn format_activities_as_list(activities: &[Activity]) -> String {
         };
 
         lines.push(format!(
-            "{}. [{}] {} (ID: {}) - {} - {:.2} km - {}",
+            "{}. [{}] {} - {} - {:.2} km - {}",
             i + 1,
             sport,
             activity.name(),
-            activity.id(),
             date,
             distance_km,
             duration_str
