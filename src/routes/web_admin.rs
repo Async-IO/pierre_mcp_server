@@ -518,12 +518,10 @@ impl WebAdminRoutes {
                 .into_response());
         }
 
-        // Use the admin user's ID as the approver (stored as token_id format for consistency)
-        let approver_id = auth.user_id.to_string();
-
+        // Use the admin user's UUID as the approver for proper audit trail
         let updated_user = resources
             .database
-            .update_user_status(user_uuid, UserStatus::Active, &approver_id)
+            .update_user_status(user_uuid, UserStatus::Active, Some(auth.user_id))
             .await
             .map_err(|e| {
                 error!(error = %e, "Failed to update user status in database");
@@ -601,12 +599,10 @@ impl WebAdminRoutes {
                 .into_response());
         }
 
-        // Use the admin user's ID as the suspender
-        let suspender_id = auth.user_id.to_string();
-
+        // Use the admin user's UUID for audit trail (Note: approved_by is used for both approve/suspend)
         let updated_user = resources
             .database
-            .update_user_status(user_uuid, UserStatus::Suspended, &suspender_id)
+            .update_user_status(user_uuid, UserStatus::Suspended, Some(auth.user_id))
             .await
             .map_err(|e| {
                 error!(error = %e, "Failed to update user status in database");

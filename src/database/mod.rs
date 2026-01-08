@@ -2267,9 +2267,9 @@ impl DatabaseProvider for Database {
         &self,
         user_id: Uuid,
         new_status: UserStatus,
-        admin_token_id: &str,
+        approved_by: Option<Uuid>,
     ) -> AppResult<User> {
-        Self::update_user_status(self, user_id, new_status, admin_token_id).await
+        Self::update_user_status(self, user_id, new_status, approved_by).await
     }
 
     async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> AppResult<()> {

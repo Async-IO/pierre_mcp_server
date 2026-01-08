@@ -344,16 +344,17 @@ async fn test_update_user_status() {
 
     db.create_user(&user).await.unwrap();
 
-    // Update status from pending to active
+    // Update status from pending to active with admin user's UUID
     let result = db
-        .update_user_status(user.id, UserStatus::Active, &admin_user.id.to_string())
+        .update_user_status(user.id, UserStatus::Active, Some(admin_user.id))
         .await;
 
     assert!(result.is_ok());
 
     let updated_user = result.unwrap();
     assert_eq!(updated_user.user_status, UserStatus::Active);
-    // Note: approved_by field may not match since we're passing string not UUID
+    assert_eq!(updated_user.approved_by, Some(admin_user.id));
+    assert!(updated_user.approved_at.is_some());
 }
 
 #[tokio::test]
@@ -363,11 +364,33 @@ async fn test_update_user_status_nonexistent() {
     let admin_id = Uuid::new_v4();
 
     let result = db
-        .update_user_status(non_existent_id, UserStatus::Active, &admin_id.to_string())
+        .update_user_status(non_existent_id, UserStatus::Active, Some(admin_id))
         .await;
 
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("not found"));
+}
+
+#[tokio::test]
+async fn test_update_user_status_without_approver() {
+    let db = create_test_database().await;
+    let mut user = create_test_user("no_approver@example.com", Some("No Approver".to_owned()));
+    user.user_status = UserStatus::Pending;
+
+    db.create_user(&user).await.unwrap();
+
+    // Service token approval without approver UUID
+    let result = db
+        .update_user_status(user.id, UserStatus::Active, None)
+        .await;
+
+    assert!(result.is_ok());
+
+    let updated_user = result.unwrap();
+    assert_eq!(updated_user.user_status, UserStatus::Active);
+    // approved_by should be None when no approver UUID is provided
+    assert_eq!(updated_user.approved_by, None);
+    assert!(updated_user.approved_at.is_some());
 }
 
 #[tokio::test]
@@ -563,21 +586,22 @@ async fn test_user_status_transitions() {
 
     // Transition: Pending -> Active
     let active_user = db
-        .update_user_status(user.id, UserStatus::Active, &admin.id.to_string())
+        .update_user_status(user.id, UserStatus::Active, Some(admin.id))
         .await
         .unwrap();
     assert_eq!(active_user.user_status, UserStatus::Active);
+    assert_eq!(active_user.approved_by, Some(admin.id));
 
-    // Transition: Active -> Suspended
+    // Transition: Active -> Suspended (approved_by is only set when activating)
     let suspended_user = db
-        .update_user_status(user.id, UserStatus::Suspended, &admin.id.to_string())
+        .update_user_status(user.id, UserStatus::Suspended, Some(admin.id))
         .await
         .unwrap();
     assert_eq!(suspended_user.user_status, UserStatus::Suspended);
 
     // Transition: Suspended -> Active (reactivation)
     let reactivated_user = db
-        .update_user_status(user.id, UserStatus::Active, &admin.id.to_string())
+        .update_user_status(user.id, UserStatus::Active, Some(admin.id))
         .await
         .unwrap();
     assert_eq!(reactivated_user.user_status, UserStatus::Active);

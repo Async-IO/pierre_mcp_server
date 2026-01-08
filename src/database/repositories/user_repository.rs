@@ -107,10 +107,10 @@ impl UserRepository for UserRepositoryImpl {
         &self,
         id: Uuid,
         new_status: UserStatus,
-        admin_token_id: &str,
+        approved_by: Option<Uuid>,
     ) -> Result<User, DatabaseError> {
         self.db
-            .update_user_status(id, new_status, admin_token_id)
+            .update_user_status(id, new_status, approved_by)
             .await
             .map_err(|e| DatabaseError::QueryError {
                 context: e.to_string(),

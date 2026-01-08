@@ -376,11 +376,7 @@ async fn test_sdk_user_registration_flow() -> Result<()> {
 
     // Test 4: Approve user and verify status changes to active
     database
-        .update_user_status(
-            user_id,
-            UserStatus::Active,
-            "", // Empty for test
-        )
+        .update_user_status(user_id, UserStatus::Active, None)
         .await?;
 
     let active_login_response = auth_routes
@@ -557,9 +553,9 @@ async fn test_sdk_complete_onboarding_simulation() -> Result<()> {
     let register_response = auth_routes.register(register_request).await?;
     let user_id = uuid::Uuid::parse_str(&register_response.user_id)?;
 
-    // Step 2: Admin approves user (simulated)
+    // Step 2: Admin approves user (simulated, service token approval)
     database
-        .update_user_status(user_id, UserStatus::Active, "")
+        .update_user_status(user_id, UserStatus::Active, None)
         .await?;
 
     // Step 3: User logs in

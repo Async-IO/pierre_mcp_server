@@ -421,9 +421,9 @@ async fn test_multitenant_auth_flow() -> Result<()> {
     };
     database.create_user(&admin_user).await?;
 
-    // Approve the user
+    // Approve the user with admin's UUID
     database
-        .update_user_status(user_id, UserStatus::Active, &admin_id.to_string())
+        .update_user_status(user_id, UserStatus::Active, Some(admin_id))
         .await?;
 
     // Test user login

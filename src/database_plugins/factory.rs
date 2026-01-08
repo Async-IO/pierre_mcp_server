@@ -472,16 +472,16 @@ impl DatabaseProvider for Database {
         &self,
         user_id: uuid::Uuid,
         new_status: UserStatus,
-        admin_token_id: &str,
+        approved_by: Option<uuid::Uuid>,
     ) -> AppResult<User> {
         match self {
             Self::SQLite(db) => {
-                db.update_user_status(user_id, new_status, admin_token_id)
+                db.update_user_status(user_id, new_status, approved_by)
                     .await
             }
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => {
-                db.update_user_status(user_id, new_status, admin_token_id)
+                db.update_user_status(user_id, new_status, approved_by)
                     .await
             }
         }

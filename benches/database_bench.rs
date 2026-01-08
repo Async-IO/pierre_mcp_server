@@ -261,7 +261,7 @@ fn bench_user_update(c: &mut Criterion) {
                 UserStatus::Suspended
             };
             rt.block_on(async {
-                db.update_user_status(black_box(id), black_box(status), black_box("bench_admin"))
+                db.update_user_status(black_box(id), black_box(status), black_box(None))
                     .await
             })
         });

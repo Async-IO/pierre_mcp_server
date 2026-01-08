@@ -242,7 +242,7 @@ async fn test_approve_user() -> Result<()> {
 #[tokio::test]
 #[serial]
 async fn test_suspend_user() -> Result<()> {
-    let (database, admin_token_id, admin_user_id) = setup_test_database().await?;
+    let (database, _, admin_user_id) = setup_test_database().await?;
 
     // Create an active user
     let user = User {
@@ -268,9 +268,9 @@ async fn test_suspend_user() -> Result<()> {
     let user_id = user.id;
     database.create_user(&user).await?;
 
-    // Suspend user directly via database
+    // Suspend user directly via database (service token approvals use None)
     database
-        .update_user_status(user_id, UserStatus::Suspended, &admin_token_id)
+        .update_user_status(user_id, UserStatus::Suspended, None)
         .await?;
 
     // Verify user status in database
@@ -326,7 +326,7 @@ async fn test_user_status_transitions() -> Result<()> {
 #[tokio::test]
 #[serial]
 async fn test_approve_user_assigns_admin_tenant() -> Result<()> {
-    let (database, admin_token_id, admin_user_id) = setup_test_database().await?;
+    let (database, _, admin_user_id) = setup_test_database().await?;
 
     // Set up admin user with a specific tenant_id
     let admin_tenant_id = Uuid::new_v4().to_string();
@@ -369,8 +369,9 @@ async fn test_approve_user_assigns_admin_tenant() -> Result<()> {
 
     // Simulate approval: update user status and assign to admin's tenant
     // This is what handle_approve_user does in web_admin.rs
+    // Service token approvals use None for approved_by
     database
-        .update_user_status(pending_user_id, UserStatus::Active, &admin_token_id)
+        .update_user_status(pending_user_id, UserStatus::Active, None)
         .await?;
     database
         .update_user_tenant_id(pending_user_id, &admin_tenant_id)
@@ -394,7 +395,7 @@ async fn test_approve_user_assigns_admin_tenant() -> Result<()> {
 #[tokio::test]
 #[serial]
 async fn test_approved_users_share_tenant_with_admin() -> Result<()> {
-    let (database, admin_token_id, admin_user_id) = setup_test_database().await?;
+    let (database, _, admin_user_id) = setup_test_database().await?;
 
     // Set up admin user with a specific tenant_id
     let shared_tenant_id = Uuid::new_v4().to_string();
@@ -428,9 +429,9 @@ async fn test_approved_users_share_tenant_with_admin() -> Result<()> {
         };
         database.create_user(&user).await?;
 
-        // Approve and assign to admin's tenant
+        // Approve and assign to admin's tenant (service token approvals use None)
         database
-            .update_user_status(user_id, UserStatus::Active, &admin_token_id)
+            .update_user_status(user_id, UserStatus::Active, None)
             .await?;
         database
             .update_user_tenant_id(user_id, &shared_tenant_id)

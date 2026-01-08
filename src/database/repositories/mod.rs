@@ -99,11 +99,16 @@ pub trait UserRepository: Send + Sync {
     ) -> Result<CursorPage<User>, DatabaseError>;
 
     /// Update user status and approval information
+    ///
+    /// # Arguments
+    /// * `id` - The user to update
+    /// * `new_status` - The new status to set
+    /// * `approved_by` - UUID of the admin user who approved (None for service token approvals)
     async fn update_status(
         &self,
         id: Uuid,
         new_status: UserStatus,
-        admin_token_id: &str,
+        approved_by: Option<Uuid>,
     ) -> Result<User, DatabaseError>;
 
     /// Update user's `tenant_id` to link them to a tenant

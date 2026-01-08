@@ -563,6 +563,11 @@ impl Database {
 
     /// Update user status (approve/suspend)
     ///
+    /// # Arguments
+    /// * `user_id` - The user to update
+    /// * `new_status` - The new status to set
+    /// * `approved_by` - UUID of the admin user who approved (None for service token approvals)
+    ///
     /// # Errors
     ///
     /// Returns an error if the user is not found or database update fails
@@ -570,12 +575,13 @@ impl Database {
         &self,
         user_id: Uuid,
         new_status: UserStatus,
-        admin_token_id: &str,
+        approved_by: Option<Uuid>,
     ) -> AppResult<User> {
         let status_str = shared::enums::user_status_to_str(&new_status);
 
-        let admin_uuid = if new_status == UserStatus::Active && !admin_token_id.is_empty() {
-            Some(admin_token_id)
+        // Only set approved_by when activating a user and an approver UUID is provided
+        let approved_by_str = if new_status == UserStatus::Active {
+            approved_by.map(|uuid| uuid.to_string())
         } else {
             None
         };
@@ -588,7 +594,7 @@ impl Database {
 
         let result = sqlx::query(
             r"
-            UPDATE users SET 
+            UPDATE users SET
                 user_status = ?1,
                 approved_by = ?2,
                 approved_at = ?3,
@@ -597,7 +603,7 @@ impl Database {
             ",
         )
         .bind(status_str)
-        .bind(admin_uuid)
+        .bind(approved_by_str)
         .bind(approved_at)
         .bind(user_id.to_string())
         .execute(&self.pool)

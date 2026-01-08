@@ -641,11 +641,7 @@ async fn test_user_login_success() -> Result<()> {
 
     // Approve the user for testing
     database
-        .update_user_status(
-            user_id,
-            UserStatus::Active,
-            "", // Empty string for test admin
-        )
+        .update_user_status(user_id, UserStatus::Active, None)
         .await?;
 
     // Now test login
@@ -934,11 +930,7 @@ async fn test_token_refresh_success() -> Result<()> {
 
     // Approve the user for testing
     database
-        .update_user_status(
-            user_uuid,
-            UserStatus::Active,
-            "", // Empty string for test admin
-        )
+        .update_user_status(user_uuid, UserStatus::Active, None)
         .await?;
 
     let login_request = LoginRequest {
@@ -1173,11 +1165,7 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
 
     // Approve the user for testing
     database
-        .update_user_status(
-            user_id,
-            UserStatus::Active,
-            "", // Empty string for test admin
-        )
+        .update_user_status(user_id, UserStatus::Active, None)
         .await?;
 
     let login_request = LoginRequest {
@@ -1675,11 +1663,7 @@ async fn test_complete_auth_flow() -> Result<()> {
 
     // Approve the user for testing
     database
-        .update_user_status(
-            user_id,
-            UserStatus::Active,
-            "", // Empty string for test admin
-        )
+        .update_user_status(user_id, UserStatus::Active, None)
         .await?;
 
     // 2. Login
@@ -1989,11 +1973,7 @@ async fn test_concurrent_logins() -> Result<()> {
 
         // Approve the user
         database
-            .update_user_status(
-                user_id,
-                UserStatus::Active,
-                "", // Empty string for test admin
-            )
+            .update_user_status(user_id, UserStatus::Active, None)
             .await?;
     }
 

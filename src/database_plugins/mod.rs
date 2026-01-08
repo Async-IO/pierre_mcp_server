@@ -103,11 +103,16 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     ) -> AppResult<CursorPage<User>>;
 
     /// Update user status and approval information
+    ///
+    /// # Arguments
+    /// * `user_id` - The user to update
+    /// * `new_status` - The new status to set
+    /// * `approved_by` - UUID of the admin user who approved (None for service token approvals)
     async fn update_user_status(
         &self,
         user_id: Uuid,
         new_status: UserStatus,
-        admin_token_id: &str,
+        approved_by: Option<Uuid>,
     ) -> AppResult<User>;
 
     /// Update user's `tenant_id` to link them to a tenant (`tenant_id` should be UUID string)

@@ -818,7 +818,7 @@ async fn test_login_with_correct_credentials() {
 
     server_resources
         .database
-        .update_user_status(user_id, UserStatus::Active, &admin_id.to_string())
+        .update_user_status(user_id, UserStatus::Active, Some(admin_id))
         .await
         .unwrap();
 

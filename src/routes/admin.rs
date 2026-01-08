@@ -1296,9 +1296,11 @@ impl AdminRoutes {
             ));
         }
 
+        // Service tokens don't have an associated user UUID, so approved_by is None
+        // The audit trail is maintained via admin_token.token_id in logs
         let updated_user = ctx
             .database
-            .update_user_status(user_uuid, UserStatus::Active, &admin_token.token_id)
+            .update_user_status(user_uuid, UserStatus::Active, None)
             .await
             .map_err(|e| {
                 error!(error = %e, "Failed to update user status in database");
@@ -1394,9 +1396,10 @@ impl AdminRoutes {
             ));
         }
 
+        // Service tokens don't have an associated user UUID, so approved_by is None
         let updated_user = ctx
             .database
-            .update_user_status(user_uuid, UserStatus::Suspended, &admin_token.token_id)
+            .update_user_status(user_uuid, UserStatus::Suspended, None)
             .await
             .map_err(|e| {
                 error!(error = %e, "Failed to update user status in database");

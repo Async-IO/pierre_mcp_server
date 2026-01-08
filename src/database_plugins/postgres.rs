@@ -706,12 +706,13 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         user_id: Uuid,
         new_status: UserStatus,
-        admin_token_id: &str,
+        approved_by: Option<Uuid>,
     ) -> AppResult<User> {
         let status_str = shared::enums::user_status_to_str(&new_status);
 
-        let admin_uuid = if new_status == UserStatus::Active && !admin_token_id.is_empty() {
-            Some(admin_token_id)
+        // Only set approved_by when activating a user and an approver UUID is provided
+        let approved_by_str = if new_status == UserStatus::Active {
+            approved_by.map(|uuid| uuid.to_string())
         } else {
             None
         };
@@ -731,7 +732,7 @@ impl DatabaseProvider for PostgresDatabase {
             ",
         )
         .bind(status_str)
-        .bind(admin_uuid)
+        .bind(approved_by_str)
         .bind(approved_at)
         .bind(user_id)
         .execute(&self.pool)
