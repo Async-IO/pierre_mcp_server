@@ -1,0 +1,42 @@
+[
+  {
+    "key": "training",
+    "title": "Training",
+    "icon": "runner",
+    "pillar": "activity",
+    "prompts": [
+      "Am I ready for a hard workout today?",
+      "What's my predicted marathon time?"
+    ]
+  },
+  {
+    "key": "nutrition",
+    "title": "Nutrition",
+    "icon": "salad",
+    "pillar": "nutrition",
+    "prompts": [
+      "How many calories should I eat today?",
+      "What should I eat before my morning run?"
+    ]
+  },
+  {
+    "key": "recovery",
+    "title": "Recovery",
+    "icon": "sleep",
+    "pillar": "recovery",
+    "prompts": [
+      "Do I need a rest day?",
+      "Analyze my sleep quality"
+    ]
+  },
+  {
+    "key": "recipes",
+    "title": "Recipes",
+    "icon": "cooking",
+    "pillar": "nutrition",
+    "prompts": [
+      "Create a high-protein post-workout meal",
+      "Show my saved recipes"
+    ]
+  }
+]

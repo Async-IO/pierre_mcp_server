@@ -1015,6 +1015,20 @@ class ApiService {
     return response.data;
   }
 
+  async getAdminSystemPrompt(): Promise<{
+    prompt_text: string;
+  }> {
+    const response = await axios.get('/api/admin/prompts/system');
+    return response.data;
+  }
+
+  async updateSystemPrompt(promptText: string): Promise<{
+    prompt_text: string;
+  }> {
+    const response = await axios.put('/api/admin/prompts/system', { prompt_text: promptText });
+    return response.data;
+  }
+
   async resetPromptsToDefaults(): Promise<{ success: boolean }> {
     const response = await axios.post('/api/admin/prompts/reset');
     return response.data;

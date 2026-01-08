@@ -37,7 +37,7 @@ const PILLAR_LABELS: Record<Pillar, string> = {
 
 export default function PromptsAdminTab() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'categories' | 'welcome'>('categories');
+  const [activeTab, setActiveTab] = useState<'categories' | 'welcome' | 'system'>('categories');
   const [editingCategory, setEditingCategory] = useState<PromptCategory | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState<PromptCategory | null>(null);
@@ -58,6 +58,10 @@ export default function PromptsAdminTab() {
   const [welcomePromptText, setWelcomePromptText] = useState('');
   const [welcomePromptModified, setWelcomePromptModified] = useState(false);
 
+  // System prompt state
+  const [systemPromptText, setSystemPromptText] = useState('');
+  const [systemPromptModified, setSystemPromptModified] = useState(false);
+
   // Fetch categories
   const { data: categories = [], isLoading, error } = useQuery({
     queryKey: ['admin-prompt-categories'],
@@ -71,6 +75,13 @@ export default function PromptsAdminTab() {
     enabled: activeTab === 'welcome',
   });
 
+  // Fetch system prompt
+  const { data: systemData, isLoading: systemLoading } = useQuery({
+    queryKey: ['admin-system-prompt'],
+    queryFn: () => apiService.getAdminSystemPrompt(),
+    enabled: activeTab === 'system',
+  });
+
   // Initialize welcome prompt text when data loads
   const handleWelcomeDataLoad = useCallback(() => {
     if (welcomeData && !welcomePromptModified) {
@@ -81,6 +92,18 @@ export default function PromptsAdminTab() {
   // Apply welcome data when it changes
   if (welcomeData && welcomePromptText === '' && !welcomePromptModified) {
     handleWelcomeDataLoad();
+  }
+
+  // Initialize system prompt text when data loads
+  const handleSystemDataLoad = useCallback(() => {
+    if (systemData && !systemPromptModified) {
+      setSystemPromptText(systemData.prompt_text);
+    }
+  }, [systemData, systemPromptModified]);
+
+  // Apply system data when it changes
+  if (systemData && systemPromptText === '' && !systemPromptModified) {
+    handleSystemDataLoad();
   }
 
   // Create mutation
@@ -140,15 +163,26 @@ export default function PromptsAdminTab() {
     },
   });
 
+  // System prompt mutation
+  const systemMutation = useMutation({
+    mutationFn: (text: string) => apiService.updateSystemPrompt(text),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-system-prompt'] });
+      setSystemPromptModified(false);
+    },
+  });
+
   // Reset to defaults mutation
   const resetMutation = useMutation({
     mutationFn: () => apiService.resetPromptsToDefaults(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-prompt-categories'] });
       queryClient.invalidateQueries({ queryKey: ['admin-welcome-prompt'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-system-prompt'] });
       queryClient.invalidateQueries({ queryKey: ['prompt-suggestions'] });
       setShowResetModal(false);
       setWelcomePromptModified(false);
+      setSystemPromptModified(false);
     },
   });
 
@@ -269,9 +303,10 @@ export default function PromptsAdminTab() {
         tabs={[
           { id: 'categories', label: 'Prompt Categories' },
           { id: 'welcome', label: 'Welcome Prompt' },
+          { id: 'system', label: 'System Prompt' },
         ]}
         activeTab={activeTab}
-        onChange={(id: string) => setActiveTab(id as 'categories' | 'welcome')}
+        onChange={(id: string) => setActiveTab(id as 'categories' | 'welcome' | 'system')}
       />
 
       {activeTab === 'categories' ? (
@@ -335,7 +370,7 @@ export default function PromptsAdminTab() {
               </Card>
             ))}
         </div>
-      ) : (
+      ) : activeTab === 'welcome' ? (
         <Card>
           <h2 className="text-lg font-semibold text-pierre-gray-900 mb-4">Welcome Prompt</h2>
           <p className="text-sm text-pierre-gray-600 mb-4">
@@ -385,6 +420,62 @@ export default function PromptsAdminTab() {
               {welcomeMutation.isSuccess && (
                 <div className="p-3 bg-green-50 text-green-600 rounded-lg text-sm">
                   Welcome prompt updated successfully.
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+      ) : (
+        <Card>
+          <h2 className="text-lg font-semibold text-pierre-gray-900 mb-4">System Prompt</h2>
+          <p className="text-sm text-pierre-gray-600 mb-4">
+            This is the system prompt that defines Pierre&apos;s behavior and personality when responding to users.
+            It supports Markdown formatting.
+          </p>
+          {systemLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-pierre-violet" />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <textarea
+                value={systemPromptText}
+                onChange={(e) => {
+                  setSystemPromptText(e.target.value);
+                  setSystemPromptModified(true);
+                }}
+                rows={20}
+                className="w-full px-4 py-3 border border-pierre-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:border-transparent resize-y"
+                placeholder="Enter the system prompt text..."
+              />
+              <div className="flex justify-end gap-3">
+                {systemPromptModified && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSystemPromptText(systemData?.prompt_text || '');
+                      setSystemPromptModified(false);
+                    }}
+                  >
+                    Discard Changes
+                  </Button>
+                )}
+                <Button
+                  variant="primary"
+                  onClick={() => systemMutation.mutate(systemPromptText)}
+                  disabled={!systemPromptModified || systemMutation.isPending}
+                >
+                  {systemMutation.isPending ? 'Saving...' : 'Save System Prompt'}
+                </Button>
+              </div>
+              {systemMutation.isError && (
+                <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm">
+                  Failed to update system prompt. Please try again.
+                </div>
+              )}
+              {systemMutation.isSuccess && (
+                <div className="p-3 bg-green-50 text-green-600 rounded-lg text-sm">
+                  System prompt updated successfully.
                 </div>
               )}
             </div>
@@ -573,7 +664,7 @@ export default function PromptsAdminTab() {
       >
         <div className="space-y-4">
           <p className="text-pierre-gray-600">
-            Are you sure you want to reset all prompt categories and the welcome prompt to their default values?
+            Are you sure you want to reset all prompt categories, the welcome prompt, and the system prompt to their default values?
             This will remove any custom prompts you have created.
           </p>
 

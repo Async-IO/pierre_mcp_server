@@ -1,0 +1,1 @@
+List my last 20 activities with their dates, distances, and durations. Then give me a fitness summary with insights and recommendations
