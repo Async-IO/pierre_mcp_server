@@ -164,7 +164,7 @@ fn validate_required_environment() -> Result<()> {
         EnvValidation {
             name: "PIERRE_MASTER_ENCRYPTION_KEY",
             value: env::var("PIERRE_MASTER_ENCRYPTION_KEY").ok(),
-            required: false, // Warning only - server generates temp key for dev
+            required: true, // Required for multi-instance deployments - prevents data corruption
             description:
                 "Base64-encoded 32-byte master encryption key (generate: openssl rand -base64 32)",
         },
@@ -201,18 +201,6 @@ fn validate_required_environment() -> Result<()> {
             "WARNING: {} not set - {}",
             validation.name, validation.description
         );
-    }
-
-    // Special handling for MEK - explain consequences
-    if env::var("PIERRE_MASTER_ENCRYPTION_KEY").is_err() {
-        eprintln!();
-        eprintln!("IMPORTANT: PIERRE_MASTER_ENCRYPTION_KEY is not set!");
-        eprintln!("A temporary key will be generated, but:");
-        eprintln!("  - OAuth tokens will become unreadable after server restart");
-        eprintln!("  - Users will need to re-authenticate with providers");
-        eprintln!();
-        eprintln!("To fix: Add to .envrc: export PIERRE_MASTER_ENCRYPTION_KEY=\"$(openssl rand -base64 32)\"");
-        eprintln!();
     }
 
     // Fail fast if required variables are missing

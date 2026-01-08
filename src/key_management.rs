@@ -47,13 +47,22 @@ impl MasterEncryptionKey {
             |_| {
                 Err(AppError::config(
                     "PIERRE_MASTER_ENCRYPTION_KEY environment variable is required.\n\n\
-                     This key is used to encrypt sensitive data (OAuth tokens, admin secrets, etc.).\n\
-                     Without a persistent key, encrypted data becomes unreadable after server restart.\n\n\
-                     To generate a key, run:\n\
-                     \x20\x20openssl rand -base64 32\n\n\
-                     Then set it in your environment:\n\
-                     \x20\x20export PIERRE_MASTER_ENCRYPTION_KEY=\"<your-generated-key>\"\n\n\
-                     Or add it to your .env file.",
+                     CRITICAL: This key MUST be consistent across all server instances.\n\
+                     In multi-instance deployments (K8s, GCP), different keys cause data corruption:\n\
+                     - Tokens encrypted by one instance become unreadable by others\n\
+                     - Users get locked out with cryptic decryption errors\n\n\
+                     FOR DEVELOPMENT:\n\
+                     \x20\x20export PIERRE_MASTER_ENCRYPTION_KEY=\"$(openssl rand -base64 32)\"\n\n\
+                     FOR KUBERNETES/PRODUCTION:\n\
+                     \x20\x201. Generate key: openssl rand -base64 32\n\
+                     \x20\x202. Create K8s Secret:\n\
+                     \x20\x20   kubectl create secret generic pierre-secrets \\\n\
+                     \x20\x20     --from-literal=PIERRE_MASTER_ENCRYPTION_KEY=<your-key>\n\
+                     \x20\x203. Mount in deployment:\n\
+                     \x20\x20   envFrom:\n\
+                     \x20\x20     - secretRef:\n\
+                     \x20\x20         name: pierre-secrets\n\n\
+                     This key encrypts OAuth tokens, admin secrets, and other sensitive data.",
                 ))
             },
             |encoded_key| Self::load_from_environment(&encoded_key),
