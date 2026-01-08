@@ -115,6 +115,8 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
   const [skippedOnboarding, setSkippedOnboarding] = useState(false);
+  // Track model and execution time for assistant messages (for debugging/transparency)
+  const [messageMetadata, setMessageMetadata] = useState<Map<string, { model: string; executionTimeMs: number }>>(new Map());
 
   const sidebarPanelRef = usePanelRef();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -422,36 +424,61 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
         throw new Error(userMessage);
       }
 
-      // Handle SSE streaming
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
+      // Try to read response as JSON first (non-streaming endpoint returns JSON)
+      const responseText = await response.text();
       let fullContent = '';
+      let responseModel: string | undefined;
+      let responseExecutionTimeMs: number | undefined;
+      let assistantMessageId: string | undefined;
 
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+      // Check if this is a JSON response (non-streaming)
+      try {
+        const jsonResponse = JSON.parse(responseText);
+        if (jsonResponse.assistant_message) {
+          // Non-streaming JSON response from send_message endpoint
+          fullContent = jsonResponse.assistant_message.content || '';
+          assistantMessageId = jsonResponse.assistant_message.id;
+          responseModel = jsonResponse.model;
+          responseExecutionTimeMs = jsonResponse.execution_time_ms;
+          setStreamingContent(fullContent);
+        }
+      } catch {
+        // Not JSON, try SSE parsing for streaming responses
+        const lines = responseText.split('\n');
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') continue;
 
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n');
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6);
-              if (data === '[DONE]') continue;
-
-              try {
-                const parsed = JSON.parse(data);
-                if (parsed.delta) {
-                  fullContent += parsed.delta;
-                  setStreamingContent(fullContent);
-                }
-              } catch {
-                // Skip non-JSON lines
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.delta) {
+                fullContent += parsed.delta;
+                setStreamingContent(fullContent);
               }
+              // Capture metadata from done event
+              if (parsed.type === 'done' && parsed.message) {
+                assistantMessageId = parsed.message.id;
+                responseModel = parsed.model;
+                responseExecutionTimeMs = parsed.execution_time_ms;
+              }
+            } catch {
+              // Skip non-JSON lines
             }
           }
         }
+      }
+
+      // Store model and execution time metadata for display
+      if (assistantMessageId && (responseModel || responseExecutionTimeMs)) {
+        setMessageMetadata(prev => {
+          const updated = new Map(prev);
+          updated.set(assistantMessageId!, {
+            model: responseModel || 'unknown',
+            executionTimeMs: responseExecutionTimeMs || 0,
+          });
+          return updated;
+        });
       }
 
       // Refresh messages after streaming completes
@@ -923,6 +950,23 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                               {linkifyUrls(stripContextPrefix(msg.content))}
                             </Markdown>
                           </div>
+                          {/* Model and execution time metadata for assistant messages */}
+                          {msg.role === 'assistant' && messageMetadata.get(msg.id) && (
+                            <div className="mt-2 text-xs text-pierre-gray-400 flex items-center gap-2">
+                              <span className="inline-flex items-center gap-1">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                </svg>
+                                {messageMetadata.get(msg.id)?.model}
+                              </span>
+                              <span className="inline-flex items-center gap-1">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                {((messageMetadata.get(msg.id)?.executionTimeMs || 0) / 1000).toFixed(1)}s
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}

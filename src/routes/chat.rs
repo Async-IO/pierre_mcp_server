@@ -35,7 +35,7 @@ use axum::{
 use futures_util::stream::Stream;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::{borrow::Cow, convert::Infallible, sync::Arc};
+use std::{borrow::Cow, convert::Infallible, sync::Arc, time::Instant};
 use tokio_stream::StreamExt;
 use tracing::info;
 use uuid::Uuid;
@@ -208,6 +208,10 @@ pub struct ChatCompletionResponse {
     pub assistant_message: MessageResponse,
     /// Conversation updated timestamp
     pub conversation_updated_at: String,
+    /// LLM model used for the response
+    pub model: String,
+    /// Total execution time in milliseconds (including tool calls)
+    pub execution_time_ms: u64,
 }
 
 /// Response for messages list
@@ -1005,6 +1009,9 @@ impl ChatRoutes {
         // Create MCP executor for tool calls
         let executor = UniversalExecutor::new(resources.clone()); // Arc clone for executor creation
 
+        // Track execution time for the entire LLM + tool loop
+        let start_time = Instant::now();
+
         // Run multi-turn tool execution loop
         let result = Self::run_tool_loop(
             &provider,
@@ -1016,6 +1023,10 @@ impl ChatRoutes {
             &tenant_id,
         )
         .await?;
+
+        // Safe cast: execution time will never exceed u64::MAX milliseconds (~584 million years)
+        #[allow(clippy::cast_possible_truncation)]
+        let execution_time_ms = start_time.elapsed().as_millis() as u64;
 
         // Calculate token count from usage
         let token_count = result.usage.map(|u| u.completion_tokens);
@@ -1053,6 +1064,8 @@ impl ChatRoutes {
                 created_at: assistant_msg.created_at,
             },
             conversation_updated_at: updated_conv.updated_at,
+            model: conv.model.clone(),
+            execution_time_ms,
         };
 
         Ok((StatusCode::OK, Json(response)).into_response())
