@@ -529,17 +529,6 @@ OAUTH_REGISTER_RATE_LIMIT_RPM=10      # default: 10
 PIERRE_ADMIN_API_KEY_MONTHLY_LIMIT=10000
 ```
 
-### Multi-Tenancy
-
-```bash
-# tenant isolation
-TENANT_MAX_USERS=100              # max users per tenant
-TENANT_MAX_PROVIDERS=5            # max connected providers per tenant
-
-# default features per tenant
-TENANT_DEFAULT_FEATURES="activity_analysis,goal_tracking"
-```
-
 ### Security
 
 ```bash
@@ -833,5 +822,5 @@ Must be exactly 32 bytes (base64 encoded = 44 characters).
 ## References
 
 All configuration constants: `src/constants/mod.rs`
-Fitness profiles: `src/configuration/profiles.rs`
+Fitness profiles: `src/config/profiles.rs`
 Database setup: `src/database_plugins/`

@@ -302,7 +302,7 @@ pierre's mcp server validates jwt on every request:
 | `POST /mcp` (prompts/list) | no | discovery only |
 | `POST /mcp` (resources/list) | no | discovery only |
 
-implementation: `src/mcp/multitenant.rs:1726`
+implementation: `src/mcp/mcp_request_processor.rs:95-106`
 
 ### Token Expiry and Refresh
 
@@ -470,7 +470,7 @@ user: "connect to strava"
 Or via rest api:
 ```bash
 curl -H "Authorization: Bearer <jwt>" \
-  http://localhost:8081/oauth/connect/strava
+  http://localhost:8081/api/oauth/auth/strava/<user_id>
 ```
 
 Opens browser for provider authentication. After approval, redirected to callback:

@@ -450,9 +450,9 @@ Training-aware recipe management tools for meal planning aligned with workout sc
 
 | Tool Name | Description | Required Parameters | Optional Parameters |
 |-----------|-------------|---------------------|---------------------|
-| `get_recipe_constraints` | Get macro targets and guidelines for meal timing | - | `meal_timing` (string), `target_calories` (number) |
-| `validate_recipe` | Validate recipe nutrition against training targets | `name` (string), `ingredients` (array), `meal_timing` (string) | `target_calories` (number), `dietary_restrictions` (array) |
-| `save_recipe` | Save validated recipe to user's collection | `name` (string), `ingredients` (array), `meal_timing` (string) | `description` (string), `servings` (number), `prep_time_minutes` (number), `cook_time_minutes` (number), `instructions` (array), `tags` (array), `dietary_restrictions` (array), `skill_level` (string), `source` (string) |
+| `get_recipe_constraints` | Get macro targets and guidelines for meal timing | - | `calories` (number), `tdee` (number), `meal_timing` (string), `dietary_restrictions` (array), `max_prep_time_mins` (number), `max_cook_time_mins` (number) |
+| `validate_recipe` | Validate recipe nutrition against training targets | `servings` (number), `ingredients` (array) | `meal_timing` (string), `target_calories` (number), `dietary_restrictions` (array) |
+| `save_recipe` | Save validated recipe to user's collection | `name` (string), `servings` (number), `instructions` (array), `ingredients` (array) | `description` (string), `prep_time_mins` (number), `cook_time_mins` (number), `tags` (array), `meal_timing` (string) |
 | `list_recipes` | List user's saved recipes | - | `meal_timing` (string), `tags` (array), `limit` (number), `offset` (number) |
 | `get_recipe` | Get a specific recipe by ID | `recipe_id` (string) | - |
 | `delete_recipe` | Delete a recipe from user's collection | `recipe_id` (string) | - |
@@ -470,9 +470,9 @@ Training-aware recipe management tools for meal planning aligned with workout sc
 ```json
 {
   "name": "chicken breast",
-  "quantity": 200,
+  "amount": 200,
   "unit": "grams",
-  "fdc_id": 171077
+  "preparation": "grilled"
 }
 ```
 
@@ -490,13 +490,13 @@ Training-aware recipe management tools for meal planning aligned with workout sc
 {
   "tool": "validate_recipe",
   "parameters": {
-    "name": "Post-Workout Protein Bowl",
+    "servings": 1,
     "meal_timing": "post_training",
     "target_calories": 600,
     "ingredients": [
-      {"name": "chicken breast", "quantity": 200, "unit": "grams"},
-      {"name": "brown rice", "quantity": 1, "unit": "cup"},
-      {"name": "broccoli", "quantity": 150, "unit": "grams"}
+      {"name": "chicken breast", "amount": 200, "unit": "grams"},
+      {"name": "brown rice", "amount": 1, "unit": "cup"},
+      {"name": "broccoli", "amount": 150, "unit": "grams"}
     ]
   }
 }
@@ -508,18 +508,17 @@ Training-aware recipe management tools for meal planning aligned with workout sc
   "tool": "save_recipe",
   "parameters": {
     "name": "Recovery Shake",
+    "servings": 1,
     "meal_timing": "post_training",
     "description": "Quick protein shake for post-workout recovery",
-    "servings": 1,
-    "prep_time_minutes": 5,
+    "prep_time_mins": 5,
     "ingredients": [
-      {"name": "whey protein powder", "quantity": 30, "unit": "grams"},
-      {"name": "banana", "quantity": 1, "unit": "piece"},
-      {"name": "almond milk", "quantity": 1, "unit": "cup"}
+      {"name": "whey protein powder", "amount": 30, "unit": "grams"},
+      {"name": "banana", "amount": 1, "unit": "piece"},
+      {"name": "almond milk", "amount": 1, "unit": "cup"}
     ],
     "instructions": ["Add all ingredients to blender", "Blend until smooth"],
-    "tags": ["quick", "shake", "high-protein"],
-    "skill_level": "beginner"
+    "tags": ["quick", "shake", "high-protein"]
   }
 }
 ```

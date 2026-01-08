@@ -189,17 +189,29 @@ lto = "fat"          # cross-crate optimization
 
 ```toml
 [features]
-default = ["sqlite"]
+default = ["sqlite", "all-providers", "sqlx/migrate"]
 sqlite = []
 postgresql = ["sqlx/postgres"]
 testing = []
 telemetry = []
+
+# Provider feature flags - enable/disable individual fitness data providers
+provider-strava = []
+provider-garmin = []
+provider-terra = []
+provider-fitbit = []
+provider-whoop = []
+provider-coros = []
+provider-synthetic = []
+all-providers = ["provider-strava", "provider-garmin", "provider-terra", "provider-fitbit", "provider-whoop", "provider-coros", "provider-synthetic"]
 ```
 
 **Design decision**: Compile-time feature selection eliminates runtime configuration complexity.
 
 **sqlite (default)**: Development and single-instance deployments
 **postgresql**: Production multi-instance deployments with shared state
+**all-providers (default)**: All fitness provider integrations enabled
+**provider-***: Individual provider feature flags for selective builds
 **testing**: Test utilities and mock implementations
 **telemetry**: OpenTelemetry instrumentation (production observability)
 

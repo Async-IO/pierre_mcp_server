@@ -283,7 +283,7 @@ ollama serve &
 cargo test test_llm_provider_type -- --nocapture
 
 # Test chat functionality (requires running server)
-cargo test --test chat_routes_test -- --nocapture
+cargo test --test llm_local_integration_test -- --nocapture
 ```
 
 ### Manual Testing
@@ -751,7 +751,6 @@ ollama pull qwen2.5:7b-instruct
 
 ## See Also
 
-- [Chapter 26: LLM Provider Architecture](tutorial/chapter-26-llm-providers.md)
 - [Tools Reference - Recipe Management](tools-reference.md#recipe-management)
 - [Configuration Guide](configuration.md)
-- [Error Reference](tutorial/appendix-h-error-reference.md)
+- [Architecture Documentation](architecture.md)

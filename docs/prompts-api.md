@@ -241,43 +241,6 @@ Content-Type: application/json
 }
 ```
 
-### Get System Prompt
-
-Retrieves the current system prompt (LLM instructions).
-
-```http
-GET /api/admin/prompts/system
-Authorization: Bearer <admin_jwt_token>
-```
-
-**Response** `200 OK`:
-```json
-{
-  "prompt_text": "You are Pierre, an AI fitness assistant..."
-}
-```
-
-### Update System Prompt
-
-Updates the system prompt. Supports markdown formatting.
-
-```http
-PUT /api/admin/prompts/system
-Authorization: Bearer <admin_jwt_token>
-Content-Type: application/json
-
-{
-  "prompt_text": "You are Pierre, an AI fitness assistant specialized in endurance sports.\n\n## Guidelines\n- Always be encouraging\n- Use metric units by default\n- Cite scientific sources when possible"
-}
-```
-
-**Response** `200 OK`:
-```json
-{
-  "prompt_text": "You are Pierre, an AI fitness assistant specialized in endurance sports..."
-}
-```
-
 ### Reset to Defaults
 
 Resets all prompts (categories, welcome, system) to factory defaults.
@@ -294,10 +257,7 @@ Authorization: Bearer <admin_jwt_token>
 }
 ```
 
-**Warning**: This operation deletes all custom categories and restores defaults from:
-- `src/llm/prompts/prompt_categories.json`
-- `src/llm/prompts/welcome_prompt.md`
-- `src/llm/prompts/pierre_system.md`
+**Warning**: This operation deletes all custom categories and restores defaults. Prompt data is stored in the database and managed via the `PromptManager`. The system prompt template is at `src/llm/prompts/pierre_system.md`.
 
 ## Pillar Classification
 

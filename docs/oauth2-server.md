@@ -293,7 +293,7 @@ Response:
 Validate access token and optionally refresh if expired:
 
 ```bash
-curl -X POST http://localhost:8081/oauth2/validate \
+curl -X POST http://localhost:8081/oauth2/validate-and-refresh \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{

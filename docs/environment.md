@@ -81,11 +81,6 @@ export PIERRE_DEFAULT_PROVIDER=strava  # strava, garmin, fitbit, whoop, coros, s
 # required for strava oauth
 export PIERRE_STRAVA_CLIENT_ID=your-client-id
 export PIERRE_STRAVA_CLIENT_SECRET=your-client-secret
-
-# legacy variables (backward compatible)
-export STRAVA_CLIENT_ID=your-client-id
-export STRAVA_CLIENT_SECRET=your-client-secret
-export STRAVA_REDIRECT_URI=http://localhost:8081/api/oauth/callback/strava
 ```
 
 ### Garmin
@@ -94,27 +89,20 @@ export STRAVA_REDIRECT_URI=http://localhost:8081/api/oauth/callback/strava
 # required for garmin oauth
 export PIERRE_GARMIN_CLIENT_ID=your-consumer-key
 export PIERRE_GARMIN_CLIENT_SECRET=your-consumer-secret
-
-# legacy variables (backward compatible)
-export GARMIN_CLIENT_ID=your-consumer-key
-export GARMIN_CLIENT_SECRET=your-consumer-secret
-export GARMIN_REDIRECT_URI=http://localhost:8081/api/oauth/callback/garmin
 ```
 
 ### Fitbit
 
 ```bash
-export FITBIT_CLIENT_ID=your-client-id
-export FITBIT_CLIENT_SECRET=your-client-secret
-export FITBIT_REDIRECT_URI=http://localhost:8081/api/oauth/callback/fitbit
+export PIERRE_FITBIT_CLIENT_ID=your-client-id
+export PIERRE_FITBIT_CLIENT_SECRET=your-client-secret
 ```
 
 ### WHOOP
 
 ```bash
-export WHOOP_CLIENT_ID=your-client-id
-export WHOOP_CLIENT_SECRET=your-client-secret
-export WHOOP_REDIRECT_URI=http://localhost:8081/api/oauth/callback/whoop
+export PIERRE_WHOOP_CLIENT_ID=your-client-id
+export PIERRE_WHOOP_CLIENT_SECRET=your-client-secret
 ```
 
 ### COROS
@@ -123,12 +111,9 @@ export WHOOP_REDIRECT_URI=http://localhost:8081/api/oauth/callback/whoop
 # required for coros oauth (apply for API access first)
 export PIERRE_COROS_CLIENT_ID=your-client-id
 export PIERRE_COROS_CLIENT_SECRET=your-client-secret
-
-# legacy variables (backward compatible)
-export COROS_CLIENT_ID=your-client-id
-export COROS_CLIENT_SECRET=your-client-secret
-export COROS_REDIRECT_URI=http://localhost:8081/api/oauth/callback/coros
 ```
+
+**Note:** Redirect URIs are automatically constructed by the server based on the `HOST` and `HTTP_PORT` configuration. No `*_REDIRECT_URI` environment variables are needed.
 
 **Note:** COROS API documentation is private. Apply at [COROS Developer Portal](https://support.coros.com/hc/en-us/articles/17085887816340).
 

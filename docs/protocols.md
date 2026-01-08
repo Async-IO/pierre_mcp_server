@@ -311,12 +311,12 @@ Protocol for autonomous ai systems to communicate.
 
 ### Authentication
 
-A2a uses api keys:
+A2A endpoints use JWT Bearer authentication (same as MCP):
 ```
-X-API-Key: <api_key>
+Authorization: Bearer <jwt_token>
 ```
 
-Create api key via admin endpoint:
+Create jwt token via admin endpoint:
 ```bash
 curl -X POST http://localhost:8081/api/keys \
   -H "Authorization: Bearer <admin_jwt>" \
@@ -412,7 +412,7 @@ Real-time notifications for oauth completions and system events.
 ### Endpoint
 
 ```
-GET /notifications/sse?user_id=<user_id>
+GET /notifications/sse/:user_id
 ```
 
 ### Event Types
@@ -424,7 +424,7 @@ GET /notifications/sse?user_id=<user_id>
 ### Example
 
 ```javascript
-const eventSource = new EventSource('/notifications/sse?user_id=user-123');
+const eventSource = new EventSource('/notifications/sse/user-123');
 
 eventSource.onmessage = function(event) {
   const notification = JSON.parse(event.data);
@@ -434,7 +434,7 @@ eventSource.onmessage = function(event) {
 };
 ```
 
-Implementation: `src/notifications/sse.rs`, `src/sse.rs`
+Implementation: `src/sse/routes.rs`, `src/sse/`
 
 ## Protocol Comparison
 
