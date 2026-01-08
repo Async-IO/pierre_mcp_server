@@ -315,7 +315,7 @@ pub trait LlmProvider: Send + Sync {
     fn capabilities(&self) -> LlmCapabilities;
 
     /// Default model to use if not specified in request
-    fn default_model(&self) -> &'static str;
+    fn default_model(&self) -> &str;
 
     /// Available models for this provider
     fn available_models(&self) -> &'static [&'static str];

@@ -486,7 +486,7 @@ impl LlmProvider for GroqProvider {
             | LlmCapabilities::JSON_MODE
     }
 
-    fn default_model(&self) -> &'static str {
+    fn default_model(&self) -> &str {
         DEFAULT_MODEL
     }
 

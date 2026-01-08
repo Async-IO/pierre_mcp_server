@@ -670,9 +670,8 @@ impl LlmProvider for OpenAiCompatibleProvider {
         self.config.capabilities
     }
 
-    fn default_model(&self) -> &'static str {
-        // Return a reasonable default; the actual model is stored in config
-        DEFAULT_MODEL
+    fn default_model(&self) -> &str {
+        &self.config.default_model
     }
 
     fn available_models(&self) -> &'static [&'static str] {

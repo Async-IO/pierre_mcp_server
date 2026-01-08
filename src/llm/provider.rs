@@ -319,7 +319,7 @@ impl ChatProvider {
 
     /// Get default model
     #[must_use]
-    pub fn default_model(&self) -> &'static str {
+    pub fn default_model(&self) -> &str {
         match self {
             Self::Gemini(p) => p.default_model(),
             Self::Groq(p) => p.default_model(),

@@ -101,6 +101,8 @@ struct ToolLoopResult {
     usage: Option<TokenUsage>,
     /// Finish reason if available
     finish_reason: Option<String>,
+    /// Activity list from `get_activities` tool (to prepend to response)
+    activity_list: Option<String>,
 }
 
 // ============================================================================
@@ -586,6 +588,9 @@ impl ChatRoutes {
         user_id: &str,
         tenant_id: &str,
     ) -> Result<ToolLoopResult, AppError> {
+        // Track activity list across iterations (to prepend to final response)
+        let mut captured_activity_list: Option<String> = None;
+
         for iteration in 0..MAX_TOOL_ITERATIONS {
             let llm_request = ChatRequest::new(llm_messages.clone()).with_model(model);
             let response = provider
@@ -613,8 +618,12 @@ impl ChatRoutes {
                         }
                     }
 
-                    // Add function responses as user messages
-                    Self::add_function_responses_to_messages(llm_messages, &function_responses);
+                    // Add function responses as user messages, capturing activity list if present
+                    if let Some(list) =
+                        Self::add_function_responses_to_messages(llm_messages, &function_responses)
+                    {
+                        captured_activity_list = Some(list);
+                    }
                     continue;
                 }
             }
@@ -628,6 +637,7 @@ impl ChatRoutes {
                 content,
                 usage: response.usage,
                 finish_reason: response.finish_reason,
+                activity_list: captured_activity_list,
             });
         }
 
@@ -636,6 +646,7 @@ impl ChatRoutes {
             content: String::new(),
             usage: None,
             finish_reason: Some("max_iterations".to_owned()),
+            activity_list: captured_activity_list,
         })
     }
 
@@ -657,18 +668,19 @@ impl ChatRoutes {
     }
 
     /// Add function responses as user messages for next LLM iteration
+    /// Returns the activity list if found (to prepend to final response)
     fn add_function_responses_to_messages(
         llm_messages: &mut Vec<ChatMessage>,
         function_responses: &[FunctionResponse],
-    ) {
-        // Track if we found an activity list to add a reminder at the end
+    ) -> Option<String> {
+        // Track activity list to return for prepending to final response
         let mut activity_list_content: Option<String> = None;
 
         for func_response in function_responses {
             let response_text =
                 serde_json::to_string(&func_response.response).unwrap_or_else(|_| "{}".to_owned());
 
-            // For get_activities, extract the activity_list for later use as a final reminder
+            // For get_activities, extract the activity_list to prepend to final response
             if func_response.name == "get_activities" {
                 if let Some(activity_list) = func_response
                     .response
@@ -678,7 +690,7 @@ impl ChatRoutes {
                 {
                     let list_len = activity_list.len();
                     activity_list_content = Some(activity_list.to_owned());
-                    info!("Storing activity list for final reminder ({list_len} chars)");
+                    info!("Extracted activity list ({list_len} chars) to prepend to response");
                 }
             }
 
@@ -688,16 +700,8 @@ impl ChatRoutes {
             llm_messages.push(ChatMessage::user(message));
         }
 
-        // Add a final reminder with the activity list that the model MUST start with
-        if let Some(list) = activity_list_content {
-            info!("Adding final activity list reminder message");
-            let reminder = format!(
-                "IMPORTANT: Before providing any analysis, you MUST first output this exact \
-                 activity list:\n\n{list}\n\n---\nStart your response with this list above, then \
-                 provide your fitness analysis."
-            );
-            llm_messages.push(ChatMessage::user(reminder));
-        }
+        // Return activity list for prepending to final response (guarantees user sees data)
+        activity_list_content
     }
 
     /// Execute an MCP tool call and return the result
@@ -770,14 +774,12 @@ impl ChatRoutes {
         let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
 
         // Use provider's default model only if none specified (defers LLM init)
-        let model = request.model.as_ref().map_or_else(
-            || {
-                Self::get_llm_provider()
-                    .map(|p| p.default_model())
-                    .unwrap_or(DEFAULT_FALLBACK_MODEL)
-            },
-            |model_name| model_name.as_str(),
-        );
+        let model = request.model.clone().unwrap_or_else(|| {
+            Self::get_llm_provider().map_or_else(
+                |_| DEFAULT_FALLBACK_MODEL.to_owned(),
+                |p| p.default_model().to_owned(),
+            )
+        });
         let chat_manager = Self::create_chat_manager(&resources)?;
 
         let conv = chat_manager
@@ -785,7 +787,7 @@ impl ChatRoutes {
                 &auth.user_id.to_string(),
                 &tenant_id,
                 &request.title,
-                model,
+                &model,
                 request.system_prompt.as_deref(),
             )
             .await?;
@@ -1031,12 +1033,23 @@ impl ChatRoutes {
         // Calculate token count from usage
         let token_count = result.usage.map(|u| u.completion_tokens);
 
+        // Prepend activity list to content if present (guarantees user sees formatted data)
+        let final_content = if let Some(ref list) = result.activity_list {
+            info!(
+                "Prepending activity list ({} chars) to LLM response",
+                list.len()
+            );
+            format!("{list}\n\n---\n\n**Analysis:**\n\n{}", result.content)
+        } else {
+            result.content.clone()
+        };
+
         // Save assistant response
         let assistant_msg = chat_manager
             .add_message(
                 &conversation_id,
                 MessageRole::Assistant,
-                &result.content,
+                &final_content,
                 token_count,
                 result.finish_reason.as_deref(),
             )
