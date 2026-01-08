@@ -130,7 +130,7 @@ export default function LlmSettingsTab() {
       case 'user_specific':
         return <Badge variant="info">Your Key</Badge>;
       case 'tenant_default':
-        return <Badge variant="default">Organization</Badge>;
+        return <Badge variant="secondary">Organization</Badge>;
       case 'environment':
         return <Badge variant="warning">System</Badge>;
       default:
@@ -285,7 +285,7 @@ export default function LlmSettingsTab() {
                 value={baseUrl}
                 onChange={(e) => setBaseUrl(e.target.value)}
                 placeholder="http://localhost:11434/v1"
-                helperText="The base URL of your local LLM server (defaults to Ollama)"
+                helpText="The base URL of your local LLM server (defaults to Ollama)"
               />
             )}
 
@@ -300,7 +300,7 @@ export default function LlmSettingsTab() {
                     ? 'llama-3.1-70b-versatile'
                     : 'qwen2.5:14b-instruct'
               }
-              helperText="Override the default model for this provider"
+              helpText="Override the default model for this provider"
             />
 
             {/* Validation Result */}
@@ -393,8 +393,8 @@ export default function LlmSettingsTab() {
         onConfirm={() => providerToDelete && deleteMutation.mutate(providerToDelete)}
         title="Remove API Key"
         message={`Are you sure you want to remove your ${providerToDelete?.toUpperCase()} API key? You'll fall back to organization or system defaults if available.`}
-        confirmText="Remove"
-        isDestructive
+        confirmLabel="Remove"
+        variant="danger"
         isLoading={deleteMutation.isPending}
       />
     </>
