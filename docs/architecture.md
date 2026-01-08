@@ -364,7 +364,7 @@ src/
 ├── a2a/                       # a2a protocol
 ├── providers/                 # fitness integrations
 ├── intelligence/              # activity analysis
-├── database/                  # repository pattern (13 focused repositories)
+├── database/                  # repository pattern (14 focused repositories)
 │   ├── repositories/          # repository trait definitions and implementations
 │   └── ...                    # user, oauth token, api key management modules
 ├── database_plugins/          # database backends (sqlite, postgresql)

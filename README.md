@@ -173,9 +173,6 @@ See [Frontend Documentation](frontend/README.md) for detailed dashboard document
 - [CI/CD](docs/ci-cd.md) - GitHub Actions, pipelines
 - [Contributing](docs/contributing.md) - code standards, PR workflow
 
-### Learning
-- [Tutorial (31 chapters)](docs/tutorial-table-of-contents.md) - comprehensive Rust learning path
-
 ### Components
 - [SDK](sdk/README.md) - TypeScript client for MCP integration
 - [Frontend](frontend/README.md) - React dashboard

@@ -55,7 +55,7 @@ Developer documentation for Pierre Fitness Platform.
 
 Development, testing, and deployment scripts.
 
-- [Scripts Reference](../scripts/README.md) - 30+ scripts documented
+- [Scripts Reference](../scripts/README.md) - 24 scripts documented
 
 Key scripts:
 ```bash
@@ -65,27 +65,6 @@ Key scripts:
 ./scripts/fresh-start.sh  # clean database reset
 ./scripts/lint-and-test.sh # full CI suite
 ```
-
-## Tutorial
-
-Comprehensive Rust learning path using Pierre as the codebase.
-
-- [Tutorial Table of Contents](tutorial-table-of-contents.md) - 25 chapters + appendices
-
-### Learning Paths
-
-**Quick Start** (core concepts):
-1. Chapter 1 - Architecture
-2. Chapter 2 - Error Handling
-3. Chapter 9 - JSON-RPC
-4. Chapter 10 - MCP Protocol
-5. Chapter 19 - Tools Guide
-
-**Security-Focused**:
-1. Chapter 5 - Cryptographic Keys
-2. Chapter 6 - JWT Authentication
-3. Chapter 7 - Multi-Tenant Isolation
-4. Chapter 15 - OAuth 2.0 Server
 
 ## Component Documentation
 

@@ -74,12 +74,23 @@ See [Tools Reference](../docs/tools-reference.md) for complete documentation.
 ## Configuration Options
 
 ```bash
-pierre-mcp-client --server <url> [--verbose]
+pierre-mcp-client --server <url> [options]
 ```
 
 **Options:**
-- `--server` - Pierre MCP Server URL (required)
-- `--verbose` - Enable debug logging (optional)
+| Option | Description |
+|--------|-------------|
+| `-s, --server <url>` | Pierre MCP Server URL (required) |
+| `-t, --token <jwt>` | Pre-authenticated JWT token |
+| `--oauth-client-id <id>` | OAuth client ID for authentication |
+| `--oauth-client-secret <secret>` | OAuth client secret |
+| `--user-email <email>` | User email for password authentication |
+| `--user-password <password>` | User password |
+| `--callback-port <port>` | OAuth callback server port (default: 9876) |
+| `--no-browser` | Disable automatic browser opening |
+| `--token-validation-timeout <ms>` | Token validation timeout |
+| `--proactive-connection-timeout <ms>` | Initial connection timeout |
+| `--tool-call-connection-timeout <ms>` | Tool call timeout |
 
 ## Type System
 
@@ -245,11 +256,20 @@ If the browser doesn't open for authentication, check:
 curl http://localhost:8081/health
 ```
 
-### Token Cache
+### Token Storage
 
-Tokens are stored in `~/.pierre-mcp-tokens.json`. To force re-authentication:
+Tokens are stored securely using OS-native credential storage:
+- **macOS**: Keychain Access
+- **Windows**: Windows Credential Manager
+- **Linux**: Secret Service (libsecret)
+
+Encrypted fallback storage: `~/.pierre-mcp-tokens.enc`
+
+To force re-authentication:
 ```bash
-rm ~/.pierre-mcp-tokens.json
+# macOS: Remove from Keychain via Keychain Access app
+# Or remove encrypted fallback:
+rm ~/.pierre-mcp-tokens.enc
 ```
 
 ## Documentation

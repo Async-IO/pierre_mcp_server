@@ -145,6 +145,14 @@ This creates a super-admin who can then approve other user registrations and gra
 | ESLint | 9.25.0 | Code linting |
 | typescript-eslint | 8.30.1 | TypeScript-specific linting rules |
 
+### Utilities & Extensions
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| @tailwindcss/typography | 0.5.19 | Prose styling for markdown content |
+| firebase | 12.6.0 | Authentication and cloud services |
+| react-markdown | 10.1.0 | Markdown rendering in React |
+| react-resizable-panels | 4.3.0 | Resizable panel layouts |
+
 ## Development
 
 ### Prerequisites
