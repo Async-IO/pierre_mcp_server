@@ -927,9 +927,7 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                               </svg>
                             </div>
                           ) : (
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pierre-violet to-pierre-cyan flex items-center justify-center">
-                              <span className="text-white text-xs font-bold">P</span>
-                            </div>
+                            <img src="/pierre-icon.svg" alt="Pierre" className="w-8 h-8 rounded-xl" />
                           )}
                         </div>
                         {/* Message Content */}
@@ -975,9 +973,7 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                     {oauthNotification && (
                       <div className="flex gap-3 animate-fadeIn">
                         <div className="flex-shrink-0">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pierre-violet to-pierre-cyan flex items-center justify-center">
-                            <span className="text-white text-xs font-bold">P</span>
-                          </div>
+                          <img src="/pierre-icon.svg" alt="Pierre" className="w-8 h-8 rounded-xl" />
                         </div>
                         <div className="flex-1 min-w-0 pt-1">
                           <div className="font-medium text-pierre-gray-900 text-sm mb-1 flex items-center gap-2">
@@ -1002,9 +998,7 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                     {isStreaming && streamingContent && (
                       <div className="flex gap-3">
                         <div className="flex-shrink-0">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pierre-violet to-pierre-cyan flex items-center justify-center">
-                            <span className="text-white text-xs font-bold">P</span>
-                          </div>
+                          <img src="/pierre-icon.svg" alt="Pierre" className="w-8 h-8 rounded-xl" />
                         </div>
                         <div className="flex-1 min-w-0 pt-1">
                           <div className="font-medium text-pierre-gray-900 text-sm mb-1 flex items-center gap-2">
@@ -1032,9 +1026,7 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                     {isStreaming && !streamingContent && (
                       <div className="flex gap-3">
                         <div className="flex-shrink-0">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pierre-violet to-pierre-cyan flex items-center justify-center">
-                            <span className="text-white text-xs font-bold">P</span>
-                          </div>
+                          <img src="/pierre-icon.svg" alt="Pierre" className="w-8 h-8 rounded-xl" />
                         </div>
                         <div className="flex-1 pt-1">
                           <div className="font-medium text-pierre-gray-900 text-sm mb-2 flex items-center gap-2">
