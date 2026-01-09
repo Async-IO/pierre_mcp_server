@@ -9,7 +9,7 @@ import '../styles/global.css';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pierre - AI-Powered Fitness Intelligence</title>
-    <meta name="description" content="Get smarter insights from your fitness data. Pierre analyzes your Strava, Garmin, Fitbit, and WHOOP data using sports science formulas to help you train better and recover smarter.">
+    <meta name="description" content="Get smarter insights from your fitness data. Pierre analyzes your Strava, Garmin, Fitbit, WHOOP, and Coros data using sports science formulas to help you train better and recover smarter.">
     <meta name="keywords" content="fitness insights, AI fitness coach, Strava analysis, Garmin insights, training load, recovery score, nutrition tracking, sleep analysis">
 
     <!-- Open Graph -->
@@ -112,7 +112,7 @@ import '../styles/global.css';
             <p class="text-xl text-gray-300 max-w-3xl mx-auto mb-8">
                 Get smarter insights from your <strong class="text-white">Strava</strong>,
                 <strong class="text-white">Garmin</strong>, <strong class="text-white">Fitbit</strong>,
-                <strong class="text-white">WHOOP</strong>, or <strong class="text-white">Terra</strong> data.
+                <strong class="text-white">WHOOP</strong>, <strong class="text-white">Coros</strong>, or <strong class="text-white">Terra</strong> data.
                 Real sports science to help you train better, eat smarter, and recover faster.
             </p>
 
@@ -129,6 +129,9 @@ import '../styles/global.css';
                 </span>
                 <span class="protocol-badge px-4 py-2 rounded-full bg-red-500/20 border border-red-500/30 text-red-400 text-sm font-medium">
                     WHOOP
+                </span>
+                <span class="protocol-badge px-4 py-2 rounded-full bg-lime-500/20 border border-lime-500/30 text-lime-400 text-sm font-medium">
+                    Coros
                 </span>
                 <span class="protocol-badge px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-400 text-sm font-medium">
                     Terra
@@ -254,8 +257,8 @@ import '../styles/global.css';
     <section class="py-16 px-4 bg-gradient-to-b from-[#1E1E2E]/50 to-transparent">
         <div class="max-w-5xl mx-auto">
             <div id="stats-container" class="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                <!-- Stat 1: Fitness Insights -->
-                <div class="stat-glow bg-[#0F0F1A] rounded-2xl p-8 border border-white/10 text-center group cursor-default">
+                <!-- Stat 1: Fitness Insights (Clickable) -->
+                <div id="tools-stat-card" class="stat-glow bg-[#0F0F1A] rounded-2xl p-8 border border-white/10 text-center group cursor-pointer transition-all hover:border-emerald-500/50 hover:shadow-lg hover:shadow-emerald-500/10">
                     <div class="w-16 h-16 mx-auto mb-4 rounded-xl gradient-activity flex items-center justify-center group-hover:scale-110 transition-transform">
                         <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
@@ -264,6 +267,12 @@ import '../styles/global.css';
                     <div class="text-5xl font-bold gradient-pierre-text mb-2" data-count="47">47</div>
                     <div class="text-gray-400 font-medium">Fitness Insights</div>
                     <p class="text-gray-500 text-sm mt-2">Training, nutrition & recovery metrics</p>
+                    <div class="flex items-center justify-center gap-1 mt-3 text-emerald-400 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span>Click to explore</span>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                        </svg>
+                    </div>
                 </div>
 
                 <!-- Stat 2: Supported Devices -->
@@ -739,6 +748,346 @@ import '../styles/global.css';
                     </div>
                 </div>
             </div>
+
+            <!-- Tools Modal -->
+            <div id="tools-modal" class="fixed inset-0 z-[100] hidden">
+                <!-- Backdrop -->
+                <div id="tools-modal-backdrop" class="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+
+                <!-- Modal Content -->
+                <div class="absolute inset-4 md:inset-8 lg:inset-12 overflow-y-auto">
+                    <div class="min-h-full flex items-start justify-center py-8">
+                        <div class="bg-[#0F0F1A] rounded-2xl border border-white/10 w-full max-w-5xl shadow-2xl shadow-emerald-500/20 tools-modal-content">
+                            <!-- Modal Header -->
+                            <div class="sticky top-0 bg-[#0F0F1A] border-b border-white/10 p-6 rounded-t-2xl flex items-center justify-between z-10">
+                                <div class="flex items-center gap-4">
+                                    <div class="w-12 h-12 rounded-xl gradient-activity flex items-center justify-center">
+                                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h2 class="text-2xl font-bold">47 Fitness Insights</h2>
+                                        <p class="text-gray-400 text-sm">Training, nutrition &amp; recovery tools powered by real sports science</p>
+                                    </div>
+                                </div>
+                                <button id="close-tools-modal" class="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <!-- Modal Body -->
+                            <div class="p-6 space-y-8">
+                                <!-- Training Analysis Category -->
+                                <div>
+                                    <div class="flex items-center gap-3 mb-4">
+                                        <div class="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                                            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                                            </svg>
+                                        </div>
+                                        <h3 class="text-lg font-semibold text-emerald-400">Training Analysis</h3>
+                                        <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">9 tools</span>
+                                    </div>
+                                    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Get Activities</div>
+                                            <div class="text-xs text-gray-400">Fetch activities with smart pagination and filters</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Get Athlete</div>
+                                            <div class="text-xs text-gray-400">Complete athlete profile information</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Get Stats</div>
+                                            <div class="text-xs text-gray-400">Aggregated fitness statistics and totals</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Activity Intelligence</div>
+                                            <div class="text-xs text-gray-400">AI-powered analysis with weather &amp; location context</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Analyze Activity</div>
+                                            <div class="text-xs text-gray-400">Deep dive analysis of individual activities</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Calculate Metrics</div>
+                                            <div class="text-xs text-gray-400">TRIMP, power ratios, efficiency scores</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Compare Activities</div>
+                                            <div class="text-xs text-gray-400">Compare workouts to find patterns</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Detect Patterns</div>
+                                            <div class="text-xs text-gray-400">Find training blocks, overtraining signs</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Performance Trends</div>
+                                            <div class="text-xs text-gray-400">Analyze pace, HR, power over time</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Performance & Fitness Category -->
+                                <div>
+                                    <div class="flex items-center gap-3 mb-4">
+                                        <div class="w-10 h-10 rounded-lg bg-violet-500/20 flex items-center justify-center">
+                                            <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                                            </svg>
+                                        </div>
+                                        <h3 class="text-lg font-semibold text-violet-400">Performance &amp; Fitness</h3>
+                                        <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">5 tools</span>
+                                    </div>
+                                    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-violet-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Fitness Score</div>
+                                            <div class="text-xs text-gray-400">Overall score based on TSB, sleep &amp; recovery</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-violet-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Predict Performance</div>
+                                            <div class="text-xs text-gray-400">Race time predictions (5K, 10K, marathon)</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-violet-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Training Load</div>
+                                            <div class="text-xs text-gray-400">ATL, CTL, TSB balance analysis</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-violet-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Recommendations</div>
+                                            <div class="text-xs text-gray-400">Personalized training suggestions</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-violet-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Suggest Rest Day</div>
+                                            <div class="text-xs text-gray-400">AI-powered rest day recommendations</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Goals Category -->
+                                <div>
+                                    <div class="flex items-center gap-3 mb-4">
+                                        <div class="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                                            <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/>
+                                            </svg>
+                                        </div>
+                                        <h3 class="text-lg font-semibold text-cyan-400">Goals &amp; Planning</h3>
+                                        <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">4 tools</span>
+                                    </div>
+                                    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-cyan-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Set Goal</div>
+                                            <div class="text-xs text-gray-400">Create distance, duration, or frequency goals</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-cyan-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Track Progress</div>
+                                            <div class="text-xs text-gray-400">Monitor milestones and completion</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-cyan-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Suggest Goals</div>
+                                            <div class="text-xs text-gray-400">AI-suggested goals based on your history</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-cyan-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Goal Feasibility</div>
+                                            <div class="text-xs text-gray-400">Assess if goals are achievable</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Nutrition Category -->
+                                <div>
+                                    <div class="flex items-center gap-3 mb-4">
+                                        <div class="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                                            <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
+                                            </svg>
+                                        </div>
+                                        <h3 class="text-lg font-semibold text-amber-400">Nutrition</h3>
+                                        <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">5 tools</span>
+                                    </div>
+                                    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-amber-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Daily Nutrition</div>
+                                            <div class="text-xs text-gray-400">Calculate daily calorie &amp; macro needs</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-amber-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Nutrient Timing</div>
+                                            <div class="text-xs text-gray-400">Pre/post workout nutrition windows</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-amber-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Search Food</div>
+                                            <div class="text-xs text-gray-400">Search 350k+ USDA foods database</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-amber-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Food Details</div>
+                                            <div class="text-xs text-gray-400">Complete nutritional breakdown</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-amber-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Meal Analysis</div>
+                                            <div class="text-xs text-gray-400">Analyze meal macros and calories</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Recipes Category -->
+                                <div>
+                                    <div class="flex items-center gap-3 mb-4">
+                                        <div class="w-10 h-10 rounded-lg bg-orange-500/20 flex items-center justify-center">
+                                            <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                                            </svg>
+                                        </div>
+                                        <h3 class="text-lg font-semibold text-orange-400">Recipes</h3>
+                                        <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">7 tools</span>
+                                    </div>
+                                    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-orange-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Recipe Constraints</div>
+                                            <div class="text-xs text-gray-400">Get macro targets for meal timing</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-orange-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Validate Recipe</div>
+                                            <div class="text-xs text-gray-400">Validate nutrition vs USDA data</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-orange-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Save Recipe</div>
+                                            <div class="text-xs text-gray-400">Save to personal collection</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-orange-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">List Recipes</div>
+                                            <div class="text-xs text-gray-400">Browse your saved recipes</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-orange-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Get Recipe</div>
+                                            <div class="text-xs text-gray-400">Full recipe with instructions</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-orange-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Delete Recipe</div>
+                                            <div class="text-xs text-gray-400">Remove from collection</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-orange-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Search Recipes</div>
+                                            <div class="text-xs text-gray-400">Find recipes by name or tag</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Sleep & Recovery Category -->
+                                <div>
+                                    <div class="flex items-center gap-3 mb-4">
+                                        <div class="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center">
+                                            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+                                            </svg>
+                                        </div>
+                                        <h3 class="text-lg font-semibold text-indigo-400">Sleep &amp; Recovery</h3>
+                                        <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">4 tools</span>
+                                    </div>
+                                    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-indigo-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Sleep Quality</div>
+                                            <div class="text-xs text-gray-400">NSF/AASM-based sleep scoring</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-indigo-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Recovery Score</div>
+                                            <div class="text-xs text-gray-400">TSB + sleep + HRV combined score</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-indigo-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Sleep Trends</div>
+                                            <div class="text-xs text-gray-400">Track sleep patterns over time</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-indigo-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Optimize Sleep</div>
+                                            <div class="text-xs text-gray-400">Optimal bedtime recommendations</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Configuration Category -->
+                                <div>
+                                    <div class="flex items-center gap-3 mb-4">
+                                        <div class="w-10 h-10 rounded-lg bg-gray-500/20 flex items-center justify-center">
+                                            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                            </svg>
+                                        </div>
+                                        <h3 class="text-lg font-semibold text-gray-300">Configuration</h3>
+                                        <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">10 tools</span>
+                                    </div>
+                                    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-gray-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Config Catalog</div>
+                                            <div class="text-xs text-gray-400">Browse all available parameters</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-gray-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Config Profiles</div>
+                                            <div class="text-xs text-gray-400">Elite, recreational, beginner presets</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-gray-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">User Config</div>
+                                            <div class="text-xs text-gray-400">Get/update your settings</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-gray-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Personalized Zones</div>
+                                            <div class="text-xs text-gray-400">HR/power zones from VO2max</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-gray-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Validate Config</div>
+                                            <div class="text-xs text-gray-400">Check physiological limits</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-gray-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Fitness Config</div>
+                                            <div class="text-xs text-gray-400">Manage fitness configurations</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Provider Connection Category -->
+                                <div>
+                                    <div class="flex items-center gap-3 mb-4">
+                                        <div class="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                                            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                                            </svg>
+                                        </div>
+                                        <h3 class="text-lg font-semibold text-blue-400">Provider Connection</h3>
+                                        <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">3 tools</span>
+                                    </div>
+                                    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-blue-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Connect Provider</div>
+                                            <div class="text-xs text-gray-400">Link Strava, Fitbit, Garmin, etc.</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-blue-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Connection Status</div>
+                                            <div class="text-xs text-gray-400">Check which providers are linked</div>
+                                        </div>
+                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-blue-500/10">
+                                            <div class="text-sm font-medium text-white mb-1">Disconnect Provider</div>
+                                            <div class="text-xs text-gray-400">Remove provider access</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- CTA -->
+                                <div class="text-center pt-4 border-t border-white/10">
+                                    <p class="text-gray-400 mb-4">Ready to unlock all 47 fitness insights for your training?</p>
+                                    <a href="#early-access" id="tools-modal-cta" class="inline-flex items-center gap-2 gradient-pierre px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity">
+                                        Get Early Access
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                                        </svg>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </section>
 
@@ -763,7 +1112,7 @@ import '../styles/global.css';
                         </div>
                     </div>
                     <h3 class="text-xl font-semibold mb-3">Connect Your Devices</h3>
-                    <p class="text-gray-400">Link your Strava, Garmin, Fitbit, WHOOP, or Terra accounts with one click.</p>
+                    <p class="text-gray-400">Link your Strava, Garmin, Fitbit, WHOOP, Coros, or Terra accounts with one click.</p>
                 </div>
 
                 <div class="text-center">
@@ -1203,6 +1552,57 @@ import '../styles/global.css';
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
                     closeModal();
+                }
+            });
+        })();
+
+        // Tools Modal (47 Fitness Insights)
+        (function() {
+            const toolsCard = document.getElementById('tools-stat-card');
+            const toolsModal = document.getElementById('tools-modal');
+            const toolsBackdrop = document.getElementById('tools-modal-backdrop');
+            const toolsCloseBtn = document.getElementById('close-tools-modal');
+            const toolsModalCta = document.getElementById('tools-modal-cta');
+
+            function openToolsModal() {
+                toolsModal.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+
+                // Animate entrance
+                setTimeout(() => {
+                    const content = toolsModal.querySelector('.tools-modal-content');
+                    if (content) {
+                        content.style.transform = 'scale(1)';
+                        content.style.opacity = '1';
+                    }
+                }, 10);
+            }
+
+            function closeToolsModal() {
+                toolsModal.classList.add('hidden');
+                document.body.style.overflow = '';
+            }
+
+            if (toolsCard) {
+                toolsCard.addEventListener('click', openToolsModal);
+            }
+
+            if (toolsCloseBtn) {
+                toolsCloseBtn.addEventListener('click', closeToolsModal);
+            }
+
+            if (toolsBackdrop) {
+                toolsBackdrop.addEventListener('click', closeToolsModal);
+            }
+
+            if (toolsModalCta) {
+                toolsModalCta.addEventListener('click', closeToolsModal);
+            }
+
+            // Close on Escape key
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && toolsModal && !toolsModal.classList.contains('hidden')) {
+                    closeToolsModal();
                 }
             });
         })();
