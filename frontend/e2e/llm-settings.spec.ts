@@ -127,16 +127,8 @@ async function setupLlmSettingsMocks(page: Page, withCredentials: boolean = fals
     }
   });
 
-  // Mock validation endpoint
-  await page.route('**/api/user/llm-settings/validate', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(mockValidationSuccess),
-    });
-  });
-
-  // Mock delete endpoint
+  // Mock delete endpoint - register BEFORE validate so validate takes precedence
+  // (Playwright routes are LIFO - last registered matches first)
   await page.route('**/api/user/llm-settings/*', async (route) => {
     if (route.request().method() === 'DELETE') {
       await route.fulfill({
@@ -147,6 +139,15 @@ async function setupLlmSettingsMocks(page: Page, withCredentials: boolean = fals
     } else {
       await route.continue();
     }
+  });
+
+  // Mock validation endpoint - register LAST so it takes precedence over wildcard
+  await page.route('**/api/user/llm-settings/validate', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(mockValidationSuccess),
+    });
   });
 }
 
