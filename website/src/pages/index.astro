@@ -1,6 +1,6 @@
 ---
 // ABOUTME: Custom landing page for Pierre Fitness Intelligence
-// ABOUTME: Marketing homepage with Three Pillars, Protocols, SDK, and Dashboard sections
+// ABOUTME: Marketing homepage with modern design, B2B section, and streamlined messaging
 import '../styles/global.css';
 ---
 <!DOCTYPE html>
@@ -27,19 +27,14 @@ import '../styles/global.css';
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/pierre-favicon.svg">
 
-    <!-- Announcement Banner Layout Spacing -->
     <style>
         :root {
             --banner-height: 2.5rem;
             --hero-padding-with-banner: 11rem;
             --hero-padding-without-banner: 8rem;
         }
-        /* Respect user motion preferences */
         @media (prefers-reduced-motion: reduce) {
-            #main-nav,
-            #hero-section {
-                transition: none !important;
-            }
+            #main-nav, #hero-section { transition: none !important; }
         }
     </style>
 </head>
@@ -64,130 +59,98 @@ import '../styles/global.css';
             <div class="flex items-center justify-between h-16">
                 <div class="flex items-center gap-3">
                     <img src="/pierre-logo.svg" alt="Pierre Fitness Intelligence" class="h-10 w-10">
-                    <span class="text-xl font-semibold">Pierre Fitness Intelligence</span>
+                    <span class="text-xl font-semibold hidden sm:inline">Pierre</span>
                 </div>
+                <!-- Desktop Navigation -->
                 <div class="hidden md:flex items-center gap-8">
-                    <a href="#features" class="text-gray-300 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500/60 rounded px-1">Features</a>
-                    <a href="#intelligence" class="text-gray-300 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500/60 rounded px-1">Intelligence</a>
-                    <a href="#providers" class="text-gray-300 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500/60 rounded px-1">Devices</a>
-                    <a href="#early-access" class="gradient-pierre px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-violet-500/60">
+                    <a href="#features" class="text-gray-300 hover:text-white transition-colors">Features</a>
+                    <a href="#intelligence" class="text-gray-300 hover:text-white transition-colors">Intelligence</a>
+                    <a href="#developers" class="text-gray-300 hover:text-white transition-colors">Developers</a>
+                    <a href="#early-access" class="gradient-pierre px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity">
                         Get Early Access
                     </a>
+                </div>
+                <!-- Mobile Hamburger Button -->
+                <button id="mobile-menu-btn" class="md:hidden p-2 rounded-lg hover:bg-white/10 transition-colors" aria-label="Open menu" aria-expanded="false">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path id="hamburger-icon" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                        <path id="close-icon" class="hidden" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <!-- Mobile Menu -->
+            <div id="mobile-menu" class="hidden md:hidden pb-4">
+                <div class="flex flex-col gap-2 mobile-menu-enter">
+                    <a href="#features" class="px-4 py-3 text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors">Features</a>
+                    <a href="#intelligence" class="px-4 py-3 text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors">Intelligence</a>
+                    <a href="#developers" class="px-4 py-3 text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors">Developers</a>
+                    <a href="#early-access" class="gradient-pierre px-4 py-3 rounded-lg font-medium text-center mt-2">Get Early Access</a>
                 </div>
             </div>
         </div>
     </nav>
 
-    <!-- Hero Section -->
-    <section id="hero-section" class="pt-44 pb-20 px-4 transition-[padding] duration-300 ease-out">
-        <div class="max-w-7xl mx-auto text-center">
+    <!-- Hero Section with Gradient Mesh -->
+    <section id="hero-section" class="relative pt-44 pb-20 px-4 overflow-hidden transition-[padding] duration-300 ease-out">
+        <!-- Animated Gradient Mesh Background -->
+        <div class="absolute inset-0 gradient-mesh"></div>
+
+        <!-- Floating Logo Elements (decorative) -->
+        <div class="absolute inset-0 overflow-hidden pointer-events-none">
+            <img src="/pierre-logo.svg" alt="" class="absolute top-20 left-[10%] w-16 h-16 opacity-10 float-slow" aria-hidden="true">
+            <img src="/pierre-logo.svg" alt="" class="absolute top-40 right-[15%] w-12 h-12 opacity-10 float-medium" aria-hidden="true">
+            <img src="/pierre-logo.svg" alt="" class="absolute bottom-32 left-[20%] w-10 h-10 opacity-10 float-fast" aria-hidden="true">
+            <img src="/pierre-logo.svg" alt="" class="absolute bottom-20 right-[25%] w-14 h-14 opacity-10 float-slow" aria-hidden="true">
+        </div>
+
+        <div class="relative max-w-7xl mx-auto text-center">
             <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
                 <span class="gradient-pierre-text">Fitness Intelligence</span><br>
                 for Everyone
             </h1>
 
-            <p class="text-xl text-gray-300 max-w-3xl mx-auto mb-10">
+            <p class="text-xl text-gray-300 max-w-3xl mx-auto mb-8">
                 Get smarter insights from your <strong class="text-white">Strava</strong>,
                 <strong class="text-white">Garmin</strong>, <strong class="text-white">Fitbit</strong>,
                 <strong class="text-white">WHOOP</strong>, or <strong class="text-white">Terra</strong> data.
                 Real sports science to help you train better, eat smarter, and recover faster.
             </p>
 
-            <div class="flex flex-col sm:flex-row gap-4 justify-center mb-16">
-                <a href="#early-access"
-                   class="gradient-pierre px-8 py-3 rounded-lg font-semibold text-lg hover:opacity-90 transition-opacity">
+            <!-- Device Badges (moved up for visual break) -->
+            <div class="flex flex-wrap justify-center gap-3 mb-10">
+                <span class="protocol-badge px-4 py-2 rounded-full bg-orange-500/20 border border-orange-500/30 text-orange-400 text-sm font-medium">
+                    Strava
+                </span>
+                <span class="protocol-badge px-4 py-2 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-400 text-sm font-medium">
+                    Garmin
+                </span>
+                <span class="protocol-badge px-4 py-2 rounded-full bg-teal-500/20 border border-teal-500/30 text-teal-400 text-sm font-medium">
+                    Fitbit
+                </span>
+                <span class="protocol-badge px-4 py-2 rounded-full bg-red-500/20 border border-red-500/30 text-red-400 text-sm font-medium">
+                    WHOOP
+                </span>
+                <span class="protocol-badge px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-400 text-sm font-medium">
+                    Terra
+                </span>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <a href="#early-access" class="gradient-pierre px-8 py-3 rounded-lg font-semibold text-lg hover:opacity-90 transition-opacity">
                     Get Early Access
                 </a>
-                <a href="#features"
-                   class="px-8 py-3 rounded-lg font-semibold text-lg border border-white/20 hover:bg-white/5 transition-colors">
+                <a href="#features" class="px-8 py-3 rounded-lg font-semibold text-lg border border-white/20 hover:bg-white/5 transition-colors">
                     See How It Works
                 </a>
             </div>
-
-            <!-- Device Badges -->
-            <div class="flex flex-wrap justify-center gap-3">
-                <span class="protocol-badge px-4 py-2 rounded-full bg-orange-500/20 border border-orange-500/30 text-orange-400 text-sm font-medium">
-                    🏃 Strava
-                </span>
-                <span class="protocol-badge px-4 py-2 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-400 text-sm font-medium">
-                    ⌚ Garmin
-                </span>
-                <span class="protocol-badge px-4 py-2 rounded-full bg-teal-500/20 border border-teal-500/30 text-teal-400 text-sm font-medium">
-                    💚 Fitbit
-                </span>
-                <span class="protocol-badge px-4 py-2 rounded-full bg-red-500/20 border border-red-500/30 text-red-400 text-sm font-medium">
-                    🔴 WHOOP
-                </span>
-                <span class="protocol-badge px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-400 text-sm font-medium">
-                    🌐 Terra
-                </span>
-            </div>
         </div>
     </section>
 
-    <!-- Chat Interface Showcase -->
-    <section class="py-12 px-4">
-        <div class="max-w-6xl mx-auto">
-            <div class="text-center mb-8">
-                <h2 class="text-2xl sm:text-3xl font-bold mb-3">Chat with Your Fitness Data</h2>
-                <p class="text-gray-400 max-w-xl mx-auto">
-                    Connect your devices and ask questions in natural language. Pierre analyzes your activities and provides personalized insights.
-                </p>
-            </div>
-            <!-- Carousel Container -->
-            <div class="relative">
-                <div id="chat-carousel" class="relative rounded-xl overflow-hidden border border-white/10 shadow-2xl shadow-violet-500/10">
-                    <!-- Slide 1: Provider Connection -->
-                    <div class="carousel-slide" data-slide="0">
-                        <img
-                            src="/images/chat-new-conversation.png"
-                            alt="Pierre chat interface showing provider connection options for Strava, Fitbit, Garmin, WHOOP, and Terra"
-                            class="w-full"
-                            loading="lazy"
-                        />
-                    </div>
-                    <!-- Slide 2: Connected State with Prompts -->
-                    <div class="carousel-slide hidden" data-slide="1">
-                        <img
-                            src="/images/chat-connected-state.png"
-                            alt="Pierre chat interface showing connected state with training, nutrition, recovery, and recipe prompt suggestions"
-                            class="w-full"
-                            loading="lazy"
-                        />
-                    </div>
-                    <!-- Gradient overlay at bottom for smooth transition -->
-                    <div class="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[#0F0F1A] to-transparent pointer-events-none"></div>
-                </div>
-
-                <!-- Carousel Navigation Arrows -->
-                <button id="carousel-prev" class="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500" aria-label="Previous slide">
-                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-                    </svg>
-                </button>
-                <button id="carousel-next" class="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500" aria-label="Next slide">
-                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                    </svg>
-                </button>
-
-                <!-- Carousel Indicators -->
-                <div class="flex justify-center gap-2 mt-4">
-                    <button class="carousel-dot w-2.5 h-2.5 rounded-full bg-violet-500 transition-all" data-slide="0" aria-label="Go to slide 1"></button>
-                    <button class="carousel-dot w-2.5 h-2.5 rounded-full bg-white/30 hover:bg-white/50 transition-all" data-slide="1" aria-label="Go to slide 2"></button>
-                </div>
-
-                <!-- Slide Labels -->
-                <div class="flex justify-center gap-8 mt-3">
-                    <span class="carousel-label text-sm text-violet-400 font-medium" data-slide="0">Connect Providers</span>
-                    <span class="carousel-label text-sm text-gray-500" data-slide="1">Get Insights</span>
-                </div>
-            </div>
-        </div>
-    </section>
+    <!-- Section Divider -->
+    <div class="section-divider max-w-4xl mx-auto"></div>
 
     <!-- Three Pillars Section -->
-    <section id="features" class="py-20 px-4 bg-[#1E1E2E]/50">
+    <section id="features" class="py-20 px-4 node-pattern">
         <div class="max-w-7xl mx-auto">
             <div class="text-center mb-16">
                 <h2 class="text-3xl sm:text-4xl font-bold mb-4">Complete Fitness Picture</h2>
@@ -197,14 +160,14 @@ import '../styles/global.css';
             </div>
 
             <div class="grid md:grid-cols-3 gap-8">
-                <!-- Activity Pillar -->
-                <div class="card-hover bg-[#0F0F1A] rounded-xl p-8 border border-emerald-500/20">
-                    <div class="w-14 h-14 gradient-activity rounded-xl flex items-center justify-center mb-6">
+                <!-- Training Pillar -->
+                <div class="card-hover bg-[#0F0F1A]/80 backdrop-blur-sm rounded-xl p-8 border border-emerald-500/20">
+                    <div class="icon-container w-14 h-14 gradient-activity mb-6">
                         <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3 text-emerald-500">Training</h3>
+                    <h3 class="text-xl font-semibold mb-3 text-emerald-400">Training</h3>
                     <p class="text-gray-400 mb-4">Understand how hard you're training and when to push or rest.</p>
                     <ul class="space-y-2 text-sm text-gray-500">
                         <li class="flex items-center gap-2">
@@ -227,13 +190,13 @@ import '../styles/global.css';
                 </div>
 
                 <!-- Nutrition Pillar -->
-                <div class="card-hover bg-[#0F0F1A] rounded-xl p-8 border border-amber-500/20">
-                    <div class="w-14 h-14 gradient-nutrition rounded-xl flex items-center justify-center mb-6">
+                <div class="card-hover bg-[#0F0F1A]/80 backdrop-blur-sm rounded-xl p-8 border border-amber-500/20">
+                    <div class="icon-container w-14 h-14 gradient-nutrition mb-6">
                         <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3 text-amber-500">Nutrition & Recipes</h3>
+                    <h3 class="text-xl font-semibold mb-3 text-amber-400">Nutrition & Recipes</h3>
                     <p class="text-gray-400 mb-4">Know exactly what to eat and build your personal recipe collection.</p>
                     <ul class="space-y-2 text-sm text-gray-500">
                         <li class="flex items-center gap-2">
@@ -256,13 +219,13 @@ import '../styles/global.css';
                 </div>
 
                 <!-- Recovery Pillar -->
-                <div class="card-hover bg-[#0F0F1A] rounded-xl p-8 border border-indigo-500/20">
-                    <div class="w-14 h-14 gradient-recovery rounded-xl flex items-center justify-center mb-6">
+                <div class="card-hover bg-[#0F0F1A]/80 backdrop-blur-sm rounded-xl p-8 border border-indigo-500/20">
+                    <div class="icon-container w-14 h-14 gradient-recovery mb-6">
                         <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3 text-indigo-500">Recovery</h3>
+                    <h3 class="text-xl font-semibold mb-3 text-indigo-400">Recovery</h3>
                     <p class="text-gray-400 mb-4">Optimize your rest and know when you're ready to go again.</p>
                     <ul class="space-y-2 text-sm text-gray-500">
                         <li class="flex items-center gap-2">
@@ -287,6 +250,49 @@ import '../styles/global.css';
         </div>
     </section>
 
+    <!-- Stats Section (Redesigned) -->
+    <section class="py-16 px-4 bg-gradient-to-b from-[#1E1E2E]/50 to-transparent">
+        <div class="max-w-5xl mx-auto">
+            <div id="stats-container" class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <!-- Stat 1: Fitness Insights -->
+                <div class="stat-glow bg-[#0F0F1A] rounded-2xl p-8 border border-white/10 text-center group cursor-default">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-xl gradient-activity flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                        </svg>
+                    </div>
+                    <div class="text-5xl font-bold gradient-pierre-text mb-2" data-count="47">47</div>
+                    <div class="text-gray-400 font-medium">Fitness Insights</div>
+                    <p class="text-gray-500 text-sm mt-2">Training, nutrition & recovery metrics</p>
+                </div>
+
+                <!-- Stat 2: Supported Devices -->
+                <div class="stat-glow bg-[#0F0F1A] rounded-2xl p-8 border border-white/10 text-center group cursor-default">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-xl gradient-pierre flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                        </svg>
+                    </div>
+                    <div class="text-5xl font-bold gradient-pierre-text mb-2" data-count="150">150+</div>
+                    <div class="text-gray-400 font-medium">Supported Devices</div>
+                    <p class="text-gray-500 text-sm mt-2">Via Terra, Strava, Garmin & more</p>
+                </div>
+
+                <!-- Stat 3: Foods Database -->
+                <div class="stat-glow bg-[#0F0F1A] rounded-2xl p-8 border border-white/10 text-center group cursor-default">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-xl gradient-nutrition flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
+                        </svg>
+                    </div>
+                    <div class="text-5xl font-bold gradient-pierre-text mb-2" data-count="350000">350k+</div>
+                    <div class="text-gray-400 font-medium">Foods in Database</div>
+                    <p class="text-gray-500 text-sm mt-2">USDA FoodData Central</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- Intelligence Section -->
     <section id="intelligence" class="py-20 px-4">
         <div class="max-w-7xl mx-auto">
@@ -300,8 +306,10 @@ import '../styles/global.css';
             <div class="bg-[#1E1E2E] rounded-xl p-8 border border-white/10">
                 <div class="grid md:grid-cols-3 gap-8">
                     <div class="text-center">
-                        <div class="w-12 h-12 rounded-lg bg-emerald-500/20 flex items-center justify-center mx-auto mb-4">
-                            <span class="text-emerald-500 text-xl">📊</span>
+                        <div class="icon-container w-12 h-12 bg-emerald-500/20 mx-auto mb-4">
+                            <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                            </svg>
                         </div>
                         <h3 class="text-lg font-semibold mb-2">Training Load</h3>
                         <p class="text-gray-400 text-sm">
@@ -310,8 +318,10 @@ import '../styles/global.css';
                     </div>
 
                     <div class="text-center">
-                        <div class="w-12 h-12 rounded-lg bg-cyan-500/20 flex items-center justify-center mx-auto mb-4">
-                            <span class="text-cyan-500 text-xl">⚖️</span>
+                        <div class="icon-container w-12 h-12 bg-cyan-500/20 mx-auto mb-4">
+                            <svg class="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/>
+                            </svg>
                         </div>
                         <h3 class="text-lg font-semibold mb-2">Fitness vs Fatigue</h3>
                         <p class="text-gray-400 text-sm">
@@ -320,8 +330,10 @@ import '../styles/global.css';
                     </div>
 
                     <div class="text-center">
-                        <div class="w-12 h-12 rounded-lg bg-violet-600/20 flex items-center justify-center mx-auto mb-4">
-                            <span class="text-violet-500 text-xl">🏆</span>
+                        <div class="icon-container w-12 h-12 bg-violet-600/20 mx-auto mb-4">
+                            <svg class="w-6 h-6 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                            </svg>
                         </div>
                         <h3 class="text-lg font-semibold mb-2">Race Predictions</h3>
                         <p class="text-gray-400 text-sm">
@@ -331,12 +343,15 @@ import '../styles/global.css';
                 </div>
             </div>
 
-            <!-- Nutrition & Recipes Feature Highlight -->
+            <!-- Nutrition Feature Highlight -->
             <div class="mt-8 bg-[#1E1E2E] rounded-xl p-8 border border-amber-500/20">
                 <div class="grid md:grid-cols-2 gap-8 items-center">
                     <div>
                         <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-medium mb-4">
-                            <span>🍳</span> Recipe Management
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                            </svg>
+                            Recipe Management
                         </div>
                         <h3 class="text-2xl font-semibold mb-4">Training-Aware Meal Planning</h3>
                         <p class="text-gray-400 mb-6">
@@ -345,11 +360,11 @@ import '../styles/global.css';
                         <div class="space-y-3">
                             <div class="flex items-start gap-3">
                                 <span class="text-amber-500 mt-0.5">✓</span>
-                                <span class="text-gray-300 text-sm"><strong class="text-white">Pre-training meals</strong> — High-carb focus (55%) for energy without GI distress</span>
+                                <span class="text-gray-300 text-sm"><strong class="text-white">Pre-training meals</strong> — High-carb focus (55%) for energy</span>
                             </div>
                             <div class="flex items-start gap-3">
                                 <span class="text-amber-500 mt-0.5">✓</span>
-                                <span class="text-gray-300 text-sm"><strong class="text-white">Post-training meals</strong> — High-protein (30%) for recovery and muscle synthesis</span>
+                                <span class="text-gray-300 text-sm"><strong class="text-white">Post-training meals</strong> — High-protein (30%) for recovery</span>
                             </div>
                             <div class="flex items-start gap-3">
                                 <span class="text-amber-500 mt-0.5">✓</span>
@@ -397,47 +412,332 @@ import '../styles/global.css';
         </div>
     </section>
 
-    <!-- Providers Section -->
-    <section id="providers" class="py-20 px-4 bg-[#1E1E2E]/50">
+    <!-- Section Divider -->
+    <div class="section-divider max-w-4xl mx-auto"></div>
+
+    <!-- For Developers Section (B2B) -->
+    <section id="developers" class="py-20 px-4 bg-[#1E1E2E]/30">
         <div class="max-w-7xl mx-auto">
-            <div class="text-center mb-16">
-                <h2 class="text-3xl sm:text-4xl font-bold mb-4">Works With Your Devices</h2>
+            <div class="text-center mb-12">
+                <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-violet-600/20 border border-violet-500/30 text-violet-400 text-sm font-medium mb-4">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                    </svg>
+                    For Developers
+                </div>
+                <h2 class="text-3xl sm:text-4xl font-bold mb-4">Build with Pierre</h2>
                 <p class="text-gray-400 max-w-2xl mx-auto">
-                    Connect your favorite fitness apps and wearables. Your data stays yours—we just make it smarter.
+                    Integrate fitness intelligence into your applications using industry-standard protocols.
                 </p>
             </div>
 
-            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-12">
-                <div class="bg-[#0F0F1A] rounded-lg p-6 text-center border border-white/5">
-                    <div class="text-2xl mb-2">🏃</div>
-                    <span class="text-sm text-gray-400">Strava</span>
+            <div class="grid md:grid-cols-2 gap-8">
+                <!-- MCP Protocol -->
+                <div class="bg-[#0F0F1A] rounded-xl p-8 border border-violet-500/20">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="icon-container w-12 h-12 bg-violet-600/20">
+                            <svg class="w-6 h-6 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-semibold">MCP Protocol</h3>
+                            <p class="text-gray-500 text-sm">Model Context Protocol</p>
+                        </div>
+                    </div>
+                    <p class="text-gray-400 mb-6">
+                        Connect Pierre to Claude, ChatGPT, or any MCP-compatible AI assistant. Your AI gains access to 47+ fitness tools.
+                    </p>
+                    <div class="code-block rounded-lg p-4 text-sm overflow-x-auto">
+                        <code class="text-gray-300">
+                            <span class="text-violet-400">"mcpServers"</span>: &#123;<br>
+                            &nbsp;&nbsp;<span class="text-emerald-400">"pierre"</span>: &#123;<br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-amber-400">"url"</span>: <span class="text-cyan-400">"https://api.pierre.fitness/mcp"</span><br>
+                            &nbsp;&nbsp;&#125;<br>
+                            &#125;
+                        </code>
+                    </div>
                 </div>
-                <div class="bg-[#0F0F1A] rounded-lg p-6 text-center border border-white/5">
-                    <div class="text-2xl mb-2">⌚</div>
-                    <span class="text-sm text-gray-400">Garmin</span>
-                </div>
-                <div class="bg-[#0F0F1A] rounded-lg p-6 text-center border border-white/5">
-                    <div class="text-2xl mb-2">💚</div>
-                    <span class="text-sm text-gray-400">Fitbit</span>
-                </div>
-                <div class="bg-[#0F0F1A] rounded-lg p-6 text-center border border-white/5">
-                    <div class="text-2xl mb-2">🔴</div>
-                    <span class="text-sm text-gray-400">WHOOP</span>
-                </div>
-                <div class="bg-[#0F0F1A] rounded-lg p-6 text-center border border-white/5">
-                    <div class="text-2xl mb-2">🌐</div>
-                    <span class="text-sm text-gray-400">Terra</span>
-                </div>
-                <div class="bg-[#0F0F1A] rounded-lg p-6 text-center border border-white/5">
-                    <div class="text-2xl mb-2">+150</div>
-                    <span class="text-sm text-gray-400">More Devices</span>
+
+                <!-- A2A Protocol -->
+                <div class="bg-[#0F0F1A] rounded-xl p-8 border border-cyan-500/20">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="icon-container w-12 h-12 bg-cyan-500/20">
+                            <svg class="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-semibold">A2A Protocol</h3>
+                            <p class="text-gray-500 text-sm">Agent-to-Agent Communication</p>
+                        </div>
+                    </div>
+                    <p class="text-gray-400 mb-6">
+                        Enable your AI agents to communicate with Pierre using Google's A2A protocol for seamless multi-agent workflows.
+                    </p>
+                    <div class="code-block rounded-lg p-4 text-sm overflow-x-auto">
+                        <code class="text-gray-300">
+                            <span class="text-cyan-400">GET</span> <span class="text-gray-500">/.well-known/agent.json</span><br>
+                            <span class="text-cyan-400">POST</span> <span class="text-gray-500">/a2a/tasks</span><br>
+                            <span class="text-cyan-400">WS</span> <span class="text-gray-500">/a2a/stream</span>
+                        </code>
+                    </div>
                 </div>
             </div>
 
-            <div class="text-center">
-                <p class="text-gray-500 text-sm">
-                    Connect multiple devices at once. Pierre combines all your data for a complete picture.
+            <div class="text-center mt-8">
+                <a href="https://github.com/Async-IO/pierre_mcp_server" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-6 py-3 rounded-lg border border-white/20 hover:bg-white/5 transition-colors font-medium">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+                    </svg>
+                    View on GitHub
+                </a>
+            </div>
+            <!-- Example AI Report (Clickable) -->
+            <div id="example-report-card" class="mt-16 bg-[#1E1E2E] rounded-xl p-8 border border-white/10 cursor-pointer transition-all hover:border-violet-500/50 hover:shadow-lg hover:shadow-violet-500/10 group">
+                <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center gap-3">
+                        <div class="icon-container w-10 h-10 bg-violet-600/20">
+                            <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold">Example: AI-Generated Fitness Report</h3>
+                    </div>
+                    <div class="flex items-center gap-2 text-violet-400 text-sm font-medium group-hover:text-violet-300 transition-colors">
+                        <span>Click to explore</span>
+                        <svg class="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <!-- Multi-Year Summary -->
+                    <div class="bg-[#0F0F1A] rounded-lg p-4 border-l-2 border-emerald-500">
+                        <div class="text-2xl font-bold text-emerald-400 mb-1">2,894</div>
+                        <div class="text-sm text-gray-400">Activities over 5 years</div>
+                        <div class="text-xs text-gray-500 mt-2">13 different sports tracked</div>
+                    </div>
+                    <!-- Fitness Score -->
+                    <div class="bg-[#0F0F1A] rounded-lg p-4 border-l-2 border-violet-500">
+                        <div class="text-2xl font-bold text-violet-400 mb-1">60/100</div>
+                        <div class="text-sm text-gray-400">Current Fitness Score</div>
+                        <div class="text-xs text-gray-500 mt-2">Based on TSB, sleep &amp; recovery</div>
+                    </div>
+                    <!-- Weekly Volume -->
+                    <div class="bg-[#0F0F1A] rounded-lg p-4 border-l-2 border-amber-500">
+                        <div class="text-2xl font-bold text-amber-400 mb-1">8.5 hrs</div>
+                        <div class="text-sm text-gray-400">Weekly Activity Volume</div>
+                        <div class="text-xs text-gray-500 mt-2">+15% vs previous week</div>
+                    </div>
+                    <!-- AI Recommendation -->
+                    <div class="bg-[#0F0F1A] rounded-lg p-4 border-l-2 border-cyan-500">
+                        <div class="text-2xl font-bold text-cyan-400 mb-1">Rest Day</div>
+                        <div class="text-sm text-gray-400">AI Recommendation</div>
+                        <div class="text-xs text-gray-500 mt-2">Training load spike detected</div>
+                    </div>
+                </div>
+                <p class="text-gray-500 text-xs mt-4 text-center">
+                    Real data from 5 years of training. Click to see the full breakdown.
                 </p>
+            </div>
+
+            <!-- Report Modal -->
+            <div id="report-modal" class="fixed inset-0 z-[100] hidden">
+                <!-- Backdrop -->
+                <div id="modal-backdrop" class="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+
+                <!-- Modal Content -->
+                <div class="absolute inset-4 md:inset-8 lg:inset-16 overflow-y-auto">
+                    <div class="min-h-full flex items-start justify-center py-8">
+                        <div class="bg-[#0F0F1A] rounded-2xl border border-white/10 w-full max-w-4xl shadow-2xl shadow-violet-500/20 modal-content">
+                            <!-- Modal Header -->
+                            <div class="sticky top-0 bg-[#0F0F1A] border-b border-white/10 p-6 rounded-t-2xl flex items-center justify-between">
+                                <div class="flex items-center gap-4">
+                                    <img src="/pierre-logo.svg" alt="" class="w-10 h-10">
+                                    <div>
+                                        <h2 class="text-2xl font-bold">5-Year Fitness Journey</h2>
+                                        <p class="text-gray-400 text-sm">Generated by Pierre + Claude</p>
+                                    </div>
+                                </div>
+                                <button id="close-modal" class="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <!-- Modal Body -->
+                            <div class="p-6 space-y-8">
+                                <!-- Hero Stats -->
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div class="text-center p-4 bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 rounded-xl border border-emerald-500/20">
+                                        <div class="text-3xl font-bold text-emerald-400 counter" data-target="2894">0</div>
+                                        <div class="text-sm text-gray-400">Total Activities</div>
+                                    </div>
+                                    <div class="text-center p-4 bg-gradient-to-br from-violet-500/20 to-violet-500/5 rounded-xl border border-violet-500/20">
+                                        <div class="text-3xl font-bold text-violet-400">5</div>
+                                        <div class="text-sm text-gray-400">Years Tracked</div>
+                                    </div>
+                                    <div class="text-center p-4 bg-gradient-to-br from-amber-500/20 to-amber-500/5 rounded-xl border border-amber-500/20">
+                                        <div class="text-3xl font-bold text-amber-400 counter" data-target="13">0</div>
+                                        <div class="text-sm text-gray-400">Sports</div>
+                                    </div>
+                                    <div class="text-center p-4 bg-gradient-to-br from-cyan-500/20 to-cyan-500/5 rounded-xl border border-cyan-500/20">
+                                        <div class="text-3xl font-bold text-cyan-400">1.6</div>
+                                        <div class="text-sm text-gray-400">Avg/Day</div>
+                                    </div>
+                                </div>
+
+                                <!-- Sport Distribution -->
+                                <div>
+                                    <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                                        <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                                        </svg>
+                                        Sport Distribution
+                                    </h3>
+                                    <div class="space-y-3">
+                                        <!-- Running -->
+                                        <div class="sport-bar" data-percent="39.9">
+                                            <div class="flex justify-between text-sm mb-1">
+                                                <span class="text-gray-300">Running</span>
+                                                <span class="text-emerald-400 font-medium">1,154 activities (39.9%)</span>
+                                            </div>
+                                            <div class="h-3 bg-[#1E1E2E] rounded-full overflow-hidden">
+                                                <div class="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full sport-progress" style="width: 0%"></div>
+                                            </div>
+                                        </div>
+                                        <!-- Cycling -->
+                                        <div class="sport-bar" data-percent="30.6">
+                                            <div class="flex justify-between text-sm mb-1">
+                                                <span class="text-gray-300">Cycling</span>
+                                                <span class="text-orange-400 font-medium">885 activities (30.6%)</span>
+                                            </div>
+                                            <div class="h-3 bg-[#1E1E2E] rounded-full overflow-hidden">
+                                                <div class="h-full bg-gradient-to-r from-orange-500 to-orange-400 rounded-full sport-progress" style="width: 0%"></div>
+                                            </div>
+                                        </div>
+                                        <!-- Hiking -->
+                                        <div class="sport-bar" data-percent="12.4">
+                                            <div class="flex justify-between text-sm mb-1">
+                                                <span class="text-gray-300">Hiking</span>
+                                                <span class="text-amber-400 font-medium">359 activities (12.4%)</span>
+                                            </div>
+                                            <div class="h-3 bg-[#1E1E2E] rounded-full overflow-hidden">
+                                                <div class="h-full bg-gradient-to-r from-amber-500 to-amber-400 rounded-full sport-progress" style="width: 0%"></div>
+                                            </div>
+                                        </div>
+                                        <!-- Nordic Ski -->
+                                        <div class="sport-bar" data-percent="8.2">
+                                            <div class="flex justify-between text-sm mb-1">
+                                                <span class="text-gray-300">Nordic Ski</span>
+                                                <span class="text-cyan-400 font-medium">237 activities (8.2%)</span>
+                                            </div>
+                                            <div class="h-3 bg-[#1E1E2E] rounded-full overflow-hidden">
+                                                <div class="h-full bg-gradient-to-r from-cyan-500 to-cyan-400 rounded-full sport-progress" style="width: 0%"></div>
+                                            </div>
+                                        </div>
+                                        <!-- Walking -->
+                                        <div class="sport-bar" data-percent="5.1">
+                                            <div class="flex justify-between text-sm mb-1">
+                                                <span class="text-gray-300">Walking</span>
+                                                <span class="text-violet-400 font-medium">148 activities (5.1%)</span>
+                                            </div>
+                                            <div class="h-3 bg-[#1E1E2E] rounded-full overflow-hidden">
+                                                <div class="h-full bg-gradient-to-r from-violet-500 to-violet-400 rounded-full sport-progress" style="width: 0%"></div>
+                                            </div>
+                                        </div>
+                                        <!-- Other Sports -->
+                                        <div class="sport-bar" data-percent="3.8">
+                                            <div class="flex justify-between text-sm mb-1">
+                                                <span class="text-gray-300">Other (8 sports)</span>
+                                                <span class="text-gray-400 font-medium">111 activities (3.8%)</span>
+                                            </div>
+                                            <div class="h-3 bg-[#1E1E2E] rounded-full overflow-hidden">
+                                                <div class="h-full bg-gradient-to-r from-gray-500 to-gray-400 rounded-full sport-progress" style="width: 0%"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Year by Year -->
+                                <div>
+                                    <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                                        <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                        </svg>
+                                        Year-by-Year Progression
+                                    </h3>
+                                    <div class="grid grid-cols-5 gap-2 text-center">
+                                        <div class="year-bar">
+                                            <div class="h-24 bg-[#1E1E2E] rounded-lg flex flex-col justify-end p-2 relative overflow-hidden">
+                                                <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-violet-500/50 to-violet-500/20 year-fill" style="height: 0%" data-height="69%"></div>
+                                                <span class="relative text-lg font-bold text-violet-400">384</span>
+                                            </div>
+                                            <span class="text-xs text-gray-500 mt-1 block">2021</span>
+                                        </div>
+                                        <div class="year-bar">
+                                            <div class="h-24 bg-[#1E1E2E] rounded-lg flex flex-col justify-end p-2 relative overflow-hidden">
+                                                <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-violet-500/50 to-violet-500/20 year-fill" style="height: 0%" data-height="91%"></div>
+                                                <span class="relative text-lg font-bold text-violet-400">506</span>
+                                            </div>
+                                            <span class="text-xs text-gray-500 mt-1 block">2022</span>
+                                        </div>
+                                        <div class="year-bar">
+                                            <div class="h-24 bg-[#1E1E2E] rounded-lg flex flex-col justify-end p-2 relative overflow-hidden">
+                                                <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-violet-500/50 to-violet-500/20 year-fill" style="height: 0%" data-height="90%"></div>
+                                                <span class="relative text-lg font-bold text-violet-400">500</span>
+                                            </div>
+                                            <span class="text-xs text-gray-500 mt-1 block">2023</span>
+                                        </div>
+                                        <div class="year-bar">
+                                            <div class="h-24 bg-[#1E1E2E] rounded-lg flex flex-col justify-end p-2 relative overflow-hidden">
+                                                <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-emerald-500/50 to-emerald-500/20 year-fill" style="height: 0%" data-height="100%"></div>
+                                                <span class="relative text-lg font-bold text-emerald-400">554</span>
+                                            </div>
+                                            <span class="text-xs text-emerald-400 mt-1 block font-medium">2024</span>
+                                        </div>
+                                        <div class="year-bar">
+                                            <div class="h-24 bg-[#1E1E2E] rounded-lg flex flex-col justify-end p-2 relative overflow-hidden">
+                                                <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-amber-500/50 to-amber-500/20 year-fill" style="height: 0%" data-height="90%"></div>
+                                                <span class="relative text-lg font-bold text-amber-400">500</span>
+                                            </div>
+                                            <span class="text-xs text-gray-500 mt-1 block">2025</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Athlete Evolution -->
+                                <div class="bg-gradient-to-r from-violet-500/10 to-cyan-500/10 rounded-xl p-6 border border-violet-500/20">
+                                    <h3 class="text-lg font-semibold mb-3 flex items-center gap-2">
+                                        <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                                        </svg>
+                                        Athlete Evolution
+                                    </h3>
+                                    <p class="text-gray-300 leading-relaxed">
+                                        Transitioned from primarily <span class="text-orange-400 font-medium">cycling</span> in 2021 to becoming a dedicated
+                                        <span class="text-emerald-400 font-medium">runner</span> by 2022-2023. By 2024-2025, evolved into a
+                                        <span class="text-violet-400 font-medium">multi-sport athlete</span> with strong focus on trail running,
+                                        Nordic skiing, and cross-training activities.
+                                    </p>
+                                </div>
+
+                                <!-- CTA -->
+                                <div class="text-center pt-4">
+                                    <p class="text-gray-400 mb-4">Want a report like this for your fitness journey?</p>
+                                    <a href="#early-access" id="modal-cta" class="inline-flex items-center gap-2 gradient-pierre px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity">
+                                        Get Early Access
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                                        </svg>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </section>
@@ -454,16 +754,26 @@ import '../styles/global.css';
 
             <div class="grid md:grid-cols-3 gap-8">
                 <div class="text-center">
-                    <div class="w-16 h-16 rounded-full bg-violet-600/20 flex items-center justify-center mx-auto mb-6">
-                        <span class="text-3xl">1️⃣</span>
+                    <div class="w-16 h-16 rounded-full bg-violet-600/20 flex items-center justify-center mx-auto mb-6 relative">
+                        <span class="text-2xl font-bold gradient-pierre-text">1</span>
+                        <div class="absolute -right-4 top-1/2 hidden md:block">
+                            <svg class="w-8 h-8 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                            </svg>
+                        </div>
                     </div>
                     <h3 class="text-xl font-semibold mb-3">Connect Your Devices</h3>
-                    <p class="text-gray-400">Link your Strava, Garmin, Fitbit, WHOOP, Terra, or other fitness accounts with one click.</p>
+                    <p class="text-gray-400">Link your Strava, Garmin, Fitbit, WHOOP, or Terra accounts with one click.</p>
                 </div>
 
                 <div class="text-center">
-                    <div class="w-16 h-16 rounded-full bg-cyan-500/20 flex items-center justify-center mx-auto mb-6">
-                        <span class="text-3xl">2️⃣</span>
+                    <div class="w-16 h-16 rounded-full bg-cyan-500/20 flex items-center justify-center mx-auto mb-6 relative">
+                        <span class="text-2xl font-bold gradient-pierre-text">2</span>
+                        <div class="absolute -right-4 top-1/2 hidden md:block">
+                            <svg class="w-8 h-8 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                            </svg>
+                        </div>
                     </div>
                     <h3 class="text-xl font-semibold mb-3">Ask Questions</h3>
                     <p class="text-gray-400">Chat naturally with your AI assistant about your training, nutrition, or recovery.</p>
@@ -471,7 +781,7 @@ import '../styles/global.css';
 
                 <div class="text-center">
                     <div class="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-6">
-                        <span class="text-3xl">3️⃣</span>
+                        <span class="text-2xl font-bold gradient-pierre-text">3</span>
                     </div>
                     <h3 class="text-xl font-semibold mb-3">Get Smart Insights</h3>
                     <p class="text-gray-400">Receive personalized recommendations backed by real sports science formulas.</p>
@@ -482,25 +792,25 @@ import '../styles/global.css';
                 <h3 class="text-xl font-semibold mb-6 text-center">Example Conversations</h3>
                 <div class="grid md:grid-cols-2 gap-6">
                     <div class="space-y-3">
-                        <div class="bg-[#0F0F1A] rounded-lg p-4">
+                        <div class="bg-[#0F0F1A] rounded-lg p-4 border-l-2 border-emerald-500">
                             <p class="text-gray-300 text-sm">"Am I ready for a hard workout today?"</p>
                         </div>
-                        <div class="bg-[#0F0F1A] rounded-lg p-4">
+                        <div class="bg-[#0F0F1A] rounded-lg p-4 border-l-2 border-violet-500">
                             <p class="text-gray-300 text-sm">"What's my predicted marathon time based on recent training?"</p>
                         </div>
-                        <div class="bg-[#0F0F1A] rounded-lg p-4">
+                        <div class="bg-[#0F0F1A] rounded-lg p-4 border-l-2 border-amber-500">
                             <p class="text-gray-300 text-sm">"How many calories should I eat today?"</p>
                         </div>
                     </div>
                     <div class="space-y-3">
-                        <div class="bg-[#0F0F1A] rounded-lg p-4">
+                        <div class="bg-[#0F0F1A] rounded-lg p-4 border-l-2 border-amber-500">
                             <p class="text-gray-300 text-sm">"Create a high-protein post-workout meal and save it to my recipes."</p>
                         </div>
-                        <div class="bg-[#0F0F1A] rounded-lg p-4">
-                            <p class="text-gray-300 text-sm">"What should I eat before my morning run?"</p>
+                        <div class="bg-[#0F0F1A] rounded-lg p-4 border-l-2 border-indigo-500">
+                            <p class="text-gray-300 text-sm">"How was my sleep quality this week?"</p>
                         </div>
-                        <div class="bg-[#0F0F1A] rounded-lg p-4">
-                            <p class="text-gray-300 text-sm">"Show me my saved recipes tagged 'quick' for rest days."</p>
+                        <div class="bg-[#0F0F1A] rounded-lg p-4 border-l-2 border-emerald-500">
+                            <p class="text-gray-300 text-sm">"Show me my training load trend for the past month."</p>
                         </div>
                     </div>
                 </div>
@@ -508,60 +818,43 @@ import '../styles/global.css';
         </div>
     </section>
 
-    <!-- Stats Section -->
-    <section class="py-20 px-4 bg-[#1E1E2E]/50">
-        <div class="max-w-7xl mx-auto">
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-                <div>
-                    <div class="text-4xl font-bold gradient-pierre-text mb-2">52+</div>
-                    <div class="text-gray-400">Fitness Insights</div>
-                </div>
-                <div>
-                    <div class="text-4xl font-bold gradient-pierre-text mb-2">150+</div>
-                    <div class="text-gray-400">Supported Devices</div>
-                </div>
-                <div>
-                    <div class="text-4xl font-bold gradient-pierre-text mb-2">350k+</div>
-                    <div class="text-gray-400">Foods in Database</div>
-                </div>
-                <div>
-                    <div class="text-4xl font-bold gradient-pierre-text mb-2">100%</div>
-                    <div class="text-gray-400">Open Source</div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Privacy Section -->
-    <section class="py-20 px-4">
+    <!-- Privacy Section (Updated) -->
+    <section class="py-20 px-4 bg-[#1E1E2E]/50 node-pattern">
         <div class="max-w-7xl mx-auto">
             <div class="text-center mb-16">
                 <h2 class="text-3xl sm:text-4xl font-bold mb-4">Your Data, Your Control</h2>
                 <p class="text-gray-400 max-w-2xl mx-auto">
-                    Pierre is open source and respects your privacy. Your fitness data stays secure.
+                    Pierre respects your privacy. Your fitness data stays secure and under your control.
                 </p>
             </div>
 
             <div class="grid md:grid-cols-3 gap-6">
-                <div class="bg-[#1E1E2E] rounded-xl p-6 border border-white/10 text-center">
-                    <div class="w-14 h-14 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-4">
-                        <span class="text-2xl">🔒</span>
+                <div class="bg-[#0F0F1A]/80 backdrop-blur-sm rounded-xl p-6 border border-white/10 text-center">
+                    <div class="icon-container w-14 h-14 bg-emerald-500/20 mx-auto mb-4">
+                        <svg class="w-7 h-7 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                        </svg>
                     </div>
-                    <h3 class="font-semibold mb-2">Secure Connection</h3>
-                    <p class="text-gray-400 text-sm">Your data is encrypted and never shared with third parties.</p>
+                    <h3 class="font-semibold mb-2">Encrypted & Secure</h3>
+                    <p class="text-gray-400 text-sm">Your data is encrypted end-to-end and never shared with third parties.</p>
                 </div>
 
-                <div class="bg-[#1E1E2E] rounded-xl p-6 border border-white/10 text-center">
-                    <div class="w-14 h-14 rounded-full bg-violet-600/20 flex items-center justify-center mx-auto mb-4">
-                        <span class="text-2xl">🌐</span>
+                <div class="bg-[#0F0F1A]/80 backdrop-blur-sm rounded-xl p-6 border border-white/10 text-center">
+                    <div class="icon-container w-14 h-14 bg-violet-600/20 mx-auto mb-4">
+                        <svg class="w-7 h-7 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                        </svg>
                     </div>
-                    <h3 class="font-semibold mb-2">Open Source</h3>
-                    <p class="text-gray-400 text-sm">100% transparent. Review the code, run it yourself, or contribute.</p>
+                    <h3 class="font-semibold mb-2">Code on GitHub</h3>
+                    <p class="text-gray-400 text-sm">Review the source code, run it yourself, or contribute to development.</p>
                 </div>
 
-                <div class="bg-[#1E1E2E] rounded-xl p-6 border border-white/10 text-center">
-                    <div class="w-14 h-14 rounded-full bg-cyan-500/20 flex items-center justify-center mx-auto mb-4">
-                        <span class="text-2xl">🎯</span>
+                <div class="bg-[#0F0F1A]/80 backdrop-blur-sm rounded-xl p-6 border border-white/10 text-center">
+                    <div class="icon-container w-14 h-14 bg-cyan-500/20 mx-auto mb-4">
+                        <svg class="w-7 h-7 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                        </svg>
                     </div>
                     <h3 class="font-semibold mb-2">You're in Control</h3>
                     <p class="text-gray-400 text-sm">Connect and disconnect your devices anytime. Delete your data whenever you want.</p>
@@ -571,11 +864,11 @@ import '../styles/global.css';
     </section>
 
     <!-- Early Access Section -->
-    <section id="early-access" class="py-20 px-4 bg-[#1E1E2E]/50">
+    <section id="early-access" class="py-20 px-4">
         <div class="max-w-3xl mx-auto text-center">
             <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-violet-600/20 border border-violet-500/30 text-violet-400 text-sm font-medium mb-6">
                 <span class="relative flex h-2 w-2">
-                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
+                    <span class="pulse-ring absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
                     <span class="relative inline-flex rounded-full h-2 w-2 bg-violet-500"></span>
                 </span>
                 Coming Soon
@@ -585,11 +878,8 @@ import '../styles/global.css';
                 Pierre Fitness Intelligence is launching soon. Be the first to know when we go live and help shape the future of fitness insights.
             </p>
 
-            <!-- Buttondown Signup Form -->
-            <form
-                id="early-access-form"
-                class="flex flex-col sm:flex-row gap-3 max-w-md mx-auto mb-4"
-            >
+            <!-- Signup Form -->
+            <form id="early-access-form" class="flex flex-col sm:flex-row gap-3 max-w-md mx-auto mb-4">
                 <input
                     type="email"
                     name="email"
@@ -611,34 +901,32 @@ import '../styles/global.css';
             </form>
 
             <p id="form-message" class="text-sm mb-2 h-6"></p>
-            <p class="text-gray-500 text-sm">
-                No spam, ever. Unsubscribe anytime.
-            </p>
+            <p class="text-gray-500 text-sm">No spam, ever. Unsubscribe anytime.</p>
 
             <!-- Benefits -->
             <div class="mt-12 grid sm:grid-cols-3 gap-6 text-left">
-                <div class="bg-[#0F0F1A] rounded-lg p-5 border border-white/5">
-                    <div class="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center mb-3">
-                        <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-[#1E1E2E] rounded-lg p-5 border border-white/5">
+                    <div class="icon-container w-10 h-10 bg-emerald-500/20 mb-3">
+                        <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                         </svg>
                     </div>
                     <h3 class="font-semibold mb-1">Early Access</h3>
                     <p class="text-gray-400 text-sm">Be among the first to try Pierre before public launch.</p>
                 </div>
-                <div class="bg-[#0F0F1A] rounded-lg p-5 border border-white/5">
-                    <div class="w-10 h-10 rounded-lg bg-violet-600/20 flex items-center justify-center mb-3">
-                        <svg class="w-5 h-5 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-[#1E1E2E] rounded-lg p-5 border border-white/5">
+                    <div class="icon-container w-10 h-10 bg-violet-600/20 mb-3">
+                        <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
                         </svg>
                     </div>
                     <h3 class="font-semibold mb-1">Shape the Product</h3>
                     <p class="text-gray-400 text-sm">Your feedback will directly influence features and direction.</p>
                 </div>
-                <div class="bg-[#0F0F1A] rounded-lg p-5 border border-white/5">
-                    <div class="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center mb-3">
-                        <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/>
+                <div class="bg-[#1E1E2E] rounded-lg p-5 border border-white/5">
+                    <div class="icon-container w-10 h-10 bg-amber-500/20 mb-3">
+                        <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
                         </svg>
                     </div>
                     <h3 class="font-semibold mb-1">Exclusive Updates</h3>
@@ -648,60 +936,65 @@ import '../styles/global.css';
         </div>
     </section>
 
-    <!-- Footer -->
-    <footer class="py-16 px-4 border-t border-white/10">
+    <!-- Footer (Simplified) -->
+    <footer class="py-12 px-4 border-t border-white/10">
         <div class="max-w-7xl mx-auto">
-            <div class="grid md:grid-cols-3 gap-12 mb-12">
-                <div>
-                    <div class="flex items-center gap-3 mb-4">
-                        <img src="/pierre-logo.svg" alt="Pierre Fitness Intelligence" class="h-10 w-10">
-                        <span class="text-xl font-semibold">Pierre</span>
-                    </div>
-                    <p class="text-gray-400 mb-6 max-w-md">
-                        Smarter fitness insights from your favorite devices.
-                        100% open source and free.
-                    </p>
-                    <div class="flex gap-4">
-                        <a href="https://github.com/Async-IO/pierre_mcp_server" class="text-gray-400 hover:text-white transition-colors">
-                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                                <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
-                            </svg>
-                        </a>
-                    </div>
+            <div class="flex flex-col md:flex-row items-center justify-between gap-6">
+                <div class="flex items-center gap-3">
+                    <img src="/pierre-logo.svg" alt="Pierre Fitness Intelligence" class="h-10 w-10">
+                    <span class="text-xl font-semibold">Pierre</span>
                 </div>
 
-                <div>
-                    <h4 class="font-semibold mb-4">Learn More</h4>
-                    <ul class="space-y-2 text-gray-400">
-                        <li><a href="/getting-started/" class="hover:text-white transition-colors">Getting Started</a></li>
-                        <li><a href="/intelligence-methodology/" class="hover:text-white transition-colors">How It Works</a></li>
-                        <li><a href="/nutrition-methodology/" class="hover:text-white transition-colors">Nutrition Science</a></li>
-                        <li><a href="/recovery-methodology/" class="hover:text-white transition-colors">Recovery Science</a></li>
-                    </ul>
+                <div class="flex items-center gap-6">
+                    <a href="https://github.com/Async-IO/pierre_mcp_server" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+                        </svg>
+                        <span>GitHub</span>
+                    </a>
+                    <a href="https://github.com/Async-IO/pierre_mcp_server/discussions" target="_blank" rel="noopener noreferrer" class="text-gray-400 hover:text-white transition-colors">
+                        Discussions
+                    </a>
                 </div>
 
-                <div>
-                    <h4 class="font-semibold mb-4">Connect</h4>
-                    <ul class="space-y-2 text-gray-400">
-                        <li><a href="https://github.com/Async-IO/pierre_mcp_server" class="hover:text-white transition-colors">GitHub</a></li>
-                        <li><a href="https://github.com/Async-IO/pierre_mcp_server/discussions" class="hover:text-white transition-colors">Discussions</a></li>
-                        <li><a href="https://github.com/Async-IO/pierre_mcp_server/issues" class="hover:text-white transition-colors">Report an Issue</a></li>
-                        <li><a href="/contributing/" class="hover:text-white transition-colors">Contribute</a></li>
-                    </ul>
-                </div>
-            </div>
-
-            <!-- Copyright -->
-            <div class="pt-8 border-t border-white/10 text-center">
                 <div class="text-gray-500 text-sm">
-                    &copy; 2025 Pierre Fitness Intelligence. Open source and free forever.
+                    &copy; 2025 Pierre Fitness Intelligence
                 </div>
             </div>
         </div>
     </footer>
 
-    <!-- Smooth scroll behavior -->
-    <script>
+    <!-- Scripts -->
+    <script is:inline>
+        // Mobile Menu Toggle
+        (function() {
+            const menuBtn = document.getElementById('mobile-menu-btn');
+            const mobileMenu = document.getElementById('mobile-menu');
+            const hamburgerIcon = document.getElementById('hamburger-icon');
+            const closeIcon = document.getElementById('close-icon');
+
+            if (menuBtn && mobileMenu) {
+                menuBtn.addEventListener('click', function() {
+                    const isOpen = !mobileMenu.classList.contains('hidden');
+                    mobileMenu.classList.toggle('hidden');
+                    hamburgerIcon.classList.toggle('hidden');
+                    closeIcon.classList.toggle('hidden');
+                    menuBtn.setAttribute('aria-expanded', !isOpen);
+                });
+
+                // Close menu when clicking a link
+                mobileMenu.querySelectorAll('a').forEach(link => {
+                    link.addEventListener('click', () => {
+                        mobileMenu.classList.add('hidden');
+                        hamburgerIcon.classList.remove('hidden');
+                        closeIcon.classList.add('hidden');
+                        menuBtn.setAttribute('aria-expanded', 'false');
+                    });
+                });
+            }
+        })();
+
+        // Smooth scroll
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function (e) {
                 e.preventDefault();
@@ -711,10 +1004,8 @@ import '../styles/global.css';
                 }
             });
         });
-    </script>
 
-    <!-- Early Access Form Submission -->
-    <script>
+        // Early Access Form
         (function() {
             const form = document.getElementById('early-access-form');
             const emailInput = document.getElementById('bd-email');
@@ -722,123 +1013,48 @@ import '../styles/global.css';
             const btnText = document.getElementById('btn-text');
             const message = document.getElementById('form-message');
 
-            form.addEventListener('submit', async function(e) {
-                e.preventDefault();
+            if (form) {
+                form.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    const email = emailInput.value.trim();
+                    if (!email) return;
 
-                const email = emailInput.value.trim();
-                if (!email) return;
+                    submitBtn.disabled = true;
+                    btnText.textContent = 'Joining...';
+                    message.textContent = '';
+                    message.className = 'text-sm mb-2 h-6';
 
-                // Show loading state
-                submitBtn.disabled = true;
-                btnText.textContent = 'Joining...';
-                message.textContent = '';
-                message.className = 'text-sm mb-2 h-6';
+                    try {
+                        const formData = new FormData();
+                        formData.append('email', email);
+                        formData.append('embed', '1');
 
-                try {
-                    const formData = new FormData();
-                    formData.append('email', email);
-                    formData.append('embed', '1');
+                        await fetch('https://buttondown.com/api/emails/embed-subscribe/pierrefitness', {
+                            method: 'POST',
+                            body: formData,
+                            mode: 'no-cors'
+                        });
 
-                    const response = await fetch('https://buttondown.com/api/emails/embed-subscribe/pierrefitness', {
-                        method: 'POST',
-                        body: formData,
-                        mode: 'no-cors'
-                    });
+                        message.textContent = '✓ You\'re on the list! Check your email to confirm.';
+                        message.className = 'text-sm mb-2 h-6 text-emerald-400';
+                        emailInput.value = '';
+                        btnText.textContent = 'Joined!';
 
-                    // With no-cors, we can't read the response, so assume success
-                    message.textContent = '✓ You\'re on the list! Check your email to confirm.';
-                    message.className = 'text-sm mb-2 h-6 text-emerald-400';
-                    emailInput.value = '';
-                    btnText.textContent = 'Joined!';
-
-                    // Reset button after 3 seconds
-                    setTimeout(() => {
+                        setTimeout(() => {
+                            btnText.textContent = 'Join Waitlist';
+                            submitBtn.disabled = false;
+                        }, 3000);
+                    } catch (error) {
+                        message.textContent = 'Something went wrong. Please try again.';
+                        message.className = 'text-sm mb-2 h-6 text-red-400';
                         btnText.textContent = 'Join Waitlist';
                         submitBtn.disabled = false;
-                    }, 3000);
-
-                } catch (error) {
-                    message.textContent = 'Something went wrong. Please try again.';
-                    message.className = 'text-sm mb-2 h-6 text-red-400';
-                    btnText.textContent = 'Join Waitlist';
-                    submitBtn.disabled = false;
-                }
-            });
+                    }
+                });
+            }
         })();
-    </script>
 
-    <!-- Chat Carousel Logic -->
-    <script>
-        (function() {
-            const slides = document.querySelectorAll('.carousel-slide');
-            const dots = document.querySelectorAll('.carousel-dot');
-            const labels = document.querySelectorAll('.carousel-label');
-            const prevBtn = document.getElementById('carousel-prev');
-            const nextBtn = document.getElementById('carousel-next');
-            let currentSlide = 0;
-            let autoPlayInterval;
-
-            function showSlide(index) {
-                // Wrap around
-                if (index >= slides.length) index = 0;
-                if (index < 0) index = slides.length - 1;
-                currentSlide = index;
-
-                // Update slides
-                slides.forEach((slide, i) => {
-                    slide.classList.toggle('hidden', i !== index);
-                });
-
-                // Update dots
-                dots.forEach((dot, i) => {
-                    dot.classList.toggle('bg-violet-500', i === index);
-                    dot.classList.toggle('bg-white/30', i !== index);
-                });
-
-                // Update labels
-                labels.forEach((label, i) => {
-                    label.classList.toggle('text-violet-400', i === index);
-                    label.classList.toggle('font-medium', i === index);
-                    label.classList.toggle('text-gray-500', i !== index);
-                });
-            }
-
-            function nextSlide() {
-                showSlide(currentSlide + 1);
-            }
-
-            function prevSlide() {
-                showSlide(currentSlide - 1);
-            }
-
-            function startAutoPlay() {
-                autoPlayInterval = setInterval(nextSlide, 5000);
-            }
-
-            function stopAutoPlay() {
-                clearInterval(autoPlayInterval);
-            }
-
-            // Event listeners
-            if (prevBtn) prevBtn.addEventListener('click', () => { stopAutoPlay(); prevSlide(); startAutoPlay(); });
-            if (nextBtn) nextBtn.addEventListener('click', () => { stopAutoPlay(); nextSlide(); startAutoPlay(); });
-
-            dots.forEach((dot, i) => {
-                dot.addEventListener('click', () => { stopAutoPlay(); showSlide(i); startAutoPlay(); });
-            });
-
-            labels.forEach((label, i) => {
-                label.addEventListener('click', () => { stopAutoPlay(); showSlide(i); startAutoPlay(); });
-                label.style.cursor = 'pointer';
-            });
-
-            // Start auto-play
-            startAutoPlay();
-        })();
-    </script>
-
-    <!-- Announcement Banner Logic -->
-    <script>
+        // Announcement Banner
         (function() {
             const BANNER_KEY = 'pierre_banner_dismissed';
             const banner = document.getElementById('announcement-banner');
@@ -874,6 +1090,121 @@ import '../styles/global.css';
             if (dismissBtn) {
                 dismissBtn.addEventListener('click', hideBanner);
             }
+        })();
+
+        // Stats animation on scroll
+        (function() {
+            const statsContainer = document.getElementById('stats-container');
+            if (!statsContainer) return;
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.querySelectorAll('.stat-glow').forEach((stat, index) => {
+                            stat.style.animationDelay = `${index * 0.15}s`;
+                            stat.classList.add('stat-animate');
+                        });
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: 0.3 });
+
+            observer.observe(statsContainer);
+        })();
+
+        // Example Report Modal
+        (function() {
+            const card = document.getElementById('example-report-card');
+            const modal = document.getElementById('report-modal');
+            const backdrop = document.getElementById('modal-backdrop');
+            const closeBtn = document.getElementById('close-modal');
+            const modalCta = document.getElementById('modal-cta');
+            let animationRan = false;
+
+            function openModal() {
+                modal.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+
+                // Animate entrance
+                setTimeout(() => {
+                    modal.querySelector('.modal-content').style.transform = 'scale(1)';
+                    modal.querySelector('.modal-content').style.opacity = '1';
+                }, 10);
+
+                // Run animations only once
+                if (!animationRan) {
+                    animationRan = true;
+                    setTimeout(runAnimations, 300);
+                }
+            }
+
+            function closeModal() {
+                modal.classList.add('hidden');
+                document.body.style.overflow = '';
+            }
+
+            function runAnimations() {
+                // Animate counters
+                document.querySelectorAll('.counter').forEach(counter => {
+                    const target = parseInt(counter.dataset.target);
+                    const duration = 1500;
+                    const step = target / (duration / 16);
+                    let current = 0;
+
+                    const updateCounter = () => {
+                        current += step;
+                        if (current < target) {
+                            counter.textContent = Math.floor(current).toLocaleString();
+                            requestAnimationFrame(updateCounter);
+                        } else {
+                            counter.textContent = target.toLocaleString();
+                        }
+                    };
+                    updateCounter();
+                });
+
+                // Animate sport progress bars
+                document.querySelectorAll('.sport-bar').forEach((bar, index) => {
+                    const percent = bar.dataset.percent;
+                    const progress = bar.querySelector('.sport-progress');
+                    setTimeout(() => {
+                        progress.style.transition = 'width 1s ease-out';
+                        progress.style.width = percent + '%';
+                    }, index * 100);
+                });
+
+                // Animate year bars
+                document.querySelectorAll('.year-fill').forEach((fill, index) => {
+                    const height = fill.dataset.height;
+                    setTimeout(() => {
+                        fill.style.transition = 'height 0.8s ease-out';
+                        fill.style.height = height;
+                    }, 800 + index * 150);
+                });
+            }
+
+            if (card) {
+                card.addEventListener('click', openModal);
+            }
+
+            if (closeBtn) {
+                closeBtn.addEventListener('click', closeModal);
+            }
+
+            if (backdrop) {
+                backdrop.addEventListener('click', closeModal);
+            }
+
+            if (modalCta) {
+                modalCta.addEventListener('click', closeModal);
+            }
+
+            // Close on Escape key
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+                    closeModal();
+                }
+            });
         })();
     </script>
 </body>
