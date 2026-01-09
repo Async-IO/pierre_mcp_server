@@ -1,5 +1,5 @@
 // ABOUTME: Configuration context for dependency injection of config and OAuth services
-// ABOUTME: Contains server config, OAuth managers, and tenant services for configuration operations
+// ABOUTME: Contains server config, OAuth managers, tenant services, and admin config for configuration operations
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use crate::a2a::client::A2AClientManager;
 use crate::a2a::system_user::A2ASystemUserService;
+use crate::config::admin::AdminConfigService;
 use crate::config::environment::ServerConfig;
 use crate::tenant::TenantOAuthClient;
 
@@ -21,12 +22,14 @@ use crate::tenant::TenantOAuthClient;
 /// - `tenant_oauth_client`: Multi-tenant OAuth client management
 /// - `a2a_client_manager`: Application-to-application client management
 /// - `a2a_system_user_service`: System user service for A2A operations
+/// - `admin_config`: Admin configuration service for runtime parameter management
 #[derive(Clone)]
 pub struct ConfigContext {
     config: Arc<ServerConfig>,
     tenant_oauth_client: Arc<TenantOAuthClient>,
     a2a_client_manager: Arc<A2AClientManager>,
     a2a_system_user_service: Arc<A2ASystemUserService>,
+    admin_config: Option<Arc<AdminConfigService>>,
 }
 
 impl ConfigContext {
@@ -37,12 +40,14 @@ impl ConfigContext {
         tenant_oauth_client: Arc<TenantOAuthClient>,
         a2a_client_manager: Arc<A2AClientManager>,
         a2a_system_user_service: Arc<A2ASystemUserService>,
+        admin_config: Option<Arc<AdminConfigService>>,
     ) -> Self {
         Self {
             config,
             tenant_oauth_client,
             a2a_client_manager,
             a2a_system_user_service,
+            admin_config,
         }
     }
 
@@ -68,5 +73,11 @@ impl ConfigContext {
     #[must_use]
     pub const fn a2a_system_user_service(&self) -> &Arc<A2ASystemUserService> {
         &self.a2a_system_user_service
+    }
+
+    /// Get admin configuration service for runtime parameter management
+    #[must_use]
+    pub const fn admin_config(&self) -> &Option<Arc<AdminConfigService>> {
+        &self.admin_config
     }
 }

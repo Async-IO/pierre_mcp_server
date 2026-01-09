@@ -1,10 +1,11 @@
 // ABOUTME: Authentication context for dependency injection of auth-related services
-// ABOUTME: Contains auth manager, middleware, and JWT secret for authentication operations
+// ABOUTME: Contains auth manager, middleware, JWT secret, and Firebase auth for authentication operations
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::admin::jwks::JwksManager;
+use crate::admin::FirebaseAuth;
 use crate::auth::AuthManager;
 use crate::middleware::McpAuthMiddleware;
 use std::sync::Arc;
@@ -19,12 +20,14 @@ use std::sync::Arc;
 /// - `auth_middleware`: MCP-specific authentication middleware
 /// - `admin_jwt_secret`: Secret for admin JWT token validation
 /// - `jwks_manager`: JWKS manager for RS256 token signing and key rotation
+/// - `firebase_auth`: Firebase Authentication handler for social login (Google, Apple, etc.)
 #[derive(Clone)]
 pub struct AuthContext {
     auth_manager: Arc<AuthManager>,
     auth_middleware: Arc<McpAuthMiddleware>,
     admin_jwt_secret: Arc<str>,
     jwks_manager: Arc<JwksManager>,
+    firebase_auth: Option<Arc<FirebaseAuth>>,
 }
 
 impl AuthContext {
@@ -35,12 +38,14 @@ impl AuthContext {
         auth_middleware: Arc<McpAuthMiddleware>,
         admin_jwt_secret: Arc<str>,
         jwks_manager: Arc<JwksManager>,
+        firebase_auth: Option<Arc<FirebaseAuth>>,
     ) -> Self {
         Self {
             auth_manager,
             auth_middleware,
             admin_jwt_secret,
             jwks_manager,
+            firebase_auth,
         }
     }
 
@@ -66,5 +71,11 @@ impl AuthContext {
     #[must_use]
     pub const fn jwks_manager(&self) -> &Arc<JwksManager> {
         &self.jwks_manager
+    }
+
+    /// Get Firebase auth handler for social login
+    #[must_use]
+    pub const fn firebase_auth(&self) -> &Option<Arc<FirebaseAuth>> {
+        &self.firebase_auth
     }
 }

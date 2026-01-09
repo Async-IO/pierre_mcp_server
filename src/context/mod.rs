@@ -12,18 +12,24 @@
 //! # Architecture
 //!
 //! - `AuthContext`: Authentication and authorization dependencies
-//! - `DataContext`: Database and data provider dependencies
+//! - `DataContext`: Database, cache, and data provider dependencies
 //! - `ConfigContext`: Configuration and OAuth management dependencies
 //! - `NotificationContext`: WebSocket and SSE notification dependencies
+//! - `SecurityContext`: CSRF protection, PII redaction, and rate limiting
+//! - `ExtensionContext`: Plugin execution and MCP protocol extensions
 
-/// Authentication context with auth manager and middleware
+/// Authentication context with auth manager, middleware, and Firebase auth
 pub mod auth;
-/// Configuration context with OAuth and settings management
+/// Configuration context with OAuth, tenant settings, and admin config management
 pub mod config;
-/// Data context with database and provider access
+/// Data context with database, cache, and provider access
 pub mod data;
+/// Extension context for plugins, sampling peer, and progress notifications
+pub mod extension;
 /// Notification context for WebSocket and SSE
 pub mod notification;
+/// Security context for CSRF, redaction, and rate limiting
+pub mod security;
 /// Server context combining all focused contexts
 pub mod server;
 
@@ -33,7 +39,11 @@ pub use auth::AuthContext;
 pub use config::ConfigContext;
 /// Data access context
 pub use data::DataContext;
+/// Extension context
+pub use extension::ExtensionContext;
 /// Notification context
 pub use notification::NotificationContext;
+/// Security context
+pub use security::SecurityContext;
 /// Combined server context
 pub use server::ServerContext;
