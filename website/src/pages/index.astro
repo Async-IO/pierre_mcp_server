@@ -594,7 +594,7 @@ import '../styles/global.css';
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
                         </svg>
                     </div>
-                    <div class="text-5xl font-bold gradient-pierre-text mb-2" data-count="47">47</div>
+                    <div class="text-5xl font-bold gradient-pierre-text mb-2" data-count="34">34</div>
                     <div class="text-gray-400 font-medium">Fitness Insights</div>
                     <p class="text-gray-500 text-sm mt-2">Training, nutrition & recovery metrics</p>
                     <div class="flex items-center justify-center gap-1 mt-3 text-emerald-400 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1019,7 +1019,7 @@ import '../styles/global.css';
                                         </svg>
                                     </div>
                                     <div>
-                                        <h2 class="text-2xl font-bold">47 Fitness Insights</h2>
+                                        <h2 class="text-2xl font-bold">34 Fitness Insights</h2>
                                         <p class="text-gray-400 text-sm">Training, nutrition &amp; recovery tools powered by real sports science</p>
                                     </div>
                                 </div>
@@ -1044,41 +1044,41 @@ import '../styles/global.css';
                                         <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">9 tools</span>
                                     </div>
                                     <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10 cursor-pointer hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all" data-tool="get-activities" data-example="Your last 10 workouts: 3 runs (32km), 2 bike rides (45km), 5 strength sessions. Total distance this week: 77km.">
                                             <div class="text-sm font-medium text-white mb-1">Get Activities</div>
-                                            <div class="text-xs text-gray-400">Fetch activities with smart pagination and filters</div>
+                                            <div class="text-xs text-gray-400">See all your workouts in one place</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10 cursor-pointer hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all" data-tool="get-athlete" data-example="Sarah, 34 years old, running since 2019. Weight: 62kg. Preferred activities: Running, Cycling. Best 5K: 24:30.">
                                             <div class="text-sm font-medium text-white mb-1">Get Athlete</div>
-                                            <div class="text-xs text-gray-400">Complete athlete profile information</div>
+                                            <div class="text-xs text-gray-400">Your complete fitness profile</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10 cursor-pointer hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all" data-tool="get-stats" data-example="This year: 847km run, 1,240km cycled. You've burned 89,450 calories. That's equivalent to running 34 marathons!">
                                             <div class="text-sm font-medium text-white mb-1">Get Stats</div>
-                                            <div class="text-xs text-gray-400">Aggregated fitness statistics and totals</div>
+                                            <div class="text-xs text-gray-400">Your yearly totals and achievements</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10 cursor-pointer hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all" data-tool="activity-intel" data-example="Your Tuesday run was 15% faster than usual! The cool weather (18°C) and flat route helped. You ran through Central Park - beautiful choice!">
                                             <div class="text-sm font-medium text-white mb-1">Activity Intelligence</div>
-                                            <div class="text-xs text-gray-400">AI-powered analysis with weather &amp; location context</div>
+                                            <div class="text-xs text-gray-400">Smart insights with weather &amp; location</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10 cursor-pointer hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all" data-tool="analyze-activity" data-example="Morning Run Analysis: You started too fast (first km was 5:10/km) but found your rhythm by km 3. Heart rate stayed in Zone 3. Great pacing overall!">
                                             <div class="text-sm font-medium text-white mb-1">Analyze Activity</div>
-                                            <div class="text-xs text-gray-400">Deep dive analysis of individual activities</div>
+                                            <div class="text-xs text-gray-400">Detailed breakdown of any workout</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10 cursor-pointer hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all" data-tool="calc-metrics" data-example="Training stress this week: 320 points. You burned 2,847 calories. Your efficiency improved 8% compared to last month!">
                                             <div class="text-sm font-medium text-white mb-1">Calculate Metrics</div>
-                                            <div class="text-xs text-gray-400">TRIMP, power ratios, efficiency scores</div>
+                                            <div class="text-xs text-gray-400">Training load and calorie burn</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10 cursor-pointer hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all" data-tool="compare-activities" data-example="Same 5K route comparison: January: 28:30, Today: 25:45. You're 2:45 faster! Your heart rate was lower too - you're getting fitter.">
                                             <div class="text-sm font-medium text-white mb-1">Compare Activities</div>
-                                            <div class="text-xs text-gray-400">Compare workouts to find patterns</div>
+                                            <div class="text-xs text-gray-400">Track your progress over time</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10 cursor-pointer hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all" data-tool="detect-patterns" data-example="Pattern detected: You perform best on Tuesday mornings after rest days. Your weekend runs tend to be slower - probably tired from the week.">
                                             <div class="text-sm font-medium text-white mb-1">Detect Patterns</div>
-                                            <div class="text-xs text-gray-400">Find training blocks, overtraining signs</div>
+                                            <div class="text-xs text-gray-400">Discover what works for you</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-emerald-500/10 cursor-pointer hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all" data-tool="performance-trends" data-example="6-month trend: Your average pace improved from 6:30/km to 5:45/km. Heart rate for same effort dropped 8 bpm. Excellent progress!">
                                             <div class="text-sm font-medium text-white mb-1">Performance Trends</div>
-                                            <div class="text-xs text-gray-400">Analyze pace, HR, power over time</div>
+                                            <div class="text-xs text-gray-400">See how you're improving</div>
                                         </div>
                                     </div>
                                 </div>
@@ -1095,25 +1095,25 @@ import '../styles/global.css';
                                         <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">5 tools</span>
                                     </div>
                                     <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-violet-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-violet-500/10 cursor-pointer hover:border-violet-500/40 hover:bg-violet-500/5 transition-all" data-tool="fitness-score" data-example="Your fitness score is 72/100. You're in good shape! Slight fatigue from yesterday's hard workout. Consider an easy day today.">
                                             <div class="text-sm font-medium text-white mb-1">Fitness Score</div>
-                                            <div class="text-xs text-gray-400">Overall score based on TSB, sleep &amp; recovery</div>
+                                            <div class="text-xs text-gray-400">How fit are you right now?</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-violet-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-violet-500/10 cursor-pointer hover:border-violet-500/40 hover:bg-violet-500/5 transition-all" data-tool="predict-perf" data-example="Based on your training, you could run: 5K in 24:30, 10K in 51:15, Half marathon in 1:58:00, Marathon in 4:12:00.">
                                             <div class="text-sm font-medium text-white mb-1">Predict Performance</div>
-                                            <div class="text-xs text-gray-400">Race time predictions (5K, 10K, marathon)</div>
+                                            <div class="text-xs text-gray-400">What race times can you achieve?</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-violet-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-violet-500/10 cursor-pointer hover:border-violet-500/40 hover:bg-violet-500/5 transition-all" data-tool="training-load" data-example="This week's load: Moderate. You've built up good fitness over 6 weeks. Form is peaking - great time for a race or hard workout!">
                                             <div class="text-sm font-medium text-white mb-1">Training Load</div>
-                                            <div class="text-xs text-gray-400">ATL, CTL, TSB balance analysis</div>
+                                            <div class="text-xs text-gray-400">Are you training too hard or easy?</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-violet-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-violet-500/10 cursor-pointer hover:border-violet-500/40 hover:bg-violet-500/5 transition-all" data-tool="recommendations" data-example="This week: Do 2 easy runs, 1 tempo run, and 1 long run. Focus on Zone 2 training. You're ready for more intensity next week.">
                                             <div class="text-sm font-medium text-white mb-1">Recommendations</div>
-                                            <div class="text-xs text-gray-400">Personalized training suggestions</div>
+                                            <div class="text-xs text-gray-400">What should you do next?</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-violet-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-violet-500/10 cursor-pointer hover:border-violet-500/40 hover:bg-violet-500/5 transition-all" data-tool="rest-day" data-example="Take a rest day tomorrow! You've done 4 hard workouts in a row. Your body needs recovery to get stronger. Light stretching is OK.">
                                             <div class="text-sm font-medium text-white mb-1">Suggest Rest Day</div>
-                                            <div class="text-xs text-gray-400">AI-powered rest day recommendations</div>
+                                            <div class="text-xs text-gray-400">Do you need a break?</div>
                                         </div>
                                     </div>
                                 </div>
@@ -1130,21 +1130,21 @@ import '../styles/global.css';
                                         <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">4 tools</span>
                                     </div>
                                     <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-cyan-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-cyan-500/10 cursor-pointer hover:border-cyan-500/40 hover:bg-cyan-500/5 transition-all" data-tool="set-goal" data-example="Goal created: Run a sub-25 minute 5K by June 15th. I'll track your progress and let you know how you're doing each week!">
                                             <div class="text-sm font-medium text-white mb-1">Set Goal</div>
-                                            <div class="text-xs text-gray-400">Create distance, duration, or frequency goals</div>
+                                            <div class="text-xs text-gray-400">Set a target to work towards</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-cyan-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-cyan-500/10 cursor-pointer hover:border-cyan-500/40 hover:bg-cyan-500/5 transition-all" data-tool="track-progress" data-example="Sub-25 5K goal: You're 68% there! Current best: 26:15. At this rate, you'll hit your goal 2 weeks early. Keep it up!">
                                             <div class="text-sm font-medium text-white mb-1">Track Progress</div>
-                                            <div class="text-xs text-gray-400">Monitor milestones and completion</div>
+                                            <div class="text-xs text-gray-400">How close are you to your goals?</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-cyan-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-cyan-500/10 cursor-pointer hover:border-cyan-500/40 hover:bg-cyan-500/5 transition-all" data-tool="suggest-goals" data-example="Based on your history, try these goals: Run 100km this month (you averaged 85km), or try a new 10K PR - you're close to breaking 50 minutes!">
                                             <div class="text-sm font-medium text-white mb-1">Suggest Goals</div>
-                                            <div class="text-xs text-gray-400">AI-suggested goals based on your history</div>
+                                            <div class="text-xs text-gray-400">What goals make sense for you?</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-cyan-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-cyan-500/10 cursor-pointer hover:border-cyan-500/40 hover:bg-cyan-500/5 transition-all" data-tool="goal-feasibility" data-example="Marathon under 4 hours by October? Very achievable! Your current fitness suggests 4:05. With consistent training, you'll make it with time to spare.">
                                             <div class="text-sm font-medium text-white mb-1">Goal Feasibility</div>
-                                            <div class="text-xs text-gray-400">Assess if goals are achievable</div>
+                                            <div class="text-xs text-gray-400">Can you actually achieve this?</div>
                                         </div>
                                     </div>
                                 </div>
@@ -1161,25 +1161,25 @@ import '../styles/global.css';
                                         <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">5 tools</span>
                                     </div>
                                     <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-amber-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-amber-500/10 cursor-pointer hover:border-amber-500/40 hover:bg-amber-500/5 transition-all" data-tool="daily-nutrition" data-example="Today you need 2,450 calories: 150g protein (for muscle), 280g carbs (for energy), 85g fat (for hormones). That's about 4 balanced meals.">
                                             <div class="text-sm font-medium text-white mb-1">Daily Nutrition</div>
-                                            <div class="text-xs text-gray-400">Calculate daily calorie &amp; macro needs</div>
+                                            <div class="text-xs text-gray-400">How much should you eat today?</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-amber-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-amber-500/10 cursor-pointer hover:border-amber-500/40 hover:bg-amber-500/5 transition-all" data-tool="nutrient-timing" data-example="Before your run: Eat a banana and toast 1 hour before. After: Have 25g protein (like Greek yogurt) + carbs within 30 minutes for best recovery.">
                                             <div class="text-sm font-medium text-white mb-1">Nutrient Timing</div>
-                                            <div class="text-xs text-gray-400">Pre/post workout nutrition windows</div>
+                                            <div class="text-xs text-gray-400">What to eat before &amp; after workouts</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-amber-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-amber-500/10 cursor-pointer hover:border-amber-500/40 hover:bg-amber-500/5 transition-all" data-tool="search-food" data-example="Searching 'chicken breast': Found! 165 calories per 100g, 31g protein, 0g carbs, 3.6g fat. Great post-workout protein source.">
                                             <div class="text-sm font-medium text-white mb-1">Search Food</div>
-                                            <div class="text-xs text-gray-400">Search 350k+ USDA foods database</div>
+                                            <div class="text-xs text-gray-400">Find nutrition for any food</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-amber-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-amber-500/10 cursor-pointer hover:border-amber-500/40 hover:bg-amber-500/5 transition-all" data-tool="food-details" data-example="Salmon (100g): 208 calories, 20g protein, 13g healthy fats. Rich in Omega-3, Vitamin D, and B12. Excellent for recovery!">
                                             <div class="text-sm font-medium text-white mb-1">Food Details</div>
-                                            <div class="text-xs text-gray-400">Complete nutritional breakdown</div>
+                                            <div class="text-xs text-gray-400">Complete nutrition breakdown</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-amber-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-amber-500/10 cursor-pointer hover:border-amber-500/40 hover:bg-amber-500/5 transition-all" data-tool="meal-analysis" data-example="Your lunch: 645 calories, 42g protein, 58g carbs, 28g fat. Good balance! The protein will help with this afternoon's recovery.">
                                             <div class="text-sm font-medium text-white mb-1">Meal Analysis</div>
-                                            <div class="text-xs text-gray-400">Analyze meal macros and calories</div>
+                                            <div class="text-xs text-gray-400">Analyze any meal you eat</div>
                                         </div>
                                     </div>
                                 </div>
@@ -1196,31 +1196,31 @@ import '../styles/global.css';
                                         <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">7 tools</span>
                                     </div>
                                     <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-orange-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-orange-500/10 cursor-pointer hover:border-orange-500/40 hover:bg-orange-500/5 transition-all" data-tool="recipe-constraints" data-example="Pre-workout meal targets: 300-400 calories, 50-60g carbs, 15-20g protein, low fat. Try oatmeal with banana and honey!">
                                             <div class="text-sm font-medium text-white mb-1">Recipe Constraints</div>
-                                            <div class="text-xs text-gray-400">Get macro targets for meal timing</div>
+                                            <div class="text-xs text-gray-400">What nutrients does this meal need?</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-orange-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-orange-500/10 cursor-pointer hover:border-orange-500/40 hover:bg-orange-500/5 transition-all" data-tool="validate-recipe" data-example="Your smoothie recipe: 385 calories (verified), 28g protein, 45g carbs. Perfect for post-workout! All ingredients matched to USDA data.">
                                             <div class="text-sm font-medium text-white mb-1">Validate Recipe</div>
-                                            <div class="text-xs text-gray-400">Validate nutrition vs USDA data</div>
+                                            <div class="text-xs text-gray-400">Check the real nutrition numbers</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-orange-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-orange-500/10 cursor-pointer hover:border-orange-500/40 hover:bg-orange-500/5 transition-all" data-tool="save-recipe" data-example="Recipe saved: 'Power Protein Smoothie' added to your collection. Tagged as post-workout. Ready whenever you need it!">
                                             <div class="text-sm font-medium text-white mb-1">Save Recipe</div>
-                                            <div class="text-xs text-gray-400">Save to personal collection</div>
+                                            <div class="text-xs text-gray-400">Keep your favorite recipes</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-orange-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-orange-500/10 cursor-pointer hover:border-orange-500/40 hover:bg-orange-500/5 transition-all" data-tool="list-recipes" data-example="Your recipes: 12 total. 4 pre-workout meals, 5 post-workout smoothies, 3 recovery dinners. Want to see your high-protein options?">
                                             <div class="text-sm font-medium text-white mb-1">List Recipes</div>
-                                            <div class="text-xs text-gray-400">Browse your saved recipes</div>
+                                            <div class="text-xs text-gray-400">Browse your recipe collection</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-orange-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-orange-500/10 cursor-pointer hover:border-orange-500/40 hover:bg-orange-500/5 transition-all" data-tool="get-recipe" data-example="Recovery Bowl: Rice, salmon, avocado, edamame. 580 cal, 35g protein. Step 1: Cook rice... Takes 20 mins. Perfect after long runs!">
                                             <div class="text-sm font-medium text-white mb-1">Get Recipe</div>
                                             <div class="text-xs text-gray-400">Full recipe with instructions</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-orange-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-orange-500/10 cursor-pointer hover:border-orange-500/40 hover:bg-orange-500/5 transition-all" data-tool="delete-recipe" data-example="Recipe 'Old Protein Shake' removed from your collection. You still have 11 recipes saved.">
                                             <div class="text-sm font-medium text-white mb-1">Delete Recipe</div>
-                                            <div class="text-xs text-gray-400">Remove from collection</div>
+                                            <div class="text-xs text-gray-400">Remove recipes you don't need</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-orange-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-orange-500/10 cursor-pointer hover:border-orange-500/40 hover:bg-orange-500/5 transition-all" data-tool="search-recipes" data-example="Found 3 'high protein' recipes: Power Smoothie (28g), Chicken Bowl (42g), Recovery Dinner (38g). Which one would you like?">
                                             <div class="text-sm font-medium text-white mb-1">Search Recipes</div>
                                             <div class="text-xs text-gray-400">Find recipes by name or tag</div>
                                         </div>
@@ -1239,21 +1239,21 @@ import '../styles/global.css';
                                         <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">4 tools</span>
                                     </div>
                                     <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-indigo-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-indigo-500/10 cursor-pointer hover:border-indigo-500/40 hover:bg-indigo-500/5 transition-all" data-tool="sleep-quality" data-example="Last night: 7.5 hours, 85% efficiency. Good deep sleep (1.5 hrs). You woke up twice briefly. Overall: Great night - you're well rested!">
                                             <div class="text-sm font-medium text-white mb-1">Sleep Quality</div>
-                                            <div class="text-xs text-gray-400">NSF/AASM-based sleep scoring</div>
+                                            <div class="text-xs text-gray-400">How well did you sleep?</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-indigo-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-indigo-500/10 cursor-pointer hover:border-indigo-500/40 hover:bg-indigo-500/5 transition-all" data-tool="recovery-score" data-example="Recovery score: 78/100. Good sleep + low training stress yesterday = you're ready for a moderate to hard workout today!">
                                             <div class="text-sm font-medium text-white mb-1">Recovery Score</div>
-                                            <div class="text-xs text-gray-400">TSB + sleep + HRV combined score</div>
+                                            <div class="text-xs text-gray-400">How recovered is your body?</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-indigo-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-indigo-500/10 cursor-pointer hover:border-indigo-500/40 hover:bg-indigo-500/5 transition-all" data-tool="sleep-trends" data-example="2-week trend: Average 7.2 hrs (up from 6.8). Deep sleep improving. Your Tuesday/Thursday sleep is worst - consider earlier bedtime those nights.">
                                             <div class="text-sm font-medium text-white mb-1">Sleep Trends</div>
-                                            <div class="text-xs text-gray-400">Track sleep patterns over time</div>
+                                            <div class="text-xs text-gray-400">Is your sleep getting better?</div>
                                         </div>
-                                        <div class="bg-[#1E1E2E] rounded-lg p-3 border border-indigo-500/10">
+                                        <div class="tool-card bg-[#1E1E2E] rounded-lg p-3 border border-indigo-500/10 cursor-pointer hover:border-indigo-500/40 hover:bg-indigo-500/5 transition-all" data-tool="optimize-sleep" data-example="For tomorrow's long run: Go to bed by 10:00 PM to get 8 hours. Avoid screens after 9 PM. You perform best with 7.5+ hours before hard workouts.">
                                             <div class="text-sm font-medium text-white mb-1">Optimize Sleep</div>
-                                            <div class="text-xs text-gray-400">Optimal bedtime recommendations</div>
+                                            <div class="text-xs text-gray-400">When should you go to bed?</div>
                                         </div>
                                     </div>
                                 </div>
@@ -1431,7 +1431,7 @@ import '../styles/global.css';
                         </div>
                     </div>
                     <p class="text-gray-400 mb-6">
-                        Connect Pierre to Claude, ChatGPT, or any MCP-compatible AI assistant. Your AI gains access to 47+ fitness tools.
+                        Connect Pierre to Claude, ChatGPT, or any MCP-compatible AI assistant. Your AI gains access to 34 fitness tools.
                     </p>
                     <div class="code-block rounded-lg p-4 text-sm overflow-x-auto">
                         <code class="text-gray-300">
@@ -1825,7 +1825,7 @@ import '../styles/global.css';
             });
         })();
 
-        // Tools Modal (47 Fitness Insights)
+        // Tools Modal (34 Fitness Insights)
         (function() {
             const toolsCard = document.getElementById('tools-stat-card');
             const toolsModal = document.getElementById('tools-modal');
@@ -1924,6 +1924,101 @@ import '../styles/global.css';
             setupPillarModal('training-pillar-card', 'training-modal', 'training-modal-backdrop', 'close-training-modal', 'training-modal-cta');
             setupPillarModal('nutrition-pillar-card', 'nutrition-modal', 'nutrition-modal-backdrop', 'close-nutrition-modal', 'nutrition-modal-cta');
             setupPillarModal('recovery-pillar-card', 'recovery-modal', 'recovery-modal-backdrop', 'close-recovery-modal', 'recovery-modal-cta');
+        })();
+
+        // Tool Example Tooltip (shows what Pierre tells you)
+        (function() {
+            // Create tooltip element
+            const tooltip = document.createElement('div');
+            tooltip.id = 'tool-example-tooltip';
+            tooltip.className = 'fixed z-[60] max-w-sm bg-[#1a1a2e] border border-violet-500/30 rounded-xl shadow-2xl shadow-violet-500/20 p-4 hidden';
+            tooltip.innerHTML = `
+                <div class="flex items-start gap-3">
+                    <div class="flex-shrink-0 w-8 h-8 rounded-lg gradient-pierre flex items-center justify-center">
+                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="text-xs text-violet-400 font-medium mb-1">Pierre says:</div>
+                        <div id="tooltip-text" class="text-sm text-gray-300 leading-relaxed"></div>
+                    </div>
+                </div>
+                <div class="absolute -top-2 left-6 w-4 h-4 bg-[#1a1a2e] border-l border-t border-violet-500/30 transform rotate-45"></div>
+            `;
+            document.body.appendChild(tooltip);
+
+            const tooltipText = document.getElementById('tooltip-text');
+            let activeCard = null;
+
+            // Close tooltip when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!tooltip.contains(e.target) && !e.target.closest('.tool-card')) {
+                    tooltip.classList.add('hidden');
+                    if (activeCard) {
+                        activeCard.classList.remove('ring-2', 'ring-violet-500/50');
+                        activeCard = null;
+                    }
+                }
+            });
+
+            // Handle tool card clicks
+            document.querySelectorAll('.tool-card').forEach(card => {
+                card.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const example = card.dataset.example;
+                    if (!example) return;
+
+                    // Remove highlight from previous card
+                    if (activeCard && activeCard !== card) {
+                        activeCard.classList.remove('ring-2', 'ring-violet-500/50');
+                    }
+
+                    // Toggle tooltip for same card
+                    if (activeCard === card && !tooltip.classList.contains('hidden')) {
+                        tooltip.classList.add('hidden');
+                        card.classList.remove('ring-2', 'ring-violet-500/50');
+                        activeCard = null;
+                        return;
+                    }
+
+                    // Show tooltip
+                    tooltipText.textContent = example;
+                    activeCard = card;
+                    card.classList.add('ring-2', 'ring-violet-500/50');
+
+                    // Position tooltip below the card
+                    const rect = card.getBoundingClientRect();
+                    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+
+                    tooltip.classList.remove('hidden');
+
+                    // Position calculation
+                    let top = rect.bottom + scrollTop + 12;
+                    let left = rect.left;
+
+                    // Keep tooltip within viewport
+                    const tooltipRect = tooltip.getBoundingClientRect();
+                    if (left + tooltipRect.width > window.innerWidth - 20) {
+                        left = window.innerWidth - tooltipRect.width - 20;
+                    }
+                    if (left < 20) left = 20;
+
+                    tooltip.style.top = top + 'px';
+                    tooltip.style.left = left + 'px';
+                });
+            });
+
+            // Close on Escape
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    tooltip.classList.add('hidden');
+                    if (activeCard) {
+                        activeCard.classList.remove('ring-2', 'ring-violet-500/50');
+                        activeCard = null;
+                    }
+                }
+            });
         })();
     </script>
 </body>
