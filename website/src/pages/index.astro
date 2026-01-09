@@ -1353,86 +1353,80 @@ import '../styles/global.css';
     </section>
 
     <!-- Available Everywhere Section -->
-    <section class="py-20 px-4">
+    <section class="py-12 px-4">
         <div class="max-w-7xl mx-auto">
-            <div class="text-center mb-16">
+            <div class="text-center mb-10">
                 <h2 class="text-3xl sm:text-4xl font-bold mb-4">Available Everywhere You Train</h2>
                 <p class="text-gray-400 max-w-2xl mx-auto">
                     Whether you're at the gym, on a trail, or reviewing your week at home - Pierre is with you.
                 </p>
             </div>
 
-            <div class="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            <div class="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
                 <!-- Mobile App Card -->
-                <div class="bg-[#1E1E2E] rounded-2xl p-8 border border-white/10 text-center group hover:border-violet-500/30 transition-colors">
-                    <div class="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-violet-600 to-cyan-500 flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-[#1E1E2E] rounded-2xl p-6 border border-white/10 text-center group hover:border-violet-500/30 transition-colors">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-xl bg-gradient-to-br from-violet-600 to-cyan-500 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
                         </svg>
                     </div>
-                    <h3 class="text-2xl font-bold mb-3">Mobile App</h3>
-                    <p class="text-gray-400 mb-6">Track workouts, check recovery, and get insights on the go. Quick access to everything you need.</p>
+                    <h3 class="text-xl font-bold mb-2">Mobile App</h3>
+                    <p class="text-gray-400 text-sm mb-4">Track workouts, check recovery, and get insights on the go.</p>
 
-                    <div class="space-y-3">
-                        <!-- App Store Button -->
-                        <a href="#" class="flex items-center justify-center gap-3 bg-[#0F0F1A] hover:bg-[#0F0F1A]/80 border border-white/10 rounded-xl px-6 py-3 transition-colors group/btn">
-                            <svg class="w-8 h-8 text-white" viewBox="0 0 24 24" fill="currentColor">
+                    <div class="space-y-2">
+                        <!-- App Store Button (Disabled) -->
+                        <div class="flex items-center justify-center gap-2 bg-[#0F0F1A]/60 border border-white/5 rounded-lg px-4 py-2 opacity-50 cursor-not-allowed">
+                            <svg class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
                             </svg>
-                            <div class="text-left">
-                                <div class="text-xs text-gray-400">Coming Soon on</div>
-                                <div class="text-sm font-semibold text-white">App Store</div>
-                            </div>
-                        </a>
+                            <span class="text-xs text-gray-400">App Store - Coming Soon</span>
+                        </div>
 
-                        <!-- Google Play Button -->
-                        <a href="#" class="flex items-center justify-center gap-3 bg-[#0F0F1A] hover:bg-[#0F0F1A]/80 border border-white/10 rounded-xl px-6 py-3 transition-colors group/btn">
-                            <svg class="w-7 h-7" viewBox="0 0 24 24">
+                        <!-- Google Play Button (Disabled) -->
+                        <div class="flex items-center justify-center gap-2 bg-[#0F0F1A]/60 border border-white/5 rounded-lg px-4 py-2 opacity-50 cursor-not-allowed">
+                            <svg class="w-5 h-5 grayscale opacity-60" viewBox="0 0 24 24">
                                 <path fill="#34A853" d="M3.609 1.814L13.792 12 3.61 22.186a.996.996 0 01-.61-.92V2.734a1 1 0 01.609-.92z"/>
                                 <path fill="#FBBC04" d="M16.247 15.055l-2.455-2.457L3.609 22.186a1.12 1.12 0 001.159.182l11.479-7.313z"/>
                                 <path fill="#4285F4" d="M21.6 12c0-.376-.125-.751-.371-1.058l-3.982-2.537-3.455 3.595 3.455 3.455 3.982-2.397c.246-.307.371-.682.371-1.058z"/>
                                 <path fill="#EA4335" d="M3.609 1.814l10.183 10.184 3.455-3.455L4.768 1.632a1.12 1.12 0 00-1.16.182z"/>
                             </svg>
-                            <div class="text-left">
-                                <div class="text-xs text-gray-400">Coming Soon on</div>
-                                <div class="text-sm font-semibold text-white">Google Play</div>
-                            </div>
-                        </a>
+                            <span class="text-xs text-gray-400">Google Play - Coming Soon</span>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Web Dashboard Card -->
-                <div class="bg-[#1E1E2E] rounded-2xl p-8 border border-white/10 text-center group hover:border-emerald-500/30 transition-colors">
-                    <div class="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-[#1E1E2E] rounded-2xl p-6 border border-white/10 text-center group hover:border-emerald-500/30 transition-colors">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-xl bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
                         </svg>
                     </div>
-                    <h3 class="text-2xl font-bold mb-3">Web Dashboard</h3>
-                    <p class="text-gray-400 mb-6">Full analysis suite with detailed charts, trends, and AI-powered insights. Perfect for weekly reviews.</p>
+                    <h3 class="text-xl font-bold mb-2">Web Dashboard</h3>
+                    <p class="text-gray-400 text-sm mb-4">Full analysis with charts, trends, and AI-powered insights.</p>
 
-                    <div class="space-y-3">
+                    <div class="space-y-2">
                         <!-- Web App Button -->
-                        <a href="#early-access" class="flex items-center justify-center gap-3 gradient-pierre hover:opacity-90 rounded-xl px-6 py-3 transition-opacity">
-                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <a href="#early-access" class="flex items-center justify-center gap-2 gradient-pierre hover:opacity-90 rounded-lg px-4 py-2 transition-opacity">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
                             </svg>
-                            <span class="font-semibold text-white">Get Early Access</span>
+                            <span class="text-sm font-semibold text-white">Get Early Access</span>
                         </a>
 
                         <!-- Browser Support -->
-                        <p class="text-xs text-gray-500 mt-4">Works on Chrome, Safari, Firefox, and Edge</p>
+                        <p class="text-xs text-gray-500">Chrome, Safari, Firefox, Edge</p>
                     </div>
                 </div>
             </div>
 
             <!-- Sync Note -->
-            <div class="text-center mt-10">
-                <div class="inline-flex items-center gap-2 bg-[#1E1E2E]/50 rounded-full px-4 py-2 border border-white/5">
-                    <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="text-center mt-6">
+                <div class="inline-flex items-center gap-2 bg-[#1E1E2E]/50 rounded-full px-3 py-1.5 border border-white/5">
+                    <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                     </svg>
-                    <span class="text-sm text-gray-400">Your data syncs automatically between all devices</span>
+                    <span class="text-xs text-gray-400">Your data syncs automatically between all devices</span>
                 </div>
             </div>
         </div>

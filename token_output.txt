@@ -1,0 +1,64 @@
+warning: pierre_mcp_server@0.2.0: SDK already built (sdk/dist/cli.js exists)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.21s
+     Running `target/debug/admin-setup generate-token --service mcp-client --expires-days 30`
+2026-01-09T16:19:24.234492Z  INFO admin_setup: Pierre MCP Server Admin Token Setup
+2026-01-09T16:19:24.234710Z  INFO pierre_mcp_server::key_management: Bootstrapping two-tier key management system
+2026-01-09T16:19:24.234830Z  INFO pierre_mcp_server::key_management: Loading Master Encryption Key from environment variable
+2026-01-09T16:19:24.235109Z  INFO pierre_mcp_server::key_management: Bootstrap key management system initialized
+2026-01-09T16:19:24.235216Z  INFO admin_setup: Two-tier key management system initialized for admin-setup
+2026-01-09T16:19:24.235395Z  INFO admin_setup: Connecting to database: sqlite:./data/users.db
+2026-01-09T16:19:24.235844Z  INFO pierre_mcp_server::database_plugins::factory: Detected database type: SQLite
+2026-01-09T16:19:24.236150Z  INFO pierre_mcp_server::database_plugins::factory: Initializing SQLite database
+2026-01-09T16:19:24.240832Z  INFO pierre_mcp_server::database: Running database migrations...
+2026-01-09T16:19:24.246050Z  INFO pierre_mcp_server::database: Database migrations completed successfully
+2026-01-09T16:19:24.246138Z  INFO pierre_mcp_server::database_plugins::factory: SQLite database initialized successfully
+2026-01-09T16:19:24.246443Z  INFO pierre_mcp_server::key_management: Completing two-tier key management initialization
+2026-01-09T16:19:24.247784Z  INFO pierre_mcp_server::key_management: Loading existing Database Encryption Key from database
+2026-01-09T16:19:24.248088Z  INFO pierre_mcp_server::key_management: Existing Database Encryption Key loaded successfully
+2026-01-09T16:19:24.248400Z  INFO pierre_mcp_server::key_management: Database encryption key updated to use loaded DEK
+2026-01-09T16:19:24.248490Z  INFO pierre_mcp_server::key_management: Two-tier key management system fully initialized
+2026-01-09T16:19:24.248583Z  INFO admin_setup: Two-tier key management system fully initialized for admin-setup
+2026-01-09T16:19:24.248825Z  INFO admin_setup: Running database migrations...
+2026-01-09T16:19:24.248896Z  INFO pierre_mcp_server::database: Running database migrations...
+2026-01-09T16:19:24.249415Z  INFO pierre_mcp_server::database: Database migrations completed successfully
+2026-01-09T16:19:24.249799Z  INFO admin_setup: Initializing JWKS manager for RS256 admin tokens...
+2026-01-09T16:19:24.251339Z  INFO admin_setup: Loading 1 persisted RSA keypairs from database
+2026-01-09T16:19:24.253521Z  INFO admin_setup: Successfully loaded RSA keys from database
+2026-01-09T16:19:24.253620Z  INFO admin_setup: JWKS manager initialized
+2026-01-09T16:19:24.253922Z  INFO admin_setup: Key Generating admin token for service: mcp-client
+2026-01-09T16:19:24.254972Z  INFO admin_setup: Loading JWT secret from database for token generation...
+2026-01-09T16:19:24.255399Z  INFO admin_setup: JWT signing key loaded successfully for token generation
+
+Complete Admin Token Generated Successfully!
+================================================================================
+Key TOKEN DETAILS:
+   Service: mcp-client
+   Token ID: admin_e623d419368f47dabf04ab66b127fc25
+   Super Admin: Error No
+   Expires: 2026-02-08 16:19 UTC
+
+Key YOUR JWT TOKEN (SAVE THIS NOW):
+================================================================================
+eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6ImtleV8yMDI1MTIxNV8xNTQ5MzkifQ.eyJpc3MiOiJwaWVycmUtbWNwLXNlcnZlciIsInN1YiI6ImFkbWluX2U2MjNkNDE5MzY4ZjQ3ZGFiZjA0YWI2NmIxMjdmYzI1IiwiYXVkIjoiYWRtaW5fYXBpIiwiZXhwIjoxNzcwNTY3NTY0LCJpYXQiOjE3Njc5NzU1NjQsIm5iZiI6MTc2Nzk3NTU2NCwianRpIjoiYWRtaW5fZTYyM2Q0MTkzNjhmNDdkYWJmMDRhYjY2YjEyN2ZjMjUiLCJzZXJ2aWNlX25hbWUiOiJtY3AtY2xpZW50IiwicGVybWlzc2lvbnMiOlsidXBkYXRlX2tleV9saW1pdHMiLCJyZXZva2Vfa2V5cyIsImxpc3Rfa2V5cyIsInByb3Zpc2lvbl9rZXlzIl0sImlzX3N1cGVyX2FkbWluIjpmYWxzZSwidG9rZW5fdHlwZSI6ImFkbWluIn0.Zym6yib11yvDWBSWOdQQtPgL_U-s_LQWretMYQZIbRX20aehSBEPawW0qgbIC7ZJhuX3jcgLt-N7LI4vcDGwYd4eT3FQmmn2Xq_h5DAL4PWI6Uh-v0DvmW9vBJaza25RYThQ2OFasr1ab3731BgAtzlHbbkN2-rmmGYYTxm1iTKMgvbcbeKGv1YSQzjDiNEvuccBK8aZq2Yvlm5zYjaQ9vX9VpZp8RiGsrtFWujZebg5xS2odclqVY7RBygwbVQ2WeoGGMJ58mxr2MlOFngfbJvtS-72Osymwyw3Bjzo_Hy06gqECs_J6d3TXWq1ZcFfQ3Yb9M2dTszateKw8j7ZB4ukaUJBic8nSFxJxDaIGC_eUae-6tPh1IjTrxvW3COVq0j3wehwHqsFg7xBNcu6yirc9FyHSvxHw_p_3fnu44s_0BvpFxZ1uzrfESIW_bm8w8vjV7KVwg8tuddYaMSog8zv1u7ZmifhW3GP0wv-0j53JDI9LchWSmX8lhbLvqnUaebzWGJExJfGKQZdl_XZnuQB36zB3T4lBK9tNVORk3gOY2-hRrjscltfpg3Y9G2WPhG7x5X7phokEJbGEjr8ouOgtVfXK6Y4KJ7cBgCbpC7uuRVdFjB2GI2ie2a78qQdT47qOBVxOEiYxzeLdUTTgFfAMSDId6PaXjH6OdgIq1o
+================================================================================
+
+WARNING CRITICAL SECURITY NOTES:
+• This token is shown ONLY ONCE - save it now!
+• Store it securely in your admin service environment:
+  export PIERRE_MCP_ADMIN_TOKEN="eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6ImtleV8yMDI1MTIxNV8xNTQ5MzkifQ.eyJpc3MiOiJwaWVycmUtbWNwLXNlcnZlciIsInN1YiI6ImFkbWluX2U2MjNkNDE5MzY4ZjQ3ZGFiZjA0YWI2NmIxMjdmYzI1IiwiYXVkIjoiYWRtaW5fYXBpIiwiZXhwIjoxNzcwNTY3NTY0LCJpYXQiOjE3Njc5NzU1NjQsIm5iZiI6MTc2Nzk3NTU2NCwianRpIjoiYWRtaW5fZTYyM2Q0MTkzNjhmNDdkYWJmMDRhYjY2YjEyN2ZjMjUiLCJzZXJ2aWNlX25hbWUiOiJtY3AtY2xpZW50IiwicGVybWlzc2lvbnMiOlsidXBkYXRlX2tleV9saW1pdHMiLCJyZXZva2Vfa2V5cyIsImxpc3Rfa2V5cyIsInByb3Zpc2lvbl9rZXlzIl0sImlzX3N1cGVyX2FkbWluIjpmYWxzZSwidG9rZW5fdHlwZSI6ImFkbWluIn0.Zym6yib11yvDWBSWOdQQtPgL_U-s_LQWretMYQZIbRX20aehSBEPawW0qgbIC7ZJhuX3jcgLt-N7LI4vcDGwYd4eT3FQmmn2Xq_h5DAL4PWI6Uh-v0DvmW9vBJaza25RYThQ2OFasr1ab3731BgAtzlHbbkN2-rmmGYYTxm1iTKMgvbcbeKGv1YSQzjDiNEvuccBK8aZq2Yvlm5zYjaQ9vX9VpZp8RiGsrtFWujZebg5xS2odclqVY7RBygwbVQ2WeoGGMJ58mxr2MlOFngfbJvtS-72Osymwyw3Bjzo_Hy06gqECs_J6d3TXWq1ZcFfQ3Yb9M2dTszateKw8j7ZB4ukaUJBic8nSFxJxDaIGC_eUae-6tPh1IjTrxvW3COVq0j3wehwHqsFg7xBNcu6yirc9FyHSvxHw_p_3fnu44s_0BvpFxZ1uzrfESIW_bm8w8vjV7KVwg8tuddYaMSog8zv1u7ZmifhW3GP0wv-0j53JDI9LchWSmX8lhbLvqnUaebzWGJExJfGKQZdl_XZnuQB36zB3T4lBK9tNVORk3gOY2-hRrjscltfpg3Y9G2WPhG7x5X7phokEJbGEjr8ouOgtVfXK6Y4KJ7cBgCbpC7uuRVdFjB2GI2ie2a78qQdT47qOBVxOEiYxzeLdUTTgFfAMSDId6PaXjH6OdgIq1o"
+• Never share this token or commit it to version control
+• Use this token in Authorization header: Bearer <token>
+• This token allows limited API key operations
+
+Docs NEXT STEPS:
+1. Save the token to your admin service environment
+2. Configure your admin service to use this token
+3. Test the connection with your admin service
+4. For super admin access, use --super-admin flag
+
+USAGE EXAMPLE:
+curl -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6ImtleV8yMDI1MTIxNV8xNTQ5MzkifQ.eyJpc3MiOiJwaWVycmUtbWNwLXNlcnZlciIsInN1YiI6ImFkbWluX2U2MjNkNDE5MzY4ZjQ3ZGFiZjA0YWI2NmIxMjdmYzI1IiwiYXVkIjoiYWRtaW5fYXBpIiwiZXhwIjoxNzcwNTY3NTY0LCJpYXQiOjE3Njc5NzU1NjQsIm5iZiI6MTc2Nzk3NTU2NCwianRpIjoiYWRtaW5fZTYyM2Q0MTkzNjhmNDdkYWJmMDRhYjY2YjEyN2ZjMjUiLCJzZXJ2aWNlX25hbWUiOiJtY3AtY2xpZW50IiwicGVybWlzc2lvbnMiOlsidXBkYXRlX2tleV9saW1pdHMiLCJyZXZva2Vfa2V5cyIsImxpc3Rfa2V5cyIsInByb3Zpc2lvbl9rZXlzIl0sImlzX3N1cGVyX2FkbWluIjpmYWxzZSwidG9rZW5fdHlwZSI6ImFkbWluIn0.Zym6yib11yvDWBSWOdQQtPgL_U-s_LQWretMYQZIbRX20aehSBEPawW0qgbIC7ZJhuX3jcgLt-N7LI4vcDGwYd4eT3FQmmn2Xq_h5DAL4PWI6Uh-v0DvmW9vBJaza25RYThQ2OFasr1ab3731BgAtzlHbbkN2-rmmGYYTxm1iTKMgvbcbeKGv1YSQzjDiNEvuccBK8aZq2Yvlm5zYjaQ9vX9VpZp8RiGsrtFWujZebg5xS2odclqVY7RBygwbVQ2WeoGGMJ58mxr2MlOFngfbJvtS-72Osymwyw3Bjzo_Hy06gqECs_J6d3TXWq1ZcFfQ3Yb9M2dTszateKw8j7ZB4ukaUJBic8nSFxJxDaIGC_eUae-6tPh1IjTrxvW3COVq0j3wehwHqsFg7xBNcu6yirc9FyHSvxHw_p_3fnu44s_0BvpFxZ1uzrfESIW_bm8w8vjV7KVwg8tuddYaMSog8zv1u7ZmifhW3GP0wv-0j53JDI9LchWSmX8lhbLvqnUaebzWGJExJfGKQZdl_XZnuQB36zB3T4lBK9tNVORk3gOY2-hRrjscltfpg3Y9G2WPhG7x5X7phokEJbGEjr8ouOgtVfXK6Y4KJ7cBgCbpC7uuRVdFjB2GI2ie2a78qQdT47qOBVxOEiYxzeLdUTTgFfAMSDId6PaXjH6OdgIq1o" \
+     -X POST http://localhost:8080/admin/provision-api-key \
+     -d '{"user_email":"user@example.com","tier":"starter"}'
+
+Success Token is ready to use!
