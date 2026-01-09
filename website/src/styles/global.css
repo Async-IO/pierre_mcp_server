@@ -181,7 +181,8 @@
 
 /* Modal animation */
 .modal-content,
-.tools-modal-content {
+.tools-modal-content,
+.pillar-modal-content {
   transform: scale(0.95);
   opacity: 0;
   transition: transform 0.3s ease-out, opacity 0.3s ease-out;

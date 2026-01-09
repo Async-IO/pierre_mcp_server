@@ -163,9 +163,9 @@ import '../styles/global.css';
             </div>
 
             <div class="grid md:grid-cols-3 gap-8">
-                <!-- Training Pillar -->
-                <div class="card-hover bg-[#0F0F1A]/80 backdrop-blur-sm rounded-xl p-8 border border-emerald-500/20">
-                    <div class="icon-container w-14 h-14 gradient-activity mb-6">
+                <!-- Training Pillar (Clickable) -->
+                <div id="training-pillar-card" class="card-hover bg-[#0F0F1A]/80 backdrop-blur-sm rounded-xl p-8 border border-emerald-500/20 cursor-pointer group transition-all hover:border-emerald-500/50 hover:shadow-lg hover:shadow-emerald-500/10">
+                    <div class="icon-container w-14 h-14 gradient-activity mb-6 group-hover:scale-110 transition-transform">
                         <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                         </svg>
@@ -190,11 +190,17 @@ import '../styles/global.css';
                             Training pattern analysis
                         </li>
                     </ul>
+                    <div class="flex items-center justify-center gap-1 mt-4 text-emerald-400 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span>Click to learn more</span>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                        </svg>
+                    </div>
                 </div>
 
-                <!-- Nutrition Pillar -->
-                <div class="card-hover bg-[#0F0F1A]/80 backdrop-blur-sm rounded-xl p-8 border border-amber-500/20">
-                    <div class="icon-container w-14 h-14 gradient-nutrition mb-6">
+                <!-- Nutrition Pillar (Clickable) -->
+                <div id="nutrition-pillar-card" class="card-hover bg-[#0F0F1A]/80 backdrop-blur-sm rounded-xl p-8 border border-amber-500/20 cursor-pointer group transition-all hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10">
+                    <div class="icon-container w-14 h-14 gradient-nutrition mb-6 group-hover:scale-110 transition-transform">
                         <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
                         </svg>
@@ -219,11 +225,17 @@ import '../styles/global.css';
                             350,000+ USDA food database
                         </li>
                     </ul>
+                    <div class="flex items-center justify-center gap-1 mt-4 text-amber-400 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span>Click to learn more</span>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                        </svg>
+                    </div>
                 </div>
 
-                <!-- Recovery Pillar -->
-                <div class="card-hover bg-[#0F0F1A]/80 backdrop-blur-sm rounded-xl p-8 border border-indigo-500/20">
-                    <div class="icon-container w-14 h-14 gradient-recovery mb-6">
+                <!-- Recovery Pillar (Clickable) -->
+                <div id="recovery-pillar-card" class="card-hover bg-[#0F0F1A]/80 backdrop-blur-sm rounded-xl p-8 border border-indigo-500/20 cursor-pointer group transition-all hover:border-indigo-500/50 hover:shadow-lg hover:shadow-indigo-500/10">
+                    <div class="icon-container w-14 h-14 gradient-recovery mb-6 group-hover:scale-110 transition-transform">
                         <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
                         </svg>
@@ -248,6 +260,324 @@ import '../styles/global.css';
                             Rest day suggestions
                         </li>
                     </ul>
+                    <div class="flex items-center justify-center gap-1 mt-4 text-indigo-400 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span>Click to learn more</span>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Training Pillar Modal -->
+        <div id="training-modal" class="fixed inset-0 z-[100] hidden">
+            <div id="training-modal-backdrop" class="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+            <div class="absolute inset-4 md:inset-8 lg:inset-12 overflow-y-auto">
+                <div class="min-h-full flex items-start justify-center py-8">
+                    <div class="bg-[#0F0F1A] rounded-2xl border border-emerald-500/20 w-full max-w-4xl shadow-2xl shadow-emerald-500/20 pillar-modal-content">
+                        <div class="sticky top-0 bg-[#0F0F1A] border-b border-white/10 p-6 rounded-t-2xl flex items-center justify-between z-10">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-xl gradient-activity flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h2 class="text-2xl font-bold text-emerald-400">Training Intelligence</h2>
+                                    <p class="text-gray-400 text-sm">Science-backed metrics for optimal performance</p>
+                                </div>
+                            </div>
+                            <button id="close-training-modal" class="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="p-6 space-y-8">
+                            <!-- Key Value Proposition -->
+                            <div class="bg-gradient-to-r from-emerald-500/10 to-transparent rounded-xl p-6 border border-emerald-500/20">
+                                <h3 class="text-xl font-semibold text-white mb-3">Know Exactly When to Push &amp; When to Rest</h3>
+                                <p class="text-gray-300 leading-relaxed">
+                                    Most athletes train by feel—sometimes too hard, sometimes too easy. Pierre uses proven training science formulas (TRIMP, TSS, CTL/ATL/TSB) to quantify your training load and tell you exactly where you are in the fitness-fatigue balance. No more guessing if you're overtraining or undertrained.
+                                </p>
+                            </div>
+
+                            <!-- What You Get -->
+                            <div>
+                                <h3 class="text-lg font-semibold text-white mb-4">What Pierre Tells You</h3>
+                                <div class="grid sm:grid-cols-2 gap-4">
+                                    <div class="bg-[#1E1E2E] rounded-lg p-4 border border-emerald-500/10">
+                                        <div class="flex items-center gap-3 mb-2">
+                                            <span class="text-2xl">📊</span>
+                                            <span class="font-medium text-white">Training Load Score</span>
+                                        </div>
+                                        <p class="text-gray-400 text-sm">How hard was that workout? Get a precise number based on intensity, duration, and heart rate—not just distance.</p>
+                                    </div>
+                                    <div class="bg-[#1E1E2E] rounded-lg p-4 border border-emerald-500/10">
+                                        <div class="flex items-center gap-3 mb-2">
+                                            <span class="text-2xl">⚖️</span>
+                                            <span class="font-medium text-white">Fitness vs Fatigue</span>
+                                        </div>
+                                        <p class="text-gray-400 text-sm">See your long-term fitness (CTL) versus short-term fatigue (ATL). Know when you're building fitness vs. just accumulating tiredness.</p>
+                                    </div>
+                                    <div class="bg-[#1E1E2E] rounded-lg p-4 border border-emerald-500/10">
+                                        <div class="flex items-center gap-3 mb-2">
+                                            <span class="text-2xl">🎯</span>
+                                            <span class="font-medium text-white">Race Predictions</span>
+                                        </div>
+                                        <p class="text-gray-400 text-sm">Get accurate predictions for 5K, 10K, half marathon, and marathon based on your actual training data—not generic calculators.</p>
+                                    </div>
+                                    <div class="bg-[#1E1E2E] rounded-lg p-4 border border-emerald-500/10">
+                                        <div class="flex items-center gap-3 mb-2">
+                                            <span class="text-2xl">📈</span>
+                                            <span class="font-medium text-white">Pattern Detection</span>
+                                        </div>
+                                        <p class="text-gray-400 text-sm">Spot overtraining before injury. Pierre identifies training blocks, consistency trends, and early warning signs of overreaching.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Science Behind It -->
+                            <div class="bg-[#1E1E2E] rounded-xl p-6 border border-white/5">
+                                <h3 class="text-lg font-semibold text-white mb-3">The Science Behind It</h3>
+                                <div class="space-y-3 text-sm text-gray-400">
+                                    <p><strong class="text-emerald-400">TRIMP (Training Impulse)</strong> — Developed by Dr. Eric Banister, combines workout duration with heart rate intensity to measure total physiological stress.</p>
+                                    <p><strong class="text-emerald-400">CTL/ATL/TSB</strong> — The same fitness/fatigue model used by Olympic athletes and professional cycling teams to peak for competition.</p>
+                                    <p><strong class="text-emerald-400">VDOT Predictions</strong> — Jack Daniels' validated formula for predicting race performance from training data.</p>
+                                </div>
+                            </div>
+
+                            <!-- CTA -->
+                            <div class="text-center pt-4">
+                                <a href="#early-access" id="training-modal-cta" class="inline-flex items-center gap-2 gradient-pierre px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity">
+                                    Get Training Intelligence
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                                    </svg>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Nutrition Pillar Modal -->
+        <div id="nutrition-modal" class="fixed inset-0 z-[100] hidden">
+            <div id="nutrition-modal-backdrop" class="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+            <div class="absolute inset-4 md:inset-8 lg:inset-12 overflow-y-auto">
+                <div class="min-h-full flex items-start justify-center py-8">
+                    <div class="bg-[#0F0F1A] rounded-2xl border border-amber-500/20 w-full max-w-4xl shadow-2xl shadow-amber-500/20 pillar-modal-content">
+                        <div class="sticky top-0 bg-[#0F0F1A] border-b border-white/10 p-6 rounded-t-2xl flex items-center justify-between z-10">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-xl gradient-nutrition flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h2 class="text-2xl font-bold text-amber-400">Nutrition &amp; Recipes</h2>
+                                    <p class="text-gray-400 text-sm">Fuel your training with precision</p>
+                                </div>
+                            </div>
+                            <button id="close-nutrition-modal" class="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="p-6 space-y-8">
+                            <!-- Key Value Proposition -->
+                            <div class="bg-gradient-to-r from-amber-500/10 to-transparent rounded-xl p-6 border border-amber-500/20">
+                                <h3 class="text-xl font-semibold text-white mb-3">Your Personal Nutrition Coach</h3>
+                                <p class="text-gray-300 leading-relaxed">
+                                    Stop guessing what to eat. Pierre calculates your exact calorie and macro needs based on your body and activity level, then adjusts recommendations based on your training schedule. Pre-workout? More carbs. Recovery day? More protein. Rest day? Balanced macros with strategic carb reduction.
+                                </p>
+                            </div>
+
+                            <!-- What You Get -->
+                            <div>
+                                <h3 class="text-lg font-semibold text-white mb-4">What Pierre Tells You</h3>
+                                <div class="grid sm:grid-cols-2 gap-4">
+                                    <div class="bg-[#1E1E2E] rounded-lg p-4 border border-amber-500/10">
+                                        <div class="flex items-center gap-3 mb-2">
+                                            <span class="text-2xl">🔢</span>
+                                            <span class="font-medium text-white">Personalized Macros</span>
+                                        </div>
+                                        <p class="text-gray-400 text-sm">Your exact protein, carbs, and fat targets calculated using Mifflin-St Jeor BMR formula—the most accurate method for athletes.</p>
+                                    </div>
+                                    <div class="bg-[#1E1E2E] rounded-lg p-4 border border-amber-500/10">
+                                        <div class="flex items-center gap-3 mb-2">
+                                            <span class="text-2xl">⏰</span>
+                                            <span class="font-medium text-white">Nutrient Timing</span>
+                                        </div>
+                                        <p class="text-gray-400 text-sm">Know exactly when to eat what. Pre-workout windows (2-4 hours), post-workout recovery (within 30 minutes), and optimal meal spacing.</p>
+                                    </div>
+                                    <div class="bg-[#1E1E2E] rounded-lg p-4 border border-amber-500/10">
+                                        <div class="flex items-center gap-3 mb-2">
+                                            <span class="text-2xl">📚</span>
+                                            <span class="font-medium text-white">Recipe Collection</span>
+                                        </div>
+                                        <p class="text-gray-400 text-sm">Build your personal recipe library. Save meals tagged by training phase (pre-workout, post-workout, rest day) with validated nutrition data.</p>
+                                    </div>
+                                    <div class="bg-[#1E1E2E] rounded-lg p-4 border border-amber-500/10">
+                                        <div class="flex items-center gap-3 mb-2">
+                                            <span class="text-2xl">🔍</span>
+                                            <span class="font-medium text-white">350K+ Food Database</span>
+                                        </div>
+                                        <p class="text-gray-400 text-sm">Search USDA FoodData Central for accurate nutrition info on any food. No guessing, no marketing claims—just verified data.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Training-Aware Nutrition -->
+                            <div class="bg-[#1E1E2E] rounded-xl p-6 border border-white/5">
+                                <h3 class="text-lg font-semibold text-white mb-4">Training-Aware Meal Targets</h3>
+                                <div class="space-y-4">
+                                    <div class="flex items-center gap-4">
+                                        <div class="w-24 text-sm font-medium text-amber-400">Pre-Training</div>
+                                        <div class="flex-1 h-3 bg-[#0F0F1A] rounded-full overflow-hidden">
+                                            <div class="h-full bg-gradient-to-r from-amber-600 to-amber-400" style="width: 55%"></div>
+                                        </div>
+                                        <div class="w-20 text-right text-sm text-gray-400">55% carbs</div>
+                                    </div>
+                                    <div class="flex items-center gap-4">
+                                        <div class="w-24 text-sm font-medium text-emerald-400">Post-Training</div>
+                                        <div class="flex-1 h-3 bg-[#0F0F1A] rounded-full overflow-hidden">
+                                            <div class="h-full bg-gradient-to-r from-emerald-600 to-emerald-400" style="width: 30%"></div>
+                                        </div>
+                                        <div class="w-20 text-right text-sm text-gray-400">30% protein</div>
+                                    </div>
+                                    <div class="flex items-center gap-4">
+                                        <div class="w-24 text-sm font-medium text-indigo-400">Rest Day</div>
+                                        <div class="flex-1 h-3 bg-[#0F0F1A] rounded-full overflow-hidden">
+                                            <div class="h-full bg-gradient-to-r from-indigo-600 to-indigo-400" style="width: 40%"></div>
+                                        </div>
+                                        <div class="w-20 text-right text-sm text-gray-400">Balanced</div>
+                                    </div>
+                                </div>
+                                <p class="text-gray-500 text-xs mt-4">Based on ISSN (International Society of Sports Nutrition) guidelines</p>
+                            </div>
+
+                            <!-- CTA -->
+                            <div class="text-center pt-4">
+                                <a href="#early-access" id="nutrition-modal-cta" class="inline-flex items-center gap-2 gradient-pierre px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity">
+                                    Get Nutrition Intelligence
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                                    </svg>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recovery Pillar Modal -->
+        <div id="recovery-modal" class="fixed inset-0 z-[100] hidden">
+            <div id="recovery-modal-backdrop" class="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+            <div class="absolute inset-4 md:inset-8 lg:inset-12 overflow-y-auto">
+                <div class="min-h-full flex items-start justify-center py-8">
+                    <div class="bg-[#0F0F1A] rounded-2xl border border-indigo-500/20 w-full max-w-4xl shadow-2xl shadow-indigo-500/20 pillar-modal-content">
+                        <div class="sticky top-0 bg-[#0F0F1A] border-b border-white/10 p-6 rounded-t-2xl flex items-center justify-between z-10">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-xl gradient-recovery flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h2 class="text-2xl font-bold text-indigo-400">Recovery Intelligence</h2>
+                                    <p class="text-gray-400 text-sm">Rest smarter, come back stronger</p>
+                                </div>
+                            </div>
+                            <button id="close-recovery-modal" class="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="p-6 space-y-8">
+                            <!-- Key Value Proposition -->
+                            <div class="bg-gradient-to-r from-indigo-500/10 to-transparent rounded-xl p-6 border border-indigo-500/20">
+                                <h3 class="text-xl font-semibold text-white mb-3">Recovery Is Where Fitness Happens</h3>
+                                <p class="text-gray-300 leading-relaxed">
+                                    Training breaks you down. Recovery builds you back stronger. But most athletes treat rest as "not training" instead of an active part of their program. Pierre combines sleep data, HRV trends, and training load to tell you exactly when you're ready to train hard again—and when you need another day.
+                                </p>
+                            </div>
+
+                            <!-- What You Get -->
+                            <div>
+                                <h3 class="text-lg font-semibold text-white mb-4">What Pierre Tells You</h3>
+                                <div class="grid sm:grid-cols-2 gap-4">
+                                    <div class="bg-[#1E1E2E] rounded-lg p-4 border border-indigo-500/10">
+                                        <div class="flex items-center gap-3 mb-2">
+                                            <span class="text-2xl">😴</span>
+                                            <span class="font-medium text-white">Sleep Quality Score</span>
+                                        </div>
+                                        <p class="text-gray-400 text-sm">Not just hours slept—actual sleep quality. Deep sleep, REM cycles, efficiency, and how it compares to your baseline.</p>
+                                    </div>
+                                    <div class="bg-[#1E1E2E] rounded-lg p-4 border border-indigo-500/10">
+                                        <div class="flex items-center gap-3 mb-2">
+                                            <span class="text-2xl">💓</span>
+                                            <span class="font-medium text-white">HRV-Based Readiness</span>
+                                        </div>
+                                        <p class="text-gray-400 text-sm">Heart Rate Variability is the gold standard for recovery. Pierre tracks your HRV trends and compares to your personal baseline.</p>
+                                    </div>
+                                    <div class="bg-[#1E1E2E] rounded-lg p-4 border border-indigo-500/10">
+                                        <div class="flex items-center gap-3 mb-2">
+                                            <span class="text-2xl">🔋</span>
+                                            <span class="font-medium text-white">Recovery Score</span>
+                                        </div>
+                                        <p class="text-gray-400 text-sm">One number that combines sleep, HRV, and training stress balance. Know at a glance if you're ready for intensity or need easy work.</p>
+                                    </div>
+                                    <div class="bg-[#1E1E2E] rounded-lg p-4 border border-indigo-500/10">
+                                        <div class="flex items-center gap-3 mb-2">
+                                            <span class="text-2xl">🛑</span>
+                                            <span class="font-medium text-white">Rest Day Suggestions</span>
+                                        </div>
+                                        <p class="text-gray-400 text-sm">AI-powered recommendations that consider your training history, sleep trends, and upcoming goals. Sometimes rest IS the workout.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Cross-Provider Integration -->
+                            <div class="bg-[#1E1E2E] rounded-xl p-6 border border-white/5">
+                                <h3 class="text-lg font-semibold text-white mb-3">Works With Your Devices</h3>
+                                <p class="text-gray-400 text-sm mb-4">
+                                    Pierre integrates sleep and HRV data from multiple sources for the most complete recovery picture:
+                                </p>
+                                <div class="flex flex-wrap gap-3">
+                                    <span class="px-3 py-1.5 rounded-full bg-red-500/20 border border-red-500/30 text-red-400 text-sm">WHOOP</span>
+                                    <span class="px-3 py-1.5 rounded-full bg-teal-500/20 border border-teal-500/30 text-teal-400 text-sm">Fitbit</span>
+                                    <span class="px-3 py-1.5 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-400 text-sm">Garmin</span>
+                                    <span class="px-3 py-1.5 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-400 text-sm">Terra (150+ devices)</span>
+                                </div>
+                            </div>
+
+                            <!-- The Science -->
+                            <div class="bg-[#1E1E2E] rounded-xl p-6 border border-white/5">
+                                <h3 class="text-lg font-semibold text-white mb-3">The Science Behind It</h3>
+                                <div class="space-y-3 text-sm text-gray-400">
+                                    <p><strong class="text-indigo-400">HRV (RMSSD)</strong> — The root mean square of successive differences between heartbeats. Higher values indicate better parasympathetic recovery.</p>
+                                    <p><strong class="text-indigo-400">Sleep Stage Analysis</strong> — Following NSF/AASM guidelines for optimal sleep stage distribution and efficiency scoring.</p>
+                                    <p><strong class="text-indigo-400">TSB Integration</strong> — Combines recovery metrics with Training Stress Balance for holistic readiness assessment.</p>
+                                </div>
+                            </div>
+
+                            <!-- CTA -->
+                            <div class="text-center pt-4">
+                                <a href="#early-access" id="recovery-modal-cta" class="inline-flex items-center gap-2 gradient-pierre px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity">
+                                    Get Recovery Intelligence
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                                    </svg>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -421,87 +751,9 @@ import '../styles/global.css';
         </div>
     </section>
 
-    <!-- Section Divider -->
-    <div class="section-divider max-w-4xl mx-auto"></div>
-
-    <!-- For Developers Section (B2B) -->
-    <section id="developers" class="py-20 px-4 bg-[#1E1E2E]/30">
+    <!-- Example AI Report Section -->
+    <section class="py-20 px-4">
         <div class="max-w-7xl mx-auto">
-            <div class="text-center mb-12">
-                <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-violet-600/20 border border-violet-500/30 text-violet-400 text-sm font-medium mb-4">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
-                    </svg>
-                    For Developers
-                </div>
-                <h2 class="text-3xl sm:text-4xl font-bold mb-4">Build with Pierre</h2>
-                <p class="text-gray-400 max-w-2xl mx-auto">
-                    Integrate fitness intelligence into your applications using industry-standard protocols.
-                </p>
-            </div>
-
-            <div class="grid md:grid-cols-2 gap-8">
-                <!-- MCP Protocol -->
-                <div class="bg-[#0F0F1A] rounded-xl p-8 border border-violet-500/20">
-                    <div class="flex items-center gap-4 mb-6">
-                        <div class="icon-container w-12 h-12 bg-violet-600/20">
-                            <svg class="w-6 h-6 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                            </svg>
-                        </div>
-                        <div>
-                            <h3 class="text-xl font-semibold">MCP Protocol</h3>
-                            <p class="text-gray-500 text-sm">Model Context Protocol</p>
-                        </div>
-                    </div>
-                    <p class="text-gray-400 mb-6">
-                        Connect Pierre to Claude, ChatGPT, or any MCP-compatible AI assistant. Your AI gains access to 47+ fitness tools.
-                    </p>
-                    <div class="code-block rounded-lg p-4 text-sm overflow-x-auto">
-                        <code class="text-gray-300">
-                            <span class="text-violet-400">"mcpServers"</span>: &#123;<br>
-                            &nbsp;&nbsp;<span class="text-emerald-400">"pierre"</span>: &#123;<br>
-                            &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-amber-400">"url"</span>: <span class="text-cyan-400">"https://api.pierre.fitness/mcp"</span><br>
-                            &nbsp;&nbsp;&#125;<br>
-                            &#125;
-                        </code>
-                    </div>
-                </div>
-
-                <!-- A2A Protocol -->
-                <div class="bg-[#0F0F1A] rounded-xl p-8 border border-cyan-500/20">
-                    <div class="flex items-center gap-4 mb-6">
-                        <div class="icon-container w-12 h-12 bg-cyan-500/20">
-                            <svg class="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
-                            </svg>
-                        </div>
-                        <div>
-                            <h3 class="text-xl font-semibold">A2A Protocol</h3>
-                            <p class="text-gray-500 text-sm">Agent-to-Agent Communication</p>
-                        </div>
-                    </div>
-                    <p class="text-gray-400 mb-6">
-                        Enable your AI agents to communicate with Pierre using Google's A2A protocol for seamless multi-agent workflows.
-                    </p>
-                    <div class="code-block rounded-lg p-4 text-sm overflow-x-auto">
-                        <code class="text-gray-300">
-                            <span class="text-cyan-400">GET</span> <span class="text-gray-500">/.well-known/agent.json</span><br>
-                            <span class="text-cyan-400">POST</span> <span class="text-gray-500">/a2a/tasks</span><br>
-                            <span class="text-cyan-400">WS</span> <span class="text-gray-500">/a2a/stream</span>
-                        </code>
-                    </div>
-                </div>
-            </div>
-
-            <div class="text-center mt-8">
-                <a href="https://github.com/Async-IO/pierre_mcp_server" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-6 py-3 rounded-lg border border-white/20 hover:bg-white/5 transition-colors font-medium">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                        <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
-                    </svg>
-                    View on GitHub
-                </a>
-            </div>
             <!-- Example AI Report (Clickable) -->
             <div id="example-report-card" class="mt-16 bg-[#1E1E2E] rounded-xl p-8 border border-white/10 cursor-pointer transition-all hover:border-violet-500/50 hover:shadow-lg hover:shadow-violet-500/10 group">
                 <div class="flex items-center justify-between mb-6">
@@ -1212,6 +1464,90 @@ import '../styles/global.css';
         </div>
     </section>
 
+    <!-- Section Divider -->
+    <div class="section-divider max-w-4xl mx-auto"></div>
+
+    <!-- For Developers Section (B2B) -->
+    <section id="developers" class="py-20 px-4 bg-[#1E1E2E]/30">
+        <div class="max-w-7xl mx-auto">
+            <div class="text-center mb-12">
+                <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-violet-600/20 border border-violet-500/30 text-violet-400 text-sm font-medium mb-4">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                    </svg>
+                    For Developers
+                </div>
+                <h2 class="text-3xl sm:text-4xl font-bold mb-4">Build with Pierre</h2>
+                <p class="text-gray-400 max-w-2xl mx-auto">
+                    Integrate fitness intelligence into your applications using industry-standard protocols.
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-8">
+                <!-- MCP Protocol -->
+                <div class="bg-[#0F0F1A] rounded-xl p-8 border border-violet-500/20">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="icon-container w-12 h-12 bg-violet-600/20">
+                            <svg class="w-6 h-6 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-semibold">MCP Protocol</h3>
+                            <p class="text-gray-500 text-sm">Model Context Protocol</p>
+                        </div>
+                    </div>
+                    <p class="text-gray-400 mb-6">
+                        Connect Pierre to Claude, ChatGPT, or any MCP-compatible AI assistant. Your AI gains access to 47+ fitness tools.
+                    </p>
+                    <div class="code-block rounded-lg p-4 text-sm overflow-x-auto">
+                        <code class="text-gray-300">
+                            <span class="text-violet-400">"mcpServers"</span>: &#123;<br>
+                            &nbsp;&nbsp;<span class="text-emerald-400">"pierre"</span>: &#123;<br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-amber-400">"url"</span>: <span class="text-cyan-400">"https://api.pierre.fitness/mcp"</span><br>
+                            &nbsp;&nbsp;&#125;<br>
+                            &#125;
+                        </code>
+                    </div>
+                </div>
+
+                <!-- A2A Protocol -->
+                <div class="bg-[#0F0F1A] rounded-xl p-8 border border-cyan-500/20">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="icon-container w-12 h-12 bg-cyan-500/20">
+                            <svg class="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-semibold">A2A Protocol</h3>
+                            <p class="text-gray-500 text-sm">Agent-to-Agent Communication</p>
+                        </div>
+                    </div>
+                    <p class="text-gray-400 mb-6">
+                        Enable your AI agents to communicate with Pierre using Google's A2A protocol for seamless multi-agent workflows.
+                    </p>
+                    <div class="code-block rounded-lg p-4 text-sm overflow-x-auto">
+                        <code class="text-gray-300">
+                            <span class="text-cyan-400">GET</span> <span class="text-gray-500">/.well-known/agent.json</span><br>
+                            <span class="text-cyan-400">POST</span> <span class="text-gray-500">/a2a/tasks</span><br>
+                            <span class="text-cyan-400">WS</span> <span class="text-gray-500">/a2a/stream</span>
+                        </code>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center mt-8">
+                <a href="https://github.com/Async-IO/pierre_mcp_server" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-6 py-3 rounded-lg border border-white/20 hover:bg-white/5 transition-colors font-medium">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+                    </svg>
+                    View on GitHub
+                </a>
+            </div>
+        </div>
+    </section>
+
     <!-- Early Access Section -->
     <section id="early-access" class="py-20 px-4">
         <div class="max-w-3xl mx-auto text-center">
@@ -1605,6 +1941,56 @@ import '../styles/global.css';
                     closeToolsModal();
                 }
             });
+        })();
+
+        // Pillar Modals (Training, Nutrition, Recovery)
+        (function() {
+            // Helper function to create modal handlers
+            function setupPillarModal(cardId, modalId, backdropId, closeBtnId, ctaId) {
+                const card = document.getElementById(cardId);
+                const modal = document.getElementById(modalId);
+                const backdrop = document.getElementById(backdropId);
+                const closeBtn = document.getElementById(closeBtnId);
+                const cta = document.getElementById(ctaId);
+
+                if (!modal) return;
+
+                function openModal() {
+                    modal.classList.remove('hidden');
+                    document.body.style.overflow = 'hidden';
+
+                    // Animate entrance
+                    setTimeout(() => {
+                        const content = modal.querySelector('.pillar-modal-content');
+                        if (content) {
+                            content.style.transform = 'scale(1)';
+                            content.style.opacity = '1';
+                        }
+                    }, 10);
+                }
+
+                function closeModal() {
+                    modal.classList.add('hidden');
+                    document.body.style.overflow = '';
+                }
+
+                if (card) card.addEventListener('click', openModal);
+                if (closeBtn) closeBtn.addEventListener('click', closeModal);
+                if (backdrop) backdrop.addEventListener('click', closeModal);
+                if (cta) cta.addEventListener('click', closeModal);
+
+                // Close on Escape key
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+                        closeModal();
+                    }
+                });
+            }
+
+            // Setup each pillar modal
+            setupPillarModal('training-pillar-card', 'training-modal', 'training-modal-backdrop', 'close-training-modal', 'training-modal-cta');
+            setupPillarModal('nutrition-pillar-card', 'nutrition-modal', 'nutrition-modal-backdrop', 'close-nutrition-modal', 'nutrition-modal-cta');
+            setupPillarModal('recovery-pillar-card', 'recovery-modal', 'recovery-modal-backdrop', 'close-recovery-modal', 'recovery-modal-cta');
         })();
     </script>
 </body>
