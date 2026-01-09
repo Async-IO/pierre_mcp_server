@@ -8,7 +8,6 @@ use super::multitenant::{McpError, McpRequest, McpResponse, MultiTenantMcpServer
 use super::resources::ServerResources;
 use super::tenant_isolation::extract_tenant_context_internal;
 use crate::auth::AuthResult;
-use crate::config::fitness::FitnessConfig;
 use crate::constants::{
     errors::{
         ERROR_INTERNAL_ERROR, ERROR_INVALID_PARAMS, ERROR_METHOD_NOT_FOUND, ERROR_TOKEN_EXPIRED,
@@ -657,6 +656,7 @@ impl ToolHandlers {
         user_id: &str,
         database: &Database,
     ) -> McpResponse {
+        // Parse params with typed FitnessConfig (validates configuration structure at parse time)
         let params = match serde_json::from_value::<json_schemas::SetFitnessConfigParams>(args) {
             Ok(p) => p,
             Err(e) => {
@@ -674,25 +674,11 @@ impl ToolHandlers {
         };
 
         let config_name = &params.configuration_name;
-
-        let configuration = match serde_json::from_value::<FitnessConfig>(params.configuration) {
-            Ok(fc) => fc,
-            Err(e) => {
-                return McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_owned(),
-                    result: None,
-                    error: Some(McpError {
-                        code: ERROR_INVALID_PARAMS,
-                        message: format!("Invalid configuration format: {e}"),
-                        data: None,
-                    }),
-                    id: Some(request_id),
-                };
-            }
-        };
+        // Configuration is already typed (FitnessConfig) - no second parse needed
+        let configuration = &params.configuration;
 
         match database
-            .save_user_fitness_config(tenant_id, user_id, config_name, &configuration)
+            .save_user_fitness_config(tenant_id, user_id, config_name, configuration)
             .await
         {
             Ok(config_id) => McpResponse {

@@ -31,6 +31,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::config::fitness::FitnessConfig;
 use crate::config::runtime::ConfigValue;
 use crate::errors::AppResult;
 use crate::intelligence::{FitnessLevel, TimeAvailability, UserFitnessProfile, UserPreferences};
@@ -255,14 +256,17 @@ pub struct GetFitnessConfigParams {
 }
 
 /// Parameters for setting fitness configuration
+///
+/// Uses typed `FitnessConfig` instead of `serde_json::Value` for compile-time
+/// validation of configuration structure.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SetFitnessConfigParams {
     /// Configuration name
     #[serde(default = "default_config_name")]
     pub configuration_name: String,
 
-    /// Configuration data
-    pub configuration: serde_json::Value,
+    /// Configuration data - typed for validation
+    pub configuration: FitnessConfig,
 }
 
 /// Parameters for deleting fitness configuration

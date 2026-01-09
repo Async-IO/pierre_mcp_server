@@ -39,6 +39,11 @@ import {
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { z } from "zod";
 import { createSecureStorage, SecureTokenStorage } from "./secure-storage.js";
+import {
+  validateMcpToolResponse,
+  configureValidator,
+  type ResponseValidatorConfig,
+} from "./response-validator.js";
 
 // Load OAuth HTML templates from dist/templates/ (copied during build)
 // Templates are self-contained in the SDK bundle for portability
@@ -95,6 +100,8 @@ export interface BridgeConfig {
   proactiveConnectionTimeoutMs?: number; // Default: 5000ms
   proactiveToolsListTimeoutMs?: number; // Default: 3000ms
   toolCallConnectionTimeoutMs?: number; // Default: 10000ms (10s for tool-triggered connections)
+  /** Response validation configuration - validates tool responses against Zod schemas */
+  responseValidation?: Partial<ResponseValidatorConfig>;
 }
 
 interface OAuth2TokenResponse {
@@ -1268,6 +1275,11 @@ export class PierreMcpClient {
 
   constructor(config: BridgeConfig) {
     this.config = config;
+
+    // Configure response validation if specified
+    if (config.responseValidation) {
+      configureValidator(config.responseValidation);
+    }
   }
 
   private log(message: string, ...args: any[]) {
@@ -1970,6 +1982,10 @@ export class PierreMcpClient {
           `Tool call ${request.params.name} result:`,
           JSON.stringify(result).substring(0, 200),
         );
+
+        // Validate response against Zod schema (logs warnings on mismatch, doesn't block)
+        validateMcpToolResponse(request.params.name, result);
+
         return result;
       } catch (error) {
         this.log(`Tool call ${request.params.name} failed:`, error);
@@ -2028,6 +2044,10 @@ export class PierreMcpClient {
                   arguments: request.params.arguments || {},
                 });
                 this.log(`Request succeeded after automatic session renewal`);
+
+                // Validate response against Zod schema
+                validateMcpToolResponse(request.params.name, retryResult);
+
                 return retryResult;
               } catch (retryError) {
                 this.log(`Request failed even after session renewal`);

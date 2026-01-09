@@ -52,6 +52,28 @@ jobs:
         working-directory: sdk
         run: bun run type-check
 
+      - name: Validate response schemas
+        working-directory: sdk
+        run: |
+          echo "Validating Zod response schemas..."
+          # Check that response-schemas.ts exists
+          if [ ! -f "src/response-schemas.ts" ]; then
+            echo "Error: src/response-schemas.ts not found"
+            exit 1
+          fi
+          # Count tools in schema map (should be >= 35)
+          MAP_COUNT=$(grep -E "^\s+\"[a-z_]+\":" src/response-schemas.ts | wc -l)
+          echo "Found $MAP_COUNT tools in ToolResponseSchemaMap"
+          if [ "$MAP_COUNT" -lt 35 ]; then
+            echo "Warning: Only $MAP_COUNT tools have response schemas (expected >= 35)"
+          fi
+          # Run schema unit tests
+          bun test test/unit/response-schemas.test.ts || {
+            echo "Response schema tests failed - schemas may be out of sync"
+            exit 1
+          }
+          echo "Response schema validation passed"
+
       - name: Build SDK bridge
         working-directory: sdk
         run: bun run build
