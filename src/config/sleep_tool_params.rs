@@ -1,5 +1,5 @@
-// ABOUTME: Sleep analysis and recovery configuration types
-// ABOUTME: Handles sleep trend analysis, fatigue detection, and recovery recommendations
+// ABOUTME: Sleep tool operational parameters for activity fetching and trend analysis
+// ABOUTME: Distinct from intelligence/sleep_recovery.rs which handles analytical thresholds
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
@@ -8,9 +8,13 @@ use crate::constants::sleep_recovery;
 use serde::{Deserialize, Serialize};
 use std::env;
 
-/// Sleep analysis and recovery configuration
+/// Sleep tool operational parameters for activity fetching and trend analysis
+///
+/// This config controls operational parameters like activity limits and trend thresholds.
+/// For sleep quality analytical thresholds (duration, stages, HRV, TSB), see
+/// `config::intelligence::SleepRecoveryConfig`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SleepRecoveryConfig {
+pub struct SleepToolParamsConfig {
     /// Number of recent activities to fetch for analysis
     pub activity_limit: u32,
     /// Minimum days of sleep history required for trend analysis
@@ -31,7 +35,7 @@ pub struct SleepRecoveryConfig {
     pub minutes_per_day: i64,
 }
 
-impl Default for SleepRecoveryConfig {
+impl Default for SleepToolParamsConfig {
     fn default() -> Self {
         Self {
             activity_limit: sleep_recovery::ACTIVITY_LIMIT,
@@ -47,7 +51,7 @@ impl Default for SleepRecoveryConfig {
     }
 }
 
-impl SleepRecoveryConfig {
+impl SleepToolParamsConfig {
     /// Load sleep recovery configuration from environment
     #[must_use]
     pub fn from_env() -> Self {

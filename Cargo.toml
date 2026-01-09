@@ -29,11 +29,6 @@ path = "src/bin/admin_setup.rs"
 bench = false
 
 [[bin]]
-name = "diagnose-weather-api"
-path = "src/bin/diagnose_weather_api.rs"
-bench = false
-
-[[bin]]
 name = "seed-demo-data"
 path = "src/bin/seed_demo_data.rs"
 bench = false

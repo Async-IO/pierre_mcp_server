@@ -16,12 +16,12 @@
 use crate::auth::AuthResult;
 use crate::config::{
     catalog::{CatalogBuilder, ConfigCatalog},
+    intelligence::{
+        PersonalizedHRZones, PersonalizedPaceZones, PersonalizedPowerZones, VO2MaxCalculator,
+    },
     profiles::{ConfigProfile, ProfileTemplates},
     runtime::{ConfigValue, RuntimeConfig},
     validation::{ConfigValidator, ValidationResult},
-    vo2_max::{
-        PersonalizedHRZones, PersonalizedPaceZones, PersonalizedPowerZones, VO2MaxCalculator,
-    },
 };
 use crate::constants::physiology;
 use crate::database_plugins::DatabaseProvider;

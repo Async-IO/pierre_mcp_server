@@ -10,8 +10,8 @@
 // - Configuration value ownership transfers for runtime updates and validation
 // - Profile data ownership for configuration loading and session management
 
+use super::intelligence::{SportEfficiency, VO2MaxCalculator};
 use super::profiles::ConfigProfile;
-use super::vo2_max::{SportEfficiency, VO2MaxCalculator};
 use crate::models::UserPhysiologicalProfile;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

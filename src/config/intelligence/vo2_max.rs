@@ -6,8 +6,8 @@
 
 //! VO2 max-based physiological calculations for personalized thresholds
 
-use super::catalog::CatalogBuilder;
-use super::runtime::ConfigValue;
+use crate::config::catalog::CatalogBuilder;
+use crate::config::runtime::ConfigValue;
 use crate::intelligence::algorithms::{FtpAlgorithm, TrimpAlgorithm};
 use crate::models::SportType;
 use serde::{Deserialize, Serialize};

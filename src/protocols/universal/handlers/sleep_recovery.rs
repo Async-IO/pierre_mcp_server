@@ -175,7 +175,7 @@ async fn fetch_provider_activities(
             #[allow(clippy::cast_possible_truncation)]
             provider
                 .get_activities(
-                    Some(executor.resources.config.sleep_recovery.activity_limit as usize),
+                    Some(executor.resources.config.sleep_tool_params.activity_limit as usize),
                     None,
                 )
                 .await
@@ -1373,7 +1373,7 @@ pub fn handle_track_sleep_trends(
             }
         };
 
-        let trend_min_days = executor.resources.config.sleep_recovery.trend_min_days;
+        let trend_min_days = executor.resources.config.sleep_tool_params.trend_min_days;
         if sleep_history.len() < trend_min_days {
             return Err(ProtocolError::InvalidRequest(format!(
                 "At least {trend_min_days} days of sleep data required for trend analysis"
@@ -1429,12 +1429,12 @@ pub fn handle_track_sleep_trends(
         let improving_threshold = executor
             .resources
             .config
-            .sleep_recovery
+            .sleep_tool_params
             .trend_improving_threshold;
         let declining_threshold = executor
             .resources
             .config
-            .sleep_recovery
+            .sleep_tool_params
             .trend_declining_threshold;
         let trend = if recent_avg > previous_avg + improving_threshold {
             "improving"
@@ -1614,12 +1614,17 @@ pub fn handle_optimize_sleep_schedule(
 
         let recommended_hours = if training_load.tsb < fatigued_tsb {
             // High fatigue: add extra sleep
-            base_recommendation + executor.resources.config.sleep_recovery.fatigue_bonus_hours
+            base_recommendation
+                + executor
+                    .resources
+                    .config
+                    .sleep_tool_params
+                    .fatigue_bonus_hours
         } else if training_load.atl
             > executor
                 .resources
                 .config
-                .sleep_recovery
+                .sleep_tool_params
                 .high_load_atl_threshold
         {
             // High acute load: prioritize recovery
@@ -1627,7 +1632,7 @@ pub fn handle_optimize_sleep_schedule(
                 + executor
                     .resources
                     .config
-                    .sleep_recovery
+                    .sleep_tool_params
                     .high_load_bonus_hours
         } else if upcoming_workout_intensity == "high" {
             // Hard workout tomorrow: ensure quality sleep
@@ -1647,8 +1652,12 @@ pub fn handle_optimize_sleep_schedule(
         let bedtime = calculate_bedtime(
             wake_time,
             recommended_hours,
-            executor.resources.config.sleep_recovery.wind_down_minutes,
-            executor.resources.config.sleep_recovery.minutes_per_day,
+            executor
+                .resources
+                .config
+                .sleep_tool_params
+                .wind_down_minutes,
+            executor.resources.config.sleep_tool_params.minutes_per_day,
         );
 
         // Generate recommendations

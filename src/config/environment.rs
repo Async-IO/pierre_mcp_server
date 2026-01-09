@@ -48,10 +48,10 @@ pub use crate::config::oauth::{
 pub use crate::config::security::{
     AuthConfig, MonitoringConfig, SecurityConfig, SecurityHeadersConfig,
 };
-// Sleep recovery
-pub use crate::config::sleep_recovery::SleepRecoveryConfig;
-// Training zones
-pub use crate::config::training_zones::TrainingZonesConfig;
+// Sleep tool params (operational parameters, distinct from intelligence sleep config)
+pub use crate::config::sleep_tool_params::SleepToolParamsConfig;
+// Training zones (now in intelligence/)
+pub use crate::config::intelligence::TrainingZonesConfig;
 // Core types
 pub use crate::config::types::{Environment, LlmProviderType, LogLevel};
 
@@ -104,8 +104,8 @@ pub struct ServerConfig {
     pub cache: CacheConfig,
     /// Rate limiting configuration
     pub rate_limiting: RateLimitConfig,
-    /// Sleep analysis and recovery configuration
-    pub sleep_recovery: SleepRecoveryConfig,
+    /// Sleep tool operational parameters (activity limits, trend thresholds)
+    pub sleep_tool_params: SleepToolParamsConfig,
     /// Goal management and feasibility configuration
     pub goal_management: GoalManagementConfig,
     /// Training zone percentages configuration
@@ -160,7 +160,7 @@ impl ServerConfig {
             cors: CorsConfig::from_env(),
             cache: CacheConfig::from_env(),
             rate_limiting: RateLimitConfig::from_env(),
-            sleep_recovery: SleepRecoveryConfig::from_env(),
+            sleep_tool_params: SleepToolParamsConfig::from_env(),
             goal_management: GoalManagementConfig::from_env(),
             training_zones: TrainingZonesConfig::from_env(),
             tokio_runtime: TokioRuntimeConfig::from_env(),

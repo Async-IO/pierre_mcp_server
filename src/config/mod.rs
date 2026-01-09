@@ -50,10 +50,8 @@ pub mod network;
 pub mod oauth;
 /// Security configuration (auth, headers, monitoring)
 pub mod security;
-/// Sleep recovery configuration
-pub mod sleep_recovery;
-/// Training zones configuration
-pub mod training_zones;
+/// Sleep tool operational parameters (activity limits, trend thresholds)
+pub mod sleep_tool_params;
 /// Core configuration type definitions (`LogLevel`, `Environment`, `LlmProviderType`)
 pub mod types;
 
@@ -76,8 +74,6 @@ pub mod profiles;
 pub mod runtime;
 /// Configuration validation and safety checks
 pub mod validation;
-/// VO2 max-based physiological calculations
-pub mod vo2_max;
 
 // HTTP routes for configuration management
 /// HTTP routes for configuration management
@@ -126,8 +122,10 @@ pub use mcp::{AppBehaviorConfig, McpConfig, ProtocolConfig, TokioRuntimeConfig};
 
 // Re-export fitness domain types
 pub use goal_management::GoalManagementConfig;
-pub use sleep_recovery::SleepRecoveryConfig;
-pub use training_zones::TrainingZonesConfig;
+pub use sleep_tool_params::SleepToolParamsConfig;
+
+// Re-export intelligence domain types (moved from top-level)
+pub use intelligence::TrainingZonesConfig;
 
 // Re-export fitness configuration types
 pub use fitness::{FitnessConfig, WeatherApiConfig};
@@ -150,8 +148,8 @@ pub use runtime::{ConfigAware, ConfigChange, ConfigExport, ConfigValue, RuntimeC
 // Re-export validation types
 pub use validation::{ConfigValidator, ImpactAnalysis, RiskLevel, ValidationResult};
 
-// Re-export VO2 max calculation types
-pub use vo2_max::{
+// Re-export VO2 max calculation types (now in intelligence/)
+pub use intelligence::{
     PersonalizedHRZones, PersonalizedPaceZones, PersonalizedPowerZones, SportEfficiency,
     VO2MaxCalculator,
 };

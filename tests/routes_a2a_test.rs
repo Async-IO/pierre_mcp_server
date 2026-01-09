@@ -1594,8 +1594,8 @@ fn create_test_server_config() -> ServerConfig {
         GarminApiConfig, GeocodingServiceConfig, GoalManagementConfig, HttpClientConfig, LogLevel,
         LoggingConfig, McpConfig, MonitoringConfig, OAuth2ServerConfig, OAuthConfig,
         OAuthProviderConfig, PostgresPoolConfig, ProtocolConfig, RateLimitConfig,
-        RouteTimeoutConfig, SecurityConfig, SecurityHeadersConfig, SleepRecoveryConfig, SqlxConfig,
-        SseConfig, StravaApiConfig, TlsConfig, TokioRuntimeConfig, TrainingZonesConfig,
+        RouteTimeoutConfig, SecurityConfig, SecurityHeadersConfig, SleepToolParamsConfig,
+        SqlxConfig, SseConfig, StravaApiConfig, TlsConfig, TokioRuntimeConfig, TrainingZonesConfig,
         WeatherServiceConfig,
     };
     use std::path::PathBuf;
@@ -1737,7 +1737,7 @@ fn create_test_server_config() -> ServerConfig {
         },
         usda_api_key: None,
         rate_limiting: RateLimitConfig::default(),
-        sleep_recovery: SleepRecoveryConfig::default(),
+        sleep_tool_params: SleepToolParamsConfig::default(),
         goal_management: GoalManagementConfig::default(),
         training_zones: TrainingZonesConfig::default(),
         firebase: FirebaseConfig::default(),

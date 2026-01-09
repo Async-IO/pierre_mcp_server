@@ -257,7 +257,6 @@ jobs:
         run: |
           strip target/${{ matrix.target }}/release/pierre-mcp-server || true
           strip target/${{ matrix.target }}/release/admin-setup || true
-          strip target/${{ matrix.target }}/release/diagnose-weather-api || true
 
       - name: Create package directory structure (Unix)
         if: matrix.os != 'windows-latest'
@@ -269,7 +268,6 @@ jobs:
           # Copy binaries
           cp target/${{ matrix.target }}/release/pierre-mcp-server "dist/${PACKAGE_NAME}/bin/"
           cp target/${{ matrix.target }}/release/admin-setup "dist/${PACKAGE_NAME}/bin/"
-          cp target/${{ matrix.target }}/release/diagnose-weather-api "dist/${PACKAGE_NAME}/bin/"
 
           # Copy documentation
           cp README.md "dist/${PACKAGE_NAME}/"
@@ -310,7 +308,6 @@ jobs:
           # Copy binaries
           Copy-Item "target\${{ matrix.target }}\release\pierre-mcp-server.exe" "dist\${PACKAGE_NAME}\bin\"
           Copy-Item "target\${{ matrix.target }}\release\admin-setup.exe" "dist\${PACKAGE_NAME}\bin\"
-          Copy-Item "target\${{ matrix.target }}\release\diagnose-weather-api.exe" "dist\${PACKAGE_NAME}\bin\"
 
           # Copy documentation
           Copy-Item "README.md" "dist\${PACKAGE_NAME}\"

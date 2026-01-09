@@ -21,6 +21,8 @@
 //! - `metrics` - Metrics calculation and validation
 //! - `sleep_recovery` - Sleep and recovery analysis
 //! - `nutrition` - Nutrition recommendations and meal timing
+//! - `training_zones` - VDOT and FTP zone percentages
+//! - `vo2_max` - VO2 max calculations and personalized zones
 
 // Domain configuration modules
 pub mod activity;
@@ -32,6 +34,10 @@ pub mod nutrition;
 pub mod performance;
 pub mod recommendation;
 pub mod sleep_recovery;
+/// Training zone percentages (VDOT, FTP) configuration
+pub mod training_zones;
+/// VO2 max calculations and personalized zones
+pub mod vo2_max;
 pub mod weather;
 
 // Re-export all types for backward compatibility
@@ -63,6 +69,11 @@ pub use recommendation::{
 pub use sleep_recovery::{
     HrvConfig, RecoveryScoringConfig, SleepDurationConfig, SleepEfficiencyConfig,
     SleepRecoveryConfig, SleepStagesConfig, TsbConfig,
+};
+pub use training_zones::TrainingZonesConfig;
+pub use vo2_max::{
+    PersonalizedHRZones, PersonalizedPaceZones, PersonalizedPowerZones, SportEfficiency,
+    VO2MaxCalculator,
 };
 pub use weather::{
     TemperatureConfig, WeatherAnalysisConfig, WeatherConditionsConfig, WeatherImpactConfig,
