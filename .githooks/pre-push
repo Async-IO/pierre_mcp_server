@@ -137,15 +137,68 @@ if [ -f "$PROJECT_ROOT/scripts/architectural-validation.sh" ]; then
     echo ""
 fi
 
+# Run frontend tests (fast - ~4 seconds)
+run_frontend_tests() {
+    if [ ! -d "$PROJECT_ROOT/frontend/node_modules" ]; then
+        echo "⚠️  Warning: frontend/node_modules not found. Skipping frontend tests."
+        echo "   Run 'cd frontend && npm install' to enable."
+        return 0
+    fi
+
+    echo "🧪 Running frontend tests..."
+    if ! (cd "$PROJECT_ROOT/frontend" && npm test -- --run --reporter=dot 2>&1 | tail -5); then
+        echo ""
+        echo "❌ Frontend tests failed!"
+        echo ""
+        echo "Run 'cd frontend && npm test' to see details."
+        return 1
+    fi
+    echo "✅ Frontend tests passed"
+    echo ""
+    return 0
+}
+
+# Run SDK unit tests (fast - ~0.3 seconds)
+run_sdk_unit_tests() {
+    if [ ! -d "$PROJECT_ROOT/sdk/node_modules" ]; then
+        echo "⚠️  Warning: sdk/node_modules not found. Skipping SDK tests."
+        echo "   Run 'cd sdk && npm install' to enable."
+        return 0
+    fi
+
+    echo "🧪 Running SDK unit tests..."
+    if ! (cd "$PROJECT_ROOT/sdk" && npm run test:unit --silent 2>&1 | tail -5); then
+        echo ""
+        echo "❌ SDK unit tests failed!"
+        echo ""
+        echo "Run 'cd sdk && npm run test:unit' to see details."
+        return 1
+    fi
+    echo "✅ SDK unit tests passed"
+    echo ""
+    return 0
+}
+
+# Run frontend and SDK tests
+if ! run_frontend_tests; then
+    echo "To bypass (NOT RECOMMENDED): git push --no-verify"
+    exit 1
+fi
+
+if ! run_sdk_unit_tests; then
+    echo "To bypass (NOT RECOMMENDED): git push --no-verify"
+    exit 1
+fi
+
 # Check if pre-push tests script exists
 if [ ! -f "$PROJECT_ROOT/scripts/pre-push-tests.sh" ]; then
-    echo "⚠️  Warning: pre-push-tests.sh not found, skipping tests"
+    echo "⚠️  Warning: pre-push-tests.sh not found, skipping Rust tests"
     echo "   Location: $PROJECT_ROOT/scripts/pre-push-tests.sh"
     check_inflight_workflows
     exit 0
 fi
 
-# Run the pre-push tests
+# Run the Rust pre-push tests
 cd "$PROJECT_ROOT"
 
 if ./scripts/pre-push-tests.sh; then
