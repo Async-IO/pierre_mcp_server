@@ -2227,11 +2227,11 @@ fn create_calculate_recovery_score_tool() -> ToolSchema {
 
     ToolSchema {
         name: "calculate_recovery_score".to_owned(),
-        description: "Calculate comprehensive recovery score combining Training Stress Balance (TSB), sleep quality, and HRV metrics. Supports cross-provider integration: use 'activity_provider' for training data (e.g., Strava) and 'sleep_provider' for sleep/HRV data (e.g., WHOOP). Auto-selects connected providers if not specified. Returns overall score (0-100), recovery category, training readiness, and providers used.".into(),
+        description: "Calculate comprehensive recovery score combining Training Stress Balance (TSB), sleep quality, and HRV metrics. Supports cross-provider integration: use 'activity_provider' for training data (e.g., Strava) and 'sleep_provider' for sleep/HRV data (e.g., WHOOP). Auto-selects connected providers if not specified. FALLBACK MODE: If no sleep data is available, provides TSB-only recovery assessment based on training load alone with clear limitations noted. Returns overall score (0-100), recovery category, training readiness, data_completeness indicator, and providers used.".into(),
         input_schema: JsonSchema {
             schema_type: "object".into(),
             properties: Some(properties),
-            required: None, // Auto-selects providers or uses sleep_data fallback
+            required: None, // Auto-selects providers, TSB-only fallback if no sleep data
         },
     }
 }
@@ -2280,11 +2280,11 @@ fn create_suggest_rest_day_tool() -> ToolSchema {
 
     ToolSchema {
         name: "suggest_rest_day".to_owned(),
-        description: "AI-powered rest day recommendation based on training load analysis, recovery metrics, and fatigue indicators. Supports cross-provider integration for comprehensive analysis. Auto-selects connected providers if not specified. Returns whether rest is recommended, urgency level, and reasoning based on TSB, recent intensity, and recovery status.".into(),
+        description: "AI-powered rest day recommendation based on training load analysis, recovery metrics, and fatigue indicators. Supports cross-provider integration for comprehensive analysis. Auto-selects connected providers if not specified. FALLBACK MODE: If no sleep data is available, provides TSB-only recommendation based on training load alone with clear limitations noted. Returns whether rest is recommended, confidence level, reasoning, data_completeness indicator, and recovery insights.".into(),
         input_schema: JsonSchema {
             schema_type: "object".into(),
             properties: Some(properties),
-            required: None, // Auto-selects providers
+            required: None, // Auto-selects providers, TSB-only fallback if no sleep data
         },
     }
 }
