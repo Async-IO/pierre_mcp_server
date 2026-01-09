@@ -2011,7 +2011,7 @@ import '../styles/global.css';
             // Create tooltip element
             const tooltip = document.createElement('div');
             tooltip.id = 'tool-example-tooltip';
-            tooltip.className = 'fixed z-[60] max-w-sm bg-[#1a1a2e] border border-violet-500/30 rounded-xl shadow-2xl shadow-violet-500/20 p-4 hidden';
+            tooltip.className = 'fixed z-[110] max-w-sm bg-[#1a1a2e] border border-violet-500/30 rounded-xl shadow-2xl shadow-violet-500/20 p-4 hidden';
             tooltip.innerHTML = `
                 <div class="flex items-start gap-3">
                     <div class="flex-shrink-0 w-8 h-8 rounded-lg gradient-pierre flex items-center justify-center">
@@ -2067,18 +2067,24 @@ import '../styles/global.css';
                     activeCard = card;
                     card.classList.add('ring-2', 'ring-violet-500/50');
 
-                    // Position tooltip below the card
+                    // Position tooltip below the card (fixed positioning uses viewport coords)
                     const rect = card.getBoundingClientRect();
-                    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
 
                     tooltip.classList.remove('hidden');
 
-                    // Position calculation
-                    let top = rect.bottom + scrollTop + 12;
+                    // Get tooltip dimensions
+                    const tooltipRect = tooltip.getBoundingClientRect();
+
+                    // Calculate position - try below first, then above if no room
+                    let top = rect.bottom + 8;
                     let left = rect.left;
 
-                    // Keep tooltip within viewport
-                    const tooltipRect = tooltip.getBoundingClientRect();
+                    // If tooltip would go below viewport, position above the card
+                    if (top + tooltipRect.height > window.innerHeight - 20) {
+                        top = rect.top - tooltipRect.height - 8;
+                    }
+
+                    // Keep tooltip within horizontal viewport bounds
                     if (left + tooltipRect.width > window.innerWidth - 20) {
                         left = window.innerWidth - tooltipRect.width - 20;
                     }
