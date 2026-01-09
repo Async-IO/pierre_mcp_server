@@ -660,6 +660,38 @@ pub mod api_limits {
 
     /// Safe limit for JSON format + detailed mode (most verbose)
     pub const SAFE_LIMIT_JSON_DETAILED: usize = 10;
+
+    // Token estimation and LLM context management
+    // Based on empirical analysis: 3,333 activities = ~500K tokens over 5 years
+
+    /// Default time window in seconds (90 days)
+    /// Prevents overwhelming LLM context with years of historical data
+    /// 90 days covers recent training while staying within context limits
+    pub const DEFAULT_TIME_WINDOW_SECONDS: i64 = 90 * 24 * 60 * 60;
+
+    /// Claude context window limit in tokens
+    /// Reference: Claude 3.5 Sonnet and Opus support 200K context
+    pub const CLAUDE_CONTEXT_TOKENS: usize = 200_000;
+
+    /// Usable context for activity data (leaving room for prompts/responses)
+    /// Approximately 75% of context reserved for data
+    pub const USABLE_CONTEXT_TOKENS: usize = 150_000;
+
+    /// Average characters per token for estimation
+    /// Based on empirical analysis of fitness activity data
+    pub const CHARS_PER_TOKEN: usize = 4;
+
+    /// Tokens per activity estimate (TOON/summary mode)
+    /// Based on: 300 activities = ~161K chars = ~40K tokens
+    pub const TOKENS_PER_ACTIVITY_SUMMARY: usize = 135;
+
+    /// Tokens per activity estimate (JSON/detailed mode)
+    /// Detailed mode includes GPS, laps, segments - roughly 10x summary
+    pub const TOKENS_PER_ACTIVITY_DETAILED: usize = 1350;
+
+    /// Context warning threshold (percentage)
+    /// Warn users when approaching context limits
+    pub const CONTEXT_WARNING_THRESHOLD_PERCENT: usize = 50;
 }
 
 /// Default performance benchmarks for physiological calculations

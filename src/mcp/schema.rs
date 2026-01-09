@@ -816,7 +816,7 @@ fn create_get_activities_tool() -> ToolSchema {
         PropertySchema {
             property_type: "number".into(),
             description: Some(
-                "Unix timestamp (seconds) - return activities after this time".into(),
+                "Unix timestamp (seconds) - return activities after this time. If not specified, defaults to 90 days ago to prevent context overflow.".into(),
             ),
         },
     );
@@ -845,7 +845,7 @@ fn create_get_activities_tool() -> ToolSchema {
 
     ToolSchema {
         name: GET_ACTIVITIES.to_owned(),
-        description: "Get fitness activities from a provider. Use mode='summary' (default) for listing activities - returns compact data safe for LLM context. Use mode='detailed' only for single activity analysis. Combine with before/after timestamps and sport_type filter to efficiently query large date ranges. Response metadata includes pagination info (offset, limit, returned_count, has_more) to enable intelligent pagination through large result sets.".into(),
+        description: "Get fitness activities from a provider. Use mode='summary' (default) for listing activities - returns compact data safe for LLM context. Use mode='detailed' only for single activity analysis. Combine with before/after timestamps and sport_type filter to efficiently query large date ranges. Response metadata includes pagination info (offset, limit, returned_count, has_more) to enable intelligent pagination through large result sets. Response includes token_estimate with estimated_tokens, context_usage_percent, and guidance for managing LLM context limits. Default: 90-day time window applied when 'after' not specified.".into(),
         input_schema: JsonSchema {
             schema_type: "object".into(),
             properties: Some(properties),

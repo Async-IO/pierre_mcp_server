@@ -8,8 +8,10 @@ use crate::cache::{factory::Cache, CacheKey, CacheResource};
 use crate::config::environment::default_provider;
 use crate::formatters::{format_output, OutputFormat};
 use crate::intelligence::physiological_constants::api_limits::{
-    DEFAULT_ACTIVITY_LIMIT_U32, MAX_ACTIVITY_LIMIT, SAFE_LIMIT_JSON_DETAILED,
+    CLAUDE_CONTEXT_TOKENS, CONTEXT_WARNING_THRESHOLD_PERCENT, DEFAULT_ACTIVITY_LIMIT_U32,
+    DEFAULT_TIME_WINDOW_SECONDS, MAX_ACTIVITY_LIMIT, SAFE_LIMIT_JSON_DETAILED,
     SAFE_LIMIT_JSON_SUMMARY, SAFE_LIMIT_TOON_DETAILED, SAFE_LIMIT_TOON_SUMMARY,
+    TOKENS_PER_ACTIVITY_DETAILED, TOKENS_PER_ACTIVITY_SUMMARY, USABLE_CONTEXT_TOKENS,
 };
 use crate::models::{Activity, Athlete, SportType, Stats};
 use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalToolExecutor};
@@ -23,7 +25,7 @@ use std::future::Future;
 use std::hash::BuildHasher;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
@@ -112,6 +114,62 @@ pub struct PaginationInfo {
     pub has_more: bool,
 }
 
+/// Token usage estimation for LLM context management
+/// Helps users understand how much of their context window is being used
+#[derive(Debug, Clone, Serialize)]
+pub struct TokenEstimate {
+    /// Estimated tokens for this response
+    pub estimated_tokens: usize,
+    /// Percentage of Claude's context used (out of 200K)
+    pub context_usage_percent: f64,
+    /// Percentage of usable context used (out of 150K, leaving room for prompts)
+    pub usable_context_percent: f64,
+    /// Whether context usage is above warning threshold
+    pub context_warning: bool,
+    /// Human-readable context guidance
+    pub guidance: String,
+}
+
+impl TokenEstimate {
+    /// Create token estimate based on activity count and mode
+    /// Token counts are small enough that f64 precision loss is negligible
+    #[allow(clippy::cast_precision_loss)]
+    fn from_activities(count: usize, mode: &str) -> Self {
+        let tokens_per_activity = if mode == "summary" {
+            TOKENS_PER_ACTIVITY_SUMMARY
+        } else {
+            TOKENS_PER_ACTIVITY_DETAILED
+        };
+
+        let estimated_tokens = count * tokens_per_activity;
+        let context_usage_percent =
+            (estimated_tokens as f64 / CLAUDE_CONTEXT_TOKENS as f64) * 100.0;
+        let usable_context_percent =
+            (estimated_tokens as f64 / USABLE_CONTEXT_TOKENS as f64) * 100.0;
+        let context_warning = usable_context_percent > CONTEXT_WARNING_THRESHOLD_PERCENT as f64;
+
+        let guidance = if context_warning {
+            format!(
+                "Using {usable_context_percent:.1}% of usable context. Consider filtering by sport_type or using a smaller time range."
+            )
+        } else if usable_context_percent > 25.0 {
+            format!("Using {usable_context_percent:.1}% of usable context. Plenty of room for analysis.")
+        } else {
+            format!(
+                "Using {usable_context_percent:.1}% of usable context. Excellent - lots of room for detailed analysis."
+            )
+        };
+
+        Self {
+            estimated_tokens,
+            context_usage_percent,
+            usable_context_percent,
+            context_warning,
+            guidance,
+        }
+    }
+}
+
 /// Parameters for trying to get cached activities
 struct CachedActivitiesParams<'a> {
     cache: &'a Arc<Cache>,
@@ -123,6 +181,7 @@ struct CachedActivitiesParams<'a> {
     output_format: OutputFormat,
     limit: usize,
     offset: usize,
+    default_time_window_applied: bool,
 }
 
 /// Create metadata for activity analysis responses
@@ -311,15 +370,16 @@ async fn try_get_cached_activities(
             has_more: cached_activities.len() == params.limit,
         };
         // Use the same response builder as the non-cached path to apply mode/format
-        let mut response = build_activities_success_response(
-            &cached_activities,
-            params.user_uuid,
-            params.tenant_id,
-            params.provider_name,
-            params.mode,
-            params.output_format,
-            Some(&pagination),
-        );
+        let mut response = build_activities_success_response(ActivitiesResponseParams {
+            activities: &cached_activities,
+            user_uuid: params.user_uuid,
+            tenant_id: params.tenant_id,
+            provider_name: params.provider_name,
+            mode: params.mode,
+            output_format: params.output_format,
+            pagination: Some(&pagination),
+            default_time_window_applied: params.default_time_window_applied,
+        });
         // Mark as cached in metadata
         if let Some(ref mut metadata) = response.metadata {
             metadata.insert("cached".to_owned(), Value::Bool(true));
@@ -417,52 +477,89 @@ fn build_activities_metadata(
     map
 }
 
+/// Prepare activity data for response based on mode (summary or detailed)
+/// Returns the JSON value and mode string, or error message string if serialization fails
+fn prepare_activity_data(
+    activities: &[Activity],
+    mode: &str,
+) -> Result<(Value, &'static str), String> {
+    if mode == "summary" {
+        let summaries: Vec<ActivitySummary> =
+            activities.iter().map(ActivitySummary::from).collect();
+        to_value(&summaries)
+            .map(|v| (v, "summary"))
+            .map_err(|e| format!("Failed to serialize activity summaries: {e}"))
+    } else {
+        to_value(activities)
+            .map(|v| (v, "detailed"))
+            .map_err(|e| format!("Failed to serialize activities: {e}"))
+    }
+}
+
+/// Add common fields (pagination, token estimate, time window flag) to activity response JSON
+fn add_common_response_fields(
+    json_val: &mut Value,
+    pagination: Option<&PaginationInfo>,
+    token_estimate: &TokenEstimate,
+    default_time_window_applied: bool,
+) {
+    if let Some(page_info) = pagination {
+        json_val["offset"] = json!(page_info.offset);
+        json_val["limit"] = json!(page_info.limit);
+        json_val["has_more"] = json!(page_info.has_more);
+    }
+    json_val["token_estimate"] = json!(token_estimate);
+    json_val["default_time_window_applied"] = json!(default_time_window_applied);
+}
+
+/// Parameters for building an activities success response
+struct ActivitiesResponseParams<'a> {
+    activities: &'a [Activity],
+    user_uuid: Uuid,
+    tenant_id: Option<String>,
+    provider_name: &'a str,
+    mode: &'a str,
+    output_format: OutputFormat,
+    pagination: Option<&'a PaginationInfo>,
+    default_time_window_applied: bool,
+}
+
 /// Build success response for activities with mode and format support
 /// `mode="summary"` returns minimal fields (id, name, `sport_type`, `start_date`, distance, duration)
 /// `mode="detailed"` returns full activity data (default for backwards compatibility when not specified)
 /// `format="json"` (default) or `format="toon"` for token-efficient LLM output
 /// `pagination` enables clients to paginate through large result sets
-fn build_activities_success_response(
-    activities: &[Activity],
-    user_uuid: Uuid,
-    tenant_id: Option<String>,
-    provider_name: &str,
-    mode: &str,
-    output_format: OutputFormat,
-    pagination: Option<&PaginationInfo>,
-) -> UniversalResponse {
+/// `default_time_window_applied` indicates if the 90-day default was used
+fn build_activities_success_response(params: ActivitiesResponseParams<'_>) -> UniversalResponse {
+    let ActivitiesResponseParams {
+        activities,
+        user_uuid,
+        tenant_id,
+        provider_name,
+        mode,
+        output_format,
+        pagination,
+        default_time_window_applied,
+    } = params;
+
     // Prepare the data based on mode
-    let (data_value, mode_used) = if mode == "summary" {
-        let summaries: Vec<ActivitySummary> =
-            activities.iter().map(ActivitySummary::from).collect();
-        match to_value(&summaries) {
-            Ok(value) => (value, "summary"),
-            Err(e) => {
-                return UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(format!("Failed to serialize activity summaries: {e}")),
-                    metadata: None,
-                };
-            }
-        }
-    } else {
-        // Detailed mode: return full activity data
-        match to_value(activities) {
-            Ok(value) => (value, "detailed"),
-            Err(e) => {
-                return UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(format!("Failed to serialize activities: {e}")),
-                    metadata: None,
-                };
+    let (data_value, mode_used) = match prepare_activity_data(activities, mode) {
+        Ok(result) => result,
+        Err(error) => {
+            return UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(error),
+                metadata: None,
             }
         }
     };
 
     // Create pre-formatted activity list for LLM output (helps models include the list)
     let activity_list = format_activities_as_list(activities);
+
+    // Calculate token estimate for context management
+    let token_estimate = TokenEstimate::from_activities(activities.len(), mode_used);
 
     // Format the activities data according to the requested format
     let (result_json, format_used) = match output_format {
@@ -476,16 +573,16 @@ fn build_activities_success_response(
                     "mode": mode_used,
                     "format": "toon"
                 });
-                // Add pagination fields directly to result for MCP clients
-                if let Some(page_info) = pagination {
-                    json_val["offset"] = json!(page_info.offset);
-                    json_val["limit"] = json!(page_info.limit);
-                    json_val["has_more"] = json!(page_info.has_more);
-                }
+                add_common_response_fields(
+                    &mut json_val,
+                    pagination,
+                    &token_estimate,
+                    default_time_window_applied,
+                );
                 (json_val, "toon")
             }
             Err(e) => {
-                warn!("TOON serialization failed, falling back to JSON: {}", e);
+                warn!("TOON serialization failed, falling back to JSON: {e}");
                 let mut json_val = json!({
                     "activity_list": activity_list,
                     "activities": data_value,
@@ -496,12 +593,12 @@ fn build_activities_success_response(
                     "format_fallback": true,
                     "format_error": e.to_string()
                 });
-                // Add pagination fields to fallback response too
-                if let Some(page_info) = pagination {
-                    json_val["offset"] = json!(page_info.offset);
-                    json_val["limit"] = json!(page_info.limit);
-                    json_val["has_more"] = json!(page_info.has_more);
-                }
+                add_common_response_fields(
+                    &mut json_val,
+                    pagination,
+                    &token_estimate,
+                    default_time_window_applied,
+                );
                 (json_val, "json")
             }
         },
@@ -514,12 +611,12 @@ fn build_activities_success_response(
                 "mode": mode_used,
                 "format": "json"
             });
-            // Add pagination fields directly to result for MCP clients
-            if let Some(page_info) = pagination {
-                json_val["offset"] = json!(page_info.offset);
-                json_val["limit"] = json!(page_info.limit);
-                json_val["has_more"] = json!(page_info.has_more);
-            }
+            add_common_response_fields(
+                &mut json_val,
+                pagination,
+                &token_estimate,
+                default_time_window_applied,
+            );
             (json_val, "json")
         }
     };
@@ -711,7 +808,28 @@ pub fn handle_get_activities(
         // Extract optional before/after timestamp parameters for time-based filtering
         let before = request.parameters.get("before").and_then(Value::as_i64);
 
-        let after = request.parameters.get("after").and_then(Value::as_i64);
+        let user_after = request.parameters.get("after").and_then(Value::as_i64);
+
+        // Apply default time window (90 days) when no 'after' timestamp specified
+        // This prevents overwhelming LLM context with years of historical data
+        // Users can override by explicitly passing after=0 or any timestamp
+        let (after, default_time_window_applied) = if user_after.is_some() {
+            (user_after, false)
+        } else {
+            // Calculate timestamp for 90 days ago
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            #[allow(clippy::cast_possible_wrap)]
+            let default_after = (now as i64).saturating_sub(DEFAULT_TIME_WINDOW_SECONDS);
+            info!(
+                default_after_timestamp = default_after,
+                days_back = 90,
+                "Applying default 90-day time window for activities"
+            );
+            (Some(default_after), true)
+        };
 
         // Extract sport_type filter parameter (case-insensitive)
         let sport_type_filter = request
@@ -789,6 +907,7 @@ pub fn handle_get_activities(
             output_format,
             limit,
             offset: offset.unwrap_or(0),
+            default_time_window_applied,
         })
         .await
         {
@@ -885,13 +1004,16 @@ pub fn handle_get_activities(
                         let pagination = create_pagination(filtered_activities.len());
 
                         Ok(build_activities_success_response(
-                            &filtered_activities,
-                            user_uuid,
-                            request.tenant_id,
-                            &provider_name,
-                            mode,
-                            output_format,
-                            Some(&pagination),
+                            ActivitiesResponseParams {
+                                activities: &filtered_activities,
+                                user_uuid,
+                                tenant_id: request.tenant_id,
+                                provider_name: &provider_name,
+                                mode,
+                                output_format,
+                                pagination: Some(&pagination),
+                                default_time_window_applied,
+                            },
                         ))
                     }
                     Err(e) => Ok(UniversalResponse {
