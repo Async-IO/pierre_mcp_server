@@ -349,20 +349,6 @@ export default function LlmSettingsTab() {
               </div>
             )}
 
-            {/* General Message */}
-            {message && (
-              <div
-                className={clsx(
-                  'p-3 rounded-lg text-sm',
-                  message.type === 'success'
-                    ? 'bg-pierre-activity-light/30 text-pierre-activity'
-                    : 'bg-red-50 text-red-600'
-                )}
-              >
-                {message.text}
-              </div>
-            )}
-
             {/* Action Buttons */}
             <div className="flex gap-3 pt-2">
               <Button
@@ -382,6 +368,22 @@ export default function LlmSettingsTab() {
                 Save API Key
               </Button>
             </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Success/Error Message - displayed outside form so it persists after save */}
+      {message && (
+        <Card>
+          <div
+            className={clsx(
+              'p-3 rounded-lg text-sm',
+              message.type === 'success'
+                ? 'bg-pierre-activity-light/30 text-pierre-activity'
+                : 'bg-red-50 text-red-600'
+            )}
+          >
+            {message.text}
           </div>
         </Card>
       )}
