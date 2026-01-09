@@ -80,10 +80,24 @@ pub struct AdminWelcomePromptResponse {
     pub prompt_text: String,
 }
 
+/// Response for admin system prompt operations
+#[derive(Debug, Serialize)]
+pub struct AdminSystemPromptResponse {
+    /// System prompt text (markdown format)
+    pub prompt_text: String,
+}
+
 /// Request to update the welcome prompt
 #[derive(Debug, serde::Deserialize)]
 pub struct UpdateWelcomePromptRequest {
     /// New welcome prompt text
+    pub prompt_text: String,
+}
+
+/// Request to update the system prompt
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateSystemPromptRequest {
+    /// New system prompt text (markdown format)
     pub prompt_text: String,
 }
 
@@ -111,6 +125,8 @@ impl PromptRoutes {
             .route("/prompts/:id", delete(Self::handle_admin_delete_category))
             .route("/prompts/welcome", get(Self::handle_admin_get_welcome))
             .route("/prompts/welcome", put(Self::handle_admin_update_welcome))
+            .route("/prompts/system", get(Self::handle_admin_get_system))
+            .route("/prompts/system", put(Self::handle_admin_update_system))
             .route("/prompts/reset", post(Self::handle_admin_reset_defaults))
             .with_state(resources)
     }
@@ -391,6 +407,47 @@ impl PromptRoutes {
 
         let response = AdminWelcomePromptResponse {
             prompt_text: welcome.prompt_text,
+        };
+
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Handle GET /api/admin/prompts/system - Get the system prompt
+    async fn handle_admin_get_system(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        Self::require_admin(&resources, auth.user_id).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        let prompt_manager = Self::get_prompt_manager(&resources)?;
+        let system = prompt_manager.get_system_prompt(&tenant_id).await?;
+
+        let response = AdminSystemPromptResponse {
+            prompt_text: system.prompt_text,
+        };
+
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Handle PUT /api/admin/prompts/system - Update the system prompt
+    async fn handle_admin_update_system(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Json(request): Json<UpdateSystemPromptRequest>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        Self::require_admin(&resources, auth.user_id).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        let prompt_manager = Self::get_prompt_manager(&resources)?;
+        let system = prompt_manager
+            .update_system_prompt(&tenant_id, &request.prompt_text)
+            .await?;
+
+        let response = AdminSystemPromptResponse {
+            prompt_text: system.prompt_text,
         };
 
         Ok((StatusCode::OK, Json(response)).into_response())

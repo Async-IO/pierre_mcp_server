@@ -61,7 +61,7 @@ use super::{
     ChatMessage, ChatRequest, ChatResponse, ChatResponseWithTools, ChatStream, FunctionCall,
     LlmCapabilities, LlmProvider, StreamChunk, TokenUsage, Tool,
 };
-use crate::errors::AppError;
+use crate::errors::{AppError, ErrorCode};
 
 /// Environment variable for Groq API key
 const GROQ_API_KEY_ENV: &str = "GROQ_API_KEY";
@@ -284,10 +284,12 @@ impl GroqProvider {
                     "Groq API authentication failed: {}",
                     error_response.error.message
                 )),
-                429 => AppError::external_service(
-                    "Groq",
-                    format!("Rate limit exceeded: {}", error_response.error.message),
-                ),
+                429 => {
+                    // Extract user-friendly rate limit message
+                    let user_message =
+                        Self::extract_rate_limit_message(&error_response.error.message);
+                    AppError::new(ErrorCode::ExternalRateLimited, user_message)
+                }
                 400 => AppError::invalid_input(format!(
                     "Groq API validation error: {}",
                     error_response.error.message
@@ -306,6 +308,35 @@ impl GroqProvider {
                     body.chars().take(200).collect::<String>()
                 ),
             )
+        }
+    }
+
+    /// Extract a user-friendly rate limit message from Groq error
+    ///
+    /// Groq rate limit errors look like:
+    /// "Rate limit reached for model X in organization Y on tokens per minute (TPM): Limit N, Used M, Requested R. Please try again in Xs."
+    fn extract_rate_limit_message(message: &str) -> String {
+        // Try to extract "Please try again in Xs" wait time
+        if let Some(retry_pos) = message.find("Please try again in ") {
+            let after_prefix = &message[retry_pos + 20..]; // Skip "Please try again in "
+                                                           // Find the 's' or 'ms' that ends the time value
+            if let Some(end_pos) = after_prefix.find(['s', '.']) {
+                let time_str = &after_prefix[..end_pos];
+                if let Ok(seconds) = time_str.parse::<f64>() {
+                    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                    let seconds_int = seconds.ceil() as u64;
+                    return format!(
+                        "Groq AI rate limit reached. Please try again in {seconds_int} seconds."
+                    );
+                }
+            }
+        }
+        // Fallback: provide a helpful message with the limit info if available
+        if message.contains("tokens per minute") {
+            "Groq AI rate limit reached (tokens per minute). Please wait a moment and try again."
+                .to_owned()
+        } else {
+            "Groq AI rate limit reached. Please wait a moment and try again.".to_owned()
         }
     }
 
@@ -455,7 +486,7 @@ impl LlmProvider for GroqProvider {
             | LlmCapabilities::JSON_MODE
     }
 
-    fn default_model(&self) -> &'static str {
+    fn default_model(&self) -> &str {
         DEFAULT_MODEL
     }
 

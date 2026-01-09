@@ -44,7 +44,7 @@ pub use errors::{DatabaseError, DatabaseResult};
 pub use oauth_notifications::OAuthNotification;
 pub use prompts::{
     CreatePromptCategoryRequest, Pillar, PromptCategory, PromptCategoryResponse, PromptManager,
-    UpdatePromptCategoryRequest, WelcomePrompt,
+    SystemPrompt, UpdatePromptCategoryRequest, WelcomePrompt,
 };
 pub use user_mcp_tokens::{
     CreateUserMcpTokenRequest, UserMcpToken, UserMcpTokenCreated, UserMcpTokenInfo,

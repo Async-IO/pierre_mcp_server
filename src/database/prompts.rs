@@ -106,6 +106,19 @@ pub struct WelcomePrompt {
     pub is_active: bool,
 }
 
+/// The system prompt (instructions) for the LLM assistant
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemPrompt {
+    /// Unique ID
+    pub id: Uuid,
+    /// Tenant this prompt belongs to
+    pub tenant_id: String,
+    /// The system prompt text (markdown format)
+    pub prompt_text: String,
+    /// Whether this prompt is active
+    pub is_active: bool,
+}
+
 /// Request to create a new prompt category
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreatePromptCategoryRequest {
@@ -140,50 +153,33 @@ pub struct UpdatePromptCategoryRequest {
     pub is_active: Option<bool>,
 }
 
-/// Default prompt categories for new tenants
-pub const DEFAULT_PROMPT_CATEGORIES: &[(&str, &str, &str, &str, &[&str])] = &[
-    (
-        "training",
-        "Training",
-        "🏃",
-        "activity",
-        &[
-            "Am I ready for a hard workout today?",
-            "What's my predicted marathon time?",
-        ],
-    ),
-    (
-        "nutrition",
-        "Nutrition",
-        "🥗",
-        "nutrition",
-        &[
-            "How many calories should I eat today?",
-            "What should I eat before my morning run?",
-        ],
-    ),
-    (
-        "recovery",
-        "Recovery",
-        "😴",
-        "recovery",
-        &["Do I need a rest day?", "Analyze my sleep quality"],
-    ),
-    (
-        "recipes",
-        "Recipes",
-        "🍳",
-        "nutrition",
-        &[
-            "Create a high-protein post-workout meal",
-            "Show my saved recipes",
-        ],
-    ),
-];
+/// Default prompt categories JSON loaded from file (single source of truth)
+const DEFAULT_PROMPT_CATEGORIES_JSON: &str = include_str!("../llm/prompts/prompt_categories.json");
 
-/// Default welcome prompt for first-time connected users
-pub const DEFAULT_WELCOME_PROMPT: &str =
-    "List my last 20 activities with their dates, distances, and durations. Then give me a fitness summary with insights and recommendations";
+/// Parsed prompt category from JSON
+#[derive(Debug, Clone, Deserialize)]
+struct DefaultPromptCategory {
+    key: String,
+    title: String,
+    icon: String,
+    pillar: String,
+    prompts: Vec<String>,
+}
+
+/// Parse default prompt categories from JSON file
+fn parse_default_prompt_categories() -> Vec<DefaultPromptCategory> {
+    serde_json::from_str(DEFAULT_PROMPT_CATEGORIES_JSON).unwrap_or_else(|e| {
+        tracing::error!("Failed to parse default prompt categories JSON: {e}");
+        Vec::new()
+    })
+}
+
+/// Default welcome prompt loaded from file (single source of truth)
+pub const DEFAULT_WELCOME_PROMPT: &str = include_str!("../llm/prompts/welcome_prompt.md");
+
+/// Default system prompt for the LLM assistant
+/// This provides instructions for the AI's role, communication style, and available tools
+pub const DEFAULT_SYSTEM_PROMPT: &str = include_str!("../llm/prompts/pierre_system.md");
 
 /// Prompt suggestions database operations manager
 pub struct PromptManager {
@@ -242,6 +238,8 @@ impl PromptManager {
 
     /// Get all prompt categories for a tenant (including inactive) - for admin
     ///
+    /// If no categories exist, seeds the default categories first.
+    ///
     /// # Errors
     ///
     /// Returns an error if database operation fails
@@ -249,6 +247,19 @@ impl PromptManager {
         &self,
         tenant_id: &str,
     ) -> AppResult<Vec<PromptCategory>> {
+        let categories = self.fetch_all_prompt_categories(tenant_id).await?;
+
+        // If no categories exist, seed defaults
+        if categories.is_empty() {
+            self.seed_default_prompts(tenant_id).await?;
+            return self.fetch_all_prompt_categories(tenant_id).await;
+        }
+
+        Ok(categories)
+    }
+
+    /// Fetch all prompt categories from database (internal helper)
+    async fn fetch_all_prompt_categories(&self, tenant_id: &str) -> AppResult<Vec<PromptCategory>> {
         let rows = sqlx::query(
             r"
             SELECT id, tenant_id, category_key, category_title, category_icon,
@@ -547,13 +558,108 @@ impl PromptManager {
         self.get_welcome_prompt(tenant_id).await
     }
 
+    /// Get the system prompt for a tenant
+    ///
+    /// If no system prompt exists, seeds the default first.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn get_system_prompt(&self, tenant_id: &str) -> AppResult<SystemPrompt> {
+        let row = sqlx::query(
+            r"
+            SELECT id, tenant_id, prompt_text, is_active
+            FROM system_prompts
+            WHERE tenant_id = $1 AND is_active = 1
+            ",
+        )
+        .bind(tenant_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch system prompt: {e}")))?;
+
+        if let Some(row) = row {
+            return Self::row_to_system_prompt(&row);
+        }
+
+        // Seed default and return it
+        self.seed_system_prompt(tenant_id).await?;
+        let row = sqlx::query(
+            r"
+            SELECT id, tenant_id, prompt_text, is_active
+            FROM system_prompts
+            WHERE tenant_id = $1 AND is_active = 1
+            ",
+        )
+        .bind(tenant_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch seeded system prompt: {e}")))?;
+        Self::row_to_system_prompt(&row)
+    }
+
+    /// Update the system prompt for a tenant
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn update_system_prompt(
+        &self,
+        tenant_id: &str,
+        prompt_text: &str,
+    ) -> AppResult<SystemPrompt> {
+        let now = Utc::now().to_rfc3339();
+
+        // Try to update existing, or insert if not exists
+        let result = sqlx::query(
+            r"
+            UPDATE system_prompts
+            SET prompt_text = $1, updated_at = $2
+            WHERE tenant_id = $3
+            ",
+        )
+        .bind(prompt_text)
+        .bind(&now)
+        .bind(tenant_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to update system prompt: {e}")))?;
+
+        if result.rows_affected() == 0 {
+            // Insert new
+            let id = Uuid::new_v4();
+            sqlx::query(
+                r"
+                INSERT INTO system_prompts (id, tenant_id, prompt_text, is_active, created_at, updated_at)
+                VALUES ($1, $2, $3, 1, $4, $4)
+                ",
+            )
+            .bind(id.to_string())
+            .bind(tenant_id)
+            .bind(prompt_text)
+            .bind(&now)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to create system prompt: {e}")))?;
+
+            return Ok(SystemPrompt {
+                id,
+                tenant_id: tenant_id.to_owned(),
+                prompt_text: prompt_text.to_owned(),
+                is_active: true,
+            });
+        }
+
+        self.get_system_prompt(tenant_id).await
+    }
+
     /// Reset all prompts to defaults for a tenant
     ///
     /// # Errors
     ///
     /// Returns an error if database operation fails
     pub async fn reset_to_defaults(&self, tenant_id: &str) -> AppResult<()> {
-        // Delete all existing categories and welcome prompt
+        // Delete all existing categories, welcome prompt, and system prompt
         sqlx::query("DELETE FROM prompt_suggestions WHERE tenant_id = $1")
             .bind(tenant_id)
             .execute(&self.pool)
@@ -566,23 +672,39 @@ impl PromptManager {
             .await
             .map_err(|e| AppError::database(format!("Failed to delete welcome prompt: {e}")))?;
 
+        sqlx::query("DELETE FROM system_prompts WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to delete system prompt: {e}")))?;
+
         // Re-seed defaults
         self.seed_default_prompts(tenant_id).await?;
         self.seed_welcome_prompt(tenant_id).await?;
+        self.seed_system_prompt(tenant_id).await?;
 
         Ok(())
     }
 
     /// Seed default prompt categories for a tenant
+    ///
+    /// Categories are loaded from `src/llm/prompts/prompt_categories.json`
     async fn seed_default_prompts(&self, tenant_id: &str) -> AppResult<()> {
         let now = Utc::now().to_rfc3339();
+        let categories = parse_default_prompt_categories();
 
-        for (order, (key, title, icon, pillar, prompts)) in
-            DEFAULT_PROMPT_CATEGORIES.iter().enumerate()
-        {
+        for (order, category) in categories.iter().enumerate() {
             let id = Uuid::new_v4();
-            let prompts_vec: Vec<String> = prompts.iter().map(|s| (*s).to_owned()).collect();
-            let prompts_json = serde_json::to_string(&prompts_vec)?;
+            let prompts_json = serde_json::to_string(&category.prompts)?;
+
+            // Map icon names to emoji
+            let icon_emoji = match category.icon.as_str() {
+                "runner" => "🏃",
+                "salad" => "🥗",
+                "sleep" => "😴",
+                "cooking" => "🍳",
+                other => other, // Allow direct emoji in JSON
+            };
 
             #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
             let order_i32 = order as i32;
@@ -598,10 +720,10 @@ impl PromptManager {
             )
             .bind(id.to_string())
             .bind(tenant_id)
-            .bind(*key)
-            .bind(*title)
-            .bind(*icon)
-            .bind(*pillar)
+            .bind(&category.key)
+            .bind(&category.title)
+            .bind(icon_emoji)
+            .bind(&category.pillar)
             .bind(&prompts_json)
             .bind(order_i32)
             .bind(&now)
@@ -632,6 +754,29 @@ impl PromptManager {
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to seed welcome prompt: {e}")))?;
+
+        Ok(())
+    }
+
+    /// Seed default system prompt for a tenant
+    async fn seed_system_prompt(&self, tenant_id: &str) -> AppResult<()> {
+        let now = Utc::now().to_rfc3339();
+        let id = Uuid::new_v4();
+
+        sqlx::query(
+            r"
+            INSERT INTO system_prompts (id, tenant_id, prompt_text, is_active, created_at, updated_at)
+            VALUES ($1, $2, $3, 1, $4, $4)
+            ON CONFLICT(tenant_id) DO NOTHING
+            ",
+        )
+        .bind(id.to_string())
+        .bind(tenant_id)
+        .bind(DEFAULT_SYSTEM_PROMPT)
+        .bind(&now)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to seed system prompt: {e}")))?;
 
         Ok(())
     }
@@ -712,6 +857,34 @@ impl PromptManager {
             .map_err(|e| AppError::database(format!("Failed to get is_active: {e}")))?;
 
         Ok(WelcomePrompt {
+            id,
+            tenant_id,
+            prompt_text,
+            is_active,
+        })
+    }
+
+    /// Convert a database row to a `SystemPrompt`
+    fn row_to_system_prompt(row: &SqliteRow) -> AppResult<SystemPrompt> {
+        let id_str: String = row
+            .try_get("id")
+            .map_err(|e| AppError::database(format!("Failed to get id: {e}")))?;
+        let id = Uuid::parse_str(&id_str)
+            .map_err(|e| AppError::database(format!("Invalid UUID: {e}")))?;
+
+        let tenant_id: String = row
+            .try_get("tenant_id")
+            .map_err(|e| AppError::database(format!("Failed to get tenant_id: {e}")))?;
+
+        let prompt_text: String = row
+            .try_get("prompt_text")
+            .map_err(|e| AppError::database(format!("Failed to get prompt_text: {e}")))?;
+
+        let is_active: bool = row
+            .try_get("is_active")
+            .map_err(|e| AppError::database(format!("Failed to get is_active: {e}")))?;
+
+        Ok(SystemPrompt {
             id,
             tenant_id,
             prompt_text,

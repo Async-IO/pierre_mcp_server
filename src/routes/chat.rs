@@ -11,12 +11,12 @@
 
 use crate::{
     auth::AuthResult,
-    database::{ChatManager, MessageRecord},
+    database::{ChatManager, ConversationRecord, MessageRecord, PromptManager},
     database_plugins::DatabaseProvider,
     errors::AppError,
     llm::{
-        get_pierre_system_prompt, ChatMessage, ChatProvider, ChatRequest, FunctionCall,
-        FunctionDeclaration, FunctionResponse, MessageRole, TokenUsage, Tool,
+        ChatMessage, ChatProvider, ChatRequest, FunctionCall, FunctionDeclaration,
+        FunctionResponse, MessageRole, TokenUsage, Tool,
     },
     mcp::resources::ServerResources,
     protocols::universal::{UniversalExecutor, UniversalRequest, UniversalResponse},
@@ -35,7 +35,7 @@ use axum::{
 use futures_util::stream::Stream;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::{borrow::Cow, convert::Infallible, sync::Arc};
+use std::{borrow::Cow, convert::Infallible, sync::Arc, time::Instant};
 use tokio_stream::StreamExt;
 use tracing::info;
 use uuid::Uuid;
@@ -101,6 +101,8 @@ struct ToolLoopResult {
     usage: Option<TokenUsage>,
     /// Finish reason if available
     finish_reason: Option<String>,
+    /// Activity list from `get_activities` tool (to prepend to response)
+    activity_list: Option<String>,
 }
 
 // ============================================================================
@@ -208,6 +210,10 @@ pub struct ChatCompletionResponse {
     pub assistant_message: MessageResponse,
     /// Conversation updated timestamp
     pub conversation_updated_at: String,
+    /// LLM model used for the response
+    pub model: String,
+    /// Total execution time in milliseconds (including tool calls)
+    pub execution_time_ms: u64,
 }
 
 /// Response for messages list
@@ -317,6 +323,33 @@ impl ChatRoutes {
             .ok_or_else(|| AppError::internal("Chat feature requires SQLite database"))?
             .clone();
         Ok(ChatManager::new(pool))
+    }
+
+    /// Create a `PromptManager` from server resources
+    fn create_prompt_manager(resources: &ServerResources) -> Result<PromptManager, AppError> {
+        let pool = resources
+            .database
+            .sqlite_pool()
+            .ok_or_else(|| AppError::internal("Prompt feature requires SQLite database"))?
+            .clone();
+        Ok(PromptManager::new(pool))
+    }
+
+    /// Get the system prompt text for a conversation
+    ///
+    /// Uses conversation-specific prompt if set, otherwise loads tenant default from DB.
+    async fn get_system_prompt_text(
+        conversation: &ConversationRecord,
+        tenant_id: &str,
+        resources: &ServerResources,
+    ) -> Result<String, AppError> {
+        if let Some(s) = &conversation.system_prompt {
+            Ok(s.clone())
+        } else {
+            let prompt_manager = Self::create_prompt_manager(resources)?;
+            let system_prompt = prompt_manager.get_system_prompt(tenant_id).await?;
+            Ok(system_prompt.prompt_text)
+        }
     }
 
     /// Get LLM provider based on `PIERRE_LLM_PROVIDER` environment variable
@@ -555,6 +588,9 @@ impl ChatRoutes {
         user_id: &str,
         tenant_id: &str,
     ) -> Result<ToolLoopResult, AppError> {
+        // Track activity list across iterations (to prepend to final response)
+        let mut captured_activity_list: Option<String> = None;
+
         for iteration in 0..MAX_TOOL_ITERATIONS {
             let llm_request = ChatRequest::new(llm_messages.clone()).with_model(model);
             let response = provider
@@ -582,8 +618,12 @@ impl ChatRoutes {
                         }
                     }
 
-                    // Add function responses as user messages
-                    Self::add_function_responses_to_messages(llm_messages, &function_responses);
+                    // Add function responses as user messages, capturing activity list if present
+                    if let Some(list) =
+                        Self::add_function_responses_to_messages(llm_messages, &function_responses)
+                    {
+                        captured_activity_list = Some(list);
+                    }
                     continue;
                 }
             }
@@ -597,6 +637,7 @@ impl ChatRoutes {
                 content,
                 usage: response.usage,
                 finish_reason: response.finish_reason,
+                activity_list: captured_activity_list,
             });
         }
 
@@ -605,6 +646,7 @@ impl ChatRoutes {
             content: String::new(),
             usage: None,
             finish_reason: Some("max_iterations".to_owned()),
+            activity_list: captured_activity_list,
         })
     }
 
@@ -626,18 +668,40 @@ impl ChatRoutes {
     }
 
     /// Add function responses as user messages for next LLM iteration
+    /// Returns the activity list if found (to prepend to final response)
     fn add_function_responses_to_messages(
         llm_messages: &mut Vec<ChatMessage>,
         function_responses: &[FunctionResponse],
-    ) {
+    ) -> Option<String> {
+        // Track activity list to return for prepending to final response
+        let mut activity_list_content: Option<String> = None;
+
         for func_response in function_responses {
             let response_text =
                 serde_json::to_string(&func_response.response).unwrap_or_else(|_| "{}".to_owned());
-            llm_messages.push(ChatMessage::user(format!(
-                "[Tool Result for {}]: {}",
-                func_response.name, response_text
-            )));
+
+            // For get_activities, extract the activity_list to prepend to final response
+            if func_response.name == "get_activities" {
+                if let Some(activity_list) = func_response
+                    .response
+                    .get("activity_list")
+                    .and_then(|v| v.as_str())
+                    .filter(|s| !s.is_empty())
+                {
+                    let list_len = activity_list.len();
+                    activity_list_content = Some(activity_list.to_owned());
+                    info!("Extracted activity list ({list_len} chars) to prepend to response");
+                }
+            }
+
+            // All tool results use the same format
+            let name = &func_response.name;
+            let message = format!("[Tool Result for {name}]: {response_text}");
+            llm_messages.push(ChatMessage::user(message));
         }
+
+        // Return activity list for prepending to final response (guarantees user sees data)
+        activity_list_content
     }
 
     /// Execute an MCP tool call and return the result
@@ -710,14 +774,12 @@ impl ChatRoutes {
         let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
 
         // Use provider's default model only if none specified (defers LLM init)
-        let model = request.model.as_ref().map_or_else(
-            || {
-                Self::get_llm_provider()
-                    .map(|p| p.default_model())
-                    .unwrap_or(DEFAULT_FALLBACK_MODEL)
-            },
-            |model_name| model_name.as_str(),
-        );
+        let model = request.model.clone().unwrap_or_else(|| {
+            Self::get_llm_provider().map_or_else(
+                |_| DEFAULT_FALLBACK_MODEL.to_owned(),
+                |p| p.default_model().to_owned(),
+            )
+        });
         let chat_manager = Self::create_chat_manager(&resources)?;
 
         let conv = chat_manager
@@ -725,7 +787,7 @@ impl ChatRoutes {
                 &auth.user_id.to_string(),
                 &tenant_id,
                 &request.title,
-                model,
+                &model,
                 request.system_prompt.as_deref(),
             )
             .await?;
@@ -932,13 +994,13 @@ impl ChatRoutes {
             )
             .await?;
 
-        // Get conversation history and build LLM messages with Pierre system prompt
+        // Get conversation history and build LLM messages with system prompt
         let history = chat_manager.get_messages(&conversation_id).await?;
-        let system_prompt: Cow<'_, str> = conv.system_prompt.as_ref().map_or_else(
-            || Cow::Borrowed(get_pierre_system_prompt()),
-            |s| Cow::Borrowed(s.as_str()),
-        );
-        let mut llm_messages = Self::build_llm_messages(Some(&system_prompt), &history);
+
+        let system_prompt_text =
+            Self::get_system_prompt_text(&conv, &tenant_id, &resources).await?;
+        let mut llm_messages =
+            Self::build_llm_messages(Some(system_prompt_text.as_str()), &history);
 
         // Build MCP tools for function calling
         let tools = Self::build_mcp_tools();
@@ -948,6 +1010,9 @@ impl ChatRoutes {
 
         // Create MCP executor for tool calls
         let executor = UniversalExecutor::new(resources.clone()); // Arc clone for executor creation
+
+        // Track execution time for the entire LLM + tool loop
+        let start_time = Instant::now();
 
         // Run multi-turn tool execution loop
         let result = Self::run_tool_loop(
@@ -961,15 +1026,30 @@ impl ChatRoutes {
         )
         .await?;
 
+        // Safe cast: execution time will never exceed u64::MAX milliseconds (~584 million years)
+        #[allow(clippy::cast_possible_truncation)]
+        let execution_time_ms = start_time.elapsed().as_millis() as u64;
+
         // Calculate token count from usage
         let token_count = result.usage.map(|u| u.completion_tokens);
+
+        // Prepend activity list to content if present (guarantees user sees formatted data)
+        let final_content = if let Some(ref list) = result.activity_list {
+            info!(
+                "Prepending activity list ({} chars) to LLM response",
+                list.len()
+            );
+            format!("{list}\n\n---\n\n**Analysis:**\n\n{}", result.content)
+        } else {
+            result.content.clone()
+        };
 
         // Save assistant response
         let assistant_msg = chat_manager
             .add_message(
                 &conversation_id,
                 MessageRole::Assistant,
-                &result.content,
+                &final_content,
                 token_count,
                 result.finish_reason.as_deref(),
             )
@@ -997,6 +1077,8 @@ impl ChatRoutes {
                 created_at: assistant_msg.created_at,
             },
             conversation_updated_at: updated_conv.updated_at,
+            model: conv.model.clone(),
+            execution_time_ms,
         };
 
         Ok((StatusCode::OK, Json(response)).into_response())
@@ -1031,9 +1113,12 @@ impl ChatRoutes {
             )
             .await?;
 
-        // Get conversation history and build LLM messages
+        // Get conversation history and build LLM messages with system prompt
         let history = chat_manager.get_messages(&conversation_id).await?;
-        let llm_messages = Self::build_llm_messages(conv.system_prompt.as_deref(), &history);
+
+        let system_prompt_text =
+            Self::get_system_prompt_text(&conv, &tenant_id, &resources).await?;
+        let llm_messages = Self::build_llm_messages(Some(system_prompt_text.as_str()), &history);
 
         // Get LLM streaming response
         let provider = Self::get_llm_provider()?;

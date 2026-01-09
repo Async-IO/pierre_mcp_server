@@ -565,7 +565,7 @@ impl LlmProvider for GeminiProvider {
         LlmCapabilities::full_featured()
     }
 
-    fn default_model(&self) -> &'static str {
+    fn default_model(&self) -> &str {
         DEFAULT_MODEL
     }
 
