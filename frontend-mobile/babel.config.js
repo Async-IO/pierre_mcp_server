@@ -1,12 +1,13 @@
-// ABOUTME: Babel configuration for Expo with NativeWind support
+// ABOUTME: Babel configuration for Expo with NativeWind v4 support
 // ABOUTME: Includes react-native-reanimated plugin for gesture handling
 
 module.exports = function(api) {
   api.cache(true);
   return {
-    presets: ['babel-preset-expo'],
+    presets: [
+      ['babel-preset-expo', { jsxImportSource: 'nativewind' }],
+    ],
     plugins: [
-      'nativewind/babel',
       'react-native-reanimated/plugin',
     ],
   };

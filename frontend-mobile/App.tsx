@@ -1,6 +1,7 @@
 // ABOUTME: Main application entry point for Pierre Mobile
 // ABOUTME: Sets up providers (Auth, Query, WebSocket) and navigation with dark theme
 
+import './global.css';
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';

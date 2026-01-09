@@ -1,4 +1,4 @@
-// ABOUTME: Tailwind CSS configuration for NativeWind
+// ABOUTME: Tailwind CSS configuration for NativeWind v4
 // ABOUTME: Defines theme colors matching Pierre design system and content paths
 
 /** @type {import('tailwindcss').Config} */
@@ -7,6 +7,7 @@ module.exports = {
     "./App.{js,jsx,ts,tsx}",
     "./src/**/*.{js,jsx,ts,tsx}",
   ],
+  presets: [require('nativewind/preset')],
   theme: {
     extend: {
       colors: {
