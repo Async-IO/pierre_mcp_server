@@ -13,8 +13,8 @@ use pierre_mcp_server::{
     intelligence::{
         algorithms::RecoveryAggregationAlgorithm,
         recovery_calculator::{
-            RecoveryCalculator, RecoveryCategory, RecoveryComponents, RecoveryScore,
-            TrainingReadiness,
+            DataCompleteness, RecoveryCalculator, RecoveryCategory, RecoveryComponents,
+            RecoveryScore, TrainingReadiness,
         },
         sleep_analysis::{
             HrvRecoveryStatus, HrvTrend, HrvTrendAnalysis, SleepData, SleepQualityCategory,
@@ -570,9 +570,10 @@ fn test_rest_day_not_needed() {
     let recovery_score = RecoveryScore {
         overall_score: 85.0,
         recovery_category: RecoveryCategory::Excellent,
+        data_completeness: DataCompleteness::Full,
         components: RecoveryComponents {
             tsb_score: 90.0,
-            sleep_score: 85.0,
+            sleep_score: Some(85.0),
             hrv_score: Some(80.0),
             components_available: 3,
         },
@@ -581,6 +582,7 @@ fn test_rest_day_not_needed() {
         recommendations: vec![],
         rest_day_recommended: false,
         reasoning: vec![],
+        limitations: vec![],
     };
     let sleep_data = SleepData {
         date: Utc::now(),
@@ -624,9 +626,10 @@ fn test_rest_day_strongly_recommended() {
     let recovery_score = RecoveryScore {
         overall_score: 25.0,
         recovery_category: RecoveryCategory::Poor,
+        data_completeness: DataCompleteness::Full,
         components: RecoveryComponents {
             tsb_score: 20.0,
-            sleep_score: 30.0,
+            sleep_score: Some(30.0),
             hrv_score: Some(25.0),
             components_available: 3,
         },
@@ -635,6 +638,7 @@ fn test_rest_day_strongly_recommended() {
         recommendations: vec![],
         rest_day_recommended: true,
         reasoning: vec![],
+        limitations: vec![],
     };
     let sleep_data = SleepData {
         date: Utc::now(),
@@ -682,9 +686,10 @@ fn test_rest_day_moderate_confidence() {
     let recovery_score = RecoveryScore {
         overall_score: 55.0,
         recovery_category: RecoveryCategory::Fair,
+        data_completeness: DataCompleteness::Full,
         components: RecoveryComponents {
             tsb_score: 60.0,
-            sleep_score: 55.0,
+            sleep_score: Some(55.0),
             hrv_score: Some(50.0),
             components_available: 3,
         },
@@ -693,6 +698,7 @@ fn test_rest_day_moderate_confidence() {
         recommendations: vec![],
         rest_day_recommended: false,
         reasoning: vec![],
+        limitations: vec![],
     };
     let sleep_data = SleepData {
         date: Utc::now(),
@@ -735,9 +741,10 @@ fn test_rest_day_reasoning_generated() {
     let recovery_score = RecoveryScore {
         overall_score: 40.0,
         recovery_category: RecoveryCategory::Poor,
+        data_completeness: DataCompleteness::Partial,
         components: RecoveryComponents {
             tsb_score: 35.0,
-            sleep_score: 45.0,
+            sleep_score: Some(45.0),
             hrv_score: None,
             components_available: 2,
         },
@@ -746,6 +753,7 @@ fn test_rest_day_reasoning_generated() {
         recommendations: vec![],
         rest_day_recommended: true,
         reasoning: vec![],
+        limitations: vec![],
     };
     let sleep_data = SleepData {
         date: Utc::now(),
@@ -815,13 +823,14 @@ fn test_recovery_score_zero_sleep() {
 fn test_recovery_components_display() {
     let components = RecoveryComponents {
         tsb_score: 85.0,
-        sleep_score: 75.0,
+        sleep_score: Some(75.0),
         hrv_score: Some(90.0),
         components_available: 3,
     };
     // Test that components struct is properly constructed
     assert_eq!(components.components_available, 3);
     assert!(components.hrv_score.is_some());
+    assert!(components.sleep_score.is_some());
 }
 
 #[test]
@@ -856,4 +865,272 @@ fn test_recovery_insights_generation() {
         !recovery.insights.is_empty(),
         "Should generate recovery insights"
     );
+}
+
+// ============================================================================
+// TESTS FOR TSB-ONLY FALLBACK MODE
+// ============================================================================
+
+#[test]
+fn test_tsb_only_recovery_score_fresh() {
+    let config = test_config();
+    let training_load = TrainingLoad {
+        ctl: 50.0,
+        atl: 40.0,
+        tsb: 10.0, // Fresh TSB
+        tss_history: vec![],
+    };
+
+    let result = RecoveryCalculator::calculate_recovery_score_tsb_only(&training_load, &config);
+    assert!(result.is_ok());
+    let recovery = result.unwrap();
+
+    // Should have TSB-only data completeness
+    assert_eq!(recovery.data_completeness, DataCompleteness::TsbOnly);
+    assert_eq!(recovery.components.components_available, 1);
+    assert!(recovery.components.sleep_score.is_none());
+    assert!(recovery.components.hrv_score.is_none());
+
+    // Fresh TSB should result in good score (75-89 range)
+    assert!(
+        (75.0..=100.0).contains(&recovery.overall_score),
+        "TSB=10 should score 75-100, got {}",
+        recovery.overall_score
+    );
+
+    // Should have limitations noted
+    assert!(!recovery.limitations.is_empty());
+    assert!(recovery
+        .limitations
+        .iter()
+        .any(|l| l.contains("Sleep data unavailable")));
+}
+
+#[test]
+fn test_tsb_only_recovery_score_fatigued() {
+    let config = test_config();
+    let training_load = TrainingLoad {
+        ctl: 60.0,
+        atl: 80.0,
+        tsb: -20.0, // Highly fatigued TSB
+        tss_history: vec![],
+    };
+
+    let result = RecoveryCalculator::calculate_recovery_score_tsb_only(&training_load, &config);
+    assert!(result.is_ok());
+    let recovery = result.unwrap();
+
+    // Highly fatigued should result in poor score
+    assert!(
+        recovery.overall_score < 35.0,
+        "TSB=-20 should score <35, got {}",
+        recovery.overall_score
+    );
+    assert_eq!(recovery.recovery_category, RecoveryCategory::Poor);
+    assert_eq!(recovery.training_readiness, TrainingReadiness::RestNeeded);
+    assert!(recovery.rest_day_recommended);
+}
+
+#[test]
+fn test_tsb_only_recovery_score_neutral() {
+    let config = test_config();
+    let training_load = TrainingLoad {
+        ctl: 50.0,
+        atl: 50.0,
+        tsb: 0.0, // Neutral TSB
+        tss_history: vec![],
+    };
+
+    let result = RecoveryCalculator::calculate_recovery_score_tsb_only(&training_load, &config);
+    assert!(result.is_ok());
+    let recovery = result.unwrap();
+
+    // Neutral TSB (0) should be in fair to good range (includes 85 as upper bound)
+    assert!(
+        (60.0..=85.0).contains(&recovery.overall_score),
+        "TSB=0 should score 60-85, got {}",
+        recovery.overall_score
+    );
+}
+
+#[test]
+fn test_tsb_only_rest_day_recommendation_rest_needed() {
+    let config = test_config();
+    let training_load = TrainingLoad {
+        ctl: 60.0,
+        atl: 80.0,
+        tsb: -20.0,
+        tss_history: vec![],
+    };
+
+    // First get TSB-only recovery score
+    let recovery_score =
+        RecoveryCalculator::calculate_recovery_score_tsb_only(&training_load, &config).unwrap();
+
+    // Then get TSB-only recommendation
+    let recommendation =
+        RecoveryCalculator::recommend_rest_day_tsb_only(&recovery_score, &training_load, &config)
+            .unwrap();
+
+    assert!(recommendation.rest_recommended);
+    // Confidence should be lower than full mode (max 75%)
+    assert!(
+        recommendation.confidence <= 75.0,
+        "TSB-only confidence should be <= 75%, got {}",
+        recommendation.confidence
+    );
+    assert!(!recommendation.primary_reasons.is_empty());
+    // Should note it's TSB-only assessment
+    assert!(recommendation
+        .supporting_factors
+        .iter()
+        .any(|f| f.contains("training load only")));
+}
+
+#[test]
+fn test_tsb_only_rest_day_recommendation_no_rest_needed() {
+    let config = test_config();
+    let training_load = TrainingLoad {
+        ctl: 50.0,
+        atl: 40.0,
+        tsb: 15.0, // Very fresh
+        tss_history: vec![],
+    };
+
+    let recovery_score =
+        RecoveryCalculator::calculate_recovery_score_tsb_only(&training_load, &config).unwrap();
+
+    let recommendation =
+        RecoveryCalculator::recommend_rest_day_tsb_only(&recovery_score, &training_load, &config)
+            .unwrap();
+
+    assert!(!recommendation.rest_recommended);
+}
+
+#[test]
+fn test_tsb_only_insights_generated() {
+    let config = test_config();
+    let training_load = TrainingLoad {
+        ctl: 50.0,
+        atl: 55.0,
+        tsb: -5.0,
+        tss_history: vec![],
+    };
+
+    let result = RecoveryCalculator::calculate_recovery_score_tsb_only(&training_load, &config);
+    assert!(result.is_ok());
+    let recovery = result.unwrap();
+
+    // Should have insights about TSB-only mode
+    assert!(!recovery.insights.is_empty());
+    assert!(recovery
+        .insights
+        .iter()
+        .any(|i| i.contains("TSB-only") || i.contains("partial")));
+    // Should mention the TSB value somewhere in the insights
+    assert!(recovery
+        .insights
+        .iter()
+        .any(|i| i.contains("TSB") && i.contains("-5")));
+}
+
+#[test]
+fn test_tsb_only_training_readiness_conservative() {
+    let config = test_config();
+
+    // TSB=5 should be ready for moderate in TSB-only mode (more conservative)
+    let training_load_moderate = TrainingLoad {
+        ctl: 50.0,
+        atl: 45.0,
+        tsb: 5.0,
+        tss_history: vec![],
+    };
+    let result =
+        RecoveryCalculator::calculate_recovery_score_tsb_only(&training_load_moderate, &config);
+    let recovery = result.unwrap();
+    // In TSB-only mode, tsb=5 should be at most ReadyForModerate (needs tsb >= 10 for hard)
+    assert!(
+        recovery.training_readiness == TrainingReadiness::ReadyForModerate
+            || recovery.training_readiness == TrainingReadiness::ReadyForHard,
+        "TSB=5 should be ready for moderate or hard training"
+    );
+
+    // TSB=15 with good score should be ready for hard
+    let training_load_hard = TrainingLoad {
+        ctl: 50.0,
+        atl: 35.0,
+        tsb: 15.0,
+        tss_history: vec![],
+    };
+    let result =
+        RecoveryCalculator::calculate_recovery_score_tsb_only(&training_load_hard, &config);
+    let recovery = result.unwrap();
+    assert_eq!(
+        recovery.training_readiness,
+        TrainingReadiness::ReadyForHard,
+        "TSB=15 with good score should be ready for hard training"
+    );
+}
+
+#[test]
+fn test_data_completeness_values() {
+    let config = test_config();
+    let training_load = TrainingLoad {
+        ctl: 50.0,
+        atl: 45.0,
+        tsb: 5.0,
+        tss_history: vec![],
+    };
+    let sleep_quality = SleepQualityScore {
+        overall_score: 75.0,
+        duration_score: 80.0,
+        stage_quality_score: 70.0,
+        efficiency_score: 75.0,
+        quality_category: SleepQualityCategory::Good,
+        insights: vec![],
+        recommendations: vec![],
+    };
+
+    // TSB + Sleep (no HRV) should be Partial
+    let result = RecoveryCalculator::calculate_recovery_score(
+        &training_load,
+        &sleep_quality,
+        None,
+        &config,
+        &test_algorithm(),
+    );
+    assert!(result.is_ok());
+    let recovery = result.unwrap();
+    assert_eq!(recovery.data_completeness, DataCompleteness::Partial);
+    assert_eq!(recovery.components.components_available, 2);
+    assert!(recovery.components.sleep_score.is_some());
+
+    // TSB + Sleep + HRV should be Full
+    let hrv = HrvTrendAnalysis {
+        current_rmssd: 50.0,
+        weekly_average_rmssd: 49.0,
+        baseline_rmssd: Some(45.0),
+        baseline_deviation_percent: Some(2.0),
+        trend: HrvTrend::Stable,
+        recovery_status: HrvRecoveryStatus::Normal,
+        insights: vec![],
+    };
+    let result = RecoveryCalculator::calculate_recovery_score(
+        &training_load,
+        &sleep_quality,
+        Some(&hrv),
+        &config,
+        &test_algorithm(),
+    );
+    assert!(result.is_ok());
+    let recovery = result.unwrap();
+    assert_eq!(recovery.data_completeness, DataCompleteness::Full);
+    assert_eq!(recovery.components.components_available, 3);
+
+    // TSB-only should be TsbOnly
+    let result = RecoveryCalculator::calculate_recovery_score_tsb_only(&training_load, &config);
+    assert!(result.is_ok());
+    let recovery = result.unwrap();
+    assert_eq!(recovery.data_completeness, DataCompleteness::TsbOnly);
+    assert_eq!(recovery.components.components_available, 1);
 }

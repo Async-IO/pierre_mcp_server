@@ -830,10 +830,8 @@ pub fn handle_calculate_recovery_score(
                 ))
             })?;
 
-        // Get sleep data: from provider or manual input
-        let (sleep_data, sleep_provider_used): (SleepData, Option<String>) = if let Some(
-            provider_name,
-        ) = request
+        // Get sleep data: from provider or manual input (optional - TSB-only fallback available)
+        let sleep_result: Option<(SleepData, Option<String>)> = if let Some(provider_name) = request
             .parameters
             .get("sleep_provider")
             .and_then(serde_json::Value::as_str)
@@ -848,7 +846,7 @@ pub fn handle_calculate_recovery_score(
             )
             .await
             {
-                Ok(data) => (data, Some(provider_name.to_owned())),
+                Ok(data) => Some((data, Some(provider_name.to_owned()))),
                 Err(response) => return Ok(response),
             }
         } else if let Some(sleep_data_json) = request.parameters.get("sleep_data") {
@@ -856,13 +854,13 @@ pub fn handle_calculate_recovery_score(
             let data = serde_json::from_value(sleep_data_json.clone()).map_err(|e| {
                 ProtocolError::InvalidRequest(format!("Invalid sleep_data format: {e}"))
             })?;
-            (data, None)
+            Some((data, None))
         } else {
             // Try auto-selecting a sleep provider
             if let Some(provider_name) =
                 select_sleep_provider(executor, user_uuid, request.tenant_id.as_deref()).await
             {
-                match fetch_provider_sleep_data(
+                fetch_provider_sleep_data(
                     executor,
                     user_uuid,
                     request.tenant_id.as_deref(),
@@ -870,89 +868,111 @@ pub fn handle_calculate_recovery_score(
                     1,
                 )
                 .await
-                {
-                    Ok(data) => (data, Some(provider_name)),
-                    Err(response) => return Ok(response),
-                }
+                .ok()
+                .map(|data| (data, Some(provider_name)))
             } else {
-                return Err(ProtocolError::InvalidRequest(
-                        "No sleep data available. Either specify 'sleep_provider' (whoop, fitbit, garmin, terra), \
-                         provide 'sleep_data' JSON, or connect a sleep-capable provider."
-                            .to_owned(),
-                    ));
+                // No sleep provider available - will use TSB-only mode
+                None
             }
         };
 
         // Get sleep/recovery config
         let config = &IntelligenceConfig::global().sleep_recovery;
 
-        let sleep_quality =
-            SleepAnalyzer::calculate_sleep_quality(&sleep_data, config).map_err(|e| {
-                ProtocolError::InternalError(format!(
-                    "sleep_analyzer: Sleep quality calculation failed: {e}"
-                ))
-            })?;
-
-        // Get HRV analysis if available
-        let hrv_analysis = if let Some(rmssd) = sleep_data.hrv_rmssd_ms {
-            let recent_hrv = request
-                .parameters
-                .get("recent_hrv_values")
-                .and_then(|v| {
-                    serde_json::from_value::<Vec<f64>>(v.clone())
-                        .inspect_err(|e| {
-                            debug!(
-                                error = %e,
-                                "Failed to deserialize recent_hrv_values, using empty default"
-                            );
-                        })
-                        .ok()
-                })
-                .unwrap_or_default();
-
-            let baseline_hrv = request
-                .parameters
-                .get("baseline_hrv")
-                .and_then(serde_json::Value::as_f64);
-
-            Some(
-                SleepAnalyzer::analyze_hrv_trends(rmssd, &recent_hrv, baseline_hrv, config)
+        // Calculate recovery score based on available data
+        let (recovery_score, sleep_quality_score, hrv_status, sleep_provider_used) =
+            if let Some((sleep_data, sleep_provider)) = sleep_result {
+                // Full mode: calculate with sleep data
+                let sleep_quality = SleepAnalyzer::calculate_sleep_quality(&sleep_data, config)
                     .map_err(|e| {
                         ProtocolError::InternalError(format!(
-                            "sleep_analyzer: HRV analysis failed: {e}"
+                            "sleep_analyzer: Sleep quality calculation failed: {e}"
                         ))
-                    })?,
-            )
-        } else {
-            None
-        };
+                    })?;
 
-        // Get recovery aggregation algorithm (default to WeightedAverage with config weights)
-        let algorithm = request
-            .parameters
-            .get("algorithm")
-            .and_then(|v| serde_json::from_value::<RecoveryAggregationAlgorithm>(v.clone()).ok())
-            .unwrap_or(RecoveryAggregationAlgorithm::WeightedAverage {
-                tsb_weight_full: config.recovery_scoring.tsb_weight_full,
-                sleep_weight_full: config.recovery_scoring.sleep_weight_full,
-                hrv_weight_full: config.recovery_scoring.hrv_weight_full,
-                tsb_weight_no_hrv: config.recovery_scoring.tsb_weight_no_hrv,
-                sleep_weight_no_hrv: config.recovery_scoring.sleep_weight_no_hrv,
-            });
+                // Get HRV analysis if available
+                let hrv_analysis = if let Some(rmssd) = sleep_data.hrv_rmssd_ms {
+                    let recent_hrv = request
+                        .parameters
+                        .get("recent_hrv_values")
+                        .and_then(|v| {
+                            serde_json::from_value::<Vec<f64>>(v.clone())
+                            .inspect_err(|e| {
+                                debug!(
+                                    error = %e,
+                                    "Failed to deserialize recent_hrv_values, using empty default"
+                                );
+                            })
+                            .ok()
+                        })
+                        .unwrap_or_default();
 
-        // Calculate holistic recovery score
-        let recovery_score = RecoveryCalculator::calculate_recovery_score(
-            &training_load,
-            &sleep_quality,
-            hrv_analysis.as_ref(),
-            config,
-            &algorithm,
-        )
-        .map_err(|e| {
-            ProtocolError::InternalError(format!(
-                "sleep_analyzer: Recovery score calculation failed: {e}"
-            ))
-        })?;
+                    let baseline_hrv = request
+                        .parameters
+                        .get("baseline_hrv")
+                        .and_then(serde_json::Value::as_f64);
+
+                    Some(
+                        SleepAnalyzer::analyze_hrv_trends(rmssd, &recent_hrv, baseline_hrv, config)
+                            .map_err(|e| {
+                                ProtocolError::InternalError(format!(
+                                    "sleep_analyzer: HRV analysis failed: {e}"
+                                ))
+                            })?,
+                    )
+                } else {
+                    None
+                };
+
+                // Get recovery aggregation algorithm (default to WeightedAverage with config weights)
+                let algorithm = request
+                    .parameters
+                    .get("algorithm")
+                    .and_then(|v| {
+                        serde_json::from_value::<RecoveryAggregationAlgorithm>(v.clone()).ok()
+                    })
+                    .unwrap_or(RecoveryAggregationAlgorithm::WeightedAverage {
+                        tsb_weight_full: config.recovery_scoring.tsb_weight_full,
+                        sleep_weight_full: config.recovery_scoring.sleep_weight_full,
+                        hrv_weight_full: config.recovery_scoring.hrv_weight_full,
+                        tsb_weight_no_hrv: config.recovery_scoring.tsb_weight_no_hrv,
+                        sleep_weight_no_hrv: config.recovery_scoring.sleep_weight_no_hrv,
+                    });
+
+                // Calculate holistic recovery score
+                let score = RecoveryCalculator::calculate_recovery_score(
+                    &training_load,
+                    &sleep_quality,
+                    hrv_analysis.as_ref(),
+                    config,
+                    &algorithm,
+                )
+                .map_err(|e| {
+                    ProtocolError::InternalError(format!(
+                        "sleep_analyzer: Recovery score calculation failed: {e}"
+                    ))
+                })?;
+
+                let hrv_status = hrv_analysis.as_ref().map(|h| h.recovery_status);
+                (
+                    score,
+                    Some(sleep_quality.overall_score),
+                    hrv_status,
+                    sleep_provider,
+                )
+            } else {
+                // TSB-only fallback mode: no sleep data available
+                debug!("No sleep data available, using TSB-only recovery calculation");
+                let score =
+                    RecoveryCalculator::calculate_recovery_score_tsb_only(&training_load, config)
+                        .map_err(|e| {
+                        ProtocolError::InternalError(format!(
+                            "sleep_analyzer: TSB-only recovery score calculation failed: {e}"
+                        ))
+                    })?;
+
+                (score, None, None, None)
+            };
 
         let result = UniversalResponse {
             success: true,
@@ -963,8 +983,8 @@ pub fn handle_calculate_recovery_score(
                     "atl": training_load.atl,
                     "tsb": training_load.tsb,
                 },
-                "sleep_quality_score": sleep_quality.overall_score,
-                "hrv_status": hrv_analysis.as_ref().map(|h| &h.recovery_status),
+                "sleep_quality_score": sleep_quality_score,
+                "hrv_status": hrv_status,
                 "providers_used": {
                     "activity_provider": activity_provider,
                     "sleep_provider": sleep_provider_used,
@@ -993,6 +1013,11 @@ pub fn handle_calculate_recovery_score(
                         serde_json::Value::String(provider.clone()),
                     );
                 }
+                map.insert(
+                    "data_completeness".into(),
+                    serde_json::to_value(recovery_score.data_completeness)
+                        .unwrap_or(serde_json::Value::String("unknown".to_owned())),
+                );
                 map
             }),
         };
@@ -1097,8 +1122,8 @@ pub fn handle_suggest_rest_day(
                 ))
             })?;
 
-        // Get sleep data from provider or manual input
-        let sleep_data: SleepData = if let Some(provider_name) = request
+        // Get sleep data from provider or manual input (optional - TSB-only fallback available)
+        let sleep_result: Option<SleepData> = if let Some(provider_name) = request
             .parameters
             .get("sleep_provider")
             .and_then(serde_json::Value::as_str)
@@ -1112,17 +1137,19 @@ pub fn handle_suggest_rest_day(
             )
             .await
             {
-                Ok(data) => data,
+                Ok(data) => Some(data),
                 Err(response) => return Ok(response),
             }
         } else if let Some(sleep_data_json) = request.parameters.get("sleep_data") {
-            serde_json::from_value(sleep_data_json.clone()).map_err(|e| {
+            let data = serde_json::from_value(sleep_data_json.clone()).map_err(|e| {
                 ProtocolError::InvalidRequest(format!("Invalid sleep_data format: {e}"))
-            })?
+            })?;
+            Some(data)
         } else if let Some(provider_name) =
             select_sleep_provider(executor, user_uuid, request.tenant_id.as_deref()).await
         {
-            match fetch_provider_sleep_data(
+            // If provider fetch fails, fall back to TSB-only mode
+            fetch_provider_sleep_data(
                 executor,
                 user_uuid,
                 request.tenant_id.as_deref(),
@@ -1130,99 +1157,131 @@ pub fn handle_suggest_rest_day(
                 1,
             )
             .await
-            {
-                Ok(data) => data,
-                Err(response) => return Ok(response),
-            }
+            .ok()
         } else {
-            return Err(ProtocolError::InvalidRequest(
-                "No sleep data available. Specify 'sleep_provider', provide 'sleep_data', or connect a sleep-capable provider.".to_owned(),
-            ));
+            // No sleep provider available - will use TSB-only mode
+            None
         };
 
         // Get sleep/recovery config
         let config = &IntelligenceConfig::global().sleep_recovery;
 
-        let sleep_quality =
-            SleepAnalyzer::calculate_sleep_quality(&sleep_data, config).map_err(|e| {
-                ProtocolError::InternalError(format!(
-                    "sleep_analyzer: Sleep quality calculation failed: {e}"
-                ))
-            })?;
-
-        // HRV analysis
-        let hrv_analysis = if let Some(rmssd) = sleep_data.hrv_rmssd_ms {
-            let recent_hrv = request
-                .parameters
-                .get("recent_hrv_values")
-                .and_then(|v| {
-                    serde_json::from_value::<Vec<f64>>(v.clone())
-                        .inspect_err(|e| {
-                            debug!(
-                                error = %e,
-                                "Failed to deserialize recent_hrv_values, using empty default"
-                            );
-                        })
-                        .ok()
-                })
-                .unwrap_or_default();
-
-            let baseline_hrv = request
-                .parameters
-                .get("baseline_hrv")
-                .and_then(serde_json::Value::as_f64);
-
-            Some(
-                SleepAnalyzer::analyze_hrv_trends(rmssd, &recent_hrv, baseline_hrv, config)
+        // Calculate recovery score and generate recommendation based on available data
+        let (recovery_score, recommendation, sleep_quality_score, sleep_hours, hrv_status) =
+            if let Some(sleep_data) = sleep_result {
+                // Full mode: calculate with sleep data
+                let sleep_quality = SleepAnalyzer::calculate_sleep_quality(&sleep_data, config)
                     .map_err(|e| {
                         ProtocolError::InternalError(format!(
-                            "sleep_analyzer: HRV analysis failed: {e}"
+                            "sleep_analyzer: Sleep quality calculation failed: {e}"
                         ))
-                    })?,
-            )
-        } else {
-            None
-        };
+                    })?;
 
-        // Get recovery aggregation algorithm (default to WeightedAverage with config weights)
-        let algorithm = request
-            .parameters
-            .get("algorithm")
-            .and_then(|v| serde_json::from_value::<RecoveryAggregationAlgorithm>(v.clone()).ok())
-            .unwrap_or(RecoveryAggregationAlgorithm::WeightedAverage {
-                tsb_weight_full: config.recovery_scoring.tsb_weight_full,
-                sleep_weight_full: config.recovery_scoring.sleep_weight_full,
-                hrv_weight_full: config.recovery_scoring.hrv_weight_full,
-                tsb_weight_no_hrv: config.recovery_scoring.tsb_weight_no_hrv,
-                sleep_weight_no_hrv: config.recovery_scoring.sleep_weight_no_hrv,
-            });
+                // HRV analysis
+                let hrv_analysis = if let Some(rmssd) = sleep_data.hrv_rmssd_ms {
+                    let recent_hrv = request
+                        .parameters
+                        .get("recent_hrv_values")
+                        .and_then(|v| {
+                            serde_json::from_value::<Vec<f64>>(v.clone())
+                                .inspect_err(|e| {
+                                    debug!(
+                                        error = %e,
+                                        "Failed to deserialize recent_hrv_values, using empty default"
+                                    );
+                                })
+                                .ok()
+                        })
+                        .unwrap_or_default();
 
-        // Calculate recovery score
-        let recovery_score = RecoveryCalculator::calculate_recovery_score(
-            &training_load,
-            &sleep_quality,
-            hrv_analysis.as_ref(),
-            config,
-            &algorithm,
-        )
-        .map_err(|e| {
-            ProtocolError::InternalError(format!(
-                "sleep_analyzer: Recovery score calculation failed: {e}"
-            ))
-        })?;
+                    let baseline_hrv = request
+                        .parameters
+                        .get("baseline_hrv")
+                        .and_then(serde_json::Value::as_f64);
 
-        // Generate rest day recommendation
-        let recommendation = RecoveryCalculator::recommend_rest_day(
-            &recovery_score,
-            &sleep_data,
-            &training_load,
-            config,
-        )
-        .map_err(|e| {
-            ProtocolError::InternalError(format!(
-                "sleep_analyzer: Rest day recommendation failed: {e}"
-            ))
-        })?;
+                    Some(
+                        SleepAnalyzer::analyze_hrv_trends(rmssd, &recent_hrv, baseline_hrv, config)
+                            .map_err(|e| {
+                                ProtocolError::InternalError(format!(
+                                    "sleep_analyzer: HRV analysis failed: {e}"
+                                ))
+                            })?,
+                    )
+                } else {
+                    None
+                };
+
+                // Get recovery aggregation algorithm
+                let algorithm = request
+                    .parameters
+                    .get("algorithm")
+                    .and_then(|v| {
+                        serde_json::from_value::<RecoveryAggregationAlgorithm>(v.clone()).ok()
+                    })
+                    .unwrap_or(RecoveryAggregationAlgorithm::WeightedAverage {
+                        tsb_weight_full: config.recovery_scoring.tsb_weight_full,
+                        sleep_weight_full: config.recovery_scoring.sleep_weight_full,
+                        hrv_weight_full: config.recovery_scoring.hrv_weight_full,
+                        tsb_weight_no_hrv: config.recovery_scoring.tsb_weight_no_hrv,
+                        sleep_weight_no_hrv: config.recovery_scoring.sleep_weight_no_hrv,
+                    });
+
+                // Calculate recovery score
+                let score = RecoveryCalculator::calculate_recovery_score(
+                    &training_load,
+                    &sleep_quality,
+                    hrv_analysis.as_ref(),
+                    config,
+                    &algorithm,
+                )
+                .map_err(|e| {
+                    ProtocolError::InternalError(format!(
+                        "sleep_analyzer: Recovery score calculation failed: {e}"
+                    ))
+                })?;
+
+                // Generate rest day recommendation
+                let rec = RecoveryCalculator::recommend_rest_day(
+                    &score,
+                    &sleep_data,
+                    &training_load,
+                    config,
+                )
+                .map_err(|e| {
+                    ProtocolError::InternalError(format!(
+                        "sleep_analyzer: Rest day recommendation failed: {e}"
+                    ))
+                })?;
+
+                let hrv_status = hrv_analysis.as_ref().map(|h| h.recovery_status);
+                (
+                    score,
+                    rec,
+                    Some(sleep_quality.overall_score),
+                    Some(sleep_data.duration_hours),
+                    hrv_status,
+                )
+            } else {
+                // TSB-only fallback mode: no sleep data available
+                debug!("No sleep data available, using TSB-only rest day recommendation");
+                let score =
+                    RecoveryCalculator::calculate_recovery_score_tsb_only(&training_load, config)
+                        .map_err(|e| {
+                        ProtocolError::InternalError(format!(
+                            "sleep_analyzer: TSB-only recovery score calculation failed: {e}"
+                        ))
+                    })?;
+
+                let rec =
+                    RecoveryCalculator::recommend_rest_day_tsb_only(&score, &training_load, config)
+                        .map_err(|e| {
+                            ProtocolError::InternalError(format!(
+                                "sleep_analyzer: TSB-only rest day recommendation failed: {e}"
+                            ))
+                        })?;
+
+                (score, rec, None, None, None)
+            };
 
         Ok(UniversalResponse {
             success: true,
@@ -1232,12 +1291,14 @@ pub fn handle_suggest_rest_day(
                     "overall_score": recovery_score.overall_score,
                     "category": recovery_score.recovery_category,
                     "training_readiness": recovery_score.training_readiness,
+                    "data_completeness": recovery_score.data_completeness,
+                    "limitations": recovery_score.limitations,
                 },
                 "key_factors": {
                     "tsb": training_load.tsb,
-                    "sleep_score": sleep_quality.overall_score,
-                    "sleep_hours": sleep_data.duration_hours,
-                    "hrv_status": hrv_analysis.as_ref().map(|h| &h.recovery_status),
+                    "sleep_score": sleep_quality_score,
+                    "sleep_hours": sleep_hours,
+                    "hrv_status": hrv_status,
                 },
             })),
             error: None,
@@ -1261,6 +1322,11 @@ pub fn handle_suggest_rest_day(
                         "Invalid confidence value (NaN/Infinity), omitting from metadata"
                     );
                 }
+                map.insert(
+                    "data_completeness".into(),
+                    serde_json::to_value(recovery_score.data_completeness)
+                        .unwrap_or(serde_json::Value::String("unknown".to_owned())),
+                );
                 map
             }),
         })
