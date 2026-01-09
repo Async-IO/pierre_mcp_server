@@ -397,6 +397,27 @@ impl OpenAiCompatibleProvider {
         messages.iter().map(OpenAiMessage::from).collect()
     }
 
+    /// Log message details for debugging LLM interactions
+    fn log_messages_debug(messages: &[OpenAiMessage], provider_name: &str, has_tools: bool) {
+        for (i, msg) in messages.iter().enumerate() {
+            debug!(
+                "Message[{i}] role={}, content_len={}",
+                msg.role,
+                msg.content.len()
+            );
+            if msg.role == "system" {
+                debug!(
+                    "System prompt preview: {}...",
+                    msg.content.chars().take(200).collect::<String>()
+                );
+            }
+        }
+        debug!(
+            "Sending chat completion request to {provider_name} with {} messages and tools={has_tools:?}",
+            messages.len()
+        );
+    }
+
     /// Parse error response from API
     fn parse_error_response(status: reqwest::StatusCode, body: &str) -> AppError {
         if let Ok(error_response) = serde_json::from_str::<OpenAiErrorResponse>(body) {
@@ -542,16 +563,17 @@ impl OpenAiCompatibleProvider {
             .as_deref()
             .unwrap_or(&self.config.default_model);
 
-        debug!(
-            "Sending chat completion request to {} with tools",
-            self.config.provider_name
+        let converted_messages = Self::convert_messages(&request.messages);
+        Self::log_messages_debug(
+            &converted_messages,
+            &self.config.provider_name,
+            tools.is_some(),
         );
-
         let openai_tools = tools.as_ref().map(|t| Self::convert_tools(t));
 
         let openai_request = OpenAiRequest {
             model: model.to_owned(),
-            messages: Self::convert_messages(&request.messages),
+            messages: converted_messages,
             temperature: request.temperature,
             max_tokens: request.max_tokens,
             stream: Some(false),
@@ -695,14 +717,12 @@ impl LlmProvider for OpenAiCompatibleProvider {
             .as_deref()
             .unwrap_or(&self.config.default_model);
 
-        debug!(
-            "Sending chat completion request to {}",
-            self.config.provider_name
-        );
+        let converted_messages = Self::convert_messages(&request.messages);
+        Self::log_messages_debug(&converted_messages, &self.config.provider_name, false);
 
         let openai_request = OpenAiRequest {
             model: model.to_owned(),
-            messages: Self::convert_messages(&request.messages),
+            messages: converted_messages,
             temperature: request.temperature,
             max_tokens: request.max_tokens,
             stream: Some(false),
