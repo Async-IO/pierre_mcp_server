@@ -62,7 +62,7 @@ RUN useradd -m -u 1001 appuser \
 
 # Copy binary and entrypoint script from builder stage
 COPY --from=builder /app/target/release/pierre-mcp-server /app/pierre-mcp-server
-COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+COPY docker/images/server/entrypoint.sh /app/docker-entrypoint.sh
 
 # Make binary and entrypoint executable and owned by appuser
 RUN chmod +x /app/pierre-mcp-server \

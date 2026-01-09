@@ -17,15 +17,15 @@ services:
   # Test runner service for integration testing
   test-runner:
     build:
-      context: .
-      dockerfile: Dockerfile.test
+      context: ../..
+      dockerfile: docker/images/test/Dockerfile
     depends_on:
       redis:
         condition: service_healthy
     environment:
-      REDIS_URL: redis://redis:6379
-      DATABASE_URL: sqlite::memory:
-      ENCRYPTION_KEY: YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXowMTIzNDU2  # Base64 encoded 32-byte key
+      REDIS_URL: "redis://redis:6379"
+      DATABASE_URL: "sqlite::memory:"
+      ENCRYPTION_KEY: "YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXowMTIzNDU2"
       RUST_LOG: debug
     volumes:
       - .:/app

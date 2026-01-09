@@ -8,7 +8,7 @@ services:
   pierre-mcp-server:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: docker/images/server/Dockerfile
     container_name: pierre-mcp-server
     ports:
       - "8080:8080"  # MCP port
