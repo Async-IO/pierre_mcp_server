@@ -45,8 +45,14 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
     try {
       setIsLoadingConversations(true);
       const response = await apiService.getConversations();
-      // Sort by updated_at descending (most recent first) and take top 10
-      const sorted = (response.conversations || [])
+      // Deduplicate by ID, sort by updated_at descending (most recent first), take top 10
+      const seen = new Set<string>();
+      const deduplicated = (response.conversations || []).filter((conv) => {
+        if (seen.has(conv.id)) return false;
+        seen.add(conv.id);
+        return true;
+      });
+      const sorted = deduplicated
         .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
         .slice(0, 10);
       setConversations(sorted);
@@ -151,9 +157,9 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Recent Conversations</Text>
             </View>
-            {conversations.map((conv) => (
+            {conversations.map((conv, index) => (
               <TouchableOpacity
-                key={conv.id}
+                key={`${conv.id}-${index}`}
                 style={styles.conversationItem}
                 onPress={() => handleConversationPress(conv.id)}
               >

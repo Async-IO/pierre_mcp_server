@@ -52,7 +52,14 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
       setIsLoadingTokens(true);
       const response = await apiService.getMcpTokens();
       const tokenList = response.tokens || [];
-      setTokens(tokenList.filter(t => !t.is_revoked));
+      // Deduplicate by ID and filter out revoked tokens
+      const seen = new Set<string>();
+      const deduplicated = tokenList.filter((t) => {
+        if (t.is_revoked || seen.has(t.id)) return false;
+        seen.add(t.id);
+        return true;
+      });
+      setTokens(deduplicated);
     } catch (error) {
       console.error('Failed to load tokens:', error);
       setTokens([]);
@@ -214,7 +221,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
           ) : (
             tokens.map((token, index) => (
               <View
-                key={token.id}
+                key={`${token.id}-${index}`}
                 style={[styles.tokenItem, index > 0 && styles.tokenBorder]}
               >
                 <View style={styles.tokenInfo}>

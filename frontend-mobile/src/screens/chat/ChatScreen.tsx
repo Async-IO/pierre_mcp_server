@@ -125,7 +125,14 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     try {
       setIsLoading(true);
       const response = await apiService.getConversations();
-      setConversations(response.conversations);
+      // Deduplicate by ID to prevent duplicate key warnings
+      const seen = new Set<string>();
+      const deduplicated = (response.conversations || []).filter((conv) => {
+        if (seen.has(conv.id)) return false;
+        seen.add(conv.id);
+        return true;
+      });
+      setConversations(deduplicated);
     } catch (error) {
       console.error('Failed to load conversations:', error);
     } finally {

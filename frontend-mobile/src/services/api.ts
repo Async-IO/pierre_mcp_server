@@ -118,7 +118,7 @@ class ApiService {
   async storeAuth(token: string, csrfToken: string, user: User) {
     this.jwtToken = token;
     this.csrfToken = csrfToken;
-    this.userId = user.id;
+    this.userId = user.user_id;
     await Promise.all([
       AsyncStorage.setItem(STORAGE_KEYS.JWT_TOKEN, token),
       AsyncStorage.setItem(STORAGE_KEYS.CSRF_TOKEN, csrfToken),
