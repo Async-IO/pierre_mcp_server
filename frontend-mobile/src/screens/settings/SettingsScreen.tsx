@@ -159,7 +159,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
           style={styles.menuButton}
           onPress={() => navigation.openDrawer()}
         >
-          <Text style={styles.menuIcon}>{'...'}</Text>
+          <Text style={styles.menuIcon}>{'☰'}</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Settings</Text>
         <View style={styles.headerSpacer} />
