@@ -18,7 +18,9 @@ import {
   Alert,
   Image,
   ScrollView,
+  Linking,
 } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -279,6 +281,121 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     }
   };
 
+  // Helper to detect OAuth authorization URLs
+  const isOAuthUrl = (url: string): { isOAuth: boolean; provider: string | null } => {
+    if (url.includes('strava.com/oauth/authorize')) {
+      return { isOAuth: true, provider: 'Strava' };
+    }
+    if (url.includes('fitbit.com/oauth2/authorize')) {
+      return { isOAuth: true, provider: 'Fitbit' };
+    }
+    if (url.includes('garmin.com') && url.includes('oauth')) {
+      return { isOAuth: true, provider: 'Garmin' };
+    }
+    return { isOAuth: false, provider: null };
+  };
+
+  // Helper to open URLs in browser
+  const handleOpenUrl = async (url: string) => {
+    try {
+      const { isOAuth } = isOAuthUrl(url);
+      if (isOAuth) {
+        // Use in-app browser for OAuth
+        await WebBrowser.openBrowserAsync(url);
+      } else {
+        // Use system browser for regular links
+        await Linking.openURL(url);
+      }
+    } catch (error) {
+      console.error('Failed to open URL:', error);
+      Alert.alert('Error', 'Failed to open link');
+    }
+  };
+
+  // Render message content with clickable links
+  const renderMessageContent = (content: string, isUser: boolean) => {
+    // URL regex pattern - matches URLs, handling trailing parentheses and punctuation
+    const urlRegex = /https?:\/\/[^\s<>"\]]+/gi;
+    const matches = content.match(urlRegex);
+
+    if (!matches || matches.length === 0) {
+      // No URLs found, render plain text
+      return (
+        <Text style={[styles.messageText, isUser && styles.userMessageText]}>
+          {content}
+        </Text>
+      );
+    }
+
+    // Build elements array by splitting content around URLs
+    const elements: React.ReactNode[] = [];
+    let remainingContent = content;
+    let keyIndex = 0;
+
+    matches.forEach((url) => {
+      const urlIndex = remainingContent.indexOf(url);
+      if (urlIndex === -1) return;
+
+      // Add text before URL
+      if (urlIndex > 0) {
+        const textBefore = remainingContent.substring(0, urlIndex);
+        elements.push(
+          <Text key={`text-${keyIndex++}`} style={[styles.messageText, isUser && styles.userMessageText]}>
+            {textBefore}
+          </Text>
+        );
+      }
+
+      // Clean up URL (remove trailing parentheses/punctuation)
+      let cleanUrl = url;
+      while (cleanUrl.endsWith(')') || cleanUrl.endsWith('.') || cleanUrl.endsWith(',')) {
+        cleanUrl = cleanUrl.slice(0, -1);
+      }
+
+      const { isOAuth, provider } = isOAuthUrl(cleanUrl);
+
+      if (isOAuth && provider) {
+        // Render OAuth URL as a styled button
+        elements.push(
+          <TouchableOpacity
+            key={`oauth-${keyIndex++}`}
+            style={styles.oauthButton}
+            onPress={() => handleOpenUrl(cleanUrl)}
+          >
+            <Text style={styles.oauthButtonText}>
+              Connect to {provider}
+            </Text>
+          </TouchableOpacity>
+        );
+      } else {
+        // Render regular URL as clickable link
+        elements.push(
+          <Text
+            key={`link-${keyIndex++}`}
+            style={styles.linkText}
+            onPress={() => handleOpenUrl(cleanUrl)}
+          >
+            {cleanUrl.length > 50 ? cleanUrl.substring(0, 50) + '...' : cleanUrl}
+          </Text>
+        );
+      }
+
+      // Update remaining content
+      remainingContent = remainingContent.substring(urlIndex + url.length);
+    });
+
+    // Add any remaining text
+    if (remainingContent) {
+      elements.push(
+        <Text key={`text-${keyIndex++}`} style={[styles.messageText, isUser && styles.userMessageText]}>
+          {remainingContent}
+        </Text>
+      );
+    }
+
+    return <View style={styles.richTextContainer}>{elements}</View>;
+  };
+
   const renderMessage = ({ item }: { item: Message }) => {
     const isUser = item.role === 'user';
 
@@ -295,9 +412,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
             </View>
           )}
           <View style={styles.messageContent}>
-            <Text style={[styles.messageText, isUser && styles.userMessageText]}>
-              {item.content}
-            </Text>
+            {renderMessageContent(item.content, isUser)}
           </View>
         </View>
       </View>
@@ -550,6 +665,30 @@ const styles = StyleSheet.create({
   },
   userMessageText: {
     color: colors.text.primary,
+  },
+  richTextContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+  },
+  linkText: {
+    fontSize: fontSize.md,
+    color: colors.primary[400],
+    textDecorationLine: 'underline',
+    lineHeight: 22,
+  },
+  oauthButton: {
+    backgroundColor: '#FC4C02', // Strava orange as default
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    marginVertical: spacing.xs,
+    alignSelf: 'flex-start',
+  },
+  oauthButtonText: {
+    color: colors.text.primary,
+    fontSize: fontSize.md,
+    fontWeight: '600',
   },
   emptyScrollView: {
     flex: 1,
