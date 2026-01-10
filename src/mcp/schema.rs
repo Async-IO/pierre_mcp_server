@@ -968,6 +968,17 @@ fn create_connect_provider_tool() -> ToolSchema {
         },
     );
 
+    // Redirect URL parameter (optional, for mobile apps)
+    properties.insert(
+        "redirect_url".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some(
+                "Optional redirect URL for mobile OAuth flows. After OAuth completes, the server redirects to this URL with success/error params. Allowed schemes: pierre://, exp://, http://localhost, https://".into(),
+            ),
+        },
+    );
+
     ToolSchema {
         name: CONNECT_PROVIDER.to_owned(),
         description: "Connect to Fitness Provider - Unified authentication flow that connects you to both Pierre and a fitness provider (like Strava or Fitbit) in a single seamless process. This will open a browser window for secure authentication with both systems.".into(),

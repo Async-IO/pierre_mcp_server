@@ -274,12 +274,18 @@ fn connection_error(message: impl Into<String>) -> UniversalResponse {
 }
 
 /// Handle `connect_provider` tool - initiate OAuth connection flow
+///
+/// Accepts optional `redirect_url` parameter for mobile app OAuth flows.
+/// When provided, the redirect URL is base64 encoded and included in the OAuth state,
+/// allowing the server to redirect back to the mobile app after OAuth completes.
 #[must_use]
 pub fn handle_connect_provider(
     executor: &UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
+        use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+
         if let Some(token) = &request.cancellation_token {
             if token.is_cancelled().await {
                 return Err(ProtocolError::OperationCancelled(
@@ -303,6 +309,25 @@ pub fn handle_connect_provider(
             return Ok(connection_error(format!(
                 "Provider '{provider}' is not supported. Supported providers: {supported}"
             )));
+        }
+
+        // Extract optional redirect_url for mobile OAuth flows
+        let redirect_url = request
+            .parameters
+            .get("redirect_url")
+            .and_then(Value::as_str);
+
+        // Validate redirect URL scheme if provided (security check)
+        if let Some(url) = redirect_url {
+            let is_valid_scheme = url.starts_with("pierre://")
+                || url.starts_with("exp://")
+                || url.starts_with("http://localhost")
+                || url.starts_with("https://");
+            if !is_valid_scheme {
+                return Ok(connection_error(
+                    "Invalid redirect_url scheme. Allowed schemes: pierre://, exp://, http://localhost, https://",
+                ));
+            }
         }
 
         // Get user and extract tenant context
@@ -333,7 +358,16 @@ pub fn handle_connect_provider(
             tenant_name,
             user_role: TenantRole::Member,
         };
-        let state = format!("{}:{}", user_uuid, uuid::Uuid::new_v4());
+
+        // Build OAuth state with optional redirect URL
+        // Format: {user_id}:{random_uuid}:{base64_redirect_url} (third part optional)
+        let state = redirect_url.map_or_else(
+            || format!("{}:{}", user_uuid, uuid::Uuid::new_v4()),
+            |url| {
+                let encoded_url = URL_SAFE_NO_PAD.encode(url.as_bytes());
+                format!("{}:{}:{}", user_uuid, uuid::Uuid::new_v4(), encoded_url)
+            },
+        );
 
         // Generate OAuth authorization URL
         match executor
@@ -344,8 +378,14 @@ pub fn handle_connect_provider(
         {
             Ok(url) => {
                 info!(
-                    "Generated OAuth URL for user {} provider {}",
-                    user_uuid, provider
+                    "Generated OAuth URL for user {} provider {}{}",
+                    user_uuid,
+                    provider,
+                    if redirect_url.is_some() {
+                        " (mobile flow)"
+                    } else {
+                        ""
+                    }
                 );
                 Ok(build_oauth_success_response(
                     user_uuid, tenant_id, provider, &url, &state,

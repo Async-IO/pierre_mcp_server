@@ -45,6 +45,7 @@ use crate::{
     oauth2_client::{OAuth2Client, OAuth2Config, OAuth2Token},
     permissions::UserRole,
     security::cookies::{clear_auth_cookie, get_cookie_value, set_auth_cookie, set_csrf_cookie},
+    tenant::{TenantContext, TenantRole},
     utils::{
         auth::extract_bearer_token_owned,
         errors::{auth_error, user_state_error, validation_error},
@@ -755,6 +756,13 @@ pub struct OAuthService {
     notifications: NotificationContext,
 }
 
+/// Parsed OAuth state containing user ID and optional mobile redirect URL
+struct ParsedOAuthState {
+    user_id: uuid::Uuid,
+    /// Optional redirect URL for mobile OAuth flows (base64 encoded in state)
+    mobile_redirect_url: Option<String>,
+}
+
 impl OAuthService {
     /// Creates a new OAuth service instance
     #[must_use]
@@ -789,15 +797,24 @@ impl OAuthService {
         // Use async block to satisfy clippy
         task::yield_now().await;
 
-        // Validate state and extract user ID
-        let user_id = Self::validate_oauth_state(state)?;
+        // Validate state and extract user ID and optional mobile redirect URL
+        let parsed_state = Self::validate_oauth_state(state)?;
+        let user_id = parsed_state.user_id;
+        let mobile_redirect_url = parsed_state.mobile_redirect_url;
 
         // Validate provider is supported
         self.validate_provider(provider)?;
 
         info!(
-            "Processing OAuth callback for user {} provider {} with code {}",
-            user_id, provider, code
+            "Processing OAuth callback for user {} provider {} with code {}{}",
+            user_id,
+            provider,
+            code,
+            if mobile_redirect_url.is_some() {
+                " (mobile flow)"
+            } else {
+                ""
+            }
         );
 
         // Get user and tenant from database
@@ -826,18 +843,22 @@ impl OAuthService {
             provider: provider.to_owned(),
             expires_at: expires_at.to_rfc3339(),
             scopes: token.scope.unwrap_or_else(|| "read".to_owned()),
+            mobile_redirect_url,
         })
     }
 
-    /// Validate OAuth state parameter and extract user ID
-    fn validate_oauth_state(state: &str) -> AppResult<uuid::Uuid> {
-        let mut parts = state.splitn(2, ':');
-        let user_id_str = parts
-            .next()
-            .ok_or_else(|| AppError::invalid_input("Invalid state parameter format"))?;
-        let random_part = parts
-            .next()
-            .ok_or_else(|| AppError::invalid_input("Invalid state parameter format"))?;
+    /// Validate OAuth state parameter and extract user ID and optional redirect URL
+    ///
+    /// State format: `{user_id}:{random}` or `{user_id}:{random}:{base64_redirect_url}`
+    /// The redirect URL allows mobile apps to specify where to redirect after OAuth completes.
+    fn validate_oauth_state(state: &str) -> AppResult<ParsedOAuthState> {
+        let parts: Vec<&str> = state.splitn(3, ':').collect();
+        if parts.len() < 2 {
+            return Err(AppError::invalid_input("Invalid state parameter format"));
+        }
+
+        let user_id_str = parts[0];
+        let random_part = parts[1];
 
         // Validate state for CSRF protection
         if random_part.len() < 16
@@ -848,8 +869,53 @@ impl OAuthService {
             return Err(AppError::invalid_input("Invalid OAuth state parameter"));
         }
 
-        parse_user_id(user_id_str)
-            .map_err(|e| AppError::invalid_input(format!("Invalid user ID in state: {e}")))
+        let user_id = parse_user_id(user_id_str)
+            .map_err(|e| AppError::invalid_input(format!("Invalid user ID in state: {e}")))?;
+
+        // Extract optional mobile redirect URL (base64 encoded, third part of state)
+        let mobile_redirect_url = parts
+            .get(2)
+            .filter(|s| !s.is_empty())
+            .and_then(|encoded| Self::decode_mobile_redirect_url(encoded));
+
+        Ok(ParsedOAuthState {
+            user_id,
+            mobile_redirect_url,
+        })
+    }
+
+    /// Decode and validate a base64-encoded mobile redirect URL
+    fn decode_mobile_redirect_url(encoded: &str) -> Option<String> {
+        use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+
+        URL_SAFE_NO_PAD
+            .decode(encoded)
+            .map_err(|e| {
+                warn!("Failed to decode base64 redirect URL: {}", e);
+                e
+            })
+            .ok()
+            .and_then(|bytes| {
+                String::from_utf8(bytes)
+                    .map_err(|e| {
+                        warn!("Failed to decode redirect URL as UTF-8: {}", e);
+                        e
+                    })
+                    .ok()
+            })
+            .and_then(|url| {
+                // Validate URL scheme for security (only allow specific schemes)
+                if url.starts_with("pierre://")
+                    || url.starts_with("exp://")
+                    || url.starts_with("http://localhost")
+                    || url.starts_with("https://")
+                {
+                    Some(url)
+                } else {
+                    warn!("Invalid redirect URL scheme in OAuth state: {}", url);
+                    None
+                }
+            })
     }
 
     /// Validate that provider is supported by checking the provider registry
@@ -1369,6 +1435,9 @@ pub struct OAuthCallbackResponse {
     pub expires_at: String,
     /// Space-separated list of granted OAuth scopes
     pub scopes: String,
+    /// Optional mobile redirect URL from OAuth state (for mobile app flows)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mobile_redirect_url: Option<String>,
 }
 
 /// Authentication routes implementation
@@ -1405,6 +1474,11 @@ impl AuthRoutes {
             .route(
                 "/api/oauth/auth/:provider/:user_id",
                 get(Self::handle_oauth_auth_initiate),
+            )
+            // Mobile OAuth initiation - returns OAuth URL in JSON (requires auth)
+            .route(
+                "/api/oauth/mobile/init/:provider",
+                get(Self::handle_mobile_oauth_init),
             )
             .with_state(resources)
     }
@@ -1965,6 +2039,20 @@ impl AuthRoutes {
 
         match oauth_routes.handle_callback(code, state, &provider).await {
             Ok(response) => {
+                // Priority: mobile redirect URL > frontend URL > render template
+                // Mobile apps pass redirect URL through OAuth state for deep linking
+                if let Some(mobile_url) = &response.mobile_redirect_url {
+                    let redirect_url = format!(
+                        "{}?provider={}&success=true",
+                        mobile_url.trim_end_matches('/'),
+                        encode(&provider)
+                    );
+                    info!("Redirecting OAuth success to mobile app: {}", redirect_url);
+                    return Ok(
+                        (StatusCode::FOUND, [(header::LOCATION, redirect_url)], "").into_response()
+                    );
+                }
+
                 // If frontend URL is configured, redirect to frontend with success params
                 if let Some(url) = frontend_url {
                     let redirect_url = format!(
@@ -1992,6 +2080,24 @@ impl AuthRoutes {
 
                 // Determine error message and description based on error type
                 let (error_msg, description) = Self::categorize_oauth_error(&e);
+
+                // For errors, we need to parse the state to check for mobile redirect URL
+                // since handle_callback failed and didn't return the parsed state
+                let mobile_redirect_url = Self::extract_mobile_redirect_from_state(state);
+
+                // Priority: mobile redirect URL > frontend URL > render template
+                if let Some(mobile_url) = mobile_redirect_url {
+                    let redirect_url = format!(
+                        "{}?provider={}&success=false&error={}",
+                        mobile_url.trim_end_matches('/'),
+                        encode(&provider),
+                        encode(error_msg)
+                    );
+                    info!("Redirecting OAuth error to mobile app: {}", redirect_url);
+                    return Ok(
+                        (StatusCode::FOUND, [(header::LOCATION, redirect_url)], "").into_response()
+                    );
+                }
 
                 // If frontend URL is configured, redirect to frontend with error params
                 if let Some(url) = frontend_url {
@@ -2199,6 +2305,116 @@ impl AuthRoutes {
             .into_response())
     }
 
+    /// Handle mobile OAuth initiation (Axum)
+    ///
+    /// Returns OAuth URL in JSON format for mobile apps to use with in-app browsers.
+    /// Accepts optional `redirect_url` query parameter for deep linking back to the app.
+    #[tracing::instrument(
+        skip(resources, headers, query),
+        fields(
+            route = "mobile_oauth_init",
+            provider = %provider,
+            user_id = Empty,
+        )
+    )]
+    async fn handle_mobile_oauth_init(
+        State(resources): State<Arc<ServerResources>>,
+        Path(provider): Path<String>,
+        headers: HeaderMap,
+        Query(query): Query<HashMap<String, String>>,
+    ) -> Result<Response, AppError> {
+        use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+
+        // Authenticate using middleware
+        let auth_result = resources
+            .auth_middleware
+            .authenticate_request_with_headers(&headers)
+            .await?;
+
+        let user_id = auth_result.user_id;
+        info!(
+            "Mobile OAuth initiation for provider: {} user: {}",
+            provider, user_id
+        );
+
+        // Get optional redirect_url from query parameters
+        let redirect_url = query.get("redirect_url");
+
+        // Validate redirect URL scheme if provided
+        if let Some(url) = redirect_url {
+            let is_valid_scheme = url.starts_with("pierre://")
+                || url.starts_with("exp://")
+                || url.starts_with("http://localhost")
+                || url.starts_with("https://");
+            if !is_valid_scheme {
+                return Err(AppError::invalid_input(
+                    "Invalid redirect_url scheme. Allowed schemes: pierre://, exp://, http://localhost, https://",
+                ));
+            }
+        }
+
+        let user = Self::get_user_for_oauth(&resources.database, user_id).await?;
+        let tenant_id = Self::extract_tenant_id(&user, user_id)?;
+
+        // Build OAuth state with optional redirect URL
+        let state = redirect_url.map_or_else(
+            || format!("{}:{}", user_id, uuid::Uuid::new_v4()),
+            |url| {
+                let encoded_url = URL_SAFE_NO_PAD.encode(url.as_bytes());
+                format!("{}:{}:{}", user_id, uuid::Uuid::new_v4(), encoded_url)
+            },
+        );
+
+        // Generate OAuth URL using the state with embedded redirect URL
+        let tenant_name = resources
+            .database
+            .get_tenant_by_id(tenant_id)
+            .await
+            .map_or_else(|_| "Unknown Tenant".to_owned(), |t| t.name);
+
+        let ctx = TenantContext {
+            tenant_id,
+            user_id,
+            tenant_name,
+            user_role: TenantRole::Member,
+        };
+
+        let authorization_url = resources
+            .tenant_oauth_client
+            .get_authorization_url(&ctx, &provider, &state, resources.database.as_ref())
+            .await
+            .map_err(|e| {
+                error!(
+                    "Failed to generate OAuth URL for {} user {}: {}",
+                    provider, user_id, e
+                );
+                AppError::internal(format!("Failed to generate OAuth URL for {provider}: {e}"))
+            })?;
+
+        info!(
+            "Generated mobile OAuth URL for {} user {}{}",
+            provider,
+            user_id,
+            if redirect_url.is_some() {
+                " (with redirect)"
+            } else {
+                ""
+            }
+        );
+
+        // Return JSON response with OAuth URL (mobile apps need this for in-app browsers)
+        Ok((
+            StatusCode::OK,
+            Json(json!({
+                "authorization_url": authorization_url,
+                "provider": provider,
+                "state": state,
+                "message": format!("Visit the authorization URL to connect your {} account", provider)
+            })),
+        )
+            .into_response())
+    }
+
     /// Categorize OAuth errors for better user messaging
     fn categorize_oauth_error(error: &AppError) -> (&'static str, Option<&'static str>) {
         let error_str = error.to_string().to_lowercase();
@@ -2251,5 +2467,31 @@ impl AuthRoutes {
                 Some("An unexpected error occurred during the OAuth authorization process."),
             )
         }
+    }
+
+    /// Extract mobile redirect URL from OAuth state parameter for error handling
+    ///
+    /// This is used when the OAuth callback fails and we need to redirect
+    /// the error to the mobile app. Duplicates some logic from `OAuthService::validate_oauth_state`
+    /// but only extracts the redirect URL without full validation.
+    fn extract_mobile_redirect_from_state(state: &str) -> Option<String> {
+        use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+
+        let parts: Vec<&str> = state.splitn(3, ':').collect();
+        if parts.len() < 3 || parts[2].is_empty() {
+            return None;
+        }
+
+        URL_SAFE_NO_PAD
+            .decode(parts[2])
+            .ok()
+            .and_then(|bytes| String::from_utf8(bytes).ok())
+            .filter(|url| {
+                // Validate URL scheme for security (only allow specific schemes)
+                url.starts_with("pierre://")
+                    || url.starts_with("exp://")
+                    || url.starts_with("http://localhost")
+                    || url.starts_with("https://")
+            })
     }
 }
