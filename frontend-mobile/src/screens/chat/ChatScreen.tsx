@@ -314,36 +314,44 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
 
   // Render message content with clickable links
   const renderMessageContent = (content: string, isUser: boolean) => {
+    // First, handle markdown-style links: [text](url) -> replace with just URL
+    // This preserves the URL for our OAuth detection while removing markdown syntax
+    let processedContent = content.replace(/\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g, '$2');
+
     // URL regex pattern - matches URLs, handling trailing parentheses and punctuation
     const urlRegex = /https?:\/\/[^\s<>"\]]+/gi;
-    const matches = content.match(urlRegex);
+    const matches = processedContent.match(urlRegex);
 
     if (!matches || matches.length === 0) {
       // No URLs found, render plain text
       return (
         <Text style={[styles.messageText, isUser && styles.userMessageText]}>
-          {content}
+          {processedContent}
         </Text>
       );
     }
 
     // Build elements array by splitting content around URLs
     const elements: React.ReactNode[] = [];
-    let remainingContent = content;
+    let remainingContent = processedContent;
     let keyIndex = 0;
 
     matches.forEach((url) => {
       const urlIndex = remainingContent.indexOf(url);
       if (urlIndex === -1) return;
 
-      // Add text before URL
+      // Add text before URL (clean up any leftover markdown artifacts)
       if (urlIndex > 0) {
-        const textBefore = remainingContent.substring(0, urlIndex);
-        elements.push(
-          <Text key={`text-${keyIndex++}`} style={[styles.messageText, isUser && styles.userMessageText]}>
-            {textBefore}
-          </Text>
-        );
+        let textBefore = remainingContent.substring(0, urlIndex);
+        // Remove trailing markdown artifacts like "[Link]("
+        textBefore = textBefore.replace(/\[[\w\s]*\]\s*\(\s*$/, '');
+        if (textBefore.trim()) {
+          elements.push(
+            <Text key={`text-${keyIndex++}`} style={[styles.messageText, isUser && styles.userMessageText]}>
+              {textBefore}
+            </Text>
+          );
+        }
       }
 
       // Clean up URL (remove trailing parentheses/punctuation)
@@ -380,12 +388,14 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
         );
       }
 
-      // Update remaining content
+      // Update remaining content (also clean up trailing markdown artifacts)
       remainingContent = remainingContent.substring(urlIndex + url.length);
+      // Remove leading ")" that might be left from markdown link syntax
+      remainingContent = remainingContent.replace(/^\)\s*/, ' ');
     });
 
     // Add any remaining text
-    if (remainingContent) {
+    if (remainingContent.trim()) {
       elements.push(
         <Text key={`text-${keyIndex++}`} style={[styles.messageText, isUser && styles.userMessageText]}>
           {remainingContent}
