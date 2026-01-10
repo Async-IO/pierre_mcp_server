@@ -21,6 +21,7 @@ import {
   Linking,
 } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
+import Markdown from 'react-native-markdown-display';
 import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -312,98 +313,140 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     }
   };
 
-  // Render message content with clickable links
+  // Markdown styles for assistant messages
+  const markdownStyles = {
+    body: {
+      color: colors.text,
+      fontSize: fontSize.body,
+      lineHeight: fontSize.body * 1.5,
+    },
+    heading1: {
+      color: colors.text,
+      fontSize: fontSize.title,
+      fontWeight: '700' as const,
+      marginTop: spacing.md,
+      marginBottom: spacing.sm,
+    },
+    heading2: {
+      color: colors.text,
+      fontSize: fontSize.large,
+      fontWeight: '600' as const,
+      marginTop: spacing.sm,
+      marginBottom: spacing.xs,
+    },
+    heading3: {
+      color: colors.text,
+      fontSize: fontSize.body,
+      fontWeight: '600' as const,
+      marginTop: spacing.xs,
+      marginBottom: spacing.xs,
+    },
+    strong: {
+      color: colors.text,
+      fontWeight: '700' as const,
+    },
+    em: {
+      color: colors.textSecondary,
+      fontStyle: 'italic' as const,
+    },
+    bullet_list: {
+      marginLeft: spacing.sm,
+    },
+    ordered_list: {
+      marginLeft: spacing.sm,
+    },
+    list_item: {
+      marginBottom: spacing.xs,
+    },
+    code_inline: {
+      backgroundColor: colors.inputBackground,
+      color: colors.primary,
+      paddingHorizontal: 4,
+      borderRadius: 4,
+      fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+      fontSize: fontSize.small,
+    },
+    fence: {
+      backgroundColor: colors.inputBackground,
+      borderRadius: borderRadius.sm,
+      padding: spacing.sm,
+      marginVertical: spacing.xs,
+    },
+    code_block: {
+      fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+      fontSize: fontSize.small,
+      color: colors.text,
+    },
+    link: {
+      color: colors.primary,
+      textDecorationLine: 'underline' as const,
+    },
+    hr: {
+      backgroundColor: colors.border,
+      height: 1,
+      marginVertical: spacing.sm,
+    },
+  };
+
+  // Render message content with markdown support for assistant and clickable links
   const renderMessageContent = (content: string, isUser: boolean) => {
-    // First, handle markdown-style links: [text](url) -> replace with just URL
-    // This preserves the URL for our OAuth detection while removing markdown syntax
-    let processedContent = content.replace(/\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g, '$2');
-
-    // URL regex pattern - matches URLs, handling trailing parentheses and punctuation
-    const urlRegex = /https?:\/\/[^\s<>"\]]+/gi;
-    const matches = processedContent.match(urlRegex);
-
-    if (!matches || matches.length === 0) {
-      // No URLs found, render plain text
+    // For user messages, render plain text
+    if (isUser) {
       return (
-        <Text style={[styles.messageText, isUser && styles.userMessageText]}>
-          {processedContent}
+        <Text style={[styles.messageText, styles.userMessageText]}>
+          {content}
         </Text>
       );
     }
 
-    // Build elements array by splitting content around URLs
-    const elements: React.ReactNode[] = [];
-    let remainingContent = processedContent;
-    let keyIndex = 0;
+    // For assistant messages, check for OAuth URLs first
+    const urlRegex = /https?:\/\/[^\s<>"\]]+/gi;
+    const oauthUrls = content.match(urlRegex)?.filter(url => {
+      const { isOAuth } = isOAuthUrl(url);
+      return isOAuth;
+    }) || [];
 
-    matches.forEach((url) => {
-      const urlIndex = remainingContent.indexOf(url);
-      if (urlIndex === -1) return;
+    // If there are OAuth URLs, render them as buttons above the markdown content
+    if (oauthUrls.length > 0) {
+      // Remove OAuth URLs from content for cleaner markdown rendering
+      let cleanContent = content;
+      oauthUrls.forEach(url => {
+        // Remove the URL and any markdown link syntax around it
+        cleanContent = cleanContent.replace(new RegExp(`\\[([^\\]]*)\\]\\(${url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'), '');
+        cleanContent = cleanContent.replace(url, '');
+      });
 
-      // Add text before URL (clean up any leftover markdown artifacts)
-      if (urlIndex > 0) {
-        let textBefore = remainingContent.substring(0, urlIndex);
-        // Remove trailing markdown artifacts like "[Link]("
-        textBefore = textBefore.replace(/\[[\w\s]*\]\s*\(\s*$/, '');
-        if (textBefore.trim()) {
-          elements.push(
-            <Text key={`text-${keyIndex++}`} style={[styles.messageText, isUser && styles.userMessageText]}>
-              {textBefore}
-            </Text>
-          );
-        }
-      }
-
-      // Clean up URL (remove trailing parentheses/punctuation)
-      let cleanUrl = url;
-      while (cleanUrl.endsWith(')') || cleanUrl.endsWith('.') || cleanUrl.endsWith(',')) {
-        cleanUrl = cleanUrl.slice(0, -1);
-      }
-
-      const { isOAuth, provider } = isOAuthUrl(cleanUrl);
-
-      if (isOAuth && provider) {
-        // Render OAuth URL as a styled button
-        elements.push(
-          <TouchableOpacity
-            key={`oauth-${keyIndex++}`}
-            style={styles.oauthButton}
-            onPress={() => handleOpenUrl(cleanUrl)}
-          >
-            <Text style={styles.oauthButtonText}>
-              Connect to {provider}
-            </Text>
-          </TouchableOpacity>
-        );
-      } else {
-        // Render regular URL as clickable link
-        elements.push(
-          <Text
-            key={`link-${keyIndex++}`}
-            style={styles.linkText}
-            onPress={() => handleOpenUrl(cleanUrl)}
-          >
-            {cleanUrl.length > 50 ? cleanUrl.substring(0, 50) + '...' : cleanUrl}
-          </Text>
-        );
-      }
-
-      // Update remaining content (also clean up trailing markdown artifacts)
-      remainingContent = remainingContent.substring(urlIndex + url.length);
-      // Remove leading ")" that might be left from markdown link syntax
-      remainingContent = remainingContent.replace(/^\)\s*/, ' ');
-    });
-
-    // Add any remaining text
-    if (remainingContent.trim()) {
-      elements.push(
-        <Text key={`text-${keyIndex++}`} style={[styles.messageText, isUser && styles.userMessageText]}>
-          {remainingContent}
-        </Text>
+      return (
+        <View style={styles.richTextContainer}>
+          {oauthUrls.map((url, index) => {
+            const { provider } = isOAuthUrl(url);
+            return (
+              <TouchableOpacity
+                key={`oauth-${index}`}
+                style={styles.oauthButton}
+                onPress={() => handleOpenUrl(url)}
+              >
+                <Text style={styles.oauthButtonText}>
+                  Connect to {provider}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+          {cleanContent.trim() && (
+            <Markdown style={markdownStyles} onLinkPress={(url) => { handleOpenUrl(url); return false; }}>
+              {cleanContent.trim()}
+            </Markdown>
+          )}
+        </View>
       );
     }
 
-    return <View style={styles.richTextContainer}>{elements}</View>;
+    // Render markdown for assistant messages without OAuth URLs
+    return (
+      <Markdown style={markdownStyles} onLinkPress={(url) => { handleOpenUrl(url); return false; }}>
+        {content}
+      </Markdown>
+    );
   };
 
   const renderMessage = ({ item }: { item: Message }) => {
