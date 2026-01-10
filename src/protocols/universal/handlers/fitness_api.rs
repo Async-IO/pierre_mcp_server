@@ -368,16 +368,21 @@ async fn try_get_cached_activities(
             params.mode,
             params.output_format
         );
+
+        // Sort by start_date descending (newest first) for consistent ordering
+        let mut sorted_activities = cached_activities;
+        sorted_activities.sort_by_key(|a| Reverse(a.start_date()));
+
         // Create pagination info from cached results
         let pagination = PaginationInfo {
             offset: params.offset,
             limit: params.limit,
-            returned_count: cached_activities.len(),
-            has_more: cached_activities.len() == params.limit,
+            returned_count: sorted_activities.len(),
+            has_more: sorted_activities.len() == params.limit,
         };
         // Use the same response builder as the non-cached path to apply mode/format
         let mut response = build_activities_success_response(ActivitiesResponseParams {
-            activities: &cached_activities,
+            activities: &sorted_activities,
             user_uuid: params.user_uuid,
             tenant_id: params.tenant_id,
             provider_name: params.provider_name,
@@ -961,10 +966,13 @@ pub fn handle_get_activities(
                 match provider.get_activities_with_params(&query_params).await {
                     Ok(activities) => {
                         // Apply sport_type filter if specified (server-side filtering)
-                        let filtered_activities = filter_activities_by_sport_type(
+                        let mut filtered_activities = filter_activities_by_sport_type(
                             activities,
                             sport_type_filter.as_deref(),
                         );
+
+                        // Sort by start_date descending (newest first) for consistent ordering
+                        filtered_activities.sort_by_key(|a| Reverse(a.start_date()));
 
                         // Report completion
                         if let Some(reporter) = &request.progress_reporter {
