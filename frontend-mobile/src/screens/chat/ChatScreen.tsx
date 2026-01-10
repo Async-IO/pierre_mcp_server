@@ -22,16 +22,18 @@ import {
 } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import Markdown from 'react-native-markdown-display';
+import { useRoute, type RouteProp } from '@react-navigation/native';
 import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Conversation, Message, PromptCategory } from '../../types';
 import type { DrawerNavigationProp } from '@react-navigation/drawer';
+import type { AppDrawerParamList } from '../../navigation/AppDrawer';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface ChatScreenProps {
-  navigation: DrawerNavigationProp<Record<string, undefined>>;
+  navigation: DrawerNavigationProp<AppDrawerParamList>;
 }
 
 // Default prompts - used as initial state and fallback when API is unavailable
@@ -72,6 +74,7 @@ const DEFAULT_WELCOME_PROMPT = 'Show my recent activities';
 
 export function ChatScreen({ navigation }: ChatScreenProps) {
   const { isAuthenticated } = useAuth();
+  const route = useRoute<RouteProp<AppDrawerParamList, 'Chat'>>();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -100,6 +103,23 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       setMessages([]);
     }
   }, [currentConversation]);
+
+  // Handle conversation selection from drawer navigation
+  useEffect(() => {
+    const conversationId = route.params?.conversationId;
+
+    if (conversationId === undefined) {
+      // New chat - clear current conversation
+      setCurrentConversation(null);
+      setMessages([]);
+    } else if (conversationId && conversations.length > 0) {
+      // Find and select the conversation
+      const conversation = conversations.find(c => c.id === conversationId);
+      if (conversation && conversation.id !== currentConversation?.id) {
+        setCurrentConversation(conversation);
+      }
+    }
+  }, [route.params?.conversationId, conversations]);
 
   const loadConversations = async () => {
     try {
