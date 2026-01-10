@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   ScrollView,
   SafeAreaView,
+  Image,
 } from 'react-native';
 import {
   createDrawerNavigator,
@@ -34,18 +35,20 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   const { navigation, state } = props;
 
   const menuItems = [
-    { name: 'Chat', icon: '?' , label: 'Chat' },
-    { name: 'Connections', icon: '?' , label: 'Connections' },
-    { name: 'Settings', icon: '?' , label: 'Settings' },
+    { name: 'Chat', icon: '💬', label: 'Chat' },
+    { name: 'Connections', icon: '🔗', label: 'Connections' },
+    { name: 'Settings', icon: '⚙️', label: 'Settings' },
   ];
 
   return (
     <SafeAreaView style={styles.drawerContainer}>
       {/* Header */}
       <View style={styles.drawerHeader}>
-        <View style={styles.logoContainer}>
-          <Text style={styles.logoText}>P</Text>
-        </View>
+        <Image
+          source={require('../../assets/pierre-logo.png')}
+          style={styles.drawerLogo}
+          resizeMode="contain"
+        />
         <Text style={styles.appName}>Pierre</Text>
       </View>
 
@@ -131,19 +134,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border.subtle,
   },
-  logoContainer: {
+  drawerLogo: {
     width: 40,
     height: 40,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.primary[600],
-    alignItems: 'center',
-    justifyContent: 'center',
     marginRight: spacing.sm,
-  },
-  logoText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text.primary,
   },
   appName: {
     fontSize: fontSize.xl,

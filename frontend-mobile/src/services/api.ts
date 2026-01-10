@@ -15,7 +15,8 @@ import type {
 } from '../types';
 
 // Configuration - should be set via environment or config
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://api.pierre.fitness';
+// For iOS Simulator, localhost works directly. For Android, use 10.0.2.2
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8081';
 
 // Storage keys
 const STORAGE_KEYS = {
@@ -44,6 +45,7 @@ const emitAuthFailure = () => {
 class ApiService {
   private csrfToken: string | null = null;
   private jwtToken: string | null = null;
+  private userId: string | null = null;
 
   constructor() {
     axios.defaults.baseURL = API_BASE_URL;
@@ -92,14 +94,19 @@ class ApiService {
   // Token management
   async initializeAuth(): Promise<boolean> {
     try {
-      const [token, csrfToken] = await Promise.all([
+      const [token, csrfToken, userJson] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.JWT_TOKEN),
         AsyncStorage.getItem(STORAGE_KEYS.CSRF_TOKEN),
+        AsyncStorage.getItem(STORAGE_KEYS.USER),
       ]);
 
       if (token) {
         this.jwtToken = token;
         this.csrfToken = csrfToken;
+        if (userJson) {
+          const user = JSON.parse(userJson);
+          this.userId = user.id;
+        }
         return true;
       }
       return false;
@@ -111,6 +118,7 @@ class ApiService {
   async storeAuth(token: string, csrfToken: string, user: User) {
     this.jwtToken = token;
     this.csrfToken = csrfToken;
+    this.userId = user.id;
     await Promise.all([
       AsyncStorage.setItem(STORAGE_KEYS.JWT_TOKEN, token),
       AsyncStorage.setItem(STORAGE_KEYS.CSRF_TOKEN, csrfToken),
@@ -127,6 +135,7 @@ class ApiService {
     ]);
     this.jwtToken = null;
     this.csrfToken = null;
+    this.userId = null;
   }
 
   async getStoredUser(): Promise<User | null> {
@@ -215,14 +224,44 @@ class ApiService {
     return response.data;
   }
 
+  async sendMessage(conversationId: string, content: string): Promise<{
+    user_message: Message;
+    assistant_message: Message;
+    conversation_updated_at: string;
+    model: string;
+    execution_time_ms: number;
+  }> {
+    const response = await axios.post(`/api/chat/conversations/${conversationId}/messages`, {
+      content,
+      stream: false,
+    });
+    return response.data;
+  }
+
   // OAuth/Provider endpoints
   async getOAuthStatus(): Promise<{ providers: ProviderStatus[] }> {
     const response = await axios.get('/api/oauth/status');
     return { providers: response.data };
   }
 
-  getOAuthAuthorizeUrl(provider: string): string {
-    return `${API_BASE_URL}/api/oauth/authorize/${provider}`;
+  /**
+   * Initialize mobile OAuth flow for a provider
+   * Returns the authorization URL to open in an in-app browser
+   * @param provider - Provider name (e.g., 'strava', 'fitbit')
+   * @param redirectUrl - Optional redirect URL for deep linking back to the app
+   */
+  async initMobileOAuth(
+    provider: string,
+    redirectUrl?: string
+  ): Promise<{
+    authorization_url: string;
+    provider: string;
+    state: string;
+    message: string;
+  }> {
+    const params = redirectUrl ? `?redirect_url=${encodeURIComponent(redirectUrl)}` : '';
+    const response = await axios.get(`/api/oauth/mobile/init/${provider}${params}`);
+    return response.data;
   }
 
   // MCP Token endpoints

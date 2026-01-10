@@ -12,6 +12,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Image,
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button, Input } from '../../components/ui';
@@ -28,10 +29,14 @@ interface LoginScreenProps {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'Login'>;
 }
 
+// Development mode pre-fills credentials for testing
+const DEV_EMAIL = __DEV__ ? 'mobile@test.com' : '';
+const DEV_PASSWORD = __DEV__ ? 'mobiletest123' : '';
+
 export function LoginScreen({ navigation }: LoginScreenProps) {
   const { login } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState(DEV_EMAIL);
+  const [password, setPassword] = useState(DEV_PASSWORD);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
@@ -58,9 +63,20 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
     setIsLoading(true);
     try {
       await login(email.trim(), password);
-      // Navigation handled by auth state change
+      // Navigation is handled by auth state change in RootNavigator/AuthStack
+      // If user is pending, AuthStack will show PendingApproval screen
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Login failed';
+      let message = 'Login failed. Please try again.';
+      if (error instanceof Error) {
+        // Parse API error responses
+        if (error.message.includes('400') || error.message.includes('invalid')) {
+          message = 'Invalid email or password. Please check your credentials.';
+        } else if (error.message.includes('Network')) {
+          message = 'Network error. Please check your connection.';
+        } else {
+          message = error.message;
+        }
+      }
       Alert.alert('Login Failed', message);
     } finally {
       setIsLoading(false);
@@ -79,9 +95,11 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
         >
           {/* Logo and Header */}
           <View style={styles.header}>
-            <View style={styles.logoContainer}>
-              <Text style={styles.logoText}>P</Text>
-            </View>
+            <Image
+              source={require('../../../assets/pierre-logo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
             <Text style={styles.title}>Welcome to Pierre</Text>
             <Text style={styles.subtitle}>
               Your AI-powered fitness intelligence companion
@@ -149,21 +167,12 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: spacing.xxl,
+    marginBottom: spacing.xl,
   },
-  logoContainer: {
-    width: 72,
-    height: 72,
-    borderRadius: borderRadius.xl,
-    backgroundColor: colors.primary[600],
-    alignItems: 'center',
-    justifyContent: 'center',
+  logo: {
+    width: 160,
+    height: 160,
     marginBottom: spacing.lg,
-  },
-  logoText: {
-    fontSize: 36,
-    fontWeight: '700',
-    color: colors.text.primary,
   },
   title: {
     fontSize: fontSize.xxl,

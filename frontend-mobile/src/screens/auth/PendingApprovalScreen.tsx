@@ -8,6 +8,7 @@ import {
   StyleSheet,
   SafeAreaView,
   TouchableOpacity,
+  Image,
 } from 'react-native';
 import { Button } from '../../components/ui';
 import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
@@ -27,10 +28,12 @@ export function PendingApprovalScreen({ navigation }: PendingApprovalScreenProps
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        {/* Icon */}
-        <View style={styles.iconContainer}>
-          <Text style={styles.iconText}>{'...'}</Text>
-        </View>
+        {/* Pierre Logo */}
+        <Image
+          source={require('../../../assets/pierre-logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
 
         {/* Message */}
         <Text style={styles.title}>Account Pending Approval</Text>
@@ -97,19 +100,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.xl,
   },
-  iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: borderRadius.xl,
-    backgroundColor: colors.warning + '20',
-    alignItems: 'center',
-    justifyContent: 'center',
+  logo: {
+    width: 120,
+    height: 120,
     alignSelf: 'center',
     marginBottom: spacing.lg,
-  },
-  iconText: {
-    fontSize: 32,
-    color: colors.warning,
   },
   title: {
     fontSize: fontSize.xxl,

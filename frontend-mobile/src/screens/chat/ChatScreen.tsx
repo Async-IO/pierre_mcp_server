@@ -16,9 +16,12 @@ import {
   Dimensions,
   ActivityIndicator,
   Alert,
+  Image,
+  ScrollView,
 } from 'react-native';
 import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
 import { apiService } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 import type { Conversation, Message, PromptCategory } from '../../types';
 import type { DrawerNavigationProp } from '@react-navigation/drawer';
 
@@ -28,24 +31,63 @@ interface ChatScreenProps {
   navigation: DrawerNavigationProp<Record<string, undefined>>;
 }
 
+// Default prompts - used as initial state and fallback when API is unavailable
+const DEFAULT_PROMPT_CATEGORIES: PromptCategory[] = [
+  {
+    category_key: 'training',
+    category_title: 'Training',
+    category_icon: '🏃',
+    pillar: 'activity',
+    prompts: [
+      'Am I ready for a hard workout today?',
+      "What's my predicted marathon time?",
+    ],
+  },
+  {
+    category_key: 'nutrition',
+    category_title: 'Nutrition',
+    category_icon: '🥗',
+    pillar: 'nutrition',
+    prompts: [
+      'How many calories should I eat today?',
+      'What should I eat before my morning run?',
+    ],
+  },
+  {
+    category_key: 'recovery',
+    category_title: 'Recovery',
+    category_icon: '🧘',
+    pillar: 'recovery',
+    prompts: [
+      'Do I need a rest day?',
+      'Analyze my sleep quality',
+    ],
+  },
+];
+
+const DEFAULT_WELCOME_PROMPT = 'Show my recent activities';
+
 export function ChatScreen({ navigation }: ChatScreenProps) {
+  const { isAuthenticated } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [promptCategories, setPromptCategories] = useState<PromptCategory[]>([]);
-  const [welcomePrompt, setWelcomePrompt] = useState('');
+  const [promptCategories, setPromptCategories] = useState<PromptCategory[]>(DEFAULT_PROMPT_CATEGORIES);
+  const [welcomePrompt, setWelcomePrompt] = useState(DEFAULT_WELCOME_PROMPT);
 
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
 
-  // Load conversations and prompts on mount
+  // Load conversations and prompts only when authenticated
   useEffect(() => {
-    loadConversations();
-    loadPromptSuggestions();
-  }, []);
+    if (isAuthenticated) {
+      loadConversations();
+      loadPromptSuggestions();
+    }
+  }, [isAuthenticated]);
 
   // Load messages when conversation changes
   useEffect(() => {
@@ -81,10 +123,15 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   const loadPromptSuggestions = async () => {
     try {
       const response = await apiService.getPromptSuggestions();
-      setPromptCategories(response.categories);
-      setWelcomePrompt(response.welcome_prompt);
+      if (response.categories && response.categories.length > 0) {
+        setPromptCategories(response.categories);
+      }
+      if (response.welcome_prompt) {
+        setWelcomePrompt(response.welcome_prompt);
+      }
     } catch (error) {
       console.error('Failed to load prompts:', error);
+      // Keep default prompts on error
     }
   };
 
@@ -136,10 +183,14 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
         const conversation = await apiService.createConversation({
           title: messageText.slice(0, 50),
         });
+        if (!conversation || !conversation.id) {
+          throw new Error('Invalid conversation response');
+        }
         setConversations(prev => [conversation, ...prev]);
         setCurrentConversation(conversation);
         conversationId = conversation.id;
       } catch (error) {
+        console.error('Failed to create conversation:', error);
         Alert.alert('Error', 'Failed to create conversation');
         return;
       }
@@ -157,24 +208,75 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
 
     setIsSending(true);
 
-    // TODO: Implement actual message sending via WebSocket
-    // For now, simulate a response
-    setTimeout(() => {
-      const assistantMessage: Message = {
-        id: `temp-${Date.now() + 1}`,
-        role: 'assistant',
-        content: 'This is a placeholder response. WebSocket integration coming soon!',
-        created_at: new Date().toISOString(),
-      };
-      setMessages(prev => [...prev, assistantMessage]);
-      setIsSending(false);
+    try {
+      const response = await apiService.sendMessage(conversationId, messageText);
+      // Replace optimistic user message and add assistant response
+      setMessages(prev => {
+        const filtered = prev.filter(m => m.id !== userMessage.id);
+        return [...filtered, response.user_message, response.assistant_message];
+      });
       scrollToBottom();
-    }, 1000);
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      Alert.alert('Error', 'Failed to send message. Please try again.');
+      // Remove optimistic message on failure
+      setMessages(prev => prev.filter(m => m.id !== userMessage.id));
+    } finally {
+      setIsSending(false);
+    }
   };
 
-  const handlePromptSelect = (prompt: string) => {
-    setInputText(prompt);
-    inputRef.current?.focus();
+  const handlePromptSelect = async (prompt: string) => {
+    if (isSending) return;
+
+    // Create conversation if needed
+    let conversationId = currentConversation?.id;
+    if (!conversationId) {
+      try {
+        const conversation = await apiService.createConversation({
+          title: prompt.slice(0, 50),
+        });
+        if (!conversation || !conversation.id) {
+          throw new Error('Invalid conversation response');
+        }
+        setConversations(prev => [conversation, ...prev]);
+        setCurrentConversation(conversation);
+        conversationId = conversation.id;
+      } catch (error) {
+        console.error('Failed to create conversation:', error);
+        Alert.alert('Error', 'Failed to create conversation');
+        return;
+      }
+    }
+
+    // Add user message optimistically
+    const userMessage: Message = {
+      id: `temp-${Date.now()}`,
+      role: 'user',
+      content: prompt,
+      created_at: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, userMessage]);
+    scrollToBottom();
+
+    setIsSending(true);
+
+    try {
+      const response = await apiService.sendMessage(conversationId, prompt);
+      // Replace optimistic user message and add assistant response
+      setMessages(prev => {
+        const filtered = prev.filter(m => m.id !== userMessage.id);
+        return [...filtered, response.user_message, response.assistant_message];
+      });
+      scrollToBottom();
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      Alert.alert('Error', 'Failed to send message. Please try again.');
+      // Remove optimistic message on failure
+      setMessages(prev => prev.filter(m => m.id !== userMessage.id));
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const renderMessage = ({ item }: { item: Message }) => {
@@ -184,8 +286,12 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       <View style={[styles.messageContainer, isUser && styles.userMessageContainer]}>
         <View style={[styles.messageBubble, isUser ? styles.userBubble : styles.assistantBubble]}>
           {!isUser && (
-            <View style={styles.assistantAvatar}>
-              <Text style={styles.avatarText}>P</Text>
+            <View style={styles.assistantAvatarContainer}>
+              <Image
+                source={require('../../../assets/pierre-logo.png')}
+                style={styles.assistantAvatarImage}
+                resizeMode="cover"
+              />
             </View>
           )}
           <View style={styles.messageContent}>
@@ -198,15 +304,52 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     );
   };
 
-  const renderEmptyChat = () => (
-    <View style={styles.emptyContainer}>
-      <View style={styles.welcomeIcon}>
-        <Text style={styles.welcomeIconText}>P</Text>
+  const renderThinkingIndicator = () => (
+    <View style={styles.messageContainer}>
+      <View style={[styles.messageBubble, styles.assistantBubble]}>
+        <View style={styles.assistantAvatarContainer}>
+          <Image
+            source={require('../../../assets/pierre-logo.png')}
+            style={styles.assistantAvatarImage}
+            resizeMode="cover"
+          />
+        </View>
+        <View style={styles.thinkingContent}>
+          <ActivityIndicator size="small" color={colors.primary[500]} style={styles.thinkingSpinner} />
+          <Text style={styles.thinkingText}>Pierre is thinking...</Text>
+        </View>
       </View>
+    </View>
+  );
+
+  const renderEmptyChat = () => (
+    <ScrollView
+      style={styles.emptyScrollView}
+      contentContainerStyle={styles.emptyContainer}
+      showsVerticalScrollIndicator={false}
+    >
+      <Image
+        source={require('../../../assets/pierre-logo.png')}
+        style={styles.welcomeLogo}
+        resizeMode="contain"
+      />
       <Text style={styles.welcomeTitle}>Pierre</Text>
       <Text style={styles.welcomeSubtitle}>
-        {welcomePrompt || 'Your AI-powered fitness intelligence companion'}
+        Real sports science to help you train better, eat smarter, and recover faster.
       </Text>
+      <View style={styles.welcomePromptContainer}>
+        <Text style={styles.categoryTitle}>
+          📊 Quick Start
+        </Text>
+        <TouchableOpacity
+          style={styles.suggestionButton}
+          onPress={() => handlePromptSelect(welcomePrompt)}
+        >
+          <Text style={styles.suggestionText}>
+            {welcomePrompt}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Prompt Suggestions */}
       <View style={styles.suggestionsContainer}>
@@ -229,7 +372,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
           </View>
         ))}
       </View>
-    </View>
+    </ScrollView>
   );
 
   return (
@@ -245,7 +388,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
             style={styles.menuButton}
             onPress={() => navigation.openDrawer()}
           >
-            <Text style={styles.menuIcon}>{'...'}</Text>
+            <Text style={styles.menuIcon}>{'☰'}</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle} numberOfLines={1}>
             {currentConversation?.title || 'New Chat'}
@@ -271,6 +414,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
             contentContainerStyle={styles.messagesList}
             showsVerticalScrollIndicator={false}
             onContentSizeChange={scrollToBottom}
+            ListFooterComponent={isSending ? renderThinkingIndicator : null}
           />
         )}
 
@@ -385,19 +529,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background.secondary,
     borderBottomLeftRadius: 4,
   },
-  assistantAvatar: {
+  assistantAvatarContainer: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: colors.primary[600],
-    alignItems: 'center',
-    justifyContent: 'center',
     marginRight: spacing.sm,
+    overflow: 'hidden',
   },
-  avatarText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text.primary,
+  assistantAvatarImage: {
+    width: 32,
+    height: 32,
   },
   messageContent: {
     flex: 1,
@@ -410,25 +551,20 @@ const styles = StyleSheet.create({
   userMessageText: {
     color: colors.text.primary,
   },
-  emptyContainer: {
+  emptyScrollView: {
     flex: 1,
+  },
+  emptyContainer: {
+    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xl,
   },
-  welcomeIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.primary[600],
-    alignItems: 'center',
-    justifyContent: 'center',
+  welcomeLogo: {
+    width: 120,
+    height: 120,
     marginBottom: spacing.md,
-  },
-  welcomeIconText: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: colors.text.primary,
   },
   welcomeTitle: {
     fontSize: fontSize.xxl,
@@ -440,8 +576,13 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     color: colors.text.secondary,
     textAlign: 'center',
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
     lineHeight: 22,
+  },
+  welcomePromptContainer: {
+    width: '100%',
+    maxWidth: 400,
+    marginBottom: spacing.md,
   },
   suggestionsContainer: {
     width: '100%',
@@ -511,5 +652,17 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: colors.text.primary,
     fontWeight: '700',
+  },
+  thinkingContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  thinkingSpinner: {
+    marginRight: spacing.sm,
+  },
+  thinkingText: {
+    fontSize: fontSize.md,
+    color: colors.text.secondary,
+    fontStyle: 'italic',
   },
 });

@@ -6,6 +6,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { LoginScreen } from '../screens/auth/LoginScreen';
 import { RegisterScreen } from '../screens/auth/RegisterScreen';
 import { PendingApprovalScreen } from '../screens/auth/PendingApprovalScreen';
+import { useAuth } from '../contexts/AuthContext';
 import { colors } from '../constants/theme';
 
 export type AuthStackParamList = {
@@ -17,8 +18,14 @@ export type AuthStackParamList = {
 const Stack = createNativeStackNavigator<AuthStackParamList>();
 
 export function AuthStack() {
+  const { user } = useAuth();
+
+  // If user is logged in but pending, show PendingApproval as initial screen
+  const initialRouteName = user?.user_status === 'pending' ? 'PendingApproval' : 'Login';
+
   return (
     <Stack.Navigator
+      initialRouteName={initialRouteName}
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: colors.background.primary },

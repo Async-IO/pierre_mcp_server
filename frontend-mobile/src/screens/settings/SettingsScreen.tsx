@@ -26,7 +26,7 @@ interface SettingsScreenProps {
 }
 
 export function SettingsScreen({ navigation }: SettingsScreenProps) {
-  const { user, logout } = useAuth();
+  const { user, logout, isAuthenticated } = useAuth();
   const [tokens, setTokens] = useState<McpToken[]>([]);
   const [isLoadingTokens, setIsLoadingTokens] = useState(false);
   const [showCreateToken, setShowCreateToken] = useState(false);
@@ -42,16 +42,20 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   useEffect(() => {
-    loadTokens();
-  }, []);
+    if (isAuthenticated) {
+      loadTokens();
+    }
+  }, [isAuthenticated]);
 
   const loadTokens = async () => {
     try {
       setIsLoadingTokens(true);
       const response = await apiService.getMcpTokens();
-      setTokens(response.tokens.filter(t => !t.is_revoked));
+      const tokenList = response.tokens || [];
+      setTokens(tokenList.filter(t => !t.is_revoked));
     } catch (error) {
       console.error('Failed to load tokens:', error);
+      setTokens([]);
     } finally {
       setIsLoadingTokens(false);
     }

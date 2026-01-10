@@ -11,11 +11,13 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Linking,
 } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
 import { Card } from '../../components/ui';
 import { apiService } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 import type { ProviderStatus } from '../../types';
 import type { DrawerNavigationProp } from '@react-navigation/drawer';
 
@@ -70,6 +72,7 @@ const PROVIDERS: ProviderConfig[] = [
 ];
 
 export function ConnectionsScreen({ navigation }: ConnectionsScreenProps) {
+  const { isAuthenticated } = useAuth();
   const [providerStatuses, setProviderStatuses] = useState<Map<string, ProviderStatus>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
@@ -79,37 +82,70 @@ export function ConnectionsScreen({ navigation }: ConnectionsScreenProps) {
       setIsLoading(true);
       const response = await apiService.getOAuthStatus();
       const statusMap = new Map<string, ProviderStatus>();
-      response.providers.forEach((status) => {
+      const providers = response.providers || [];
+      providers.forEach((status) => {
         statusMap.set(status.provider, status);
       });
       setProviderStatuses(statusMap);
     } catch (error) {
       console.error('Failed to load connection status:', error);
-      Alert.alert('Error', 'Failed to load connection status');
+      // Don't show alert on auth errors - screen will reload when auth is ready
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadConnectionStatus();
-  }, [loadConnectionStatus]);
+    if (isAuthenticated) {
+      loadConnectionStatus();
+    }
+  }, [isAuthenticated, loadConnectionStatus]);
 
-  const handleConnect = async (providerId: string) => {
+  const handleConnect = async (providerId: string, providerName: string) => {
     try {
       setConnectingProvider(providerId);
-      const authUrl = apiService.getOAuthAuthorizeUrl(providerId);
 
-      // Open the OAuth URL in the browser
-      const supported = await Linking.canOpenURL(authUrl);
-      if (supported) {
-        await Linking.openURL(authUrl);
-      } else {
-        Alert.alert('Error', 'Cannot open authentication URL');
+      // Create return URL for the mobile app (deep link)
+      // Server will redirect to this URL after OAuth completes
+      const returnUrl = Linking.createURL('oauth-callback');
+      console.log('OAuth return URL:', returnUrl);
+
+      // Call the mobile OAuth init endpoint which returns the authorization URL
+      // and includes the redirect URL in the OAuth state for callback handling
+      const oauthResponse = await apiService.initMobileOAuth(providerId, returnUrl);
+      console.log('OAuth URL received:', oauthResponse.authorization_url);
+
+      // Open OAuth in an in-app browser (ASWebAuthenticationSession on iOS)
+      // The returnUrl is watched for redirects to close the browser automatically
+      const result = await WebBrowser.openAuthSessionAsync(
+        oauthResponse.authorization_url,
+        returnUrl
+      );
+
+      if (result.type === 'success' && result.url) {
+        // Parse the return URL to check for success/error
+        const parsedUrl = Linking.parse(result.url);
+        const success = parsedUrl.queryParams?.success === 'true';
+        const error = parsedUrl.queryParams?.error as string | undefined;
+
+        if (success) {
+          // OAuth completed successfully - refresh connection status
+          await loadConnectionStatus();
+          Alert.alert('Success', `Connected to ${providerName} successfully!`);
+        } else if (error) {
+          console.error('OAuth error from server:', error);
+          Alert.alert('Connection Failed', `Failed to connect: ${error}`);
+        } else {
+          // No explicit success/error - refresh status to check
+          await loadConnectionStatus();
+          Alert.alert('Connection Complete', `${providerName} connection flow completed.`);
+        }
+      } else if (result.type === 'cancel') {
+        console.log('OAuth cancelled by user');
       }
     } catch (error) {
       console.error('Failed to start OAuth flow:', error);
-      Alert.alert('Error', 'Failed to start authentication');
+      Alert.alert('Error', 'Failed to start authentication. Please try again.');
     } finally {
       setConnectingProvider(null);
     }
@@ -171,7 +207,7 @@ export function ConnectionsScreen({ navigation }: ConnectionsScreenProps) {
           ) : (
             <TouchableOpacity
               style={[styles.connectButton, { backgroundColor: provider.color }]}
-              onPress={() => handleConnect(provider.id)}
+              onPress={() => handleConnect(provider.id, provider.name)}
               disabled={isConnecting}
             >
               {isConnecting ? (
@@ -194,7 +230,7 @@ export function ConnectionsScreen({ navigation }: ConnectionsScreenProps) {
           style={styles.menuButton}
           onPress={() => navigation.openDrawer()}
         >
-          <Text style={styles.menuIcon}>{'...'}</Text>
+          <Text style={styles.menuIcon}>{'☰'}</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Connections</Text>
         <View style={styles.headerSpacer} />
