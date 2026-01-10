@@ -224,7 +224,7 @@ fn build_oauth_success_response(
                  1. Visit the authorization URL\n\
                  2. Log in to {} and approve the connection\n\
                  3. You will be redirected back to complete the connection\n\
-                 4. Once connected, you can access your {} data through MCP tools",
+                 4. Once connected, you can access your {} data through Pierre",
                 provider, provider, provider
             ),
             "expires_in_minutes": AUTHORIZATION_EXPIRES_MINUTES,
