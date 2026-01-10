@@ -564,7 +564,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} testID="chat-screen">
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -575,13 +575,14 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
           <TouchableOpacity
             style={styles.menuButton}
             onPress={() => navigation.openDrawer()}
+            testID="menu-button"
           >
             <Text style={styles.menuIcon}>{'☰'}</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>
+          <Text style={styles.headerTitle} numberOfLines={1} testID="chat-title">
             {currentConversation?.title || 'New Chat'}
           </Text>
-          <TouchableOpacity style={styles.newChatButton} onPress={handleNewChat}>
+          <TouchableOpacity style={styles.newChatButton} onPress={handleNewChat} testID="new-chat-button">
             <Text style={styles.newChatIcon}>+</Text>
           </TouchableOpacity>
         </View>
@@ -619,6 +620,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
               multiline
               maxLength={4000}
               returnKeyType="default"
+              testID="message-input"
             />
             <TouchableOpacity
               style={[
@@ -627,6 +629,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
               ]}
               onPress={handleSendMessage}
               disabled={!inputText.trim() || isSending}
+              testID="send-button"
             >
               {isSending ? (
                 <ActivityIndicator size="small" color={colors.text.primary} />

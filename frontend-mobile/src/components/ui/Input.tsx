@@ -18,6 +18,7 @@ interface InputProps extends Omit<TextInputProps, 'style'> {
   error?: string;
   containerStyle?: ViewStyle;
   showPasswordToggle?: boolean;
+  testID?: string;
 }
 
 export function Input({
@@ -26,6 +27,7 @@ export function Input({
   containerStyle,
   showPasswordToggle = false,
   secureTextEntry,
+  testID,
   ...props
 }: InputProps) {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -45,6 +47,7 @@ export function Input({
           placeholderTextColor={colors.text.tertiary}
           selectionColor={colors.primary[500]}
           secureTextEntry={shouldHidePassword}
+          testID={testID}
           {...props}
         />
         {showPasswordToggle && secureTextEntry !== undefined && (

@@ -84,7 +84,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} testID="login-screen">
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -117,6 +117,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
               autoCapitalize="none"
               autoCorrect={false}
               error={errors.email}
+              testID="email-input"
             />
 
             <Input
@@ -127,6 +128,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
               secureTextEntry
               showPasswordToggle
               error={errors.password}
+              testID="password-input"
             />
 
             <Button
@@ -135,6 +137,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
               loading={isLoading}
               fullWidth
               style={styles.loginButton}
+              testID="login-button"
             />
           </View>
 
