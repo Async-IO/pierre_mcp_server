@@ -70,6 +70,12 @@ const DEFAULT_PROMPT_CATEGORIES: PromptCategory[] = [
 
 const DEFAULT_WELCOME_PROMPT = 'Show my recent activities';
 
+// Metadata for assistant messages (model name and execution time)
+interface MessageMetadata {
+  model: string;
+  executionTimeMs: number;
+}
+
 export function ChatScreen({ navigation }: ChatScreenProps) {
   const { isAuthenticated } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -80,6 +86,8 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   const [isSending, setIsSending] = useState(false);
   const [promptCategories, setPromptCategories] = useState<PromptCategory[]>(DEFAULT_PROMPT_CATEGORIES);
   const [welcomePrompt, setWelcomePrompt] = useState(DEFAULT_WELCOME_PROMPT);
+  // Track model and execution time for each assistant message
+  const [messageMetadata, setMessageMetadata] = useState<Map<string, MessageMetadata>>(new Map());
 
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
@@ -218,6 +226,17 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
         const filtered = prev.filter(m => m.id !== userMessage.id);
         return [...filtered, response.user_message, response.assistant_message];
       });
+      // Store model and execution time metadata for the assistant message
+      if (response.assistant_message.id && (response.model || response.execution_time_ms)) {
+        setMessageMetadata(prev => {
+          const updated = new Map(prev);
+          updated.set(response.assistant_message.id, {
+            model: response.model || 'unknown',
+            executionTimeMs: response.execution_time_ms || 0,
+          });
+          return updated;
+        });
+      }
       scrollToBottom();
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -271,6 +290,17 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
         const filtered = prev.filter(m => m.id !== userMessage.id);
         return [...filtered, response.user_message, response.assistant_message];
       });
+      // Store model and execution time metadata for the assistant message
+      if (response.assistant_message.id && (response.model || response.execution_time_ms)) {
+        setMessageMetadata(prev => {
+          const updated = new Map(prev);
+          updated.set(response.assistant_message.id, {
+            model: response.model || 'unknown',
+            executionTimeMs: response.execution_time_ms || 0,
+          });
+          return updated;
+        });
+      }
       scrollToBottom();
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -451,6 +481,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isUser = item.role === 'user';
+    const metadata = messageMetadata.get(item.id);
 
     return (
       <View style={[styles.messageContainer, isUser && styles.userMessageContainer]}>
@@ -466,6 +497,14 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
           )}
           <View style={styles.messageContent}>
             {renderMessageContent(item.content, isUser)}
+            {/* Model and execution time for assistant messages */}
+            {!isUser && metadata && (
+              <View style={styles.messageMetadata}>
+                <Text style={styles.metadataText}>
+                  {metadata.model} • {(metadata.executionTimeMs / 1000).toFixed(1)}s
+                </Text>
+              </View>
+            )}
           </View>
         </View>
       </View>
@@ -526,9 +565,9 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
             <Text style={styles.categoryTitle}>
               {category.category_icon} {category.category_title}
             </Text>
-            {category.prompts.slice(0, 2).map((prompt, index) => (
+            {category.prompts.slice(0, 2).map((prompt, promptIndex) => (
               <TouchableOpacity
-                key={index}
+                key={`${category.category_key}-prompt-${promptIndex}`}
                 style={styles.suggestionButton}
                 onPress={() => handlePromptSelect(prompt)}
               >
@@ -578,7 +617,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
             ref={flatListRef}
             data={messages}
             renderItem={renderMessage}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item, index) => `${item.id}-${index}`}
             contentContainerStyle={styles.messagesList}
             showsVerticalScrollIndicator={false}
             onContentSizeChange={scrollToBottom}
@@ -856,5 +895,15 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     color: colors.text.secondary,
     fontStyle: 'italic',
+  },
+  messageMetadata: {
+    marginTop: spacing.sm,
+    paddingTop: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.subtle,
+  },
+  metadataText: {
+    fontSize: fontSize.xs,
+    color: colors.text.tertiary,
   },
 });
