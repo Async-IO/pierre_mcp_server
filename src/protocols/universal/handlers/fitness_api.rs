@@ -20,6 +20,7 @@ use crate::providers::core::{ActivityQueryParams, FitnessProvider};
 use crate::utils::uuid::parse_user_id_for_protocol;
 use serde::Serialize;
 use serde_json::{json, to_value, Value};
+use std::cmp::Reverse;
 use std::collections::HashMap;
 use std::future::Future;
 use std::hash::BuildHasher;
@@ -62,12 +63,17 @@ impl From<&Activity> for ActivitySummary {
 
 /// Format activities as a numbered human-readable list for LLM output
 /// This helps smaller models include the list in their response without transforming JSON
+/// Activities are sorted by date descending (newest first) for better user experience
 fn format_activities_as_list(activities: &[Activity]) -> String {
     let mut lines = Vec::with_capacity(activities.len() + 2);
     lines.push("Your Activities:".to_owned());
     lines.push(String::new());
 
-    for (i, activity) in activities.iter().enumerate() {
+    // Sort activities by start_date descending (newest first)
+    let mut sorted_activities: Vec<_> = activities.iter().collect();
+    sorted_activities.sort_by_key(|a| Reverse(a.start_date()));
+
+    for (i, activity) in sorted_activities.iter().enumerate() {
         let date = activity.start_date().format("%Y-%m-%d").to_string();
         // Format sport type cleanly - extract inner string for Other variant
         let sport = match activity.sport_type() {
