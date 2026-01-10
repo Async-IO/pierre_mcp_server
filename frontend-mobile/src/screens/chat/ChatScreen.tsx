@@ -70,12 +70,6 @@ const DEFAULT_PROMPT_CATEGORIES: PromptCategory[] = [
 
 const DEFAULT_WELCOME_PROMPT = 'Show my recent activities';
 
-// Metadata for assistant messages (model name and execution time)
-interface MessageMetadata {
-  model: string;
-  executionTimeMs: number;
-}
-
 export function ChatScreen({ navigation }: ChatScreenProps) {
   const { isAuthenticated } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -86,8 +80,6 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   const [isSending, setIsSending] = useState(false);
   const [promptCategories, setPromptCategories] = useState<PromptCategory[]>(DEFAULT_PROMPT_CATEGORIES);
   const [welcomePrompt, setWelcomePrompt] = useState(DEFAULT_WELCOME_PROMPT);
-  // Track model and execution time for each assistant message
-  const [messageMetadata, setMessageMetadata] = useState<Map<string, MessageMetadata>>(new Map());
 
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
@@ -226,17 +218,6 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
         const filtered = prev.filter(m => m.id !== userMessage.id);
         return [...filtered, response.user_message, response.assistant_message];
       });
-      // Store model and execution time metadata for the assistant message
-      if (response.assistant_message.id && (response.model || response.execution_time_ms)) {
-        setMessageMetadata(prev => {
-          const updated = new Map(prev);
-          updated.set(response.assistant_message.id, {
-            model: response.model || 'unknown',
-            executionTimeMs: response.execution_time_ms || 0,
-          });
-          return updated;
-        });
-      }
       scrollToBottom();
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -290,17 +271,6 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
         const filtered = prev.filter(m => m.id !== userMessage.id);
         return [...filtered, response.user_message, response.assistant_message];
       });
-      // Store model and execution time metadata for the assistant message
-      if (response.assistant_message.id && (response.model || response.execution_time_ms)) {
-        setMessageMetadata(prev => {
-          const updated = new Map(prev);
-          updated.set(response.assistant_message.id, {
-            model: response.model || 'unknown',
-            executionTimeMs: response.execution_time_ms || 0,
-          });
-          return updated;
-        });
-      }
       scrollToBottom();
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -346,37 +316,37 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   // Markdown styles for assistant messages
   const markdownStyles = {
     body: {
-      color: colors.text,
-      fontSize: fontSize.body,
-      lineHeight: fontSize.body * 1.5,
+      color: colors.text.primary,
+      fontSize: fontSize.md,
+      lineHeight: fontSize.md * 1.5,
     },
     heading1: {
-      color: colors.text,
-      fontSize: fontSize.title,
+      color: colors.text.primary,
+      fontSize: fontSize.xl,
       fontWeight: '700' as const,
       marginTop: spacing.md,
       marginBottom: spacing.sm,
     },
     heading2: {
-      color: colors.text,
-      fontSize: fontSize.large,
+      color: colors.text.primary,
+      fontSize: fontSize.lg,
       fontWeight: '600' as const,
       marginTop: spacing.sm,
       marginBottom: spacing.xs,
     },
     heading3: {
-      color: colors.text,
-      fontSize: fontSize.body,
+      color: colors.text.primary,
+      fontSize: fontSize.md,
       fontWeight: '600' as const,
       marginTop: spacing.xs,
       marginBottom: spacing.xs,
     },
     strong: {
-      color: colors.text,
+      color: colors.text.primary,
       fontWeight: '700' as const,
     },
     em: {
-      color: colors.textSecondary,
+      color: colors.text.secondary,
       fontStyle: 'italic' as const,
     },
     bullet_list: {
@@ -389,30 +359,30 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       marginBottom: spacing.xs,
     },
     code_inline: {
-      backgroundColor: colors.inputBackground,
-      color: colors.primary,
+      backgroundColor: colors.background.tertiary,
+      color: colors.primary[400],
       paddingHorizontal: 4,
       borderRadius: 4,
       fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-      fontSize: fontSize.small,
+      fontSize: fontSize.sm,
     },
     fence: {
-      backgroundColor: colors.inputBackground,
+      backgroundColor: colors.background.tertiary,
       borderRadius: borderRadius.sm,
       padding: spacing.sm,
       marginVertical: spacing.xs,
     },
     code_block: {
       fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-      fontSize: fontSize.small,
-      color: colors.text,
+      fontSize: fontSize.sm,
+      color: colors.text.primary,
     },
     link: {
-      color: colors.primary,
+      color: colors.primary[400],
       textDecorationLine: 'underline' as const,
     },
     hr: {
-      backgroundColor: colors.border,
+      backgroundColor: colors.border.default,
       height: 1,
       marginVertical: spacing.sm,
     },
@@ -481,7 +451,6 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isUser = item.role === 'user';
-    const metadata = messageMetadata.get(item.id);
 
     return (
       <View style={[styles.messageContainer, isUser && styles.userMessageContainer]}>
@@ -497,14 +466,6 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
           )}
           <View style={styles.messageContent}>
             {renderMessageContent(item.content, isUser)}
-            {/* Model and execution time for assistant messages */}
-            {!isUser && metadata && (
-              <View style={styles.messageMetadata}>
-                <Text style={styles.metadataText}>
-                  {metadata.model} • {(metadata.executionTimeMs / 1000).toFixed(1)}s
-                </Text>
-              </View>
-            )}
           </View>
         </View>
       </View>
@@ -895,15 +856,5 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     color: colors.text.secondary,
     fontStyle: 'italic',
-  },
-  messageMetadata: {
-    marginTop: spacing.sm,
-    paddingTop: spacing.xs,
-    borderTopWidth: 1,
-    borderTopColor: colors.border.subtle,
-  },
-  metadataText: {
-    fontSize: fontSize.xs,
-    color: colors.text.tertiary,
   },
 });
