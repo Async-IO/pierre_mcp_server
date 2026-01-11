@@ -8,6 +8,7 @@
 [![Frontend Tests](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/frontend-tests.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/frontend-tests.yml)
 [![SDK Tests](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/sdk-tests.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/sdk-tests.yml)
 [![MCP Compliance](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/mcp-compliance.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/mcp-compliance.yml)
+[![Mobile Tests](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/mobile-tests.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/mobile-tests.yml)
 
 Pierre Fitness Platform connects AI assistants to fitness data from Strava, Garmin, Fitbit, WHOOP, COROS, and Terra (150+ wearables). Implements Model Context Protocol (MCP), A2A protocol, OAuth 2.0, and REST APIs for Claude, ChatGPT, and other AI assistants.
 
@@ -158,6 +159,27 @@ cargo run --bin admin-setup -- create-admin-user \
 
 See [Frontend Documentation](frontend/README.md) for detailed dashboard documentation.
 
+## Mobile App
+
+React Native mobile app for iOS and Android with conversational AI interface.
+
+### Features
+- **AI Chat Interface**: Conversational UI with markdown rendering and real-time streaming
+- **Fitness Provider Integration**: Connect to Strava, Garmin, Fitbit, WHOOP, COROS via OAuth
+- **Activity Tracking**: View and analyze your fitness activities
+- **Training Insights**: Get AI-powered training recommendations
+
+### Quick Start
+
+```bash
+cd frontend-mobile
+npm install --legacy-peer-deps
+npm start   # Start Expo development server
+npm run ios # Run on iOS Simulator
+```
+
+See [Mobile App README](frontend-mobile/README.md) and [Mobile Development Guide](docs/mobile-development.md).
+
 ## Documentation
 
 ### Reference
@@ -176,6 +198,8 @@ See [Frontend Documentation](frontend/README.md) for detailed dashboard document
 ### Components
 - [SDK](sdk/README.md) - TypeScript client for MCP integration
 - [Frontend](frontend/README.md) - React dashboard
+- [Mobile](frontend-mobile/README.md) - React Native mobile app
+- [Mobile Development](docs/mobile-development.md) - mobile dev setup guide
 
 ### Methodology
 - [Intelligence](docs/intelligence-methodology.md) - sports science formulas
