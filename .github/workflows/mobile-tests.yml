@@ -81,7 +81,7 @@ jobs:
         run: npm install --legacy-peer-deps
 
       - name: Setup Expo
-        run: npx expo install
+        run: npx expo install --npm
 
       - name: List available simulators
         run: xcrun simctl list devices available
