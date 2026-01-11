@@ -205,6 +205,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
 
     const messageText = inputText.trim();
     setInputText('');
+    setIsSending(true);
 
     // Create conversation if needed
     let conversationId = currentConversation?.id;
@@ -222,6 +223,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       } catch (error) {
         console.error('Failed to create conversation:', error);
         Alert.alert('Error', 'Failed to create conversation');
+        setIsSending(false);
         return;
       }
     }
@@ -235,8 +237,6 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     };
     setMessages(prev => [...prev, userMessage]);
     scrollToBottom();
-
-    setIsSending(true);
 
     try {
       const response = await apiService.sendMessage(conversationId, messageText);
@@ -259,6 +259,8 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   const handlePromptSelect = async (prompt: string) => {
     if (isSending) return;
 
+    setIsSending(true);
+
     // Create conversation if needed
     let conversationId = currentConversation?.id;
     if (!conversationId) {
@@ -275,6 +277,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       } catch (error) {
         console.error('Failed to create conversation:', error);
         Alert.alert('Error', 'Failed to create conversation');
+        setIsSending(false);
         return;
       }
     }
@@ -288,8 +291,6 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     };
     setMessages(prev => [...prev, userMessage]);
     scrollToBottom();
-
-    setIsSending(true);
 
     try {
       const response = await apiService.sendMessage(conversationId, prompt);
@@ -599,7 +600,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.primary[500]} />
           </View>
-        ) : messages.length === 0 ? (
+        ) : (messages.length === 0 && !isSending && !currentConversation) ? (
           renderEmptyChat()
         ) : (
           <FlatList
