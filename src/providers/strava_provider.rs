@@ -844,7 +844,9 @@ impl FitnessProvider for StravaProvider {
     }
 
     async fn get_stats(&self) -> AppResult<Stats> {
-        let stats: StravaStatsResponse = self.api_request("athletes/{id}/stats").await?;
+        let athlete = self.get_athlete().await?;
+        let endpoint = format!("athletes/{}/stats", athlete.id);
+        let stats: StravaStatsResponse = self.api_request(&endpoint).await?;
 
         Ok(Stats {
             total_activities: u64::from(

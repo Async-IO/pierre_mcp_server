@@ -1,0 +1,6 @@
+/* ABOUTME: Global CSS file for NativeWind v4 Tailwind integration */
+/* ABOUTME: Contains Tailwind directives for utility class generation */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
