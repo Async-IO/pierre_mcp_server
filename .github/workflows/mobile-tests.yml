@@ -1,0 +1,118 @@
+# ABOUTME: CI workflow for Pierre Mobile app (React Native/Expo)
+# ABOUTME: Runs unit tests, type checking, and linting on push/PR
+
+name: Mobile Tests
+
+on:
+  push:
+    branches: [ "main", "debug/*", "feature/*", "claude/*" ]
+    paths:
+      - 'frontend-mobile/**'
+      - '.github/workflows/mobile-tests.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'frontend-mobile/**'
+  workflow_dispatch:  # Allow manual triggering
+
+# Security: Explicit permissions following principle of least privilege
+permissions:
+  contents: read
+
+jobs:
+  mobile-unit-tests:
+    name: Mobile Unit Tests
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend-mobile
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend-mobile/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Run unit tests
+        run: npm test -- --coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-coverage
+          path: frontend-mobile/coverage/
+          retention-days: 7
+
+  mobile-e2e-tests:
+    name: Mobile E2E Tests (Detox)
+    runs-on: macos-latest
+    # Only run E2E tests on main branch or when explicitly triggered
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+
+    defaults:
+      run:
+        working-directory: frontend-mobile
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend-mobile/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Expo
+        run: npx expo install
+
+      - name: List available simulators
+        run: xcrun simctl list devices available
+
+      - name: Boot iOS Simulator
+        run: |
+          SIMULATOR_UDID=$(xcrun simctl list devices available | grep "iPhone 15" | head -1 | grep -oE '[0-9A-F-]{36}')
+          if [ -z "$SIMULATOR_UDID" ]; then
+            echo "iPhone 15 not found, using any available iPhone"
+            SIMULATOR_UDID=$(xcrun simctl list devices available | grep "iPhone" | head -1 | grep -oE '[0-9A-F-]{36}')
+          fi
+          echo "Booting simulator: $SIMULATOR_UDID"
+          xcrun simctl boot "$SIMULATOR_UDID" || true
+
+      - name: Prebuild iOS
+        run: npx expo prebuild --platform ios --clean
+
+      - name: Build Detox
+        run: npx detox build --configuration ios.sim.debug
+        env:
+          RCT_NO_LAUNCH_PACKAGER: 1
+
+      - name: Run Detox E2E tests
+        run: npx detox test --configuration ios.sim.debug --headless
+        env:
+          RCT_NO_LAUNCH_PACKAGER: 1
+
+      - name: Upload E2E test artifacts
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: detox-artifacts
+          path: frontend-mobile/artifacts/
+          retention-days: 7
