@@ -9,9 +9,9 @@ use crate::config::environment::default_provider;
 use crate::formatters::{format_output, OutputFormat};
 use crate::intelligence::physiological_constants::api_limits::{
     CLAUDE_CONTEXT_TOKENS, CONTEXT_WARNING_THRESHOLD_PERCENT, DEFAULT_ACTIVITY_LIMIT_U32,
-    DEFAULT_TIME_WINDOW_SECONDS, MAX_ACTIVITY_LIMIT, SAFE_LIMIT_JSON_DETAILED,
-    SAFE_LIMIT_JSON_SUMMARY, SAFE_LIMIT_TOON_DETAILED, SAFE_LIMIT_TOON_SUMMARY,
-    TOKENS_PER_ACTIVITY_DETAILED, TOKENS_PER_ACTIVITY_SUMMARY, USABLE_CONTEXT_TOKENS,
+    MAX_ACTIVITY_LIMIT, SAFE_LIMIT_JSON_DETAILED, SAFE_LIMIT_JSON_SUMMARY,
+    SAFE_LIMIT_TOON_DETAILED, SAFE_LIMIT_TOON_SUMMARY, TOKENS_PER_ACTIVITY_DETAILED,
+    TOKENS_PER_ACTIVITY_SUMMARY, USABLE_CONTEXT_TOKENS,
 };
 use crate::models::{Activity, Athlete, SportType, Stats};
 use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalToolExecutor};
@@ -26,7 +26,7 @@ use std::future::Future;
 use std::hash::BuildHasher;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
@@ -812,30 +812,14 @@ pub fn handle_get_activities(
         });
 
         // Extract optional before/after timestamp parameters for time-based filtering
+        // Note: We intentionally do NOT apply a default 'after' timestamp because:
+        // - Strava API returns activities in reverse chronological order (newest first) by default
+        // - Using 'after=X' causes Strava to return the OLDEST activities after X first
+        // - The 'limit' parameter already prevents overwhelming LLM context
+        // - Users can explicitly pass 'after' if they need time-based filtering
         let before = request.parameters.get("before").and_then(Value::as_i64);
-
-        let user_after = request.parameters.get("after").and_then(Value::as_i64);
-
-        // Apply default time window (90 days) when no 'after' timestamp specified
-        // This prevents overwhelming LLM context with years of historical data
-        // Users can override by explicitly passing after=0 or any timestamp
-        let (after, default_time_window_applied) = if user_after.is_some() {
-            (user_after, false)
-        } else {
-            // Calculate timestamp for 90 days ago
-            let now = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map(|d| d.as_secs())
-                .unwrap_or(0);
-            #[allow(clippy::cast_possible_wrap)]
-            let default_after = (now as i64).saturating_sub(DEFAULT_TIME_WINDOW_SECONDS);
-            info!(
-                default_after_timestamp = default_after,
-                days_back = 90,
-                "Applying default 90-day time window for activities"
-            );
-            (Some(default_after), true)
-        };
+        let after = request.parameters.get("after").and_then(Value::as_i64);
+        let default_time_window_applied = false;
 
         // Extract sport_type filter parameter (case-insensitive)
         let sport_type_filter = request
