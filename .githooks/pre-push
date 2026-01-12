@@ -35,6 +35,63 @@ echo ""
 # Get current branch name
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
+# Detect what types of files changed (compared to origin/main or origin/$CURRENT_BRANCH)
+detect_changed_file_types() {
+    local base_ref="origin/main"
+
+    # Try to use the remote tracking branch if it exists
+    if git rev-parse --verify "origin/$CURRENT_BRANCH" &>/dev/null; then
+        base_ref="origin/$CURRENT_BRANCH"
+    fi
+
+    # Get list of changed files
+    CHANGED_FILES=$(git diff --name-only "$base_ref" HEAD 2>/dev/null || git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
+
+    # Detect file types
+    HAS_RUST_CHANGES=false
+    HAS_FRONTEND_CHANGES=false
+    HAS_SDK_CHANGES=false
+    HAS_MOBILE_CHANGES=false
+    HAS_WORKFLOW_CHANGES=false
+    HAS_HOOK_CHANGES=false
+
+    for file in $CHANGED_FILES; do
+        case "$file" in
+            *.rs|Cargo.toml|Cargo.lock)
+                HAS_RUST_CHANGES=true
+                ;;
+            frontend/*)
+                HAS_FRONTEND_CHANGES=true
+                ;;
+            sdk/*)
+                HAS_SDK_CHANGES=true
+                ;;
+            frontend-mobile/*)
+                HAS_MOBILE_CHANGES=true
+                ;;
+            .github/workflows/*)
+                HAS_WORKFLOW_CHANGES=true
+                ;;
+            .githooks/*)
+                HAS_HOOK_CHANGES=true
+                ;;
+        esac
+    done
+
+    export HAS_RUST_CHANGES HAS_FRONTEND_CHANGES HAS_SDK_CHANGES HAS_MOBILE_CHANGES HAS_WORKFLOW_CHANGES HAS_HOOK_CHANGES
+
+    echo "📋 Changed file types:"
+    echo "   Rust (.rs/Cargo.*): $HAS_RUST_CHANGES"
+    echo "   Frontend: $HAS_FRONTEND_CHANGES"
+    echo "   SDK: $HAS_SDK_CHANGES"
+    echo "   Mobile: $HAS_MOBILE_CHANGES"
+    echo "   Workflows: $HAS_WORKFLOW_CHANGES"
+    echo "   Hooks: $HAS_HOOK_CHANGES"
+    echo ""
+}
+
+detect_changed_file_types
+
 # Function to check for in-flight workflows and provide cancel command
 check_inflight_workflows() {
     if ! command -v gh &> /dev/null; then
@@ -105,25 +162,32 @@ if [ -f "$PROJECT_ROOT/.git/ccfw_mode" ] || ! command -v gh &> /dev/null; then
     echo ""
 
     # CCFW gets strict clippy validation since they can't easily check CI
-    # Uses Cargo.toml [lints.clippy] configuration for lint levels
-    echo "🔬 Running STRICT clippy validation..."
-    echo ""
-    cd "$PROJECT_ROOT"
-    if ! cargo clippy --all-targets --all-features --quiet; then
+    # Skip if no Rust files changed
+    if [ "$HAS_RUST_CHANGES" = "true" ]; then
+        # Uses Cargo.toml [lints.clippy] configuration for lint levels
+        echo "🔬 Running STRICT clippy validation..."
         echo ""
-        echo "❌ Strict clippy validation failed!"
+        cd "$PROJECT_ROOT"
+        if ! cargo clippy --all-targets --all-features --quiet; then
+            echo ""
+            echo "❌ Strict clippy validation failed!"
+            echo ""
+            echo "Fix the warnings above before pushing."
+            echo "To bypass (NOT RECOMMENDED): git push --no-verify"
+            echo ""
+            exit 1
+        fi
+        echo "✅ Strict clippy passed"
         echo ""
-        echo "Fix the warnings above before pushing."
-        echo "To bypass (NOT RECOMMENDED): git push --no-verify"
+    else
+        echo "⏭️  Skipping clippy (no Rust files changed)"
         echo ""
-        exit 1
     fi
-    echo "✅ Strict clippy passed"
-    echo ""
 fi
 
 # Run architectural validation first (fast, catches pattern violations)
-if [ -f "$PROJECT_ROOT/scripts/architectural-validation.sh" ]; then
+# Skip if no Rust files changed (architectural validation is Rust-focused)
+if [ -f "$PROJECT_ROOT/scripts/architectural-validation.sh" ] && [ "$HAS_RUST_CHANGES" = "true" ]; then
     echo "📐 Running architectural validation..."
     if ! "$PROJECT_ROOT/scripts/architectural-validation.sh"; then
         echo ""
@@ -134,6 +198,9 @@ if [ -f "$PROJECT_ROOT/scripts/architectural-validation.sh" ]; then
         echo ""
         exit 1
     fi
+    echo ""
+elif [ "$HAS_RUST_CHANGES" = "false" ]; then
+    echo "⏭️  Skipping architectural validation (no Rust files changed)"
     echo ""
 fi
 
@@ -179,49 +246,69 @@ run_sdk_unit_tests() {
     return 0
 }
 
-# Run frontend and SDK tests
-if ! run_frontend_tests; then
-    echo "To bypass (NOT RECOMMENDED): git push --no-verify"
-    exit 1
-fi
-
-if ! run_sdk_unit_tests; then
-    echo "To bypass (NOT RECOMMENDED): git push --no-verify"
-    exit 1
-fi
-
-# Check if pre-push tests script exists
-if [ ! -f "$PROJECT_ROOT/scripts/pre-push-tests.sh" ]; then
-    echo "⚠️  Warning: pre-push-tests.sh not found, skipping Rust tests"
-    echo "   Location: $PROJECT_ROOT/scripts/pre-push-tests.sh"
-    check_inflight_workflows
-    exit 0
-fi
-
-# Run the Rust pre-push tests
-cd "$PROJECT_ROOT"
-
-if ./scripts/pre-push-tests.sh; then
-    echo ""
-    echo "✅ Pre-push validation passed!"
-    echo ""
-
-    # Check for in-flight workflows and suggest cancellation AFTER push succeeds
-    check_inflight_workflows
-
-    echo "🚀 Push will proceed. After it succeeds, consider cancelling stale workflows above."
-    echo ""
+# Run frontend tests only if frontend files changed
+if [ "$HAS_FRONTEND_CHANGES" = "true" ]; then
+    if ! run_frontend_tests; then
+        echo "To bypass (NOT RECOMMENDED): git push --no-verify"
+        exit 1
+    fi
 else
+    echo "⏭️  Skipping frontend tests (no frontend/ files changed)"
     echo ""
-    echo "❌ Pre-push validation failed!"
-    echo ""
-    echo "Your push has been blocked to prevent CI failures."
-    echo ""
-    echo "Options:"
-    echo "  1. Fix the failing tests and try again"
-    echo "  2. Run specific tests: cargo test --test <test_name>"
-    echo "  3. Run full test suite: ./scripts/lint-and-test.sh"
-    echo "  4. Skip this check (NOT RECOMMENDED): git push --no-verify"
-    echo ""
-    exit 1
 fi
+
+# Run SDK tests only if SDK files changed
+if [ "$HAS_SDK_CHANGES" = "true" ]; then
+    if ! run_sdk_unit_tests; then
+        echo "To bypass (NOT RECOMMENDED): git push --no-verify"
+        exit 1
+    fi
+else
+    echo "⏭️  Skipping SDK tests (no sdk/ files changed)"
+    echo ""
+fi
+
+# Run Rust pre-push tests only if Rust files changed
+if [ "$HAS_RUST_CHANGES" = "true" ]; then
+    # Check if pre-push tests script exists
+    if [ ! -f "$PROJECT_ROOT/scripts/pre-push-tests.sh" ]; then
+        echo "⚠️  Warning: pre-push-tests.sh not found, skipping Rust tests"
+        echo "   Location: $PROJECT_ROOT/scripts/pre-push-tests.sh"
+        check_inflight_workflows
+        exit 0
+    fi
+
+    # Run the Rust pre-push tests
+    cd "$PROJECT_ROOT"
+
+    if ./scripts/pre-push-tests.sh; then
+        echo ""
+        echo "✅ Rust pre-push validation passed!"
+        echo ""
+    else
+        echo ""
+        echo "❌ Pre-push validation failed!"
+        echo ""
+        echo "Your push has been blocked to prevent CI failures."
+        echo ""
+        echo "Options:"
+        echo "  1. Fix the failing tests and try again"
+        echo "  2. Run specific tests: cargo test --test <test_name>"
+        echo "  3. Run full test suite: ./scripts/lint-and-test.sh"
+        echo "  4. Skip this check (NOT RECOMMENDED): git push --no-verify"
+        echo ""
+        exit 1
+    fi
+else
+    echo "⏭️  Skipping Rust tests (no .rs/Cargo.* files changed)"
+    echo ""
+fi
+
+# Check for in-flight workflows and suggest cancellation
+check_inflight_workflows
+
+echo ""
+echo "✅ Pre-push validation passed!"
+echo ""
+echo "🚀 Push will proceed. After it succeeds, consider cancelling stale workflows above."
+echo ""
