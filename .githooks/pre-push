@@ -246,6 +246,27 @@ run_sdk_unit_tests() {
     return 0
 }
 
+# Run mobile tests (fast - ~3 seconds)
+run_mobile_tests() {
+    if [ ! -d "$PROJECT_ROOT/frontend-mobile/node_modules" ]; then
+        echo "⚠️  Warning: frontend-mobile/node_modules not found. Skipping mobile tests."
+        echo "   Run 'cd frontend-mobile && bun install' to enable."
+        return 0
+    fi
+
+    echo "🧪 Running mobile unit tests..."
+    if ! (cd "$PROJECT_ROOT/frontend-mobile" && bun test --silent 2>&1 | tail -5); then
+        echo ""
+        echo "❌ Mobile unit tests failed!"
+        echo ""
+        echo "Run 'cd frontend-mobile && bun test' to see details."
+        return 1
+    fi
+    echo "✅ Mobile unit tests passed"
+    echo ""
+    return 0
+}
+
 # Run frontend tests only if frontend files changed
 if [ "$HAS_FRONTEND_CHANGES" = "true" ]; then
     if ! run_frontend_tests; then
@@ -265,6 +286,17 @@ if [ "$HAS_SDK_CHANGES" = "true" ]; then
     fi
 else
     echo "⏭️  Skipping SDK tests (no sdk/ files changed)"
+    echo ""
+fi
+
+# Run mobile tests only if mobile files changed
+if [ "$HAS_MOBILE_CHANGES" = "true" ]; then
+    if ! run_mobile_tests; then
+        echo "To bypass (NOT RECOMMENDED): git push --no-verify"
+        exit 1
+    fi
+else
+    echo "⏭️  Skipping mobile tests (no frontend-mobile/ files changed)"
     echo ""
 fi
 
