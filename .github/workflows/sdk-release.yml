@@ -1,20 +1,182 @@
 # ABOUTME: Publishes the TypeScript SDK to npm when a GitHub release is published.
-# ABOUTME: Uses OIDC Trusted Publishing for secure token-free authentication.
+# ABOUTME: Supports both stable releases and pre-releases (beta/alpha/rc).
 
 name: SDK Release
 
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (validate without publishing)'
+        required: false
+        default: false
+        type: boolean
+      npm_tag:
+        description: 'npm tag override (e.g., beta, next)'
+        required: false
+        type: string
 
 permissions:
   contents: read
-  id-token: write  # Required for npm OIDC trusted publishing
+  id-token: write  # Required for npm provenance attestation
 
 jobs:
-  publish-npm:
-    name: Publish SDK to npm
+  validate:
+    name: Validate Release
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.VERSION }}
+      npm_tag: ${{ steps.version.outputs.NPM_TAG }}
+      is_prerelease: ${{ steps.version.outputs.IS_PRERELEASE }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine version and npm tag
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            # Manual trigger - use SDK package.json version
+            VERSION=$(grep '"version"' sdk/package.json | head -1 | sed 's/.*"version": "\(.*\)".*/\1/')
+            NPM_TAG="${{ github.event.inputs.npm_tag }}"
+            if [ -z "$NPM_TAG" ]; then
+              NPM_TAG="latest"
+            fi
+          else
+            # Release trigger - extract from release tag
+            RELEASE_TAG="${{ github.event.release.tag_name }}"
+            VERSION="${RELEASE_TAG#v}"
+
+            # Determine npm tag based on version string
+            if [[ "$VERSION" == *"-beta"* ]]; then
+              NPM_TAG="beta"
+            elif [[ "$VERSION" == *"-alpha"* ]]; then
+              NPM_TAG="alpha"
+            elif [[ "$VERSION" == *"-rc"* ]]; then
+              NPM_TAG="rc"
+            elif [[ "$VERSION" == *"-next"* ]]; then
+              NPM_TAG="next"
+            else
+              NPM_TAG="latest"
+            fi
+          fi
+
+          # Check if this is a pre-release
+          if [[ "$NPM_TAG" != "latest" ]]; then
+            IS_PRERELEASE="true"
+          else
+            IS_PRERELEASE="false"
+          fi
+
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          echo "NPM_TAG=${NPM_TAG}" >> $GITHUB_OUTPUT
+          echo "IS_PRERELEASE=${IS_PRERELEASE}" >> $GITHUB_OUTPUT
+
+          echo "📦 Version: ${VERSION}"
+          echo "🏷️  npm tag: ${NPM_TAG}"
+          echo "🔖 Pre-release: ${IS_PRERELEASE}"
+
+      - name: Validate SDK version matches release
+        if: github.event_name == 'release'
+        run: |
+          RELEASE_VERSION="${{ github.event.release.tag_name }}"
+          RELEASE_VERSION_NUM="${RELEASE_VERSION#v}"
+          SDK_VERSION=$(grep '"version"' sdk/package.json | head -1 | sed 's/.*"version": "\(.*\)".*/\1/')
+
+          echo "Release version: ${RELEASE_VERSION_NUM}"
+          echo "SDK package.json version: ${SDK_VERSION}"
+
+          if [ "$SDK_VERSION" != "$RELEASE_VERSION_NUM" ]; then
+            echo "::error::SDK version ($SDK_VERSION) does not match release ($RELEASE_VERSION_NUM)"
+            echo ""
+            echo "Fix: Update sdk/package.json version to ${RELEASE_VERSION_NUM}"
+            echo "Or use: ./scripts/prepare-release.sh ${RELEASE_VERSION_NUM}"
+            exit 1
+          fi
+          echo "✅ SDK version validation passed"
+
+      - name: Check npm package availability
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          PACKAGE_NAME=$(grep '"name"' sdk/package.json | head -1 | sed 's/.*"name": "\(.*\)".*/\1/')
+
+          echo "Checking if ${PACKAGE_NAME}@${VERSION} already exists on npm..."
+
+          if npm view "${PACKAGE_NAME}@${VERSION}" version 2>/dev/null; then
+            echo "::error::Version ${VERSION} already published to npm"
+            exit 1
+          fi
+
+          echo "✅ Version ${VERSION} is available for publishing"
+
+  build-and-test:
+    name: Build and Test SDK
+    needs: validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        working-directory: sdk
+        run: bun install --frozen-lockfile
+
+      - name: Lint SDK
+        working-directory: sdk
+        run: bun run lint
+
+      - name: Type check SDK
+        working-directory: sdk
+        run: bun run type-check
+
+      - name: Build SDK
+        working-directory: sdk
+        run: bun run build
+
+      - name: Run unit tests
+        working-directory: sdk
+        run: bun run test:unit
+
+      - name: Verify package contents
+        working-directory: sdk
+        run: |
+          echo "📦 Package contents that will be published:"
+          npm pack --dry-run 2>&1 | head -50
+
+          # Verify essential files exist
+          if [ ! -f "dist/index.js" ]; then
+            echo "::error::dist/index.js not found - build may have failed"
+            exit 1
+          fi
+
+          if [ ! -f "dist/cli.js" ]; then
+            echo "::error::dist/cli.js not found - CLI build may have failed"
+            exit 1
+          fi
+
+          echo "✅ Package verification passed"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-dist
+          path: sdk/dist/
+          retention-days: 1
+
+  publish-npm:
+    name: Publish to npm
+    needs: [validate, build-and-test]
+    runs-on: ubuntu-latest
+    if: github.event.inputs.dry_run != 'true'
 
     steps:
       - name: Checkout code
@@ -31,43 +193,94 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Validate SDK version matches release
-        run: |
-          RELEASE_VERSION="${{ github.event.release.tag_name }}"
-          RELEASE_VERSION_NUM="${RELEASE_VERSION#v}"
-          SDK_VERSION=$(grep '"version"' sdk/package.json | head -1 | sed 's/.*"version": "\(.*\)".*/\1/')
-
-          echo "Release version: ${RELEASE_VERSION_NUM}"
-          echo "SDK package.json version: ${SDK_VERSION}"
-
-          if [ "$SDK_VERSION" != "$RELEASE_VERSION_NUM" ]; then
-            echo "::error::SDK version ($SDK_VERSION) does not match release ($RELEASE_VERSION_NUM)"
-            exit 1
-          fi
-          echo "SDK version validation passed"
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: sdk-dist
+          path: sdk/dist/
 
       - name: Install dependencies
         working-directory: sdk
         run: bun install --frozen-lockfile
 
-      - name: Build SDK
+      - name: Publish to npm
         working-directory: sdk
-        run: bun run build
+        run: |
+          NPM_TAG="${{ needs.validate.outputs.npm_tag }}"
+          VERSION="${{ needs.validate.outputs.version }}"
 
-      - name: Run SDK tests
-        working-directory: sdk
-        run: bun run test:unit
+          echo "📦 Publishing version ${VERSION} with tag '${NPM_TAG}'..."
 
-      - name: Publish to npm with provenance
-        working-directory: sdk
-        run: npm publish --access public --provenance
+          npm publish --access public --tag "${NPM_TAG}" --provenance
+
+          echo "✅ Published successfully!"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish summary
+      - name: Verify publication
         run: |
-          VERSION="${{ github.event.release.tag_name }}"
-          echo "✅ SDK ${VERSION} published to npm with provenance!"
+          VERSION="${{ needs.validate.outputs.version }}"
+          NPM_TAG="${{ needs.validate.outputs.npm_tag }}"
+          PACKAGE_NAME=$(grep '"name"' sdk/package.json | head -1 | sed 's/.*"name": "\(.*\)".*/\1/')
+
+          echo "Waiting for npm registry to update..."
+          sleep 10
+
+          echo "Verifying ${PACKAGE_NAME}@${VERSION}..."
+          npm view "${PACKAGE_NAME}@${VERSION}" version || {
+            echo "::warning::Could not verify publication (registry may still be updating)"
+          }
+
           echo ""
-          echo "📦 Package: pierre-mcp-client"
-          echo "🔗 npm: https://www.npmjs.com/package/pierre-mcp-client"
+          echo "Verifying '${NPM_TAG}' tag points to ${VERSION}..."
+          TAGGED_VERSION=$(npm view "${PACKAGE_NAME}@${NPM_TAG}" version 2>/dev/null || echo "unknown")
+          echo "Tag '${NPM_TAG}' → ${TAGGED_VERSION}"
+
+  publish-summary:
+    name: Release Summary
+    needs: [validate, publish-npm]
+    runs-on: ubuntu-latest
+    if: always() && needs.validate.result == 'success'
+
+    steps:
+      - name: Generate summary
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          NPM_TAG="${{ needs.validate.outputs.npm_tag }}"
+          IS_PRERELEASE="${{ needs.validate.outputs.is_prerelease }}"
+
+          echo "## SDK Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.publish-npm.result }}" == "success" ]; then
+            echo "✅ **SDK v${VERSION} published to npm**" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ github.event.inputs.dry_run }}" == "true" ]; then
+            echo "🔍 **Dry run completed for v${VERSION}**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Publication failed for v${VERSION}**" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Package | \`pierre-mcp-client\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | \`${VERSION}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| npm Tag | \`${NPM_TAG}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Pre-release | ${IS_PRERELEASE} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.publish-npm.result }}" == "success" ]; then
+            echo "### Installation" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            if [ "$NPM_TAG" == "latest" ]; then
+              echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+              echo "npm install pierre-mcp-client" >> $GITHUB_STEP_SUMMARY
+              echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+              echo "npm install pierre-mcp-client@${NPM_TAG}" >> $GITHUB_STEP_SUMMARY
+              echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "📦 [View on npm](https://www.npmjs.com/package/pierre-mcp-client)" >> $GITHUB_STEP_SUMMARY
+          fi
