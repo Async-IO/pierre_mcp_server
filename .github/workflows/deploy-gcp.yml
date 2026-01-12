@@ -1,0 +1,263 @@
+# ABOUTME: GitHub Actions workflow for automated GCP deployment
+# ABOUTME: Builds and deploys backend to Cloud Run, frontend to Firebase
+
+name: Deploy to GCP
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'frontend/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'docker/**'
+      - '.github/workflows/deploy-gcp.yml'
+  workflow_dispatch:  # Manual trigger
+    inputs:
+      deploy_backend:
+        description: 'Deploy backend'
+        type: boolean
+        default: true
+      deploy_frontend:
+        description: 'Deploy frontend'
+        type: boolean
+        default: true
+
+env:
+  GCP_PROJECT_ID: pierrefitnessplatform
+  GCP_REGION: northamerica-northeast1
+  SERVICE_NAME: pierre-mcp-server
+  REGISTRY_NAME: pierre-images
+
+jobs:
+  # Determine what changed
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'src/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'docker/**'
+            frontend:
+              - 'frontend/**'
+
+  # Build and deploy backend
+  deploy-backend:
+    needs: changes
+    if: |
+      github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_backend == 'true' ||
+      github.event_name == 'push' && needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # Required for Workload Identity Federation
+
+    outputs:
+      service_url: ${{ steps.deploy.outputs.service_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build with Cloud Build
+        run: |
+          gcloud builds submit \
+            --project=${{ env.GCP_PROJECT_ID }} \
+            --region=${{ env.GCP_REGION }} \
+            --tag=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.REGISTRY_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            --tag=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.REGISTRY_NAME }}/${{ env.SERVICE_NAME }}:latest \
+            --timeout=20m \
+            .
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        run: |
+          # Get Cloud SQL connection name
+          CONNECTION_NAME=$(gcloud sql instances describe pierre-postgres \
+            --format="value(connectionName)")
+
+          # Get VPC connector
+          VPC_CONNECTOR="projects/${{ env.GCP_PROJECT_ID }}/locations/${{ env.GCP_REGION }}/connectors/pierre-vpc-connector"
+
+          # Deploy
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.REGISTRY_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --allow-unauthenticated \
+            --port=8081 \
+            --memory=512Mi \
+            --cpu=1 \
+            --min-instances=0 \
+            --max-instances=10 \
+            --concurrency=80 \
+            --timeout=300 \
+            --add-cloudsql-instances="${CONNECTION_NAME}" \
+            --vpc-connector="${VPC_CONNECTOR}" \
+            --vpc-egress=private-ranges-only \
+            --set-env-vars="RUST_LOG=info" \
+            --set-env-vars="HTTP_PORT=8081" \
+            --set-env-vars="DATABASE_URL=postgresql://pierre:\${DB_PASSWORD}@/pierre?host=/cloudsql/${CONNECTION_NAME}" \
+            --set-env-vars="POSTGRES_MAX_CONNECTIONS=10" \
+            --set-env-vars="POSTGRES_MIN_CONNECTIONS=2" \
+            --set-env-vars="PIERRE_RSA_KEY_SIZE=4096" \
+            --set-env-vars="JWT_EXPIRY_HOURS=24" \
+            --set-env-vars="FIREBASE_PROJECT_ID=pierre-fitness-intelligence" \
+            --set-env-vars="PIERRE_LLM_PROVIDER=vertex" \
+            --set-env-vars="GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }}" \
+            --set-env-vars="GCP_REGION=${{ env.GCP_REGION }}" \
+            --set-env-vars="CACHE_MAX_ENTRIES=10000" \
+            --set-env-vars="RATE_LIMIT_ENABLED=true" \
+            --set-env-vars="STRAVA_CLIENT_ID=${{ secrets.STRAVA_CLIENT_ID }}" \
+            --set-env-vars="FITBIT_CLIENT_ID=${{ secrets.FITBIT_CLIENT_ID }}" \
+            --set-env-vars="GARMIN_CLIENT_ID=${{ secrets.GARMIN_CLIENT_ID }}" \
+            --set-secrets="DB_PASSWORD=${{ env.SERVICE_NAME }}-db-password:latest" \
+            --set-secrets="PIERRE_MASTER_ENCRYPTION_KEY=${{ env.SERVICE_NAME }}-encryption-key:latest" \
+            --set-secrets="STRAVA_CLIENT_SECRET=${{ env.SERVICE_NAME }}-strava-client-secret:latest" \
+            --set-secrets="OPENWEATHER_API_KEY=${{ env.SERVICE_NAME }}-openweather-api-key:latest" \
+            --update-labels="app=pierre,env=production,commit=${{ github.sha }}"
+
+          # Get service URL
+          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region=${{ env.GCP_REGION }} \
+            --format="value(status.url)")
+
+          echo "service_url=${SERVICE_URL}" >> $GITHUB_OUTPUT
+
+          # Update OAuth redirect URIs
+          gcloud run services update ${{ env.SERVICE_NAME }} \
+            --region=${{ env.GCP_REGION }} \
+            --set-env-vars="STRAVA_REDIRECT_URI=${SERVICE_URL}/api/oauth/callback/strava" \
+            --set-env-vars="FITBIT_REDIRECT_URI=${SERVICE_URL}/api/oauth/callback/fitbit" \
+            --set-env-vars="FRONTEND_URL=${SERVICE_URL}" \
+            --quiet
+
+      - name: Health Check
+        run: |
+          echo "Waiting for deployment to be ready..."
+          sleep 10
+          curl -f ${{ steps.deploy.outputs.service_url }}/health || exit 1
+          echo "Backend deployed successfully!"
+
+  # Build and deploy frontend
+  deploy-frontend:
+    needs: [changes, deploy-backend]
+    if: |
+      always() &&
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_frontend == 'true' ||
+       github.event_name == 'push' && needs.changes.outputs.frontend == 'true') &&
+      (needs.deploy-backend.result == 'success' || needs.deploy-backend.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get Backend URL
+        id: backend
+        run: |
+          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region=${{ env.GCP_REGION }} \
+            --format="value(status.url)")
+          echo "url=${SERVICE_URL}" >> $GITHUB_OUTPUT
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Create .env.production
+        working-directory: frontend
+        run: |
+          cat > .env.production << EOF
+          VITE_API_BASE_URL=${{ steps.backend.outputs.url }}
+          VITE_FIREBASE_API_KEY=${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN=pierre-fitness-intelligence.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID=pierre-fitness-intelligence
+          VITE_FIREBASE_STORAGE_BUCKET=pierre-fitness-intelligence.firebasestorage.app
+          VITE_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID=${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_MEASUREMENT_ID=${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
+          EOF
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          channelId: live
+          projectId: pierre-fitness-intelligence
+          entryPoint: frontend
+
+  # Summary
+  summary:
+    needs: [deploy-backend, deploy-frontend]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deployment Summary
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.deploy-backend.result }}" == "success" ]; then
+            echo "✅ **Backend**: Deployed to ${{ needs.deploy-backend.outputs.service_url }}" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.deploy-backend.result }}" == "skipped" ]; then
+            echo "⏭️ **Backend**: Skipped (no changes)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Backend**: Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.deploy-frontend.result }}" == "success" ]; then
+            echo "✅ **Frontend**: Deployed to https://pierre-fitness-intelligence.web.app" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.deploy-frontend.result }}" == "skipped" ]; then
+            echo "⏭️ **Frontend**: Skipped (no changes)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Frontend**: Failed" >> $GITHUB_STEP_SUMMARY
+          fi

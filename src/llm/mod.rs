@@ -40,6 +40,7 @@ mod groq;
 mod openai_compatible;
 pub mod prompts;
 mod provider;
+mod vertex;
 
 pub use gemini::{
     ChatResponseWithTools, FunctionCall, FunctionDeclaration, FunctionResponse, GeminiProvider,
@@ -49,6 +50,7 @@ pub use groq::GroqProvider;
 pub use openai_compatible::{OpenAiCompatibleConfig, OpenAiCompatibleProvider};
 pub use prompts::get_pierre_system_prompt;
 pub use provider::ChatProvider;
+pub use vertex::VertexAiProvider;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};

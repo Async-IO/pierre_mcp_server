@@ -123,8 +123,10 @@ pub enum LlmProviderType {
     /// Groq provider - LPU-accelerated inference for Llama/Mixtral models (default)
     #[default]
     Groq,
-    /// Google Gemini provider - full-featured with vision support
+    /// Google Gemini provider via AI Studio API - full-featured with vision support
     Gemini,
+    /// Google Vertex AI provider - GCP-native Gemini access with service account auth
+    Vertex,
     /// Local LLM provider - `OpenAI`-compatible endpoint (Ollama, vLLM, `LocalAI`)
     Local,
 }
@@ -138,6 +140,7 @@ impl LlmProviderType {
     pub fn from_str_or_default(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "gemini" | "google" => Self::Gemini,
+            "vertex" | "vertexai" | "vertex_ai" | "vertex-ai" => Self::Vertex,
             "local" | "ollama" | "vllm" | "localai" => Self::Local,
             _ => Self::Groq, // Default fallback (including "groq")
         }
@@ -157,6 +160,7 @@ impl Display for LlmProviderType {
         match self {
             Self::Groq => write!(f, "groq"),
             Self::Gemini => write!(f, "gemini"),
+            Self::Vertex => write!(f, "vertex"),
             Self::Local => write!(f, "local"),
         }
     }
