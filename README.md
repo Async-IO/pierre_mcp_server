@@ -193,6 +193,7 @@ See [Mobile App README](frontend-mobile/README.md) and [Mobile Development Guide
 - [Development Guide](docs/development.md) - workflow, dashboard, testing
 - [Scripts Reference](scripts/README.md) - 30+ development scripts
 - [CI/CD](docs/ci-cd.md) - GitHub Actions, pipelines
+- [Release Guide](docs/release_how_to.md) - releasing server and SDK to npm
 - [Contributing](docs/contributing.md) - code standards, PR workflow
 
 ### Components
