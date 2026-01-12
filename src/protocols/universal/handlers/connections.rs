@@ -8,7 +8,6 @@ use crate::constants::oauth_config::AUTHORIZATION_EXPIRES_MINUTES;
 use crate::database_plugins::DatabaseProvider;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalToolExecutor};
 use crate::protocols::ProtocolError;
-use crate::providers::ProviderRegistry;
 use crate::tenant::{TenantContext, TenantRole};
 use crate::utils::uuid::parse_user_id_for_protocol;
 use serde_json::{json, Map, Value};
@@ -200,11 +199,6 @@ pub fn handle_disconnect_provider(
     })
 }
 
-/// Validate that provider is supported using provider registry
-fn is_provider_supported(provider: &str, provider_registry: &ProviderRegistry) -> bool {
-    provider_registry.is_supported(provider)
-}
-
 /// Build successful OAuth connection response
 fn build_oauth_success_response(
     user_uuid: uuid::Uuid,
@@ -304,7 +298,7 @@ pub fn handle_connect_provider(
                 "Missing required 'provider' parameter. Supported providers: {supported}"
             )));
         };
-        if !is_provider_supported(provider, registry) {
+        if !registry.is_supported(provider) {
             let supported = registry.supported_providers().join(", ");
             return Ok(connection_error(format!(
                 "Provider '{provider}' is not supported. Supported providers: {supported}"
