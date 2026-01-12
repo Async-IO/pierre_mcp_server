@@ -11,30 +11,28 @@ This guide explains how to release Pierre MCP Server (Rust binaries) and the SDK
 ## Quick Release
 
 ```bash
-# 1. Validate everything is ready
-./scripts/validate-release.sh
-
-# 2. Prepare the release (bumps versions, creates commit + tag)
+# 1. Prepare the release (runs validation, bumps versions, creates commit + tag)
 ./scripts/prepare-release.sh 0.3.0
 
-# 3. Push commit and tag
+# 2. Push commit and tag
 git push origin main
 git push origin v0.3.0
 
-# 4. Create GitHub Release from the tag (triggers npm publish)
+# 3. Create GitHub Release from the tag (triggers npm publish)
 ```
 
 ## Detailed Steps
 
-### Step 1: Validate Release Readiness
+### Step 1: Prepare the Release
 
-Run the validation script to check all prerequisites:
+The `prepare-release.sh` script handles everything:
 
-```bash
-./scripts/validate-release.sh
-```
+1. **Runs validation automatically** (via `validate-release.sh`)
+2. Updates version in `Cargo.toml` and `sdk/package.json`
+3. Updates `Cargo.lock`
+4. Creates git commit and tag
 
-This checks:
+Validation checks:
 - Version consistency between `Cargo.toml` and `sdk/package.json`
 - npm version availability (not already published)
 - Git status (no uncommitted changes)
@@ -42,9 +40,7 @@ This checks:
 - SDK build, lint, and type-check
 - CHANGELOG entry exists
 
-### Step 2: Prepare the Release
-
-The `prepare-release.sh` script automates version bumping:
+Usage:
 
 ```bash
 # Stable release
@@ -61,17 +57,12 @@ The `prepare-release.sh` script automates version bumping:
 
 # Update files but don't create git commit/tag
 ./scripts/prepare-release.sh 0.3.0 --no-commit
+
+# Skip validation (not recommended, for emergencies only)
+./scripts/prepare-release.sh 0.3.0 --skip-validation
 ```
 
-The script will:
-1. Update version in `Cargo.toml`
-2. Update version in `sdk/package.json`
-3. Update `Cargo.lock`
-4. Run `cargo check` and TypeScript type-check
-5. Create a git commit: `chore: release v0.3.0`
-6. Create an annotated git tag: `v0.3.0`
-
-### Step 3: Push to GitHub
+### Step 2: Push to GitHub
 
 ```bash
 # Push the commit
@@ -81,7 +72,7 @@ git push origin main
 git push origin v0.3.0
 ```
 
-### Step 4: Create GitHub Release
+### Step 3: Create GitHub Release
 
 1. Go to https://github.com/Async-IO/pierre_mcp_server/releases
 2. Click "Draft a new release"

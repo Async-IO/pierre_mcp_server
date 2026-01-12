@@ -14,15 +14,16 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 print_usage() {
-    echo "Usage: $0 <version> [--dry-run] [--no-commit] [--pre-release <tag>]"
+    echo "Usage: $0 <version> [--dry-run] [--no-commit] [--pre-release <tag>] [--skip-validation]"
     echo ""
     echo "Arguments:"
-    echo "  version       Version number (e.g., 0.3.0 or v0.3.0)"
+    echo "  version           Version number (e.g., 0.3.0 or v0.3.0)"
     echo ""
     echo "Options:"
-    echo "  --dry-run     Show what would be done without making changes"
-    echo "  --no-commit   Update files but don't create git commit/tag"
-    echo "  --pre-release Add pre-release tag (e.g., beta, alpha, rc.1)"
+    echo "  --dry-run         Show what would be done without making changes"
+    echo "  --no-commit       Update files but don't create git commit/tag"
+    echo "  --pre-release     Add pre-release tag (e.g., beta, alpha, rc.1)"
+    echo "  --skip-validation Skip running validate-release.sh"
     echo ""
     echo "Examples:"
     echo "  $0 0.3.0                    # Release v0.3.0"
@@ -35,6 +36,7 @@ VERSION=""
 DRY_RUN=false
 NO_COMMIT=false
 PRE_RELEASE=""
+SKIP_VALIDATION=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -49,6 +51,10 @@ while [[ $# -gt 0 ]]; do
         --pre-release)
             PRE_RELEASE="$2"
             shift 2
+            ;;
+        --skip-validation)
+            SKIP_VALIDATION=true
+            shift
             ;;
         --help|-h)
             print_usage
@@ -113,6 +119,22 @@ REPO_ROOT=$(pwd)
 if ! git rev-parse --git-dir > /dev/null 2>&1; then
     echo -e "${RED}Error: Not in a git repository${NC}"
     exit 1
+fi
+
+# Run validation first (unless skipped or dry-run)
+if [[ "$SKIP_VALIDATION" == false && "$DRY_RUN" == false ]]; then
+    echo -e "${BLUE}Running pre-release validation...${NC}"
+    echo ""
+    if ! ./scripts/validate-release.sh; then
+        echo ""
+        echo -e "${RED}Validation failed. Fix the issues above before releasing.${NC}"
+        echo -e "${YELLOW}Tip: Use --skip-validation to bypass (not recommended)${NC}"
+        exit 1
+    fi
+    echo ""
+elif [[ "$DRY_RUN" == true ]]; then
+    echo -e "${BLUE}[Dry run] Would run: ./scripts/validate-release.sh${NC}"
+    echo ""
 fi
 
 # Check for uncommitted changes
