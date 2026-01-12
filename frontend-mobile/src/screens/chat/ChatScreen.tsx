@@ -310,18 +310,32 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     }
   };
 
-  // Helper to detect OAuth authorization URLs
+  // Helper to detect OAuth authorization URLs using secure hostname validation
   const isOAuthUrl = (url: string): { isOAuth: boolean; provider: string | null } => {
-    if (url.includes('strava.com/oauth/authorize')) {
-      return { isOAuth: true, provider: 'Strava' };
+    try {
+      const parsedUrl = new URL(url);
+      const hostname = parsedUrl.hostname.toLowerCase();
+
+      if (hostname === 'www.strava.com' || hostname === 'strava.com') {
+        if (parsedUrl.pathname.includes('/oauth/authorize')) {
+          return { isOAuth: true, provider: 'Strava' };
+        }
+      }
+      if (hostname === 'www.fitbit.com' || hostname === 'fitbit.com') {
+        if (parsedUrl.pathname.includes('/oauth2/authorize')) {
+          return { isOAuth: true, provider: 'Fitbit' };
+        }
+      }
+      if (hostname.endsWith('.garmin.com') || hostname === 'garmin.com') {
+        if (url.includes('oauth')) {
+          return { isOAuth: true, provider: 'Garmin' };
+        }
+      }
+      return { isOAuth: false, provider: null };
+    } catch {
+      // Invalid URL - not an OAuth URL
+      return { isOAuth: false, provider: null };
     }
-    if (url.includes('fitbit.com/oauth2/authorize')) {
-      return { isOAuth: true, provider: 'Fitbit' };
-    }
-    if (url.includes('garmin.com') && url.includes('oauth')) {
-      return { isOAuth: true, provider: 'Garmin' };
-    }
-    return { isOAuth: false, provider: null };
   };
 
   // Helper to open URLs in browser

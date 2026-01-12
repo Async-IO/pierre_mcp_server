@@ -108,12 +108,10 @@ export function ConnectionsScreen({ navigation }: ConnectionsScreenProps) {
       // Create return URL for the mobile app (deep link)
       // Server will redirect to this URL after OAuth completes
       const returnUrl = Linking.createURL('oauth-callback');
-      console.log('OAuth return URL:', returnUrl);
 
       // Call the mobile OAuth init endpoint which returns the authorization URL
       // and includes the redirect URL in the OAuth state for callback handling
       const oauthResponse = await apiService.initMobileOAuth(providerId, returnUrl);
-      console.log('OAuth URL received:', oauthResponse.authorization_url);
 
       // Open OAuth in an in-app browser (ASWebAuthenticationSession on iOS)
       // The returnUrl is watched for redirects to close the browser automatically
