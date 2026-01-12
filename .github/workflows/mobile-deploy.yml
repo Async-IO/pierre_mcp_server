@@ -1,0 +1,147 @@
+# ABOUTME: GitHub Actions workflow for deploying the Pierre mobile app via EAS Build.
+# ABOUTME: Supports manual dispatch with platform, profile, and submit options.
+
+name: Mobile Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to deploy'
+        required: true
+        default: 'ios'
+        type: choice
+        options:
+          - ios
+          - android
+          - all
+      profile:
+        description: 'Build profile'
+        required: true
+        default: 'preview'
+        type: choice
+        options:
+          - preview
+          - production
+      submit:
+        description: 'Submit to app store after build'
+        required: true
+        default: false
+        type: boolean
+
+concurrency:
+  group: mobile-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Pre-deploy Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend-mobile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Type check
+        run: bun run typecheck
+
+      - name: Run unit tests
+        run: bun test
+
+  build:
+    name: Build ${{ inputs.platform }} (${{ inputs.profile }})
+    needs: test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend-mobile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build iOS
+        if: ${{ inputs.platform == 'ios' || inputs.platform == 'all' }}
+        run: |
+          eas build \
+            --platform ios \
+            --profile ${{ inputs.profile }} \
+            --non-interactive
+
+      - name: Build Android
+        if: ${{ inputs.platform == 'android' || inputs.platform == 'all' }}
+        run: |
+          eas build \
+            --platform android \
+            --profile ${{ inputs.profile }} \
+            --non-interactive
+
+  submit:
+    name: Submit to Store
+    needs: build
+    if: ${{ inputs.submit == true && inputs.profile == 'production' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend-mobile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Submit iOS to TestFlight
+        if: ${{ inputs.platform == 'ios' || inputs.platform == 'all' }}
+        run: |
+          eas submit \
+            --platform ios \
+            --profile production \
+            --non-interactive \
+            --latest
+
+      - name: Submit Android to Play Console
+        if: ${{ inputs.platform == 'android' || inputs.platform == 'all' }}
+        run: |
+          eas submit \
+            --platform android \
+            --profile production \
+            --non-interactive \
+            --latest

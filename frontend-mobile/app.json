@@ -15,7 +15,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.pierre.fitness"
+      "bundleIdentifier": "com.pierre.fitness",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -30,7 +33,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "pierre-fitness-mobile"
+        "projectId": "6c63325e-a0da-49cf-b4bd-e6aeae6fd981"
       }
     }
   }
