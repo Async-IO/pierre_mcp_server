@@ -6,6 +6,7 @@
 # Copyright (c) 2025 Pierre Fitness Intelligence
 
 set -e
+set -o pipefail
 
 # Get the project root (git hooks run from repo root)
 PROJECT_ROOT="$(git rev-parse --show-toplevel)"
