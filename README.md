@@ -14,16 +14,9 @@ Pierre Fitness Platform connects AI assistants to fitness data from Strava, Garm
 
 ## Intelligence System
 
-Sports science-based fitness analysis:
+Sports science-based fitness analysis including training load management, race predictions, sleep and recovery scoring, nutrition planning, and pattern detection.
 
-- **Training Load**: TSS, CTL (42-day fitness), ATL (7-day fatigue), TSB (form)
-- **Race Predictions**: VDOT (Jack Daniels), Riegel formula
-- **Sleep & Recovery**: NSF/AASM scoring, HRV-based recovery, TSB normalization
-- **Nutrition**: Mifflin-St Jeor BMR, TDEE, macros, USDA FoodData Central (350k+ foods)
-- **Pattern Detection**: Training consistency, hard/easy alternation, volume progression
-- **Configurable Algorithms**: Runtime selection via environment variables
-
-See [Intelligence Methodology](docs/intelligence-methodology.md) and [Nutrition Methodology](docs/nutrition-methodology.md).
+See [Intelligence Methodology](docs/intelligence-methodology.md) and [Nutrition Methodology](docs/nutrition-methodology.md) for details.
 
 ## Features
 
@@ -55,17 +48,15 @@ cargo build --release --no-default-features --features "sqlite,provider-strava" 
 
 See [Pluggable Provider Architecture](docs/tutorial/chapter-17.5-pluggable-providers.md).
 
-## LLM Interaction
+## What You Can Ask
 
-AI assistants query fitness data through natural language:
+- "Calculate my daily nutrition needs for marathon training"
+- "Analyze my training load - do I need a recovery day?"
+- "Compare my three longest runs this month"
+- "Analyze this meal: 150g chicken, 200g rice, 100g broccoli"
+- "What's my predicted marathon time based on recent runs?"
 
-| Request | Tools Used |
-|---------|------------|
-| "Calculate my daily nutrition needs for marathon training" | `calculate_daily_nutrition`, `get_nutrient_timing`, `search_food` |
-| "Get my last 10 activities and analyze training load" | `get_activities`, `analyze_training_load`, `calculate_daily_nutrition` |
-| "Compare my three longest runs this month" | `get_activities`, `compare_activities`, `analyze_performance_trends` |
-| "Analyze this meal: 150g chicken, 200g rice, 100g broccoli" | `analyze_meal_nutrition`, `get_food_details` |
-| "Do I need a recovery day based on my training load?" | `analyze_training_load`, `get_activities`, `generate_recommendations` |
+See [Tools Reference](docs/tools-reference.md) for the 47 available MCP tools.
 
 ## Quick Start
 
