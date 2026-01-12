@@ -173,9 +173,9 @@ React Native mobile app for iOS and Android with conversational AI interface.
 
 ```bash
 cd frontend-mobile
-npm install --legacy-peer-deps
-npm start   # Start Expo development server
-npm run ios # Run on iOS Simulator
+bun install
+bun start   # Start Expo development server
+bun run ios # Run on iOS Simulator
 ```
 
 See [Mobile App README](frontend-mobile/README.md) and [Mobile Development Guide](docs/mobile-development.md).

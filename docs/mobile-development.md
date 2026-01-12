@@ -9,7 +9,7 @@ Complete guide for setting up and developing the Pierre Mobile app.
 | Software | Version | Purpose |
 |----------|---------|---------|
 | Node.js | 20+ | JavaScript runtime |
-| npm | 10+ | Package manager |
+| Bun | 1.0+ | Package manager |
 | Xcode | 15+ | iOS development (macOS only) |
 | Android Studio | Hedgehog+ | Android development |
 | Watchman | Latest | File watching (recommended) |
@@ -59,10 +59,8 @@ cd pierre_mcp_server
 
 ```bash
 cd frontend-mobile
-npm install --legacy-peer-deps
+bun install
 ```
-
-> **Note**: `--legacy-peer-deps` is required due to React Native ecosystem peer dependency conflicts.
 
 ### 3. Start Backend Server
 
@@ -85,7 +83,7 @@ Server runs on `http://localhost:8081`.
 
 ```bash
 cd frontend-mobile
-npm start
+bun start
 ```
 
 This starts the Expo development server with options to run on different platforms.
@@ -95,7 +93,7 @@ This starts the Expo development server with options to run on different platfor
 ### iOS Simulator (macOS only)
 
 ```bash
-npm run ios
+bun run ios
 ```
 
 Or press `i` in the Expo CLI.
@@ -103,7 +101,7 @@ Or press `i` in the Expo CLI.
 ### Android Emulator
 
 ```bash
-npm run android
+bun run android
 ```
 
 Or press `a` in the Expo CLI.
@@ -117,7 +115,7 @@ Or press `a` in the Expo CLI.
 ```bash
 # Set your machine's IP address
 export EXPO_PUBLIC_API_URL=http://192.168.1.100:8081
-npm start
+bun start
 ```
 
 ## Development Workflow
@@ -152,15 +150,15 @@ frontend-mobile/
 ### Available Scripts
 
 ```bash
-npm start           # Start Expo development server
-npm run ios         # Run on iOS Simulator
-npm run android     # Run on Android Emulator
-npm run typecheck   # TypeScript type checking
-npm run lint        # ESLint
-npm test            # Run unit tests
-npm run test:coverage  # Tests with coverage report
-npm run e2e:build   # Build for Detox E2E
-npm run e2e:test    # Run Detox E2E tests
+bun start           # Start Expo development server
+bun run ios         # Run on iOS Simulator
+bun run android     # Run on Android Emulator
+bun run typecheck   # TypeScript type checking
+bun run lint        # ESLint
+bun test            # Run unit tests
+bun run test:coverage  # Tests with coverage report
+bun run e2e:build   # Build for Detox E2E
+bun run e2e:test    # Run Detox E2E tests
 ```
 
 ## Testing
@@ -171,16 +169,16 @@ Unit tests use Jest with React Native Testing Library:
 
 ```bash
 # Run all tests
-npm test
+bun test
 
 # Run with coverage
-npm run test:coverage
+bun run test:coverage
 
 # Run specific test file
-npm test -- Button.test.tsx
+bun test -- Button.test.tsx
 
 # Watch mode
-npm run test:watch
+bun run test:watch
 ```
 
 Test files are in `__tests__/` directory:
@@ -199,10 +197,10 @@ E2E tests require iOS Simulator:
 
 ```bash
 # Build app for testing
-npm run e2e:build
+bun run e2e:build
 
 # Run E2E tests
-npm run e2e:test
+bun run e2e:test
 ```
 
 > **Note**: E2E tests may be flaky on CI due to simulator timing issues.
@@ -285,7 +283,7 @@ For production builds, use Expo Application Services:
 
 ```bash
 # Install EAS CLI
-npm install -g eas-cli
+bun add -g eas-cli
 
 # Configure
 eas build:configure

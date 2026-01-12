@@ -47,7 +47,7 @@ frontend-mobile/
 ### Prerequisites
 
 - Node.js 20+
-- npm or yarn
+- Bun (package manager)
 - Xcode (for iOS development)
 - Android Studio (for Android development)
 - Pierre backend server running on `localhost:8081`
@@ -59,23 +59,23 @@ frontend-mobile/
 cd frontend-mobile
 
 # Install dependencies
-npm install --legacy-peer-deps
+bun install
 
 # Start Expo development server
-npm start
+bun start
 ```
 
 ### Running on Devices
 
 ```bash
 # iOS Simulator
-npm run ios
+bun run ios
 
 # Android Emulator
-npm run android
+bun run android
 
 # Web (experimental)
-npm run web
+bun run web
 ```
 
 ## Development
@@ -83,36 +83,36 @@ npm run web
 ### Type Checking
 
 ```bash
-npm run typecheck
+bun run typecheck
 ```
 
 ### Linting
 
 ```bash
-npm run lint
+bun run lint
 ```
 
 ### Testing
 
 ```bash
 # Run unit tests
-npm test
+bun test
 
 # Run with coverage
-npm run test:coverage
+bun run test:coverage
 
 # Watch mode
-npm run test:watch
+bun run test:watch
 ```
 
 ### E2E Testing (Detox)
 
 ```bash
 # Build for iOS simulator
-npm run e2e:build
+bun run e2e:build
 
 # Run E2E tests
-npm run e2e:test
+bun run e2e:test
 ```
 
 ## Configuration
@@ -222,7 +222,7 @@ The app includes 92 unit tests covering:
 
 Run tests with:
 ```bash
-npm test
+bun test
 ```
 
 ## Troubleshooting
