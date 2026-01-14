@@ -203,6 +203,18 @@ fn get_all_tool_names() -> Vec<&'static str> {
         "activate_coach",
         "deactivate_coach",
         "get_active_coach",
+        "hide_coach",
+        "show_coach",
+        "list_hidden_coaches",
+        // Admin coach management tools (system coaches)
+        "admin_list_system_coaches",
+        "admin_create_system_coach",
+        "admin_get_system_coach",
+        "admin_update_system_coach",
+        "admin_delete_system_coach",
+        "admin_assign_coach",
+        "admin_unassign_coach",
+        "admin_list_coach_assignments",
     ]
 }
 
