@@ -425,14 +425,21 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     try {
       const response = await apiService.sendMessage(conversationId, messageText);
       // Replace optimistic user message and add assistant response with metadata
+      // Defensive: only add messages if they have valid IDs
       setMessages(prev => {
         const filtered = prev.filter(m => m.id !== userMessage.id);
-        const assistantWithMetadata = {
-          ...response.assistant_message,
-          model: response.model,
-          execution_time_ms: response.execution_time_ms,
-        };
-        return [...filtered, response.user_message, assistantWithMetadata];
+        const newMessages: Message[] = [];
+        if (response.user_message?.id) {
+          newMessages.push(response.user_message);
+        }
+        if (response.assistant_message?.id) {
+          newMessages.push({
+            ...response.assistant_message,
+            model: response.model,
+            execution_time_ms: response.execution_time_ms,
+          });
+        }
+        return [...filtered, ...newMessages];
       });
       scrollToBottom();
     } catch (error) {
@@ -511,19 +518,23 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     try {
       const response = await apiService.sendMessage(conversationId, prompt);
       // Replace optimistic message with server's message and add assistant response with metadata
+      // Defensive: only update/add messages if they have valid IDs
       setMessages(prev => {
-        const assistantWithMetadata = {
-          ...response.assistant_message,
-          model: response.model,
-          execution_time_ms: response.execution_time_ms,
-        };
-        return prev.map(m => {
-          if (m.id === userMessage.id) {
+        let updated = prev.map(m => {
+          if (m.id === userMessage.id && response.user_message?.id) {
             // Use server's message ID but keep our original prompt content
             return { ...response.user_message, content: prompt };
           }
           return m;
-        }).concat([assistantWithMetadata]);
+        });
+        if (response.assistant_message?.id) {
+          updated = updated.concat([{
+            ...response.assistant_message,
+            model: response.model,
+            execution_time_ms: response.execution_time_ms,
+          }]);
+        }
+        return updated;
       });
       scrollToBottom();
     } catch (error) {
@@ -784,6 +795,9 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   };
 
   const renderMessage = ({ item }: { item: Message }) => {
+    // Defensive: skip rendering if item is invalid
+    if (!item?.id) return null;
+
     const isUser = item.role === 'user';
     const isError = item.isError === true;
 
@@ -998,7 +1012,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
             ref={flatListRef}
             data={messages ?? []}
             renderItem={renderMessage}
-            keyExtractor={(item, index) => `${item.id}-${index}`}
+            keyExtractor={(item, index) => item?.id ? `${item.id}-${index}` : `fallback-${index}`}
             contentContainerStyle={styles.messagesList}
             showsVerticalScrollIndicator={false}
             onContentSizeChange={scrollToBottom}
