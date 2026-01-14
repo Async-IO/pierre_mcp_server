@@ -6,13 +6,12 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
-  Pressable,
   Alert,
   Modal,
   ActivityIndicator,
   FlatList,
 } from 'react-native';
+import { TouchableOpacity, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { colors, spacing, fontSize, borderRadius } from '../constants/theme';
 import { Card, Button, Input } from './ui';
 import { apiService } from '../services/api';
@@ -28,17 +27,18 @@ const PROVIDERS: OAuthProvider[] = [
 
 const DEFAULT_REDIRECT_URI = 'https://pierre.fit/api/oauth/callback';
 
+type ModalView = 'form' | 'providerPicker';
+
 export function OAuthCredentialsSection() {
   const [oauthApps, setOauthApps] = useState<OAuthApp[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showProviderPicker, setShowProviderPicker] = useState(false);
+  const [modalView, setModalView] = useState<ModalView>('form');
 
   // Form state
   const [selectedProvider, setSelectedProvider] = useState<OAuthProvider | null>(null);
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
-  const [redirectUri, setRedirectUri] = useState(DEFAULT_REDIRECT_URI);
   const [isSaving, setIsSaving] = useState(false);
 
   const loadOAuthApps = useCallback(async () => {
@@ -62,12 +62,17 @@ export function OAuthCredentialsSection() {
     setSelectedProvider(null);
     setClientId('');
     setClientSecret('');
-    setRedirectUri(DEFAULT_REDIRECT_URI);
+    setModalView('form');
   };
 
   const handleCloseModal = () => {
     setShowAddModal(false);
     resetForm();
+  };
+
+  const handleSelectProvider = (provider: OAuthProvider) => {
+    setSelectedProvider(provider);
+    setModalView('form');
   };
 
   const getAvailableProviders = (): OAuthProvider[] => {
@@ -95,7 +100,7 @@ export function OAuthCredentialsSection() {
         provider: selectedProvider.id,
         client_id: clientId.trim(),
         client_secret: clientSecret.trim(),
-        redirect_uri: redirectUri.trim() || `${DEFAULT_REDIRECT_URI}/${selectedProvider.id}`,
+        redirect_uri: `${DEFAULT_REDIRECT_URI}/${selectedProvider.id}`,
       });
       Alert.alert('Success', `${selectedProvider.name} credentials saved successfully`);
       handleCloseModal();
@@ -150,12 +155,14 @@ export function OAuthCredentialsSection() {
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>OAuth Credentials</Text>
         {availableProviders.length > 0 && (
-          <Pressable
+          <TouchableOpacity
             style={styles.addButton}
             onPress={() => setShowAddModal(true)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            activeOpacity={0.7}
           >
             <Text style={styles.addButtonText}>+ Add</Text>
-          </Pressable>
+          </TouchableOpacity>
         )}
       </View>
 
@@ -205,127 +212,118 @@ export function OAuthCredentialsSection() {
         )}
       </Card>
 
-      {/* Add Credentials Modal */}
+      {/* Add Credentials Modal - single modal with view switching */}
       <Modal
         visible={showAddModal}
         animationType="slide"
         transparent
         onRequestClose={handleCloseModal}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add OAuth Credentials</Text>
+        <GestureHandlerRootView style={styles.gestureContainer}>
+          <View style={styles.modalOverlay}>
+            {modalView === 'form' ? (
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Add OAuth Credentials</Text>
 
-            {/* Provider Picker */}
-            <Text style={styles.inputLabel}>Provider</Text>
-            <Pressable
-              style={styles.pickerButton}
-              onPress={() => setShowProviderPicker(true)}
-            >
-              {selectedProvider ? (
-                <View style={styles.selectedProviderRow}>
-                  <View style={[styles.providerIconSmall, { backgroundColor: selectedProvider.color }]}>
-                    <Text style={styles.providerInitialSmall}>
-                      {selectedProvider.name.charAt(0)}
-                    </Text>
-                  </View>
-                  <Text style={styles.pickerButtonText}>{selectedProvider.name}</Text>
-                </View>
-              ) : (
-                <Text style={styles.pickerPlaceholder}>Select a provider...</Text>
-              )}
-              <Text style={styles.pickerChevron}>{'>'}</Text>
-            </Pressable>
-
-            <Input
-              label="Client ID"
-              placeholder="Enter your OAuth client ID"
-              value={clientId}
-              onChangeText={setClientId}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-
-            <Input
-              label="Client Secret"
-              placeholder="Enter your OAuth client secret"
-              value={clientSecret}
-              onChangeText={setClientSecret}
-              secureTextEntry
-              showPasswordToggle
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-
-            <Input
-              label="Redirect URI"
-              placeholder={DEFAULT_REDIRECT_URI}
-              value={redirectUri}
-              onChangeText={setRedirectUri}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-
-            <View style={styles.modalActions}>
-              <Button
-                title="Cancel"
-                onPress={handleCloseModal}
-                variant="secondary"
-                style={styles.modalButton}
-              />
-              <Button
-                title="Save"
-                onPress={handleSave}
-                loading={isSaving}
-                style={styles.modalButton}
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Provider Picker Modal */}
-      <Modal
-        visible={showProviderPicker}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowProviderPicker(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.pickerModalContent}>
-            <Text style={styles.modalTitle}>Select Provider</Text>
-            <FlatList
-              data={availableProviders}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <Pressable
-                  style={styles.providerOption}
-                  onPress={() => {
-                    setSelectedProvider(item);
-                    setRedirectUri(`${DEFAULT_REDIRECT_URI}/${item.id}`);
-                    setShowProviderPicker(false);
-                  }}
+                {/* Provider Picker */}
+                <Text style={styles.inputLabel}>Provider</Text>
+                <TouchableOpacity
+                  style={styles.pickerButton}
+                  onPress={() => setModalView('providerPicker')}
+                  hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+                  activeOpacity={0.7}
                 >
-                  <View style={[styles.providerIcon, { backgroundColor: item.color }]}>
-                    <Text style={styles.providerInitial}>{item.name.charAt(0)}</Text>
-                  </View>
-                  <Text style={styles.providerOptionText}>{item.name}</Text>
-                  {selectedProvider?.id === item.id && (
-                    <Text style={styles.checkmark}>{'checkmark'}</Text>
+                  {selectedProvider ? (
+                    <View style={styles.selectedProviderRow}>
+                      <View style={[styles.providerIconSmall, { backgroundColor: selectedProvider.color }]}>
+                        <Text style={styles.providerInitialSmall}>
+                          {selectedProvider.name.charAt(0)}
+                        </Text>
+                      </View>
+                      <Text style={styles.pickerButtonText}>{selectedProvider.name}</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.pickerPlaceholder}>Select a provider...</Text>
                   )}
-                </Pressable>
-              )}
-              ItemSeparatorComponent={() => <View style={styles.separator} />}
-            />
-            <Button
-              title="Cancel"
-              onPress={() => setShowProviderPicker(false)}
-              variant="secondary"
-              fullWidth
-              style={styles.pickerCancelButton}
-            />
+                  <Text style={styles.pickerChevron}>{'>'}</Text>
+                </TouchableOpacity>
+
+                <Input
+                  label="Client ID"
+                  placeholder="Enter your OAuth client ID"
+                  value={clientId}
+                  onChangeText={setClientId}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+
+                <Input
+                  label="Client Secret"
+                  placeholder="Enter your OAuth client secret"
+                  value={clientSecret}
+                  onChangeText={setClientSecret}
+                  secureTextEntry
+                  showPasswordToggle
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+
+                {/* Redirect URI - read-only, shown for user to configure in OAuth app */}
+                <Text style={styles.inputLabel}>Redirect URI (use this in your OAuth app)</Text>
+                <View style={styles.redirectUriDisplay}>
+                  <Text style={styles.redirectUriText} selectable>
+                    {selectedProvider ? `${DEFAULT_REDIRECT_URI}/${selectedProvider.id}` : DEFAULT_REDIRECT_URI}
+                  </Text>
+                </View>
+
+                <View style={styles.modalActions}>
+                  <Button
+                    title="Cancel"
+                    onPress={handleCloseModal}
+                    variant="secondary"
+                    style={styles.modalButton}
+                  />
+                  <Button
+                    title="Save"
+                    onPress={handleSave}
+                    loading={isSaving}
+                    style={styles.modalButton}
+                  />
+                </View>
+              </View>
+            ) : (
+              <View style={styles.pickerModalContent}>
+                <Text style={styles.modalTitle}>Select Provider</Text>
+                <FlatList
+                  data={availableProviders}
+                  keyExtractor={(item) => item.id}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.providerOption}
+                      onPress={() => handleSelectProvider(item)}
+                    >
+                      <View style={[styles.providerIcon, { backgroundColor: item.color }]}>
+                        <Text style={styles.providerInitial}>{item.name.charAt(0)}</Text>
+                      </View>
+                      <Text style={styles.providerOptionText}>{item.name}</Text>
+                      {selectedProvider?.id === item.id && (
+                        <Text style={styles.checkmark}>{'✓'}</Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                  ItemSeparatorComponent={() => <View style={styles.separator} />}
+                />
+                <Button
+                  title="Back"
+                  onPress={() => setModalView('form')}
+                  variant="secondary"
+                  fullWidth
+                  style={styles.pickerCancelButton}
+                />
+              </View>
+            )}
           </View>
-        </View>
+        </GestureHandlerRootView>
       </Modal>
     </View>
   );
@@ -334,6 +332,9 @@ export function OAuthCredentialsSection() {
 const styles = StyleSheet.create({
   container: {
     marginTop: spacing.md,
+  },
+  gestureContainer: {
+    flex: 1,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -347,8 +348,10 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
   },
   addButton: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   addButtonText: {
     color: colors.primary[500],
@@ -472,6 +475,19 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: colors.text.secondary,
     marginBottom: spacing.xs,
+  },
+  redirectUriDisplay: {
+    backgroundColor: colors.background.tertiary,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+  },
+  redirectUriText: {
+    fontSize: fontSize.sm,
+    color: colors.text.secondary,
+    fontFamily: 'monospace',
   },
   pickerButton: {
     flexDirection: 'row',

@@ -260,7 +260,17 @@ class ApiService {
   // OAuth/Provider endpoints
   async getOAuthStatus(): Promise<{ providers: ProviderStatus[] }> {
     const response = await axios.get('/api/oauth/status');
-    return { providers: response.data };
+    // Handle both array and object response formats
+    const data = response.data;
+    if (Array.isArray(data)) {
+      return { providers: data };
+    }
+    // If data is an object with providers field, use that
+    if (data && Array.isArray(data.providers)) {
+      return { providers: data.providers };
+    }
+    // Default to empty array
+    return { providers: [] };
   }
 
   /**
