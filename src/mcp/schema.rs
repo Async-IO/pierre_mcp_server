@@ -14,11 +14,12 @@ use crate::constants::{
     get_server_config,
     json_fields::{ACTIVITY_ID, AFTER, BEFORE, FORMAT, LIMIT, MODE, OFFSET, PROVIDER, SPORT_TYPE},
     tools::{
-        ANALYZE_ACTIVITY, CONNECT_PROVIDER, DELETE_FITNESS_CONFIG, DELETE_RECIPE,
-        DISCONNECT_PROVIDER, GET_ACTIVITIES, GET_ACTIVITY_INTELLIGENCE, GET_ATHLETE,
-        GET_CONNECTION_STATUS, GET_FITNESS_CONFIG, GET_RECIPE, GET_RECIPE_CONSTRAINTS, GET_STATS,
-        LIST_FITNESS_CONFIGS, LIST_RECIPES, SAVE_RECIPE, SEARCH_RECIPES, SET_FITNESS_CONFIG,
-        VALIDATE_RECIPE,
+        ACTIVATE_COACH, ANALYZE_ACTIVITY, CONNECT_PROVIDER, CREATE_COACH, DEACTIVATE_COACH,
+        DELETE_COACH, DELETE_FITNESS_CONFIG, DELETE_RECIPE, DISCONNECT_PROVIDER, GET_ACTIVE_COACH,
+        GET_ACTIVITIES, GET_ACTIVITY_INTELLIGENCE, GET_ATHLETE, GET_COACH, GET_CONNECTION_STATUS,
+        GET_FITNESS_CONFIG, GET_RECIPE, GET_RECIPE_CONSTRAINTS, GET_STATS, LIST_COACHES,
+        LIST_FITNESS_CONFIGS, LIST_RECIPES, SAVE_RECIPE, SEARCH_COACHES, SEARCH_RECIPES,
+        SET_FITNESS_CONFIG, TOGGLE_COACH_FAVORITE, UPDATE_COACH, VALIDATE_RECIPE,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -770,6 +771,17 @@ fn create_fitness_tools() -> Vec<ToolSchema> {
         create_get_recipe_tool(),
         create_delete_recipe_tool(),
         create_search_recipes_tool(),
+        // Coach Management Tools (custom AI personas)
+        create_list_coaches_tool(),
+        create_create_coach_tool(),
+        create_get_coach_tool(),
+        create_update_coach_tool(),
+        create_delete_coach_tool(),
+        create_toggle_coach_favorite_tool(),
+        create_search_coaches_tool(),
+        create_activate_coach_tool(),
+        create_deactivate_coach_tool(),
+        create_get_active_coach_tool(),
     ]
 }
 
@@ -2731,6 +2743,332 @@ fn create_search_recipes_tool() -> ToolSchema {
             schema_type: "object".into(),
             properties: Some(properties),
             required: Some(vec!["query".to_owned()]),
+        },
+    }
+}
+
+// ============================================================================
+// Coach Management Tools (custom AI personas)
+// ============================================================================
+
+/// Create the `list_coaches` tool schema
+fn create_list_coaches_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "category".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("Filter by category: 'training', 'nutrition', 'recovery', 'recipes', 'custom' (optional)".into()),
+        },
+    );
+
+    properties.insert(
+        "favorites_only".to_owned(),
+        PropertySchema {
+            property_type: "boolean".into(),
+            description: Some("If true, only return favorite coaches (default: false)".into()),
+        },
+    );
+
+    properties.insert(
+        LIMIT.to_owned(),
+        PropertySchema {
+            property_type: "number".into(),
+            description: Some("Maximum number of coaches to return (default: 50)".into()),
+        },
+    );
+
+    properties.insert(
+        OFFSET.to_owned(),
+        PropertySchema {
+            property_type: "number".into(),
+            description: Some("Number of coaches to skip for pagination (default: 0)".into()),
+        },
+    );
+
+    ToolSchema {
+        name: LIST_COACHES.to_owned(),
+        description:
+            "List user's custom AI coaches with optional filtering by category or favorites.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: None,
+        },
+    }
+}
+
+/// Create the `create_coach` tool schema
+fn create_create_coach_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "title".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("Name of the coach (e.g., 'Marathon Training Coach')".into()),
+        },
+    );
+
+    properties.insert(
+        "system_prompt".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some(
+                "The system prompt that defines the coach's persona and expertise".into(),
+            ),
+        },
+    );
+
+    properties.insert(
+        "description".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some(
+                "Brief description of what this coach specializes in (optional)".into(),
+            ),
+        },
+    );
+
+    properties.insert(
+        "category".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("Category: 'training', 'nutrition', 'recovery', 'recipes', 'custom' (default: 'custom')".into()),
+        },
+    );
+
+    properties.insert(
+        "tags".to_owned(),
+        PropertySchema {
+            property_type: "array".into(),
+            description: Some(
+                "Tags for searchability (e.g., ['running', 'marathon', 'endurance'])".into(),
+            ),
+        },
+    );
+
+    ToolSchema {
+        name: CREATE_COACH.to_owned(),
+        description: "Create a new custom AI coach with a specific persona and system prompt."
+            .into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec!["title".to_owned(), "system_prompt".to_owned()]),
+        },
+    }
+}
+
+/// Create the `get_coach` tool schema
+fn create_get_coach_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "coach_id".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("ID of the coach to retrieve".into()),
+        },
+    );
+
+    ToolSchema {
+        name: GET_COACH.to_owned(),
+        description: "Get details of a specific coach by ID.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec!["coach_id".to_owned()]),
+        },
+    }
+}
+
+/// Create the `update_coach` tool schema
+fn create_update_coach_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "coach_id".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("ID of the coach to update".into()),
+        },
+    );
+
+    properties.insert(
+        "title".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("New name for the coach (optional)".into()),
+        },
+    );
+
+    properties.insert(
+        "system_prompt".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("New system prompt (optional)".into()),
+        },
+    );
+
+    properties.insert(
+        "description".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("New description (optional)".into()),
+        },
+    );
+
+    properties.insert(
+        "category".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("New category (optional)".into()),
+        },
+    );
+
+    properties.insert(
+        "tags".to_owned(),
+        PropertySchema {
+            property_type: "array".into(),
+            description: Some("New tags (optional)".into()),
+        },
+    );
+
+    ToolSchema {
+        name: UPDATE_COACH.to_owned(),
+        description: "Update an existing coach's properties.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec!["coach_id".to_owned()]),
+        },
+    }
+}
+
+/// Create the `delete_coach` tool schema
+fn create_delete_coach_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "coach_id".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("ID of the coach to delete".into()),
+        },
+    );
+
+    ToolSchema {
+        name: DELETE_COACH.to_owned(),
+        description: "Delete a coach from user's collection. This action cannot be undone.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec!["coach_id".to_owned()]),
+        },
+    }
+}
+
+/// Create the `toggle_coach_favorite` tool schema
+fn create_toggle_coach_favorite_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "coach_id".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("ID of the coach to toggle favorite status".into()),
+        },
+    );
+
+    ToolSchema {
+        name: TOGGLE_COACH_FAVORITE.to_owned(),
+        description: "Toggle a coach's favorite status. Returns the updated coach.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec!["coach_id".to_owned()]),
+        },
+    }
+}
+
+/// Create the `search_coaches` tool schema
+fn create_search_coaches_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "query".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("Search query for coach title, description, or tags".into()),
+        },
+    );
+
+    properties.insert(
+        LIMIT.to_owned(),
+        PropertySchema {
+            property_type: "number".into(),
+            description: Some("Maximum number of results to return (default: 20)".into()),
+        },
+    );
+
+    ToolSchema {
+        name: SEARCH_COACHES.to_owned(),
+        description: "Search user's coaches by title, description, or tags.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec!["query".to_owned()]),
+        },
+    }
+}
+
+/// Create the `activate_coach` tool schema
+fn create_activate_coach_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "coach_id".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("ID of the coach to activate".into()),
+        },
+    );
+
+    ToolSchema {
+        name: ACTIVATE_COACH.to_owned(),
+        description: "Activate a coach for the current session. Only one coach can be active at a time; activating a new coach deactivates any previously active coach.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec!["coach_id".to_owned()]),
+        },
+    }
+}
+
+/// Create the `deactivate_coach` tool schema
+fn create_deactivate_coach_tool() -> ToolSchema {
+    ToolSchema {
+        name: DEACTIVATE_COACH.to_owned(),
+        description: "Deactivate the currently active coach.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: None,
+            required: None,
+        },
+    }
+}
+
+/// Create the `get_active_coach` tool schema
+fn create_get_active_coach_tool() -> ToolSchema {
+    ToolSchema {
+        name: GET_ACTIVE_COACH.to_owned(),
+        description: "Get the currently active coach for the user, if any.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: None,
+            required: None,
         },
     }
 }

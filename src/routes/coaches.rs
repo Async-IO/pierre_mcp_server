@@ -33,7 +33,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 /// Response for a coach
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CoachResponse {
     /// Unique identifier
     pub id: String,
@@ -81,7 +81,7 @@ impl From<Coach> for CoachResponse {
 }
 
 /// Response for listing coaches
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ListCoachesResponse {
     /// List of coaches
     pub coaches: Vec<CoachResponse>,
@@ -92,7 +92,7 @@ pub struct ListCoachesResponse {
 }
 
 /// Metadata for coaches response
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CoachesMetadata {
     /// Response timestamp
     pub timestamp: String,
@@ -123,14 +123,14 @@ pub struct SearchCoachesQuery {
 }
 
 /// Response for toggle favorite
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ToggleFavoriteResponse {
     /// New favorite status
     pub is_favorite: bool,
 }
 
 /// Response for record usage
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RecordUsageResponse {
     /// Whether the usage was recorded
     pub success: bool,

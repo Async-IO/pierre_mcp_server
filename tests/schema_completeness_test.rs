@@ -192,6 +192,17 @@ fn get_all_tool_names() -> Vec<&'static str> {
         "get_recipe",
         "delete_recipe",
         "search_recipes",
+        // Coach management tools
+        "list_coaches",
+        "create_coach",
+        "get_coach",
+        "update_coach",
+        "delete_coach",
+        "toggle_coach_favorite",
+        "search_coaches",
+        "activate_coach",
+        "deactivate_coach",
+        "get_active_coach",
     ]
 }
 
