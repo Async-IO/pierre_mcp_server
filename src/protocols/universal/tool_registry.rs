@@ -330,47 +330,79 @@ impl ToolId {
     #[must_use]
     pub const fn description(&self) -> &'static str {
         match self {
-            Self::GetActivities => "Get user's fitness activities with optional filtering and limits",
+            Self::GetActivities => {
+                "Get user's fitness activities with optional filtering and limits"
+            }
             Self::GetAthlete => "Get user's athlete profile and basic information",
             Self::GetStats => "Get user's performance statistics and metrics",
-            Self::AnalyzeActivity => "Analyze a specific activity with detailed performance insights",
+            Self::AnalyzeActivity => {
+                "Analyze a specific activity with detailed performance insights"
+            }
             Self::GetActivityIntelligence => "Get AI-powered intelligence analysis for an activity",
             Self::GetConnectionStatus => "Check OAuth connection status for fitness providers",
             Self::ConnectProvider => "Connect to a fitness data provider via OAuth",
             Self::DisconnectProvider => "Disconnect user from a fitness data provider",
             Self::SetGoal => "Set a new fitness goal for the user",
             Self::SuggestGoals => "Get AI-suggested fitness goals based on user's activity history",
-            Self::AnalyzeGoalFeasibility => "Analyze whether a goal is achievable given fitness level",
+            Self::AnalyzeGoalFeasibility => {
+                "Analyze whether a goal is achievable given fitness level"
+            }
             Self::TrackProgress => "Track progress towards fitness goals",
             Self::CalculateMetrics => "Calculate custom fitness metrics and performance indicators",
             Self::AnalyzePerformanceTrends => "Analyze performance trends over time",
             Self::CompareActivities => "Compare two activities for performance analysis",
             Self::DetectPatterns => "Detect patterns and insights in activity data",
             Self::GenerateRecommendations => "Generate personalized training recommendations",
-            Self::CalculateFitnessScore => "Calculate overall fitness score based on recent activities",
+            Self::CalculateFitnessScore => {
+                "Calculate overall fitness score based on recent activities"
+            }
             Self::PredictPerformance => "Predict future performance based on training patterns",
             Self::AnalyzeTrainingLoad => "Analyze training load and recovery metrics",
-            Self::GetConfigurationCatalog => "Get configuration catalog with all available parameters",
-            Self::GetConfigurationProfiles => "Get available configuration profiles (Research, Elite, etc.)",
+            Self::GetConfigurationCatalog => {
+                "Get configuration catalog with all available parameters"
+            }
+            Self::GetConfigurationProfiles => {
+                "Get available configuration profiles (Research, Elite, etc.)"
+            }
             Self::GetUserConfiguration => "Get current user's configuration settings and overrides",
             Self::UpdateUserConfiguration => "Update user's configuration parameters and overrides",
-            Self::CalculatePersonalizedZones => "Calculate training zones based on VO2 max and config",
-            Self::ValidateConfiguration => "Validate configuration against safety rules and constraints",
+            Self::CalculatePersonalizedZones => {
+                "Calculate training zones based on VO2 max and config"
+            }
+            Self::ValidateConfiguration => {
+                "Validate configuration against safety rules and constraints"
+            }
             Self::AnalyzeSleepQuality => "Analyze sleep quality from Fitbit/Garmin using NSF/AASM",
-            Self::CalculateRecoveryScore => "Calculate recovery score combining TSB, sleep, and HRV",
-            Self::SuggestRestDay => "AI-powered rest day recommendation based on recovery indicators",
-            Self::TrackSleepTrends => "Track sleep patterns and correlate with performance over time",
-            Self::OptimizeSleepSchedule => "Optimize sleep duration based on training load and recovery",
-            Self::GetFitnessConfig => "Get user fitness config including HR zones and training params",
+            Self::CalculateRecoveryScore => {
+                "Calculate recovery score combining TSB, sleep, and HRV"
+            }
+            Self::SuggestRestDay => {
+                "AI-powered rest day recommendation based on recovery indicators"
+            }
+            Self::TrackSleepTrends => {
+                "Track sleep patterns and correlate with performance over time"
+            }
+            Self::OptimizeSleepSchedule => {
+                "Optimize sleep duration based on training load and recovery"
+            }
+            Self::GetFitnessConfig => {
+                "Get user fitness config including HR zones and training params"
+            }
             Self::SetFitnessConfig => "Save user fitness config for zones, thresholds, and params",
-            Self::ListFitnessConfigs => "List all available fitness configuration names for the user",
+            Self::ListFitnessConfigs => {
+                "List all available fitness configuration names for the user"
+            }
             Self::DeleteFitnessConfig => "Delete a specific fitness configuration by name",
-            Self::CalculateDailyNutrition => "Calculate daily calories and macros using Mifflin-St Jeor",
+            Self::CalculateDailyNutrition => {
+                "Calculate daily calories and macros using Mifflin-St Jeor"
+            }
             Self::GetNutrientTiming => "Get pre/post-workout nutrition recommendations per ISSN",
             Self::SearchFood => "Search USDA FoodData Central database for foods by name",
             Self::GetFoodDetails => "Get detailed nutritional info for a food from USDA database",
             Self::AnalyzeMealNutrition => "Analyze calories and macros for a meal of USDA foods",
-            Self::GetRecipeConstraints => "Get macro targets for LLM recipe generation by training phase",
+            Self::GetRecipeConstraints => {
+                "Get macro targets for LLM recipe generation by training phase"
+            }
             Self::ValidateRecipe => "Validate recipe nutrition against USDA and calculate macros",
             Self::SaveRecipe => "Save validated recipe with cached nutrition data",
             Self::ListRecipes => "List saved recipes with optional meal timing filter",

@@ -12,7 +12,7 @@
 use crate::{
     auth::AuthResult,
     database::coaches::{
-        Coach, CoachAssignment as DbCoachAssignment, CoachCategory, CoachVisibility,
+        Coach, CoachAssignment as DbCoachAssignment, CoachCategory, CoachListItem, CoachVisibility,
         CoachesManager, CreateCoachRequest, CreateSystemCoachRequest as DbCreateSystemCoachRequest,
         ListCoachesFilter, UpdateCoachRequest,
     },
@@ -65,6 +65,8 @@ pub struct CoachResponse {
     pub is_system: bool,
     /// Visibility level
     pub visibility: String,
+    /// Whether this coach is assigned to the current user
+    pub is_assigned: bool,
 }
 
 impl From<Coach> for CoachResponse {
@@ -84,6 +86,29 @@ impl From<Coach> for CoachResponse {
             updated_at: coach.updated_at.to_rfc3339(),
             is_system: coach.is_system,
             visibility: coach.visibility.as_str().to_owned(),
+            is_assigned: false, // Default for single coach responses
+        }
+    }
+}
+
+impl From<CoachListItem> for CoachResponse {
+    fn from(item: CoachListItem) -> Self {
+        Self {
+            id: item.coach.id.to_string(),
+            title: item.coach.title,
+            description: item.coach.description,
+            system_prompt: item.coach.system_prompt,
+            category: item.coach.category.as_str().to_owned(),
+            tags: item.coach.tags,
+            token_count: item.coach.token_count,
+            is_favorite: item.coach.is_favorite,
+            use_count: item.coach.use_count,
+            last_used_at: item.coach.last_used_at.map(|dt| dt.to_rfc3339()),
+            created_at: item.coach.created_at.to_rfc3339(),
+            updated_at: item.coach.updated_at.to_rfc3339(),
+            is_system: item.coach.is_system,
+            visibility: item.coach.visibility.as_str().to_owned(),
+            is_assigned: item.is_assigned,
         }
     }
 }
@@ -119,6 +144,10 @@ pub struct ListCoachesQuery {
     pub limit: Option<u32>,
     /// Offset for pagination
     pub offset: Option<u32>,
+    /// Include system coaches (default: true)
+    pub include_system: Option<bool>,
+    /// Include hidden coaches (default: false)
+    pub include_hidden: Option<bool>,
 }
 
 /// Query parameters for searching coaches
@@ -297,6 +326,8 @@ impl CoachesRoutes {
             favorites_only: query.favorites_only.unwrap_or(false),
             limit: query.limit,
             offset: query.offset,
+            include_system: query.include_system.unwrap_or(true),
+            include_hidden: query.include_hidden.unwrap_or(false),
         };
 
         let coaches = manager.list(auth.user_id, &tenant_id, &filter).await?;

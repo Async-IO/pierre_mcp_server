@@ -96,11 +96,25 @@ pub fn handle_list_coaches(
                 .or_else(|| v.as_f64().map(|f| f as u32))
         });
 
+        let include_system = request
+            .parameters
+            .get("include_system")
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
+
+        let include_hidden = request
+            .parameters
+            .get("include_hidden")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+
         let filter = ListCoachesFilter {
             category,
             favorites_only,
             limit,
             offset,
+            include_system,
+            include_hidden,
         };
 
         let manager = get_coaches_manager(executor)?;
@@ -116,18 +130,20 @@ pub fn handle_list_coaches(
 
         let coach_summaries: Vec<Value> = coaches
             .iter()
-            .map(|c| {
+            .map(|item| {
                 json!({
-                    "id": c.id.to_string(),
-                    "title": c.title,
-                    "description": c.description,
-                    "category": c.category.as_str(),
-                    "tags": c.tags,
-                    "token_count": c.token_count,
-                    "is_favorite": c.is_favorite,
-                    "use_count": c.use_count,
-                    "last_used_at": c.last_used_at.map(|dt| dt.to_rfc3339()),
-                    "updated_at": c.updated_at.to_rfc3339(),
+                    "id": item.coach.id.to_string(),
+                    "title": item.coach.title,
+                    "description": item.coach.description,
+                    "category": item.coach.category.as_str(),
+                    "tags": item.coach.tags,
+                    "token_count": item.coach.token_count,
+                    "is_favorite": item.coach.is_favorite,
+                    "is_system": item.coach.is_system,
+                    "is_assigned": item.is_assigned,
+                    "use_count": item.coach.use_count,
+                    "last_used_at": item.coach.last_used_at.map(|dt| dt.to_rfc3339()),
+                    "updated_at": item.coach.updated_at.to_rfc3339(),
                 })
             })
             .collect();

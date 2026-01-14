@@ -2799,10 +2799,26 @@ fn create_list_coaches_tool() -> ToolSchema {
         },
     );
 
+    properties.insert(
+        "include_system".to_owned(),
+        PropertySchema {
+            property_type: "boolean".into(),
+            description: Some("Include system coaches created by admins (default: true)".into()),
+        },
+    );
+
+    properties.insert(
+        "include_hidden".to_owned(),
+        PropertySchema {
+            property_type: "boolean".into(),
+            description: Some("Include coaches the user has hidden (default: false)".into()),
+        },
+    );
+
     ToolSchema {
         name: LIST_COACHES.to_owned(),
         description:
-            "List user's custom AI coaches with optional filtering by category or favorites.".into(),
+            "List AI coaches including personal, system (admin-created), and assigned coaches. Returns is_system and is_assigned flags for each coach.".into(),
         input_schema: JsonSchema {
             schema_type: "object".into(),
             properties: Some(properties),

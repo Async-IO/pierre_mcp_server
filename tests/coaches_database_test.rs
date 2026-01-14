@@ -87,6 +87,40 @@ async fn create_test_db() -> SqlitePool {
     .await
     .unwrap();
 
+    // Create coach_assignments table (for system coaches)
+    sqlx::query(
+        r"
+        CREATE TABLE IF NOT EXISTS coach_assignments (
+            id TEXT PRIMARY KEY,
+            coach_id TEXT NOT NULL REFERENCES coaches(id) ON DELETE CASCADE,
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            assigned_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE(coach_id, user_id)
+        )
+        ",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    // Create user_coach_preferences table (for hiding coaches)
+    sqlx::query(
+        r"
+        CREATE TABLE IF NOT EXISTS user_coach_preferences (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            coach_id TEXT NOT NULL REFERENCES coaches(id) ON DELETE CASCADE,
+            is_hidden INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            UNIQUE(user_id, coach_id)
+        )
+        ",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
     pool
 }
 
@@ -322,8 +356,8 @@ async fn test_list_coaches_by_category() {
         .unwrap();
 
     assert_eq!(coaches.len(), 2);
-    for coach in &coaches {
-        assert_eq!(coach.category, CoachCategory::Training);
+    for item in &coaches {
+        assert_eq!(item.coach.category, CoachCategory::Training);
     }
 }
 
@@ -366,7 +400,7 @@ async fn test_list_coaches_favorites_only() {
         .unwrap();
 
     assert_eq!(coaches.len(), 1);
-    assert!(coaches[0].is_favorite);
+    assert!(coaches[0].coach.is_favorite);
 }
 
 #[tokio::test]
@@ -464,7 +498,7 @@ async fn test_list_coaches_user_isolation() {
         .await
         .unwrap();
     assert_eq!(user1_coaches.len(), 1);
-    assert_eq!(user1_coaches[0].title, "User 1 Coach");
+    assert_eq!(user1_coaches[0].coach.title, "User 1 Coach");
 
     // User 2 should only see their coach
     let user2_coaches = manager
@@ -472,7 +506,7 @@ async fn test_list_coaches_user_isolation() {
         .await
         .unwrap();
     assert_eq!(user2_coaches.len(), 1);
-    assert_eq!(user2_coaches[0].title, "User 2 Coach");
+    assert_eq!(user2_coaches[0].coach.title, "User 2 Coach");
 }
 
 // ============================================================================

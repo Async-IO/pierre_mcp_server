@@ -132,6 +132,16 @@ pub struct Coach {
     pub visibility: CoachVisibility,
 }
 
+/// Coach with computed context-dependent fields for list responses
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CoachListItem {
+    /// The coach data
+    #[serde(flatten)]
+    pub coach: Coach,
+    /// Whether this coach is assigned to the current user (computed from query)
+    pub is_assigned: bool,
+}
+
 /// Request to create a new coach
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateCoachRequest {
@@ -175,6 +185,22 @@ pub struct ListCoachesFilter {
     pub limit: Option<u32>,
     /// Offset for pagination
     pub offset: Option<u32>,
+    /// Include system coaches (default: true)
+    pub include_system: bool,
+    /// Include hidden coaches (default: false)
+    pub include_hidden: bool,
+}
+
+impl ListCoachesFilter {
+    /// Create a filter with sensible defaults (include system coaches, exclude hidden)
+    #[must_use]
+    pub fn with_defaults() -> Self {
+        Self {
+            include_system: true,
+            include_hidden: false,
+            ..Default::default()
+        }
+    }
 }
 
 /// Coach database operations manager
@@ -297,6 +323,13 @@ impl CoachesManager {
 
     /// List coaches for a user with optional filtering
     ///
+    /// Returns coaches from three sources:
+    /// 1. Personal coaches: created by the user (`is_system = 0`)
+    /// 2. System coaches: visible to tenant (`is_system = 1 AND visibility = 'tenant'`)
+    /// 3. Assigned coaches: explicitly assigned to the user via `coach_assignments`
+    ///
+    /// Hidden coaches are excluded unless `include_hidden` is true.
+    ///
     /// # Errors
     ///
     /// Returns an error if database operation fails
@@ -305,94 +338,71 @@ impl CoachesManager {
         user_id: Uuid,
         tenant_id: &str,
         filter: &ListCoachesFilter,
-    ) -> AppResult<Vec<Coach>> {
+    ) -> AppResult<Vec<CoachListItem>> {
         let limit_val = i32::try_from(filter.limit.unwrap_or(50)).unwrap_or(50);
         let offset_val = i32::try_from(filter.offset.unwrap_or(0)).unwrap_or(0);
+        let user_id_str = user_id.to_string();
 
-        // Build query based on filters
-        let rows = match (filter.category, filter.favorites_only) {
-            (Some(category), true) => {
-                sqlx::query(
-                    r"
-                    SELECT id, user_id, tenant_id, title, description, system_prompt,
-                           category, tags, token_count, is_favorite, is_active, use_count,
-                           last_used_at, created_at, updated_at
-                    FROM coaches
-                    WHERE user_id = $1 AND tenant_id = $2 AND category = $3 AND is_favorite = 1
-                    ORDER BY updated_at DESC
-                    LIMIT $4 OFFSET $5
-                    ",
-                )
-                .bind(user_id.to_string())
-                .bind(tenant_id)
-                .bind(category.as_str())
-                .bind(limit_val)
-                .bind(offset_val)
-                .fetch_all(&self.pool)
-                .await
-            }
-            (Some(category), false) => {
-                sqlx::query(
-                    r"
-                    SELECT id, user_id, tenant_id, title, description, system_prompt,
-                           category, tags, token_count, is_favorite, is_active, use_count,
-                           last_used_at, created_at, updated_at
-                    FROM coaches
-                    WHERE user_id = $1 AND tenant_id = $2 AND category = $3
-                    ORDER BY updated_at DESC
-                    LIMIT $4 OFFSET $5
-                    ",
-                )
-                .bind(user_id.to_string())
-                .bind(tenant_id)
-                .bind(category.as_str())
-                .bind(limit_val)
-                .bind(offset_val)
-                .fetch_all(&self.pool)
-                .await
-            }
-            (None, true) => {
-                sqlx::query(
-                    r"
-                    SELECT id, user_id, tenant_id, title, description, system_prompt,
-                           category, tags, token_count, is_favorite, is_active, use_count,
-                           last_used_at, created_at, updated_at
-                    FROM coaches
-                    WHERE user_id = $1 AND tenant_id = $2 AND is_favorite = 1
-                    ORDER BY updated_at DESC
-                    LIMIT $3 OFFSET $4
-                    ",
-                )
-                .bind(user_id.to_string())
-                .bind(tenant_id)
-                .bind(limit_val)
-                .bind(offset_val)
-                .fetch_all(&self.pool)
-                .await
-            }
-            (None, false) => {
-                sqlx::query(
-                    r"
-                    SELECT id, user_id, tenant_id, title, description, system_prompt,
-                           category, tags, token_count, is_favorite, is_active, use_count,
-                           last_used_at, created_at, updated_at
-                    FROM coaches
-                    WHERE user_id = $1 AND tenant_id = $2
-                    ORDER BY updated_at DESC
-                    LIMIT $3 OFFSET $4
-                    ",
-                )
-                .bind(user_id.to_string())
-                .bind(tenant_id)
-                .bind(limit_val)
-                .bind(offset_val)
-                .fetch_all(&self.pool)
-                .await
-            }
-        }
-        .map_err(|e| AppError::database(format!("Failed to list coaches: {e}")))?;
+        // Build dynamic query parts based on filters
+        let category_filter = filter
+            .category
+            .as_ref()
+            .map(|c| format!("AND c.category = '{}'", c.as_str()))
+            .unwrap_or_default();
+        let favorites_filter = if filter.favorites_only {
+            "AND c.is_favorite = 1"
+        } else {
+            ""
+        };
+        let hidden_filter = if filter.include_hidden {
+            ""
+        } else {
+            "AND c.id NOT IN (SELECT coach_id FROM user_coach_preferences WHERE user_id = $1 AND is_hidden = 1)"
+        };
 
-        rows.iter().map(row_to_coach).collect()
+        // Build system coaches condition
+        let system_condition = if filter.include_system {
+            "OR (c.is_system = 1 AND c.visibility = 'tenant' AND c.tenant_id = $2)"
+        } else {
+            ""
+        };
+
+        // Build the unified query
+        // Uses a subquery to identify assigned coaches for the is_assigned flag
+        let query = format!(
+            r"
+            SELECT c.id, c.user_id, c.tenant_id, c.title, c.description, c.system_prompt,
+                   c.category, c.tags, c.token_count, c.is_favorite, c.is_active, c.use_count,
+                   c.last_used_at, c.created_at, c.updated_at, c.is_system, c.visibility,
+                   CASE WHEN ca.coach_id IS NOT NULL THEN 1 ELSE 0 END as is_assigned
+            FROM coaches c
+            LEFT JOIN coach_assignments ca ON c.id = ca.coach_id AND ca.user_id = $1
+            WHERE (
+                -- Personal coaches: owned by user
+                (c.user_id = $1 AND c.is_system = 0 AND c.tenant_id = $2)
+                -- System coaches visible to tenant
+                {system_condition}
+                -- Assigned coaches: explicitly assigned to user
+                OR c.id IN (SELECT coach_id FROM coach_assignments WHERE user_id = $1)
+            )
+            {category_filter}
+            {favorites_filter}
+            {hidden_filter}
+            ORDER BY c.updated_at DESC
+            LIMIT $3 OFFSET $4
+            "
+        );
+
+        let rows = sqlx::query(&query)
+            .bind(&user_id_str)
+            .bind(tenant_id)
+            .bind(limit_val)
+            .bind(offset_val)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to list coaches: {e}")))?;
+
+        rows.iter().map(row_to_coach_list_item).collect()
     }
 
     /// Update an existing coach
@@ -1062,7 +1072,7 @@ fn row_to_coach(row: &SqliteRow) -> AppResult<Coach> {
     let is_active: i64 = row.get("is_active");
     let use_count: i64 = row.get("use_count");
 
-    // New fields with defaults for backward compatibility
+    // Fields with defaults for backward compatibility
     let is_system: i64 = row.try_get("is_system").unwrap_or(0);
     let visibility_str: String = row
         .try_get("visibility")
@@ -1098,5 +1108,15 @@ fn row_to_coach(row: &SqliteRow) -> AppResult<Coach> {
             .with_timezone(&Utc),
         is_system: is_system == 1,
         visibility: CoachVisibility::parse(&visibility_str),
+    })
+}
+
+/// Convert a database row to a `CoachListItem` (with `is_assigned` column)
+fn row_to_coach_list_item(row: &SqliteRow) -> AppResult<CoachListItem> {
+    let coach = row_to_coach(row)?;
+    let is_assigned: i64 = row.try_get("is_assigned").unwrap_or(0);
+    Ok(CoachListItem {
+        coach,
+        is_assigned: is_assigned == 1,
     })
 }
