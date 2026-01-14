@@ -30,6 +30,8 @@ pub mod fitness_config_repository;
 pub mod insight_repository;
 /// Recipe storage repository implementation
 pub mod recipe_repository;
+/// Coaches (custom AI personas) repository implementation
+pub mod coaches_repository;
 /// OAuth notification repository implementation
 pub mod notification_repository;
 /// OAuth 2.0 server repository implementation
@@ -60,6 +62,7 @@ pub use oauth2_server_repository::OAuth2ServerRepositoryImpl;
 pub use oauth_token_repository::OAuthTokenRepositoryImpl;
 pub use profile_repository::ProfileRepositoryImpl;
 pub use recipe_repository::RecipeRepositoryImpl;
+pub use coaches_repository::CoachesRepositoryImpl;
 pub use security_repository::SecurityRepositoryImpl;
 pub use tenant_repository::TenantRepositoryImpl;
 pub use tool_selection_repository::ToolSelectionRepositoryImpl;
@@ -989,4 +992,77 @@ pub trait ToolSelectionRepository: Send + Sync {
 
     /// Count enabled tools for a tenant (for summary)
     async fn count_enabled_tools(&self, tenant_id: Uuid) -> Result<usize, DatabaseError>;
+}
+
+/// Coaches (custom AI personas) storage and management repository (tenant-scoped)
+#[async_trait]
+pub trait CoachesRepository: Send + Sync {
+    /// Create a new coach for a user
+    async fn create(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        request: &crate::database::coaches::CreateCoachRequest,
+    ) -> Result<crate::database::coaches::Coach, DatabaseError>;
+
+    /// Get coach by ID for a specific user
+    async fn get_by_id(
+        &self,
+        coach_id: &str,
+        user_id: Uuid,
+        tenant_id: &str,
+    ) -> Result<Option<crate::database::coaches::Coach>, DatabaseError>;
+
+    /// List coaches for a user with optional filtering
+    async fn list(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        filter: &crate::database::coaches::ListCoachesFilter,
+    ) -> Result<Vec<crate::database::coaches::Coach>, DatabaseError>;
+
+    /// Update a coach
+    async fn update(
+        &self,
+        coach_id: &str,
+        user_id: Uuid,
+        tenant_id: &str,
+        request: &crate::database::coaches::UpdateCoachRequest,
+    ) -> Result<Option<crate::database::coaches::Coach>, DatabaseError>;
+
+    /// Delete a coach
+    async fn delete(
+        &self,
+        coach_id: &str,
+        user_id: Uuid,
+        tenant_id: &str,
+    ) -> Result<bool, DatabaseError>;
+
+    /// Record coach usage (increment use_count and update last_used_at)
+    async fn record_usage(
+        &self,
+        coach_id: &str,
+        user_id: Uuid,
+        tenant_id: &str,
+    ) -> Result<bool, DatabaseError>;
+
+    /// Toggle favorite status for a coach
+    async fn toggle_favorite(
+        &self,
+        coach_id: &str,
+        user_id: Uuid,
+        tenant_id: &str,
+    ) -> Result<Option<bool>, DatabaseError>;
+
+    /// Search coaches by title, description, or tags
+    async fn search(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        query: &str,
+        limit: Option<u32>,
+    ) -> Result<Vec<crate::database::coaches::Coach>, DatabaseError>;
+
+    /// Count coaches for a user
+    async fn count(&self, user_id: Uuid, tenant_id: &str) -> Result<u32, DatabaseError>;
 }

@@ -14,6 +14,8 @@ pub mod analytics;
 pub mod api_keys;
 /// Chat conversation and message storage
 pub mod chat;
+/// Coaches (custom AI personas) storage and management
+pub mod coaches;
 /// Database error types
 pub mod errors;
 /// User fitness configuration storage and retrieval
@@ -42,6 +44,9 @@ pub mod test_utils;
 
 pub use a2a::{A2AUsage, A2AUsageStats};
 pub use chat::{ChatManager, ConversationRecord, ConversationSummary, MessageRecord};
+pub use coaches::{
+    Coach, CoachCategory, CoachesManager, CreateCoachRequest, ListCoachesFilter, UpdateCoachRequest,
+};
 pub use errors::{DatabaseError, DatabaseResult};
 pub use oauth_notifications::OAuthNotification;
 pub use prompts::{
