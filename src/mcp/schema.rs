@@ -14,12 +14,15 @@ use crate::constants::{
     get_server_config,
     json_fields::{ACTIVITY_ID, AFTER, BEFORE, FORMAT, LIMIT, MODE, OFFSET, PROVIDER, SPORT_TYPE},
     tools::{
-        ACTIVATE_COACH, ANALYZE_ACTIVITY, CONNECT_PROVIDER, CREATE_COACH, DEACTIVATE_COACH,
-        DELETE_COACH, DELETE_FITNESS_CONFIG, DELETE_RECIPE, DISCONNECT_PROVIDER, GET_ACTIVE_COACH,
-        GET_ACTIVITIES, GET_ACTIVITY_INTELLIGENCE, GET_ATHLETE, GET_COACH, GET_CONNECTION_STATUS,
-        GET_FITNESS_CONFIG, GET_RECIPE, GET_RECIPE_CONSTRAINTS, GET_STATS, LIST_COACHES,
-        LIST_FITNESS_CONFIGS, LIST_RECIPES, SAVE_RECIPE, SEARCH_COACHES, SEARCH_RECIPES,
-        SET_FITNESS_CONFIG, TOGGLE_COACH_FAVORITE, UPDATE_COACH, VALIDATE_RECIPE,
+        ACTIVATE_COACH, ADMIN_ASSIGN_COACH, ADMIN_CREATE_SYSTEM_COACH, ADMIN_DELETE_SYSTEM_COACH,
+        ADMIN_GET_SYSTEM_COACH, ADMIN_LIST_COACH_ASSIGNMENTS, ADMIN_LIST_SYSTEM_COACHES,
+        ADMIN_UNASSIGN_COACH, ADMIN_UPDATE_SYSTEM_COACH, ANALYZE_ACTIVITY, CONNECT_PROVIDER,
+        CREATE_COACH, DEACTIVATE_COACH, DELETE_COACH, DELETE_FITNESS_CONFIG, DELETE_RECIPE,
+        DISCONNECT_PROVIDER, GET_ACTIVE_COACH, GET_ACTIVITIES, GET_ACTIVITY_INTELLIGENCE,
+        GET_ATHLETE, GET_COACH, GET_CONNECTION_STATUS, GET_FITNESS_CONFIG, GET_RECIPE,
+        GET_RECIPE_CONSTRAINTS, GET_STATS, LIST_COACHES, LIST_FITNESS_CONFIGS, LIST_RECIPES,
+        SAVE_RECIPE, SEARCH_COACHES, SEARCH_RECIPES, SET_FITNESS_CONFIG, TOGGLE_COACH_FAVORITE,
+        UPDATE_COACH, VALIDATE_RECIPE,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -782,6 +785,15 @@ fn create_fitness_tools() -> Vec<ToolSchema> {
         create_activate_coach_tool(),
         create_deactivate_coach_tool(),
         create_get_active_coach_tool(),
+        // Admin Coach Management Tools (system coaches - admin only)
+        create_admin_list_system_coaches_tool(),
+        create_admin_create_system_coach_tool(),
+        create_admin_get_system_coach_tool(),
+        create_admin_update_system_coach_tool(),
+        create_admin_delete_system_coach_tool(),
+        create_admin_assign_coach_tool(),
+        create_admin_unassign_coach_tool(),
+        create_admin_list_coach_assignments_tool(),
     ]
 }
 
@@ -3068,6 +3080,350 @@ fn create_get_active_coach_tool() -> ToolSchema {
         input_schema: JsonSchema {
             schema_type: "object".into(),
             properties: None,
+            required: None,
+        },
+    }
+}
+
+// ============================================================================
+// Admin Coach Management Tools (System Coaches - Admin Only)
+// ============================================================================
+
+/// Create the `admin_list_system_coaches` tool schema
+fn create_admin_list_system_coaches_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "visibility".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("Filter by visibility level: 'tenant' or 'global' (optional)".into()),
+        },
+    );
+
+    properties.insert(
+        LIMIT.to_owned(),
+        PropertySchema {
+            property_type: "number".into(),
+            description: Some("Maximum number of coaches to return (default: 50)".into()),
+        },
+    );
+
+    properties.insert(
+        OFFSET.to_owned(),
+        PropertySchema {
+            property_type: "number".into(),
+            description: Some("Number of coaches to skip for pagination (default: 0)".into()),
+        },
+    );
+
+    ToolSchema {
+        name: ADMIN_LIST_SYSTEM_COACHES.to_owned(),
+        description:
+            "List system coaches for the tenant. Admin only. Returns coaches with is_system=true."
+                .into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: None,
+        },
+    }
+}
+
+/// Create the `admin_create_system_coach` tool schema
+fn create_admin_create_system_coach_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "title".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("Name of the system coach (e.g., 'Elite Marathon Coach')".into()),
+        },
+    );
+
+    properties.insert(
+        "system_prompt".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some(
+                "The system prompt that defines the coach's persona and expertise".into(),
+            ),
+        },
+    );
+
+    properties.insert(
+        "description".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some(
+                "Brief description of what this coach specializes in (optional)".into(),
+            ),
+        },
+    );
+
+    properties.insert(
+        "category".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("Category: 'training', 'nutrition', 'recovery', 'recipes', 'custom' (default: 'custom')".into()),
+        },
+    );
+
+    properties.insert(
+        "tags".to_owned(),
+        PropertySchema {
+            property_type: "array".into(),
+            description: Some(
+                "Tags for searchability (e.g., ['running', 'marathon', 'elite'])".into(),
+            ),
+        },
+    );
+
+    properties.insert(
+        "visibility".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some(
+                "Visibility level: 'tenant' (visible to tenant users) or 'global' (all tenants). Default: 'tenant'".into(),
+            ),
+        },
+    );
+
+    ToolSchema {
+        name: ADMIN_CREATE_SYSTEM_COACH.to_owned(),
+        description: "Create a new system coach that can be assigned to users. Admin only.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec!["title".to_owned(), "system_prompt".to_owned()]),
+        },
+    }
+}
+
+/// Create the `admin_get_system_coach` tool schema
+fn create_admin_get_system_coach_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "coach_id".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("ID of the system coach to retrieve".into()),
+        },
+    );
+
+    ToolSchema {
+        name: ADMIN_GET_SYSTEM_COACH.to_owned(),
+        description: "Get details of a specific system coach by ID. Admin only.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec!["coach_id".to_owned()]),
+        },
+    }
+}
+
+/// Create the `admin_update_system_coach` tool schema
+fn create_admin_update_system_coach_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "coach_id".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("ID of the system coach to update".into()),
+        },
+    );
+
+    properties.insert(
+        "title".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("New name for the coach (optional)".into()),
+        },
+    );
+
+    properties.insert(
+        "system_prompt".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("New system prompt for the coach (optional)".into()),
+        },
+    );
+
+    properties.insert(
+        "description".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("New description for the coach (optional)".into()),
+        },
+    );
+
+    properties.insert(
+        "category".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("New category for the coach (optional)".into()),
+        },
+    );
+
+    properties.insert(
+        "tags".to_owned(),
+        PropertySchema {
+            property_type: "array".into(),
+            description: Some("New tags for the coach (optional)".into()),
+        },
+    );
+
+    properties.insert(
+        "visibility".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("New visibility level: 'tenant' or 'global' (optional)".into()),
+        },
+    );
+
+    ToolSchema {
+        name: ADMIN_UPDATE_SYSTEM_COACH.to_owned(),
+        description: "Update an existing system coach. Admin only.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec!["coach_id".to_owned()]),
+        },
+    }
+}
+
+/// Create the `admin_delete_system_coach` tool schema
+fn create_admin_delete_system_coach_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "coach_id".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("ID of the system coach to delete".into()),
+        },
+    );
+
+    ToolSchema {
+        name: ADMIN_DELETE_SYSTEM_COACH.to_owned(),
+        description: "Delete a system coach. This will also remove all assignments. Admin only."
+            .into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec!["coach_id".to_owned()]),
+        },
+    }
+}
+
+/// Create the `admin_assign_coach` tool schema
+fn create_admin_assign_coach_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "coach_id".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("ID of the system coach to assign".into()),
+        },
+    );
+
+    properties.insert(
+        "user_id".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("ID of the user to assign the coach to".into()),
+        },
+    );
+
+    ToolSchema {
+        name: ADMIN_ASSIGN_COACH.to_owned(),
+        description: "Assign a system coach to a specific user. Admin only.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec!["coach_id".to_owned(), "user_id".to_owned()]),
+        },
+    }
+}
+
+/// Create the `admin_unassign_coach` tool schema
+fn create_admin_unassign_coach_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "coach_id".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("ID of the system coach to unassign".into()),
+        },
+    );
+
+    properties.insert(
+        "user_id".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("ID of the user to unassign the coach from".into()),
+        },
+    );
+
+    ToolSchema {
+        name: ADMIN_UNASSIGN_COACH.to_owned(),
+        description: "Remove a system coach assignment from a user. Admin only.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec!["coach_id".to_owned(), "user_id".to_owned()]),
+        },
+    }
+}
+
+/// Create the `admin_list_coach_assignments` tool schema
+fn create_admin_list_coach_assignments_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "coach_id".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("Filter by coach ID (optional)".into()),
+        },
+    );
+
+    properties.insert(
+        "user_id".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("Filter by user ID (optional)".into()),
+        },
+    );
+
+    properties.insert(
+        LIMIT.to_owned(),
+        PropertySchema {
+            property_type: "number".into(),
+            description: Some("Maximum number of assignments to return (default: 100)".into()),
+        },
+    );
+
+    properties.insert(
+        OFFSET.to_owned(),
+        PropertySchema {
+            property_type: "number".into(),
+            description: Some("Number of assignments to skip for pagination (default: 0)".into()),
+        },
+    );
+
+    ToolSchema {
+        name: ADMIN_LIST_COACH_ASSIGNMENTS.to_owned(),
+        description: "List coach assignments in the tenant with optional filtering. Admin only."
+            .into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
             required: None,
         },
     }

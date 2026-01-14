@@ -96,3 +96,21 @@ pub const ACTIVATE_COACH: &str = "activate_coach";
 pub const DEACTIVATE_COACH: &str = "deactivate_coach";
 /// Tool identifier for getting the currently active coach
 pub const GET_ACTIVE_COACH: &str = "get_active_coach";
+
+/// Admin coach management tools (system coaches)
+/// Tool identifier for listing system coaches (admin only)
+pub const ADMIN_LIST_SYSTEM_COACHES: &str = "admin_list_system_coaches";
+/// Tool identifier for creating a system coach (admin only)
+pub const ADMIN_CREATE_SYSTEM_COACH: &str = "admin_create_system_coach";
+/// Tool identifier for getting a system coach (admin only)
+pub const ADMIN_GET_SYSTEM_COACH: &str = "admin_get_system_coach";
+/// Tool identifier for updating a system coach (admin only)
+pub const ADMIN_UPDATE_SYSTEM_COACH: &str = "admin_update_system_coach";
+/// Tool identifier for deleting a system coach (admin only)
+pub const ADMIN_DELETE_SYSTEM_COACH: &str = "admin_delete_system_coach";
+/// Tool identifier for assigning a coach to users (admin only)
+pub const ADMIN_ASSIGN_COACH: &str = "admin_assign_coach";
+/// Tool identifier for unassigning a coach from users (admin only)
+pub const ADMIN_UNASSIGN_COACH: &str = "admin_unassign_coach";
+/// Tool identifier for listing coach assignments (admin only)
+pub const ADMIN_LIST_COACH_ASSIGNMENTS: &str = "admin_list_coach_assignments";

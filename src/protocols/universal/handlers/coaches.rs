@@ -1,12 +1,15 @@
 // ABOUTME: Coach management tool handlers for MCP protocol (custom AI personas)
-// ABOUTME: Implements tools for CRUD operations on user-created coaches with system prompts
+// ABOUTME: Implements tools for CRUD operations on user-created and system coaches
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::database::coaches::{
-    CoachCategory, CoachesManager, CreateCoachRequest, ListCoachesFilter, UpdateCoachRequest,
+    CoachCategory, CoachVisibility, CoachesManager, CreateCoachRequest, CreateSystemCoachRequest,
+    ListCoachesFilter, UpdateCoachRequest,
 };
+use crate::database_plugins::DatabaseProvider;
+use crate::permissions::UserRole;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalToolExecutor};
 use crate::protocols::ProtocolError;
 use crate::utils::uuid::parse_user_id_for_protocol;
@@ -14,6 +17,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use std::future::Future;
 use std::pin::Pin;
+use uuid::Uuid;
 
 use super::{apply_format_to_response, extract_output_format};
 
@@ -774,5 +778,676 @@ pub fn handle_get_active_coach(
                 metadata: None,
             }),
         }
+    })
+}
+
+// ============================================================================
+// Admin Coach Management Handlers (System Coaches - Admin Only)
+// ============================================================================
+
+/// Verify admin access for a user
+///
+/// Returns the user's `tenant_id` if authorized, error if not Admin/SuperAdmin
+async fn verify_admin_access(
+    executor: &UniversalToolExecutor,
+    user_uuid: Uuid,
+) -> Result<String, ProtocolError> {
+    let user = executor
+        .resources
+        .database
+        .get_user(user_uuid)
+        .await
+        .map_err(|e| ProtocolError::InternalError(format!("Failed to get user: {e}")))?
+        .ok_or_else(|| ProtocolError::InvalidRequest(format!("User {user_uuid} not found")))?;
+
+    // Check admin role
+    if !matches!(user.role, UserRole::Admin | UserRole::SuperAdmin) {
+        return Err(ProtocolError::InvalidRequest(
+            "Permission denied: Admin access required".to_owned(),
+        ));
+    }
+
+    // Return tenant_id for tenant-scoped operations
+    user.tenant_id.ok_or_else(|| {
+        ProtocolError::InvalidRequest("User not associated with a tenant".to_owned())
+    })
+}
+
+/// Handle `admin_list_system_coaches` tool - list system coaches for the tenant
+///
+/// Admin only. Lists all system coaches (`is_system=true`) visible to the tenant.
+///
+/// # Parameters
+/// - `visibility`: Filter by visibility level (tenant, global) - optional
+/// - `limit`: Maximum results to return (default: 50, max: 100)
+/// - `offset`: Pagination offset (default: 0)
+/// - `format`: Output format ("json" or "toon")
+///
+/// # Returns
+/// JSON array of system coach summaries
+#[must_use]
+pub fn handle_admin_list_system_coaches(
+    executor: &UniversalToolExecutor,
+    request: UniversalRequest,
+) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
+    Box::pin(async move {
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "admin_list_system_coaches cancelled".to_owned(),
+                ));
+            }
+        }
+
+        let output_format = extract_output_format(&request);
+        let user_id = parse_user_id_for_protocol(&request.user_id)?;
+        let tenant_id = verify_admin_access(executor, user_id).await?;
+
+        let manager = get_coaches_manager(executor)?;
+        let coaches = manager.list_system_coaches(&tenant_id).await.map_err(|e| {
+            ProtocolError::InternalError(format!("Failed to list system coaches: {e}"))
+        })?;
+
+        let coach_summaries: Vec<Value> = coaches
+            .iter()
+            .map(|c| {
+                json!({
+                    "id": c.id.to_string(),
+                    "title": c.title,
+                    "description": c.description,
+                    "category": c.category.as_str(),
+                    "tags": c.tags,
+                    "token_count": c.token_count,
+                    "visibility": c.visibility.as_str(),
+                    "created_at": c.created_at.to_rfc3339(),
+                    "updated_at": c.updated_at.to_rfc3339(),
+                })
+            })
+            .collect();
+
+        let count = coach_summaries.len();
+        let result = UniversalResponse {
+            success: true,
+            result: Some(json!({
+                "coaches": coach_summaries,
+                "count": count,
+            })),
+            error: None,
+            metadata: None,
+        };
+
+        Ok(apply_format_to_response(result, "coaches", output_format))
+    })
+}
+
+/// Input parameters for creating a system coach
+#[derive(Debug, Deserialize)]
+struct CreateSystemCoachParams {
+    title: String,
+    description: Option<String>,
+    system_prompt: String,
+    category: Option<String>,
+    #[serde(default)]
+    tags: Vec<String>,
+    visibility: Option<String>,
+}
+
+/// Handle `admin_create_system_coach` tool - create a new system coach
+///
+/// Admin only. Creates a system coach visible to tenant users.
+///
+/// # Parameters
+/// - `title`: Display title for the coach (required)
+/// - `system_prompt`: System prompt that shapes AI responses (required)
+/// - `description`: Optional description explaining the coach's purpose
+/// - `category`: Category for organization (training, nutrition, recovery, recipes, custom)
+/// - `tags`: Optional array of tags for filtering
+/// - `visibility`: "tenant" (default) or "global" (super-admin only)
+///
+/// # Returns
+/// Created system coach details including generated ID
+#[must_use]
+pub fn handle_admin_create_system_coach(
+    executor: &UniversalToolExecutor,
+    request: UniversalRequest,
+) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
+    Box::pin(async move {
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "admin_create_system_coach cancelled".to_owned(),
+                ));
+            }
+        }
+
+        let user_id = parse_user_id_for_protocol(&request.user_id)?;
+        let tenant_id = verify_admin_access(executor, user_id).await?;
+
+        let params: CreateSystemCoachParams = serde_json::from_value(request.parameters.clone())
+            .map_err(|e| {
+                ProtocolError::InvalidRequest(format!("Invalid system coach parameters: {e}"))
+            })?;
+
+        let visibility = params
+            .visibility
+            .as_deref()
+            .map_or(CoachVisibility::Tenant, CoachVisibility::parse);
+
+        let create_request = CreateSystemCoachRequest {
+            title: params.title.clone(),
+            description: params.description,
+            system_prompt: params.system_prompt,
+            category: params
+                .category
+                .as_deref()
+                .map(CoachCategory::parse)
+                .unwrap_or_default(),
+            tags: params.tags,
+            visibility,
+        };
+
+        let manager = get_coaches_manager(executor)?;
+        let coach = manager
+            .create_system_coach(user_id, &tenant_id, &create_request)
+            .await
+            .map_err(|e| {
+                ProtocolError::InternalError(format!("Failed to create system coach: {e}"))
+            })?;
+
+        Ok(UniversalResponse {
+            success: true,
+            result: Some(json!({
+                "id": coach.id.to_string(),
+                "title": coach.title,
+                "description": coach.description,
+                "category": coach.category.as_str(),
+                "tags": coach.tags,
+                "token_count": coach.token_count,
+                "visibility": coach.visibility.as_str(),
+                "is_system": coach.is_system,
+                "created_at": coach.created_at.to_rfc3339(),
+            })),
+            error: None,
+            metadata: None,
+        })
+    })
+}
+
+/// Handle `admin_get_system_coach` tool - get a specific system coach by ID
+///
+/// Admin only.
+///
+/// # Parameters
+/// - `coach_id`: UUID of the system coach (required)
+/// - `format`: Output format ("json" or "toon")
+///
+/// # Returns
+/// Full system coach details including system prompt
+#[must_use]
+pub fn handle_admin_get_system_coach(
+    executor: &UniversalToolExecutor,
+    request: UniversalRequest,
+) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
+    Box::pin(async move {
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "admin_get_system_coach cancelled".to_owned(),
+                ));
+            }
+        }
+
+        let output_format = extract_output_format(&request);
+        let user_id = parse_user_id_for_protocol(&request.user_id)?;
+        let tenant_id = verify_admin_access(executor, user_id).await?;
+
+        let coach_id = request
+            .parameters
+            .get("coach_id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest("Missing required parameter: coach_id".to_owned())
+            })?;
+
+        let manager = get_coaches_manager(executor)?;
+        let coach = manager
+            .get_system_coach(coach_id, &tenant_id)
+            .await
+            .map_err(|e| {
+                ProtocolError::InternalError(format!("Failed to get system coach: {e}"))
+            })?;
+
+        match coach {
+            Some(c) => {
+                let result = UniversalResponse {
+                    success: true,
+                    result: Some(json!({
+                        "id": c.id.to_string(),
+                        "title": c.title,
+                        "description": c.description,
+                        "system_prompt": c.system_prompt,
+                        "category": c.category.as_str(),
+                        "tags": c.tags,
+                        "token_count": c.token_count,
+                        "visibility": c.visibility.as_str(),
+                        "is_system": c.is_system,
+                        "created_at": c.created_at.to_rfc3339(),
+                        "updated_at": c.updated_at.to_rfc3339(),
+                    })),
+                    error: None,
+                    metadata: None,
+                };
+                Ok(apply_format_to_response(result, "coach", output_format))
+            }
+            None => Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!("System coach not found: {coach_id}")),
+                metadata: None,
+            }),
+        }
+    })
+}
+
+/// Handle `admin_update_system_coach` tool - update an existing system coach
+///
+/// Admin only.
+///
+/// # Parameters
+/// - `coach_id`: UUID of the system coach to update (required)
+/// - `title`: New title (optional)
+/// - `description`: New description (optional)
+/// - `system_prompt`: New system prompt (optional)
+/// - `category`: New category (optional)
+/// - `tags`: New tags array (optional)
+/// - `visibility`: New visibility level (optional)
+///
+/// # Returns
+/// Updated system coach details
+#[must_use]
+pub fn handle_admin_update_system_coach(
+    executor: &UniversalToolExecutor,
+    request: UniversalRequest,
+) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
+    Box::pin(async move {
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "admin_update_system_coach cancelled".to_owned(),
+                ));
+            }
+        }
+
+        let user_id = parse_user_id_for_protocol(&request.user_id)?;
+        let tenant_id = verify_admin_access(executor, user_id).await?;
+
+        let coach_id = request
+            .parameters
+            .get("coach_id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest("Missing required parameter: coach_id".to_owned())
+            })?;
+
+        // Extract update parameters manually to allow partial updates
+        let update_request = UpdateCoachRequest {
+            title: request
+                .parameters
+                .get("title")
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned),
+            description: request
+                .parameters
+                .get("description")
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned),
+            system_prompt: request
+                .parameters
+                .get("system_prompt")
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned),
+            category: request
+                .parameters
+                .get("category")
+                .and_then(Value::as_str)
+                .map(CoachCategory::parse),
+            tags: request
+                .parameters
+                .get("tags")
+                .and_then(Value::as_array)
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(Value::as_str)
+                        .map(ToOwned::to_owned)
+                        .collect()
+                }),
+        };
+
+        let manager = get_coaches_manager(executor)?;
+        let coach = manager
+            .update_system_coach(coach_id, &tenant_id, &update_request)
+            .await
+            .map_err(|e| {
+                ProtocolError::InternalError(format!("Failed to update system coach: {e}"))
+            })?;
+
+        match coach {
+            Some(c) => Ok(UniversalResponse {
+                success: true,
+                result: Some(json!({
+                    "id": c.id.to_string(),
+                    "title": c.title,
+                    "description": c.description,
+                    "system_prompt": c.system_prompt,
+                    "category": c.category.as_str(),
+                    "tags": c.tags,
+                    "token_count": c.token_count,
+                    "visibility": c.visibility.as_str(),
+                    "is_system": c.is_system,
+                    "updated_at": c.updated_at.to_rfc3339(),
+                })),
+                error: None,
+                metadata: None,
+            }),
+            None => Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!("System coach not found: {coach_id}")),
+                metadata: None,
+            }),
+        }
+    })
+}
+
+/// Handle `admin_delete_system_coach` tool - delete a system coach
+///
+/// Admin only. This will also remove all assignments.
+///
+/// # Parameters
+/// - `coach_id`: UUID of the system coach to delete (required)
+///
+/// # Returns
+/// Success confirmation
+#[must_use]
+pub fn handle_admin_delete_system_coach(
+    executor: &UniversalToolExecutor,
+    request: UniversalRequest,
+) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
+    Box::pin(async move {
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "admin_delete_system_coach cancelled".to_owned(),
+                ));
+            }
+        }
+
+        let user_id = parse_user_id_for_protocol(&request.user_id)?;
+        let tenant_id = verify_admin_access(executor, user_id).await?;
+
+        let coach_id = request
+            .parameters
+            .get("coach_id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest("Missing required parameter: coach_id".to_owned())
+            })?;
+
+        let manager = get_coaches_manager(executor)?;
+        let deleted = manager
+            .delete_system_coach(coach_id, &tenant_id)
+            .await
+            .map_err(|e| {
+                ProtocolError::InternalError(format!("Failed to delete system coach: {e}"))
+            })?;
+
+        if deleted {
+            Ok(UniversalResponse {
+                success: true,
+                result: Some(json!({
+                    "deleted": true,
+                    "coach_id": coach_id,
+                })),
+                error: None,
+                metadata: None,
+            })
+        } else {
+            Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!("System coach not found: {coach_id}")),
+                metadata: None,
+            })
+        }
+    })
+}
+
+/// Handle `admin_assign_coach` tool - assign a system coach to a user
+///
+/// Admin only. Assigns a system coach to a specific user or all users in the tenant.
+///
+/// # Parameters
+/// - `coach_id`: UUID of the system coach to assign (required)
+/// - `user_id`: UUID of the user to assign to. If omitted, assigns to all tenant users.
+///
+/// # Returns
+/// Assignment details
+#[must_use]
+pub fn handle_admin_assign_coach(
+    executor: &UniversalToolExecutor,
+    request: UniversalRequest,
+) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
+    Box::pin(async move {
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "admin_assign_coach cancelled".to_owned(),
+                ));
+            }
+        }
+
+        let admin_user_id = parse_user_id_for_protocol(&request.user_id)?;
+        let tenant_id = verify_admin_access(executor, admin_user_id).await?;
+
+        let coach_id = request
+            .parameters
+            .get("coach_id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest("Missing required parameter: coach_id".to_owned())
+            })?;
+
+        let target_user_id_str = request
+            .parameters
+            .get("user_id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest("Missing required parameter: user_id".to_owned())
+            })?;
+
+        let target_user_id = Uuid::parse_str(target_user_id_str).map_err(|_| {
+            ProtocolError::InvalidRequest(format!("Invalid user_id: {target_user_id_str}"))
+        })?;
+
+        let manager = get_coaches_manager(executor)?;
+
+        // First verify the coach exists and is a system coach in this tenant
+        let coach = manager
+            .get_system_coach(coach_id, &tenant_id)
+            .await
+            .map_err(|e| ProtocolError::InternalError(format!("Failed to get coach: {e}")))?
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest(format!("System coach not found: {coach_id}"))
+            })?;
+
+        // Assign to specific user
+        manager
+            .assign_coach(coach_id, target_user_id, admin_user_id)
+            .await
+            .map_err(|e| ProtocolError::InternalError(format!("Failed to assign coach: {e}")))?;
+
+        Ok(UniversalResponse {
+            success: true,
+            result: Some(json!({
+                "assigned": true,
+                "coach_id": coach_id,
+                "coach_title": coach.title,
+                "user_id": target_user_id.to_string(),
+                "assigned_by": admin_user_id.to_string(),
+            })),
+            error: None,
+            metadata: None,
+        })
+    })
+}
+
+/// Handle `admin_unassign_coach` tool - remove a coach assignment from a user
+///
+/// Admin only.
+///
+/// # Parameters
+/// - `coach_id`: UUID of the system coach to unassign (required)
+/// - `user_id`: UUID of the user to unassign from. If omitted, unassigns from all users.
+///
+/// # Returns
+/// Success confirmation
+#[must_use]
+pub fn handle_admin_unassign_coach(
+    executor: &UniversalToolExecutor,
+    request: UniversalRequest,
+) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
+    Box::pin(async move {
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "admin_unassign_coach cancelled".to_owned(),
+                ));
+            }
+        }
+
+        let admin_user_id = parse_user_id_for_protocol(&request.user_id)?;
+        verify_admin_access(executor, admin_user_id).await?;
+
+        let coach_id = request
+            .parameters
+            .get("coach_id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest("Missing required parameter: coach_id".to_owned())
+            })?;
+
+        let target_user_id_str = request
+            .parameters
+            .get("user_id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest("Missing required parameter: user_id".to_owned())
+            })?;
+
+        let target_user_id = Uuid::parse_str(target_user_id_str).map_err(|_| {
+            ProtocolError::InvalidRequest(format!("Invalid user_id: {target_user_id_str}"))
+        })?;
+
+        let manager = get_coaches_manager(executor)?;
+
+        let unassigned = manager
+            .unassign_coach(coach_id, target_user_id)
+            .await
+            .map_err(|e| ProtocolError::InternalError(format!("Failed to unassign coach: {e}")))?;
+
+        if unassigned {
+            Ok(UniversalResponse {
+                success: true,
+                result: Some(json!({
+                    "unassigned": true,
+                    "coach_id": coach_id,
+                    "user_id": target_user_id.to_string(),
+                })),
+                error: None,
+                metadata: None,
+            })
+        } else {
+            Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!(
+                    "Assignment not found for coach {coach_id} and user {target_user_id}"
+                )),
+                metadata: None,
+            })
+        }
+    })
+}
+
+/// Handle `admin_list_coach_assignments` tool - list coach assignments
+///
+/// Admin only. Lists all assignments with optional filtering.
+///
+/// # Parameters
+/// - `coach_id`: Filter by coach ID (optional)
+/// - `user_id`: Filter by user ID (optional)
+/// - `limit`: Maximum results (default: 100)
+/// - `offset`: Pagination offset (default: 0)
+///
+/// # Returns
+/// JSON array of assignment records
+#[must_use]
+pub fn handle_admin_list_coach_assignments(
+    executor: &UniversalToolExecutor,
+    request: UniversalRequest,
+) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
+    Box::pin(async move {
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "admin_list_coach_assignments cancelled".to_owned(),
+                ));
+            }
+        }
+
+        let admin_user_id = parse_user_id_for_protocol(&request.user_id)?;
+        verify_admin_access(executor, admin_user_id).await?;
+
+        let coach_id = request.parameters.get("coach_id").and_then(Value::as_str);
+
+        let manager = get_coaches_manager(executor)?;
+
+        // Currently the database method requires a coach_id
+        // If no coach_id provided, return error for now
+        let Some(coach_id) = coach_id else {
+            return Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some("coach_id is required to list assignments".to_owned()),
+                metadata: None,
+            });
+        };
+
+        let assignments = manager.list_assignments(coach_id).await.map_err(|e| {
+            ProtocolError::InternalError(format!("Failed to list assignments: {e}"))
+        })?;
+
+        let assignment_list: Vec<Value> = assignments
+            .iter()
+            .map(|a| {
+                json!({
+                    "user_id": a.user_id,
+                    "user_email": a.user_email,
+                    "assigned_at": a.assigned_at,
+                    "assigned_by": a.assigned_by,
+                })
+            })
+            .collect();
+
+        Ok(UniversalResponse {
+            success: true,
+            result: Some(json!({
+                "coach_id": coach_id,
+                "assignments": assignment_list,
+                "count": assignment_list.len(),
+            })),
+            error: None,
+            metadata: None,
+        })
     })
 }

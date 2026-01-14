@@ -5,9 +5,12 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::constants::tools::{
-    ACTIVATE_COACH, CREATE_COACH, DEACTIVATE_COACH, DELETE_COACH, DELETE_RECIPE, GET_ACTIVE_COACH,
-    GET_COACH, GET_RECIPE, GET_RECIPE_CONSTRAINTS, LIST_COACHES, LIST_RECIPES, SAVE_RECIPE,
-    SEARCH_COACHES, SEARCH_RECIPES, TOGGLE_COACH_FAVORITE, UPDATE_COACH, VALIDATE_RECIPE,
+    ACTIVATE_COACH, ADMIN_ASSIGN_COACH, ADMIN_CREATE_SYSTEM_COACH, ADMIN_DELETE_SYSTEM_COACH,
+    ADMIN_GET_SYSTEM_COACH, ADMIN_LIST_COACH_ASSIGNMENTS, ADMIN_LIST_SYSTEM_COACHES,
+    ADMIN_UNASSIGN_COACH, ADMIN_UPDATE_SYSTEM_COACH, CREATE_COACH, DEACTIVATE_COACH, DELETE_COACH,
+    DELETE_RECIPE, GET_ACTIVE_COACH, GET_COACH, GET_RECIPE, GET_RECIPE_CONSTRAINTS, LIST_COACHES,
+    LIST_RECIPES, SAVE_RECIPE, SEARCH_COACHES, SEARCH_RECIPES, TOGGLE_COACH_FAVORITE, UPDATE_COACH,
+    VALIDATE_RECIPE,
 };
 use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalToolExecutor};
 use crate::protocols::ProtocolError;
@@ -149,6 +152,24 @@ pub enum ToolId {
     DeactivateCoach,
     /// Get the currently active coach
     GetActiveCoach,
+
+    // Admin coach management tools (system coaches - admin only)
+    /// List system coaches in tenant (admin only)
+    AdminListSystemCoaches,
+    /// Create a system coach (admin only)
+    AdminCreateSystemCoach,
+    /// Get a specific system coach (admin only)
+    AdminGetSystemCoach,
+    /// Update a system coach (admin only)
+    AdminUpdateSystemCoach,
+    /// Delete a system coach (admin only)
+    AdminDeleteSystemCoach,
+    /// Assign coach to users (admin only)
+    AdminAssignCoach,
+    /// Unassign coach from users (admin only)
+    AdminUnassignCoach,
+    /// List coach assignments (admin only)
+    AdminListCoachAssignments,
 }
 
 impl ToolId {
@@ -217,6 +238,15 @@ impl ToolId {
             ACTIVATE_COACH => Some(Self::ActivateCoach),
             DEACTIVATE_COACH => Some(Self::DeactivateCoach),
             GET_ACTIVE_COACH => Some(Self::GetActiveCoach),
+            // Admin coach management tools (system coaches)
+            ADMIN_LIST_SYSTEM_COACHES => Some(Self::AdminListSystemCoaches),
+            ADMIN_CREATE_SYSTEM_COACH => Some(Self::AdminCreateSystemCoach),
+            ADMIN_GET_SYSTEM_COACH => Some(Self::AdminGetSystemCoach),
+            ADMIN_UPDATE_SYSTEM_COACH => Some(Self::AdminUpdateSystemCoach),
+            ADMIN_DELETE_SYSTEM_COACH => Some(Self::AdminDeleteSystemCoach),
+            ADMIN_ASSIGN_COACH => Some(Self::AdminAssignCoach),
+            ADMIN_UNASSIGN_COACH => Some(Self::AdminUnassignCoach),
+            ADMIN_LIST_COACH_ASSIGNMENTS => Some(Self::AdminListCoachAssignments),
             _ => None,
         }
     }
@@ -284,6 +314,15 @@ impl ToolId {
             Self::ActivateCoach => ACTIVATE_COACH,
             Self::DeactivateCoach => DEACTIVATE_COACH,
             Self::GetActiveCoach => GET_ACTIVE_COACH,
+            // Admin coach management tools
+            Self::AdminListSystemCoaches => ADMIN_LIST_SYSTEM_COACHES,
+            Self::AdminCreateSystemCoach => ADMIN_CREATE_SYSTEM_COACH,
+            Self::AdminGetSystemCoach => ADMIN_GET_SYSTEM_COACH,
+            Self::AdminUpdateSystemCoach => ADMIN_UPDATE_SYSTEM_COACH,
+            Self::AdminDeleteSystemCoach => ADMIN_DELETE_SYSTEM_COACH,
+            Self::AdminAssignCoach => ADMIN_ASSIGN_COACH,
+            Self::AdminUnassignCoach => ADMIN_UNASSIGN_COACH,
+            Self::AdminListCoachAssignments => ADMIN_LIST_COACH_ASSIGNMENTS,
         }
     }
 
@@ -291,85 +330,46 @@ impl ToolId {
     #[must_use]
     pub const fn description(&self) -> &'static str {
         match self {
-            Self::GetActivities => {
-                "Get user's fitness activities with optional filtering and limits"
-            }
+            Self::GetActivities => "Get user's fitness activities with optional filtering and limits",
             Self::GetAthlete => "Get user's athlete profile and basic information",
             Self::GetStats => "Get user's performance statistics and metrics",
-            Self::AnalyzeActivity => {
-                "Analyze a specific activity with detailed performance insights"
-            }
+            Self::AnalyzeActivity => "Analyze a specific activity with detailed performance insights",
             Self::GetActivityIntelligence => "Get AI-powered intelligence analysis for an activity",
             Self::GetConnectionStatus => "Check OAuth connection status for fitness providers",
             Self::ConnectProvider => "Connect to a fitness data provider via OAuth",
             Self::DisconnectProvider => "Disconnect user from a fitness data provider",
             Self::SetGoal => "Set a new fitness goal for the user",
             Self::SuggestGoals => "Get AI-suggested fitness goals based on user's activity history",
-            Self::AnalyzeGoalFeasibility => {
-                "Analyze whether a goal is achievable given current fitness level"
-            }
+            Self::AnalyzeGoalFeasibility => "Analyze whether a goal is achievable given fitness level",
             Self::TrackProgress => "Track progress towards fitness goals",
             Self::CalculateMetrics => "Calculate custom fitness metrics and performance indicators",
             Self::AnalyzePerformanceTrends => "Analyze performance trends over time",
             Self::CompareActivities => "Compare two activities for performance analysis",
             Self::DetectPatterns => "Detect patterns and insights in activity data",
             Self::GenerateRecommendations => "Generate personalized training recommendations",
-            Self::CalculateFitnessScore => {
-                "Calculate overall fitness score based on recent activities"
-            }
+            Self::CalculateFitnessScore => "Calculate overall fitness score based on recent activities",
             Self::PredictPerformance => "Predict future performance based on training patterns",
             Self::AnalyzeTrainingLoad => "Analyze training load and recovery metrics",
-            Self::GetConfigurationCatalog => {
-                "Get the complete configuration catalog with all available parameters"
-            }
-            Self::GetConfigurationProfiles => {
-                "Get available configuration profiles (Research, Elite, Recreational, etc.)"
-            }
+            Self::GetConfigurationCatalog => "Get configuration catalog with all available parameters",
+            Self::GetConfigurationProfiles => "Get available configuration profiles (Research, Elite, etc.)",
             Self::GetUserConfiguration => "Get current user's configuration settings and overrides",
-            Self::UpdateUserConfiguration => {
-                "Update user's configuration parameters and session overrides"
-            }
-            Self::CalculatePersonalizedZones => {
-                "Calculate personalized training zones based on user's VO2 max and configuration"
-            }
-            Self::ValidateConfiguration => {
-                "Validate configuration parameters against safety rules and constraints"
-            }
-            Self::AnalyzeSleepQuality => {
-                "Analyze sleep quality from Fitbit/Garmin data using NSF/AASM guidelines"
-            }
-            Self::CalculateRecoveryScore => {
-                "Calculate holistic recovery score combining TSB, sleep quality, and HRV"
-            }
-            Self::SuggestRestDay => {
-                "AI-powered rest day recommendation based on recovery indicators"
-            }
-            Self::TrackSleepTrends => {
-                "Track sleep patterns and correlate with performance over time"
-            }
-            Self::OptimizeSleepSchedule => {
-                "Optimize sleep duration based on training load and recovery needs"
-            }
-            Self::GetFitnessConfig => "Get user fitness configuration settings including heart rate zones and training parameters",
-            Self::SetFitnessConfig => "Save user fitness configuration settings for zones, thresholds, and training parameters",
+            Self::UpdateUserConfiguration => "Update user's configuration parameters and overrides",
+            Self::CalculatePersonalizedZones => "Calculate training zones based on VO2 max and config",
+            Self::ValidateConfiguration => "Validate configuration against safety rules and constraints",
+            Self::AnalyzeSleepQuality => "Analyze sleep quality from Fitbit/Garmin using NSF/AASM",
+            Self::CalculateRecoveryScore => "Calculate recovery score combining TSB, sleep, and HRV",
+            Self::SuggestRestDay => "AI-powered rest day recommendation based on recovery indicators",
+            Self::TrackSleepTrends => "Track sleep patterns and correlate with performance over time",
+            Self::OptimizeSleepSchedule => "Optimize sleep duration based on training load and recovery",
+            Self::GetFitnessConfig => "Get user fitness config including HR zones and training params",
+            Self::SetFitnessConfig => "Save user fitness config for zones, thresholds, and params",
             Self::ListFitnessConfigs => "List all available fitness configuration names for the user",
             Self::DeleteFitnessConfig => "Delete a specific fitness configuration by name",
-            Self::CalculateDailyNutrition => {
-                "Calculate daily calorie and macronutrient needs based on athlete biometrics, activity level, and training goal using Mifflin-St Jeor BMR formula"
-            }
-            Self::GetNutrientTiming => {
-                "Get optimal pre/post-workout nutrition recommendations based on workout intensity and training goals following ISSN guidelines"
-            }
-            Self::SearchFood => {
-                "Search USDA FoodData Central database for foods by name/description (free API with 24h caching)"
-            }
-            Self::GetFoodDetails => {
-                "Get detailed nutritional information for a specific food from USDA database including all macro/micronutrients"
-            }
-            Self::AnalyzeMealNutrition => {
-                "Analyze total calories and macronutrients for a meal composed of multiple USDA foods"
-            }
-            // Recipe management tools ("Combat des Chefs" architecture)
+            Self::CalculateDailyNutrition => "Calculate daily calories and macros using Mifflin-St Jeor",
+            Self::GetNutrientTiming => "Get pre/post-workout nutrition recommendations per ISSN",
+            Self::SearchFood => "Search USDA FoodData Central database for foods by name",
+            Self::GetFoodDetails => "Get detailed nutritional info for a food from USDA database",
+            Self::AnalyzeMealNutrition => "Analyze calories and macros for a meal of USDA foods",
             Self::GetRecipeConstraints => "Get macro targets for LLM recipe generation by training phase",
             Self::ValidateRecipe => "Validate recipe nutrition against USDA and calculate macros",
             Self::SaveRecipe => "Save validated recipe with cached nutrition data",
@@ -377,7 +377,6 @@ impl ToolId {
             Self::GetRecipe => "Get a specific recipe by ID",
             Self::DeleteRecipe => "Delete a recipe from collection",
             Self::SearchRecipes => "Search recipes by name, tags, or description",
-            // Coach management tools (custom AI personas)
             Self::ListCoaches => "List user's coaches with optional category filtering",
             Self::CreateCoach => "Create a new custom coach with system prompt",
             Self::GetCoach => "Get a specific coach by ID including system prompt",
@@ -385,9 +384,17 @@ impl ToolId {
             Self::DeleteCoach => "Delete a coach from user's collection",
             Self::ToggleCoachFavorite => "Toggle favorite status of a coach",
             Self::SearchCoaches => "Search coaches by title, description, or tags",
-            Self::ActivateCoach => "Set a coach as active for the session (only one can be active)",
+            Self::ActivateCoach => "Set a coach as active for session (only one can be active)",
             Self::DeactivateCoach => "Deactivate the currently active coach",
             Self::GetActiveCoach => "Get the currently active coach for the user",
+            Self::AdminListSystemCoaches => "List all system coaches in the tenant (admin only)",
+            Self::AdminCreateSystemCoach => "Create a system coach for tenant users (admin only)",
+            Self::AdminGetSystemCoach => "Get a specific system coach by ID (admin only)",
+            Self::AdminUpdateSystemCoach => "Update an existing system coach (admin only)",
+            Self::AdminDeleteSystemCoach => "Delete a system coach (admin only)",
+            Self::AdminAssignCoach => "Assign a coach to specific users (admin only)",
+            Self::AdminUnassignCoach => "Remove coach assignment from users (admin only)",
+            Self::AdminListCoachAssignments => "List users assigned to a coach (admin only)",
         }
     }
 
