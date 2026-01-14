@@ -20,6 +20,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { apiService } from '../../services/api';
 import type { McpToken } from '../../types';
 import type { DrawerNavigationProp } from '@react-navigation/drawer';
+import { OAuthCredentialsSection } from '../../components/OAuthCredentialsSection';
 
 interface SettingsScreenProps {
   navigation: DrawerNavigationProp<Record<string, undefined>>;
@@ -40,6 +41,9 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  // Developer settings state
+  const [showDeveloperSettings, setShowDeveloperSettings] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -242,6 +246,19 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
             ))
           )}
         </Card>
+
+        {/* Developer Settings Section */}
+        <TouchableOpacity
+          style={styles.developerToggle}
+          onPress={() => setShowDeveloperSettings(!showDeveloperSettings)}
+        >
+          <Text style={styles.sectionTitle}>Developer Settings</Text>
+          <Text style={styles.chevron}>{showDeveloperSettings ? '▼' : '>'}</Text>
+        </TouchableOpacity>
+
+        {showDeveloperSettings && (
+          <OAuthCredentialsSection />
+        )}
 
         {/* Logout */}
         <Button
@@ -515,6 +532,15 @@ const styles = StyleSheet.create({
   },
   logoutButton: {
     marginTop: spacing.lg,
+  },
+  developerToggle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    marginTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.subtle,
   },
   modalOverlay: {
     flex: 1,

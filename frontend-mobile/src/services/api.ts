@@ -12,6 +12,8 @@ import type {
   PromptSuggestionsResponse,
   LoginResponse,
   RegisterResponse,
+  OAuthApp,
+  OAuthAppCredentials,
 } from '../types';
 
 // Configuration - should be set via environment or config
@@ -258,7 +260,17 @@ class ApiService {
   // OAuth/Provider endpoints
   async getOAuthStatus(): Promise<{ providers: ProviderStatus[] }> {
     const response = await axios.get('/api/oauth/status');
-    return { providers: response.data };
+    // Handle both array and object response formats
+    const data = response.data;
+    if (Array.isArray(data)) {
+      return { providers: data };
+    }
+    // If data is an object with providers field, use that
+    if (data && Array.isArray(data.providers)) {
+      return { providers: data.providers };
+    }
+    // Default to empty array
+    return { providers: [] };
   }
 
   /**
@@ -327,6 +339,25 @@ class ApiService {
       new_password: newPassword,
     });
     return response.data;
+  }
+
+  // OAuth Apps endpoints (custom provider credentials)
+  async getUserOAuthApps(): Promise<{ apps: OAuthApp[] }> {
+    const response = await axios.get('/api/users/oauth-apps');
+    return response.data;
+  }
+
+  async registerUserOAuthApp(data: OAuthAppCredentials): Promise<{
+    success: boolean;
+    provider: string;
+    message: string;
+  }> {
+    const response = await axios.post('/api/users/oauth-apps', data);
+    return response.data;
+  }
+
+  async deleteUserOAuthApp(provider: string): Promise<void> {
+    await axios.delete(`/api/users/oauth-apps/${provider}`);
   }
 
   // WebSocket URL for chat streaming

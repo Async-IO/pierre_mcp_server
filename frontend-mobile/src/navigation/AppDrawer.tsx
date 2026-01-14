@@ -367,7 +367,8 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
                 { id: 'coros', name: 'COROS', icon: '🏃' },
                 { id: 'terra', name: 'Terra', icon: '🌍' },
               ].map((provider) => {
-                const providerStatus = connectedProviders.find(
+                const providers = Array.isArray(connectedProviders) ? connectedProviders : [];
+                const providerStatus = providers.find(
                   (p) => p.provider === provider.id
                 );
                 const isAvailable = !!providerStatus;
