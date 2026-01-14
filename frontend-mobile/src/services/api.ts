@@ -18,6 +18,9 @@ import type {
 // For iOS Simulator, localhost works directly. For Android, use 10.0.2.2
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8081';
 
+// Timeout for API requests (5 minutes to accommodate slower local LLM responses)
+const API_TIMEOUT_MS = 300000;
+
 // Storage keys
 const STORAGE_KEYS = {
   JWT_TOKEN: '@pierre/jwt_token',
@@ -50,6 +53,7 @@ class ApiService {
   constructor() {
     axios.defaults.baseURL = API_BASE_URL;
     axios.defaults.headers.common['Content-Type'] = 'application/json';
+    axios.defaults.timeout = API_TIMEOUT_MS;
     this.setupInterceptors();
   }
 
@@ -72,13 +76,26 @@ class ApiService {
       (error) => Promise.reject(error)
     );
 
-    // Response interceptor to handle 401 errors
+    // Response interceptor to handle errors and extract human-readable messages
     axios.interceptors.response.use(
       (response: AxiosResponse) => response,
       async (error) => {
         if (error.response?.status === 401) {
           await this.handleAuthFailure();
         }
+
+        // Extract human-readable error message from server response
+        // Server returns: { code: "...", message: "human readable", timestamp: "..." }
+        const serverMessage = error.response?.data?.message;
+        if (serverMessage && typeof serverMessage === 'string') {
+          // Create a new error with the server's message for better UX
+          const enhancedError = new Error(serverMessage);
+          // Preserve original error info for debugging
+          (enhancedError as Error & { originalError?: unknown }).originalError = error;
+          (enhancedError as Error & { statusCode?: number }).statusCode = error.response?.status;
+          return Promise.reject(enhancedError);
+        }
+
         return Promise.reject(error);
       }
     );

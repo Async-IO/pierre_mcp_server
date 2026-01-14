@@ -624,6 +624,8 @@ pub mod weather_impact_factors {
 ///
 /// Reference: System performance and resource management
 pub mod api_limits {
+    use std::env;
+
     /// Quick activity fetch limit for minimal requests
     /// Used as default when user doesn't specify limit
     pub const QUICK_ACTIVITY_LIMIT: u64 = 10;
@@ -648,18 +650,59 @@ pub mod api_limits {
 
     // Format-aware safe limits to prevent LLM context overflow
     // These are conservative defaults when user doesn't specify a limit
+    // Configurable via environment variables for different LLM providers
 
-    /// Safe limit for TOON format + summary mode (most compact)
-    pub const SAFE_LIMIT_TOON_SUMMARY: usize = 200;
+    /// Default safe limit for TOON format + summary mode (most compact)
+    const DEFAULT_SAFE_LIMIT_TOON_SUMMARY: usize = 200;
 
-    /// Safe limit for TOON format + detailed mode
-    pub const SAFE_LIMIT_TOON_DETAILED: usize = 25;
+    /// Default safe limit for TOON format + detailed mode
+    const DEFAULT_SAFE_LIMIT_TOON_DETAILED: usize = 25;
 
-    /// Safe limit for JSON format + summary mode
-    pub const SAFE_LIMIT_JSON_SUMMARY: usize = 100;
+    /// Default safe limit for JSON format + summary mode
+    const DEFAULT_SAFE_LIMIT_JSON_SUMMARY: usize = 20;
 
-    /// Safe limit for JSON format + detailed mode (most verbose)
-    pub const SAFE_LIMIT_JSON_DETAILED: usize = 10;
+    /// Default safe limit for JSON format + detailed mode (most verbose)
+    const DEFAULT_SAFE_LIMIT_JSON_DETAILED: usize = 10;
+
+    /// Get safe limit for TOON format + summary mode
+    /// Configurable via `SAFE_LIMIT_TOON_SUMMARY` env var
+    #[must_use]
+    pub fn safe_limit_toon_summary() -> usize {
+        env::var("SAFE_LIMIT_TOON_SUMMARY")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(DEFAULT_SAFE_LIMIT_TOON_SUMMARY)
+    }
+
+    /// Get safe limit for TOON format + detailed mode
+    /// Configurable via `SAFE_LIMIT_TOON_DETAILED` env var
+    #[must_use]
+    pub fn safe_limit_toon_detailed() -> usize {
+        env::var("SAFE_LIMIT_TOON_DETAILED")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(DEFAULT_SAFE_LIMIT_TOON_DETAILED)
+    }
+
+    /// Get safe limit for JSON format + summary mode
+    /// Configurable via `SAFE_LIMIT_JSON_SUMMARY` env var
+    #[must_use]
+    pub fn safe_limit_json_summary() -> usize {
+        env::var("SAFE_LIMIT_JSON_SUMMARY")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(DEFAULT_SAFE_LIMIT_JSON_SUMMARY)
+    }
+
+    /// Get safe limit for JSON format + detailed mode
+    /// Configurable via `SAFE_LIMIT_JSON_DETAILED` env var
+    #[must_use]
+    pub fn safe_limit_json_detailed() -> usize {
+        env::var("SAFE_LIMIT_JSON_DETAILED")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(DEFAULT_SAFE_LIMIT_JSON_DETAILED)
+    }
 
     // Token estimation and LLM context management
     // Based on empirical analysis: 3,333 activities = ~500K tokens over 5 years

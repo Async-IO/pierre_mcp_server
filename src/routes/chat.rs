@@ -57,7 +57,8 @@ const DEFAULT_FALLBACK_MODEL: &str = "llama-3.3-70b-versatile";
 /// Strip synthetic function call syntax from LLM content
 ///
 /// Some models (like Llama via Groq) output function calls both as proper `tool_calls`
-/// AND as text content using syntax like `<function(name)>{...}</function>`.
+/// AND as text content using syntax like `<function(name)>{...}</function>` or
+/// `<function/name>{...}</function>`.
 /// This helper removes that synthetic syntax to avoid displaying it to users.
 fn strip_synthetic_function_calls(content: &str) -> Cow<'_, str> {
     use regex::Regex;
@@ -67,8 +68,10 @@ fn strip_synthetic_function_calls(content: &str) -> Cow<'_, str> {
         static PATTERN: OnceLock<Option<Regex>> = OnceLock::new();
         PATTERN
             .get_or_init(|| {
-                // Match patterns like <function(name)>...</function> or <function(name){...}</function>
-                Regex::new(r"<function\([^)]+\)[\s\S]*?</function>").ok()
+                // Match patterns like:
+                // - <function(name)>...</function> (parentheses syntax)
+                // - <function/name>...</function> (slash syntax)
+                Regex::new(r"<function[/\(][^>]+>[\s\S]*?</function>").ok()
             })
             .as_ref()
     }
@@ -899,7 +902,23 @@ impl ChatRoutes {
             return Err(AppError::not_found("Conversation not found"));
         }
 
-        Ok((StatusCode::OK, Json(json!({"success": true}))).into_response())
+        // Fetch and return the updated conversation (proper REST response)
+        let conv = chat_manager
+            .get_conversation(&conversation_id, &auth.user_id.to_string(), &tenant_id)
+            .await?
+            .ok_or_else(|| AppError::internal("Conversation not found after update"))?;
+
+        let response = ConversationResponse {
+            id: conv.id,
+            title: conv.title,
+            model: conv.model,
+            system_prompt: conv.system_prompt,
+            total_tokens: conv.total_tokens,
+            created_at: conv.created_at,
+            updated_at: conv.updated_at,
+        };
+
+        Ok((StatusCode::OK, Json(response)).into_response())
     }
 
     /// Delete a conversation

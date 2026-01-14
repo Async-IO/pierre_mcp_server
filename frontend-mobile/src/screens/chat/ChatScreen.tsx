@@ -18,15 +18,21 @@ import {
   Alert,
   Image,
   ScrollView,
-  Linking,
+  Modal,
+  Share,
+  AppState,
+  ActionSheetIOS,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import Markdown from 'react-native-markdown-display';
+import { Ionicons } from '@expo/vector-icons';
 import { useRoute, type RouteProp } from '@react-navigation/native';
 import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import type { Conversation, Message, PromptCategory } from '../../types';
+import type { Conversation, Message, PromptCategory, ProviderStatus } from '../../types';
 import type { DrawerNavigationProp } from '@react-navigation/drawer';
 import type { AppDrawerParamList } from '../../navigation/AppDrawer';
 
@@ -70,7 +76,10 @@ const DEFAULT_PROMPT_CATEGORIES: PromptCategory[] = [
   },
 ];
 
-const DEFAULT_WELCOME_PROMPT = 'Show my recent activities';
+const DEFAULT_WELCOME_PROMPTS = [
+  'Analyze my recent activities',
+  'Show me my last activity',
+];
 
 export function ChatScreen({ navigation }: ChatScreenProps) {
   const { isAuthenticated } = useAuth();
@@ -82,40 +91,88 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [promptCategories, setPromptCategories] = useState<PromptCategory[]>(DEFAULT_PROMPT_CATEGORIES);
-  const [welcomePrompt, setWelcomePrompt] = useState(DEFAULT_WELCOME_PROMPT);
+  const [welcomePrompts, setWelcomePrompts] = useState(DEFAULT_WELCOME_PROMPTS);
+  const [actionMenuVisible, setActionMenuVisible] = useState(false);
+  const [providerModalVisible, setProviderModalVisible] = useState(false);
+  const [connectedProviders, setConnectedProviders] = useState<ProviderStatus[]>([]);
+  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
+  const [messageFeedback, setMessageFeedback] = useState<Record<string, 'up' | 'down' | null>>({});
 
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
+  // Track when we just created a conversation to prevent loadMessages from clearing optimistic messages
+  const justCreatedConversationRef = useRef<string | null>(null);
 
-  // Load conversations and prompts only when authenticated
+  // Load conversations, prompts, and provider status when authenticated
   useEffect(() => {
     if (isAuthenticated) {
       loadConversations();
       loadPromptSuggestions();
+      loadProviderStatus();
     }
   }, [isAuthenticated]);
 
-  // Load messages when conversation changes
+  const loadProviderStatus = async () => {
+    try {
+      const response = await apiService.getOAuthStatus();
+      setConnectedProviders(response.providers || []);
+    } catch (error) {
+      console.error('Failed to load provider status:', error);
+    }
+  };
+
+  // Refresh provider status when app returns from OAuth flow
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        loadProviderStatus();
+      }
+    });
+    return () => subscription.remove();
+  }, []);
+
+  const hasConnectedProvider = (): boolean => {
+    return connectedProviders.some(p => p.connected);
+  };
+
+  // Load messages when conversation changes (but not when we just created the conversation)
   useEffect(() => {
     if (currentConversation) {
+      // Skip loading if we just created this conversation - we already have optimistic messages
+      if (justCreatedConversationRef.current === currentConversation.id) {
+        justCreatedConversationRef.current = null;
+        return;
+      }
       loadMessages(currentConversation.id);
     } else {
       setMessages([]);
     }
   }, [currentConversation]);
 
+  // Handle explicit "new chat" navigation from drawer (conversationId becomes undefined)
+  useEffect(() => {
+    const conversationId = route.params?.conversationId;
+    if (conversationId === undefined && currentConversation !== null) {
+      // User explicitly navigated to new chat - clear state
+      setCurrentConversation(null);
+      setMessages([]);
+    }
+    // Only depend on route params - this should only run when user navigates
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route.params?.conversationId]);
+
   // Handle conversation selection from drawer navigation
   useEffect(() => {
     const conversationId = route.params?.conversationId;
-
-    if (conversationId === undefined) {
-      // New chat - clear current conversation
-      setCurrentConversation(null);
-      setMessages([]);
-    } else if (conversationId && conversations.length > 0) {
+    if (conversationId && conversations.length > 0) {
       // Find and select the conversation
       const conversation = conversations.find(c => c.id === conversationId);
-      if (conversation && conversation.id !== currentConversation?.id) {
+      // Update if ID is different OR if current has no title but loaded one does
+      const shouldUpdate = conversation && (
+        conversation.id !== currentConversation?.id ||
+        (!currentConversation?.title && conversation.title)
+      );
+      if (shouldUpdate) {
         setCurrentConversation(conversation);
       }
     }
@@ -132,7 +189,13 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
         seen.add(conv.id);
         return true;
       });
-      setConversations(deduplicated);
+      // Sort by updated_at descending (newest first)
+      const sorted = deduplicated.sort((a, b) => {
+        const dateA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+        const dateB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+        return dateB - dateA;
+      });
+      setConversations(sorted);
     } catch (error) {
       console.error('Failed to load conversations:', error);
     } finally {
@@ -156,9 +219,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       if (response.categories && response.categories.length > 0) {
         setPromptCategories(response.categories);
       }
-      if (response.welcome_prompt) {
-        setWelcomePrompt(response.welcome_prompt);
-      }
+      // Use local welcome prompts - don't override with server's detailed prompt
     } catch (error) {
       console.error('Failed to load prompts:', error);
       // Keep default prompts on error
@@ -171,16 +232,11 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     }
   };
 
-  const handleNewChat = async () => {
-    try {
-      const conversation = await apiService.createConversation({
-        title: 'New Chat',
-      });
-      setConversations(prev => [conversation, ...prev]);
-      setCurrentConversation(conversation);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to create new conversation');
-    }
+  const handleNewChat = () => {
+    // Clear state to show welcome screen with prompts
+    setCurrentConversation(null);
+    setMessages([]);
+    setIsSending(false);
   };
 
   const handleSelectConversation = (conversation: Conversation) => {
@@ -197,6 +253,132 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to delete conversation');
+    }
+  };
+
+  const handleRenameConversation = (conversationId: string, currentTitle: string) => {
+    Alert.prompt(
+      'Rename Chat',
+      'Enter a new name for this conversation',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Save',
+          onPress: async (newTitle: string | undefined) => {
+            if (!newTitle?.trim()) {
+              return;
+            }
+            try {
+              const updated = await apiService.updateConversation(conversationId, {
+                title: newTitle.trim(),
+              });
+              // Update conversation and move to top (most recently updated)
+              setConversations(prev => {
+                const updatedConv = prev.find(c => c.id === conversationId);
+                if (!updatedConv) return prev;
+                const others = prev.filter(c => c.id !== conversationId);
+                return [
+                  { ...updatedConv, title: updated.title, updated_at: updated.updated_at },
+                  ...others,
+                ];
+              });
+              // Always update currentConversation if IDs match
+              setCurrentConversation(prev => {
+                if (prev?.id === conversationId) {
+                  return { ...prev, title: updated.title, updated_at: updated.updated_at };
+                }
+                return prev;
+              });
+            } catch (error) {
+              console.error('Failed to rename conversation:', error);
+              Alert.alert('Error', 'Failed to rename conversation');
+            }
+          },
+        },
+      ],
+      'plain-text',
+      currentTitle
+    );
+  };
+
+  const showTitleActionMenu = () => {
+    if (!currentConversation) return;
+    setActionMenuVisible(true);
+  };
+
+  const handleMenuRename = () => {
+    setActionMenuVisible(false);
+    if (currentConversation) {
+      // Use fallback if title is undefined (defensive fix)
+      const title = currentConversation.title || 'New Chat';
+      handleRenameConversation(currentConversation.id, title);
+    }
+  };
+
+  const handleMenuDelete = () => {
+    setActionMenuVisible(false);
+    if (!currentConversation) return;
+
+    Alert.alert(
+      'Delete Conversation',
+      `Are you sure you want to delete "${currentConversation.title || 'this conversation'}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => handleDeleteConversation(currentConversation.id),
+        },
+      ]
+    );
+  };
+
+  const closeActionMenu = () => {
+    setActionMenuVisible(false);
+  };
+
+  const handleCopyMessage = async (content: string) => {
+    try {
+      await Clipboard.setStringAsync(content);
+      Alert.alert('Copied', 'Message copied to clipboard');
+    } catch (error) {
+      console.error('Failed to copy:', error);
+    }
+  };
+
+  const handleShareMessage = async (content: string) => {
+    try {
+      await Share.share({ message: content });
+    } catch (error) {
+      console.error('Failed to share:', error);
+    }
+  };
+
+  const handleThumbsUp = (messageId: string) => {
+    setMessageFeedback(prev => ({
+      ...prev,
+      [messageId]: prev[messageId] === 'up' ? null : 'up',
+    }));
+  };
+
+  const handleThumbsDown = (messageId: string) => {
+    setMessageFeedback(prev => ({
+      ...prev,
+      [messageId]: prev[messageId] === 'down' ? null : 'down',
+    }));
+  };
+
+  const handleRetryMessage = async (messageId: string) => {
+    // Find the assistant message and the preceding user message
+    const messageIndex = messages.findIndex(m => m.id === messageId);
+    if (messageIndex > 0) {
+      const userMessage = messages[messageIndex - 1];
+      if (userMessage.role === 'user') {
+        // Remove the assistant message
+        setMessages(prev => prev.filter(m => m.id !== messageId));
+        // Resend the user's prompt
+        await sendPromptMessage(userMessage.content);
+      }
     }
   };
 
@@ -218,6 +400,8 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
           throw new Error('Invalid conversation response');
         }
         setConversations(prev => [conversation, ...prev]);
+        // Mark this as just-created to prevent useEffect from clearing optimistic messages
+        justCreatedConversationRef.current = conversation.id;
         setCurrentConversation(conversation);
         conversationId = conversation.id;
       } catch (error) {
@@ -240,17 +424,36 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
 
     try {
       const response = await apiService.sendMessage(conversationId, messageText);
-      // Replace optimistic user message and add assistant response
+      // Replace optimistic user message and add assistant response with metadata
       setMessages(prev => {
         const filtered = prev.filter(m => m.id !== userMessage.id);
-        return [...filtered, response.user_message, response.assistant_message];
+        const assistantWithMetadata = {
+          ...response.assistant_message,
+          model: response.model,
+          execution_time_ms: response.execution_time_ms,
+        };
+        return [...filtered, response.user_message, assistantWithMetadata];
       });
       scrollToBottom();
     } catch (error) {
       console.error('Failed to send message:', error);
-      Alert.alert('Error', 'Failed to send message. Please try again.');
-      // Remove optimistic message on failure
-      setMessages(prev => prev.filter(m => m.id !== userMessage.id));
+      // Keep user message and add error response inline (no popup)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to send message';
+      const errorResponse: Message = {
+        id: `error-${Date.now()}`,
+        role: 'assistant',
+        content: `⚠️ ${errorMessage}\n\nPlease try again.`,
+        created_at: new Date().toISOString(),
+        isError: true,
+      };
+      setMessages(prev => {
+        // Replace temp message with persisted version and add error
+        const updated = prev.map(m =>
+          m.id === userMessage.id ? { ...m, id: `user-${Date.now()}` } : m
+        );
+        return [...updated, errorResponse];
+      });
+      scrollToBottom();
     } finally {
       setIsSending(false);
     }
@@ -259,6 +462,17 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   const handlePromptSelect = async (prompt: string) => {
     if (isSending) return;
 
+    // Check if any provider is connected
+    if (!hasConnectedProvider()) {
+      setPendingPrompt(prompt);
+      setProviderModalVisible(true);
+      return;
+    }
+
+    await sendPromptMessage(prompt);
+  };
+
+  const sendPromptMessage = async (prompt: string) => {
     setIsSending(true);
 
     // Create conversation if needed
@@ -272,6 +486,8 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
           throw new Error('Invalid conversation response');
         }
         setConversations(prev => [conversation, ...prev]);
+        // Mark this as just-created to prevent useEffect from clearing optimistic messages
+        justCreatedConversationRef.current = conversation.id;
         setCurrentConversation(conversation);
         conversationId = conversation.id;
       } catch (error) {
@@ -294,19 +510,91 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
 
     try {
       const response = await apiService.sendMessage(conversationId, prompt);
-      // Replace optimistic user message and add assistant response
+      // Replace optimistic message with server's message and add assistant response with metadata
       setMessages(prev => {
-        const filtered = prev.filter(m => m.id !== userMessage.id);
-        return [...filtered, response.user_message, response.assistant_message];
+        const assistantWithMetadata = {
+          ...response.assistant_message,
+          model: response.model,
+          execution_time_ms: response.execution_time_ms,
+        };
+        return prev.map(m => {
+          if (m.id === userMessage.id) {
+            // Use server's message ID but keep our original prompt content
+            return { ...response.user_message, content: prompt };
+          }
+          return m;
+        }).concat([assistantWithMetadata]);
       });
       scrollToBottom();
     } catch (error) {
       console.error('Failed to send message:', error);
-      Alert.alert('Error', 'Failed to send message. Please try again.');
-      // Remove optimistic message on failure
-      setMessages(prev => prev.filter(m => m.id !== userMessage.id));
+      // Keep user message and add error response inline (no popup)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to send message';
+      const errorResponse: Message = {
+        id: `error-${Date.now()}`,
+        role: 'assistant',
+        content: `⚠️ ${errorMessage}\n\nPlease try again.`,
+        created_at: new Date().toISOString(),
+        isError: true,
+      };
+      setMessages(prev => {
+        // Replace temp message with persisted version and add error
+        const updated = prev.map(m =>
+          m.id === userMessage.id ? { ...m, id: `user-${Date.now()}` } : m
+        );
+        return [...updated, errorResponse];
+      });
+      scrollToBottom();
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleConnectProvider = async (provider: string) => {
+    setProviderModalVisible(false);
+    try {
+      // Create return URL for deep linking back to the app after OAuth
+      const returnUrl = Linking.createURL('oauth-callback');
+
+      // Call the mobile OAuth init endpoint which returns the authorization URL
+      const oauthResponse = await apiService.initMobileOAuth(provider, returnUrl);
+
+      // Open OAuth in an in-app browser (ASWebAuthenticationSession on iOS)
+      // The returnUrl is watched for redirects to close the browser automatically
+      const result = await WebBrowser.openAuthSessionAsync(
+        oauthResponse.authorization_url,
+        returnUrl
+      );
+
+      if (result.type === 'success' && result.url) {
+        // Parse the return URL to check for success/error
+        const parsedUrl = Linking.parse(result.url);
+        const success = parsedUrl.queryParams?.success === 'true';
+        const error = parsedUrl.queryParams?.error as string | undefined;
+
+        if (success) {
+          // OAuth completed successfully - refresh connection status
+          await loadProviderStatus();
+          // Send the pending prompt now that provider is connected
+          if (pendingPrompt) {
+            await sendPromptMessage(pendingPrompt);
+            setPendingPrompt(null);
+          }
+        } else if (error) {
+          console.error('OAuth error from server:', error);
+          Alert.alert('Connection Failed', `Failed to connect: ${error}`);
+        } else {
+          // No explicit success/error - refresh status and check
+          await loadProviderStatus();
+          Alert.alert('Connection Complete', `${provider} connection flow completed.`);
+        }
+      } else if (result.type === 'cancel') {
+        // User cancelled - keep pending prompt so they can try again
+        console.log('OAuth cancelled by user');
+      }
+    } catch (error) {
+      console.error('Failed to start OAuth:', error);
+      Alert.alert('Error', 'Failed to connect provider. Please try again.');
     }
   };
 
@@ -453,8 +741,12 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       // Remove OAuth URLs from content for cleaner markdown rendering
       let cleanContent = content;
       oauthUrls.forEach(url => {
-        // Remove the URL and any markdown link syntax around it
-        cleanContent = cleanContent.replace(new RegExp(`\\[([^\\]]*)\\]\\(${url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'), '');
+        const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Remove markdown image syntax: ![alt](url)
+        cleanContent = cleanContent.replace(new RegExp(`!\\[([^\\]]*)\\]\\(${escapedUrl}\\)`, 'g'), '');
+        // Remove markdown link syntax: [text](url)
+        cleanContent = cleanContent.replace(new RegExp(`\\[([^\\]]*)\\]\\(${escapedUrl}\\)`, 'g'), '');
+        // Remove plain URL
         cleanContent = cleanContent.replace(url, '');
       });
 
@@ -493,10 +785,15 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isUser = item.role === 'user';
+    const isError = item.isError === true;
 
     return (
       <View style={[styles.messageContainer, isUser && styles.userMessageContainer]}>
-        <View style={[styles.messageBubble, isUser ? styles.userBubble : styles.assistantBubble]}>
+        <View style={[
+          styles.messageBubble,
+          isUser ? styles.userBubble : styles.assistantBubble,
+          isError && styles.errorBubble,
+        ]}>
           {!isUser && (
             <View style={styles.assistantAvatarContainer}>
               <Image
@@ -510,6 +807,74 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
             {renderMessageContent(item.content, isUser)}
           </View>
         </View>
+        {/* Action icons and metadata for assistant messages */}
+        {!isUser && (
+          <View style={styles.messageActions}>
+            {isError ? (
+              /* For error messages, show only Retry button */
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={() => handleRetryMessage(item.id)}
+              >
+                <Ionicons name="refresh-outline" size={14} color={colors.text.primary} />
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
+            ) : (
+              /* Normal assistant message actions */
+              <>
+                {/* Copy */}
+                <TouchableOpacity
+                  style={styles.messageActionButton}
+                  onPress={() => handleCopyMessage(item.content)}
+                >
+                  <Ionicons name="copy-outline" size={14} color={colors.text.tertiary} />
+                </TouchableOpacity>
+                {/* Share */}
+                <TouchableOpacity
+                  style={styles.messageActionButton}
+                  onPress={() => handleShareMessage(item.content)}
+                >
+                  <Ionicons name="arrow-redo-outline" size={14} color={colors.text.tertiary} />
+                </TouchableOpacity>
+                {/* Thumbs Up */}
+                <TouchableOpacity
+                  style={styles.messageActionButton}
+                  onPress={() => handleThumbsUp(item.id)}
+                >
+                  <Ionicons
+                    name={messageFeedback[item.id] === 'up' ? 'thumbs-up' : 'thumbs-up-outline'}
+                    size={14}
+                    color={messageFeedback[item.id] === 'up' ? colors.primary[400] : colors.text.tertiary}
+                  />
+                </TouchableOpacity>
+                {/* Thumbs Down */}
+                <TouchableOpacity
+                  style={styles.messageActionButton}
+                  onPress={() => handleThumbsDown(item.id)}
+                >
+                  <Ionicons
+                    name={messageFeedback[item.id] === 'down' ? 'thumbs-down' : 'thumbs-down-outline'}
+                    size={14}
+                    color={messageFeedback[item.id] === 'down' ? colors.error : colors.text.tertiary}
+                  />
+                </TouchableOpacity>
+                {/* Retry */}
+                <TouchableOpacity
+                  style={styles.messageActionButton}
+                  onPress={() => handleRetryMessage(item.id)}
+                >
+                  <Ionicons name="refresh-outline" size={14} color={colors.text.tertiary} />
+                </TouchableOpacity>
+                {/* Model and response time - to the right of icons */}
+                {item.model && (
+                  <Text style={styles.messageMetadata}>
+                    {item.model}{item.execution_time_ms ? ` · ${(item.execution_time_ms / 1000).toFixed(1)}s` : ''}
+                  </Text>
+                )}
+              </>
+            )}
+          </View>
+        )}
       </View>
     );
   };
@@ -537,28 +902,29 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       style={styles.emptyScrollView}
       contentContainerStyle={styles.emptyContainer}
       showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
     >
       <Image
         source={require('../../../assets/pierre-logo.png')}
         style={styles.welcomeLogo}
         resizeMode="contain"
       />
-      <Text style={styles.welcomeTitle}>Pierre</Text>
-      <Text style={styles.welcomeSubtitle}>
-        Real sports science to help you train better, eat smarter, and recover faster.
-      </Text>
       <View style={styles.welcomePromptContainer}>
         <Text style={styles.categoryTitle}>
           📊 Quick Start
         </Text>
-        <TouchableOpacity
-          style={styles.suggestionButton}
-          onPress={() => handlePromptSelect(welcomePrompt)}
-        >
-          <Text style={styles.suggestionText}>
-            {welcomePrompt}
-          </Text>
-        </TouchableOpacity>
+        {welcomePrompts.map((prompt, index) => (
+          <TouchableOpacity
+            key={`welcome-${index}`}
+            style={styles.suggestionButton}
+            onPress={() => handlePromptSelect(prompt)}
+            activeOpacity={0.6}
+          >
+            <Text style={styles.suggestionText}>
+              {prompt}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {/* Prompt Suggestions */}
@@ -573,6 +939,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
                 key={`${category.category_key}-prompt-${promptIndex}`}
                 style={styles.suggestionButton}
                 onPress={() => handlePromptSelect(prompt)}
+                activeOpacity={0.6}
               >
                 <Text style={styles.suggestionText} numberOfLines={2}>
                   {prompt}
@@ -601,9 +968,19 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
           >
             <Text style={styles.menuIcon}>{'☰'}</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1} testID="chat-title">
-            {currentConversation?.title || 'New Chat'}
-          </Text>
+          <TouchableOpacity
+            style={[styles.headerTitleContainer, actionMenuVisible && styles.headerTitleHidden]}
+            onPress={showTitleActionMenu}
+            disabled={!currentConversation}
+            testID="chat-title-button"
+          >
+            <Text style={styles.headerTitle} numberOfLines={1} testID="chat-title">
+              {currentConversation?.title || 'New Chat'}
+            </Text>
+            {currentConversation && (
+              <Text style={styles.chevronIcon}>▼</Text>
+            )}
+          </TouchableOpacity>
           <TouchableOpacity style={styles.newChatButton} onPress={handleNewChat} testID="new-chat-button">
             <Text style={styles.newChatIcon}>+</Text>
           </TouchableOpacity>
@@ -614,12 +991,12 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.primary[500]} />
           </View>
-        ) : (messages.length === 0 && !isSending && !currentConversation) ? (
+        ) : ((messages?.length ?? 0) === 0 && !isSending) ? (
           renderEmptyChat()
         ) : (
           <FlatList
             ref={flatListRef}
-            data={messages}
+            data={messages ?? []}
             renderItem={renderMessage}
             keyExtractor={(item, index) => `${item.id}-${index}`}
             contentContainerStyle={styles.messagesList}
@@ -661,6 +1038,131 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Conversation Action Menu Modal - Claude-style popover */}
+        <Modal
+          visible={actionMenuVisible}
+          animationType="fade"
+          transparent
+          onRequestClose={closeActionMenu}
+        >
+          <TouchableOpacity
+            style={styles.popoverOverlay}
+            activeOpacity={1}
+            onPress={closeActionMenu}
+          >
+            <View style={styles.popoverContainer}>
+              <TouchableOpacity
+                style={[styles.popoverItem, styles.popoverItemDisabled]}
+                disabled
+              >
+                <Ionicons name="star-outline" size={20} color={colors.text.tertiary} style={styles.popoverIcon} />
+                <Text style={styles.popoverTextDisabled}>Add to favorites</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.popoverItem}
+                onPress={handleMenuRename}
+              >
+                <Ionicons name="pencil-outline" size={20} color={colors.text.primary} style={styles.popoverIcon} />
+                <Text style={styles.popoverText}>Rename</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.popoverItem}
+                onPress={handleMenuDelete}
+              >
+                <Ionicons name="trash-outline" size={20} color={colors.error} style={styles.popoverIcon} />
+                <Text style={styles.popoverTextDanger}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
+        {/* Provider Selection Modal */}
+        <Modal
+          visible={providerModalVisible}
+          animationType="fade"
+          transparent
+          onRequestClose={() => {
+            setProviderModalVisible(false);
+            setPendingPrompt(null);
+          }}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => {
+              setProviderModalVisible(false);
+              setPendingPrompt(null);
+            }}
+          >
+            <View style={styles.providerModalContainer}>
+              <Text style={styles.providerModalTitle}>Connect a Provider</Text>
+              <Text style={styles.providerModalSubtitle}>
+                To analyze your fitness data, please connect a provider first.
+              </Text>
+
+              <TouchableOpacity
+                style={styles.providerButton}
+                onPress={() => handleConnectProvider('strava')}
+              >
+                <Text style={styles.providerButtonIcon}>🚴</Text>
+                <Text style={styles.providerButtonText}>Connect Strava</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.providerButton}
+                onPress={() => handleConnectProvider('fitbit')}
+              >
+                <Text style={styles.providerButtonIcon}>⌚</Text>
+                <Text style={styles.providerButtonText}>Connect Fitbit</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.providerButton}
+                onPress={() => handleConnectProvider('garmin')}
+              >
+                <Text style={styles.providerButtonIcon}>⌚</Text>
+                <Text style={styles.providerButtonText}>Connect Garmin</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.providerButton}
+                onPress={() => handleConnectProvider('whoop')}
+              >
+                <Text style={styles.providerButtonIcon}>💪</Text>
+                <Text style={styles.providerButtonText}>Connect WHOOP</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.providerButton}
+                onPress={() => handleConnectProvider('coros')}
+              >
+                <Text style={styles.providerButtonIcon}>🏃</Text>
+                <Text style={styles.providerButtonText}>Connect COROS</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.providerButton}
+                onPress={() => handleConnectProvider('terra')}
+              >
+                <Text style={styles.providerButtonIcon}>🌍</Text>
+                <Text style={styles.providerButtonText}>Connect Terra</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.providerCancelButton}
+                onPress={() => {
+                  setProviderModalVisible(false);
+                  setPendingPrompt(null);
+                }}
+              >
+                <Text style={styles.providerCancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -692,13 +1194,26 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: colors.text.primary,
   },
-  headerTitle: {
+  headerTitleContainer: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: spacing.sm,
+  },
+  headerTitleHidden: {
+    opacity: 0,
+  },
+  headerTitle: {
     fontSize: fontSize.lg,
     fontWeight: '600',
     color: colors.text.primary,
     textAlign: 'center',
-    marginHorizontal: spacing.sm,
+  },
+  chevronIcon: {
+    fontSize: 10,
+    marginLeft: spacing.xs,
+    color: colors.text.tertiary,
   },
   newChatButton: {
     width: 40,
@@ -721,6 +1236,7 @@ const styles = StyleSheet.create({
   messagesList: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
+    paddingBottom: 80, // Space for floating input overlay
   },
   messageContainer: {
     marginBottom: spacing.md,
@@ -741,6 +1257,11 @@ const styles = StyleSheet.create({
   assistantBubble: {
     backgroundColor: colors.background.secondary,
     borderBottomLeftRadius: 4,
+  },
+  errorBubble: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderColor: colors.error,
+    borderWidth: 1,
   },
   assistantAvatarContainer: {
     width: 32,
@@ -797,6 +1318,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.xl,
+    paddingBottom: 100, // Space for floating input overlay
   },
   welcomeLogo: {
     width: 120,
@@ -848,10 +1370,12 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   inputContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border.subtle,
     backgroundColor: colors.background.primary,
   },
   inputWrapper: {
@@ -901,5 +1425,140 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     color: colors.text.secondary,
     fontStyle: 'italic',
+  },
+  messageActions: {
+    flexDirection: 'row',
+    marginTop: spacing.xs,
+    marginLeft: 0, // Far left, no padding
+    gap: spacing.md,
+  },
+  messageActionButton: {
+    padding: 2,
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background.tertiary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
+    gap: spacing.xs,
+  },
+  retryButtonText: {
+    fontSize: fontSize.xs,
+    color: colors.text.primary,
+    fontWeight: '500',
+  },
+  messageMetadata: {
+    fontSize: fontSize.xs,
+    color: colors.text.tertiary,
+    marginLeft: spacing.sm,
+  },
+  // Centered modal overlay (for provider selection)
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  // Claude-style popover dropdown (dark theme)
+  popoverOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  popoverContainer: {
+    position: 'absolute',
+    top: 68, // Align with + button background top
+    left: 60, // Equal margins to center
+    right: 60, // Equal margins to center
+    backgroundColor: colors.background.secondary,
+    borderRadius: 12,
+    paddingVertical: spacing.xs,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  popoverItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+  },
+  popoverItemDisabled: {
+    opacity: 0.4,
+  },
+  popoverIcon: {
+    marginRight: spacing.md,
+    width: 24,
+  },
+  popoverText: {
+    fontSize: fontSize.md,
+    color: colors.text.primary,
+    fontWeight: '400',
+  },
+  popoverTextDisabled: {
+    fontSize: fontSize.md,
+    color: colors.text.tertiary,
+    fontWeight: '400',
+  },
+  popoverTextDanger: {
+    fontSize: fontSize.md,
+    color: colors.error,
+    fontWeight: '400',
+  },
+  providerModalContainer: {
+    backgroundColor: colors.background.primary,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    minWidth: 280,
+    maxWidth: 320,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  providerModalTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: '600',
+    color: colors.text.primary,
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
+  providerModalSubtitle: {
+    fontSize: fontSize.sm,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  providerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background.secondary,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  providerButtonIcon: {
+    fontSize: 24,
+    marginRight: spacing.md,
+  },
+  providerButtonText: {
+    fontSize: fontSize.md,
+    color: colors.text.primary,
+    fontWeight: '500',
+  },
+  providerCancelButton: {
+    alignItems: 'center',
+    padding: spacing.md,
+    marginTop: spacing.xs,
+  },
+  providerCancelText: {
+    fontSize: fontSize.md,
+    color: colors.text.tertiary,
   },
 });

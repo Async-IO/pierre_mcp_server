@@ -3,7 +3,18 @@
 
 import './global.css';
 import React from 'react';
+import { LogBox } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+
+// Ignore expected error logs in development
+// These are handled with user-friendly Alert dialogs in the UI
+LogBox.ignoreLogs([
+  'Failed to send message:',
+  'Failed to load conversations:',
+  'Failed to load messages:',
+  'Failed to create conversation:',
+  'AxiosError',
+]);
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './src/contexts/AuthContext';

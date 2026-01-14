@@ -256,11 +256,11 @@ run_mobile_tests() {
     fi
 
     echo "🧪 Running mobile unit tests..."
-    if ! (cd "$PROJECT_ROOT/frontend-mobile" && bun test --silent 2>&1 | tail -5); then
+    if ! (cd "$PROJECT_ROOT/frontend-mobile" && bun run test --silent 2>&1 | tail -5); then
         echo ""
         echo "❌ Mobile unit tests failed!"
         echo ""
-        echo "Run 'cd frontend-mobile && bun test' to see details."
+        echo "Run 'cd frontend-mobile && bun run test' to see details."
         return 1
     fi
     echo "✅ Mobile unit tests passed"

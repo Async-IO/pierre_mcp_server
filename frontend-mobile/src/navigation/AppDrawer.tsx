@@ -1,17 +1,21 @@
 // ABOUTME: Main app drawer navigation for authenticated users
-// ABOUTME: Contains Chat, Connections, and Settings screens with custom drawer content
+// ABOUTME: Contains Chat, Settings screens and recent conversations in drawer
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
   SafeAreaView,
-  Image,
   ActivityIndicator,
+  Alert,
+  Modal,
+  ScrollView,
+  AppState,
 } from 'react-native';
+import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 import {
   createDrawerNavigator,
   type DrawerContentComponentProps,
@@ -20,13 +24,15 @@ import { useFocusEffect } from '@react-navigation/native';
 import { ChatScreen } from '../screens/chat/ChatScreen';
 import { ConnectionsScreen } from '../screens/connections/ConnectionsScreen';
 import { SettingsScreen } from '../screens/settings/SettingsScreen';
+import { ConversationsScreen } from '../screens/conversations/ConversationsScreen';
 import { useAuth } from '../contexts/AuthContext';
 import { apiService } from '../services/api';
 import { colors, spacing, fontSize, borderRadius } from '../constants/theme';
-import type { Conversation } from '../types';
+import type { Conversation, ProviderStatus } from '../types';
 
 export type AppDrawerParamList = {
   Chat: { conversationId?: string } | undefined;
+  Conversations: undefined;
   Connections: undefined;
   Settings: undefined;
 };
@@ -35,9 +41,13 @@ const Drawer = createDrawerNavigator<AppDrawerParamList>();
 
 function CustomDrawerContent(props: DrawerContentComponentProps) {
   const { user, isAuthenticated } = useAuth();
-  const { navigation, state } = props;
+  const { navigation } = props;
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
+  const [actionMenuVisible, setActionMenuVisible] = useState(false);
+  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [providerModalVisible, setProviderModalVisible] = useState(false);
+  const [connectedProviders, setConnectedProviders] = useState<ProviderStatus[]>([]);
 
   const loadConversations = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -63,12 +73,63 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
     }
   }, [isAuthenticated]);
 
-  // Load conversations when drawer is focused
+  const loadProviderStatus = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      const response = await apiService.getOAuthStatus();
+      setConnectedProviders(response.providers || []);
+    } catch (error) {
+      console.error('Failed to load provider status:', error);
+    }
+  }, [isAuthenticated]);
+
+  // Load conversations and provider status when drawer is focused
   useFocusEffect(
     useCallback(() => {
       loadConversations();
-    }, [loadConversations])
+      loadProviderStatus();
+    }, [loadConversations, loadProviderStatus])
   );
+
+  // Refresh provider status when app returns from OAuth flow
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        loadProviderStatus();
+      }
+    });
+    return () => subscription.remove();
+  }, [loadProviderStatus]);
+
+  const handleConnectProvider = async (provider: string) => {
+    setProviderModalVisible(false);
+    try {
+      const returnUrl = Linking.createURL('oauth-callback');
+      const oauthResponse = await apiService.initMobileOAuth(provider, returnUrl);
+      const result = await WebBrowser.openAuthSessionAsync(
+        oauthResponse.authorization_url,
+        returnUrl
+      );
+
+      if (result.type === 'success' && result.url) {
+        const parsedUrl = Linking.parse(result.url);
+        const success = parsedUrl.queryParams?.success === 'true';
+        const error = parsedUrl.queryParams?.error as string | undefined;
+
+        if (success) {
+          await loadProviderStatus();
+          Alert.alert('Connected', `Successfully connected to ${provider}!`);
+        } else if (error) {
+          Alert.alert('Connection Failed', `Failed to connect: ${error}`);
+        } else {
+          await loadProviderStatus();
+        }
+      }
+    } catch (error) {
+      console.error('Failed to start OAuth:', error);
+      Alert.alert('Error', 'Failed to connect provider. Please try again.');
+    }
+  };
 
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
@@ -91,83 +152,119 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
     navigation.navigate('Chat', { conversationId });
   };
 
+  const handleConversationLongPress = (conversation: Conversation) => {
+    setSelectedConversation(conversation);
+    setActionMenuVisible(true);
+  };
+
   const handleNewChat = () => {
     navigation.navigate('Chat', { conversationId: undefined });
   };
 
-  const menuItems = [
-    { name: 'Chat', icon: '💬', label: 'New Chat', action: handleNewChat },
-    { name: 'Connections', icon: '🔗', label: 'Connections' },
-    { name: 'Settings', icon: '⚙️', label: 'Settings' },
-  ];
+  const handleRename = () => {
+    if (!selectedConversation) return;
+    setActionMenuVisible(false);
+
+    Alert.prompt(
+      'Rename Conversation',
+      'Enter a new name for this conversation',
+      async (newTitle: string | undefined) => {
+        if (!newTitle?.trim() || !selectedConversation) return;
+        try {
+          const updated = await apiService.updateConversation(selectedConversation.id, {
+            title: newTitle.trim(),
+          });
+          // Update conversation and move to top (most recently updated)
+          setConversations(prev => {
+            const updatedConv = prev.find(c => c.id === selectedConversation.id);
+            if (!updatedConv) return prev;
+            const others = prev.filter(c => c.id !== selectedConversation.id);
+            return [
+              { ...updatedConv, title: updated.title, updated_at: updated.updated_at },
+              ...others,
+            ];
+          });
+        } catch (error) {
+          console.error('Failed to rename conversation:', error);
+        }
+      },
+      'plain-text',
+      selectedConversation.title || ''
+    );
+  };
+
+  const handleDelete = () => {
+    if (!selectedConversation) return;
+    setActionMenuVisible(false);
+
+    Alert.alert(
+      'Delete Conversation',
+      `Are you sure you want to delete "${selectedConversation.title || 'this conversation'}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await apiService.deleteConversation(selectedConversation.id);
+              setConversations(prev => prev.filter(c => c.id !== selectedConversation.id));
+            } catch (error) {
+              console.error('Failed to delete conversation:', error);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const closeActionMenu = () => {
+    setActionMenuVisible(false);
+    setSelectedConversation(null);
+  };
 
   return (
     <SafeAreaView style={styles.drawerContainer}>
-      {/* Header */}
-      <View style={styles.drawerHeader}>
-        <Image
-          source={require('../../assets/pierre-logo.png')}
-          style={styles.drawerLogo}
-          resizeMode="contain"
-        />
-        <Text style={styles.appName}>Pierre</Text>
+      {/* Brand Header */}
+      <View style={styles.brandHeader}>
+        <Text style={styles.brandTitle}>Pierre</Text>
       </View>
 
-      {/* User Info */}
-      <View style={styles.userSection}>
-        <View style={styles.userAvatar}>
-          <Text style={styles.userAvatarText}>
-            {user?.display_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
-          </Text>
-        </View>
-        <View style={styles.userInfo}>
-          <Text style={styles.userName} numberOfLines={1}>
-            {user?.display_name || 'User'}
-          </Text>
-          <Text style={styles.userEmail} numberOfLines={1}>
-            {user?.email}
-          </Text>
-        </View>
-      </View>
+      {/* Discussions Button */}
+      <TouchableOpacity
+        style={styles.discussionsButton}
+        onPress={() => navigation.navigate('Conversations')}
+      >
+        <Text style={styles.discussionsIcon}>💬</Text>
+        <Text style={styles.discussionsText}>Discussions</Text>
+        <Text style={styles.discussionsChevron}>›</Text>
+      </TouchableOpacity>
 
-      {/* Menu Items */}
-      <ScrollView style={styles.menuContainer}>
-        {menuItems.map((item) => {
-          const isActive = state.routeNames[state.index] === item.name && !item.action;
+      {/* Connect Providers Button */}
+      <TouchableOpacity
+        style={styles.discussionsButton}
+        onPress={() => setProviderModalVisible(true)}
+      >
+        <Text style={styles.discussionsIcon}>🔗</Text>
+        <Text style={styles.discussionsText}>Connect Providers</Text>
+        <Text style={styles.discussionsChevron}>›</Text>
+      </TouchableOpacity>
 
-          return (
-            <TouchableOpacity
-              key={item.name}
-              style={[styles.menuItem, isActive && styles.menuItemActive]}
-              onPress={item.action || (() => navigation.navigate(item.name as keyof AppDrawerParamList))}
-            >
-              <Text style={[styles.menuIcon, isActive && styles.menuTextActive]}>
-                {item.icon}
-              </Text>
-              <Text style={[styles.menuLabel, isActive && styles.menuTextActive]}>
-                {item.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-
-        {/* Recent Conversations */}
+      {/* Conversations List */}
+      <ScrollView style={styles.conversationsContainer} contentContainerStyle={styles.conversationsContent}>
         {conversations.length > 0 && (
           <>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Recent Conversations</Text>
-            </View>
-            {conversations.map((conv, index) => (
+            <Text style={styles.sectionHeader}>Recents</Text>
+            {conversations.map((conv) => (
               <TouchableOpacity
-                key={`${conv.id}-${index}`}
+                key={conv.id}
                 style={styles.conversationItem}
                 onPress={() => handleConversationPress(conv.id)}
+                onLongPress={() => handleConversationLongPress(conv)}
+                delayLongPress={300}
               >
                 <Text style={styles.conversationTitle} numberOfLines={1}>
                   {conv.title || 'Untitled'}
-                </Text>
-                <Text style={styles.conversationDate}>
-                  {formatDate(conv.updated_at)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -181,10 +278,140 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
         )}
       </ScrollView>
 
-      {/* Footer */}
-      <View style={styles.drawerFooter}>
-        <Text style={styles.footerText}>Pierre v1.0.0</Text>
+      {/* Floating Bottom Bar: Avatar + Username + New Chat */}
+      <View style={styles.floatingBottomBar}>
+        <TouchableOpacity
+          style={styles.userButton}
+          onPress={() => navigation.navigate('Settings')}
+          activeOpacity={0.7}
+        >
+          <View style={styles.userAvatar}>
+            <Text style={styles.userAvatarText}>
+              {user?.display_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
+            </Text>
+          </View>
+          <Text style={styles.userName} numberOfLines={1}>
+            {user?.display_name || 'User'}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.newChatButton} onPress={handleNewChat}>
+          <Text style={styles.newChatIcon}>+</Text>
+        </TouchableOpacity>
       </View>
+
+      {/* Action Menu Modal - Floating popup style */}
+      <Modal
+        visible={actionMenuVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={closeActionMenu}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={closeActionMenu}
+        >
+          <View style={styles.actionMenuContainer}>
+            <TouchableOpacity
+              style={[styles.actionMenuItem, styles.actionMenuItemDisabled]}
+              disabled
+            >
+              <Text style={styles.actionMenuIcon}>☆</Text>
+              <Text style={styles.actionMenuTextDisabled}>Add to favorites</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionMenuItem}
+              onPress={handleRename}
+            >
+              <Text style={styles.actionMenuIcon}>✎</Text>
+              <Text style={styles.actionMenuText}>Rename</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionMenuItem}
+              onPress={handleDelete}
+            >
+              <Text style={styles.actionMenuIconDanger}>🗑</Text>
+              <Text style={styles.actionMenuTextDanger}>Delete</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Provider Bottom Sheet Modal */}
+      <Modal
+        visible={providerModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setProviderModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.bottomSheetOverlay}
+          activeOpacity={1}
+          onPress={() => setProviderModalVisible(false)}
+        >
+          <View style={styles.bottomSheetContainer}>
+            <View style={styles.bottomSheetHandle} />
+            <Text style={styles.bottomSheetTitle}>Connect a Provider</Text>
+            <Text style={styles.bottomSheetSubtitle}>
+              Link your fitness accounts to analyze your data
+            </Text>
+
+            <ScrollView style={styles.providerList} showsVerticalScrollIndicator={false}>
+              {[
+                { id: 'strava', name: 'Strava', icon: '🚴' },
+                { id: 'fitbit', name: 'Fitbit', icon: '⌚' },
+                { id: 'garmin', name: 'Garmin', icon: '⌚' },
+                { id: 'whoop', name: 'WHOOP', icon: '💪' },
+                { id: 'coros', name: 'COROS', icon: '🏃' },
+                { id: 'terra', name: 'Terra', icon: '🌍' },
+              ].map((provider) => {
+                const providerStatus = connectedProviders.find(
+                  (p) => p.provider === provider.id
+                );
+                const isAvailable = !!providerStatus;
+                const isConnected = providerStatus?.connected ?? false;
+
+                return (
+                  <TouchableOpacity
+                    key={provider.id}
+                    style={[
+                      styles.providerButton,
+                      isConnected && styles.providerButtonConnected,
+                      !isAvailable && styles.providerButtonDisabled,
+                    ]}
+                    onPress={() => handleConnectProvider(provider.id)}
+                    disabled={!isAvailable}
+                  >
+                    <Text style={[
+                      styles.providerIcon,
+                      !isAvailable && styles.providerIconDisabled,
+                    ]}>{provider.icon}</Text>
+                    <Text style={[
+                      styles.providerName,
+                      !isAvailable && styles.providerNameDisabled,
+                    ]}>{provider.name}</Text>
+                    {isConnected && (
+                      <Text style={styles.providerConnectedBadge}>✓</Text>
+                    )}
+                    {!isAvailable && (
+                      <Text style={styles.providerComingSoon}>Coming soon</Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.bottomSheetCloseButton}
+              onPress={() => setProviderModalVisible(false)}
+            >
+              <Text style={styles.bottomSheetCloseText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -204,6 +431,7 @@ export function AppDrawer() {
       }}
     >
       <Drawer.Screen name="Chat" component={ChatScreen} />
+      <Drawer.Screen name="Conversations" component={ConversationsScreen} />
       <Drawer.Screen name="Connections" component={ConnectionsScreen} />
       <Drawer.Screen name="Settings" component={SettingsScreen} />
     </Drawer.Navigator>
@@ -215,130 +443,263 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background.secondary,
   },
-  drawerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  brandHeader: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
     paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
   },
-  drawerLogo: {
-    width: 40,
-    height: 40,
-    marginRight: spacing.sm,
-  },
-  appName: {
-    fontSize: fontSize.xl,
+  brandTitle: {
+    fontSize: 28,
     fontWeight: '700',
     color: colors.text.primary,
   },
-  userSection: {
+  discussionsButton: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
+    marginBottom: spacing.sm,
   },
-  userAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.primary[700],
-    alignItems: 'center',
-    justifyContent: 'center',
+  discussionsIcon: {
+    fontSize: 18,
     marginRight: spacing.sm,
   },
-  userAvatarText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text.primary,
-  },
-  userInfo: {
+  discussionsText: {
     flex: 1,
-  },
-  userName: {
     fontSize: fontSize.md,
-    fontWeight: '600',
+    fontWeight: '500',
     color: colors.text.primary,
   },
-  userEmail: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-  },
-  menuContainer: {
-    flex: 1,
-    paddingTop: spacing.md,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    marginHorizontal: spacing.sm,
-    borderRadius: borderRadius.md,
-  },
-  menuItemActive: {
-    backgroundColor: colors.primary[600] + '20',
-  },
-  menuIcon: {
+  discussionsChevron: {
     fontSize: 20,
-    marginRight: spacing.md,
-    color: colors.text.secondary,
-  },
-  menuLabel: {
-    fontSize: fontSize.md,
-    color: colors.text.secondary,
-  },
-  menuTextActive: {
-    color: colors.primary[500],
+    color: colors.text.tertiary,
   },
   sectionHeader: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xs,
-  },
-  sectionTitle: {
-    fontSize: fontSize.xs,
+    fontSize: fontSize.sm,
     fontWeight: '600',
     color: colors.text.tertiary,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xs,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
+  conversationsContainer: {
+    flex: 1,
+  },
+  conversationsContent: {
+    paddingBottom: 80, // Space for floating bottom bar
+  },
   conversationItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    marginHorizontal: spacing.sm,
-    borderRadius: borderRadius.md,
+    paddingVertical: spacing.sm + 2,
   },
   conversationTitle: {
-    flex: 1,
-    fontSize: fontSize.sm,
+    fontSize: fontSize.md,
     color: colors.text.primary,
-    marginRight: spacing.sm,
-  },
-  conversationDate: {
-    fontSize: fontSize.xs,
-    color: colors.text.tertiary,
   },
   loadingContainer: {
     paddingVertical: spacing.md,
     alignItems: 'center',
   },
-  drawerFooter: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border.subtle,
+  floatingBottomBar: {
+    position: 'absolute',
+    bottom: spacing.lg,
+    left: spacing.md,
+    right: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  footerText: {
+  userButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background.tertiary,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.full,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  userAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.primary[700],
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.xs,
+  },
+  userAvatarText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.text.primary,
+  },
+  userName: {
+    fontSize: fontSize.sm,
+    fontWeight: '500',
+    color: colors.text.primary,
+    maxWidth: 120,
+  },
+  newChatButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primary[500],
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  newChatIcon: {
+    fontSize: 28,
+    color: colors.text.primary,
+    marginTop: -2,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  actionMenuContainer: {
+    backgroundColor: colors.background.primary,
+    borderRadius: borderRadius.lg,
+    paddingVertical: spacing.xs,
+    minWidth: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  actionMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  actionMenuItemDisabled: {
+    opacity: 0.4,
+  },
+  actionMenuIcon: {
+    fontSize: 18,
+    marginRight: spacing.sm,
+    width: 24,
+  },
+  actionMenuIconDanger: {
+    fontSize: 18,
+    marginRight: spacing.sm,
+    width: 24,
+  },
+  actionMenuText: {
+    fontSize: fontSize.md,
+    color: colors.text.primary,
+  },
+  actionMenuTextDisabled: {
+    fontSize: fontSize.md,
+    color: colors.text.tertiary,
+  },
+  actionMenuTextDanger: {
+    fontSize: fontSize.md,
+    color: colors.error,
+  },
+  // Bottom Sheet Modal styles
+  bottomSheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  bottomSheetContainer: {
+    backgroundColor: colors.background.primary,
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xl,
+    maxHeight: '70%',
+  },
+  bottomSheetHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: colors.text.tertiary,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: spacing.md,
+  },
+  bottomSheetTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: '600',
+    color: colors.text.primary,
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
+  bottomSheetSubtitle: {
+    fontSize: fontSize.sm,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  providerList: {
+    maxHeight: 300,
+  },
+  providerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background.secondary,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  providerButtonConnected: {
+    borderColor: colors.primary[500],
+    backgroundColor: colors.background.tertiary,
+  },
+  providerButtonDisabled: {
+    opacity: 0.5,
+    borderColor: colors.border.subtle,
+  },
+  providerIcon: {
+    fontSize: 24,
+    marginRight: spacing.md,
+  },
+  providerIconDisabled: {
+    opacity: 0.5,
+  },
+  providerName: {
+    flex: 1,
+    fontSize: fontSize.md,
+    color: colors.text.primary,
+    fontWeight: '500',
+  },
+  providerNameDisabled: {
+    color: colors.text.tertiary,
+  },
+  providerConnectedBadge: {
+    fontSize: 18,
+    color: colors.primary[500],
+    fontWeight: '600',
+  },
+  providerComingSoon: {
     fontSize: fontSize.xs,
     color: colors.text.tertiary,
-    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  bottomSheetCloseButton: {
+    alignItems: 'center',
+    padding: spacing.md,
+    marginTop: spacing.sm,
+  },
+  bottomSheetCloseText: {
+    fontSize: fontSize.md,
+    color: colors.text.tertiary,
+    fontWeight: '500',
   },
 });

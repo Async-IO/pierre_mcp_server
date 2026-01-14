@@ -30,6 +30,11 @@ export interface Message {
   content: string;
   token_count?: number;
   created_at: string;
+  // Response metadata for assistant messages
+  model?: string;
+  execution_time_ms?: number;
+  // Error flag for failed message responses
+  isError?: boolean;
 }
 
 export interface ProviderStatus {

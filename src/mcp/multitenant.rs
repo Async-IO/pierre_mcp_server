@@ -972,8 +972,11 @@ impl MultiTenantMcpServer {
             .layer(setup_cors(&resources.config))
             .layer(Self::create_security_headers_layer(&resources.config));
 
-        // Create server address
-        let addr = SocketAddr::from(([127, 0, 0, 1], port));
+        // Create server address using host from config (defaults to localhost, can be 0.0.0.0 for network access)
+        let host = &resources.config.host;
+        let addr: SocketAddr = format!("{host}:{port}")
+            .parse()
+            .unwrap_or_else(|_| SocketAddr::from(([127, 0, 0, 1], port)));
         info!("HTTP server (Axum) listening on http://{}", addr);
 
         // Start the Axum server with ConnectInfo for IP extraction (rate limiting)

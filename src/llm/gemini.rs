@@ -10,13 +10,14 @@
 //!
 //! ## Configuration
 //!
-//! Set the `GEMINI_API_KEY` environment variable with your API key from
-//! Google AI Studio: <https://makersuite.google.com/app/apikey>
+//! - `GEMINI_API_KEY`: Required API key from Google AI Studio: <https://makersuite.google.com/app/apikey>
+//! - `GEMINI_MODEL`: Optional model selection (default: gemini-2.5-pro)
 //!
 //! ## Supported Models
 //!
-//! - `gemini-2.5-flash` (default): Latest fast model with improved capabilities
-//! - `gemini-2.0-flash-exp`: Experimental fast model
+//! - `gemini-2.5-pro` (default): Most capable Gemini model with advanced reasoning
+//! - `gemini-2.5-flash`: Fast model with improved capabilities
+//! - `gemini-2.0-flash`: Stable multimodal model
 //! - `gemini-1.5-pro`: Advanced reasoning capabilities
 //! - `gemini-1.5-flash`: Balanced performance and cost
 //!
@@ -45,7 +46,7 @@ use async_trait::async_trait;
 use futures_util::StreamExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error, instrument, warn};
+use tracing::{debug, error, info, instrument, warn};
 
 use super::{
     ChatMessage, ChatRequest, ChatResponse, ChatStream, LlmCapabilities, LlmProvider, MessageRole,
@@ -56,16 +57,19 @@ use crate::errors::{AppError, ErrorCode};
 /// Environment variable for Gemini API key
 const GEMINI_API_KEY_ENV: &str = "GEMINI_API_KEY";
 
-/// Default model to use
-const DEFAULT_MODEL: &str = "gemini-2.5-flash";
+/// Environment variable for Gemini model selection
+const GEMINI_MODEL_ENV: &str = "GEMINI_MODEL";
+
+/// Default model to use when `GEMINI_MODEL` is not set
+const DEFAULT_MODEL: &str = "gemini-2.5-pro";
 
 /// Available Gemini models
 const AVAILABLE_MODELS: &[&str] = &[
+    "gemini-2.5-pro",
     "gemini-2.5-flash",
-    "gemini-2.0-flash-exp",
+    "gemini-2.0-flash",
     "gemini-1.5-pro",
     "gemini-1.5-flash",
-    "gemini-1.0-pro",
 ];
 
 /// Base URL for the Gemini API
@@ -254,16 +258,21 @@ impl GeminiProvider {
         }
     }
 
-    /// Create a provider from the `GEMINI_API_KEY` environment variable
+    /// Create a provider from environment variables
+    ///
+    /// - `GEMINI_API_KEY`: Required API key
+    /// - `GEMINI_MODEL`: Optional model override (default: gemini-2.5-pro)
     ///
     /// # Errors
     ///
-    /// Returns an error if the environment variable is not set.
+    /// Returns an error if the `GEMINI_API_KEY` environment variable is not set.
     pub fn from_env() -> Result<Self, AppError> {
         let api_key = env::var(GEMINI_API_KEY_ENV).map_err(|_| {
             AppError::config(format!("{GEMINI_API_KEY_ENV} environment variable not set"))
         })?;
-        Ok(Self::new(api_key))
+        let model = env::var(GEMINI_MODEL_ENV).unwrap_or_else(|_| DEFAULT_MODEL.to_owned());
+        info!("Gemini provider using model: {model}");
+        Ok(Self::new(api_key).with_default_model(model))
     }
 
     /// Set a custom default model
@@ -566,7 +575,7 @@ impl LlmProvider for GeminiProvider {
     }
 
     fn default_model(&self) -> &str {
-        DEFAULT_MODEL
+        &self.default_model
     }
 
     fn available_models(&self) -> &'static [&'static str] {

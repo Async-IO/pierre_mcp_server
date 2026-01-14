@@ -8,9 +8,9 @@ use crate::cache::{factory::Cache, CacheKey, CacheResource};
 use crate::config::environment::default_provider;
 use crate::formatters::{format_output, OutputFormat};
 use crate::intelligence::physiological_constants::api_limits::{
-    CLAUDE_CONTEXT_TOKENS, CONTEXT_WARNING_THRESHOLD_PERCENT, DEFAULT_ACTIVITY_LIMIT_U32,
-    MAX_ACTIVITY_LIMIT, SAFE_LIMIT_JSON_DETAILED, SAFE_LIMIT_JSON_SUMMARY,
-    SAFE_LIMIT_TOON_DETAILED, SAFE_LIMIT_TOON_SUMMARY, TOKENS_PER_ACTIVITY_DETAILED,
+    safe_limit_json_detailed, safe_limit_json_summary, safe_limit_toon_detailed,
+    safe_limit_toon_summary, CLAUDE_CONTEXT_TOKENS, CONTEXT_WARNING_THRESHOLD_PERCENT,
+    DEFAULT_ACTIVITY_LIMIT_U32, MAX_ACTIVITY_LIMIT, TOKENS_PER_ACTIVITY_DETAILED,
     TOKENS_PER_ACTIVITY_SUMMARY, USABLE_CONTEXT_TOKENS,
 };
 use crate::models::{Activity, Athlete, SportType, Stats};
@@ -792,11 +792,12 @@ pub fn handle_get_activities(
 
         // Determine format-aware safe default limit based on mode and format
         // These defaults prevent LLM context overflow when limit is not specified
+        // Configurable via SAFE_LIMIT_* environment variables
         let format_aware_default = match (output_format, mode) {
-            (OutputFormat::Toon, "summary") => SAFE_LIMIT_TOON_SUMMARY,
-            (OutputFormat::Toon, _) => SAFE_LIMIT_TOON_DETAILED,
-            (OutputFormat::Json, "summary") => SAFE_LIMIT_JSON_SUMMARY,
-            (OutputFormat::Json, _) => SAFE_LIMIT_JSON_DETAILED,
+            (OutputFormat::Toon, "summary") => safe_limit_toon_summary(),
+            (OutputFormat::Toon, _) => safe_limit_toon_detailed(),
+            (OutputFormat::Json, "summary") => safe_limit_json_summary(),
+            (OutputFormat::Json, _) => safe_limit_json_detailed(),
         };
 
         // Extract limit parameter - use format-aware default if not specified
