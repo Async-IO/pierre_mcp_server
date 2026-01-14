@@ -95,15 +95,21 @@ If the script generated a new token, you may need to **restart the Claude Code s
 
 Each Claude Code session is tracked as a Linear issue for persistent memory across sessions.
 
+### CRITICAL: First-Message Trigger
+
+**BEFORE responding to ANY user request in a new session, Claude MUST FIRST execute Linear session tracking.** This is non-negotiable. Do not greet the user, do not answer questions, do not do anything else until session tracking is complete.
+
+If this is a resumed/compacted session (context says "continued from previous conversation"), session tracking was already done - skip to the user's request.
+
 ### Session ID Format
 ```
 Session: YYYY-MM-DD-<project_name>-<branch>
 Example: Session: 2026-01-14-pierre_mcp_server-main
 ```
 
-### SessionStart - Claude MUST Execute
+### SessionStart - Execute BEFORE First Response
 
-At the START of every session, Claude MUST:
+At the START of every NEW session, Claude MUST:
 
 1. **Search for existing session from today:**
    ```
