@@ -86,3 +86,23 @@ export interface RegisterResponse {
   email: string;
   message: string;
 }
+
+export interface OAuthApp {
+  provider: string;
+  client_id: string;
+  redirect_uri: string;
+  created_at: string;
+}
+
+export interface OAuthAppCredentials {
+  provider: string;
+  client_id: string;
+  client_secret: string;
+  redirect_uri: string;
+}
+
+export interface OAuthProvider {
+  id: string;
+  name: string;
+  color: string;
+}
