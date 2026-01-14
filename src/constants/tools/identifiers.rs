@@ -75,3 +75,18 @@ pub const SEARCH_RECIPES: &str = "search_recipes";
 pub const SAVE_RECIPE: &str = "save_recipe";
 /// Tool identifier for validating recipe nutrition
 pub const VALIDATE_RECIPE: &str = "validate_recipe";
+
+/// Coach management tools (custom AI personas)
+pub const LIST_COACHES: &str = "list_coaches";
+/// Tool identifier for creating a new coach
+pub const CREATE_COACH: &str = "create_coach";
+/// Tool identifier for retrieving a specific coach
+pub const GET_COACH: &str = "get_coach";
+/// Tool identifier for updating a coach
+pub const UPDATE_COACH: &str = "update_coach";
+/// Tool identifier for deleting a coach
+pub const DELETE_COACH: &str = "delete_coach";
+/// Tool identifier for toggling coach favorite status
+pub const TOGGLE_COACH_FAVORITE: &str = "toggle_coach_favorite";
+/// Tool identifier for searching coaches
+pub const SEARCH_COACHES: &str = "search_coaches";

@@ -5,8 +5,9 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::constants::tools::{
-    DELETE_RECIPE, GET_RECIPE, GET_RECIPE_CONSTRAINTS, LIST_RECIPES, SAVE_RECIPE, SEARCH_RECIPES,
-    VALIDATE_RECIPE,
+    CREATE_COACH, DELETE_COACH, DELETE_RECIPE, GET_COACH, GET_RECIPE, GET_RECIPE_CONSTRAINTS,
+    LIST_COACHES, LIST_RECIPES, SAVE_RECIPE, SEARCH_COACHES, SEARCH_RECIPES, TOGGLE_COACH_FAVORITE,
+    UPDATE_COACH, VALIDATE_RECIPE,
 };
 use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalToolExecutor};
 use crate::protocols::ProtocolError;
@@ -126,6 +127,22 @@ pub enum ToolId {
     DeleteRecipe,
     /// Search user's recipes by name, tags, or description
     SearchRecipes,
+
+    // Coach management tools (custom AI personas)
+    /// List user's coaches with optional filtering
+    ListCoaches,
+    /// Create a new custom coach with system prompt
+    CreateCoach,
+    /// Get a specific coach by ID
+    GetCoach,
+    /// Update an existing coach
+    UpdateCoach,
+    /// Delete a coach from user's collection
+    DeleteCoach,
+    /// Toggle favorite status of a coach
+    ToggleCoachFavorite,
+    /// Search coaches by query
+    SearchCoaches,
 }
 
 impl ToolId {
@@ -183,6 +200,14 @@ impl ToolId {
             GET_RECIPE => Some(Self::GetRecipe),
             DELETE_RECIPE => Some(Self::DeleteRecipe),
             SEARCH_RECIPES => Some(Self::SearchRecipes),
+            // Coach management tools
+            LIST_COACHES => Some(Self::ListCoaches),
+            CREATE_COACH => Some(Self::CreateCoach),
+            GET_COACH => Some(Self::GetCoach),
+            UPDATE_COACH => Some(Self::UpdateCoach),
+            DELETE_COACH => Some(Self::DeleteCoach),
+            TOGGLE_COACH_FAVORITE => Some(Self::ToggleCoachFavorite),
+            SEARCH_COACHES => Some(Self::SearchCoaches),
             _ => None,
         }
     }
@@ -239,6 +264,14 @@ impl ToolId {
             Self::GetRecipe => GET_RECIPE,
             Self::DeleteRecipe => DELETE_RECIPE,
             Self::SearchRecipes => SEARCH_RECIPES,
+            // Coach management tools
+            Self::ListCoaches => LIST_COACHES,
+            Self::CreateCoach => CREATE_COACH,
+            Self::GetCoach => GET_COACH,
+            Self::UpdateCoach => UPDATE_COACH,
+            Self::DeleteCoach => DELETE_COACH,
+            Self::ToggleCoachFavorite => TOGGLE_COACH_FAVORITE,
+            Self::SearchCoaches => SEARCH_COACHES,
         }
     }
 
@@ -331,7 +364,15 @@ impl ToolId {
             Self::ListRecipes => "List saved recipes with optional meal timing filter",
             Self::GetRecipe => "Get a specific recipe by ID",
             Self::DeleteRecipe => "Delete a recipe from collection",
-            Self::SearchRecipes => "Search recipes by name, tags, or description"
+            Self::SearchRecipes => "Search recipes by name, tags, or description",
+            // Coach management tools (custom AI personas)
+            Self::ListCoaches => "List user's coaches with optional category filtering",
+            Self::CreateCoach => "Create a new custom coach with system prompt",
+            Self::GetCoach => "Get a specific coach by ID including system prompt",
+            Self::UpdateCoach => "Update an existing coach's properties",
+            Self::DeleteCoach => "Delete a coach from user's collection",
+            Self::ToggleCoachFavorite => "Toggle favorite status of a coach",
+            Self::SearchCoaches => "Search coaches by title, description, or tags",
         }
     }
 

@@ -20,8 +20,10 @@ use super::handlers::{
     handle_track_sleep_trends, handle_update_user_configuration, handle_validate_configuration,
 };
 use super::handlers::{
-    handle_delete_recipe, handle_get_recipe, handle_get_recipe_constraints, handle_list_recipes,
-    handle_save_recipe, handle_search_recipes, handle_validate_recipe,
+    handle_create_coach, handle_delete_coach, handle_delete_recipe, handle_get_coach,
+    handle_get_recipe, handle_get_recipe_constraints, handle_list_coaches, handle_list_recipes,
+    handle_save_recipe, handle_search_coaches, handle_search_recipes, handle_toggle_coach_favorite,
+    handle_update_coach, handle_validate_recipe,
 };
 use super::tool_registry::{ToolId, ToolInfo, ToolRegistry};
 use crate::constants::time_constants::SECONDS_PER_HOUR_F64;
@@ -360,6 +362,37 @@ impl UniversalExecutor {
         ));
     }
 
+    fn register_coaches_tools(registry: &mut ToolRegistry) {
+        registry.register(ToolInfo::async_tool(
+            ToolId::ListCoaches,
+            |executor, request| Box::pin(handle_list_coaches(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::CreateCoach,
+            |executor, request| Box::pin(handle_create_coach(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::GetCoach,
+            |executor, request| Box::pin(handle_get_coach(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::UpdateCoach,
+            |executor, request| Box::pin(handle_update_coach(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::DeleteCoach,
+            |executor, request| Box::pin(handle_delete_coach(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::ToggleCoachFavorite,
+            |executor, request| Box::pin(handle_toggle_coach_favorite(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::SearchCoaches,
+            |executor, request| Box::pin(handle_search_coaches(executor, request)),
+        ));
+    }
+
     fn register_all_tools(registry: &mut ToolRegistry) {
         Self::register_strava_tools(registry);
         Self::register_connection_tools(registry);
@@ -369,6 +402,7 @@ impl UniversalExecutor {
         Self::register_sleep_recovery_tools(registry);
         Self::register_nutrition_tools(registry);
         Self::register_recipe_tools(registry);
+        Self::register_coaches_tools(registry);
     }
 
     /// Execute a tool with type-safe routing (no string matching!)

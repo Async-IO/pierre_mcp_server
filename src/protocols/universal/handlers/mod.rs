@@ -4,6 +4,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+/// Coach management tool handlers (custom AI personas)
+pub mod coaches;
 /// Configuration management tool handlers
 pub mod configuration;
 /// OAuth provider connection tool handlers
@@ -96,4 +98,10 @@ pub use fitness_api::{apply_format_to_response, build_formatted_response, extrac
 pub use recipes::{
     handle_delete_recipe, handle_get_recipe, handle_get_recipe_constraints, handle_list_recipes,
     handle_save_recipe, handle_search_recipes, handle_validate_recipe,
+};
+
+/// Re-export coach management handlers
+pub use coaches::{
+    handle_create_coach, handle_delete_coach, handle_get_coach, handle_list_coaches,
+    handle_search_coaches, handle_toggle_coach_favorite, handle_update_coach,
 };
