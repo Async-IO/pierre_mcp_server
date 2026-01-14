@@ -17,7 +17,7 @@ use lru::LruCache;
 use serde_json::Value;
 use std::{num::NonZeroUsize, sync::Arc};
 use tokio::{sync::Mutex, task::yield_now};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, field::Empty, info, info_span, warn, Instrument};
 
 use crate::{
     database_plugins::DatabaseProvider,
@@ -27,6 +27,7 @@ use crate::{
         schema::get_tools,
         tenant_isolation::validate_jwt_token_for_mcp,
     },
+    middleware::RequestId,
 };
 
 /// Session data for MCP requests
@@ -100,8 +101,35 @@ impl McpRoutes {
         headers: HeaderMap,
         request: Request<Body>,
     ) -> Response {
-        debug!("=== MCP HTTP Request START ===");
-        debug!("Method: {}", method);
+        // Extract request ID from middleware before consuming request body
+        let request_id = request
+            .extensions()
+            .get::<RequestId>()
+            .map_or_else(|| uuid::Uuid::new_v4().to_string(), |r| r.0.clone());
+
+        // Create a span for this MCP request with correlation ID
+        let span = info_span!(
+            "mcp_request",
+            request_id = %request_id,
+            method = %method,
+            session_id = Empty,
+            user_id = Empty,
+        );
+
+        Self::handle_mcp_request_inner(state, method, headers, request, request_id)
+            .instrument(span)
+            .await
+    }
+
+    /// Inner handler with tracing span context
+    async fn handle_mcp_request_inner(
+        state: McpRoutesState,
+        method: Method,
+        headers: HeaderMap,
+        request: Request<Body>,
+        request_id: String,
+    ) -> Response {
+        debug!(request_id = %request_id, "MCP request started");
 
         // Extract headers
         let mcp_headers = Self::extract_headers(&headers);
@@ -112,14 +140,17 @@ impl McpRoutes {
             Err(response) => return response,
         };
 
-        // Determine session ID
+        // Determine session ID once and reuse throughout the request
         let session_id = Self::determine_session_id(&mcp_headers);
+
+        // Record session ID in span
+        tracing::Span::current().record("session_id", &session_id);
 
         // Resolve effective auth (from header or session)
         let effective_auth = Self::resolve_effective_auth(&mcp_headers, &state.sessions).await;
 
-        // Validate and store session if needed
-        Self::validate_and_store_session(&mcp_headers, &state).await;
+        // Validate and store session if needed (pass session_id to avoid regenerating)
+        Self::validate_and_store_session(&mcp_headers, &session_id, &state).await;
 
         // Handle the MCP request
         match Self::handle_mcp_http_request(method, effective_auth, body, &state).await {
@@ -211,17 +242,19 @@ impl McpRoutes {
     }
 
     /// Validate JWT and store session if auth header provided
-    async fn validate_and_store_session(headers: &McpRequestHeaders, state: &McpRoutesState) {
+    async fn validate_and_store_session(
+        headers: &McpRequestHeaders,
+        session_id: &str,
+        state: &McpRoutesState,
+    ) {
         let Some(ref auth) = headers.auth_header else {
             return;
         };
 
-        let session_id = Self::determine_session_id(headers);
-
         // Check if session already exists
         let needs_validation = {
             let sessions_guard = state.sessions.lock().await;
-            !sessions_guard.contains(&session_id)
+            !sessions_guard.contains(session_id)
         };
 
         if !needs_validation {
@@ -233,7 +266,7 @@ impl McpRoutes {
             return;
         };
 
-        Self::validate_and_store_jwt(token, &state.sessions, &session_id, state).await;
+        Self::validate_and_store_jwt(token, &state.sessions, session_id, state).await;
     }
 
     /// Validate JWT token and store session data
@@ -270,9 +303,15 @@ impl McpRoutes {
             },
         );
         drop(sessions_guard);
+
+        // Record user_id in the tracing span for log correlation
+        tracing::Span::current().record("user_id", jwt_result.user_id.to_string());
+
         info!(
-            "Stored session {} for user {} ({})",
-            session_id, jwt_result.user_id, user.email
+            user_id = %jwt_result.user_id,
+            user_email = %user.email,
+            session_id = %session_id,
+            "Session stored for authenticated user"
         );
     }
 

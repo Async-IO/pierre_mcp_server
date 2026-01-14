@@ -391,6 +391,8 @@ impl McpRequestProcessor {
         match request.method.as_str() {
             "notifications/cancelled" => self.handle_cancelled_notification(request).await,
             "notifications/progress" => Self::handle_progress_notification(),
+            "notifications/initialized" => Self::handle_initialized_notification(),
+            "notifications/roots/listChanged" => Self::handle_roots_list_changed_notification(),
             _ => Self::handle_unknown_notification(&request.method),
         }
     }
@@ -418,9 +420,22 @@ impl McpRequestProcessor {
         debug!("Progress notification received");
     }
 
+    /// Handle initialized notification (client confirms initialization complete)
+    fn handle_initialized_notification() {
+        debug!("Client initialization complete");
+    }
+
+    /// Handle roots/listChanged notification (client's workspace roots changed)
+    fn handle_roots_list_changed_notification() {
+        debug!("Client roots list changed");
+    }
+
     /// Handle unknown notification type
     fn handle_unknown_notification(method: &str) {
-        debug!("Unknown notification type: {}", method);
+        warn!(
+            notification_type = %method,
+            "Received unhandled notification type - may need implementation"
+        );
     }
 
     /// Log incoming request with optional truncation
