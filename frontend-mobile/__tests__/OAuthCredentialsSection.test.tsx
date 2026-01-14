@@ -463,7 +463,7 @@ describe('OAuthCredentialsSection', () => {
     it('should update redirect URI when provider is selected', async () => {
       (apiService.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: [] });
 
-      const { getByText, getByDisplayValue } = render(<OAuthCredentialsSection />);
+      const { getByText } = render(<OAuthCredentialsSection />);
 
       await waitFor(() => {
         fireEvent.press(getByText('+ Add'));
@@ -479,9 +479,9 @@ describe('OAuthCredentialsSection', () => {
         fireEvent.press(getByText('Fitbit'));
       });
 
-      // Check that redirect URI was updated
+      // Check that redirect URI was updated (displayed as Text, not Input)
       await waitFor(() => {
-        expect(getByDisplayValue('https://pierre.fit/api/oauth/callback/fitbit')).toBeTruthy();
+        expect(getByText('https://pierre.fit/api/oauth/callback/fitbit')).toBeTruthy();
       });
     });
   });
