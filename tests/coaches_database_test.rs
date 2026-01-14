@@ -80,6 +80,7 @@ async fn create_test_db() -> SqlitePool {
             updated_at TEXT NOT NULL,
             is_system INTEGER NOT NULL DEFAULT 0,
             visibility TEXT NOT NULL DEFAULT 'private',
+            sample_prompts TEXT,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
         ",
@@ -150,6 +151,7 @@ async fn test_create_coach() {
         system_prompt: "You are an expert marathon coach.".to_owned(),
         category: CoachCategory::Training,
         tags: vec!["running".to_owned(), "marathon".to_owned()],
+        sample_prompts: vec![],
     };
 
     let coach = manager
@@ -187,6 +189,7 @@ async fn test_create_coach_minimal() {
         system_prompt: "You help.".to_owned(),
         category: CoachCategory::Custom,
         tags: vec![],
+        sample_prompts: vec![],
     };
 
     let coach = manager
@@ -215,6 +218,7 @@ async fn test_get_coach() {
         system_prompt: "Test prompt".to_owned(),
         category: CoachCategory::Custom,
         tags: vec![],
+        sample_prompts: vec![],
     };
 
     let created = manager
@@ -257,6 +261,7 @@ async fn test_get_coach_wrong_user() {
         system_prompt: "Private prompt".to_owned(),
         category: CoachCategory::Custom,
         tags: vec![],
+        sample_prompts: vec![],
     };
 
     let created = manager
@@ -304,6 +309,7 @@ async fn test_list_coaches() {
             system_prompt: format!("Prompt {i}"),
             category: CoachCategory::Custom,
             tags: vec![],
+            sample_prompts: vec![],
         };
         manager
             .create(test_user_id(), TEST_TENANT, &request)
@@ -339,6 +345,7 @@ async fn test_list_coaches_by_category() {
             system_prompt: format!("Prompt {}", i + 1),
             category: *category,
             tags: vec![],
+            sample_prompts: vec![],
         };
         manager
             .create(test_user_id(), TEST_TENANT, &request)
@@ -376,6 +383,7 @@ async fn test_list_coaches_favorites_only() {
             system_prompt: format!("Prompt {i}"),
             category: CoachCategory::Custom,
             tags: vec![],
+            sample_prompts: vec![],
         };
         let coach = manager
             .create(test_user_id(), TEST_TENANT, &request)
@@ -417,6 +425,7 @@ async fn test_list_coaches_with_pagination() {
             system_prompt: format!("Prompt {i}"),
             category: CoachCategory::Custom,
             tags: vec![],
+            sample_prompts: vec![],
         };
         manager
             .create(test_user_id(), TEST_TENANT, &request)
@@ -473,6 +482,7 @@ async fn test_list_coaches_user_isolation() {
         system_prompt: "Prompt 1".to_owned(),
         category: CoachCategory::Custom,
         tags: vec![],
+        sample_prompts: vec![],
     };
     manager
         .create(test_user_id(), TEST_TENANT, &request)
@@ -486,6 +496,7 @@ async fn test_list_coaches_user_isolation() {
         system_prompt: "Prompt 2".to_owned(),
         category: CoachCategory::Custom,
         tags: vec![],
+        sample_prompts: vec![],
     };
     manager
         .create(other_user_id(), TEST_TENANT, &request)
@@ -525,6 +536,7 @@ async fn test_update_coach() {
         system_prompt: "Original prompt".to_owned(),
         category: CoachCategory::Custom,
         tags: vec!["tag1".to_owned()],
+        sample_prompts: vec![],
     };
 
     let coach = manager
@@ -538,6 +550,7 @@ async fn test_update_coach() {
         system_prompt: Some("Updated prompt".to_owned()),
         category: Some(CoachCategory::Training),
         tags: Some(vec!["tag2".to_owned(), "tag3".to_owned()]),
+        sample_prompts: None,
     };
 
     let updated = manager
@@ -565,6 +578,7 @@ async fn test_update_coach_partial() {
         system_prompt: "Original prompt".to_owned(),
         category: CoachCategory::Training,
         tags: vec!["tag1".to_owned()],
+        sample_prompts: vec![],
     };
 
     let coach = manager
@@ -579,6 +593,7 @@ async fn test_update_coach_partial() {
         system_prompt: None,
         category: None,
         tags: None,
+        sample_prompts: None,
     };
 
     let updated = manager
@@ -604,6 +619,7 @@ async fn test_update_coach_not_found() {
         system_prompt: None,
         category: None,
         tags: None,
+        sample_prompts: None,
     };
 
     let result = manager
@@ -629,6 +645,7 @@ async fn test_delete_coach() {
         system_prompt: "Prompt".to_owned(),
         category: CoachCategory::Custom,
         tags: vec![],
+        sample_prompts: vec![],
     };
 
     let coach = manager
@@ -675,6 +692,7 @@ async fn test_delete_coach_wrong_user() {
         system_prompt: "Prompt".to_owned(),
         category: CoachCategory::Custom,
         tags: vec![],
+        sample_prompts: vec![],
     };
 
     let coach = manager
@@ -713,6 +731,7 @@ async fn test_toggle_favorite() {
         system_prompt: "Prompt".to_owned(),
         category: CoachCategory::Custom,
         tags: vec![],
+        sample_prompts: vec![],
     };
 
     let coach = manager
@@ -780,6 +799,7 @@ async fn test_activate_coach() {
         system_prompt: "Active prompt".to_owned(),
         category: CoachCategory::Custom,
         tags: vec![],
+        sample_prompts: vec![],
     };
 
     let coach = manager
@@ -811,6 +831,7 @@ async fn test_activate_coach_deactivates_others() {
         system_prompt: "Prompt 1".to_owned(),
         category: CoachCategory::Custom,
         tags: vec![],
+        sample_prompts: vec![],
     };
     let coach1 = manager
         .create(test_user_id(), TEST_TENANT, &request1)
@@ -823,6 +844,7 @@ async fn test_activate_coach_deactivates_others() {
         system_prompt: "Prompt 2".to_owned(),
         category: CoachCategory::Custom,
         tags: vec![],
+        sample_prompts: vec![],
     };
     let coach2 = manager
         .create(test_user_id(), TEST_TENANT, &request2)
@@ -876,6 +898,7 @@ async fn test_deactivate_coach() {
         system_prompt: "Prompt".to_owned(),
         category: CoachCategory::Custom,
         tags: vec![],
+        sample_prompts: vec![],
     };
 
     let coach = manager
@@ -937,6 +960,7 @@ async fn test_get_active_coach() {
         system_prompt: "Active prompt".to_owned(),
         category: CoachCategory::Training,
         tags: vec![],
+        sample_prompts: vec![],
     };
 
     let coach = manager
@@ -972,6 +996,7 @@ async fn test_active_coach_user_isolation() {
         system_prompt: "Prompt 1".to_owned(),
         category: CoachCategory::Custom,
         tags: vec![],
+        sample_prompts: vec![],
     };
     let coach = manager
         .create(test_user_id(), TEST_TENANT, &request)
@@ -1012,6 +1037,7 @@ async fn test_record_usage() {
         system_prompt: "Prompt".to_owned(),
         category: CoachCategory::Custom,
         tags: vec![],
+        sample_prompts: vec![],
     };
 
     let coach = manager
@@ -1068,6 +1094,7 @@ async fn test_search_coaches() {
             system_prompt: "You are a marathon expert".to_owned(),
             category: CoachCategory::Training,
             tags: vec!["running".to_owned(), "marathon".to_owned()],
+            sample_prompts: vec![],
         },
         CreateCoachRequest {
             title: "Nutrition Advisor".to_owned(),
@@ -1075,6 +1102,7 @@ async fn test_search_coaches() {
             system_prompt: "You are a nutrition expert".to_owned(),
             category: CoachCategory::Nutrition,
             tags: vec!["diet".to_owned(), "nutrition".to_owned()],
+            sample_prompts: vec![],
         },
         CreateCoachRequest {
             title: "Recovery Coach".to_owned(),
@@ -1082,6 +1110,7 @@ async fn test_search_coaches() {
             system_prompt: "You help with recovery".to_owned(),
             category: CoachCategory::Recovery,
             tags: vec!["rest".to_owned(), "recovery".to_owned()],
+            sample_prompts: vec![],
         },
     ];
 
@@ -1137,6 +1166,7 @@ async fn test_search_coaches_with_limit() {
             system_prompt: format!("Prompt {i}"),
             category: CoachCategory::Custom,
             tags: vec![],
+            sample_prompts: vec![],
         };
         manager
             .create(test_user_id(), TEST_TENANT, &request)
@@ -1173,6 +1203,7 @@ async fn test_count_coaches() {
             system_prompt: format!("Prompt {i}"),
             category: CoachCategory::Custom,
             tags: vec![],
+            sample_prompts: vec![],
         };
         manager
             .create(test_user_id(), TEST_TENANT, &request)
@@ -1224,6 +1255,7 @@ async fn test_create_system_coach() {
         category: CoachCategory::Training,
         tags: vec!["official".to_owned(), "default".to_owned()],
         visibility: CoachVisibility::Tenant,
+        sample_prompts: vec![],
     };
 
     let coach = manager
@@ -1252,6 +1284,7 @@ async fn test_list_system_coaches() {
             category: CoachCategory::Training,
             tags: vec![],
             visibility: CoachVisibility::Tenant,
+            sample_prompts: vec![],
         };
         manager
             .create_system_coach(test_user_id(), TEST_TENANT, &request)
@@ -1276,6 +1309,7 @@ async fn test_get_system_coach() {
         category: CoachCategory::Custom,
         tags: vec![],
         visibility: CoachVisibility::Tenant,
+        sample_prompts: vec![],
     };
 
     let created = manager
@@ -1307,6 +1341,7 @@ async fn test_update_system_coach() {
         category: CoachCategory::Training,
         tags: vec!["original".to_owned()],
         visibility: CoachVisibility::Tenant,
+        sample_prompts: vec![],
     };
 
     let coach = manager
@@ -1320,6 +1355,7 @@ async fn test_update_system_coach() {
         system_prompt: Some("Updated prompt".to_owned()),
         category: Some(CoachCategory::Nutrition),
         tags: Some(vec!["updated".to_owned()]),
+        sample_prompts: None,
     };
 
     let updated = manager
@@ -1347,6 +1383,7 @@ async fn test_delete_system_coach() {
         category: CoachCategory::Custom,
         tags: vec![],
         visibility: CoachVisibility::Tenant,
+        sample_prompts: vec![],
     };
 
     let coach = manager
@@ -1386,6 +1423,7 @@ async fn test_assign_coach_to_user() {
         category: CoachCategory::Training,
         tags: vec![],
         visibility: CoachVisibility::Tenant,
+        sample_prompts: vec![],
     };
     let coach = manager
         .create_system_coach(test_user_id(), TEST_TENANT, &request)
@@ -1422,6 +1460,7 @@ async fn test_unassign_coach_from_user() {
         category: CoachCategory::Training,
         tags: vec![],
         visibility: CoachVisibility::Tenant,
+        sample_prompts: vec![],
     };
     let coach = manager
         .create_system_coach(test_user_id(), TEST_TENANT, &request)
@@ -1462,6 +1501,7 @@ async fn test_list_assignments() {
         category: CoachCategory::Training,
         tags: vec![],
         visibility: CoachVisibility::Tenant,
+        sample_prompts: vec![],
     };
     let coach = manager
         .create_system_coach(test_user_id(), TEST_TENANT, &request)
@@ -1497,6 +1537,7 @@ async fn test_list_coaches_includes_assigned_system_coaches() {
         system_prompt: "Personal prompt".to_owned(),
         category: CoachCategory::Custom,
         tags: vec![],
+        sample_prompts: vec![],
     };
     manager
         .create(test_user_id(), TEST_TENANT, &personal_request)
@@ -1511,6 +1552,7 @@ async fn test_list_coaches_includes_assigned_system_coaches() {
         category: CoachCategory::Training,
         tags: vec![],
         visibility: CoachVisibility::Tenant,
+        sample_prompts: vec![],
     };
     let system_coach = manager
         .create_system_coach(test_user_id(), TEST_TENANT, &system_request)
@@ -1554,6 +1596,7 @@ async fn test_hide_coach() {
         category: CoachCategory::Training,
         tags: vec![],
         visibility: CoachVisibility::Tenant,
+        sample_prompts: vec![],
     };
     let coach = manager
         .create_system_coach(test_user_id(), TEST_TENANT, &request)
@@ -1600,6 +1643,7 @@ async fn test_show_coach() {
         category: CoachCategory::Training,
         tags: vec![],
         visibility: CoachVisibility::Tenant,
+        sample_prompts: vec![],
     };
     let coach = manager
         .create_system_coach(test_user_id(), TEST_TENANT, &request)
@@ -1641,6 +1685,7 @@ async fn test_list_hidden_coaches() {
             category: CoachCategory::Training,
             tags: vec![],
             visibility: CoachVisibility::Tenant,
+            sample_prompts: vec![],
         };
         let coach = manager
             .create_system_coach(test_user_id(), TEST_TENANT, &request)
@@ -1687,6 +1732,7 @@ async fn test_hidden_coach_excluded_from_list() {
         category: CoachCategory::Training,
         tags: vec![],
         visibility: CoachVisibility::Tenant,
+        sample_prompts: vec![],
     };
     let coach = manager
         .create_system_coach(test_user_id(), TEST_TENANT, &request)
@@ -1733,6 +1779,7 @@ async fn test_unhidden_coach_appears_in_list() {
         category: CoachCategory::Training,
         tags: vec![],
         visibility: CoachVisibility::Tenant,
+        sample_prompts: vec![],
     };
     let coach = manager
         .create_system_coach(test_user_id(), TEST_TENANT, &request)
@@ -1785,6 +1832,7 @@ async fn test_hide_coach_user_isolation() {
         category: CoachCategory::Training,
         tags: vec![],
         visibility: CoachVisibility::Tenant,
+        sample_prompts: vec![],
     };
     let coach = manager
         .create_system_coach(test_user_id(), TEST_TENANT, &request)

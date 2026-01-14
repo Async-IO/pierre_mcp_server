@@ -96,6 +96,8 @@ struct GeminiRequest {
 struct GeminiContent {
     #[serde(skip_serializing_if = "Option::is_none")]
     role: Option<String>,
+    /// Content parts - may be empty for thinking-only responses from models like gemini-3-flash-preview
+    #[serde(default)]
     parts: Vec<ContentPart>,
 }
 
@@ -461,13 +463,40 @@ impl GeminiProvider {
 
     /// Extract text content from Gemini response
     fn extract_content(response: &GeminiResponse) -> Result<String, AppError> {
-        let part = response
+        // Get candidate content, handling case where parts may be empty (thinking models)
+        let content = response
             .candidates
             .as_ref()
             .and_then(|c| c.first())
-            .and_then(|c| c.content.as_ref())
-            .and_then(|c| c.parts.first())
-            .ok_or_else(|| AppError::internal("No content in Gemini response"))?;
+            .and_then(|c| c.content.as_ref());
+
+        // Handle empty or missing content - can happen with thinking models like gemini-3-flash-preview
+        let Some(content) = content else {
+            // Check if this is a blocked response
+            let finish_reason = response
+                .candidates
+                .as_ref()
+                .and_then(|c| c.first())
+                .and_then(|c| c.finish_reason.as_ref());
+
+            if let Some(reason) = finish_reason {
+                if reason == "SAFETY" || reason == "RECITATION" || reason == "OTHER" {
+                    return Err(AppError::internal(format!(
+                        "Response blocked by Gemini safety filter: {reason}"
+                    )));
+                }
+            }
+            return Err(AppError::internal(
+                "No content in Gemini response - model may still be thinking",
+            ));
+        };
+
+        // Handle empty parts - thinking models may return content with no parts
+        let Some(part) = content.parts.first() else {
+            return Err(AppError::internal(
+                "Gemini response has no content parts - model may have returned thinking-only output",
+            ));
+        };
 
         match part {
             ContentPart::Text { text } => Ok(text.clone()),

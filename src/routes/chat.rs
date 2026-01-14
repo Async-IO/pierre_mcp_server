@@ -11,12 +11,12 @@
 
 use crate::{
     auth::AuthResult,
-    database::{ChatManager, ConversationRecord, MessageRecord, PromptManager},
+    database::{ChatManager, ConversationRecord, MessageRecord},
     database_plugins::DatabaseProvider,
     errors::AppError,
     llm::{
-        ChatMessage, ChatProvider, ChatRequest, FunctionCall, FunctionDeclaration,
-        FunctionResponse, MessageRole, TokenUsage, Tool,
+        get_pierre_system_prompt, ChatMessage, ChatProvider, ChatRequest, FunctionCall,
+        FunctionDeclaration, FunctionResponse, MessageRole, TokenUsage, Tool,
     },
     mcp::resources::ServerResources,
     protocols::universal::{UniversalExecutor, UniversalRequest, UniversalResponse},
@@ -328,31 +328,14 @@ impl ChatRoutes {
         Ok(ChatManager::new(pool))
     }
 
-    /// Create a `PromptManager` from server resources
-    fn create_prompt_manager(resources: &ServerResources) -> Result<PromptManager, AppError> {
-        let pool = resources
-            .database
-            .sqlite_pool()
-            .ok_or_else(|| AppError::internal("Prompt feature requires SQLite database"))?
-            .clone();
-        Ok(PromptManager::new(pool))
-    }
-
     /// Get the system prompt text for a conversation
     ///
-    /// Uses conversation-specific prompt if set, otherwise loads tenant default from DB.
-    async fn get_system_prompt_text(
-        conversation: &ConversationRecord,
-        tenant_id: &str,
-        resources: &ServerResources,
-    ) -> Result<String, AppError> {
-        if let Some(s) = &conversation.system_prompt {
-            Ok(s.clone())
-        } else {
-            let prompt_manager = Self::create_prompt_manager(resources)?;
-            let system_prompt = prompt_manager.get_system_prompt(tenant_id).await?;
-            Ok(system_prompt.prompt_text)
-        }
+    /// Uses conversation-specific prompt if set, otherwise returns the default Pierre system prompt.
+    fn get_system_prompt_text(conversation: &ConversationRecord) -> String {
+        conversation
+            .system_prompt
+            .clone()
+            .unwrap_or_else(|| get_pierre_system_prompt().to_owned())
     }
 
     /// Get LLM provider based on `PIERRE_LLM_PROVIDER` environment variable
@@ -1016,8 +999,7 @@ impl ChatRoutes {
         // Get conversation history and build LLM messages with system prompt
         let history = chat_manager.get_messages(&conversation_id).await?;
 
-        let system_prompt_text =
-            Self::get_system_prompt_text(&conv, &tenant_id, &resources).await?;
+        let system_prompt_text = Self::get_system_prompt_text(&conv);
         let mut llm_messages =
             Self::build_llm_messages(Some(system_prompt_text.as_str()), &history);
 
@@ -1135,8 +1117,7 @@ impl ChatRoutes {
         // Get conversation history and build LLM messages with system prompt
         let history = chat_manager.get_messages(&conversation_id).await?;
 
-        let system_prompt_text =
-            Self::get_system_prompt_text(&conv, &tenant_id, &resources).await?;
+        let system_prompt_text = Self::get_system_prompt_text(&conv);
         let llm_messages = Self::build_llm_messages(Some(system_prompt_text.as_str()), &history);
 
         // Get LLM streaming response

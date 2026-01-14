@@ -24,8 +24,6 @@ pub mod fitness_configurations;
 pub mod impersonation;
 /// OAuth callback notification handling
 pub mod oauth_notifications;
-/// Prompt suggestions for AI chat interface
-pub mod prompts;
 /// Recipe storage and management for nutrition planning
 pub mod recipes;
 /// System settings for admin-configurable options
@@ -49,10 +47,6 @@ pub use coaches::{
 };
 pub use errors::{DatabaseError, DatabaseResult};
 pub use oauth_notifications::OAuthNotification;
-pub use prompts::{
-    CreatePromptCategoryRequest, Pillar, PromptCategory, PromptCategoryResponse, PromptManager,
-    SystemPrompt, UpdatePromptCategoryRequest, WelcomePrompt,
-};
 pub use user_mcp_tokens::{
     CreateUserMcpTokenRequest, UserMcpToken, UserMcpTokenCreated, UserMcpTokenInfo,
 };
@@ -414,13 +408,6 @@ impl Database {
     #[must_use]
     pub fn fitness_configurations(&self) -> fitness_configurations::FitnessConfigurationManager {
         fitness_configurations::FitnessConfigurationManager::new(self.pool.clone())
-        // Safe: Pool clone for database manager
-    }
-
-    /// Get prompt suggestions manager
-    #[must_use]
-    pub fn prompts(&self) -> prompts::PromptManager {
-        prompts::PromptManager::new(self.pool.clone())
         // Safe: Pool clone for database manager
     }
 

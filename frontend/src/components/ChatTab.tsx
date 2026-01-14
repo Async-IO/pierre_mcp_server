@@ -111,6 +111,7 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
   const [oauthNotification, setOauthNotification] = useState<{ provider: string; timestamp: number } | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ id: string; title: string } | null>(null);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
+  const [pendingSystemPrompt, setPendingSystemPrompt] = useState<string | null>(null);
   const [showIdeas, setShowIdeas] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
@@ -148,16 +149,20 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
     enabled: !!selectedConversation,
   });
 
-  // Create conversation mutation - auto-creates with default title
+  // Create conversation mutation - auto-creates with default title and optional system prompt
   const createConversation = useMutation({
-    mutationFn: () => {
+    mutationFn: (systemPrompt?: string) => {
       const now = new Date();
       const defaultTitle = `Chat ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
-      return apiService.createConversation({ title: defaultTitle });
+      return apiService.createConversation({
+        title: defaultTitle,
+        system_prompt: systemPrompt || pendingSystemPrompt || undefined,
+      });
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
       setSelectedConversation(data.id);
+      setPendingSystemPrompt(null);
     },
   });
 
@@ -553,13 +558,19 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
     setSelectedConversation(null);
   };
 
-  const handleSelectPrompt = (prompt: string) => {
+  const handleSelectPrompt = (prompt: string, coachId?: string, systemPrompt?: string) => {
     setPendingPrompt(prompt);
-    createConversation.mutate();
+    if (systemPrompt) {
+      setPendingSystemPrompt(systemPrompt);
+    }
+    createConversation.mutate(systemPrompt);
   };
 
-  const handleFillPrompt = (prompt: string) => {
+  const handleFillPrompt = (prompt: string, coachId?: string, systemPrompt?: string) => {
     setNewMessage(prompt);
+    if (systemPrompt) {
+      setPendingSystemPrompt(systemPrompt);
+    }
     setShowIdeas(false);
     inputRef.current?.focus();
   };

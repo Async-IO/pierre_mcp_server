@@ -30,6 +30,8 @@ struct CreateCoachParams {
     category: Option<String>,
     #[serde(default)]
     tags: Vec<String>,
+    #[serde(default)]
+    sample_prompts: Vec<String>,
 }
 
 /// Get coaches manager from resources
@@ -212,6 +214,7 @@ pub fn handle_create_coach(
                 .map(CoachCategory::parse)
                 .unwrap_or_default(),
             tags: params.tags,
+            sample_prompts: params.sample_prompts,
         };
 
         let manager = get_coaches_manager(executor)?;
@@ -374,6 +377,16 @@ pub fn handle_update_coach(
             tags: request
                 .parameters
                 .get("tags")
+                .and_then(Value::as_array)
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(Value::as_str)
+                        .map(ToOwned::to_owned)
+                        .collect()
+                }),
+            sample_prompts: request
+                .parameters
+                .get("sample_prompts")
                 .and_then(Value::as_array)
                 .map(|arr| {
                     arr.iter()
@@ -1078,6 +1091,8 @@ struct CreateSystemCoachParams {
     category: Option<String>,
     #[serde(default)]
     tags: Vec<String>,
+    #[serde(default)]
+    sample_prompts: Vec<String>,
     visibility: Option<String>,
 }
 
@@ -1132,6 +1147,7 @@ pub fn handle_admin_create_system_coach(
                 .map(CoachCategory::parse)
                 .unwrap_or_default(),
             tags: params.tags,
+            sample_prompts: params.sample_prompts,
             visibility,
         };
 
@@ -1303,6 +1319,16 @@ pub fn handle_admin_update_system_coach(
             tags: request
                 .parameters
                 .get("tags")
+                .and_then(Value::as_array)
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(Value::as_str)
+                        .map(ToOwned::to_owned)
+                        .collect()
+                }),
+            sample_prompts: request
+                .parameters
+                .get("sample_prompts")
                 .and_then(Value::as_array)
                 .map(|arr| {
                     arr.iter()

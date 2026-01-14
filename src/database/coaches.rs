@@ -110,6 +110,9 @@ pub struct Coach {
     pub category: CoachCategory,
     /// Tags for filtering and search (stored as JSON array)
     pub tags: Vec<String>,
+    /// Sample prompts for quick-start suggestions (stored as JSON array)
+    #[serde(default)]
+    pub sample_prompts: Vec<String>,
     /// Estimated token count of system prompt
     pub token_count: u32,
     /// Whether this coach is marked as favorite
@@ -157,6 +160,9 @@ pub struct CreateCoachRequest {
     /// Tags for filtering and search
     #[serde(default)]
     pub tags: Vec<String>,
+    /// Sample prompts for quick-start suggestions
+    #[serde(default)]
+    pub sample_prompts: Vec<String>,
 }
 
 /// Request to update an existing coach
@@ -172,6 +178,8 @@ pub struct UpdateCoachRequest {
     pub category: Option<CoachCategory>,
     /// New tags (if provided)
     pub tags: Option<Vec<String>>,
+    /// New sample prompts (if provided)
+    pub sample_prompts: Option<Vec<String>>,
 }
 
 /// Filter options for listing coaches
@@ -240,15 +248,16 @@ impl CoachesManager {
         let now = Utc::now();
         let id = Uuid::new_v4();
         let tags_json = serde_json::to_string(&request.tags)?;
+        let sample_prompts_json = serde_json::to_string(&request.sample_prompts)?;
         let token_count = Self::estimate_tokens(&request.system_prompt);
 
         sqlx::query(
             r"
             INSERT INTO coaches (
                 id, user_id, tenant_id, title, description, system_prompt,
-                category, tags, token_count, is_favorite, use_count,
+                category, tags, sample_prompts, token_count, is_favorite, use_count,
                 last_used_at, created_at, updated_at, is_system, visibility
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13, $14, $15)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $16)
             ",
         )
         .bind(id.to_string())
@@ -259,6 +268,7 @@ impl CoachesManager {
         .bind(&request.system_prompt)
         .bind(request.category.as_str())
         .bind(&tags_json)
+        .bind(&sample_prompts_json)
         .bind(i64::from(token_count))
         .bind(false) // is_favorite
         .bind(0i64) // use_count
@@ -279,6 +289,7 @@ impl CoachesManager {
             system_prompt: request.system_prompt.clone(),
             category: request.category,
             tags: request.tags.clone(),
+            sample_prompts: request.sample_prompts.clone(),
             token_count,
             is_favorite: false,
             is_active: false,
@@ -305,7 +316,7 @@ impl CoachesManager {
         let row = sqlx::query(
             r"
             SELECT id, user_id, tenant_id, title, description, system_prompt,
-                   category, tags, token_count, is_favorite, is_active, use_count,
+                   category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
                    last_used_at, created_at, updated_at, is_system, visibility
             FROM coaches
             WHERE id = $1 AND user_id = $2 AND tenant_id = $3
@@ -432,15 +443,20 @@ impl CoachesManager {
             .unwrap_or(&existing.system_prompt);
         let category = request.category.unwrap_or(existing.category);
         let tags = request.tags.as_ref().unwrap_or(&existing.tags);
+        let sample_prompts = request
+            .sample_prompts
+            .as_ref()
+            .unwrap_or(&existing.sample_prompts);
         let tags_json = serde_json::to_string(tags)?;
+        let sample_prompts_json = serde_json::to_string(sample_prompts)?;
         let token_count = Self::estimate_tokens(system_prompt);
 
         let result = sqlx::query(
             r"
             UPDATE coaches SET
                 title = $1, description = $2, system_prompt = $3,
-                category = $4, tags = $5, token_count = $6, updated_at = $7
-            WHERE id = $8 AND user_id = $9 AND tenant_id = $10
+                category = $4, tags = $5, sample_prompts = $6, token_count = $7, updated_at = $8
+            WHERE id = $9 AND user_id = $10 AND tenant_id = $11
             ",
         )
         .bind(title)
@@ -448,6 +464,7 @@ impl CoachesManager {
         .bind(system_prompt)
         .bind(category.as_str())
         .bind(&tags_json)
+        .bind(&sample_prompts_json)
         .bind(i64::from(token_count))
         .bind(now.to_rfc3339())
         .bind(coach_id)
@@ -611,7 +628,7 @@ impl CoachesManager {
         let rows = sqlx::query(
             r"
             SELECT id, user_id, tenant_id, title, description, system_prompt,
-                   category, tags, token_count, is_favorite, is_active, use_count,
+                   category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
                    last_used_at, created_at, updated_at, is_system, visibility
             FROM coaches
             WHERE user_id = $1 AND tenant_id = $2 AND (
@@ -722,7 +739,7 @@ impl CoachesManager {
         let row = sqlx::query(
             r"
             SELECT id, user_id, tenant_id, title, description, system_prompt,
-                   category, tags, token_count, is_favorite, is_active, use_count,
+                   category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
                    last_used_at, created_at, updated_at, is_system, visibility
             FROM coaches
             WHERE user_id = $1 AND tenant_id = $2 AND is_active = 1
@@ -755,15 +772,16 @@ impl CoachesManager {
         let now = Utc::now();
         let id = Uuid::new_v4();
         let tags_json = serde_json::to_string(&request.tags)?;
+        let sample_prompts_json = serde_json::to_string(&request.sample_prompts)?;
         let token_count = Self::estimate_tokens(&request.system_prompt);
 
         sqlx::query(
             r"
             INSERT INTO coaches (
                 id, user_id, tenant_id, title, description, system_prompt,
-                category, tags, token_count, is_favorite, use_count,
+                category, tags, sample_prompts, token_count, is_favorite, use_count,
                 last_used_at, created_at, updated_at, is_system, visibility
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13, $14, $15)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $16)
             ",
         )
         .bind(id.to_string())
@@ -774,6 +792,7 @@ impl CoachesManager {
         .bind(&request.system_prompt)
         .bind(request.category.as_str())
         .bind(&tags_json)
+        .bind(&sample_prompts_json)
         .bind(i64::from(token_count))
         .bind(false) // is_favorite
         .bind(0i64) // use_count
@@ -794,6 +813,7 @@ impl CoachesManager {
             system_prompt: request.system_prompt.clone(),
             category: request.category,
             tags: request.tags.clone(),
+            sample_prompts: request.sample_prompts.clone(),
             token_count,
             is_favorite: false,
             is_active: false,
@@ -815,7 +835,7 @@ impl CoachesManager {
         let rows = sqlx::query(
             r"
             SELECT id, user_id, tenant_id, title, description, system_prompt,
-                   category, tags, token_count, is_favorite, is_active, use_count,
+                   category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
                    last_used_at, created_at, updated_at, is_system, visibility
             FROM coaches
             WHERE tenant_id = $1 AND is_system = 1
@@ -843,7 +863,7 @@ impl CoachesManager {
         let row = sqlx::query(
             r"
             SELECT id, user_id, tenant_id, title, description, system_prompt,
-                   category, tags, token_count, is_favorite, is_active, use_count,
+                   category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
                    last_used_at, created_at, updated_at, is_system, visibility
             FROM coaches
             WHERE id = $1 AND tenant_id = $2 AND is_system = 1
@@ -884,15 +904,20 @@ impl CoachesManager {
             .unwrap_or(&existing.system_prompt);
         let category = request.category.unwrap_or(existing.category);
         let tags = request.tags.as_ref().unwrap_or(&existing.tags);
+        let sample_prompts = request
+            .sample_prompts
+            .as_ref()
+            .unwrap_or(&existing.sample_prompts);
         let tags_json = serde_json::to_string(tags)?;
+        let sample_prompts_json = serde_json::to_string(sample_prompts)?;
         let token_count = Self::estimate_tokens(system_prompt);
 
         let result = sqlx::query(
             r"
             UPDATE coaches SET
                 title = $1, description = $2, system_prompt = $3,
-                category = $4, tags = $5, token_count = $6, updated_at = $7
-            WHERE id = $8 AND tenant_id = $9 AND is_system = 1
+                category = $4, tags = $5, sample_prompts = $6, token_count = $7, updated_at = $8
+            WHERE id = $9 AND tenant_id = $10 AND is_system = 1
             ",
         )
         .bind(title)
@@ -900,6 +925,7 @@ impl CoachesManager {
         .bind(system_prompt)
         .bind(category.as_str())
         .bind(&tags_json)
+        .bind(&sample_prompts_json)
         .bind(i64::from(token_count))
         .bind(now.to_rfc3339())
         .bind(coach_id)
@@ -1196,6 +1222,8 @@ pub struct CreateSystemCoachRequest {
     pub category: CoachCategory,
     /// Tags
     pub tags: Vec<String>,
+    /// Sample prompts for quick-start suggestions
+    pub sample_prompts: Vec<String>,
     /// Visibility
     pub visibility: CoachVisibility,
 }
@@ -1219,8 +1247,12 @@ fn row_to_coach(row: &SqliteRow) -> AppResult<Coach> {
     let visibility_str: String = row
         .try_get("visibility")
         .unwrap_or_else(|_| "private".to_owned());
+    let sample_prompts_json: String = row
+        .try_get("sample_prompts")
+        .unwrap_or_else(|_| "[]".to_owned());
 
     let tags: Vec<String> = serde_json::from_str(&tags_json)?;
+    let sample_prompts: Vec<String> = serde_json::from_str(&sample_prompts_json)?;
 
     Ok(Coach {
         id: Uuid::parse_str(&id_str)
@@ -1233,6 +1265,7 @@ fn row_to_coach(row: &SqliteRow) -> AppResult<Coach> {
         system_prompt: row.get("system_prompt"),
         category: CoachCategory::parse(&category_str),
         tags,
+        sample_prompts,
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         token_count: token_count as u32,
         is_favorite: is_favorite == 1,

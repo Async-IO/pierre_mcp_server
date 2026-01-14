@@ -196,6 +196,9 @@ pub struct CreateCoachBody {
     /// Tags for filtering and search
     #[serde(default)]
     pub tags: Vec<String>,
+    /// Sample prompts for quick-start suggestions
+    #[serde(default)]
+    pub sample_prompts: Vec<String>,
 }
 
 impl From<CreateCoachBody> for CreateCoachRequest {
@@ -209,6 +212,7 @@ impl From<CreateCoachBody> for CreateCoachRequest {
                 .map(|c| CoachCategory::parse(&c))
                 .unwrap_or_default(),
             tags: body.tags,
+            sample_prompts: body.sample_prompts,
         }
     }
 }
@@ -226,6 +230,8 @@ pub struct UpdateCoachBody {
     pub category: Option<String>,
     /// New tags (if provided)
     pub tags: Option<Vec<String>>,
+    /// New sample prompts (if provided)
+    pub sample_prompts: Option<Vec<String>>,
 }
 
 impl From<UpdateCoachBody> for UpdateCoachRequest {
@@ -236,6 +242,7 @@ impl From<UpdateCoachBody> for UpdateCoachRequest {
             system_prompt: body.system_prompt,
             category: body.category.map(|c| CoachCategory::parse(&c)),
             tags: body.tags,
+            sample_prompts: body.sample_prompts,
         }
     }
 }
@@ -822,6 +829,9 @@ pub struct AdminCreateCoachBody {
     /// Tags for filtering and search
     #[serde(default)]
     pub tags: Vec<String>,
+    /// Sample prompts for quick-start suggestions
+    #[serde(default)]
+    pub sample_prompts: Vec<String>,
     /// Visibility level (tenant or global)
     pub visibility: Option<String>,
 }
@@ -837,6 +847,7 @@ impl From<AdminCreateCoachBody> for DbCreateSystemCoachRequest {
                 .map(|c| CoachCategory::parse(&c))
                 .unwrap_or_default(),
             tags: body.tags,
+            sample_prompts: body.sample_prompts,
             visibility: body
                 .visibility
                 .map_or(CoachVisibility::Tenant, |v| CoachVisibility::parse(&v)),

@@ -1,5 +1,5 @@
-// ABOUTME: Pre-configured prompt suggestions component for the chat interface
-// ABOUTME: Fetches categorized prompt cards from API using Pierre's Three Pillars design system
+// ABOUTME: Coach selector component for the chat interface
+// ABOUTME: Fetches user's available coaches from API and displays them grouped by category
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
@@ -8,27 +8,53 @@ import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../services/api';
 import { Card } from './ui';
 
-type Pillar = 'activity' | 'nutrition' | 'recovery';
+type Category = 'Training' | 'Nutrition' | 'Recovery' | 'Recipes' | 'Custom';
 
-// Map pillars to their gradient background classes (from tailwind.config.cjs)
-const PILLAR_GRADIENTS: Record<Pillar, string> = {
-  activity: 'bg-gradient-activity',
-  nutrition: 'bg-gradient-nutrition',
-  recovery: 'bg-gradient-recovery',
+// Map categories to their gradient background classes
+const CATEGORY_GRADIENTS: Record<Category, string> = {
+  Training: 'bg-gradient-activity',
+  Nutrition: 'bg-gradient-nutrition',
+  Recovery: 'bg-gradient-recovery',
+  Recipes: 'bg-gradient-nutrition',
+  Custom: 'bg-pierre-violet',
 };
 
+// Map categories to icons
+const CATEGORY_ICONS: Record<Category, string> = {
+  Training: '🏃',
+  Nutrition: '🥗',
+  Recovery: '😴',
+  Recipes: '👨‍🍳',
+  Custom: '⚙️',
+};
+
+interface Coach {
+  id: string;
+  title: string;
+  description?: string;
+  system_prompt: string;
+  category: string;
+  tags: string[];
+  token_count: number;
+  is_favorite: boolean;
+  use_count: number;
+  last_used_at?: string;
+  is_system: boolean;
+  is_assigned: boolean;
+}
+
 interface PromptSuggestionsProps {
-  onSelectPrompt: (prompt: string) => void;
+  onSelectPrompt: (prompt: string, coachId?: string, systemPrompt?: string) => void;
 }
 
 export default function PromptSuggestions({ onSelectPrompt }: PromptSuggestionsProps) {
   const {
-    data: promptsData,
+    data: coachesData,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['prompt-suggestions'],
-    queryFn: () => apiService.getPromptSuggestions(),
+    queryKey: ['user-coaches'],
+    queryFn: () => apiService.getCoaches(),
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     retry: 2,
   });
@@ -70,7 +96,7 @@ export default function PromptSuggestions({ onSelectPrompt }: PromptSuggestionsP
                 d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
               />
             </svg>
-            <p className="font-medium">Failed to load prompt suggestions</p>
+            <p className="font-medium">Failed to load coaches</p>
             <p className="text-sm text-red-500 mt-1">
               {error instanceof Error ? error.message : 'Please try refreshing the page'}
             </p>
@@ -80,37 +106,93 @@ export default function PromptSuggestions({ onSelectPrompt }: PromptSuggestionsP
     );
   }
 
-  if (!promptsData?.categories?.length) {
+  const coaches = coachesData?.coaches || [];
+
+  if (coaches.length === 0) {
     return (
       <div className="max-w-2xl mx-auto mt-6 text-center text-pierre-gray-500">
-        <p>No prompt suggestions available</p>
+        <p>No coaches available yet</p>
+        <p className="text-sm mt-2">Ask your admin to assign some coaching personas to get started.</p>
       </div>
     );
   }
 
+  // Group coaches by category
+  const coachesByCategory = coaches.reduce<Record<string, Coach[]>>((acc, coach) => {
+    const category = coach.category || 'Custom';
+    if (!acc[category]) {
+      acc[category] = [];
+    }
+    acc[category].push(coach);
+    return acc;
+  }, {});
+
+  // Sort categories in preferred order
+  const categoryOrder: Category[] = ['Training', 'Nutrition', 'Recovery', 'Recipes', 'Custom'];
+  const sortedCategories = Object.keys(coachesByCategory).sort((a, b) => {
+    const aIndex = categoryOrder.indexOf(a as Category);
+    const bIndex = categoryOrder.indexOf(b as Category);
+    if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
+    if (aIndex === -1) return 1;
+    if (bIndex === -1) return -1;
+    return aIndex - bIndex;
+  });
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto mt-6">
-      {promptsData.categories.map((category) => (
-        <Card key={category.category_key} className="p-4 hover:shadow-md transition-shadow">
+      {sortedCategories.map((category) => (
+        <Card key={category} className="p-4 hover:shadow-md transition-shadow">
           <div className="flex items-center gap-2 mb-3">
             <div
-              className={`w-8 h-8 rounded-lg ${PILLAR_GRADIENTS[category.pillar]} flex items-center justify-center text-lg`}
+              className={`w-8 h-8 rounded-lg ${CATEGORY_GRADIENTS[category as Category] || 'bg-pierre-gray-200'} flex items-center justify-center text-lg`}
               role="img"
-              aria-label={`${category.category_title} category`}
+              aria-label={`${category} category`}
             >
-              {category.category_icon}
+              {CATEGORY_ICONS[category as Category] || '📌'}
             </div>
-            <h3 className="font-medium text-pierre-gray-900">{category.category_title}</h3>
+            <h3 className="font-medium text-pierre-gray-900">{category}</h3>
           </div>
           <div className="space-y-2">
-            {category.prompts.map((prompt) => (
+            {coachesByCategory[category].map((coach) => (
               <button
-                key={prompt}
+                key={coach.id}
                 type="button"
-                onClick={() => onSelectPrompt(prompt)}
-                className="w-full text-left text-sm text-pierre-gray-600 hover:text-pierre-violet hover:bg-pierre-gray-50 rounded-lg px-3 py-2 transition-colors focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-opacity-50"
+                onClick={() => {
+                  // Record usage and start conversation with this coach
+                  apiService.recordCoachUsage(coach.id).catch(() => {
+                    // Silently ignore usage tracking errors
+                  });
+                  onSelectPrompt(
+                    coach.description || `Chat with ${coach.title}`,
+                    coach.id,
+                    coach.system_prompt
+                  );
+                }}
+                className="w-full text-left text-sm hover:bg-pierre-gray-50 rounded-lg px-3 py-2 transition-colors focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-opacity-50 group"
               >
-                "{prompt}"
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-pierre-gray-800 group-hover:text-pierre-violet">
+                    {coach.title}
+                  </span>
+                  {coach.is_favorite && (
+                    <span className="text-yellow-500">★</span>
+                  )}
+                </div>
+                {coach.description && (
+                  <p className="text-pierre-gray-500 text-xs mt-0.5 line-clamp-2">
+                    {coach.description}
+                  </p>
+                )}
+                <div className="flex items-center gap-2 mt-1 text-xs text-pierre-gray-400">
+                  {coach.is_system && (
+                    <span className="bg-pierre-violet bg-opacity-10 text-pierre-violet px-1.5 py-0.5 rounded">
+                      System
+                    </span>
+                  )}
+                  {coach.use_count > 0 && (
+                    <span>Used {coach.use_count}x</span>
+                  )}
+                </div>
               </button>
             ))}
           </div>
@@ -120,18 +202,28 @@ export default function PromptSuggestions({ onSelectPrompt }: PromptSuggestionsP
   );
 }
 
-// Hook to get the welcome prompt for use in other components
-export function useWelcomePrompt() {
-  const { data: promptsData, isLoading, error } = useQuery({
-    queryKey: ['prompt-suggestions'],
-    queryFn: () => apiService.getPromptSuggestions(),
+// Hook to get coaches data for use in other components
+export function useCoaches() {
+  const { data: coachesData, isLoading, error } = useQuery({
+    queryKey: ['user-coaches'],
+    queryFn: () => apiService.getCoaches(),
     staleTime: 5 * 60 * 1000,
     retry: 2,
   });
 
   return {
-    welcomePrompt: promptsData?.welcome_prompt ?? null,
+    coaches: coachesData?.coaches ?? [],
+    total: coachesData?.total ?? 0,
     isLoading,
     error,
+  };
+}
+
+// Legacy hook for backwards compatibility - returns a default welcome prompt
+export function useWelcomePrompt() {
+  return {
+    welcomePrompt: 'Ready to analyze your fitness',
+    isLoading: false,
+    error: null,
   };
 }
