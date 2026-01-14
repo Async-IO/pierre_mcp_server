@@ -7,6 +7,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Pressable,
   Alert,
   Modal,
   ActivityIndicator,
@@ -149,12 +150,12 @@ export function OAuthCredentialsSection() {
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>OAuth Credentials</Text>
         {availableProviders.length > 0 && (
-          <TouchableOpacity
+          <Pressable
             style={styles.addButton}
             onPress={() => setShowAddModal(true)}
           >
             <Text style={styles.addButtonText}>+ Add</Text>
-          </TouchableOpacity>
+          </Pressable>
         )}
       </View>
 
@@ -217,7 +218,7 @@ export function OAuthCredentialsSection() {
 
             {/* Provider Picker */}
             <Text style={styles.inputLabel}>Provider</Text>
-            <TouchableOpacity
+            <Pressable
               style={styles.pickerButton}
               onPress={() => setShowProviderPicker(true)}
             >
@@ -234,7 +235,7 @@ export function OAuthCredentialsSection() {
                 <Text style={styles.pickerPlaceholder}>Select a provider...</Text>
               )}
               <Text style={styles.pickerChevron}>{'>'}</Text>
-            </TouchableOpacity>
+            </Pressable>
 
             <Input
               label="Client ID"
@@ -297,7 +298,7 @@ export function OAuthCredentialsSection() {
               data={availableProviders}
               keyExtractor={(item) => item.id}
               renderItem={({ item }) => (
-                <TouchableOpacity
+                <Pressable
                   style={styles.providerOption}
                   onPress={() => {
                     setSelectedProvider(item);
@@ -312,7 +313,7 @@ export function OAuthCredentialsSection() {
                   {selectedProvider?.id === item.id && (
                     <Text style={styles.checkmark}>{'checkmark'}</Text>
                   )}
-                </TouchableOpacity>
+                </Pressable>
               )}
               ItemSeparatorComponent={() => <View style={styles.separator} />}
             />
