@@ -6,6 +6,13 @@
 
 use super::auth_service::AuthService;
 use super::handlers::{
+    handle_activate_coach, handle_create_coach, handle_deactivate_coach, handle_delete_coach,
+    handle_delete_recipe, handle_get_active_coach, handle_get_coach, handle_get_recipe,
+    handle_get_recipe_constraints, handle_list_coaches, handle_list_recipes, handle_save_recipe,
+    handle_search_coaches, handle_search_recipes, handle_toggle_coach_favorite,
+    handle_update_coach, handle_validate_recipe,
+};
+use super::handlers::{
     handle_analyze_activity, handle_analyze_goal_feasibility, handle_analyze_meal_nutrition,
     handle_analyze_performance_trends, handle_analyze_sleep_quality, handle_analyze_training_load,
     handle_calculate_daily_nutrition, handle_calculate_fitness_score, handle_calculate_metrics,
@@ -18,12 +25,6 @@ use super::handlers::{
     handle_optimize_sleep_schedule, handle_predict_performance, handle_search_food,
     handle_set_goal, handle_suggest_goals, handle_suggest_rest_day, handle_track_progress,
     handle_track_sleep_trends, handle_update_user_configuration, handle_validate_configuration,
-};
-use super::handlers::{
-    handle_create_coach, handle_delete_coach, handle_delete_recipe, handle_get_coach,
-    handle_get_recipe, handle_get_recipe_constraints, handle_list_coaches, handle_list_recipes,
-    handle_save_recipe, handle_search_coaches, handle_search_recipes, handle_toggle_coach_favorite,
-    handle_update_coach, handle_validate_recipe,
 };
 use super::tool_registry::{ToolId, ToolInfo, ToolRegistry};
 use crate::constants::time_constants::SECONDS_PER_HOUR_F64;
@@ -390,6 +391,18 @@ impl UniversalExecutor {
         registry.register(ToolInfo::async_tool(
             ToolId::SearchCoaches,
             |executor, request| Box::pin(handle_search_coaches(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::ActivateCoach,
+            |executor, request| Box::pin(handle_activate_coach(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::DeactivateCoach,
+            |executor, request| Box::pin(handle_deactivate_coach(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::GetActiveCoach,
+            |executor, request| Box::pin(handle_get_active_coach(executor, request)),
         ));
     }
 

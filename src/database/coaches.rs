@@ -79,6 +79,8 @@ pub struct Coach {
     pub token_count: u32,
     /// Whether this coach is marked as favorite
     pub is_favorite: bool,
+    /// Whether this coach is currently active for the user
+    pub is_active: bool,
     /// Number of times this coach has been used
     pub use_count: u32,
     /// Last time this coach was used
@@ -210,6 +212,7 @@ impl CoachesManager {
             tags: request.tags.clone(),
             token_count,
             is_favorite: false,
+            is_active: false,
             use_count: 0,
             last_used_at: None,
             created_at: now,
@@ -231,7 +234,7 @@ impl CoachesManager {
         let row = sqlx::query(
             r"
             SELECT id, user_id, tenant_id, title, description, system_prompt,
-                   category, tags, token_count, is_favorite, use_count,
+                   category, tags, token_count, is_favorite, is_active, use_count,
                    last_used_at, created_at, updated_at
             FROM coaches
             WHERE id = $1 AND user_id = $2 AND tenant_id = $3
@@ -267,7 +270,7 @@ impl CoachesManager {
                 sqlx::query(
                     r"
                     SELECT id, user_id, tenant_id, title, description, system_prompt,
-                           category, tags, token_count, is_favorite, use_count,
+                           category, tags, token_count, is_favorite, is_active, use_count,
                            last_used_at, created_at, updated_at
                     FROM coaches
                     WHERE user_id = $1 AND tenant_id = $2 AND category = $3 AND is_favorite = 1
@@ -287,7 +290,7 @@ impl CoachesManager {
                 sqlx::query(
                     r"
                     SELECT id, user_id, tenant_id, title, description, system_prompt,
-                           category, tags, token_count, is_favorite, use_count,
+                           category, tags, token_count, is_favorite, is_active, use_count,
                            last_used_at, created_at, updated_at
                     FROM coaches
                     WHERE user_id = $1 AND tenant_id = $2 AND category = $3
@@ -307,7 +310,7 @@ impl CoachesManager {
                 sqlx::query(
                     r"
                     SELECT id, user_id, tenant_id, title, description, system_prompt,
-                           category, tags, token_count, is_favorite, use_count,
+                           category, tags, token_count, is_favorite, is_active, use_count,
                            last_used_at, created_at, updated_at
                     FROM coaches
                     WHERE user_id = $1 AND tenant_id = $2 AND is_favorite = 1
@@ -326,7 +329,7 @@ impl CoachesManager {
                 sqlx::query(
                     r"
                     SELECT id, user_id, tenant_id, title, description, system_prompt,
-                           category, tags, token_count, is_favorite, use_count,
+                           category, tags, token_count, is_favorite, is_active, use_count,
                            last_used_at, created_at, updated_at
                     FROM coaches
                     WHERE user_id = $1 AND tenant_id = $2
@@ -553,7 +556,7 @@ impl CoachesManager {
         let rows = sqlx::query(
             r"
             SELECT id, user_id, tenant_id, title, description, system_prompt,
-                   category, tags, token_count, is_favorite, use_count,
+                   category, tags, token_count, is_favorite, is_active, use_count,
                    last_used_at, created_at, updated_at
             FROM coaches
             WHERE user_id = $1 AND tenant_id = $2 AND (
@@ -573,6 +576,111 @@ impl CoachesManager {
 
         rows.iter().map(row_to_coach).collect()
     }
+
+    /// Activate a coach (deactivates all other coaches for the user first)
+    ///
+    /// Only one coach can be active per user at a time. This method
+    /// deactivates any currently active coach before activating the new one.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn activate_coach(
+        &self,
+        coach_id: &str,
+        user_id: Uuid,
+        tenant_id: &str,
+    ) -> AppResult<Option<Coach>> {
+        let now = Utc::now().to_rfc3339();
+
+        // First deactivate all coaches for this user
+        sqlx::query(
+            r"
+            UPDATE coaches SET is_active = 0, updated_at = $1
+            WHERE user_id = $2 AND tenant_id = $3 AND is_active = 1
+            ",
+        )
+        .bind(&now)
+        .bind(user_id.to_string())
+        .bind(tenant_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to deactivate coaches: {e}")))?;
+
+        // Now activate the specified coach
+        let result = sqlx::query(
+            r"
+            UPDATE coaches SET is_active = 1, updated_at = $1
+            WHERE id = $2 AND user_id = $3 AND tenant_id = $4
+            ",
+        )
+        .bind(&now)
+        .bind(coach_id)
+        .bind(user_id.to_string())
+        .bind(tenant_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to activate coach: {e}")))?;
+
+        if result.rows_affected() == 0 {
+            return Ok(None);
+        }
+
+        // Return the activated coach
+        self.get(coach_id, user_id, tenant_id).await
+    }
+
+    /// Deactivate the currently active coach for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn deactivate_coach(&self, user_id: Uuid, tenant_id: &str) -> AppResult<bool> {
+        let now = Utc::now().to_rfc3339();
+
+        let result = sqlx::query(
+            r"
+            UPDATE coaches SET is_active = 0, updated_at = $1
+            WHERE user_id = $2 AND tenant_id = $3 AND is_active = 1
+            ",
+        )
+        .bind(&now)
+        .bind(user_id.to_string())
+        .bind(tenant_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to deactivate coach: {e}")))?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Get the currently active coach for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn get_active_coach(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+    ) -> AppResult<Option<Coach>> {
+        let row = sqlx::query(
+            r"
+            SELECT id, user_id, tenant_id, title, description, system_prompt,
+                   category, tags, token_count, is_favorite, is_active, use_count,
+                   last_used_at, created_at, updated_at
+            FROM coaches
+            WHERE user_id = $1 AND tenant_id = $2 AND is_active = 1
+            ",
+        )
+        .bind(user_id.to_string())
+        .bind(tenant_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get active coach: {e}")))?;
+
+        row.map(|r| row_to_coach(&r)).transpose()
+    }
 }
 
 /// Convert a database row to a Coach struct
@@ -586,6 +694,7 @@ fn row_to_coach(row: &SqliteRow) -> AppResult<Coach> {
     let last_used_at_str: Option<String> = row.get("last_used_at");
     let token_count: i64 = row.get("token_count");
     let is_favorite: i64 = row.get("is_favorite");
+    let is_active: i64 = row.get("is_active");
     let use_count: i64 = row.get("use_count");
 
     let tags: Vec<String> = serde_json::from_str(&tags_json)?;
@@ -604,6 +713,7 @@ fn row_to_coach(row: &SqliteRow) -> AppResult<Coach> {
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         token_count: token_count as u32,
         is_favorite: is_favorite == 1,
+        is_active: is_active == 1,
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         use_count: use_count as u32,
         last_used_at: last_used_at_str

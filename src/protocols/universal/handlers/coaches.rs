@@ -597,3 +597,182 @@ pub fn handle_search_coaches(
         Ok(apply_format_to_response(result, "results", output_format))
     })
 }
+
+/// Handle `activate_coach` tool - set a coach as the active coach for the session
+///
+/// Only one coach can be active at a time. Activating a coach automatically
+/// deactivates any previously active coach.
+///
+/// # Parameters
+/// - `coach_id`: UUID of the coach to activate (required)
+///
+/// # Returns
+/// Activated coach details
+#[must_use]
+pub fn handle_activate_coach(
+    executor: &UniversalToolExecutor,
+    request: UniversalRequest,
+) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
+    Box::pin(async move {
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "activate_coach cancelled".to_owned(),
+                ));
+            }
+        }
+
+        let user_id = parse_user_id_for_protocol(&request.user_id)?;
+        let user_id_string = user_id.to_string();
+        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+
+        let coach_id = request
+            .parameters
+            .get("coach_id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest("Missing required parameter: coach_id".to_owned())
+            })?;
+
+        let manager = get_coaches_manager(executor)?;
+        let coach = manager
+            .activate_coach(coach_id, user_id, tenant_id)
+            .await
+            .map_err(|e| ProtocolError::InternalError(format!("Failed to activate coach: {e}")))?;
+
+        match coach {
+            Some(c) => Ok(UniversalResponse {
+                success: true,
+                result: Some(json!({
+                    "id": c.id.to_string(),
+                    "title": c.title,
+                    "description": c.description,
+                    "system_prompt": c.system_prompt,
+                    "category": c.category.as_str(),
+                    "is_active": true,
+                    "token_count": c.token_count,
+                })),
+                error: None,
+                metadata: None,
+            }),
+            None => Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!("Coach not found: {coach_id}")),
+                metadata: None,
+            }),
+        }
+    })
+}
+
+/// Handle `deactivate_coach` tool - deactivate the currently active coach
+///
+/// # Returns
+/// Success confirmation
+#[must_use]
+pub fn handle_deactivate_coach(
+    executor: &UniversalToolExecutor,
+    request: UniversalRequest,
+) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
+    Box::pin(async move {
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "deactivate_coach cancelled".to_owned(),
+                ));
+            }
+        }
+
+        let user_id = parse_user_id_for_protocol(&request.user_id)?;
+        let user_id_string = user_id.to_string();
+        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+
+        let manager = get_coaches_manager(executor)?;
+        let deactivated = manager
+            .deactivate_coach(user_id, tenant_id)
+            .await
+            .map_err(|e| {
+                ProtocolError::InternalError(format!("Failed to deactivate coach: {e}"))
+            })?;
+
+        Ok(UniversalResponse {
+            success: true,
+            result: Some(json!({
+                "deactivated": deactivated,
+            })),
+            error: None,
+            metadata: None,
+        })
+    })
+}
+
+/// Handle `get_active_coach` tool - get the currently active coach for the user
+///
+/// # Parameters
+/// - `format`: Output format ("json" or "toon")
+///
+/// # Returns
+/// Active coach details including system prompt, or null if no coach is active
+#[must_use]
+pub fn handle_get_active_coach(
+    executor: &UniversalToolExecutor,
+    request: UniversalRequest,
+) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
+    Box::pin(async move {
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "get_active_coach cancelled".to_owned(),
+                ));
+            }
+        }
+
+        let output_format = extract_output_format(&request);
+        let user_id = parse_user_id_for_protocol(&request.user_id)?;
+        let user_id_string = user_id.to_string();
+        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+
+        let manager = get_coaches_manager(executor)?;
+        let coach = manager
+            .get_active_coach(user_id, tenant_id)
+            .await
+            .map_err(|e| {
+                ProtocolError::InternalError(format!("Failed to get active coach: {e}"))
+            })?;
+
+        match coach {
+            Some(c) => {
+                let result = UniversalResponse {
+                    success: true,
+                    result: Some(json!({
+                        "active": true,
+                        "coach": {
+                            "id": c.id.to_string(),
+                            "title": c.title,
+                            "description": c.description,
+                            "system_prompt": c.system_prompt,
+                            "category": c.category.as_str(),
+                            "tags": c.tags,
+                            "token_count": c.token_count,
+                            "is_favorite": c.is_favorite,
+                            "use_count": c.use_count,
+                            "last_used_at": c.last_used_at.map(|dt| dt.to_rfc3339()),
+                        }
+                    })),
+                    error: None,
+                    metadata: None,
+                };
+                Ok(apply_format_to_response(result, "coach", output_format))
+            }
+            None => Ok(UniversalResponse {
+                success: true,
+                result: Some(json!({
+                    "active": false,
+                    "coach": null,
+                })),
+                error: None,
+                metadata: None,
+            }),
+        }
+    })
+}

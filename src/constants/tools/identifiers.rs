@@ -90,3 +90,9 @@ pub const DELETE_COACH: &str = "delete_coach";
 pub const TOGGLE_COACH_FAVORITE: &str = "toggle_coach_favorite";
 /// Tool identifier for searching coaches
 pub const SEARCH_COACHES: &str = "search_coaches";
+/// Tool identifier for activating a coach for the session
+pub const ACTIVATE_COACH: &str = "activate_coach";
+/// Tool identifier for deactivating the current coach
+pub const DEACTIVATE_COACH: &str = "deactivate_coach";
+/// Tool identifier for getting the currently active coach
+pub const GET_ACTIVE_COACH: &str = "get_active_coach";

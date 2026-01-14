@@ -5,9 +5,9 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::constants::tools::{
-    CREATE_COACH, DELETE_COACH, DELETE_RECIPE, GET_COACH, GET_RECIPE, GET_RECIPE_CONSTRAINTS,
-    LIST_COACHES, LIST_RECIPES, SAVE_RECIPE, SEARCH_COACHES, SEARCH_RECIPES, TOGGLE_COACH_FAVORITE,
-    UPDATE_COACH, VALIDATE_RECIPE,
+    ACTIVATE_COACH, CREATE_COACH, DEACTIVATE_COACH, DELETE_COACH, DELETE_RECIPE, GET_ACTIVE_COACH,
+    GET_COACH, GET_RECIPE, GET_RECIPE_CONSTRAINTS, LIST_COACHES, LIST_RECIPES, SAVE_RECIPE,
+    SEARCH_COACHES, SEARCH_RECIPES, TOGGLE_COACH_FAVORITE, UPDATE_COACH, VALIDATE_RECIPE,
 };
 use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalToolExecutor};
 use crate::protocols::ProtocolError;
@@ -143,6 +143,12 @@ pub enum ToolId {
     ToggleCoachFavorite,
     /// Search coaches by query
     SearchCoaches,
+    /// Activate a coach for the session
+    ActivateCoach,
+    /// Deactivate the currently active coach
+    DeactivateCoach,
+    /// Get the currently active coach
+    GetActiveCoach,
 }
 
 impl ToolId {
@@ -208,6 +214,9 @@ impl ToolId {
             DELETE_COACH => Some(Self::DeleteCoach),
             TOGGLE_COACH_FAVORITE => Some(Self::ToggleCoachFavorite),
             SEARCH_COACHES => Some(Self::SearchCoaches),
+            ACTIVATE_COACH => Some(Self::ActivateCoach),
+            DEACTIVATE_COACH => Some(Self::DeactivateCoach),
+            GET_ACTIVE_COACH => Some(Self::GetActiveCoach),
             _ => None,
         }
     }
@@ -272,6 +281,9 @@ impl ToolId {
             Self::DeleteCoach => DELETE_COACH,
             Self::ToggleCoachFavorite => TOGGLE_COACH_FAVORITE,
             Self::SearchCoaches => SEARCH_COACHES,
+            Self::ActivateCoach => ACTIVATE_COACH,
+            Self::DeactivateCoach => DEACTIVATE_COACH,
+            Self::GetActiveCoach => GET_ACTIVE_COACH,
         }
     }
 
@@ -373,6 +385,9 @@ impl ToolId {
             Self::DeleteCoach => "Delete a coach from user's collection",
             Self::ToggleCoachFavorite => "Toggle favorite status of a coach",
             Self::SearchCoaches => "Search coaches by title, description, or tags",
+            Self::ActivateCoach => "Set a coach as active for the session (only one can be active)",
+            Self::DeactivateCoach => "Deactivate the currently active coach",
+            Self::GetActiveCoach => "Get the currently active coach for the user",
         }
     }
 
