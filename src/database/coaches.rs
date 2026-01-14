@@ -13,6 +13,41 @@ use uuid::Uuid;
 /// Token estimation constant: average characters per token for system prompts
 const CHARS_PER_TOKEN: usize = 4;
 
+/// Coach visibility for access control
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum CoachVisibility {
+    /// Only visible to the owner
+    #[default]
+    Private,
+    /// Visible to all users in the tenant
+    Tenant,
+    /// Visible across all tenants (super-admin only)
+    Global,
+}
+
+impl CoachVisibility {
+    /// Convert to database string representation
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::Private => "private",
+            Self::Tenant => "tenant",
+            Self::Global => "global",
+        }
+    }
+
+    /// Parse from database string representation
+    #[must_use]
+    pub fn parse(s: &str) -> Self {
+        match s {
+            "tenant" => Self::Tenant,
+            "global" => Self::Global,
+            _ => Self::Private,
+        }
+    }
+}
+
 /// Coach category for organization
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -61,7 +96,7 @@ impl CoachCategory {
 pub struct Coach {
     /// Unique identifier
     pub id: Uuid,
-    /// User who created the coach
+    /// User who created the coach (admin user for system coaches)
     pub user_id: Uuid,
     /// Tenant for multi-tenancy isolation
     pub tenant_id: String,
@@ -89,6 +124,12 @@ pub struct Coach {
     pub created_at: DateTime<Utc>,
     /// Last update timestamp
     pub updated_at: DateTime<Utc>,
+    /// Whether this is a system coach (admin-created)
+    #[serde(default)]
+    pub is_system: bool,
+    /// Visibility level for the coach
+    #[serde(default)]
+    pub visibility: CoachVisibility,
 }
 
 /// Request to create a new coach
@@ -180,8 +221,8 @@ impl CoachesManager {
             INSERT INTO coaches (
                 id, user_id, tenant_id, title, description, system_prompt,
                 category, tags, token_count, is_favorite, use_count,
-                last_used_at, created_at, updated_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13)
+                last_used_at, created_at, updated_at, is_system, visibility
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13, $14, $15)
             ",
         )
         .bind(id.to_string())
@@ -197,6 +238,8 @@ impl CoachesManager {
         .bind(0i64) // use_count
         .bind(Option::<String>::None) // last_used_at
         .bind(now.to_rfc3339())
+        .bind(0i64) // is_system (user-created coaches are not system)
+        .bind(CoachVisibility::Private.as_str()) // visibility
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to create coach: {e}")))?;
@@ -217,6 +260,8 @@ impl CoachesManager {
             last_used_at: None,
             created_at: now,
             updated_at: now,
+            is_system: false,
+            visibility: CoachVisibility::Private,
         })
     }
 
@@ -235,7 +280,7 @@ impl CoachesManager {
             r"
             SELECT id, user_id, tenant_id, title, description, system_prompt,
                    category, tags, token_count, is_favorite, is_active, use_count,
-                   last_used_at, created_at, updated_at
+                   last_used_at, created_at, updated_at, is_system, visibility
             FROM coaches
             WHERE id = $1 AND user_id = $2 AND tenant_id = $3
             ",
@@ -557,7 +602,7 @@ impl CoachesManager {
             r"
             SELECT id, user_id, tenant_id, title, description, system_prompt,
                    category, tags, token_count, is_favorite, is_active, use_count,
-                   last_used_at, created_at, updated_at
+                   last_used_at, created_at, updated_at, is_system, visibility
             FROM coaches
             WHERE user_id = $1 AND tenant_id = $2 AND (
                 title LIKE $3 OR description LIKE $3 OR tags LIKE $3
@@ -668,7 +713,7 @@ impl CoachesManager {
             r"
             SELECT id, user_id, tenant_id, title, description, system_prompt,
                    category, tags, token_count, is_favorite, is_active, use_count,
-                   last_used_at, created_at, updated_at
+                   last_used_at, created_at, updated_at, is_system, visibility
             FROM coaches
             WHERE user_id = $1 AND tenant_id = $2 AND is_active = 1
             ",
@@ -696,6 +741,12 @@ fn row_to_coach(row: &SqliteRow) -> AppResult<Coach> {
     let is_favorite: i64 = row.get("is_favorite");
     let is_active: i64 = row.get("is_active");
     let use_count: i64 = row.get("use_count");
+
+    // New fields with defaults for backward compatibility
+    let is_system: i64 = row.try_get("is_system").unwrap_or(0);
+    let visibility_str: String = row
+        .try_get("visibility")
+        .unwrap_or_else(|_| "private".to_owned());
 
     let tags: Vec<String> = serde_json::from_str(&tags_json)?;
 
@@ -725,5 +776,7 @@ fn row_to_coach(row: &SqliteRow) -> AppResult<Coach> {
         updated_at: DateTime::parse_from_rfc3339(&updated_at_str)
             .map_err(|e| AppError::internal(format!("Invalid datetime: {e}")))?
             .with_timezone(&Utc),
+        is_system: is_system == 1,
+        visibility: CoachVisibility::parse(&visibility_str),
     })
 }
