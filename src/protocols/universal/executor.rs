@@ -11,9 +11,10 @@ use super::handlers::{
     handle_admin_list_coach_assignments, handle_admin_list_system_coaches,
     handle_admin_unassign_coach, handle_admin_update_system_coach, handle_create_coach,
     handle_deactivate_coach, handle_delete_coach, handle_delete_recipe, handle_get_active_coach,
-    handle_get_coach, handle_get_recipe, handle_get_recipe_constraints, handle_list_coaches,
-    handle_list_recipes, handle_save_recipe, handle_search_coaches, handle_search_recipes,
-    handle_toggle_coach_favorite, handle_update_coach, handle_validate_recipe,
+    handle_get_coach, handle_get_recipe, handle_get_recipe_constraints, handle_hide_coach,
+    handle_list_coaches, handle_list_hidden_coaches, handle_list_recipes, handle_save_recipe,
+    handle_search_coaches, handle_search_recipes, handle_show_coach, handle_toggle_coach_favorite,
+    handle_update_coach, handle_validate_recipe,
 };
 use super::handlers::{
     handle_analyze_activity, handle_analyze_goal_feasibility, handle_analyze_meal_nutrition,
@@ -406,6 +407,18 @@ impl UniversalExecutor {
         registry.register(ToolInfo::async_tool(
             ToolId::GetActiveCoach,
             |executor, request| Box::pin(handle_get_active_coach(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::HideCoach,
+            |executor, request| Box::pin(handle_hide_coach(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::ShowCoach,
+            |executor, request| Box::pin(handle_show_coach(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::ListHiddenCoaches,
+            |executor, request| Box::pin(handle_list_hidden_coaches(executor, request)),
         ));
         // Admin coach management tools (system coaches - admin only)
         registry.register(ToolInfo::async_tool(

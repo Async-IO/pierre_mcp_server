@@ -797,6 +797,179 @@ pub fn handle_get_active_coach(
     })
 }
 
+/// Handle `hide_coach` tool - hide a system or assigned coach from user's view
+///
+/// Users can only hide system coaches or coaches assigned to them by admins.
+/// Personal coaches cannot be hidden.
+///
+/// # Parameters
+/// - `coach_id`: UUID of the coach to hide (required)
+///
+/// # Returns
+/// Success confirmation with hidden status
+#[must_use]
+pub fn handle_hide_coach(
+    executor: &UniversalToolExecutor,
+    request: UniversalRequest,
+) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
+    Box::pin(async move {
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "hide_coach cancelled".to_owned(),
+                ));
+            }
+        }
+
+        let user_id = parse_user_id_for_protocol(&request.user_id)?;
+        let user_id_string = user_id.to_string();
+        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+
+        let coach_id = request
+            .parameters
+            .get("coach_id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest("Missing required parameter: coach_id".to_owned())
+            })?;
+
+        let manager = get_coaches_manager(executor)?;
+        let success = manager
+            .hide_coach(coach_id, user_id, tenant_id)
+            .await
+            .map_err(|e| ProtocolError::InternalError(format!("Failed to hide coach: {e}")))?;
+
+        Ok(UniversalResponse {
+            success,
+            result: Some(json!({
+                "coach_id": coach_id,
+                "is_hidden": success,
+            })),
+            error: if success {
+                None
+            } else {
+                Some(
+                    "Coach cannot be hidden (only system or assigned coaches can be hidden)"
+                        .to_owned(),
+                )
+            },
+            metadata: None,
+        })
+    })
+}
+
+/// Handle `show_coach` tool - unhide a previously hidden coach
+///
+/// # Parameters
+/// - `coach_id`: UUID of the coach to show (required)
+///
+/// # Returns
+/// Success confirmation
+#[must_use]
+pub fn handle_show_coach(
+    executor: &UniversalToolExecutor,
+    request: UniversalRequest,
+) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
+    Box::pin(async move {
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "show_coach cancelled".to_owned(),
+                ));
+            }
+        }
+
+        let user_id = parse_user_id_for_protocol(&request.user_id)?;
+
+        let coach_id = request
+            .parameters
+            .get("coach_id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest("Missing required parameter: coach_id".to_owned())
+            })?;
+
+        let manager = get_coaches_manager(executor)?;
+        let success = manager
+            .show_coach(coach_id, user_id)
+            .await
+            .map_err(|e| ProtocolError::InternalError(format!("Failed to show coach: {e}")))?;
+
+        Ok(UniversalResponse {
+            success: true,
+            result: Some(json!({
+                "coach_id": coach_id,
+                "is_hidden": false,
+                "removed_preference": success,
+            })),
+            error: None,
+            metadata: None,
+        })
+    })
+}
+
+/// Handle `list_hidden_coaches` tool - list coaches the user has hidden
+///
+/// # Parameters
+/// - `format`: Output format ("json" or "toon")
+///
+/// # Returns
+/// JSON array of hidden coaches
+#[must_use]
+pub fn handle_list_hidden_coaches(
+    executor: &UniversalToolExecutor,
+    request: UniversalRequest,
+) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
+    Box::pin(async move {
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "list_hidden_coaches cancelled".to_owned(),
+                ));
+            }
+        }
+
+        let output_format = extract_output_format(&request);
+        let user_id = parse_user_id_for_protocol(&request.user_id)?;
+        let user_id_string = user_id.to_string();
+        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+
+        let manager = get_coaches_manager(executor)?;
+        let coaches = manager
+            .list_hidden_coaches(user_id, tenant_id)
+            .await
+            .map_err(|e| {
+                ProtocolError::InternalError(format!("Failed to list hidden coaches: {e}"))
+            })?;
+
+        let coach_summaries: Vec<Value> = coaches
+            .iter()
+            .map(|c| {
+                json!({
+                    "id": c.id.to_string(),
+                    "title": c.title,
+                    "description": c.description,
+                    "category": c.category.as_str(),
+                    "is_system": c.is_system,
+                })
+            })
+            .collect();
+
+        let count = coach_summaries.len();
+        let result = UniversalResponse {
+            success: true,
+            result: Some(json!({
+                "coaches": coach_summaries,
+                "count": count,
+            })),
+            error: None,
+            metadata: None,
+        };
+
+        Ok(apply_format_to_response(result, "coaches", output_format))
+    })
+}
+
 // ============================================================================
 // Admin Coach Management Handlers (System Coaches - Admin Only)
 // ============================================================================

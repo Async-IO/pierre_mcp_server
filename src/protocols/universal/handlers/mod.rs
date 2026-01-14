@@ -103,7 +103,8 @@ pub use recipes::{
 /// Re-export coach management handlers
 pub use coaches::{
     handle_activate_coach, handle_create_coach, handle_deactivate_coach, handle_delete_coach,
-    handle_get_active_coach, handle_get_coach, handle_list_coaches, handle_search_coaches,
+    handle_get_active_coach, handle_get_coach, handle_hide_coach, handle_list_coaches,
+    handle_list_hidden_coaches, handle_search_coaches, handle_show_coach,
     handle_toggle_coach_favorite, handle_update_coach,
 };
 

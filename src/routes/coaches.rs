@@ -173,6 +173,15 @@ pub struct RecordUsageResponse {
     pub success: bool,
 }
 
+/// Response for hide/show coach operations
+#[derive(Debug, Serialize, Deserialize)]
+pub struct HideCoachResponse {
+    /// Whether the operation was successful
+    pub success: bool,
+    /// Whether the coach is now hidden (true) or visible (false)
+    pub is_hidden: bool,
+}
+
 /// Request body for creating a coach (mirrors `CreateCoachRequest` with serde derives)
 #[derive(Debug, Deserialize)]
 pub struct CreateCoachBody {
@@ -241,6 +250,7 @@ impl CoachesRoutes {
             .route("/api/coaches", get(Self::handle_list))
             .route("/api/coaches", post(Self::handle_create))
             .route("/api/coaches/search", get(Self::handle_search))
+            .route("/api/coaches/hidden", get(Self::handle_list_hidden))
             .route("/api/coaches/:id", get(Self::handle_get))
             .route("/api/coaches/:id", put(Self::handle_update))
             .route("/api/coaches/:id", delete(Self::handle_delete))
@@ -249,6 +259,8 @@ impl CoachesRoutes {
                 post(Self::handle_toggle_favorite),
             )
             .route("/api/coaches/:id/usage", post(Self::handle_record_usage))
+            .route("/api/coaches/:id/hide", post(Self::handle_hide_coach))
+            .route("/api/coaches/:id/hide", delete(Self::handle_show_coach))
             .with_state(resources)
     }
 
@@ -477,6 +489,65 @@ impl CoachesRoutes {
         }
 
         let response = RecordUsageResponse { success };
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Handle POST /api/coaches/:id/hide - Hide a coach from user's view
+    async fn handle_hide_coach(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Path(id): Path<String>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        let manager = Self::get_coaches_manager(&resources)?;
+        let success = manager.hide_coach(&id, auth.user_id, &tenant_id).await?;
+
+        let response = HideCoachResponse {
+            success,
+            is_hidden: success,
+        };
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Handle DELETE /api/coaches/:id/hide - Show (unhide) a coach
+    async fn handle_show_coach(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Path(id): Path<String>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+
+        let manager = Self::get_coaches_manager(&resources)?;
+        let success = manager.show_coach(&id, auth.user_id).await?;
+
+        let response = HideCoachResponse {
+            success,
+            is_hidden: false,
+        };
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Handle GET /api/coaches/hidden - List hidden coaches for user
+    async fn handle_list_hidden(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        let manager = Self::get_coaches_manager(&resources)?;
+        let coaches = manager
+            .list_hidden_coaches(auth.user_id, &tenant_id)
+            .await?;
+
+        let response = ListCoachesResponse {
+            total: u32::try_from(coaches.len()).unwrap_or(0),
+            coaches: coaches.into_iter().map(Into::into).collect(),
+            metadata: Self::build_metadata(),
+        };
+
         Ok((StatusCode::OK, Json(response)).into_response())
     }
 

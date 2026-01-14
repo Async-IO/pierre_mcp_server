@@ -8,7 +8,8 @@
 #![allow(missing_docs, clippy::unwrap_used)]
 
 use pierre_mcp_server::database::coaches::{
-    CoachCategory, CoachesManager, CreateCoachRequest, ListCoachesFilter, UpdateCoachRequest,
+    CoachCategory, CoachVisibility, CoachesManager, CreateCoachRequest, CreateSystemCoachRequest,
+    ListCoachesFilter, UpdateCoachRequest,
 };
 use sqlx::SqlitePool;
 use uuid::Uuid;
@@ -1205,4 +1206,618 @@ fn test_coach_category_as_str() {
     assert_eq!(CoachCategory::Recovery.as_str(), "recovery");
     assert_eq!(CoachCategory::Recipes.as_str(), "recipes");
     assert_eq!(CoachCategory::Custom.as_str(), "custom");
+}
+
+// ============================================================================
+// System Coach Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_create_system_coach() {
+    let pool = create_test_db().await;
+    let manager = CoachesManager::new(pool);
+
+    let request = CreateSystemCoachRequest {
+        title: "Pierre Default Coach".to_owned(),
+        description: Some("The official Pierre fitness coach".to_owned()),
+        system_prompt: "You are Pierre, an expert fitness coach.".to_owned(),
+        category: CoachCategory::Training,
+        tags: vec!["official".to_owned(), "default".to_owned()],
+        visibility: CoachVisibility::Tenant,
+    };
+
+    let coach = manager
+        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .await
+        .unwrap();
+
+    assert!(!coach.id.is_nil());
+    assert_eq!(coach.tenant_id, TEST_TENANT);
+    assert_eq!(coach.title, "Pierre Default Coach");
+    assert!(coach.is_system);
+    assert_eq!(coach.visibility, CoachVisibility::Tenant);
+}
+
+#[tokio::test]
+async fn test_list_system_coaches() {
+    let pool = create_test_db().await;
+    let manager = CoachesManager::new(pool);
+
+    // Create two system coaches
+    for i in 1..=2 {
+        let request = CreateSystemCoachRequest {
+            title: format!("System Coach {i}"),
+            description: None,
+            system_prompt: format!("System prompt {i}"),
+            category: CoachCategory::Training,
+            tags: vec![],
+            visibility: CoachVisibility::Tenant,
+        };
+        manager
+            .create_system_coach(test_user_id(), TEST_TENANT, &request)
+            .await
+            .unwrap();
+    }
+
+    let coaches = manager.list_system_coaches(TEST_TENANT).await.unwrap();
+    assert_eq!(coaches.len(), 2);
+    assert!(coaches.iter().all(|c| c.is_system));
+}
+
+#[tokio::test]
+async fn test_get_system_coach() {
+    let pool = create_test_db().await;
+    let manager = CoachesManager::new(pool);
+
+    let request = CreateSystemCoachRequest {
+        title: "System Coach".to_owned(),
+        description: Some("System description".to_owned()),
+        system_prompt: "System prompt".to_owned(),
+        category: CoachCategory::Custom,
+        tags: vec![],
+        visibility: CoachVisibility::Tenant,
+    };
+
+    let created = manager
+        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .await
+        .unwrap();
+
+    let fetched = manager
+        .get_system_coach(&created.id.to_string(), TEST_TENANT)
+        .await
+        .unwrap();
+
+    assert!(fetched.is_some());
+    let fetched = fetched.unwrap();
+    assert_eq!(fetched.id, created.id);
+    assert_eq!(fetched.title, "System Coach");
+    assert!(fetched.is_system);
+}
+
+#[tokio::test]
+async fn test_update_system_coach() {
+    let pool = create_test_db().await;
+    let manager = CoachesManager::new(pool);
+
+    let request = CreateSystemCoachRequest {
+        title: "Original System Coach".to_owned(),
+        description: Some("Original description".to_owned()),
+        system_prompt: "Original prompt".to_owned(),
+        category: CoachCategory::Training,
+        tags: vec!["original".to_owned()],
+        visibility: CoachVisibility::Tenant,
+    };
+
+    let coach = manager
+        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .await
+        .unwrap();
+
+    let update = UpdateCoachRequest {
+        title: Some("Updated System Coach".to_owned()),
+        description: Some("Updated description".to_owned()),
+        system_prompt: Some("Updated prompt".to_owned()),
+        category: Some(CoachCategory::Nutrition),
+        tags: Some(vec!["updated".to_owned()]),
+    };
+
+    let updated = manager
+        .update_system_coach(&coach.id.to_string(), TEST_TENANT, &update)
+        .await
+        .unwrap();
+
+    assert!(updated.is_some());
+    let updated = updated.unwrap();
+    assert_eq!(updated.title, "Updated System Coach");
+    assert_eq!(updated.description, Some("Updated description".to_owned()));
+    assert_eq!(updated.category, CoachCategory::Nutrition);
+    assert!(updated.is_system);
+}
+
+#[tokio::test]
+async fn test_delete_system_coach() {
+    let pool = create_test_db().await;
+    let manager = CoachesManager::new(pool);
+
+    let request = CreateSystemCoachRequest {
+        title: "To Delete".to_owned(),
+        description: None,
+        system_prompt: "Prompt".to_owned(),
+        category: CoachCategory::Custom,
+        tags: vec![],
+        visibility: CoachVisibility::Tenant,
+    };
+
+    let coach = manager
+        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .await
+        .unwrap();
+
+    let deleted = manager
+        .delete_system_coach(&coach.id.to_string(), TEST_TENANT)
+        .await
+        .unwrap();
+
+    assert!(deleted);
+
+    // Verify it's gone
+    let result = manager
+        .get_system_coach(&coach.id.to_string(), TEST_TENANT)
+        .await
+        .unwrap();
+    assert!(result.is_none());
+}
+
+// ============================================================================
+// Coach Assignment Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_assign_coach_to_user() {
+    let pool = create_test_db().await;
+    let manager = CoachesManager::new(pool);
+
+    // Create a system coach
+    let request = CreateSystemCoachRequest {
+        title: "System Coach".to_owned(),
+        description: None,
+        system_prompt: "System prompt".to_owned(),
+        category: CoachCategory::Training,
+        tags: vec![],
+        visibility: CoachVisibility::Tenant,
+    };
+    let coach = manager
+        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .await
+        .unwrap();
+
+    // Assign to user
+    let assigned = manager
+        .assign_coach(&coach.id.to_string(), other_user_id(), test_user_id())
+        .await
+        .unwrap();
+
+    assert!(assigned);
+
+    // Verify assignment
+    let assignments = manager
+        .list_assignments(&coach.id.to_string())
+        .await
+        .unwrap();
+    assert_eq!(assignments.len(), 1);
+    assert_eq!(assignments[0].user_id, other_user_id().to_string());
+}
+
+#[tokio::test]
+async fn test_unassign_coach_from_user() {
+    let pool = create_test_db().await;
+    let manager = CoachesManager::new(pool);
+
+    // Create and assign
+    let request = CreateSystemCoachRequest {
+        title: "System Coach".to_owned(),
+        description: None,
+        system_prompt: "Prompt".to_owned(),
+        category: CoachCategory::Training,
+        tags: vec![],
+        visibility: CoachVisibility::Tenant,
+    };
+    let coach = manager
+        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .await
+        .unwrap();
+
+    manager
+        .assign_coach(&coach.id.to_string(), other_user_id(), test_user_id())
+        .await
+        .unwrap();
+
+    // Unassign
+    let unassigned = manager
+        .unassign_coach(&coach.id.to_string(), other_user_id())
+        .await
+        .unwrap();
+
+    assert!(unassigned);
+
+    // Verify unassignment
+    let assignments = manager
+        .list_assignments(&coach.id.to_string())
+        .await
+        .unwrap();
+    assert!(assignments.is_empty());
+}
+
+#[tokio::test]
+async fn test_list_assignments() {
+    let pool = create_test_db().await;
+    let manager = CoachesManager::new(pool);
+
+    // Create system coach
+    let request = CreateSystemCoachRequest {
+        title: "System Coach".to_owned(),
+        description: None,
+        system_prompt: "Prompt".to_owned(),
+        category: CoachCategory::Training,
+        tags: vec![],
+        visibility: CoachVisibility::Tenant,
+    };
+    let coach = manager
+        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .await
+        .unwrap();
+
+    // Assign to both users
+    manager
+        .assign_coach(&coach.id.to_string(), test_user_id(), test_user_id())
+        .await
+        .unwrap();
+    manager
+        .assign_coach(&coach.id.to_string(), other_user_id(), test_user_id())
+        .await
+        .unwrap();
+
+    let assignments = manager
+        .list_assignments(&coach.id.to_string())
+        .await
+        .unwrap();
+    assert_eq!(assignments.len(), 2);
+}
+
+#[tokio::test]
+async fn test_list_coaches_includes_assigned_system_coaches() {
+    let pool = create_test_db().await;
+    let manager = CoachesManager::new(pool);
+
+    // Create a personal coach for user 1
+    let personal_request = CreateCoachRequest {
+        title: "Personal Coach".to_owned(),
+        description: None,
+        system_prompt: "Personal prompt".to_owned(),
+        category: CoachCategory::Custom,
+        tags: vec![],
+    };
+    manager
+        .create(test_user_id(), TEST_TENANT, &personal_request)
+        .await
+        .unwrap();
+
+    // Create a system coach and assign to user 1
+    let system_request = CreateSystemCoachRequest {
+        title: "System Coach".to_owned(),
+        description: None,
+        system_prompt: "System prompt".to_owned(),
+        category: CoachCategory::Training,
+        tags: vec![],
+        visibility: CoachVisibility::Tenant,
+    };
+    let system_coach = manager
+        .create_system_coach(test_user_id(), TEST_TENANT, &system_request)
+        .await
+        .unwrap();
+
+    manager
+        .assign_coach(&system_coach.id.to_string(), test_user_id(), test_user_id())
+        .await
+        .unwrap();
+
+    // User 1 should see both coaches
+    let filter = ListCoachesFilter::default();
+    let coaches = manager
+        .list(test_user_id(), TEST_TENANT, &filter)
+        .await
+        .unwrap();
+
+    assert_eq!(coaches.len(), 2);
+
+    // One should be assigned (system coach)
+    let assigned_coaches: Vec<_> = coaches.iter().filter(|c| c.is_assigned).collect();
+    assert_eq!(assigned_coaches.len(), 1);
+    assert_eq!(assigned_coaches[0].coach.title, "System Coach");
+}
+
+// ============================================================================
+// Hide/Show Coach Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_hide_coach() {
+    let pool = create_test_db().await;
+    let manager = CoachesManager::new(pool);
+
+    // Create a system coach and assign it
+    let request = CreateSystemCoachRequest {
+        title: "System Coach".to_owned(),
+        description: None,
+        system_prompt: "Prompt".to_owned(),
+        category: CoachCategory::Training,
+        tags: vec![],
+        visibility: CoachVisibility::Tenant,
+    };
+    let coach = manager
+        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .await
+        .unwrap();
+
+    manager
+        .assign_coach(&coach.id.to_string(), test_user_id(), test_user_id())
+        .await
+        .unwrap();
+
+    // Hide the coach
+    let hidden = manager
+        .hide_coach(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .await
+        .unwrap();
+
+    assert!(hidden);
+}
+
+#[tokio::test]
+async fn test_hide_coach_not_found() {
+    let pool = create_test_db().await;
+    let manager = CoachesManager::new(pool);
+
+    // Try to hide non-existent coach - should return error
+    let result = manager
+        .hide_coach("nonexistent-id", test_user_id(), TEST_TENANT)
+        .await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_show_coach() {
+    let pool = create_test_db().await;
+    let manager = CoachesManager::new(pool);
+
+    // Create a system coach and assign it
+    let request = CreateSystemCoachRequest {
+        title: "System Coach".to_owned(),
+        description: None,
+        system_prompt: "Prompt".to_owned(),
+        category: CoachCategory::Training,
+        tags: vec![],
+        visibility: CoachVisibility::Tenant,
+    };
+    let coach = manager
+        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .await
+        .unwrap();
+
+    manager
+        .assign_coach(&coach.id.to_string(), test_user_id(), test_user_id())
+        .await
+        .unwrap();
+
+    // Hide first
+    manager
+        .hide_coach(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .await
+        .unwrap();
+
+    // Then show
+    let shown = manager
+        .show_coach(&coach.id.to_string(), test_user_id())
+        .await
+        .unwrap();
+
+    assert!(shown);
+}
+
+#[tokio::test]
+async fn test_list_hidden_coaches() {
+    let pool = create_test_db().await;
+    let manager = CoachesManager::new(pool);
+
+    // Create two system coaches
+    let mut coach_ids = Vec::new();
+    for i in 1..=2 {
+        let request = CreateSystemCoachRequest {
+            title: format!("System Coach {i}"),
+            description: None,
+            system_prompt: format!("Prompt {i}"),
+            category: CoachCategory::Training,
+            tags: vec![],
+            visibility: CoachVisibility::Tenant,
+        };
+        let coach = manager
+            .create_system_coach(test_user_id(), TEST_TENANT, &request)
+            .await
+            .unwrap();
+        coach_ids.push(coach.id.to_string());
+    }
+
+    // Assign both to user
+    for id in &coach_ids {
+        manager
+            .assign_coach(id, test_user_id(), test_user_id())
+            .await
+            .unwrap();
+    }
+
+    // Hide only the first one
+    manager
+        .hide_coach(&coach_ids[0], test_user_id(), TEST_TENANT)
+        .await
+        .unwrap();
+
+    // List hidden coaches
+    let hidden = manager
+        .list_hidden_coaches(test_user_id(), TEST_TENANT)
+        .await
+        .unwrap();
+
+    assert_eq!(hidden.len(), 1);
+    assert_eq!(hidden[0].id.to_string(), coach_ids[0]);
+    assert_eq!(hidden[0].title, "System Coach 1");
+}
+
+#[tokio::test]
+async fn test_hidden_coach_excluded_from_list() {
+    let pool = create_test_db().await;
+    let manager = CoachesManager::new(pool);
+
+    // Create a system coach and assign it
+    let request = CreateSystemCoachRequest {
+        title: "System Coach".to_owned(),
+        description: None,
+        system_prompt: "Prompt".to_owned(),
+        category: CoachCategory::Training,
+        tags: vec![],
+        visibility: CoachVisibility::Tenant,
+    };
+    let coach = manager
+        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .await
+        .unwrap();
+
+    manager
+        .assign_coach(&coach.id.to_string(), test_user_id(), test_user_id())
+        .await
+        .unwrap();
+
+    // Should see 1 coach
+    let filter = ListCoachesFilter::default();
+    let coaches = manager
+        .list(test_user_id(), TEST_TENANT, &filter)
+        .await
+        .unwrap();
+    assert_eq!(coaches.len(), 1);
+
+    // Hide the coach
+    manager
+        .hide_coach(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .await
+        .unwrap();
+
+    // Should see 0 coaches now
+    let coaches = manager
+        .list(test_user_id(), TEST_TENANT, &filter)
+        .await
+        .unwrap();
+    assert_eq!(coaches.len(), 0);
+}
+
+#[tokio::test]
+async fn test_unhidden_coach_appears_in_list() {
+    let pool = create_test_db().await;
+    let manager = CoachesManager::new(pool);
+
+    // Create a system coach and assign it
+    let request = CreateSystemCoachRequest {
+        title: "System Coach".to_owned(),
+        description: None,
+        system_prompt: "Prompt".to_owned(),
+        category: CoachCategory::Training,
+        tags: vec![],
+        visibility: CoachVisibility::Tenant,
+    };
+    let coach = manager
+        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .await
+        .unwrap();
+
+    manager
+        .assign_coach(&coach.id.to_string(), test_user_id(), test_user_id())
+        .await
+        .unwrap();
+
+    // Hide the coach
+    manager
+        .hide_coach(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .await
+        .unwrap();
+
+    // Should see 0 coaches
+    let filter = ListCoachesFilter::default();
+    let coaches = manager
+        .list(test_user_id(), TEST_TENANT, &filter)
+        .await
+        .unwrap();
+    assert_eq!(coaches.len(), 0);
+
+    // Unhide the coach
+    manager
+        .show_coach(&coach.id.to_string(), test_user_id())
+        .await
+        .unwrap();
+
+    // Should see 1 coach again
+    let coaches = manager
+        .list(test_user_id(), TEST_TENANT, &filter)
+        .await
+        .unwrap();
+    assert_eq!(coaches.len(), 1);
+}
+
+#[tokio::test]
+async fn test_hide_coach_user_isolation() {
+    let pool = create_test_db().await;
+    let manager = CoachesManager::new(pool);
+
+    // Create a system coach and assign to both users
+    let request = CreateSystemCoachRequest {
+        title: "System Coach".to_owned(),
+        description: None,
+        system_prompt: "Prompt".to_owned(),
+        category: CoachCategory::Training,
+        tags: vec![],
+        visibility: CoachVisibility::Tenant,
+    };
+    let coach = manager
+        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .await
+        .unwrap();
+
+    manager
+        .assign_coach(&coach.id.to_string(), test_user_id(), test_user_id())
+        .await
+        .unwrap();
+    manager
+        .assign_coach(&coach.id.to_string(), other_user_id(), test_user_id())
+        .await
+        .unwrap();
+
+    // User 1 hides the coach
+    manager
+        .hide_coach(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .await
+        .unwrap();
+
+    // User 1 should not see the coach
+    let filter = ListCoachesFilter::default();
+    let user1_coaches = manager
+        .list(test_user_id(), TEST_TENANT, &filter)
+        .await
+        .unwrap();
+    assert_eq!(user1_coaches.len(), 0);
+
+    // User 2 should still see the coach
+    let user2_coaches = manager
+        .list(other_user_id(), TEST_TENANT, &filter)
+        .await
+        .unwrap();
+    assert_eq!(user2_coaches.len(), 1);
 }

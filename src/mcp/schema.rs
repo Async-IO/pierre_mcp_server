@@ -20,9 +20,9 @@ use crate::constants::{
         CREATE_COACH, DEACTIVATE_COACH, DELETE_COACH, DELETE_FITNESS_CONFIG, DELETE_RECIPE,
         DISCONNECT_PROVIDER, GET_ACTIVE_COACH, GET_ACTIVITIES, GET_ACTIVITY_INTELLIGENCE,
         GET_ATHLETE, GET_COACH, GET_CONNECTION_STATUS, GET_FITNESS_CONFIG, GET_RECIPE,
-        GET_RECIPE_CONSTRAINTS, GET_STATS, LIST_COACHES, LIST_FITNESS_CONFIGS, LIST_RECIPES,
-        SAVE_RECIPE, SEARCH_COACHES, SEARCH_RECIPES, SET_FITNESS_CONFIG, TOGGLE_COACH_FAVORITE,
-        UPDATE_COACH, VALIDATE_RECIPE,
+        GET_RECIPE_CONSTRAINTS, GET_STATS, HIDE_COACH, LIST_COACHES, LIST_FITNESS_CONFIGS,
+        LIST_HIDDEN_COACHES, LIST_RECIPES, SAVE_RECIPE, SEARCH_COACHES, SEARCH_RECIPES,
+        SET_FITNESS_CONFIG, SHOW_COACH, TOGGLE_COACH_FAVORITE, UPDATE_COACH, VALIDATE_RECIPE,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -785,6 +785,9 @@ fn create_fitness_tools() -> Vec<ToolSchema> {
         create_activate_coach_tool(),
         create_deactivate_coach_tool(),
         create_get_active_coach_tool(),
+        create_hide_coach_tool(),
+        create_show_coach_tool(),
+        create_list_hidden_coaches_tool(),
         // Admin Coach Management Tools (system coaches - admin only)
         create_admin_list_system_coaches_tool(),
         create_admin_create_system_coach_tool(),
@@ -3093,6 +3096,65 @@ fn create_get_active_coach_tool() -> ToolSchema {
     ToolSchema {
         name: GET_ACTIVE_COACH.to_owned(),
         description: "Get the currently active coach for the user, if any.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: None,
+            required: None,
+        },
+    }
+}
+
+/// Create the `hide_coach` tool schema
+fn create_hide_coach_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "coach_id".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("ID of the coach to hide".into()),
+        },
+    );
+
+    ToolSchema {
+        name: HIDE_COACH.to_owned(),
+        description: "Hide a system or assigned coach from the user's coach list. Only system coaches or assigned coaches can be hidden - personal coaches cannot be hidden.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec!["coach_id".to_owned()]),
+        },
+    }
+}
+
+/// Create the `show_coach` tool schema
+fn create_show_coach_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "coach_id".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("ID of the coach to show (unhide)".into()),
+        },
+    );
+
+    ToolSchema {
+        name: SHOW_COACH.to_owned(),
+        description: "Show (unhide) a previously hidden coach.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec!["coach_id".to_owned()]),
+        },
+    }
+}
+
+/// Create the `list_hidden_coaches` tool schema
+fn create_list_hidden_coaches_tool() -> ToolSchema {
+    ToolSchema {
+        name: LIST_HIDDEN_COACHES.to_owned(),
+        description: "List all coaches that the user has hidden.".into(),
         input_schema: JsonSchema {
             schema_type: "object".into(),
             properties: None,

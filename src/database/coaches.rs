@@ -1027,6 +1027,148 @@ impl CoachesManager {
             })
             .collect()
     }
+
+    // ============================================
+    // User Coach Preferences Methods
+    // ============================================
+
+    /// Hide a coach from a user's view
+    ///
+    /// Only system or assigned coaches can be hidden (not personal coaches).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn hide_coach(
+        &self,
+        coach_id: &str,
+        user_id: Uuid,
+        tenant_id: &str,
+    ) -> AppResult<bool> {
+        // Check if the coach is hideable (must be system or assigned, not personal)
+        if !self.is_coach_hideable(coach_id, user_id, tenant_id).await? {
+            return Err(AppError::invalid_input(
+                "Only system or assigned coaches can be hidden",
+            ));
+        }
+
+        let id = Uuid::new_v4();
+        let now = Utc::now().to_rfc3339();
+
+        // Use INSERT OR REPLACE to update existing preference
+        sqlx::query(
+            r"
+            INSERT INTO user_coach_preferences (id, user_id, coach_id, is_hidden, created_at)
+            VALUES ($1, $2, $3, 1, $4)
+            ON CONFLICT(user_id, coach_id) DO UPDATE SET is_hidden = 1
+            ",
+        )
+        .bind(id.to_string())
+        .bind(user_id.to_string())
+        .bind(coach_id)
+        .bind(&now)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to hide coach: {e}")))?;
+
+        Ok(true)
+    }
+
+    /// Show a previously hidden coach
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn show_coach(&self, coach_id: &str, user_id: Uuid) -> AppResult<bool> {
+        let result = sqlx::query(
+            r"
+            DELETE FROM user_coach_preferences
+            WHERE coach_id = $1 AND user_id = $2 AND is_hidden = 1
+            ",
+        )
+        .bind(coach_id)
+        .bind(user_id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to show coach: {e}")))?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// List hidden coaches for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn list_hidden_coaches(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+    ) -> AppResult<Vec<Coach>> {
+        let rows = sqlx::query(
+            r"
+            SELECT c.id, c.user_id, c.tenant_id, c.title, c.description, c.system_prompt,
+                   c.category, c.tags, c.token_count, c.is_favorite, c.is_active, c.use_count,
+                   c.last_used_at, c.created_at, c.updated_at, c.is_system, c.visibility
+            FROM coaches c
+            INNER JOIN user_coach_preferences ucp ON c.id = ucp.coach_id
+            WHERE ucp.user_id = $1 AND ucp.is_hidden = 1 AND c.tenant_id = $2
+            ORDER BY c.title
+            ",
+        )
+        .bind(user_id.to_string())
+        .bind(tenant_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to list hidden coaches: {e}")))?;
+
+        rows.iter().map(row_to_coach).collect()
+    }
+
+    /// Check if a coach can be hidden by a user
+    ///
+    /// A coach is hideable if it's a system coach or assigned to the user,
+    /// but NOT if it's a personal coach created by the user.
+    async fn is_coach_hideable(
+        &self,
+        coach_id: &str,
+        user_id: Uuid,
+        tenant_id: &str,
+    ) -> AppResult<bool> {
+        // Check if it's a system coach
+        let is_system = sqlx::query(
+            r"
+            SELECT 1 FROM coaches
+            WHERE id = $1 AND tenant_id = $2 AND is_system = 1
+            ",
+        )
+        .bind(coach_id)
+        .bind(tenant_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to check system coach: {e}")))?
+        .is_some();
+
+        if is_system {
+            return Ok(true);
+        }
+
+        // Check if it's assigned to the user
+        let is_assigned = sqlx::query(
+            r"
+            SELECT 1 FROM coach_assignments
+            WHERE coach_id = $1 AND user_id = $2
+            ",
+        )
+        .bind(coach_id)
+        .bind(user_id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to check assignment: {e}")))?
+        .is_some();
+
+        Ok(is_assigned)
+    }
 }
 
 /// Coach assignment info

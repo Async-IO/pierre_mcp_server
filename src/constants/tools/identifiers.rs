@@ -96,6 +96,12 @@ pub const ACTIVATE_COACH: &str = "activate_coach";
 pub const DEACTIVATE_COACH: &str = "deactivate_coach";
 /// Tool identifier for getting the currently active coach
 pub const GET_ACTIVE_COACH: &str = "get_active_coach";
+/// Tool identifier for hiding a coach from user's view
+pub const HIDE_COACH: &str = "hide_coach";
+/// Tool identifier for showing (unhiding) a coach
+pub const SHOW_COACH: &str = "show_coach";
+/// Tool identifier for listing hidden coaches
+pub const LIST_HIDDEN_COACHES: &str = "list_hidden_coaches";
 
 /// Admin coach management tools (system coaches)
 /// Tool identifier for listing system coaches (admin only)
