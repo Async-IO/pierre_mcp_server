@@ -77,6 +77,8 @@ async fn create_test_db() -> SqlitePool {
             last_used_at TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
+            is_system INTEGER NOT NULL DEFAULT 0,
+            visibility TEXT NOT NULL DEFAULT 'private',
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
         ",

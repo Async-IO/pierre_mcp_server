@@ -726,6 +726,326 @@ impl CoachesManager {
 
         row.map(|r| row_to_coach(&r)).transpose()
     }
+
+    // ============================================
+    // System Coach Methods (Admin Operations)
+    // ============================================
+
+    /// Create a system coach (admin-created, visible to tenant users)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn create_system_coach(
+        &self,
+        admin_user_id: Uuid,
+        tenant_id: &str,
+        request: &CreateSystemCoachRequest,
+    ) -> AppResult<Coach> {
+        let now = Utc::now();
+        let id = Uuid::new_v4();
+        let tags_json = serde_json::to_string(&request.tags)?;
+        let token_count = Self::estimate_tokens(&request.system_prompt);
+
+        sqlx::query(
+            r"
+            INSERT INTO coaches (
+                id, user_id, tenant_id, title, description, system_prompt,
+                category, tags, token_count, is_favorite, use_count,
+                last_used_at, created_at, updated_at, is_system, visibility
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13, $14, $15)
+            ",
+        )
+        .bind(id.to_string())
+        .bind(admin_user_id.to_string())
+        .bind(tenant_id)
+        .bind(&request.title)
+        .bind(&request.description)
+        .bind(&request.system_prompt)
+        .bind(request.category.as_str())
+        .bind(&tags_json)
+        .bind(i64::from(token_count))
+        .bind(false) // is_favorite
+        .bind(0i64) // use_count
+        .bind(Option::<String>::None) // last_used_at
+        .bind(now.to_rfc3339())
+        .bind(1i64) // is_system = true
+        .bind(request.visibility.as_str())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create system coach: {e}")))?;
+
+        Ok(Coach {
+            id,
+            user_id: admin_user_id,
+            tenant_id: tenant_id.to_owned(),
+            title: request.title.clone(),
+            description: request.description.clone(),
+            system_prompt: request.system_prompt.clone(),
+            category: request.category,
+            tags: request.tags.clone(),
+            token_count,
+            is_favorite: false,
+            is_active: false,
+            use_count: 0,
+            last_used_at: None,
+            created_at: now,
+            updated_at: now,
+            is_system: true,
+            visibility: request.visibility,
+        })
+    }
+
+    /// List all system coaches in a tenant
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn list_system_coaches(&self, tenant_id: &str) -> AppResult<Vec<Coach>> {
+        let rows = sqlx::query(
+            r"
+            SELECT id, user_id, tenant_id, title, description, system_prompt,
+                   category, tags, token_count, is_favorite, is_active, use_count,
+                   last_used_at, created_at, updated_at, is_system, visibility
+            FROM coaches
+            WHERE tenant_id = $1 AND is_system = 1
+            ORDER BY created_at DESC
+            ",
+        )
+        .bind(tenant_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to list system coaches: {e}")))?;
+
+        rows.iter().map(row_to_coach).collect()
+    }
+
+    /// Get a system coach by ID
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn get_system_coach(
+        &self,
+        coach_id: &str,
+        tenant_id: &str,
+    ) -> AppResult<Option<Coach>> {
+        let row = sqlx::query(
+            r"
+            SELECT id, user_id, tenant_id, title, description, system_prompt,
+                   category, tags, token_count, is_favorite, is_active, use_count,
+                   last_used_at, created_at, updated_at, is_system, visibility
+            FROM coaches
+            WHERE id = $1 AND tenant_id = $2 AND is_system = 1
+            ",
+        )
+        .bind(coach_id)
+        .bind(tenant_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get system coach: {e}")))?;
+
+        row.map(|r| row_to_coach(&r)).transpose()
+    }
+
+    /// Update a system coach
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn update_system_coach(
+        &self,
+        coach_id: &str,
+        tenant_id: &str,
+        request: &UpdateCoachRequest,
+    ) -> AppResult<Option<Coach>> {
+        // First get the existing coach
+        let existing = self.get_system_coach(coach_id, tenant_id).await?;
+        let Some(existing) = existing else {
+            return Ok(None);
+        };
+
+        let now = Utc::now();
+        let title = request.title.as_ref().unwrap_or(&existing.title);
+        let description = request.description.clone().or(existing.description);
+        let system_prompt = request
+            .system_prompt
+            .as_ref()
+            .unwrap_or(&existing.system_prompt);
+        let category = request.category.unwrap_or(existing.category);
+        let tags = request.tags.as_ref().unwrap_or(&existing.tags);
+        let tags_json = serde_json::to_string(tags)?;
+        let token_count = Self::estimate_tokens(system_prompt);
+
+        let result = sqlx::query(
+            r"
+            UPDATE coaches SET
+                title = $1, description = $2, system_prompt = $3,
+                category = $4, tags = $5, token_count = $6, updated_at = $7
+            WHERE id = $8 AND tenant_id = $9 AND is_system = 1
+            ",
+        )
+        .bind(title)
+        .bind(&description)
+        .bind(system_prompt)
+        .bind(category.as_str())
+        .bind(&tags_json)
+        .bind(i64::from(token_count))
+        .bind(now.to_rfc3339())
+        .bind(coach_id)
+        .bind(tenant_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to update system coach: {e}")))?;
+
+        if result.rows_affected() == 0 {
+            return Ok(None);
+        }
+
+        // Return updated coach
+        self.get_system_coach(coach_id, tenant_id).await
+    }
+
+    /// Delete a system coach
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn delete_system_coach(&self, coach_id: &str, tenant_id: &str) -> AppResult<bool> {
+        let result = sqlx::query(
+            r"
+            DELETE FROM coaches
+            WHERE id = $1 AND tenant_id = $2 AND is_system = 1
+            ",
+        )
+        .bind(coach_id)
+        .bind(tenant_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to delete system coach: {e}")))?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Assign a coach to a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn assign_coach(
+        &self,
+        coach_id: &str,
+        user_id: Uuid,
+        assigned_by: Uuid,
+    ) -> AppResult<bool> {
+        let id = Uuid::new_v4();
+        let now = Utc::now().to_rfc3339();
+
+        // Use INSERT OR IGNORE to handle duplicates gracefully
+        let result = sqlx::query(
+            r"
+            INSERT OR IGNORE INTO coach_assignments (id, coach_id, user_id, assigned_by, created_at)
+            VALUES ($1, $2, $3, $4, $5)
+            ",
+        )
+        .bind(id.to_string())
+        .bind(coach_id)
+        .bind(user_id.to_string())
+        .bind(assigned_by.to_string())
+        .bind(&now)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to assign coach: {e}")))?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Unassign a coach from a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn unassign_coach(&self, coach_id: &str, user_id: Uuid) -> AppResult<bool> {
+        let result = sqlx::query(
+            r"
+            DELETE FROM coach_assignments
+            WHERE coach_id = $1 AND user_id = $2
+            ",
+        )
+        .bind(coach_id)
+        .bind(user_id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to unassign coach: {e}")))?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// List all assignments for a coach
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn list_assignments(&self, coach_id: &str) -> AppResult<Vec<CoachAssignment>> {
+        let rows = sqlx::query(
+            r"
+            SELECT ca.user_id, ca.created_at, ca.assigned_by, u.email
+            FROM coach_assignments ca
+            LEFT JOIN users u ON ca.user_id = u.id
+            WHERE ca.coach_id = $1
+            ORDER BY ca.created_at DESC
+            ",
+        )
+        .bind(coach_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to list assignments: {e}")))?;
+
+        rows.iter()
+            .map(|row| {
+                let user_id: String = row.get("user_id");
+                let created_at: String = row.get("created_at");
+                let assigned_by: Option<String> = row.get("assigned_by");
+                let user_email: Option<String> = row.get("email");
+
+                Ok(CoachAssignment {
+                    user_id,
+                    user_email,
+                    assigned_at: created_at,
+                    assigned_by,
+                })
+            })
+            .collect()
+    }
+}
+
+/// Coach assignment info
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct CoachAssignment {
+    /// User ID
+    pub user_id: String,
+    /// User email (for display)
+    pub user_email: Option<String>,
+    /// When assigned
+    pub assigned_at: String,
+    /// Who assigned
+    pub assigned_by: Option<String>,
+}
+
+/// Request to create a system coach
+pub struct CreateSystemCoachRequest {
+    /// Display title
+    pub title: String,
+    /// Description
+    pub description: Option<String>,
+    /// System prompt
+    pub system_prompt: String,
+    /// Category
+    pub category: CoachCategory,
+    /// Tags
+    pub tags: Vec<String>,
+    /// Visibility
+    pub visibility: CoachVisibility,
 }
 
 /// Convert a database row to a Coach struct

@@ -12,12 +12,14 @@
 use crate::{
     auth::AuthResult,
     database::coaches::{
-        Coach, CoachCategory, CoachesManager, CreateCoachRequest, ListCoachesFilter,
-        UpdateCoachRequest,
+        Coach, CoachAssignment as DbCoachAssignment, CoachCategory, CoachVisibility,
+        CoachesManager, CreateCoachRequest, CreateSystemCoachRequest as DbCreateSystemCoachRequest,
+        ListCoachesFilter, UpdateCoachRequest,
     },
     database_plugins::DatabaseProvider,
-    errors::AppError,
+    errors::{AppError, ErrorCode},
     mcp::resources::ServerResources,
+    permissions::UserRole,
     security::cookies::get_cookie_value,
 };
 use axum::{
@@ -59,6 +61,10 @@ pub struct CoachResponse {
     pub created_at: String,
     /// Last update timestamp
     pub updated_at: String,
+    /// Whether this is a system coach (admin-created)
+    pub is_system: bool,
+    /// Visibility level
+    pub visibility: String,
 }
 
 impl From<Coach> for CoachResponse {
@@ -76,6 +82,8 @@ impl From<Coach> for CoachResponse {
             last_used_at: coach.last_used_at.map(|dt| dt.to_rfc3339()),
             created_at: coach.created_at.to_rfc3339(),
             updated_at: coach.updated_at.to_rfc3339(),
+            is_system: coach.is_system,
+            visibility: coach.visibility.as_str().to_owned(),
         }
     }
 }
@@ -440,4 +448,358 @@ impl CoachesRoutes {
         let response = RecordUsageResponse { success };
         Ok((StatusCode::OK, Json(response)).into_response())
     }
+
+    // ============================================
+    // Admin Routes for System Coaches (ASY-59)
+    // ============================================
+
+    /// Create admin routes for system coaches management
+    pub fn admin_routes(resources: Arc<ServerResources>) -> Router {
+        Router::new()
+            .route("/coaches", get(Self::handle_admin_list))
+            .route("/coaches", post(Self::handle_admin_create))
+            .route("/coaches/:id", get(Self::handle_admin_get))
+            .route("/coaches/:id", put(Self::handle_admin_update))
+            .route("/coaches/:id", delete(Self::handle_admin_delete))
+            .route("/coaches/:id/assign", post(Self::handle_admin_assign))
+            .route("/coaches/:id/assign", delete(Self::handle_admin_unassign))
+            .route(
+                "/coaches/:id/assignments",
+                get(Self::handle_admin_list_assignments),
+            )
+            .with_state(resources)
+    }
+
+    /// Handle GET /admin/coaches - List all system coaches in tenant
+    async fn handle_admin_list(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        Self::require_admin(&resources, auth.user_id).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        let manager = Self::get_coaches_manager(&resources)?;
+        let coaches = manager.list_system_coaches(&tenant_id).await?;
+
+        let response = ListCoachesResponse {
+            total: u32::try_from(coaches.len()).unwrap_or(0),
+            coaches: coaches.into_iter().map(Into::into).collect(),
+            metadata: Self::build_metadata(),
+        };
+
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Handle POST /admin/coaches - Create a system coach
+    async fn handle_admin_create(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Json(body): Json<AdminCreateCoachBody>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        Self::require_admin(&resources, auth.user_id).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        let manager = Self::get_coaches_manager(&resources)?;
+        let coach = manager
+            .create_system_coach(auth.user_id, &tenant_id, &body.into())
+            .await?;
+
+        let response: CoachResponse = coach.into();
+        Ok((StatusCode::CREATED, Json(response)).into_response())
+    }
+
+    /// Handle GET /admin/coaches/:id - Get a system coach
+    async fn handle_admin_get(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Path(id): Path<String>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        Self::require_admin(&resources, auth.user_id).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        let manager = Self::get_coaches_manager(&resources)?;
+        let coach = manager
+            .get_system_coach(&id, &tenant_id)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("System coach {id}")))?;
+
+        let response: CoachResponse = coach.into();
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Handle PUT /admin/coaches/:id - Update a system coach
+    async fn handle_admin_update(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Path(id): Path<String>,
+        Json(body): Json<UpdateCoachBody>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        Self::require_admin(&resources, auth.user_id).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        let manager = Self::get_coaches_manager(&resources)?;
+        let request: UpdateCoachRequest = body.into();
+        let coach = manager
+            .update_system_coach(&id, &tenant_id, &request)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("System coach {id}")))?;
+
+        let response: CoachResponse = coach.into();
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Handle DELETE /admin/coaches/:id - Delete a system coach
+    async fn handle_admin_delete(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Path(id): Path<String>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        Self::require_admin(&resources, auth.user_id).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        let manager = Self::get_coaches_manager(&resources)?;
+        let deleted = manager.delete_system_coach(&id, &tenant_id).await?;
+
+        if !deleted {
+            return Err(AppError::not_found(format!("System coach {id}")));
+        }
+
+        Ok((StatusCode::NO_CONTENT, ()).into_response())
+    }
+
+    /// Handle POST /admin/coaches/:id/assign - Assign coach to users
+    async fn handle_admin_assign(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Path(id): Path<String>,
+        Json(body): Json<AssignCoachBody>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        Self::require_admin(&resources, auth.user_id).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        let manager = Self::get_coaches_manager(&resources)?;
+
+        // Verify the coach exists and is a system coach
+        let coach = manager
+            .get_system_coach(&id, &tenant_id)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("System coach {id}")))?;
+
+        // Assign to each user
+        let mut assigned_count = 0;
+        for user_id_str in &body.user_ids {
+            let user_id = Uuid::parse_str(user_id_str)
+                .map_err(|_| AppError::invalid_input(format!("Invalid user ID: {user_id_str}")))?;
+            if manager
+                .assign_coach(&coach.id.to_string(), user_id, auth.user_id)
+                .await?
+            {
+                assigned_count += 1;
+            }
+        }
+
+        let response = AssignCoachResponse {
+            coach_id: id,
+            assigned_count,
+            total_requested: body.user_ids.len(),
+        };
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Handle DELETE /admin/coaches/:id/assign - Remove coach assignment from users
+    async fn handle_admin_unassign(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Path(id): Path<String>,
+        Json(body): Json<AssignCoachBody>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        Self::require_admin(&resources, auth.user_id).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        let manager = Self::get_coaches_manager(&resources)?;
+
+        // Verify the coach exists
+        manager
+            .get_system_coach(&id, &tenant_id)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("System coach {id}")))?;
+
+        // Unassign from each user
+        let mut removed_count = 0;
+        for user_id_str in &body.user_ids {
+            let user_id = Uuid::parse_str(user_id_str)
+                .map_err(|_| AppError::invalid_input(format!("Invalid user ID: {user_id_str}")))?;
+            if manager.unassign_coach(&id, user_id).await? {
+                removed_count += 1;
+            }
+        }
+
+        let response = UnassignCoachResponse {
+            coach_id: id,
+            removed_count,
+            total_requested: body.user_ids.len(),
+        };
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Handle GET /admin/coaches/:id/assignments - List users assigned to a coach
+    async fn handle_admin_list_assignments(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Path(id): Path<String>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        Self::require_admin(&resources, auth.user_id).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        let manager = Self::get_coaches_manager(&resources)?;
+
+        // Verify the coach exists
+        manager
+            .get_system_coach(&id, &tenant_id)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("System coach {id}")))?;
+
+        let db_assignments = manager.list_assignments(&id).await?;
+        let assignments: Vec<CoachAssignment> =
+            db_assignments.into_iter().map(Into::into).collect();
+
+        let response = ListAssignmentsResponse {
+            coach_id: id,
+            assignments,
+        };
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Check if user has admin role
+    async fn require_admin(
+        resources: &Arc<ServerResources>,
+        user_id: Uuid,
+    ) -> Result<(), AppError> {
+        let user = resources
+            .database
+            .get_user(user_id)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
+            .ok_or_else(|| AppError::not_found(format!("User {user_id}")))?;
+
+        // Check if user has admin role
+        if !matches!(user.role, UserRole::Admin | UserRole::SuperAdmin) {
+            return Err(AppError::new(
+                ErrorCode::PermissionDenied,
+                "Admin role required for this operation",
+            ));
+        }
+
+        Ok(())
+    }
+}
+
+// ============================================
+// Admin Request/Response Types
+// ============================================
+
+/// Request body for creating a system coach
+#[derive(Debug, Deserialize)]
+pub struct AdminCreateCoachBody {
+    /// Display title for the coach
+    pub title: String,
+    /// Optional description explaining the coach's purpose
+    pub description: Option<String>,
+    /// System prompt that shapes AI responses
+    pub system_prompt: String,
+    /// Category for organization
+    pub category: Option<String>,
+    /// Tags for filtering and search
+    #[serde(default)]
+    pub tags: Vec<String>,
+    /// Visibility level (tenant or global)
+    pub visibility: Option<String>,
+}
+
+impl From<AdminCreateCoachBody> for DbCreateSystemCoachRequest {
+    fn from(body: AdminCreateCoachBody) -> Self {
+        Self {
+            title: body.title,
+            description: body.description,
+            system_prompt: body.system_prompt,
+            category: body
+                .category
+                .map(|c| CoachCategory::parse(&c))
+                .unwrap_or_default(),
+            tags: body.tags,
+            visibility: body
+                .visibility
+                .map_or(CoachVisibility::Tenant, |v| CoachVisibility::parse(&v)),
+        }
+    }
+}
+
+/// Request body for assigning/unassigning coaches
+#[derive(Debug, Deserialize)]
+pub struct AssignCoachBody {
+    /// User IDs to assign/unassign
+    pub user_ids: Vec<String>,
+}
+
+/// Response for coach assignment
+#[derive(Debug, Serialize)]
+pub struct AssignCoachResponse {
+    /// Coach ID
+    pub coach_id: String,
+    /// Number of users successfully assigned
+    pub assigned_count: usize,
+    /// Total number of users requested
+    pub total_requested: usize,
+}
+
+/// Response for coach unassignment
+#[derive(Debug, Serialize)]
+pub struct UnassignCoachResponse {
+    /// Coach ID
+    pub coach_id: String,
+    /// Number of users successfully unassigned
+    pub removed_count: usize,
+    /// Total number of users requested
+    pub total_requested: usize,
+}
+
+/// Coach assignment info
+#[derive(Debug, Serialize)]
+pub struct CoachAssignment {
+    /// User ID
+    pub user_id: String,
+    /// User email (for display)
+    pub user_email: Option<String>,
+    /// When assigned
+    pub assigned_at: String,
+    /// Who assigned
+    pub assigned_by: Option<String>,
+}
+
+impl From<DbCoachAssignment> for CoachAssignment {
+    fn from(db: DbCoachAssignment) -> Self {
+        Self {
+            user_id: db.user_id,
+            user_email: db.user_email,
+            assigned_at: db.assigned_at,
+            assigned_by: db.assigned_by,
+        }
+    }
+}
+
+/// Response for listing assignments
+#[derive(Debug, Serialize)]
+pub struct ListAssignmentsResponse {
+    /// Coach ID
+    pub coach_id: String,
+    /// List of assignments
+    pub assignments: Vec<CoachAssignment>,
 }
