@@ -10,6 +10,10 @@
           {
             "type": "command",
             "command": "echo '✅ Pierre Design System ready - use /design-review for UI validation'"
+          },
+          {
+            "type": "command",
+            "command": "echo '📋 Linear Session Tracking: Follow CLAUDE.md instructions to create/resume session'"
           }
         ]
       }

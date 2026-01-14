@@ -91,6 +91,58 @@ direnv allow
 ### After Running Setup
 If the script generated a new token, you may need to **restart the Claude Code session** for the built-in MCP client to pick up the new `PIERRE_JWT_TOKEN` environment variable.
 
+## Linear Session Tracking (MANDATORY)
+
+Each Claude Code session is tracked as a Linear issue for persistent memory across sessions.
+
+### Session ID Format
+```
+Session: YYYY-MM-DD-<project_name>-<branch>
+Example: Session: 2026-01-14-pierre_mcp_server-main
+```
+
+### SessionStart - Claude MUST Execute
+
+At the START of every session, Claude MUST:
+
+1. **Search for existing session from today:**
+   ```
+   mcp__linear-server__list_issues(team: "Async-io", query: "Session: <YYYY-MM-DD>-<project>-<branch>", limit: 1)
+   ```
+
+2. **If existing session found → Ask user:**
+   Use AskUserQuestion: "Found existing session [ASY-XX]. Resume this session or create a new one?"
+   - Options: "Resume existing" / "Create new session"
+
+3. **If user chooses Resume:**
+   - Add comment: "Session resumed at HH:MM"
+   - Continue using existing issue
+
+4. **If user chooses New OR no existing session:**
+   - Create new issue:
+   ```
+   mcp__linear-server__create_issue(
+     team: "Async-io",
+     title: "Session: YYYY-MM-DD-<project>-<branch>-HH:MM",
+     labels: ["claude-session"],
+     description: "## Claude Code Session\n\n**Started:** YYYY-MM-DD HH:MM\n**Project:** <project>\n**Branch:** <branch>"
+   )
+   ```
+
+5. **Fetch context:** Get in-progress issues assigned to me
+
+### During the Session
+- Link related issues to session issue via `relatedTo`
+- Update session description with work done
+- Add comments for key decisions
+
+### SessionEnd - Manual via user request
+
+When user says "end session" or similar:
+1. Update session issue description with work summary
+2. Add comment: "Session ended at HH:MM"
+3. Present summary of what was accomplished
+
 ## Claude Code for Web - Special Instructions
 
 **⚠️ MANDATORY - Run these at the START OF EVERY SESSION:**
