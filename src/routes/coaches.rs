@@ -67,6 +67,9 @@ pub struct CoachResponse {
     pub visibility: String,
     /// Whether this coach is assigned to the current user
     pub is_assigned: bool,
+    /// Sample prompts for quick-start suggestions
+    #[serde(default)]
+    pub sample_prompts: Vec<String>,
 }
 
 impl From<Coach> for CoachResponse {
@@ -87,6 +90,7 @@ impl From<Coach> for CoachResponse {
             is_system: coach.is_system,
             visibility: coach.visibility.as_str().to_owned(),
             is_assigned: false, // Default for single coach responses
+            sample_prompts: coach.sample_prompts,
         }
     }
 }
@@ -109,6 +113,7 @@ impl From<CoachListItem> for CoachResponse {
             is_system: item.coach.is_system,
             visibility: item.coach.visibility.as_str().to_owned(),
             is_assigned: item.is_assigned,
+            sample_prompts: item.coach.sample_prompts,
         }
     }
 }

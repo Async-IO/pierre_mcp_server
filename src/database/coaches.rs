@@ -383,7 +383,7 @@ impl CoachesManager {
         let query = format!(
             r"
             SELECT c.id, c.user_id, c.tenant_id, c.title, c.description, c.system_prompt,
-                   c.category, c.tags, c.token_count, c.is_favorite, c.is_active, c.use_count,
+                   c.category, c.tags, c.sample_prompts, c.token_count, c.is_favorite, c.is_active, c.use_count,
                    c.last_used_at, c.created_at, c.updated_at, c.is_system, c.visibility,
                    CASE WHEN ca.coach_id IS NOT NULL THEN 1 ELSE 0 END as is_assigned
             FROM coaches c
@@ -1134,7 +1134,7 @@ impl CoachesManager {
         let rows = sqlx::query(
             r"
             SELECT c.id, c.user_id, c.tenant_id, c.title, c.description, c.system_prompt,
-                   c.category, c.tags, c.token_count, c.is_favorite, c.is_active, c.use_count,
+                   c.category, c.tags, c.sample_prompts, c.token_count, c.is_favorite, c.is_active, c.use_count,
                    c.last_used_at, c.created_at, c.updated_at, c.is_system, c.visibility
             FROM coaches c
             INNER JOIN user_coach_preferences ucp ON c.id = ucp.coach_id
