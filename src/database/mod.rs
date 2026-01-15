@@ -14,6 +14,8 @@ pub mod analytics;
 pub mod api_keys;
 /// Chat conversation and message storage
 pub mod chat;
+/// Coaches (custom AI personas) storage and management
+pub mod coaches;
 /// Database error types
 pub mod errors;
 /// User fitness configuration storage and retrieval
@@ -22,8 +24,6 @@ pub mod fitness_configurations;
 pub mod impersonation;
 /// OAuth callback notification handling
 pub mod oauth_notifications;
-/// Prompt suggestions for AI chat interface
-pub mod prompts;
 /// Recipe storage and management for nutrition planning
 pub mod recipes;
 /// System settings for admin-configurable options
@@ -42,12 +42,11 @@ pub mod test_utils;
 
 pub use a2a::{A2AUsage, A2AUsageStats};
 pub use chat::{ChatManager, ConversationRecord, ConversationSummary, MessageRecord};
+pub use coaches::{
+    Coach, CoachCategory, CoachesManager, CreateCoachRequest, ListCoachesFilter, UpdateCoachRequest,
+};
 pub use errors::{DatabaseError, DatabaseResult};
 pub use oauth_notifications::OAuthNotification;
-pub use prompts::{
-    CreatePromptCategoryRequest, Pillar, PromptCategory, PromptCategoryResponse, PromptManager,
-    SystemPrompt, UpdatePromptCategoryRequest, WelcomePrompt,
-};
 pub use user_mcp_tokens::{
     CreateUserMcpTokenRequest, UserMcpToken, UserMcpTokenCreated, UserMcpTokenInfo,
 };
@@ -409,13 +408,6 @@ impl Database {
     #[must_use]
     pub fn fitness_configurations(&self) -> fitness_configurations::FitnessConfigurationManager {
         fitness_configurations::FitnessConfigurationManager::new(self.pool.clone())
-        // Safe: Pool clone for database manager
-    }
-
-    /// Get prompt suggestions manager
-    #[must_use]
-    pub fn prompts(&self) -> prompts::PromptManager {
-        prompts::PromptManager::new(self.pool.clone())
         // Safe: Pool clone for database manager
     }
 

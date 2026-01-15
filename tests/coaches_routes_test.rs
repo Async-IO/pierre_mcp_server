@@ -1,0 +1,590 @@
+// ABOUTME: Integration tests for the coaches route handlers
+// ABOUTME: Tests coach CRUD, favorites, usage tracking, and authentication flows
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
+mod common;
+mod helpers;
+
+use common::{create_test_server_resources, create_test_user};
+use helpers::axum_test::AxumTestRequest;
+use pierre_mcp_server::routes::coaches::{
+    CoachResponse, CoachesRoutes, ListCoachesResponse, RecordUsageResponse, ToggleFavoriteResponse,
+};
+
+use axum::http::StatusCode;
+use serde_json::json;
+
+// ============================================================================
+// Test Helpers
+// ============================================================================
+
+async fn setup_test_environment() -> (axum::Router, String) {
+    let resources = create_test_server_resources().await.unwrap();
+    let (_user_id, user) = create_test_user(&resources.database).await.unwrap();
+
+    // Generate a JWT token for the user
+    let token = resources
+        .auth_manager
+        .generate_token(&user, &resources.jwks_manager)
+        .unwrap();
+
+    // Create the coaches router
+    let router = CoachesRoutes::routes(resources);
+
+    (router, format!("Bearer {token}"))
+}
+
+// ============================================================================
+// Coach CRUD Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_create_coach() {
+    let (router, auth_token) = setup_test_environment().await;
+
+    let response = AxumTestRequest::post("/api/coaches")
+        .header("authorization", &auth_token)
+        .json(&json!({
+            "title": "Marathon Coach",
+            "system_prompt": "You are an expert marathon training coach.",
+            "description": "Helps with marathon training plans",
+            "category": "training",
+            "tags": ["running", "marathon", "endurance"]
+        }))
+        .send(router)
+        .await;
+
+    assert_eq!(response.status_code(), StatusCode::CREATED);
+
+    let coach: CoachResponse = response.json();
+    assert_eq!(coach.title, "Marathon Coach");
+    assert_eq!(
+        coach.system_prompt,
+        "You are an expert marathon training coach."
+    );
+    assert_eq!(
+        coach.description,
+        Some("Helps with marathon training plans".to_owned())
+    );
+    assert_eq!(coach.category, "training");
+    assert_eq!(coach.tags, vec!["running", "marathon", "endurance"]);
+    assert!(!coach.is_favorite);
+    assert_eq!(coach.use_count, 0);
+}
+
+#[tokio::test]
+async fn test_create_coach_minimal() {
+    let (router, auth_token) = setup_test_environment().await;
+
+    let response = AxumTestRequest::post("/api/coaches")
+        .header("authorization", &auth_token)
+        .json(&json!({
+            "title": "Simple Coach",
+            "system_prompt": "You are helpful."
+        }))
+        .send(router)
+        .await;
+
+    assert_eq!(response.status_code(), StatusCode::CREATED);
+
+    let coach: CoachResponse = response.json();
+    assert_eq!(coach.title, "Simple Coach");
+    assert_eq!(coach.system_prompt, "You are helpful.");
+    assert!(coach.description.is_none());
+    assert_eq!(coach.category, "custom"); // default category
+    assert!(coach.tags.is_empty());
+}
+
+#[tokio::test]
+async fn test_list_coaches() {
+    let (router, auth_token) = setup_test_environment().await;
+
+    // Create a coach first
+    let create_response = AxumTestRequest::post("/api/coaches")
+        .header("authorization", &auth_token)
+        .json(&json!({
+            "title": "Test Coach",
+            "system_prompt": "Test prompt"
+        }))
+        .send(router.clone())
+        .await;
+
+    assert_eq!(create_response.status_code(), StatusCode::CREATED);
+
+    // List coaches
+    let list_response = AxumTestRequest::get("/api/coaches")
+        .header("authorization", &auth_token)
+        .send(router)
+        .await;
+
+    assert_eq!(list_response.status_code(), StatusCode::OK);
+
+    let list: ListCoachesResponse = list_response.json();
+    assert_eq!(list.total, 1);
+    assert_eq!(list.coaches.len(), 1);
+    assert_eq!(list.coaches[0].title, "Test Coach");
+}
+
+#[tokio::test]
+async fn test_get_coach() {
+    let (router, auth_token) = setup_test_environment().await;
+
+    // Create a coach first
+    let create_response = AxumTestRequest::post("/api/coaches")
+        .header("authorization", &auth_token)
+        .json(&json!({
+            "title": "Get Test Coach",
+            "system_prompt": "Test prompt"
+        }))
+        .send(router.clone())
+        .await;
+
+    let created: CoachResponse = create_response.json();
+
+    // Get the coach
+    let get_response = AxumTestRequest::get(&format!("/api/coaches/{}", created.id))
+        .header("authorization", &auth_token)
+        .send(router)
+        .await;
+
+    assert_eq!(get_response.status_code(), StatusCode::OK);
+
+    let coach: CoachResponse = get_response.json();
+    assert_eq!(coach.id, created.id);
+    assert_eq!(coach.title, "Get Test Coach");
+}
+
+#[tokio::test]
+async fn test_update_coach() {
+    let (router, auth_token) = setup_test_environment().await;
+
+    // Create a coach first
+    let create_response = AxumTestRequest::post("/api/coaches")
+        .header("authorization", &auth_token)
+        .json(&json!({
+            "title": "Original Title",
+            "system_prompt": "Original prompt"
+        }))
+        .send(router.clone())
+        .await;
+
+    let created: CoachResponse = create_response.json();
+
+    // Update the coach
+    let update_response = AxumTestRequest::put(&format!("/api/coaches/{}", created.id))
+        .header("authorization", &auth_token)
+        .json(&json!({
+            "title": "Updated Title",
+            "system_prompt": "Updated prompt",
+            "category": "nutrition"
+        }))
+        .send(router.clone())
+        .await;
+
+    assert_eq!(update_response.status_code(), StatusCode::OK);
+
+    // Verify the update
+    let get_response = AxumTestRequest::get(&format!("/api/coaches/{}", created.id))
+        .header("authorization", &auth_token)
+        .send(router)
+        .await;
+
+    let coach: CoachResponse = get_response.json();
+    assert_eq!(coach.title, "Updated Title");
+    assert_eq!(coach.system_prompt, "Updated prompt");
+    assert_eq!(coach.category, "nutrition");
+}
+
+#[tokio::test]
+async fn test_delete_coach() {
+    let (router, auth_token) = setup_test_environment().await;
+
+    // Create a coach first
+    let create_response = AxumTestRequest::post("/api/coaches")
+        .header("authorization", &auth_token)
+        .json(&json!({
+            "title": "To Delete",
+            "system_prompt": "Will be deleted"
+        }))
+        .send(router.clone())
+        .await;
+
+    let created: CoachResponse = create_response.json();
+
+    // Delete the coach
+    let delete_response = AxumTestRequest::delete(&format!("/api/coaches/{}", created.id))
+        .header("authorization", &auth_token)
+        .send(router.clone())
+        .await;
+
+    assert_eq!(delete_response.status_code(), StatusCode::NO_CONTENT);
+
+    // Verify deletion - should return 404
+    let get_response = AxumTestRequest::get(&format!("/api/coaches/{}", created.id))
+        .header("authorization", &auth_token)
+        .send(router)
+        .await;
+
+    assert_eq!(get_response.status_code(), StatusCode::NOT_FOUND);
+}
+
+// ============================================================================
+// Favorites Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_toggle_favorite() {
+    let (router, auth_token) = setup_test_environment().await;
+
+    // Create a coach
+    let create_response = AxumTestRequest::post("/api/coaches")
+        .header("authorization", &auth_token)
+        .json(&json!({
+            "title": "Favorite Test",
+            "system_prompt": "Test prompt"
+        }))
+        .send(router.clone())
+        .await;
+
+    let created: CoachResponse = create_response.json();
+    assert!(!created.is_favorite);
+
+    // Toggle favorite ON
+    let toggle_response = AxumTestRequest::post(&format!("/api/coaches/{}/favorite", created.id))
+        .header("authorization", &auth_token)
+        .send(router.clone())
+        .await;
+
+    assert_eq!(toggle_response.status_code(), StatusCode::OK);
+    let toggle_result: ToggleFavoriteResponse = toggle_response.json();
+    assert!(toggle_result.is_favorite);
+
+    // Toggle favorite OFF
+    let toggle_response = AxumTestRequest::post(&format!("/api/coaches/{}/favorite", created.id))
+        .header("authorization", &auth_token)
+        .send(router)
+        .await;
+
+    assert_eq!(toggle_response.status_code(), StatusCode::OK);
+    let toggle_result: ToggleFavoriteResponse = toggle_response.json();
+    assert!(!toggle_result.is_favorite);
+}
+
+#[tokio::test]
+async fn test_list_favorites_only() {
+    let (router, auth_token) = setup_test_environment().await;
+
+    // Create two coaches
+    let create1 = AxumTestRequest::post("/api/coaches")
+        .header("authorization", &auth_token)
+        .json(&json!({
+            "title": "Coach 1",
+            "system_prompt": "Prompt 1"
+        }))
+        .send(router.clone())
+        .await;
+    let coach1: CoachResponse = create1.json();
+
+    AxumTestRequest::post("/api/coaches")
+        .header("authorization", &auth_token)
+        .json(&json!({
+            "title": "Coach 2",
+            "system_prompt": "Prompt 2"
+        }))
+        .send(router.clone())
+        .await;
+
+    // Mark coach1 as favorite
+    AxumTestRequest::post(&format!("/api/coaches/{}/favorite", coach1.id))
+        .header("authorization", &auth_token)
+        .send(router.clone())
+        .await;
+
+    // List only favorites
+    let list_response = AxumTestRequest::get("/api/coaches?favorites_only=true")
+        .header("authorization", &auth_token)
+        .send(router)
+        .await;
+
+    assert_eq!(list_response.status_code(), StatusCode::OK);
+
+    let list: ListCoachesResponse = list_response.json();
+    // total shows all coaches, coaches.len() shows filtered result
+    assert_eq!(list.total, 2);
+    assert_eq!(list.coaches.len(), 1);
+    assert_eq!(list.coaches[0].title, "Coach 1");
+}
+
+// ============================================================================
+// Usage Tracking Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_record_usage() {
+    let (router, auth_token) = setup_test_environment().await;
+
+    // Create a coach
+    let create_response = AxumTestRequest::post("/api/coaches")
+        .header("authorization", &auth_token)
+        .json(&json!({
+            "title": "Usage Test",
+            "system_prompt": "Test prompt"
+        }))
+        .send(router.clone())
+        .await;
+
+    let created: CoachResponse = create_response.json();
+    assert_eq!(created.use_count, 0);
+
+    // Record usage
+    let usage_response = AxumTestRequest::post(&format!("/api/coaches/{}/usage", created.id))
+        .header("authorization", &auth_token)
+        .send(router.clone())
+        .await;
+
+    assert_eq!(usage_response.status_code(), StatusCode::OK);
+    let usage_result: RecordUsageResponse = usage_response.json();
+    assert!(usage_result.success);
+
+    // Verify use_count increased
+    let get_response = AxumTestRequest::get(&format!("/api/coaches/{}", created.id))
+        .header("authorization", &auth_token)
+        .send(router)
+        .await;
+
+    let coach: CoachResponse = get_response.json();
+    assert_eq!(coach.use_count, 1);
+}
+
+// ============================================================================
+// Search Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_search_coaches() {
+    let (router, auth_token) = setup_test_environment().await;
+
+    // Create coaches with different content
+    AxumTestRequest::post("/api/coaches")
+        .header("authorization", &auth_token)
+        .json(&json!({
+            "title": "Marathon Training Expert",
+            "system_prompt": "Running coach",
+            "tags": ["marathon", "running"]
+        }))
+        .send(router.clone())
+        .await;
+
+    AxumTestRequest::post("/api/coaches")
+        .header("authorization", &auth_token)
+        .json(&json!({
+            "title": "Nutrition Advisor",
+            "system_prompt": "Diet coach",
+            "tags": ["diet", "nutrition"]
+        }))
+        .send(router.clone())
+        .await;
+
+    // Search for "marathon"
+    let search_response = AxumTestRequest::get("/api/coaches/search?q=marathon")
+        .header("authorization", &auth_token)
+        .send(router)
+        .await;
+
+    assert_eq!(search_response.status_code(), StatusCode::OK);
+
+    let results: ListCoachesResponse = search_response.json();
+    assert_eq!(results.total, 1);
+    assert_eq!(results.coaches[0].title, "Marathon Training Expert");
+}
+
+// ============================================================================
+// Category Filter Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_list_by_category() {
+    let (router, auth_token) = setup_test_environment().await;
+
+    // Create coaches in different categories
+    AxumTestRequest::post("/api/coaches")
+        .header("authorization", &auth_token)
+        .json(&json!({
+            "title": "Training Coach",
+            "system_prompt": "Training",
+            "category": "training"
+        }))
+        .send(router.clone())
+        .await;
+
+    AxumTestRequest::post("/api/coaches")
+        .header("authorization", &auth_token)
+        .json(&json!({
+            "title": "Nutrition Coach",
+            "system_prompt": "Nutrition",
+            "category": "nutrition"
+        }))
+        .send(router.clone())
+        .await;
+
+    // List only training coaches
+    let list_response = AxumTestRequest::get("/api/coaches?category=training")
+        .header("authorization", &auth_token)
+        .send(router)
+        .await;
+
+    assert_eq!(list_response.status_code(), StatusCode::OK);
+
+    let list: ListCoachesResponse = list_response.json();
+    // total shows all coaches, coaches.len() shows filtered result
+    assert_eq!(list.total, 2);
+    assert_eq!(list.coaches.len(), 1);
+    assert_eq!(list.coaches[0].category, "training");
+}
+
+// ============================================================================
+// Pagination Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_list_coaches_pagination() {
+    let (router, auth_token) = setup_test_environment().await;
+
+    // Create multiple coaches
+    for i in 1..=5 {
+        AxumTestRequest::post("/api/coaches")
+            .header("authorization", &auth_token)
+            .json(&json!({
+                "title": format!("Coach {}", i),
+                "system_prompt": format!("Prompt {}", i)
+            }))
+            .send(router.clone())
+            .await;
+    }
+
+    // Get first page (limit=2)
+    let page1_response = AxumTestRequest::get("/api/coaches?limit=2&offset=0")
+        .header("authorization", &auth_token)
+        .send(router.clone())
+        .await;
+
+    let page1: ListCoachesResponse = page1_response.json();
+    assert_eq!(page1.coaches.len(), 2);
+    assert_eq!(page1.total, 5);
+
+    // Get second page
+    let page2_response = AxumTestRequest::get("/api/coaches?limit=2&offset=2")
+        .header("authorization", &auth_token)
+        .send(router)
+        .await;
+
+    let page2: ListCoachesResponse = page2_response.json();
+    assert_eq!(page2.coaches.len(), 2);
+}
+
+// ============================================================================
+// Authentication Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_create_coach_unauthorized() {
+    let (router, _) = setup_test_environment().await;
+
+    let response = AxumTestRequest::post("/api/coaches")
+        .json(&json!({
+            "title": "Test Coach",
+            "system_prompt": "Test"
+        }))
+        .send(router)
+        .await;
+
+    assert_eq!(response.status_code(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn test_create_coach_invalid_token() {
+    let (router, _) = setup_test_environment().await;
+
+    let response = AxumTestRequest::post("/api/coaches")
+        .header("authorization", "Bearer invalid_token")
+        .json(&json!({
+            "title": "Test Coach",
+            "system_prompt": "Test"
+        }))
+        .send(router)
+        .await;
+
+    assert_eq!(response.status_code(), StatusCode::UNAUTHORIZED);
+}
+
+// ============================================================================
+// Not Found Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_get_nonexistent_coach() {
+    let (router, auth_token) = setup_test_environment().await;
+
+    let response = AxumTestRequest::get("/api/coaches/nonexistent-id")
+        .header("authorization", &auth_token)
+        .send(router)
+        .await;
+
+    assert_eq!(response.status_code(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_update_nonexistent_coach() {
+    let (router, auth_token) = setup_test_environment().await;
+
+    let response = AxumTestRequest::put("/api/coaches/nonexistent-id")
+        .header("authorization", &auth_token)
+        .json(&json!({
+            "title": "New Title"
+        }))
+        .send(router)
+        .await;
+
+    assert_eq!(response.status_code(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_delete_nonexistent_coach() {
+    let (router, auth_token) = setup_test_environment().await;
+
+    let response = AxumTestRequest::delete("/api/coaches/nonexistent-id")
+        .header("authorization", &auth_token)
+        .send(router)
+        .await;
+
+    assert_eq!(response.status_code(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_toggle_favorite_nonexistent() {
+    let (router, auth_token) = setup_test_environment().await;
+
+    let response = AxumTestRequest::post("/api/coaches/nonexistent-id/favorite")
+        .header("authorization", &auth_token)
+        .send(router)
+        .await;
+
+    assert_eq!(response.status_code(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_record_usage_nonexistent() {
+    let (router, auth_token) = setup_test_environment().await;
+
+    let response = AxumTestRequest::post("/api/coaches/nonexistent-id/usage")
+        .header("authorization", &auth_token)
+        .send(router)
+        .await;
+
+    assert_eq!(response.status_code(), StatusCode::NOT_FOUND);
+}

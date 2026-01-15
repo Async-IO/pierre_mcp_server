@@ -329,3 +329,74 @@ export interface ProvisionedKey {
   created_at: string;
   expires_at?: string;
 }
+
+// Coach Management Types
+export type CoachCategory = 'Training' | 'Nutrition' | 'Recovery' | 'Recipes' | 'Custom';
+
+export interface Coach {
+  id: string;
+  title: string;
+  description?: string;
+  system_prompt: string;
+  category: string;
+  tags: string[];
+  token_count: number;
+  is_favorite: boolean;
+  use_count: number;
+  last_used_at?: string;
+  created_at: string;
+  updated_at: string;
+  is_system: boolean;
+  visibility: string;
+  is_assigned: boolean;
+}
+
+export interface ListCoachesResponse {
+  coaches: Coach[];
+  total: number;
+  metadata: {
+    timestamp: string;
+    api_version: string;
+  };
+}
+
+export interface CreateCoachRequest {
+  title: string;
+  description?: string;
+  system_prompt: string;
+  category?: string;
+  tags?: string[];
+  visibility?: string;
+}
+
+export interface UpdateCoachRequest {
+  title?: string;
+  description?: string;
+  system_prompt?: string;
+  category?: string;
+  tags?: string[];
+}
+
+export interface CoachAssignment {
+  user_id: string;
+  user_email?: string;
+  assigned_at: string;
+  assigned_by?: string;
+}
+
+export interface AssignCoachResponse {
+  coach_id: string;
+  assigned_count: number;
+  total_requested: number;
+}
+
+export interface UnassignCoachResponse {
+  coach_id: string;
+  removed_count: number;
+  total_requested: number;
+}
+
+export interface ListAssignmentsResponse {
+  coach_id: string;
+  assignments: CoachAssignment[];
+}

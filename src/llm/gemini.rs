@@ -41,11 +41,13 @@
 
 use std::env;
 use std::fmt::{Debug, Formatter, Result as FmtResult};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
 use futures_util::StreamExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use tokio::time::sleep;
 use tracing::{debug, error, info, instrument, warn};
 
 use super::{
@@ -59,6 +61,15 @@ const GEMINI_API_KEY_ENV: &str = "GEMINI_API_KEY";
 
 /// Environment variable for Gemini model selection
 const GEMINI_MODEL_ENV: &str = "GEMINI_MODEL";
+
+/// Environment variable for maximum retries
+const GEMINI_MAX_RETRIES_ENV: &str = "GEMINI_MAX_RETRIES";
+
+/// Environment variable for initial retry delay in milliseconds
+const GEMINI_INITIAL_RETRY_DELAY_MS_ENV: &str = "GEMINI_INITIAL_RETRY_DELAY_MS";
+
+/// Environment variable for maximum retry delay in milliseconds
+const GEMINI_MAX_RETRY_DELAY_MS_ENV: &str = "GEMINI_MAX_RETRY_DELAY_MS";
 
 /// Default model to use when `GEMINI_MODEL` is not set
 const DEFAULT_MODEL: &str = "gemini-2.5-pro";
@@ -74,6 +85,15 @@ const AVAILABLE_MODELS: &[&str] = &[
 
 /// Base URL for the Gemini API
 const API_BASE_URL: &str = "https://generativelanguage.googleapis.com/v1beta";
+
+/// Default maximum number of retries for transient failures
+const DEFAULT_MAX_RETRIES: u32 = 3;
+
+/// Default initial delay for exponential backoff (in milliseconds)
+const DEFAULT_INITIAL_RETRY_DELAY_MS: u64 = 500;
+
+/// Default maximum delay cap for retries (in milliseconds)
+const DEFAULT_MAX_RETRY_DELAY_MS: u64 = 5000;
 
 // ============================================================================
 // API Request/Response Types
@@ -96,6 +116,8 @@ struct GeminiRequest {
 struct GeminiContent {
     #[serde(skip_serializing_if = "Option::is_none")]
     role: Option<String>,
+    /// Content parts - may be empty for thinking-only responses from models like gemini-3-flash-preview
+    #[serde(default)]
     parts: Vec<ContentPart>,
 }
 
@@ -245,6 +267,12 @@ pub struct GeminiProvider {
     api_key: String,
     client: Client,
     default_model: String,
+    /// Maximum number of retries for transient failures
+    max_retries: u32,
+    /// Initial delay for exponential backoff (in milliseconds)
+    initial_retry_delay_ms: u64,
+    /// Maximum delay cap for retries (in milliseconds)
+    max_retry_delay_ms: u64,
 }
 
 impl GeminiProvider {
@@ -255,6 +283,9 @@ impl GeminiProvider {
             api_key: api_key.into(),
             client: Client::new(),
             default_model: DEFAULT_MODEL.to_owned(),
+            max_retries: DEFAULT_MAX_RETRIES,
+            initial_retry_delay_ms: DEFAULT_INITIAL_RETRY_DELAY_MS,
+            max_retry_delay_ms: DEFAULT_MAX_RETRY_DELAY_MS,
         }
     }
 
@@ -262,6 +293,9 @@ impl GeminiProvider {
     ///
     /// - `GEMINI_API_KEY`: Required API key
     /// - `GEMINI_MODEL`: Optional model override (default: gemini-2.5-pro)
+    /// - `GEMINI_MAX_RETRIES`: Optional max retries (default: 3)
+    /// - `GEMINI_INITIAL_RETRY_DELAY_MS`: Optional initial retry delay in ms (default: 500)
+    /// - `GEMINI_MAX_RETRY_DELAY_MS`: Optional max retry delay in ms (default: 5000)
     ///
     /// # Errors
     ///
@@ -271,14 +305,53 @@ impl GeminiProvider {
             AppError::config(format!("{GEMINI_API_KEY_ENV} environment variable not set"))
         })?;
         let model = env::var(GEMINI_MODEL_ENV).unwrap_or_else(|_| DEFAULT_MODEL.to_owned());
-        info!("Gemini provider using model: {model}");
-        Ok(Self::new(api_key).with_default_model(model))
+
+        let max_retries = env::var(GEMINI_MAX_RETRIES_ENV)
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(DEFAULT_MAX_RETRIES);
+
+        let initial_retry_delay_ms = env::var(GEMINI_INITIAL_RETRY_DELAY_MS_ENV)
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(DEFAULT_INITIAL_RETRY_DELAY_MS);
+
+        let max_retry_delay_ms = env::var(GEMINI_MAX_RETRY_DELAY_MS_ENV)
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(DEFAULT_MAX_RETRY_DELAY_MS);
+
+        info!(
+            model = %model,
+            max_retries = max_retries,
+            initial_retry_delay_ms = initial_retry_delay_ms,
+            max_retry_delay_ms = max_retry_delay_ms,
+            "Gemini provider initialized"
+        );
+
+        Ok(Self::new(api_key)
+            .with_default_model(model)
+            .with_retry_config(max_retries, initial_retry_delay_ms, max_retry_delay_ms))
     }
 
     /// Set a custom default model
     #[must_use]
     pub fn with_default_model(mut self, model: impl Into<String>) -> Self {
         self.default_model = model.into();
+        self
+    }
+
+    /// Configure retry behavior
+    #[must_use]
+    pub const fn with_retry_config(
+        mut self,
+        max_retries: u32,
+        initial_retry_delay_ms: u64,
+        max_retry_delay_ms: u64,
+    ) -> Self {
+        self.max_retries = max_retries;
+        self.initial_retry_delay_ms = initial_retry_delay_ms;
+        self.max_retry_delay_ms = max_retry_delay_ms;
         self
     }
 
@@ -308,15 +381,56 @@ impl GeminiProvider {
     ) -> Result<ChatResponseWithTools, AppError> {
         let model = request.model.as_deref().unwrap_or(&self.default_model);
         let url = self.build_url(model, "generateContent");
-
         let gemini_request = Self::build_gemini_request(request, tools);
 
-        debug!("Sending request with tools to Gemini API");
+        let mut last_error: Option<AppError> = None;
 
+        for attempt in 0..=self.max_retries {
+            if attempt > 0 {
+                let delay = self.calculate_retry_delay(attempt - 1);
+                warn!(
+                    attempt,
+                    delay_ms = delay.as_millis(),
+                    "Retrying Gemini request with tools"
+                );
+                sleep(delay).await;
+            }
+
+            debug!(attempt, "Sending request with tools to Gemini API");
+
+            match self
+                .execute_tools_request(&url, &gemini_request, model, attempt)
+                .await
+            {
+                Ok(response) => return Ok(response),
+                Err(e) => {
+                    if Self::is_retryable_error(&e) && attempt < self.max_retries {
+                        warn!(attempt, error = %e, "Retryable error, will retry");
+                        last_error = Some(e);
+                        continue;
+                    }
+                    return Err(e);
+                }
+            }
+        }
+
+        Err(last_error.unwrap_or_else(|| {
+            AppError::internal("Gemini request with tools failed after retries")
+        }))
+    }
+
+    /// Execute a single tools request and process the response
+    async fn execute_tools_request(
+        &self,
+        url: &str,
+        gemini_request: &GeminiRequest,
+        model: &str,
+        attempt: u32,
+    ) -> Result<ChatResponseWithTools, AppError> {
         let response = self
             .client
-            .post(&url)
-            .json(&gemini_request)
+            .post(url)
+            .json(gemini_request)
             .send()
             .await
             .map_err(|e| AppError::internal(format!("HTTP request failed: {e}")))?;
@@ -328,7 +442,6 @@ impl GeminiProvider {
             .map_err(|e| AppError::internal(format!("Failed to read response: {e}")))?;
 
         if !status.is_success() {
-            error!(status = %status, "Gemini API error");
             return Err(Self::map_api_error(status.as_u16(), &response_text));
         }
 
@@ -345,42 +458,39 @@ impl GeminiProvider {
             )));
         }
 
-        // Check for function calls first
-        let function_calls = Self::extract_function_calls(&gemini_response);
-        if !function_calls.is_empty() {
-            debug!(
-                count = function_calls.len(),
-                "Extracted function calls from response"
-            );
-            return Ok(ChatResponseWithTools {
-                content: None,
-                function_calls: Some(function_calls),
-                model: model.to_owned(),
-                usage: gemini_response
-                    .usage_metadata
-                    .as_ref()
-                    .map(Self::convert_usage),
-                finish_reason: gemini_response
-                    .candidates
-                    .as_ref()
-                    .and_then(|c| c.first())
-                    .and_then(|c| c.finish_reason.clone()),
-            });
-        }
+        Self::process_tools_response(&gemini_response, model, attempt)
+    }
 
-        // Otherwise extract text content
-        let content = Self::extract_content(&gemini_response)?;
-        let usage = gemini_response
-            .usage_metadata
-            .as_ref()
-            .map(Self::convert_usage);
-        let finish_reason = gemini_response
+    /// Process a Gemini response into a `ChatResponseWithTools`
+    fn process_tools_response(
+        response: &GeminiResponse,
+        model: &str,
+        attempt: u32,
+    ) -> Result<ChatResponseWithTools, AppError> {
+        let function_calls = Self::extract_function_calls(response);
+        let usage = response.usage_metadata.as_ref().map(Self::convert_usage);
+        let finish_reason = response
             .candidates
             .as_ref()
             .and_then(|c| c.first())
             .and_then(|c| c.finish_reason.clone());
 
-        debug!("Successfully received text response from Gemini");
+        if !function_calls.is_empty() {
+            debug!(
+                count = function_calls.len(),
+                attempt, "Extracted function calls"
+            );
+            return Ok(ChatResponseWithTools {
+                content: None,
+                function_calls: Some(function_calls),
+                model: model.to_owned(),
+                usage,
+                finish_reason,
+            });
+        }
+
+        let content = Self::extract_content(response)?;
+        debug!(attempt, "Successfully received text response from Gemini");
 
         Ok(ChatResponseWithTools {
             content: Some(content),
@@ -461,13 +571,40 @@ impl GeminiProvider {
 
     /// Extract text content from Gemini response
     fn extract_content(response: &GeminiResponse) -> Result<String, AppError> {
-        let part = response
+        // Get candidate content, handling case where parts may be empty (thinking models)
+        let content = response
             .candidates
             .as_ref()
             .and_then(|c| c.first())
-            .and_then(|c| c.content.as_ref())
-            .and_then(|c| c.parts.first())
-            .ok_or_else(|| AppError::internal("No content in Gemini response"))?;
+            .and_then(|c| c.content.as_ref());
+
+        // Handle empty or missing content - can happen with thinking models like gemini-3-flash-preview
+        let Some(content) = content else {
+            // Check if this is a blocked response
+            let finish_reason = response
+                .candidates
+                .as_ref()
+                .and_then(|c| c.first())
+                .and_then(|c| c.finish_reason.as_ref());
+
+            if let Some(reason) = finish_reason {
+                if reason == "SAFETY" || reason == "RECITATION" || reason == "OTHER" {
+                    return Err(AppError::internal(format!(
+                        "Response blocked by Gemini safety filter: {reason}"
+                    )));
+                }
+            }
+            return Err(AppError::internal(
+                "No content in Gemini response - model may still be thinking",
+            ));
+        };
+
+        // Handle empty parts - thinking models may return content with no parts
+        let Some(part) = content.parts.first() else {
+            return Err(AppError::internal(
+                "Gemini response has no content parts - model may have returned thinking-only output",
+            ));
+        };
 
         match part {
             ContentPart::Text { text } => Ok(text.clone()),
@@ -558,6 +695,37 @@ impl GeminiProvider {
         // Fallback to a generic but informative message
         "AI service quota exceeded. Please wait a moment and try again.".to_owned()
     }
+
+    /// Check if an error is retryable
+    fn is_retryable_error(error: &AppError) -> bool {
+        let message = error.to_string();
+        // Retry on 503 overloaded
+        if message.contains("503") || message.contains("overloaded") {
+            return true;
+        }
+        // Retry on thinking-only output (model may succeed on retry)
+        if message.contains("no content parts") || message.contains("thinking-only") {
+            return true;
+        }
+        // Retry on model still thinking
+        if message.contains("still be thinking") {
+            return true;
+        }
+        false
+    }
+
+    /// Calculate delay for exponential backoff with jitter
+    fn calculate_retry_delay(&self, attempt: u32) -> Duration {
+        // Exponential backoff: delay = initial * 2^attempt
+        let base_delay = self.initial_retry_delay_ms.saturating_mul(1 << attempt);
+        let capped_delay = base_delay.min(self.max_retry_delay_ms);
+        // Add small jitter (0-100ms) to avoid thundering herd
+        let jitter = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| u64::from(d.subsec_millis()))
+            % 100;
+        Duration::from_millis(capped_delay + jitter)
+    }
 }
 
 #[async_trait]
@@ -586,62 +754,118 @@ impl LlmProvider for GeminiProvider {
     async fn complete(&self, request: &ChatRequest) -> Result<ChatResponse, AppError> {
         let model = request.model.as_deref().unwrap_or(&self.default_model);
         let url = self.build_url(model, "generateContent");
-
         let gemini_request = Self::build_gemini_request(request, None);
 
-        debug!("Sending request to Gemini API");
+        let mut last_error: Option<AppError> = None;
 
-        let response = self
-            .client
-            .post(&url)
-            .json(&gemini_request)
-            .send()
-            .await
-            .map_err(|e| AppError::internal(format!("HTTP request failed: {e}")))?;
+        for attempt in 0..=self.max_retries {
+            if attempt > 0 {
+                let delay = self.calculate_retry_delay(attempt - 1);
+                warn!(
+                    attempt = attempt,
+                    delay_ms = delay.as_millis(),
+                    "Retrying Gemini request after transient failure"
+                );
+                sleep(delay).await;
+            }
 
-        let status = response.status();
-        let response_text = response
-            .text()
-            .await
-            .map_err(|e| AppError::internal(format!("Failed to read response: {e}")))?;
+            debug!(attempt = attempt, "Sending request to Gemini API");
 
-        if !status.is_success() {
-            error!(status = %status, "Gemini API error");
-            return Err(Self::map_api_error(status.as_u16(), &response_text));
+            let response = match self.client.post(&url).json(&gemini_request).send().await {
+                Ok(r) => r,
+                Err(e) => {
+                    let error = AppError::internal(format!("HTTP request failed: {e}"));
+                    if Self::is_retryable_error(&error) && attempt < self.max_retries {
+                        last_error = Some(error);
+                        continue;
+                    }
+                    return Err(error);
+                }
+            };
+
+            let status = response.status();
+            let response_text = match response.text().await {
+                Ok(t) => t,
+                Err(e) => {
+                    let error = AppError::internal(format!("Failed to read response: {e}"));
+                    if attempt < self.max_retries {
+                        last_error = Some(error);
+                        continue;
+                    }
+                    return Err(error);
+                }
+            };
+
+            if !status.is_success() {
+                let error = Self::map_api_error(status.as_u16(), &response_text);
+                if Self::is_retryable_error(&error) && attempt < self.max_retries {
+                    warn!(status = %status, attempt = attempt, "Gemini API returned retryable error");
+                    last_error = Some(error);
+                    continue;
+                }
+                error!(status = %status, "Gemini API error (not retryable)");
+                return Err(error);
+            }
+
+            let gemini_response: GeminiResponse = match serde_json::from_str(&response_text) {
+                Ok(r) => r,
+                Err(e) => {
+                    error!(error = %e, response = %response_text, "Failed to parse response");
+                    return Err(AppError::internal(format!(
+                        "Failed to parse Gemini response: {e}"
+                    )));
+                }
+            };
+
+            if let Some(error) = gemini_response.error {
+                let app_error = AppError::internal(format!("Gemini API error: {}", error.message));
+                if Self::is_retryable_error(&app_error) && attempt < self.max_retries {
+                    last_error = Some(app_error);
+                    continue;
+                }
+                return Err(app_error);
+            }
+
+            // Try to extract content - may fail on thinking-only responses
+            match Self::extract_content(&gemini_response) {
+                Ok(content) => {
+                    let usage = gemini_response
+                        .usage_metadata
+                        .as_ref()
+                        .map(Self::convert_usage);
+                    let finish_reason = gemini_response
+                        .candidates
+                        .as_ref()
+                        .and_then(|c| c.first())
+                        .and_then(|c| c.finish_reason.clone());
+
+                    debug!(attempt = attempt, "Successfully received Gemini response");
+
+                    return Ok(ChatResponse {
+                        content,
+                        model: model.to_owned(),
+                        usage,
+                        finish_reason,
+                    });
+                }
+                Err(e) => {
+                    // Retry on thinking-only output
+                    if Self::is_retryable_error(&e) && attempt < self.max_retries {
+                        warn!(
+                            attempt = attempt,
+                            error = %e,
+                            "Gemini returned empty content, retrying"
+                        );
+                        last_error = Some(e);
+                        continue;
+                    }
+                    return Err(e);
+                }
+            }
         }
 
-        let gemini_response: GeminiResponse =
-            serde_json::from_str(&response_text).map_err(|e| {
-                error!(error = %e, response = %response_text, "Failed to parse response");
-                AppError::internal(format!("Failed to parse Gemini response: {e}"))
-            })?;
-
-        if let Some(error) = gemini_response.error {
-            return Err(AppError::internal(format!(
-                "Gemini API error: {}",
-                error.message
-            )));
-        }
-
-        let content = Self::extract_content(&gemini_response)?;
-        let usage = gemini_response
-            .usage_metadata
-            .as_ref()
-            .map(Self::convert_usage);
-        let finish_reason = gemini_response
-            .candidates
-            .as_ref()
-            .and_then(|c| c.first())
-            .and_then(|c| c.finish_reason.clone());
-
-        debug!("Successfully received Gemini response");
-
-        Ok(ChatResponse {
-            content,
-            model: model.to_owned(),
-            usage,
-            finish_reason,
-        })
+        // Should not reach here, but return last error if we do
+        Err(last_error.unwrap_or_else(|| AppError::internal("Gemini request failed after retries")))
     }
 
     #[instrument(skip(self, request), fields(model = %request.model.as_deref().unwrap_or(DEFAULT_MODEL)))]

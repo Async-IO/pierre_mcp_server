@@ -19,10 +19,13 @@ fn test_mcp_tool_schemas() {
     // Test that all analytics tools are properly defined
     let tools = get_tools();
 
-    // Should have all 47 tools (34 fitness + 6 configuration + 7 recipe, includes nutrition and sleep/recovery)
+    // Should have all 68 tools:
+    // - 34 fitness + 6 configuration + 7 recipe + 10 coach (original)
+    // - 3 user coach preferences (hide, show, list_hidden)
+    // - 8 admin coach tools (system coaches management)
     // Note: OAuth notification tools removed (get_notifications, mark_notifications_read, announce_oauth_success, check_oauth_notifications)
     // Note: connect_to_pierre removed - SDK bridge handles authentication locally via RFC 8414 discovery
-    assert_eq!(tools.len(), 47);
+    assert_eq!(tools.len(), 68);
 
     // Check key analytics tools are present
     let tool_names: Vec<&str> = tools.iter().map(|t| t.name.as_str()).collect();
@@ -70,6 +73,31 @@ fn test_mcp_tool_schemas() {
     assert!(tool_names.contains(&"get_recipe"));
     assert!(tool_names.contains(&"delete_recipe"));
     assert!(tool_names.contains(&"search_recipes"));
+
+    // Coach management tools (custom AI personas)
+    assert!(tool_names.contains(&"list_coaches"));
+    assert!(tool_names.contains(&"create_coach"));
+    assert!(tool_names.contains(&"get_coach"));
+    assert!(tool_names.contains(&"update_coach"));
+    assert!(tool_names.contains(&"delete_coach"));
+    assert!(tool_names.contains(&"toggle_coach_favorite"));
+    assert!(tool_names.contains(&"search_coaches"));
+    assert!(tool_names.contains(&"activate_coach"));
+    assert!(tool_names.contains(&"deactivate_coach"));
+    assert!(tool_names.contains(&"get_active_coach"));
+    assert!(tool_names.contains(&"hide_coach"));
+    assert!(tool_names.contains(&"show_coach"));
+    assert!(tool_names.contains(&"list_hidden_coaches"));
+
+    // Admin coach management tools (system coaches)
+    assert!(tool_names.contains(&"admin_list_system_coaches"));
+    assert!(tool_names.contains(&"admin_create_system_coach"));
+    assert!(tool_names.contains(&"admin_get_system_coach"));
+    assert!(tool_names.contains(&"admin_update_system_coach"));
+    assert!(tool_names.contains(&"admin_delete_system_coach"));
+    assert!(tool_names.contains(&"admin_assign_coach"));
+    assert!(tool_names.contains(&"admin_unassign_coach"));
+    assert!(tool_names.contains(&"admin_list_coach_assignments"));
 }
 
 #[test]

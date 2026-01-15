@@ -6,6 +6,17 @@
 
 use super::auth_service::AuthService;
 use super::handlers::{
+    handle_activate_coach, handle_admin_assign_coach, handle_admin_create_system_coach,
+    handle_admin_delete_system_coach, handle_admin_get_system_coach,
+    handle_admin_list_coach_assignments, handle_admin_list_system_coaches,
+    handle_admin_unassign_coach, handle_admin_update_system_coach, handle_create_coach,
+    handle_deactivate_coach, handle_delete_coach, handle_delete_recipe, handle_get_active_coach,
+    handle_get_coach, handle_get_recipe, handle_get_recipe_constraints, handle_hide_coach,
+    handle_list_coaches, handle_list_hidden_coaches, handle_list_recipes, handle_save_recipe,
+    handle_search_coaches, handle_search_recipes, handle_show_coach, handle_toggle_coach_favorite,
+    handle_update_coach, handle_validate_recipe,
+};
+use super::handlers::{
     handle_analyze_activity, handle_analyze_goal_feasibility, handle_analyze_meal_nutrition,
     handle_analyze_performance_trends, handle_analyze_sleep_quality, handle_analyze_training_load,
     handle_calculate_daily_nutrition, handle_calculate_fitness_score, handle_calculate_metrics,
@@ -18,10 +29,6 @@ use super::handlers::{
     handle_optimize_sleep_schedule, handle_predict_performance, handle_search_food,
     handle_set_goal, handle_suggest_goals, handle_suggest_rest_day, handle_track_progress,
     handle_track_sleep_trends, handle_update_user_configuration, handle_validate_configuration,
-};
-use super::handlers::{
-    handle_delete_recipe, handle_get_recipe, handle_get_recipe_constraints, handle_list_recipes,
-    handle_save_recipe, handle_search_recipes, handle_validate_recipe,
 };
 use super::tool_registry::{ToolId, ToolInfo, ToolRegistry};
 use crate::constants::time_constants::SECONDS_PER_HOUR_F64;
@@ -360,6 +367,94 @@ impl UniversalExecutor {
         ));
     }
 
+    fn register_coaches_tools(registry: &mut ToolRegistry) {
+        registry.register(ToolInfo::async_tool(
+            ToolId::ListCoaches,
+            |executor, request| Box::pin(handle_list_coaches(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::CreateCoach,
+            |executor, request| Box::pin(handle_create_coach(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::GetCoach,
+            |executor, request| Box::pin(handle_get_coach(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::UpdateCoach,
+            |executor, request| Box::pin(handle_update_coach(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::DeleteCoach,
+            |executor, request| Box::pin(handle_delete_coach(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::ToggleCoachFavorite,
+            |executor, request| Box::pin(handle_toggle_coach_favorite(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::SearchCoaches,
+            |executor, request| Box::pin(handle_search_coaches(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::ActivateCoach,
+            |executor, request| Box::pin(handle_activate_coach(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::DeactivateCoach,
+            |executor, request| Box::pin(handle_deactivate_coach(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::GetActiveCoach,
+            |executor, request| Box::pin(handle_get_active_coach(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::HideCoach,
+            |executor, request| Box::pin(handle_hide_coach(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::ShowCoach,
+            |executor, request| Box::pin(handle_show_coach(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::ListHiddenCoaches,
+            |executor, request| Box::pin(handle_list_hidden_coaches(executor, request)),
+        ));
+        // Admin coach management tools (system coaches - admin only)
+        registry.register(ToolInfo::async_tool(
+            ToolId::AdminListSystemCoaches,
+            |executor, request| Box::pin(handle_admin_list_system_coaches(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::AdminCreateSystemCoach,
+            |executor, request| Box::pin(handle_admin_create_system_coach(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::AdminGetSystemCoach,
+            |executor, request| Box::pin(handle_admin_get_system_coach(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::AdminUpdateSystemCoach,
+            |executor, request| Box::pin(handle_admin_update_system_coach(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::AdminDeleteSystemCoach,
+            |executor, request| Box::pin(handle_admin_delete_system_coach(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::AdminAssignCoach,
+            |executor, request| Box::pin(handle_admin_assign_coach(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::AdminUnassignCoach,
+            |executor, request| Box::pin(handle_admin_unassign_coach(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::AdminListCoachAssignments,
+            |executor, request| Box::pin(handle_admin_list_coach_assignments(executor, request)),
+        ));
+    }
+
     fn register_all_tools(registry: &mut ToolRegistry) {
         Self::register_strava_tools(registry);
         Self::register_connection_tools(registry);
@@ -369,6 +464,7 @@ impl UniversalExecutor {
         Self::register_sleep_recovery_tools(registry);
         Self::register_nutrition_tools(registry);
         Self::register_recipe_tools(registry);
+        Self::register_coaches_tools(registry);
     }
 
     /// Execute a tool with type-safe routing (no string matching!)

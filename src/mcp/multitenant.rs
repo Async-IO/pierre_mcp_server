@@ -1003,6 +1003,7 @@ impl MultiTenantMcpServer {
         use crate::routes::api_keys::ApiKeyRoutes;
         use crate::routes::auth::AuthRoutes;
         use crate::routes::chat::ChatRoutes;
+        use crate::routes::coaches::CoachesRoutes;
         use crate::routes::configuration::ConfigurationRoutes;
         use crate::routes::dashboard::DashboardRoutes;
         use crate::routes::fitness::FitnessConfigurationRoutes;
@@ -1010,7 +1011,6 @@ impl MultiTenantMcpServer {
         use crate::routes::llm_settings::LlmSettingsRoutes;
         use crate::routes::mcp::McpRoutes;
         use crate::routes::oauth2::OAuth2Routes;
-        use crate::routes::prompts::PromptRoutes;
         use crate::routes::tenants::TenantRoutes;
         use crate::routes::user_mcp_tokens::UserMcpTokenRoutes;
         use crate::routes::user_oauth_apps::UserOAuthAppRoutes;
@@ -1087,18 +1087,18 @@ impl MultiTenantMcpServer {
             .merge(DashboardRoutes::routes(Arc::clone(resources)))
             .merge(ConfigurationRoutes::routes(Arc::clone(resources)))
             .merge(FitnessConfigurationRoutes::routes(Arc::clone(resources)))
-            .merge(PromptRoutes::routes(Arc::clone(resources)))
             .merge(WebAdminRoutes::routes(Arc::clone(resources)))
             .nest("/api/admin/config", admin_config_routes)
             .nest(
                 "/api/admin",
-                PromptRoutes::admin_routes(Arc::clone(resources)),
+                CoachesRoutes::admin_routes(Arc::clone(resources)),
             )
             .merge(ImpersonationRoutes::routes(Arc::clone(resources)))
             .merge(UserMcpTokenRoutes::routes(Arc::clone(resources)))
             .merge(ChatRoutes::routes(Arc::clone(resources)))
             .merge(UserOAuthAppRoutes::routes(Arc::clone(resources)))
             .merge(LlmSettingsRoutes::routes(Arc::clone(resources)))
+            .merge(CoachesRoutes::routes(Arc::clone(resources)))
     }
 
     /// Create health check routes for Axum

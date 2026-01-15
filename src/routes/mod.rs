@@ -20,6 +20,8 @@ pub mod api_keys;
 pub mod auth;
 /// Chat conversation routes for AI assistants
 pub mod chat;
+/// Coaches (custom AI personas) routes
+pub mod coaches;
 /// Configuration management routes
 pub mod configuration;
 /// Dashboard and monitoring routes
@@ -36,8 +38,6 @@ pub mod llm_settings;
 pub mod mcp;
 /// OAuth 2.0 server implementation routes
 pub mod oauth2;
-/// Prompt suggestions routes for AI chat interface
-pub mod prompts;
 /// Tenant management routes
 pub mod tenants;
 /// User MCP token management routes for AI client authentication
@@ -104,6 +104,8 @@ pub type OAuthRoutes = OAuthService;
 pub use api_keys::ApiKeyRoutes;
 /// Chat conversation route handlers
 pub use chat::ChatRoutes;
+/// Coaches route handlers
+pub use coaches::CoachesRoutes;
 /// Configuration route handlers
 pub use configuration::ConfigurationRoutes;
 /// Dashboard route handlers

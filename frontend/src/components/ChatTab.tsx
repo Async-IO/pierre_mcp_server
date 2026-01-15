@@ -11,7 +11,7 @@ import { ConfirmDialog } from './ui';
 import { clsx } from 'clsx';
 import { apiService } from '../services/api';
 import Markdown from 'react-markdown';
-import PromptSuggestions, { useWelcomePrompt } from './PromptSuggestions';
+import PromptSuggestions from './PromptSuggestions';
 import ProviderConnectionCards from './ProviderConnectionCards';
 import { useAuth } from '../hooks/useAuth';
 
@@ -99,7 +99,7 @@ interface ChatTabProps {
 
 export default function ChatTab({ onOpenSettings }: ChatTabProps) {
   const queryClient = useQueryClient();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -111,10 +111,12 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
   const [oauthNotification, setOauthNotification] = useState<{ provider: string; timestamp: number } | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ id: string; title: string } | null>(null);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
+  const [pendingSystemPrompt, setPendingSystemPrompt] = useState<string | null>(null);
   const [showIdeas, setShowIdeas] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
-  const [skippedOnboarding, setSkippedOnboarding] = useState(false);
+  const [showProviderModal, setShowProviderModal] = useState(false);
+  const [pendingCoachAction, setPendingCoachAction] = useState<{ prompt: string; systemPrompt?: string } | null>(null);
   // Track model and execution time for assistant messages (for debugging/transparency)
   const [messageMetadata, setMessageMetadata] = useState<Map<string, { model: string; executionTimeMs: number }>>(new Map());
 
@@ -138,9 +140,6 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
   // Check if any provider is connected
   const hasConnectedProvider = oauthStatus?.providers?.some(p => p.connected) ?? false;
 
-  // Fetch welcome prompt from API
-  const { welcomePrompt } = useWelcomePrompt();
-
   // Fetch messages for selected conversation
   const { data: messagesData, isLoading: messagesLoading } = useQuery<{ messages: Message[] }>({
     queryKey: ['chat-messages', selectedConversation],
@@ -148,16 +147,20 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
     enabled: !!selectedConversation,
   });
 
-  // Create conversation mutation - auto-creates with default title
-  const createConversation = useMutation({
-    mutationFn: () => {
+  // Create conversation mutation - auto-creates with default title and optional system prompt
+  const createConversation = useMutation<{ id: string }, Error, string | void>({
+    mutationFn: (systemPrompt) => {
       const now = new Date();
       const defaultTitle = `Chat ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
-      return apiService.createConversation({ title: defaultTitle });
+      return apiService.createConversation({
+        title: defaultTitle,
+        system_prompt: systemPrompt || pendingSystemPrompt || undefined,
+      });
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
       setSelectedConversation(data.id);
+      setPendingSystemPrompt(null);
     },
   });
 
@@ -196,40 +199,87 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
   }, [selectedConversation]);
 
   // Listen for OAuth completion from popup/new tab
+  // Uses a processing flag to prevent race conditions when multiple events fire
   useEffect(() => {
-    // Check localStorage for OAuth result and process if found
-    const checkAndProcessOAuthResult = () => {
+    // Flag to prevent duplicate processing when multiple events fire simultaneously
+    let isProcessingOAuth = false;
+
+    // Process OAuth result - extracts and removes localStorage items atomically
+    // Returns the data if found and valid, null otherwise
+    const extractOAuthData = () => {
+      const stored = localStorage.getItem('pierre_oauth_result');
+      if (!stored) return null;
+
+      // Remove immediately to prevent duplicate processing from other handlers
+      localStorage.removeItem('pierre_oauth_result');
+
       try {
-        const stored = localStorage.getItem('pierre_oauth_result');
-        const savedConversation = localStorage.getItem('pierre_oauth_conversation');
+        const result = JSON.parse(stored);
+        const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
 
-        if (stored) {
-          const result = JSON.parse(stored);
-          // Only process if it's recent (within last 5 minutes)
-          const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+        if (result.type === 'oauth_completed' && result.success && result.timestamp > fiveMinutesAgo) {
+          // Also extract related items atomically
+          const savedConversation = localStorage.getItem('pierre_oauth_conversation');
+          const savedCoachAction = localStorage.getItem('pierre_pending_coach_action');
 
-          if (result.type === 'oauth_completed' && result.success && result.timestamp > fiveMinutesAgo) {
-            queryClient.invalidateQueries({ queryKey: ['oauth-status'] });
-            queryClient.invalidateQueries({ queryKey: ['user-profile'] });
-            // Show visible notification in chat
-            const providerDisplay = result.provider.charAt(0).toUpperCase() + result.provider.slice(1);
-            setOauthNotification({ provider: providerDisplay, timestamp: Date.now() });
-            setConnectingProvider(null);
-            // Restore the conversation that was active before OAuth redirect
-            if (savedConversation) {
-              setSelectedConversation(savedConversation);
-              localStorage.removeItem('pierre_oauth_conversation');
-            }
-            // Clean up the storage item
-            localStorage.removeItem('pierre_oauth_result');
-          } else if (result.timestamp <= fiveMinutesAgo) {
-            // Clean up stale entries
-            localStorage.removeItem('pierre_oauth_result');
-            localStorage.removeItem('pierre_oauth_conversation');
-          }
+          // Remove these immediately too
+          if (savedConversation) localStorage.removeItem('pierre_oauth_conversation');
+          if (savedCoachAction) localStorage.removeItem('pierre_pending_coach_action');
+
+          return {
+            result,
+            savedConversation,
+            savedCoachAction: savedCoachAction ? JSON.parse(savedCoachAction) : null,
+          };
+        } else if (result.timestamp <= fiveMinutesAgo) {
+          // Clean up stale entries
+          localStorage.removeItem('pierre_oauth_conversation');
+          localStorage.removeItem('pierre_pending_coach_action');
         }
       } catch {
-        // Ignore parse errors from localStorage
+        // Ignore parse errors
+      }
+      return null;
+    };
+
+    // Process the extracted OAuth data (called after extraction to avoid races)
+    const processOAuthData = (data: { result: { provider: string }; savedConversation: string | null; savedCoachAction: { prompt: string; systemPrompt?: string } | null }) => {
+      if (isProcessingOAuth) return;
+      isProcessingOAuth = true;
+
+      queryClient.invalidateQueries({ queryKey: ['oauth-status'] });
+      queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+
+      // Show visible notification in chat
+      const providerDisplay = data.result.provider.charAt(0).toUpperCase() + data.result.provider.slice(1);
+      setOauthNotification({ provider: providerDisplay, timestamp: Date.now() });
+      setConnectingProvider(null);
+
+      // Restore the conversation that was active before OAuth redirect
+      if (data.savedConversation) {
+        setSelectedConversation(data.savedConversation);
+      }
+
+      // Restore pending coach action and create conversation
+      if (data.savedCoachAction) {
+        setPendingPrompt(data.savedCoachAction.prompt);
+        if (data.savedCoachAction.systemPrompt) {
+          setPendingSystemPrompt(data.savedCoachAction.systemPrompt);
+        }
+        createConversation.mutate(data.savedCoachAction.systemPrompt);
+      }
+
+      // Reset flag after a short delay to allow state updates to propagate
+      setTimeout(() => {
+        isProcessingOAuth = false;
+      }, 500);
+    };
+
+    // Check localStorage for OAuth result and process if found
+    const checkAndProcessOAuthResult = () => {
+      const data = extractOAuthData();
+      if (data) {
+        processOAuthData(data);
       }
     };
 
@@ -237,46 +287,40 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
       // Validate message structure
       if (event.data?.type === 'oauth_completed') {
         const { provider, success } = event.data;
-        if (success) {
-          // Invalidate any queries that depend on connection status
-          queryClient.invalidateQueries({ queryKey: ['oauth-status'] });
-          queryClient.invalidateQueries({ queryKey: ['user-profile'] });
-          // Show visible notification in chat
-          const providerDisplay = provider.charAt(0).toUpperCase() + provider.slice(1);
-          setOauthNotification({ provider: providerDisplay, timestamp: Date.now() });
-          setConnectingProvider(null);
-          // Restore the conversation that was active before OAuth redirect
+        if (success && !isProcessingOAuth) {
+          // For postMessage, we don't have localStorage data, so extract what we can
           const savedConversation = localStorage.getItem('pierre_oauth_conversation');
-          if (savedConversation) {
-            setSelectedConversation(savedConversation);
-            localStorage.removeItem('pierre_oauth_conversation');
+          const savedCoachActionStr = localStorage.getItem('pierre_pending_coach_action');
+
+          // Remove immediately
+          if (savedConversation) localStorage.removeItem('pierre_oauth_conversation');
+          if (savedCoachActionStr) localStorage.removeItem('pierre_pending_coach_action');
+
+          let savedCoachAction = null;
+          if (savedCoachActionStr) {
+            try {
+              savedCoachAction = JSON.parse(savedCoachActionStr);
+            } catch {
+              // Ignore parse errors
+            }
           }
+
+          processOAuthData({
+            result: { provider },
+            savedConversation,
+            savedCoachAction,
+          });
         }
       }
     };
 
     const handleStorageChange = (event: StorageEvent) => {
       if (event.key === 'pierre_oauth_result' && event.newValue) {
-        try {
-          const result = JSON.parse(event.newValue);
-          if (result.type === 'oauth_completed' && result.success) {
-            queryClient.invalidateQueries({ queryKey: ['oauth-status'] });
-            queryClient.invalidateQueries({ queryKey: ['user-profile'] });
-            // Show visible notification in chat
-            const providerDisplay = result.provider.charAt(0).toUpperCase() + result.provider.slice(1);
-            setOauthNotification({ provider: providerDisplay, timestamp: Date.now() });
-            setConnectingProvider(null);
-            // Restore the conversation that was active before OAuth redirect
-            const savedConversation = localStorage.getItem('pierre_oauth_conversation');
-            if (savedConversation) {
-              setSelectedConversation(savedConversation);
-              localStorage.removeItem('pierre_oauth_conversation');
-            }
-            // Clean up the storage item
-            localStorage.removeItem('pierre_oauth_result');
-          }
-        } catch {
-          // Ignore parse errors
+        // The storage event fires, but another handler might have already processed it
+        // Try to extract - if extraction returns null, it was already processed
+        const data = extractOAuthData();
+        if (data) {
+          processOAuthData(data);
         }
       }
     };
@@ -547,27 +591,74 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
     setSelectedConversation(null);
   };
 
-  const handleSkipOnboarding = () => {
-    // User explicitly skipped provider connection - show prompts
-    setSkippedOnboarding(true);
-    setSelectedConversation(null);
-  };
+  const handleSelectPrompt = (prompt: string, coachIdForTracking?: string, systemPrompt?: string) => {
+    // coachIdForTracking is used by PromptSuggestions for usage tracking before calling this
+    void coachIdForTracking; // Acknowledge the parameter is intentionally not used here
 
-  const handleSelectPrompt = (prompt: string) => {
+    // If no provider connected, show modal and store the action for later
+    if (!hasConnectedProvider) {
+      setPendingCoachAction({ prompt, systemPrompt });
+      setShowProviderModal(true);
+      return;
+    }
+
     setPendingPrompt(prompt);
-    createConversation.mutate();
+    if (systemPrompt) {
+      setPendingSystemPrompt(systemPrompt);
+    }
+    createConversation.mutate(systemPrompt);
   };
 
-  const handleFillPrompt = (prompt: string) => {
+  const handleFillPrompt = (prompt: string, coachIdForTracking?: string, systemPrompt?: string) => {
+    // coachIdForTracking is used by PromptSuggestions for usage tracking before calling this
+    void coachIdForTracking; // Acknowledge the parameter is intentionally not used here
     setNewMessage(prompt);
+    if (systemPrompt) {
+      setPendingSystemPrompt(systemPrompt);
+    }
     setShowIdeas(false);
     inputRef.current?.focus();
   };
 
-  const handleConnectProvider = (providerName: string) => {
+  const handleConnectProvider = async (providerName: string) => {
     setConnectingProvider(providerName);
-    setPendingPrompt(`Connect to ${providerName}`);
-    createConversation.mutate();
+    // If we have a pending coach action, store it for after OAuth completes
+    if (pendingCoachAction) {
+      // Store in localStorage so it persists through OAuth redirect
+      localStorage.setItem('pierre_pending_coach_action', JSON.stringify(pendingCoachAction));
+    }
+    setShowProviderModal(false);
+
+    try {
+      // Convert provider name to lowercase ID (e.g., "Strava" -> "strava")
+      const providerId = providerName.toLowerCase();
+      const authUrl = await apiService.getOAuthAuthorizeUrl(providerId);
+      // Open OAuth in new tab to avoid security blocks from automated browser detection
+      window.open(authUrl, '_blank');
+      setConnectingProvider(null);
+    } catch (error) {
+      console.error('Failed to get OAuth authorization URL:', error);
+      setConnectingProvider(null);
+    }
+  };
+
+  // Handle skip in provider modal - proceed with pending action without provider
+  const handleProviderModalSkip = () => {
+    setShowProviderModal(false);
+    if (pendingCoachAction) {
+      setPendingPrompt(pendingCoachAction.prompt);
+      if (pendingCoachAction.systemPrompt) {
+        setPendingSystemPrompt(pendingCoachAction.systemPrompt);
+      }
+      createConversation.mutate(pendingCoachAction.systemPrompt);
+      setPendingCoachAction(null);
+    }
+  };
+
+  // Handle close provider modal without action
+  const handleProviderModalClose = () => {
+    setShowProviderModal(false);
+    setPendingCoachAction(null);
   };
 
   const handleStartRename = (e: React.MouseEvent, conv: Conversation) => {
@@ -637,9 +728,9 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
       {/* Left Sidebar - Conversation List (collapsible) */}
       <Panel
         panelRef={sidebarPanelRef}
-        defaultSize="25%"
-        minSize="15%"
-        maxSize="40%"
+        defaultSize="18%"
+        minSize="12%"
+        maxSize="30%"
         collapsible
         collapsedSize="0%"
         onResize={(size) => setSidebarCollapsed(size.asPercentage === 0)}
@@ -745,8 +836,12 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
           )}
         </div>
 
-        {/* User Profile Section - Bottom of sidebar */}
-        <div className="border-t border-pierre-gray-200 px-3 py-3">
+        {/* User Profile Section - Bottom of sidebar (clickable) */}
+        <button
+          onClick={onOpenSettings}
+          className="w-full border-t border-pierre-gray-200 px-3 py-3 hover:bg-pierre-gray-100 transition-colors text-left group"
+          title="Open settings"
+        >
           <div className="flex items-center gap-3">
             {/* User Avatar with online indicator */}
             <div className="relative flex-shrink-0">
@@ -760,7 +855,7 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
             </div>
 
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-pierre-gray-900 truncate">
+              <p className="text-sm font-medium text-pierre-gray-900 truncate group-hover:text-pierre-violet transition-colors">
                 {user?.display_name || user?.email}
               </p>
               <p className="text-xs text-pierre-gray-500 truncate">
@@ -768,29 +863,12 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
               </p>
             </div>
 
-            {onOpenSettings && (
-              <button
-                onClick={onOpenSettings}
-                className="p-1.5 text-pierre-gray-400 hover:text-pierre-violet hover:bg-pierre-violet/10 rounded-lg transition-colors flex-shrink-0"
-                title="Settings"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </button>
-            )}
-            <button
-              onClick={logout}
-              className="p-1.5 text-pierre-gray-400 hover:text-pierre-red-500 hover:bg-pierre-red-50 rounded-lg transition-colors flex-shrink-0"
-              title="Sign out"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-            </button>
+            {/* Chevron indicator */}
+            <svg className="w-4 h-4 text-pierre-gray-400 group-hover:text-pierre-violet transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
           </div>
-        </div>
+        </button>
       </Panel>
 
       {/* Resize Handle with Toggle Button */}
@@ -815,84 +893,41 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
       </PanelResizeHandle>
 
       {/* Main Chat Area */}
-      <Panel defaultSize="75%" className="flex flex-col bg-white">
-        {/* Show provider onboarding only when no conversation selected, no providers connected, and user hasn't skipped */}
-        {!selectedConversation && !hasConnectedProvider && !skippedOnboarding ? (
-          <div className="flex-1 flex items-center justify-center overflow-y-auto py-12">
-            <div className="w-full max-w-3xl px-6">
+      <Panel defaultSize="82%" className="flex flex-col bg-white">
+        {/* Welcome state - always show coaches first when no conversation selected */}
+        {!selectedConversation ? (
+          <div className="flex-1 flex items-center justify-center overflow-y-auto py-8">
+            <div className="w-full max-w-5xl px-6">
               <div className="text-center mb-8">
-                <h2 className="text-2xl font-semibold text-pierre-gray-900 mb-2">
-                  Connect your fitness data
-                </h2>
-                <p className="text-pierre-gray-500 text-sm">
-                  Link a provider to unlock personalized insights
-                </p>
-              </div>
-
-              <ProviderConnectionCards
-                onConnectProvider={handleConnectProvider}
-                connectingProvider={connectingProvider}
-                onSkip={handleSkipOnboarding}
-                isSkipPending={createConversation.isPending}
-              />
-            </div>
-          </div>
-        ) : !selectedConversation && (hasConnectedProvider || skippedOnboarding) ? (
-          // Welcome state when provider connected but no conversation yet
-          <div className="flex-1 flex items-center justify-center overflow-y-auto py-12">
-            <div className="w-full max-w-3xl px-6">
-              <div className="text-center mb-8">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-sm font-medium rounded-full mb-4">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  {oauthStatus?.providers?.filter(p => p.connected).map(p =>
-                    p.provider.charAt(0).toUpperCase() + p.provider.slice(1)
-                  ).join(', ')} connected
-                </div>
+                {/* Show connection badge only if provider is connected */}
+                {hasConnectedProvider ? (
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-sm font-medium rounded-full mb-4">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    {oauthStatus?.providers?.filter(p => p.connected).map(p =>
+                      p.provider.charAt(0).toUpperCase() + p.provider.slice(1)
+                    ).join(', ')} connected
+                  </div>
+                ) : (
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-pierre-gray-100 text-pierre-gray-600 text-sm font-medium rounded-full mb-4">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    No provider connected
+                  </div>
+                )}
                 <h2 className="text-2xl font-semibold text-pierre-gray-900 mb-2">
                   Ready to analyze your fitness
                 </h2>
                 <p className="text-pierre-gray-500 text-sm">
-                  Get personalized insights from your activity data
+                  {hasConnectedProvider
+                    ? 'Get personalized insights from your activity data'
+                    : 'Select a coach to get started - connect your data anytime'}
                 </p>
               </div>
 
-              {/* Featured action: Analyze recent activities */}
-              <div className="text-center mb-8">
-                <button
-                  type="button"
-                  onClick={() => welcomePrompt && handleSelectPrompt(welcomePrompt)}
-                  disabled={createConversation.isPending || !welcomePrompt}
-                  className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-pierre-violet to-pierre-cyan text-white font-semibold rounded-xl shadow-lg shadow-pierre-violet/25 hover:shadow-xl hover:shadow-pierre-violet/30 hover:-translate-y-0.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-offset-2 disabled:opacity-50"
-                >
-                  {createConversation.isPending ? (
-                    <>
-                      <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
-                        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-                      </svg>
-                      Analyzing...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                      </svg>
-                      Analyze my last 20 activities
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Divider */}
-              <div className="flex items-center gap-4 my-8">
-                <div className="flex-1 h-px bg-pierre-gray-200" />
-                <span className="text-pierre-gray-400 text-xs uppercase tracking-wider">Or ask something else</span>
-                <div className="flex-1 h-px bg-pierre-gray-200" />
-              </div>
-
-              {/* Additional prompt suggestions */}
+              {/* Coach selection */}
               <PromptSuggestions onSelectPrompt={handleSelectPrompt} />
 
               <div className="mt-8 text-center">
@@ -1155,6 +1190,53 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
         variant="danger"
         isLoading={deleteConversation.isPending}
       />
+
+      {/* Provider Connection Modal - shown when selecting coach without connected provider */}
+      {showProviderModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={handleProviderModalClose}
+          />
+          {/* Modal Content */}
+          <div className="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              {/* Close button */}
+              <button
+                onClick={handleProviderModalClose}
+                className="absolute top-4 right-4 p-2 text-pierre-gray-400 hover:text-pierre-gray-600 hover:bg-pierre-gray-100 rounded-lg transition-colors"
+                aria-label="Close"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+
+              <div className="text-center mb-6">
+                <div className="w-12 h-12 bg-pierre-violet/10 rounded-xl flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-6 h-6 text-pierre-violet" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-semibold text-pierre-gray-900 mb-2">
+                  Connect your fitness data
+                </h2>
+                <p className="text-pierre-gray-500 text-sm">
+                  Link a provider for personalized insights, or continue without
+                </p>
+              </div>
+
+              <ProviderConnectionCards
+                onConnectProvider={handleConnectProvider}
+                connectingProvider={connectingProvider}
+                onSkip={handleProviderModalSkip}
+                isSkipPending={createConversation.isPending}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </PanelGroup>
   );
 }

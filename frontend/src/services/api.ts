@@ -900,9 +900,12 @@ class ApiService {
     return { providers: response.data };
   }
 
-  // Get OAuth authorization URL for a provider (redirects to provider)
-  getOAuthAuthorizeUrl(provider: string): string {
-    return `/api/oauth/authorize/${provider}`;
+  // Get OAuth authorization URL for a provider
+  // Calls the mobile/init endpoint to get the authorization URL from the backend
+  // This works through Vite's proxy in development
+  async getOAuthAuthorizeUrl(provider: string): Promise<string> {
+    const response = await axios.get(`/api/oauth/mobile/init/${provider}`);
+    return response.data.authorization_url;
   }
 
   // Prompt Suggestions API
@@ -925,112 +928,53 @@ class ApiService {
     return response.data;
   }
 
-  // Admin Prompts Management endpoints
-
-  async getAdminPromptCategories(): Promise<Array<{
-    id: string;
-    category_key: string;
-    category_title: string;
-    category_icon: string;
-    pillar: string;
-    prompts: string[];
-    display_order: number;
-    is_active: boolean;
-  }>> {
-    const response = await axios.get('/api/admin/prompts');
-    return response.data;
-  }
-
-  async createPromptCategory(data: {
-    category_key: string;
-    category_title: string;
-    category_icon: string;
-    pillar: 'activity' | 'nutrition' | 'recovery';
-    prompts: string[];
-    display_order?: number;
+  // User Coaches endpoints
+  async getCoaches(options?: {
+    category?: string;
+    favorites_only?: boolean;
+    limit?: number;
+    offset?: number;
   }): Promise<{
-    id: string;
-    category_key: string;
-    category_title: string;
-    category_icon: string;
-    pillar: string;
-    prompts: string[];
-    display_order: number;
-    is_active: boolean;
+    coaches: Array<{
+      id: string;
+      title: string;
+      description?: string;
+      system_prompt: string;
+      category: string;
+      tags: string[];
+      token_count: number;
+      is_favorite: boolean;
+      use_count: number;
+      last_used_at?: string;
+      created_at: string;
+      updated_at: string;
+      is_system: boolean;
+      is_assigned: boolean;
+    }>;
+    total: number;
+    metadata: {
+      timestamp: string;
+      api_version: string;
+    };
   }> {
-    const response = await axios.post('/api/admin/prompts', data);
+    const params = new URLSearchParams();
+    if (options?.category) params.append('category', options.category);
+    if (options?.favorites_only) params.append('favorites_only', 'true');
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.offset) params.append('offset', options.offset.toString());
+    const queryString = params.toString();
+    const url = queryString ? `/api/coaches?${queryString}` : '/api/coaches';
+    const response = await axios.get(url);
     return response.data;
   }
 
-  async getPromptCategory(categoryId: string): Promise<{
-    id: string;
-    category_key: string;
-    category_title: string;
-    category_icon: string;
-    pillar: string;
-    prompts: string[];
-    display_order: number;
-    is_active: boolean;
-  }> {
-    const response = await axios.get(`/api/admin/prompts/${categoryId}`);
+  async toggleCoachFavorite(coachId: string): Promise<{ is_favorite: boolean }> {
+    const response = await axios.post(`/api/coaches/${coachId}/favorite`);
     return response.data;
   }
 
-  async updatePromptCategory(categoryId: string, data: {
-    category_title?: string;
-    category_icon?: string;
-    pillar?: 'activity' | 'nutrition' | 'recovery';
-    prompts?: string[];
-    display_order?: number;
-    is_active?: boolean;
-  }): Promise<{
-    id: string;
-    category_key: string;
-    category_title: string;
-    category_icon: string;
-    pillar: string;
-    prompts: string[];
-    display_order: number;
-    is_active: boolean;
-  }> {
-    const response = await axios.put(`/api/admin/prompts/${categoryId}`, data);
-    return response.data;
-  }
-
-  async deletePromptCategory(categoryId: string): Promise<void> {
-    await axios.delete(`/api/admin/prompts/${categoryId}`);
-  }
-
-  async getAdminWelcomePrompt(): Promise<{
-    prompt_text: string;
-  }> {
-    const response = await axios.get('/api/admin/prompts/welcome');
-    return response.data;
-  }
-
-  async updateWelcomePrompt(promptText: string): Promise<{
-    prompt_text: string;
-  }> {
-    const response = await axios.put('/api/admin/prompts/welcome', { prompt_text: promptText });
-    return response.data;
-  }
-
-  async getAdminSystemPrompt(): Promise<{
-    prompt_text: string;
-  }> {
-    const response = await axios.get('/api/admin/prompts/system');
-    return response.data;
-  }
-
-  async updateSystemPrompt(promptText: string): Promise<{
-    prompt_text: string;
-  }> {
-    const response = await axios.put('/api/admin/prompts/system', { prompt_text: promptText });
-    return response.data;
-  }
-
-  async resetPromptsToDefaults(): Promise<{ success: boolean }> {
-    const response = await axios.post('/api/admin/prompts/reset');
+  async recordCoachUsage(coachId: string): Promise<{ success: boolean }> {
+    const response = await axios.post(`/api/coaches/${coachId}/usage`);
     return response.data;
   }
 
@@ -1097,6 +1041,150 @@ class ApiService {
     message: string;
   }> {
     const response = await axios.delete(`/api/user/llm-settings/${provider}`);
+    return response.data;
+  }
+
+  // Admin Coach Management endpoints (System Coaches)
+  async getSystemCoaches(): Promise<{
+    coaches: Array<{
+      id: string;
+      title: string;
+      description?: string;
+      system_prompt: string;
+      category: string;
+      tags: string[];
+      token_count: number;
+      is_favorite: boolean;
+      use_count: number;
+      last_used_at?: string;
+      created_at: string;
+      updated_at: string;
+      is_system: boolean;
+      visibility: string;
+      is_assigned: boolean;
+    }>;
+    total: number;
+    metadata: {
+      timestamp: string;
+      api_version: string;
+    };
+  }> {
+    const response = await axios.get('/api/admin/coaches');
+    return response.data;
+  }
+
+  async createSystemCoach(data: {
+    title: string;
+    description?: string;
+    system_prompt: string;
+    category?: string;
+    tags?: string[];
+    visibility?: string;
+  }): Promise<{
+    id: string;
+    title: string;
+    description?: string;
+    system_prompt: string;
+    category: string;
+    tags: string[];
+    token_count: number;
+    is_favorite: boolean;
+    use_count: number;
+    last_used_at?: string;
+    created_at: string;
+    updated_at: string;
+    is_system: boolean;
+    visibility: string;
+    is_assigned: boolean;
+  }> {
+    const response = await axios.post('/api/admin/coaches', data);
+    return response.data;
+  }
+
+  async getSystemCoach(coachId: string): Promise<{
+    id: string;
+    title: string;
+    description?: string;
+    system_prompt: string;
+    category: string;
+    tags: string[];
+    token_count: number;
+    is_favorite: boolean;
+    use_count: number;
+    last_used_at?: string;
+    created_at: string;
+    updated_at: string;
+    is_system: boolean;
+    visibility: string;
+    is_assigned: boolean;
+  }> {
+    const response = await axios.get(`/api/admin/coaches/${coachId}`);
+    return response.data;
+  }
+
+  async updateSystemCoach(coachId: string, data: {
+    title?: string;
+    description?: string;
+    system_prompt?: string;
+    category?: string;
+    tags?: string[];
+  }): Promise<{
+    id: string;
+    title: string;
+    description?: string;
+    system_prompt: string;
+    category: string;
+    tags: string[];
+    token_count: number;
+    is_favorite: boolean;
+    use_count: number;
+    last_used_at?: string;
+    created_at: string;
+    updated_at: string;
+    is_system: boolean;
+    visibility: string;
+    is_assigned: boolean;
+  }> {
+    const response = await axios.put(`/api/admin/coaches/${coachId}`, data);
+    return response.data;
+  }
+
+  async deleteSystemCoach(coachId: string): Promise<void> {
+    await axios.delete(`/api/admin/coaches/${coachId}`);
+  }
+
+  async assignCoachToUsers(coachId: string, userIds: string[]): Promise<{
+    coach_id: string;
+    assigned_count: number;
+    total_requested: number;
+  }> {
+    const response = await axios.post(`/api/admin/coaches/${coachId}/assign`, {
+      user_ids: userIds,
+    });
+    return response.data;
+  }
+
+  async unassignCoachFromUsers(coachId: string, userIds: string[]): Promise<{
+    coach_id: string;
+    removed_count: number;
+    total_requested: number;
+  }> {
+    const response = await axios.delete(`/api/admin/coaches/${coachId}/assign`, {
+      data: { user_ids: userIds },
+    });
+    return response.data;
+  }
+
+  async getCoachAssignments(coachId: string): Promise<{
+    coach_id: string;
+    assignments: Array<{
+      user_id: string;
+      user_email?: string;
+      assigned_at: string;
+      assigned_by?: string;
+    }>;
+  }> {
+    const response = await axios.get(`/api/admin/coaches/${coachId}/assignments`);
     return response.data;
   }
 }
