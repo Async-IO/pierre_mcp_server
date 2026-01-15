@@ -24,6 +24,10 @@ on:
         type: boolean
         default: true
 
+# Default permissions - minimal access principle
+permissions:
+  contents: read
+
 env:
   GCP_PROJECT_ID: pierrefitnessplatform
   GCP_REGION: northamerica-northeast1
@@ -34,6 +38,8 @@ jobs:
   # Determine what changed
   changes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
@@ -156,13 +162,6 @@ jobs:
             --set-env-vars="FRONTEND_URL=${SERVICE_URL}" \
             --quiet
 
-      - name: Health Check
-        run: |
-          echo "Waiting for deployment to be ready..."
-          sleep 10
-          curl -f ${{ steps.deploy.outputs.service_url }}/health || exit 1
-          echo "Backend deployed successfully!"
-
   # Build and deploy frontend
   deploy-frontend:
     needs: [changes, deploy-backend]
@@ -240,6 +239,7 @@ jobs:
     needs: [deploy-backend, deploy-frontend]
     if: always()
     runs-on: ubuntu-latest
+    permissions: {}
     steps:
       - name: Deployment Summary
         run: |
