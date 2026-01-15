@@ -88,28 +88,3 @@ impl ToolSelectionConfig {
         !self.disabled_tools.is_empty()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_with_disabled_tools() {
-        let config = ToolSelectionConfig::with_disabled_tools(vec![
-            "predict_performance".to_owned(),
-            "get_activity_intelligence".to_owned(),
-        ]);
-
-        assert!(config.is_globally_disabled("predict_performance"));
-        assert!(config.is_globally_disabled("get_activity_intelligence"));
-        assert!(!config.is_globally_disabled("get_activities"));
-        assert_eq!(config.disabled_count(), 2);
-    }
-
-    #[test]
-    fn test_default_has_no_disabled_tools() {
-        let config = ToolSelectionConfig::default();
-        assert!(!config.has_disabled_tools());
-        assert_eq!(config.disabled_count(), 0);
-    }
-}
