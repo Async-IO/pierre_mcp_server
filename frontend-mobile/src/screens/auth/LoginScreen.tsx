@@ -224,7 +224,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
                   {isGoogleLoading ? (
                     <ActivityIndicator size="small" color={colors.text.primary} />
                   ) : (
-                    <AntDesign name="google" size={20} color="#4285F4" />
+                    <AntDesign name="google" size={20} color={colors.google} />
                   )}
                   <Text style={styles.googleButtonText}>
                     {isGoogleLoading ? 'Signing in...' : 'Continue with Google'}

@@ -18,11 +18,11 @@ import { apiService } from '../services/api';
 import type { OAuthApp, OAuthProvider } from '../types';
 
 const PROVIDERS: OAuthProvider[] = [
-  { id: 'strava', name: 'Strava', color: '#FC4C02' },
-  { id: 'fitbit', name: 'Fitbit', color: '#00B0B9' },
-  { id: 'garmin', name: 'Garmin', color: '#007CC3' },
-  { id: 'whoop', name: 'WHOOP', color: '#00D46A' },
-  { id: 'terra', name: 'Terra', color: '#6366F1' },
+  { id: 'strava', name: 'Strava', color: colors.providers.strava },
+  { id: 'fitbit', name: 'Fitbit', color: colors.providers.fitbit },
+  { id: 'garmin', name: 'Garmin', color: colors.providers.garmin },
+  { id: 'whoop', name: 'WHOOP', color: colors.providers.whoop },
+  { id: 'terra', name: 'Terra', color: colors.providers.terra },
 ];
 
 const DEFAULT_REDIRECT_URI = 'https://pierre.fit/api/oauth/callback';
@@ -403,12 +403,12 @@ const styles = StyleSheet.create({
   providerInitial: {
     fontSize: fontSize.lg,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: colors.text.primary,
   },
   providerInitialSmall: {
     fontSize: fontSize.sm,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: colors.text.primary,
   },
   credentialInfo: {
     flex: 1,

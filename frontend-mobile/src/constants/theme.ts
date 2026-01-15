@@ -2,7 +2,20 @@
 // ABOUTME: Colors, spacing, and typography matching Pierre design system
 
 export const colors = {
-  // Primary brand color
+  // Pierre Design System - Primary brand colors
+  pierre: {
+    violet: '#7C3AED',
+    cyan: '#06B6D4',
+    // Three Pillars - Semantic accent colors
+    activity: '#10B981',   // Emerald - Movement, fitness, energy
+    nutrition: '#F59E0B',  // Amber - Food, fuel, nourishment
+    recovery: '#6366F1',   // Indigo - Rest, sleep, restoration
+    // Dark theme
+    dark: '#0F0F1A',
+    slate: '#1E1E2E',
+  },
+
+  // Primary brand color (sky blue palette)
   primary: {
     50: '#f0f9ff',
     100: '#e0f2fe',
@@ -30,7 +43,7 @@ export const colors = {
     primary: '#ffffff',
     secondary: '#a1a1a1',
     tertiary: '#6b6b6b',
-    accent: '#0ea5e9',
+    accent: '#7C3AED', // Use pierre-violet for accent
   },
 
   // Border colors
@@ -40,11 +53,11 @@ export const colors = {
     strong: '#4a4a4a',
   },
 
-  // Semantic colors
-  success: '#22c55e',
-  warning: '#f59e0b',
-  error: '#ef4444',
-  info: '#3b82f6',
+  // Semantic colors (mapped to Pierre Design System)
+  success: '#22c55e',  // pierre-green-500
+  warning: '#f59e0b',  // pierre-yellow-500 (nutrition)
+  error: '#ef4444',    // pierre-red-500
+  info: '#3b82f6',     // pierre-blue-500
 
   // Provider brand colors
   providers: {
@@ -54,6 +67,9 @@ export const colors = {
     whoop: '#00D46A',
     terra: '#6366F1',
   },
+
+  // Google brand color (for OAuth button)
+  google: '#4285F4',
 } as const;
 
 export const spacing = {

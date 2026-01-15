@@ -1311,7 +1311,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   oauthButton: {
-    backgroundColor: '#FC4C02', // Strava orange as default
+    backgroundColor: colors.providers.strava,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.md,
