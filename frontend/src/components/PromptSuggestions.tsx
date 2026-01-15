@@ -1,32 +1,13 @@
 // ABOUTME: Coach selector component for the chat interface
-// ABOUTME: Fetches user's available coaches from API and displays them grouped by category
+// ABOUTME: Fetches user's available coaches from API and displays them with help tooltip
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../services/api';
 import { Card } from './ui';
-
-type Category = 'Training' | 'Nutrition' | 'Recovery' | 'Recipes' | 'Custom';
-
-// Map categories to their gradient background classes
-const CATEGORY_GRADIENTS: Record<Category, string> = {
-  Training: 'bg-gradient-activity',
-  Nutrition: 'bg-gradient-nutrition',
-  Recovery: 'bg-gradient-recovery',
-  Recipes: 'bg-gradient-nutrition',
-  Custom: 'bg-pierre-violet',
-};
-
-// Map categories to icons
-const CATEGORY_ICONS: Record<Category, string> = {
-  Training: '🏃',
-  Nutrition: '🥗',
-  Recovery: '😴',
-  Recipes: '👨‍🍳',
-  Custom: '⚙️',
-};
 
 interface Coach {
   id: string;
@@ -61,20 +42,18 @@ export default function PromptSuggestions({ onSelectPrompt }: PromptSuggestionsP
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto mt-6">
-        {[1, 2, 3, 4].map((i) => (
-          <Card key={i} className="p-4 animate-pulse">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 rounded-lg bg-pierre-gray-200" />
-              <div className="h-5 w-24 bg-pierre-gray-200 rounded" />
-            </div>
-            <div className="space-y-2">
-              <div className="h-8 bg-pierre-gray-100 rounded-lg" />
-              <div className="h-8 bg-pierre-gray-100 rounded-lg" />
-            </div>
-          </Card>
-        ))}
-      </div>
+      <Card className="p-4 max-w-2xl mx-auto mt-6 animate-pulse">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-pierre-gray-200" />
+          <div className="h-5 w-20 bg-pierre-gray-200 rounded" />
+          <div className="w-5 h-5 rounded-full bg-pierre-gray-200" />
+        </div>
+        <div className="space-y-2">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-14 bg-pierre-gray-100 rounded-lg" />
+          ))}
+        </div>
+      </Card>
     );
   }
 
@@ -117,89 +96,160 @@ export default function PromptSuggestions({ onSelectPrompt }: PromptSuggestionsP
     );
   }
 
-  // Group coaches by category
-  const coachesByCategory = coaches.reduce<Record<string, Coach[]>>((acc, coach) => {
-    const category = coach.category || 'Custom';
-    if (!acc[category]) {
-      acc[category] = [];
-    }
-    acc[category].push(coach);
-    return acc;
-  }, {});
-
-  // Sort categories in preferred order
-  const categoryOrder: Category[] = ['Training', 'Nutrition', 'Recovery', 'Recipes', 'Custom'];
-  const sortedCategories = Object.keys(coachesByCategory).sort((a, b) => {
-    const aIndex = categoryOrder.indexOf(a as Category);
-    const bIndex = categoryOrder.indexOf(b as Category);
-    if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
-    if (aIndex === -1) return 1;
-    if (bIndex === -1) return -1;
-    return aIndex - bIndex;
+  // Sort coaches: favorites first, then by use_count
+  const sortedCoaches = [...coaches].sort((a, b) => {
+    if (a.is_favorite !== b.is_favorite) return a.is_favorite ? -1 : 1;
+    return b.use_count - a.use_count;
   });
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto mt-6">
-      {sortedCategories.map((category) => (
-        <Card key={category} className="p-4 hover:shadow-md transition-shadow">
-          <div className="flex items-center gap-2 mb-3">
-            <div
-              className={`w-8 h-8 rounded-lg ${CATEGORY_GRADIENTS[category as Category] || 'bg-pierre-gray-200'} flex items-center justify-center text-lg`}
-              role="img"
-              aria-label={`${category} category`}
-            >
-              {CATEGORY_ICONS[category as Category] || '📌'}
-            </div>
-            <h3 className="font-medium text-pierre-gray-900">{category}</h3>
+    <CoachesSection coaches={sortedCoaches} onSelectPrompt={onSelectPrompt} />
+  );
+}
+
+// Help tooltip popover component
+function HelpTooltip({ isVisible, onClose }: { isVisible: boolean; onClose: () => void }) {
+  if (!isVisible) return null;
+
+  return (
+    <div className="absolute top-full left-0 mt-2 z-50">
+      <div className="bg-white rounded-lg shadow-lg border border-pierre-gray-200 p-4 max-w-sm">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="text-sm text-pierre-gray-700 font-medium mb-2">
+              AI Coaching Personas
+            </p>
+            <p className="text-xs text-pierre-gray-500">
+              Coaches are specialized AI assistants trained to help with specific aspects of your fitness journey.
+              Select a coach to start a conversation focused on their expertise area.
+            </p>
           </div>
-          <div className="space-y-2">
-            {coachesByCategory[category].map((coach) => (
-              <button
-                key={coach.id}
-                type="button"
-                onClick={() => {
-                  // Record usage and start conversation with this coach
-                  apiService.recordCoachUsage(coach.id).catch(() => {
-                    // Silently ignore usage tracking errors
-                  });
-                  onSelectPrompt(
-                    coach.description || `Chat with ${coach.title}`,
-                    coach.id,
-                    coach.system_prompt
-                  );
-                }}
-                className="w-full text-left text-sm hover:bg-pierre-gray-50 rounded-lg px-3 py-2 transition-colors focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-opacity-50 group"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-pierre-gray-800 group-hover:text-pierre-violet">
-                    {coach.title}
-                  </span>
-                  {coach.is_favorite && (
-                    <span className="text-yellow-500">★</span>
-                  )}
-                </div>
-                {coach.description && (
-                  <p className="text-pierre-gray-500 text-xs mt-0.5 line-clamp-2">
-                    {coach.description}
-                  </p>
-                )}
-                <div className="flex items-center gap-2 mt-1 text-xs text-pierre-gray-400">
-                  {coach.is_system && (
-                    <span className="bg-pierre-violet bg-opacity-10 text-pierre-violet px-1.5 py-0.5 rounded">
-                      System
-                    </span>
-                  )}
-                  {coach.use_count > 0 && (
-                    <span>Used {coach.use_count}x</span>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        </Card>
-      ))}
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-pierre-gray-400 hover:text-pierre-gray-600 flex-shrink-0"
+            aria-label="Close help"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
     </div>
   );
+}
+
+// Coaches section with header and help button
+function CoachesSection({
+  coaches,
+  onSelectPrompt
+}: {
+  coaches: Coach[];
+  onSelectPrompt: (prompt: string, coachId?: string, systemPrompt?: string) => void;
+}) {
+  const [showHelp, setShowHelp] = useState(false);
+
+  return (
+    <Card className="p-4 max-w-2xl mx-auto mt-6">
+      {/* Header with help button */}
+      <div className="flex items-center gap-2 mb-4 relative">
+        <div
+          className="w-8 h-8 rounded-lg bg-gradient-to-br from-pierre-violet to-purple-600 flex items-center justify-center"
+          role="img"
+          aria-label="Coaches"
+        >
+          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+        </div>
+        <h3 className="font-medium text-pierre-gray-900">Coaches</h3>
+        <button
+          type="button"
+          onClick={() => setShowHelp(!showHelp)}
+          className="w-5 h-5 rounded-full bg-pierre-gray-100 hover:bg-pierre-gray-200 flex items-center justify-center text-pierre-gray-500 hover:text-pierre-gray-700 transition-colors"
+          aria-label="What are coaches?"
+        >
+          <span className="text-xs font-medium">?</span>
+        </button>
+        <HelpTooltip isVisible={showHelp} onClose={() => setShowHelp(false)} />
+      </div>
+
+      {/* Coach list */}
+      <div className="space-y-2">
+        {coaches.map((coach) => (
+          <button
+            key={coach.id}
+            type="button"
+            onClick={() => {
+              apiService.recordCoachUsage(coach.id).catch(() => {
+                // Silently ignore usage tracking errors
+              });
+              onSelectPrompt(
+                coach.description || `Chat with ${coach.title}`,
+                coach.id,
+                coach.system_prompt
+              );
+            }}
+            className="w-full text-left text-sm hover:bg-pierre-gray-50 rounded-lg px-3 py-2 transition-colors focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-opacity-50 group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="font-medium text-pierre-gray-800 group-hover:text-pierre-violet">
+                {coach.title}
+              </span>
+              <div className="flex items-center gap-1">
+                {coach.is_favorite && (
+                  <span className="text-yellow-500">★</span>
+                )}
+                {/* Category badge */}
+                <span className={`text-xs px-1.5 py-0.5 rounded ${getCategoryBadgeClass(coach.category)}`}>
+                  {getCategoryIcon(coach.category)}
+                </span>
+              </div>
+            </div>
+            {coach.description && (
+              <p className="text-pierre-gray-500 text-xs mt-0.5 line-clamp-2">
+                {coach.description}
+              </p>
+            )}
+            <div className="flex items-center gap-2 mt-1 text-xs text-pierre-gray-400">
+              {coach.is_system && (
+                <span className="bg-pierre-violet bg-opacity-10 text-pierre-violet px-1.5 py-0.5 rounded">
+                  System
+                </span>
+              )}
+              {coach.use_count > 0 && (
+                <span>Used {coach.use_count}x</span>
+              )}
+            </div>
+          </button>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+// Helper functions for category styling
+function getCategoryBadgeClass(category: string): string {
+  const classes: Record<string, string> = {
+    Training: 'bg-green-100 text-green-700',
+    Nutrition: 'bg-orange-100 text-orange-700',
+    Recovery: 'bg-blue-100 text-blue-700',
+    Recipes: 'bg-amber-100 text-amber-700',
+    Custom: 'bg-pierre-gray-100 text-pierre-gray-600',
+  };
+  return classes[category] || classes.Custom;
+}
+
+function getCategoryIcon(category: string): string {
+  const icons: Record<string, string> = {
+    Training: '🏃',
+    Nutrition: '🥗',
+    Recovery: '😴',
+    Recipes: '👨‍🍳',
+    Custom: '⚙️',
+  };
+  return icons[category] || icons.Custom;
 }
 
 // Hook to get coaches data for use in other components
