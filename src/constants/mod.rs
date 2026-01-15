@@ -61,6 +61,8 @@ pub mod oauth;
 pub mod protocol;
 /// Multi-protocol constants (A2A, MCP, etc.)
 pub mod protocols;
+/// Tool selection configuration constants
+pub mod tool_selection;
 /// Tool identifiers and tool-related constants
 pub mod tools;
 /// Unit conversion and measurement constants

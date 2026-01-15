@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use crate::config::ToolSelectionConfig;
 use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult};
@@ -20,8 +21,11 @@ use tokio::sync::RwLock;
 use tracing::debug;
 use uuid::Uuid;
 
-/// Cache size for tenant tool configurations (1000 tenants max)
-const CACHE_SIZE: NonZeroUsize = NonZeroUsize::new(1000).unwrap(); // Safe: static data - compile-time const
+/// Default cache size as `NonZeroUsize` for fallback when config specifies 0
+const DEFAULT_CACHE_SIZE_NONZERO: NonZeroUsize = match NonZeroUsize::new(1000) {
+    Some(v) => v,
+    None => unreachable!(), // 1000 is non-zero, this is a compile-time assertion
+};
 
 /// Cache entry for effective tools per tenant
 struct CacheEntry {
@@ -34,27 +38,48 @@ pub struct ToolSelectionService {
     database: Arc<Database>,
     cache: Arc<RwLock<LruCache<Uuid, CacheEntry>>>,
     cache_ttl: Duration,
+    /// Whether tool selection filtering is enabled
+    enabled: bool,
 }
 
 impl ToolSelectionService {
-    /// Create a new `ToolSelectionService` with the given database connection
+    /// Create a new `ToolSelectionService` with configuration from environment variables
     #[must_use]
     pub fn new(database: Arc<Database>) -> Self {
+        Self::with_config(database, ToolSelectionConfig::from_env())
+    }
+
+    /// Create a new `ToolSelectionService` with explicit configuration
+    #[must_use]
+    pub fn with_config(database: Arc<Database>, config: ToolSelectionConfig) -> Self {
+        let cache_size = NonZeroUsize::new(config.cache_size).unwrap_or(DEFAULT_CACHE_SIZE_NONZERO);
+
         Self {
             database,
-            cache: Arc::new(RwLock::new(LruCache::new(CACHE_SIZE))),
-            cache_ttl: Duration::from_secs(300),
+            cache: Arc::new(RwLock::new(LruCache::new(cache_size))),
+            cache_ttl: config.cache_ttl(),
+            enabled: config.enabled,
         }
     }
 
-    /// Create a new `ToolSelectionService` with custom cache TTL
+    /// Create a new `ToolSelectionService` with custom cache TTL (legacy constructor)
     #[must_use]
     pub fn with_ttl(database: Arc<Database>, cache_ttl: Duration) -> Self {
+        let config = ToolSelectionConfig::from_env();
+        let cache_size = NonZeroUsize::new(config.cache_size).unwrap_or(DEFAULT_CACHE_SIZE_NONZERO);
+
         Self {
             database,
-            cache: Arc::new(RwLock::new(LruCache::new(CACHE_SIZE))),
+            cache: Arc::new(RwLock::new(LruCache::new(cache_size))),
             cache_ttl,
+            enabled: config.enabled,
         }
+    }
+
+    /// Check if tool selection filtering is enabled
+    #[must_use]
+    pub const fn is_enabled(&self) -> bool {
+        self.enabled
     }
 
     /// Get effective tools for a tenant (uses cache if available)

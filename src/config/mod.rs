@@ -52,6 +52,8 @@ pub mod oauth;
 pub mod security;
 /// Sleep tool operational parameters (activity limits, trend thresholds)
 pub mod sleep_tool_params;
+/// Tool selection configuration for per-tenant MCP tool filtering
+pub mod tool_selection;
 /// Core configuration type definitions (`LogLevel`, `Environment`, `LlmProviderType`)
 pub mod types;
 
@@ -123,6 +125,7 @@ pub use mcp::{AppBehaviorConfig, McpConfig, ProtocolConfig, TokioRuntimeConfig};
 // Re-export fitness domain types
 pub use goal_management::GoalManagementConfig;
 pub use sleep_tool_params::SleepToolParamsConfig;
+pub use tool_selection::ToolSelectionConfig;
 
 // Re-export intelligence domain types (moved from top-level)
 pub use intelligence::TrainingZonesConfig;

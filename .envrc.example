@@ -247,6 +247,28 @@ export MCP_WEBSOCKET_CHANNEL_CAPACITY="1000"
 export TCP_KEEP_ALIVE_SECS="60"
 
 # ============================================================================
+# TOOL SELECTION CONFIGURATION
+# ============================================================================
+# Per-tenant tool filtering with plan-based restrictions and admin overrides
+
+# Enable/disable tool selection filtering entirely
+# When disabled, all tools are available to all tenants
+export TOOL_SELECTION_ENABLED="true"
+
+# Cache size (number of tenant configurations to cache)
+# Valid range: 1-10000, Default: 1000
+export TOOL_SELECTION_CACHE_SIZE="1000"
+
+# Cache TTL in seconds (how long to cache tenant tool configurations)
+# Valid range: 10-86400 (10 seconds to 24 hours), Default: 300 (5 minutes)
+export TOOL_SELECTION_CACHE_TTL_SECS="300"
+
+# Maximum tool overrides allowed per tenant
+# Prevents runaway admin configurations
+# Valid range: 1-1000, Default: 100
+export TOOL_SELECTION_MAX_OVERRIDES="100"
+
+# ============================================================================
 # PROVIDER RATE LIMITS AND ACTIVITY SETTINGS
 # ============================================================================
 
