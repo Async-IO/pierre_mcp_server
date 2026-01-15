@@ -205,6 +205,7 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
       try {
         const stored = localStorage.getItem('pierre_oauth_result');
         const savedConversation = localStorage.getItem('pierre_oauth_conversation');
+        const savedCoachAction = localStorage.getItem('pierre_pending_coach_action');
 
         if (stored) {
           const result = JSON.parse(stored);
@@ -223,12 +224,27 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
               setSelectedConversation(savedConversation);
               localStorage.removeItem('pierre_oauth_conversation');
             }
+            // Restore pending coach action and create conversation
+            if (savedCoachAction) {
+              try {
+                const coachAction = JSON.parse(savedCoachAction);
+                setPendingPrompt(coachAction.prompt);
+                if (coachAction.systemPrompt) {
+                  setPendingSystemPrompt(coachAction.systemPrompt);
+                }
+                createConversation.mutate(coachAction.systemPrompt);
+              } catch {
+                // Ignore parse errors
+              }
+              localStorage.removeItem('pierre_pending_coach_action');
+            }
             // Clean up the storage item
             localStorage.removeItem('pierre_oauth_result');
           } else if (result.timestamp <= fiveMinutesAgo) {
             // Clean up stale entries
             localStorage.removeItem('pierre_oauth_result');
             localStorage.removeItem('pierre_oauth_conversation');
+            localStorage.removeItem('pierre_pending_coach_action');
           }
         }
       } catch {
@@ -254,6 +270,21 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
             setSelectedConversation(savedConversation);
             localStorage.removeItem('pierre_oauth_conversation');
           }
+          // Restore pending coach action and create conversation
+          const savedCoachAction = localStorage.getItem('pierre_pending_coach_action');
+          if (savedCoachAction) {
+            try {
+              const coachAction = JSON.parse(savedCoachAction);
+              setPendingPrompt(coachAction.prompt);
+              if (coachAction.systemPrompt) {
+                setPendingSystemPrompt(coachAction.systemPrompt);
+              }
+              createConversation.mutate(coachAction.systemPrompt);
+            } catch {
+              // Ignore parse errors
+            }
+            localStorage.removeItem('pierre_pending_coach_action');
+          }
         }
       }
     };
@@ -274,6 +305,21 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
             if (savedConversation) {
               setSelectedConversation(savedConversation);
               localStorage.removeItem('pierre_oauth_conversation');
+            }
+            // Restore pending coach action and create conversation
+            const savedCoachAction = localStorage.getItem('pierre_pending_coach_action');
+            if (savedCoachAction) {
+              try {
+                const coachAction = JSON.parse(savedCoachAction);
+                setPendingPrompt(coachAction.prompt);
+                if (coachAction.systemPrompt) {
+                  setPendingSystemPrompt(coachAction.systemPrompt);
+                }
+                createConversation.mutate(coachAction.systemPrompt);
+              } catch {
+                // Ignore parse errors
+              }
+              localStorage.removeItem('pierre_pending_coach_action');
             }
             // Clean up the storage item
             localStorage.removeItem('pierre_oauth_result');
@@ -581,15 +627,18 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
 
   const handleConnectProvider = (providerName: string) => {
     setConnectingProvider(providerName);
-    // If we have a pending coach action, use that prompt after OAuth completes
+    // If we have a pending coach action, store it for after OAuth completes
     if (pendingCoachAction) {
-      setPendingPrompt(pendingCoachAction.prompt);
-      if (pendingCoachAction.systemPrompt) {
-        setPendingSystemPrompt(pendingCoachAction.systemPrompt);
-      }
+      // Store in localStorage so it persists through OAuth redirect
+      localStorage.setItem('pierre_pending_coach_action', JSON.stringify(pendingCoachAction));
     }
     setShowProviderModal(false);
-    // OAuth will redirect, after return the conversation will be created
+
+    // Convert provider name to lowercase ID (e.g., "Strava" -> "strava")
+    const providerId = providerName.toLowerCase();
+    const authUrl = apiService.getOAuthAuthorizeUrl(providerId);
+    // Redirect to OAuth authorization endpoint
+    window.location.href = authUrl;
   };
 
   // Handle skip in provider modal - proceed with pending action without provider
