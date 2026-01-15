@@ -28,6 +28,8 @@ pub mod prompts;
 pub mod recipes;
 /// System settings for admin-configurable options
 pub mod system_settings;
+/// Tool selection and per-tenant MCP tool configuration
+pub mod tool_selection;
 /// User MCP token management for AI client authentication
 pub mod user_mcp_tokens;
 /// User OAuth token storage and management
@@ -65,7 +67,8 @@ use crate::dashboard_routes::{RequestLog, ToolUsage};
 use crate::database_plugins::{shared, DatabaseProvider};
 use crate::errors::{AppError, AppResult};
 use crate::models::{
-    AuthorizationCode, OAuthApp, Tenant, User, UserOAuthApp, UserOAuthToken, UserStatus,
+    AuthorizationCode, OAuthApp, Tenant, TenantPlan, TenantToolOverride, ToolCatalogEntry,
+    ToolCategory, User, UserOAuthApp, UserOAuthToken, UserStatus,
 };
 use crate::oauth2_server::models::{OAuth2AuthCode, OAuth2Client, OAuth2RefreshToken, OAuth2State};
 use crate::pagination::{CursorPage, PaginationParams};
@@ -3419,6 +3422,75 @@ impl DatabaseProvider for Database {
 
     fn decrypt_data_with_aad(&self, encrypted: &str, aad: &str) -> AppResult<String> {
         Self::decrypt_data_with_aad_impl(self, encrypted, aad)
+    }
+
+    // ================================
+    // Tool Selection
+    // ================================
+
+    async fn get_tool_catalog(&self) -> AppResult<Vec<ToolCatalogEntry>> {
+        Self::get_tool_catalog_impl(self).await
+    }
+
+    async fn get_tool_catalog_entry(&self, tool_name: &str) -> AppResult<Option<ToolCatalogEntry>> {
+        Self::get_tool_catalog_entry_impl(self, tool_name).await
+    }
+
+    async fn get_tools_by_category(
+        &self,
+        category: ToolCategory,
+    ) -> AppResult<Vec<ToolCatalogEntry>> {
+        Self::get_tools_by_category_impl(self, category).await
+    }
+
+    async fn get_tools_by_min_plan(&self, plan: TenantPlan) -> AppResult<Vec<ToolCatalogEntry>> {
+        Self::get_tools_by_min_plan_impl(self, plan).await
+    }
+
+    async fn get_tenant_tool_overrides(
+        &self,
+        tenant_id: Uuid,
+    ) -> AppResult<Vec<TenantToolOverride>> {
+        Self::get_tenant_tool_overrides_impl(self, tenant_id).await
+    }
+
+    async fn get_tenant_tool_override(
+        &self,
+        tenant_id: Uuid,
+        tool_name: &str,
+    ) -> AppResult<Option<TenantToolOverride>> {
+        Self::get_tenant_tool_override_impl(self, tenant_id, tool_name).await
+    }
+
+    async fn upsert_tenant_tool_override(
+        &self,
+        tenant_id: Uuid,
+        tool_name: &str,
+        is_enabled: bool,
+        enabled_by_user_id: Option<Uuid>,
+        reason: Option<String>,
+    ) -> AppResult<TenantToolOverride> {
+        Self::upsert_tenant_tool_override_impl(
+            self,
+            tenant_id,
+            tool_name,
+            is_enabled,
+            enabled_by_user_id,
+            reason,
+        )
+        .await
+    }
+
+    async fn delete_tenant_tool_override(
+        &self,
+        tenant_id: Uuid,
+        tool_name: &str,
+    ) -> AppResult<bool> {
+        Self::delete_tenant_tool_override_impl(self, tenant_id, tool_name).await
+    }
+
+    async fn count_enabled_tools(&self, tenant_id: Uuid) -> AppResult<usize> {
+        Self::count_enabled_tools_impl(self, tenant_id).await
     }
 }
 

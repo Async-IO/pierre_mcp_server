@@ -30,6 +30,7 @@ use crate::intelligence::{
 };
 use crate::mcp::sampling_peer::SamplingPeer;
 use crate::mcp::schema::{OAuthCompletedNotification, ProgressNotification};
+use crate::mcp::tool_selection::ToolSelectionService;
 use crate::middleware::redaction::RedactionConfig;
 use crate::middleware::{CsrfMiddleware, McpAuthMiddleware};
 use crate::oauth2_server::rate_limiting::OAuth2RateLimiter;
@@ -102,6 +103,8 @@ pub struct ServerResources {
     pub firebase_auth: Option<Arc<FirebaseAuth>>,
     /// Admin configuration service for runtime parameter management
     pub admin_config: Option<Arc<AdminConfigService>>,
+    /// Tool selection service for per-tenant MCP tool filtering
+    pub tool_selection: Arc<ToolSelectionService>,
 }
 
 impl ServerResources {
@@ -198,6 +201,9 @@ impl ServerResources {
         // This provides runtime-configurable parameters via admin API
         let admin_config = Self::init_admin_config_service(&database_arc).await;
 
+        // Create tool selection service for per-tenant tool filtering
+        let tool_selection = Arc::new(ToolSelectionService::new(database_arc.clone()));
+
         Self {
             database: database_arc,
             auth_manager: auth_manager_arc,
@@ -224,6 +230,7 @@ impl ServerResources {
             cancellation_registry: Arc::new(RwLock::new(HashMap::new())),
             firebase_auth,
             admin_config,
+            tool_selection,
         }
     }
 

@@ -26,5 +26,7 @@ pub mod server_lifecycle;
 pub mod tenant_isolation;
 /// MCP tool handler implementations
 pub mod tool_handlers;
+/// Per-tenant MCP tool selection and filtering
+pub mod tool_selection;
 /// Transport layer abstraction
 pub mod transport_manager;

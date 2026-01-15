@@ -164,6 +164,52 @@ impl ToolHandlers {
         }
     }
 
+    /// Check if a tool is enabled for a tenant, returning an error response if disabled
+    async fn check_tool_enabled(
+        resources: &Arc<ServerResources>,
+        tenant_context: Option<&TenantContext>,
+        tool_name: &str,
+        request_id: Option<Value>,
+    ) -> Option<McpResponse> {
+        let ctx = tenant_context?;
+        match resources
+            .tool_selection
+            .is_tool_enabled(ctx.tenant_id, tool_name)
+            .await
+        {
+            Ok(true) => {
+                debug!("Tool {} is enabled for tenant {}", tool_name, ctx.tenant_id);
+                None
+            }
+            Ok(false) => {
+                warn!(
+                    "Tool {} not enabled for tenant {} - rejecting",
+                    tool_name, ctx.tenant_id
+                );
+                Some(McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_owned(),
+                    id: request_id,
+                    result: None,
+                    error: Some(McpError {
+                        code: ERROR_METHOD_NOT_FOUND,
+                        message: format!(
+                            "Tool '{tool_name}' is not available for your tenant. \
+                             Contact your administrator to enable it."
+                        ),
+                        data: None,
+                    }),
+                })
+            }
+            Err(e) => {
+                debug!(
+                    "Tool {} not in catalog ({}), allowing execution",
+                    tool_name, e
+                );
+                None
+            }
+        }
+    }
+
     /// Handle tool execution directly using provided `ServerResources`
     #[tracing::instrument(
         skip(request, auth_result, tenant_context, resources),
@@ -219,6 +265,18 @@ impl ToolHandlers {
 
         // Record tool name in span
         tracing::Span::current().record("tool_name", tool_name.as_str());
+
+        // Check if tool is enabled for this tenant
+        if let Some(error_response) = Self::check_tool_enabled(
+            resources,
+            tenant_context.as_ref(),
+            tool_name,
+            request.id.clone(),
+        )
+        .await
+        {
+            return error_response;
+        }
 
         let start_time = Instant::now();
 

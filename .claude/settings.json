@@ -13,7 +13,7 @@
           },
           {
             "type": "command",
-            "command": "echo '📋 Linear Session Tracking: Follow CLAUDE.md instructions to create/resume session'"
+            "command": "./bin/linear-session-init.sh"
           }
         ]
       }

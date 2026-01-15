@@ -525,6 +525,77 @@ Training-aware recipe management tools for meal planning aligned with workout sc
 
 ---
 
+## Tool Selection & Administration
+
+Pierre MCP Server supports per-tenant tool selection, allowing administrators to control which tools are available to each tenant based on subscription plans and custom overrides.
+
+### Overview
+
+Tools are organized into 8 categories and gated by subscription plan tiers:
+
+| Plan | Available Tools | Description |
+|------|-----------------|-------------|
+| `starter` | Core Fitness, Configuration, Connections | Basic data access and setup |
+| `professional` | Starter + Analysis, Goals, Nutrition, Sleep, Recipes | Advanced analytics and planning |
+| `enterprise` | All 47 tools | Complete platform access |
+
+### How Tool Selection Works
+
+When an MCP client calls a tool, the server checks:
+
+1. **Plan Restriction** - Does tenant's plan meet the tool's `min_plan` requirement?
+2. **Tenant Override** - Is there a custom override for this tenant/tool?
+3. **Catalog Default** - Fall back to the tool's default enablement
+
+If a tool is disabled, the server returns:
+```json
+{
+  "jsonrpc": "2.0",
+  "error": {
+    "code": -32601,
+    "message": "Tool 'X' is not available for your tenant. Contact your administrator to enable it."
+  }
+}
+```
+
+### Tool Categories by Plan Tier
+
+**Starter Plan (Default)**:
+- Core Fitness: `get_activities`, `get_athlete`, `get_stats`, `connect_provider`, `disconnect_provider`, `get_connection_status`
+- Configuration: `get_user_profile`, `set_preferences`, `get_system_config`
+- Connections: OAuth management tools
+
+**Professional Plan**:
+- All Starter tools, plus:
+- Performance Analysis: `analyze_activity`, `analyze_performance_trends`, `calculate_training_load`
+- Goals: `set_goal`, `suggest_goals`, `track_progress`
+- Nutrition: `calculate_nutrition`, `search_usda_foods`
+- Sleep: `analyze_sleep`, `get_sleep_metrics`
+- Recipes: `create_recipe`, `validate_recipe`
+
+**Enterprise Plan**:
+- All Professional tools, plus:
+- Advanced AI: `get_activity_intelligence`, `predict_performance`
+- Premium Analytics: `calculate_fitness_score`, `detect_patterns`
+
+### Tenant Overrides
+
+Administrators can customize tool availability per tenant:
+
+- **Enable** tools above plan level (e.g., beta testing)
+- **Disable** specific tools for compliance/policy reasons
+- Each override records the admin who made the change and optional reason
+
+Overrides are stored in `tenant_tool_overrides` table and cached for performance (5-minute TTL).
+
+### Integration Notes
+
+- **Unknown Tools**: Tools not in the catalog (plugins) pass through by default
+- **Caching**: Effective tool lists are cached per tenant (LRU, 1000 tenants max)
+- **Cache Invalidation**: Automatic on override changes
+
+---
+
 ## Notes
 
 - **Authentication**: Most tools require OAuth authentication with Pierre and the respective fitness provider

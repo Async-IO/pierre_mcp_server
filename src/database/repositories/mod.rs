@@ -42,6 +42,8 @@ pub mod profile_repository;
 pub mod security_repository;
 /// Multi-tenant management repository implementation
 pub mod tenant_repository;
+/// Tool selection and per-tenant tool configuration repository implementation
+pub mod tool_selection_repository;
 /// Usage tracking and analytics repository implementation
 pub mod usage_repository;
 /// User account management repository implementation
@@ -60,6 +62,7 @@ pub use profile_repository::ProfileRepositoryImpl;
 pub use recipe_repository::RecipeRepositoryImpl;
 pub use security_repository::SecurityRepositoryImpl;
 pub use tenant_repository::TenantRepositoryImpl;
+pub use tool_selection_repository::ToolSelectionRepositoryImpl;
 pub use usage_repository::UsageRepositoryImpl;
 pub use user_repository::UserRepositoryImpl;
 
@@ -928,4 +931,62 @@ pub trait RecipeRepository: Send + Sync {
 
     /// Count recipes for a user
     async fn count(&self, user_id: Uuid, tenant_id: &str) -> Result<u32, DatabaseError>;
+}
+
+/// Tool selection and per-tenant configuration repository
+#[async_trait]
+pub trait ToolSelectionRepository: Send + Sync {
+    /// Get the complete tool catalog
+    async fn get_tool_catalog(&self) -> Result<Vec<crate::models::ToolCatalogEntry>, DatabaseError>;
+
+    /// Get a specific tool catalog entry by name
+    async fn get_tool_catalog_entry(
+        &self,
+        tool_name: &str,
+    ) -> Result<Option<crate::models::ToolCatalogEntry>, DatabaseError>;
+
+    /// Get tools filtered by category
+    async fn get_tools_by_category(
+        &self,
+        category: crate::models::ToolCategory,
+    ) -> Result<Vec<crate::models::ToolCatalogEntry>, DatabaseError>;
+
+    /// Get tools available for a specific plan level
+    async fn get_tools_by_min_plan(
+        &self,
+        plan: crate::models::TenantPlan,
+    ) -> Result<Vec<crate::models::ToolCatalogEntry>, DatabaseError>;
+
+    /// Get all tool overrides for a tenant
+    async fn get_tenant_tool_overrides(
+        &self,
+        tenant_id: Uuid,
+    ) -> Result<Vec<crate::models::TenantToolOverride>, DatabaseError>;
+
+    /// Get a specific tool override for a tenant
+    async fn get_tenant_tool_override(
+        &self,
+        tenant_id: Uuid,
+        tool_name: &str,
+    ) -> Result<Option<crate::models::TenantToolOverride>, DatabaseError>;
+
+    /// Create or update a tool override for a tenant
+    async fn upsert_tenant_tool_override(
+        &self,
+        tenant_id: Uuid,
+        tool_name: &str,
+        is_enabled: bool,
+        enabled_by_user_id: Option<Uuid>,
+        reason: Option<String>,
+    ) -> Result<crate::models::TenantToolOverride, DatabaseError>;
+
+    /// Delete a tool override (revert to catalog default)
+    async fn delete_tenant_tool_override(
+        &self,
+        tenant_id: Uuid,
+        tool_name: &str,
+    ) -> Result<bool, DatabaseError>;
+
+    /// Count enabled tools for a tenant (for summary)
+    async fn count_enabled_tools(&self, tenant_id: Uuid) -> Result<usize, DatabaseError>;
 }

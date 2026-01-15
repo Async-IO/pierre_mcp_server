@@ -26,7 +26,8 @@ use crate::database::{
 };
 use crate::errors::{AppError, AppResult};
 use crate::models::{
-    AuthorizationCode, OAuthApp, Tenant, User, UserOAuthApp, UserOAuthToken, UserStatus,
+    AuthorizationCode, OAuthApp, Tenant, TenantPlan, TenantToolOverride, ToolCatalogEntry,
+    ToolCategory, User, UserOAuthApp, UserOAuthToken, UserStatus,
 };
 use crate::oauth2_server::models::{OAuth2AuthCode, OAuth2Client, OAuth2RefreshToken, OAuth2State};
 use crate::pagination::{CursorPage, PaginationParams};
@@ -2439,6 +2440,143 @@ impl DatabaseProvider for Database {
             Self::SQLite(db) => db.decrypt_data_with_aad(encrypted, aad),
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => db.decrypt_data_with_aad(encrypted, aad),
+        }
+    }
+
+    // ================================
+    // Tool Selection
+    // ================================
+
+    /// Get the complete tool catalog
+    async fn get_tool_catalog(&self) -> AppResult<Vec<ToolCatalogEntry>> {
+        match self {
+            Self::SQLite(db) => db.get_tool_catalog_impl().await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => {
+                // PostgreSQL implementation will be added when needed
+                Err(AppError::internal("Tool selection requires SQLite backend"))
+            }
+        }
+    }
+
+    /// Get a specific tool catalog entry by name
+    async fn get_tool_catalog_entry(&self, tool_name: &str) -> AppResult<Option<ToolCatalogEntry>> {
+        match self {
+            Self::SQLite(db) => db.get_tool_catalog_entry_impl(tool_name).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => {
+                Err(AppError::internal("Tool selection requires SQLite backend"))
+            }
+        }
+    }
+
+    /// Get tools filtered by category
+    async fn get_tools_by_category(
+        &self,
+        category: ToolCategory,
+    ) -> AppResult<Vec<ToolCatalogEntry>> {
+        match self {
+            Self::SQLite(db) => db.get_tools_by_category_impl(category).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => {
+                Err(AppError::internal("Tool selection requires SQLite backend"))
+            }
+        }
+    }
+
+    /// Get tools available for a specific plan level
+    async fn get_tools_by_min_plan(&self, plan: TenantPlan) -> AppResult<Vec<ToolCatalogEntry>> {
+        match self {
+            Self::SQLite(db) => db.get_tools_by_min_plan_impl(plan).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => {
+                Err(AppError::internal("Tool selection requires SQLite backend"))
+            }
+        }
+    }
+
+    /// Get all tool overrides for a tenant
+    async fn get_tenant_tool_overrides(
+        &self,
+        tenant_id: Uuid,
+    ) -> AppResult<Vec<TenantToolOverride>> {
+        match self {
+            Self::SQLite(db) => db.get_tenant_tool_overrides_impl(tenant_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => {
+                Err(AppError::internal("Tool selection requires SQLite backend"))
+            }
+        }
+    }
+
+    /// Get a specific tool override for a tenant
+    async fn get_tenant_tool_override(
+        &self,
+        tenant_id: Uuid,
+        tool_name: &str,
+    ) -> AppResult<Option<TenantToolOverride>> {
+        match self {
+            Self::SQLite(db) => db.get_tenant_tool_override_impl(tenant_id, tool_name).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => {
+                Err(AppError::internal("Tool selection requires SQLite backend"))
+            }
+        }
+    }
+
+    /// Create or update a tool override for a tenant
+    async fn upsert_tenant_tool_override(
+        &self,
+        tenant_id: Uuid,
+        tool_name: &str,
+        is_enabled: bool,
+        enabled_by_user_id: Option<Uuid>,
+        reason: Option<String>,
+    ) -> AppResult<TenantToolOverride> {
+        match self {
+            Self::SQLite(db) => {
+                db.upsert_tenant_tool_override_impl(
+                    tenant_id,
+                    tool_name,
+                    is_enabled,
+                    enabled_by_user_id,
+                    reason,
+                )
+                .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => {
+                Err(AppError::internal("Tool selection requires SQLite backend"))
+            }
+        }
+    }
+
+    /// Delete a tool override (revert to catalog default)
+    async fn delete_tenant_tool_override(
+        &self,
+        tenant_id: Uuid,
+        tool_name: &str,
+    ) -> AppResult<bool> {
+        match self {
+            Self::SQLite(db) => {
+                db.delete_tenant_tool_override_impl(tenant_id, tool_name)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => {
+                Err(AppError::internal("Tool selection requires SQLite backend"))
+            }
+        }
+    }
+
+    /// Count enabled tools for a tenant
+    async fn count_enabled_tools(&self, tenant_id: Uuid) -> AppResult<usize> {
+        match self {
+            Self::SQLite(db) => db.count_enabled_tools_impl(tenant_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => {
+                Err(AppError::internal("Tool selection requires SQLite backend"))
+            }
         }
     }
 }

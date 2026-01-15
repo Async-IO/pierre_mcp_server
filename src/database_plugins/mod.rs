@@ -20,7 +20,8 @@ use crate::database::{
 };
 use crate::errors::AppResult;
 use crate::models::{
-    AuthorizationCode, OAuthApp, Tenant, User, UserOAuthApp, UserOAuthToken, UserStatus,
+    AuthorizationCode, OAuthApp, Tenant, TenantPlan, TenantToolOverride, ToolCatalogEntry,
+    ToolCategory, User, UserOAuthApp, UserOAuthToken, UserStatus,
 };
 use crate::oauth2_server::models::{OAuth2AuthCode, OAuth2Client, OAuth2RefreshToken, OAuth2State};
 use crate::pagination::{CursorPage, PaginationParams};
@@ -983,4 +984,56 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     ///
     /// Returns an error if decryption fails (e.g., invalid data, AAD mismatch, tampered data)
     fn decrypt_data_with_aad(&self, encrypted: &str, aad: &str) -> AppResult<String>;
+
+    // ================================
+    // Tool Selection
+    // ================================
+
+    /// Get the complete tool catalog
+    async fn get_tool_catalog(&self) -> AppResult<Vec<ToolCatalogEntry>>;
+
+    /// Get a specific tool catalog entry by name
+    async fn get_tool_catalog_entry(&self, tool_name: &str) -> AppResult<Option<ToolCatalogEntry>>;
+
+    /// Get tools filtered by category
+    async fn get_tools_by_category(
+        &self,
+        category: ToolCategory,
+    ) -> AppResult<Vec<ToolCatalogEntry>>;
+
+    /// Get tools available for a specific plan level
+    async fn get_tools_by_min_plan(&self, plan: TenantPlan) -> AppResult<Vec<ToolCatalogEntry>>;
+
+    /// Get all tool overrides for a tenant
+    async fn get_tenant_tool_overrides(
+        &self,
+        tenant_id: Uuid,
+    ) -> AppResult<Vec<TenantToolOverride>>;
+
+    /// Get a specific tool override for a tenant
+    async fn get_tenant_tool_override(
+        &self,
+        tenant_id: Uuid,
+        tool_name: &str,
+    ) -> AppResult<Option<TenantToolOverride>>;
+
+    /// Create or update a tool override for a tenant
+    async fn upsert_tenant_tool_override(
+        &self,
+        tenant_id: Uuid,
+        tool_name: &str,
+        is_enabled: bool,
+        enabled_by_user_id: Option<Uuid>,
+        reason: Option<String>,
+    ) -> AppResult<TenantToolOverride>;
+
+    /// Delete a tool override (revert to catalog default)
+    async fn delete_tenant_tool_override(
+        &self,
+        tenant_id: Uuid,
+        tool_name: &str,
+    ) -> AppResult<bool>;
+
+    /// Count enabled tools for a tenant
+    async fn count_enabled_tools(&self, tenant_id: Uuid) -> AppResult<usize>;
 }

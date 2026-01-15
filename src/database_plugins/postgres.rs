@@ -32,7 +32,8 @@ use crate::database::{
 use crate::database_plugins::shared::encryption::HasEncryption;
 use crate::errors::{AppError, AppResult};
 use crate::models::{
-    AuthorizationCode, OAuthApp, Tenant, User, UserOAuthApp, UserOAuthToken, UserStatus, UserTier,
+    AuthorizationCode, OAuthApp, Tenant, TenantPlan, TenantToolOverride, ToolCatalogEntry,
+    ToolCategory, User, UserOAuthApp, UserOAuthToken, UserStatus, UserTier,
 };
 use crate::oauth2_server::models::{OAuth2AuthCode, OAuth2Client, OAuth2RefreshToken, OAuth2State};
 use crate::pagination::{Cursor, CursorPage, PaginationParams};
@@ -5904,6 +5905,70 @@ impl DatabaseProvider for PostgresDatabase {
 
     fn decrypt_data_with_aad(&self, encrypted: &str, aad: &str) -> AppResult<String> {
         shared::encryption::HasEncryption::decrypt_data_with_aad(self, encrypted, aad)
+    }
+
+    // ================================
+    // Tool Selection (PostgreSQL placeholder - implementation pending)
+    // ================================
+
+    async fn get_tool_catalog(&self) -> AppResult<Vec<ToolCatalogEntry>> {
+        Err(AppError::internal("Tool selection requires SQLite backend"))
+    }
+
+    async fn get_tool_catalog_entry(
+        &self,
+        _tool_name: &str,
+    ) -> AppResult<Option<ToolCatalogEntry>> {
+        Err(AppError::internal("Tool selection requires SQLite backend"))
+    }
+
+    async fn get_tools_by_category(
+        &self,
+        _category: ToolCategory,
+    ) -> AppResult<Vec<ToolCatalogEntry>> {
+        Err(AppError::internal("Tool selection requires SQLite backend"))
+    }
+
+    async fn get_tools_by_min_plan(&self, _plan: TenantPlan) -> AppResult<Vec<ToolCatalogEntry>> {
+        Err(AppError::internal("Tool selection requires SQLite backend"))
+    }
+
+    async fn get_tenant_tool_overrides(
+        &self,
+        _tenant_id: Uuid,
+    ) -> AppResult<Vec<TenantToolOverride>> {
+        Err(AppError::internal("Tool selection requires SQLite backend"))
+    }
+
+    async fn get_tenant_tool_override(
+        &self,
+        _tenant_id: Uuid,
+        _tool_name: &str,
+    ) -> AppResult<Option<TenantToolOverride>> {
+        Err(AppError::internal("Tool selection requires SQLite backend"))
+    }
+
+    async fn upsert_tenant_tool_override(
+        &self,
+        _tenant_id: Uuid,
+        _tool_name: &str,
+        _is_enabled: bool,
+        _enabled_by_user_id: Option<Uuid>,
+        _reason: Option<String>,
+    ) -> AppResult<TenantToolOverride> {
+        Err(AppError::internal("Tool selection requires SQLite backend"))
+    }
+
+    async fn delete_tenant_tool_override(
+        &self,
+        _tenant_id: Uuid,
+        _tool_name: &str,
+    ) -> AppResult<bool> {
+        Err(AppError::internal("Tool selection requires SQLite backend"))
+    }
+
+    async fn count_enabled_tools(&self, _tenant_id: Uuid) -> AppResult<usize> {
+        Err(AppError::internal("Tool selection requires SQLite backend"))
     }
 }
 

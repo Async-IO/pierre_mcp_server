@@ -38,6 +38,7 @@ mod oauth;
 mod sleep;
 mod sport;
 mod tenant;
+mod tool_selection;
 mod user;
 
 // Re-export all public types for backward compatibility
@@ -72,3 +73,9 @@ pub use oauth::{
 
 // Tenant domain
 pub use tenant::{AuthorizationCode, OAuthApp, OAuthAppParams, Tenant};
+
+// Tool selection domain
+pub use tool_selection::{
+    CategorySummary, EffectiveTool, SetToolOverrideRequest, TenantPlan, TenantToolOverride,
+    ToolAvailabilitySummary, ToolCatalogEntry, ToolCategory, ToolEnablementSource,
+};
