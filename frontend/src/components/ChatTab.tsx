@@ -638,8 +638,9 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
       // Convert provider name to lowercase ID (e.g., "Strava" -> "strava")
       const providerId = providerName.toLowerCase();
       const authUrl = await apiService.getOAuthAuthorizeUrl(providerId);
-      // Redirect to OAuth authorization endpoint
-      window.location.href = authUrl;
+      // Open OAuth in new tab to avoid security blocks from automated browser detection
+      window.open(authUrl, '_blank');
+      setConnectingProvider(null);
     } catch (error) {
       console.error('Failed to get OAuth authorization URL:', error);
       setConnectingProvider(null);
