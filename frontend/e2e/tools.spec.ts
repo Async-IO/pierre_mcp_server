@@ -288,7 +288,7 @@ test.describe('Tools Tab - Loading State', () => {
     await navigateToTab(page, 'Tools');
 
     // Should show loading spinner
-    await expect(page.locator('.animate-spin')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.pierre-spinner')).toBeVisible({ timeout: 5000 });
   });
 });
 

@@ -357,7 +357,7 @@ test.describe('Dashboard Content Loading', () => {
 
     // Should show loading spinner - check for any loading indicators
     // The dashboard may show a loading state while data loads
-    await expect(page.locator('.animate-spin').first()).toBeVisible({ timeout: 3000 }).catch(() => {
+    await expect(page.locator('.pierre-spinner').first()).toBeVisible({ timeout: 3000 }).catch(() => {
       // If no spinner, verify dashboard loaded eventually
       return page.waitForSelector('nav', { timeout: 10000 });
     });

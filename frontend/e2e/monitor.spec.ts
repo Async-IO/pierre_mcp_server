@@ -327,7 +327,7 @@ test.describe('Monitor Tab - Loading States', () => {
     await navigateToTab(page, 'Monitor');
 
     // Should show loading spinner
-    await expect(page.locator('.animate-spin')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.pierre-spinner')).toBeVisible({ timeout: 5000 });
   });
 });
 
