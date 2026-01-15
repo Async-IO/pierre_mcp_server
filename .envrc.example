@@ -175,6 +175,31 @@ export REDIS_INITIAL_CONNECTION_RETRIES="3"
 export REDIS_INITIAL_RETRY_DELAY_MS="500"
 
 # ============================================================================
+# TOOL SELECTION CONFIGURATION
+# ============================================================================
+
+# Global tool disabling - comma-separated list of tool names to disable globally
+# These tools will be hidden from ALL tenants regardless of plan or overrides
+# Use this for experimental features, tools under maintenance, or staged rollouts
+#
+# Example: Disable performance prediction and activity intelligence
+# export PIERRE_DISABLED_TOOLS="predict_performance,get_activity_intelligence"
+#
+# Common use cases:
+# - Disable beta features: export PIERRE_DISABLED_TOOLS="experimental_feature"
+# - Maintenance mode: export PIERRE_DISABLED_TOOLS="connect_provider"
+# - Staged rollout: Start with all advanced tools disabled, enable gradually
+#
+# Tool enablement precedence (highest to lowest):
+# 1. PIERRE_DISABLED_TOOLS (global disable - this setting)
+# 2. Plan restrictions (tools require minimum tenant plan)
+# 3. Tenant overrides (admin-configured per-tenant settings)
+# 4. Catalog defaults (tool_catalog.is_enabled_by_default)
+#
+# Leave empty or unset to allow all tools based on plan and overrides
+# export PIERRE_DISABLED_TOOLS=""
+
+# ============================================================================
 # HTTP CLIENT CONFIGURATION
 # ============================================================================
 

@@ -1,9 +1,10 @@
 // ABOUTME: Tool selection service for per-tenant MCP tool filtering
-// ABOUTME: Computes effective tool list combining catalog defaults, plan restrictions, and tenant overrides
+// ABOUTME: Computes effective tool list combining global disabling, plan restrictions, and tenant overrides
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use crate::config::ToolSelectionConfig;
 use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult};
@@ -17,7 +18,7 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use tracing::debug;
+use tracing::{debug, info};
 use uuid::Uuid;
 
 /// Cache size for tenant tool configurations (1000 tenants max)
@@ -30,31 +31,76 @@ struct CacheEntry {
 }
 
 /// Service for computing and caching effective tool lists per tenant
+///
+/// The service applies tool enablement in the following precedence order:
+/// 1. **Global Disabled** (`PIERRE_DISABLED_TOOLS`) - Highest priority
+/// 2. **Plan Restriction** - Tools require minimum plan level
+/// 3. **Tenant Override** - Admin-configured per-tenant settings
+/// 4. **Catalog Default** - Default enablement from `tool_catalog` table
 pub struct ToolSelectionService {
     database: Arc<Database>,
     cache: Arc<RwLock<LruCache<Uuid, CacheEntry>>>,
     cache_ttl: Duration,
+    /// Global tool selection configuration from environment
+    config: ToolSelectionConfig,
 }
 
 impl ToolSelectionService {
     /// Create a new `ToolSelectionService` with the given database connection
+    ///
+    /// Loads tool selection configuration from environment variables.
     #[must_use]
     pub fn new(database: Arc<Database>) -> Self {
+        let config = ToolSelectionConfig::from_env();
+        Self::with_config(database, config)
+    }
+
+    /// Create a new `ToolSelectionService` with explicit configuration
+    ///
+    /// This constructor is useful for testing or when configuration
+    /// should be managed externally.
+    #[must_use]
+    pub fn with_config(database: Arc<Database>, config: ToolSelectionConfig) -> Self {
+        if config.has_disabled_tools() {
+            info!(
+                "Tool selection initialized with {} globally disabled tools: {:?}",
+                config.disabled_count(),
+                config.disabled_tools()
+            );
+        }
+
         Self {
             database,
             cache: Arc::new(RwLock::new(LruCache::new(CACHE_SIZE))),
             cache_ttl: Duration::from_secs(300),
+            config,
         }
     }
 
     /// Create a new `ToolSelectionService` with custom cache TTL
     #[must_use]
     pub fn with_ttl(database: Arc<Database>, cache_ttl: Duration) -> Self {
+        let config = ToolSelectionConfig::from_env();
         Self {
             database,
             cache: Arc::new(RwLock::new(LruCache::new(CACHE_SIZE))),
             cache_ttl,
+            config,
         }
+    }
+
+    /// Get the list of globally disabled tool names
+    ///
+    /// Returns an empty vector if no tools are globally disabled.
+    #[must_use]
+    pub fn get_globally_disabled_tools(&self) -> Vec<String> {
+        self.config.disabled_tools().iter().cloned().collect()
+    }
+
+    /// Check if any tools are globally disabled
+    #[must_use]
+    pub fn has_globally_disabled_tools(&self) -> bool {
+        self.config.has_disabled_tools()
     }
 
     /// Get effective tools for a tenant (uses cache if available)
@@ -111,6 +157,11 @@ impl ToolSelectionService {
     /// - The tool doesn't exist in the catalog
     /// - Database operations fail
     pub async fn is_tool_enabled(&self, tenant_id: Uuid, tool_name: &str) -> AppResult<bool> {
+        // Check global disabled first (highest precedence)
+        if self.config.is_globally_disabled(tool_name) {
+            return Ok(false);
+        }
+
         // Optimized path: check if we have cached data
         {
             let cache = self.cache.read().await;
@@ -302,10 +353,12 @@ impl ToolSelectionService {
         let effective_tools = catalog
             .into_iter()
             .map(|entry| {
+                let is_globally_disabled = self.config.is_globally_disabled(&entry.tool_name);
                 let (is_enabled, source) = Self::compute_enablement(
                     &entry,
                     tenant_plan,
                     override_map.get(&entry.tool_name),
+                    is_globally_disabled,
                 );
 
                 EffectiveTool {
@@ -324,12 +377,24 @@ impl ToolSelectionService {
     }
 
     /// Compute enablement state for a single tool
+    ///
+    /// Precedence order (highest to lowest):
+    /// 1. Global disabled (`PIERRE_DISABLED_TOOLS`)
+    /// 2. Plan restriction
+    /// 3. Tenant override
+    /// 4. Catalog default
     const fn compute_enablement(
         entry: &ToolCatalogEntry,
         tenant_plan: TenantPlan,
         override_value: Option<&bool>,
+        is_globally_disabled: bool,
     ) -> (bool, ToolEnablementSource) {
-        // Plan restriction takes precedence
+        // Global disabled takes highest precedence
+        if is_globally_disabled {
+            return (false, ToolEnablementSource::GlobalDisabled);
+        }
+
+        // Plan restriction next
         if !tenant_plan.meets_minimum(&entry.min_plan) {
             return (false, ToolEnablementSource::PlanRestriction);
         }

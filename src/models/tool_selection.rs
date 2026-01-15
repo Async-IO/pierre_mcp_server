@@ -167,6 +167,8 @@ pub enum ToolEnablementSource {
     TenantOverride,
     /// Disabled because tenant plan doesn't meet `min_plan` requirement
     PlanRestriction,
+    /// Disabled globally via `PIERRE_DISABLED_TOOLS` environment variable
+    GlobalDisabled,
 }
 
 /// Effective tool state for a tenant (catalog + overrides + plan applied)
