@@ -19,7 +19,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   Training: 'bg-pierre-activity/10 text-pierre-activity border-pierre-activity/20',
   Nutrition: 'bg-pierre-nutrition/10 text-pierre-nutrition border-pierre-nutrition/20',
   Recovery: 'bg-pierre-recovery/10 text-pierre-recovery border-pierre-recovery/20',
-  Recipes: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+  Recipes: 'bg-pierre-yellow-500/10 text-pierre-yellow-600 border-pierre-yellow-500/20',
   Custom: 'bg-pierre-violet/10 text-pierre-violet border-pierre-violet/20',
 };
 
@@ -317,7 +317,7 @@ export default function SystemCoachesTab() {
             {/* Title */}
             <div>
               <label className="block text-sm font-medium text-pierre-gray-700 mb-1">
-                Title <span className="text-red-500">*</span>
+                Title <span className="text-pierre-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -346,7 +346,7 @@ export default function SystemCoachesTab() {
             {/* System Prompt */}
             <div>
               <label className="block text-sm font-medium text-pierre-gray-700 mb-1">
-                System Prompt <span className="text-red-500">*</span>
+                System Prompt <span className="text-pierre-red-500">*</span>
               </label>
               <textarea
                 value={formData.system_prompt}
@@ -583,7 +583,7 @@ export default function SystemCoachesTab() {
                 </div>
                 <button
                   onClick={() => handleUnassign(assignment.user_id)}
-                  className="text-red-500 hover:text-red-700 transition-colors p-2"
+                  className="text-pierre-red-500 hover:text-pierre-red-700 transition-colors p-2"
                   title="Remove assignment"
                   disabled={unassignMutation.isPending}
                 >
@@ -645,7 +645,7 @@ export default function SystemCoachesTab() {
                         </div>
                         <span className={clsx(
                           'px-2 py-0.5 text-xs rounded-full',
-                          user.user_status === 'active' ? 'bg-green-100 text-green-700' : 'bg-pierre-gray-100 text-pierre-gray-600'
+                          user.user_status === 'active' ? 'bg-pierre-green-100 text-pierre-green-700' : 'bg-pierre-gray-100 text-pierre-gray-600'
                         )}>
                           {user.user_status}
                         </span>

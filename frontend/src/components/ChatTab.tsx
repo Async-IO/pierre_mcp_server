@@ -747,10 +747,7 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
           >
             <div className="w-7 h-7 flex items-center justify-center rounded-lg bg-pierre-violet text-white shadow-sm flex-shrink-0">
               {createConversation.isPending ? (
-                <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
-                  <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-                </svg>
+                <div className="pierre-spinner w-3.5 h-3.5 border-white border-t-transparent"></div>
               ) : (
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
@@ -821,7 +818,7 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                       {/* Delete button */}
                       <button
                         onClick={(e) => handleDeleteConversation(e, conv)}
-                        className="opacity-0 group-hover:opacity-100 text-pierre-gray-400 hover:text-red-500 transition-all p-1"
+                        className="opacity-0 group-hover:opacity-100 text-pierre-gray-400 hover:text-pierre-red-500 transition-all p-1"
                         title="Delete"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -851,7 +848,7 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                 </span>
               </div>
               {/* Online status dot */}
-              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-pierre-gray-50" />
+              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-pierre-green-500 rounded-full border-2 border-pierre-gray-50" />
             </div>
 
             <div className="flex-1 min-w-0">
@@ -1068,11 +1065,7 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                             Pierre
                           </div>
                           <div className="flex items-center gap-2 text-pierre-gray-500 text-sm">
-                            {/* Animated spinner */}
-                            <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
-                              <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-                            </svg>
+                            <div className="pierre-spinner w-4 h-4"></div>
                             <span>Thinking...</span>
                           </div>
                         </div>
@@ -1083,22 +1076,22 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                     {errorMessage && !isStreaming && (
                       <div className="flex gap-3">
                         <div className="flex-shrink-0">
-                          <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
-                            <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <div className="w-8 h-8 rounded-full bg-pierre-red-100 flex items-center justify-center">
+                            <svg className="w-4 h-4 text-pierre-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                             </svg>
                           </div>
                         </div>
                         <div className="flex-1 pt-1">
-                          <div className="bg-red-50 border border-red-100 rounded-lg px-4 py-3">
-                            <p className="text-red-700 text-sm">
+                          <div className="bg-pierre-red-50 border border-pierre-red-100 rounded-lg px-4 py-3">
+                            <p className="text-pierre-red-700 text-sm">
                               {errorCountdown !== null
                                 ? errorMessage.replace(/in \d+ seconds/, `in ${errorCountdown} seconds`)
                                 : errorMessage}
                             </p>
                             <button
                               onClick={() => { setErrorMessage(null); setErrorCountdown(null); }}
-                              className="text-red-500 hover:text-red-700 text-xs mt-2 underline"
+                              className="text-pierre-red-500 hover:text-pierre-red-700 text-xs mt-2 underline"
                             >
                               Dismiss
                             </button>

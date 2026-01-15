@@ -224,7 +224,7 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
                         <div
                           className={clsx(
                             'h-full rounded-full transition-all duration-300',
-                            item.usage_percentage > 90 ? 'bg-red-500' :
+                            item.usage_percentage > 90 ? 'bg-pierre-red-500' :
                             item.usage_percentage > 70 ? 'bg-pierre-nutrition' : 'bg-pierre-activity'
                           )}
                           style={{ width: `${Math.min(item.usage_percentage, 100)}%` }}
@@ -372,10 +372,10 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
               {rateLimits?.some((rl: RateLimitOverview) => rl.usage_percentage > 90) ? (
                 <button
                   onClick={() => onNavigate?.('analytics')}
-                  className="w-full flex items-center justify-between p-3 rounded-lg bg-red-50 border border-red-200 hover:bg-red-100 transition-colors"
+                  className="w-full flex items-center justify-between p-3 rounded-lg bg-pierre-red-50 border border-pierre-red-200 hover:bg-pierre-red-100 transition-colors"
                 >
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                    <div className="w-2 h-2 rounded-full bg-pierre-red-500 animate-pulse" />
                     <span className="text-sm font-medium text-pierre-gray-900">
                       {rateLimits.filter((rl: RateLimitOverview) => rl.usage_percentage > 90).length} key{rateLimits.filter((rl: RateLimitOverview) => rl.usage_percentage > 90).length !== 1 ? 's' : ''} near limit
                     </span>

@@ -304,7 +304,7 @@ export default function Dashboard() {
                     {tab.badge && (
                       <span
                         data-testid="pending-users-badge"
-                        className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center font-bold text-[10px]"
+                        className="absolute -top-1 -right-1 bg-pierre-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center font-bold text-[10px]"
                       >
                         {tab.badge}
                       </span>
@@ -340,7 +340,7 @@ export default function Dashboard() {
                 </span>
               </div>
               {/* Online status dot */}
-              <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border border-white" />
+              <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-pierre-green-500 rounded-full border border-white" />
             </div>
 
             {!sidebarCollapsed && (

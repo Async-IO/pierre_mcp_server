@@ -52,10 +52,10 @@ export default function RequestMonitor({ apiKeyId, showAllKeys = false }: Reques
   };
 
   const getStatusColor = (status: number) => {
-    if (status >= 200 && status < 300) return 'text-green-600';
-    if (status >= 400 && status < 500) return 'text-yellow-600';
-    if (status >= 500) return 'text-red-600';
-    return 'text-gray-600';
+    if (status >= 200 && status < 300) return 'text-pierre-green-600';
+    if (status >= 400 && status < 500) return 'text-pierre-yellow-600';
+    if (status >= 500) return 'text-pierre-red-600';
+    return 'text-pierre-gray-600';
   };
 
   const formatDuration = (ms: number) => {
@@ -64,14 +64,14 @@ export default function RequestMonitor({ apiKeyId, showAllKeys = false }: Reques
   };
 
   const allRequests = [...liveRequests, ...(requestLogs || [])];
-  const uniqueRequests = allRequests.filter((request, index, arr) => 
+  const uniqueRequests = allRequests.filter((request, index, arr) =>
     arr.findIndex(r => r.id === request.id) === index
   );
 
   if (isLoading) {
     return (
       <div className="flex justify-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-api-blue"></div>
+        <div className="pierre-spinner w-8 h-8"></div>
       </div>
     );
   }
@@ -85,27 +85,27 @@ export default function RequestMonitor({ apiKeyId, showAllKeys = false }: Reques
             <div className="text-2xl font-bold text-api-blue">
               {requestStats.total_requests}
             </div>
-            <div className="text-sm text-gray-600">Total Requests</div>
+            <div className="text-sm text-pierre-gray-600">Total Requests</div>
           </div>
           <div className="stat-card">
             <div className="text-2xl font-bold text-api-green">
-              {requestStats.total_requests > 0 
+              {requestStats.total_requests > 0
                 ? ((requestStats.successful_requests / requestStats.total_requests) * 100).toFixed(1)
                 : '0.0'}%
             </div>
-            <div className="text-sm text-gray-600">Success Rate</div>
+            <div className="text-sm text-pierre-gray-600">Success Rate</div>
           </div>
           <div className="stat-card">
             <div className="text-2xl font-bold text-api-yellow">
               {formatDuration(requestStats.average_response_time)}
             </div>
-            <div className="text-sm text-gray-600">Avg Response Time</div>
+            <div className="text-sm text-pierre-gray-600">Avg Response Time</div>
           </div>
           <div className="stat-card">
-            <div className="text-2xl font-bold text-gray-700">
+            <div className="text-2xl font-bold text-pierre-gray-700">
               {requestStats.requests_per_minute.toFixed(1)}
             </div>
-            <div className="text-sm text-gray-600">Requests/min</div>
+            <div className="text-sm text-pierre-gray-600">Requests/min</div>
           </div>
         </div>
       )}
@@ -114,13 +114,13 @@ export default function RequestMonitor({ apiKeyId, showAllKeys = false }: Reques
       <div className="card">
         <div className="flex flex-wrap gap-4 items-center">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-pierre-gray-700 mb-1">
               Time Range
             </label>
             <select
               value={filter.timeRange}
               onChange={(e) => setFilter(prev => ({ ...prev, timeRange: e.target.value }))}
-              className="border border-gray-300 rounded px-3 py-1 text-sm"
+              className="border border-pierre-gray-300 rounded px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-pierre-violet"
             >
               <option value="1h">Last Hour</option>
               <option value="24h">Last 24 Hours</option>
@@ -128,15 +128,15 @@ export default function RequestMonitor({ apiKeyId, showAllKeys = false }: Reques
               <option value="30d">Last 30 Days</option>
             </select>
           </div>
-          
+
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-pierre-gray-700 mb-1">
               Status
             </label>
             <select
               value={filter.status}
               onChange={(e) => setFilter(prev => ({ ...prev, status: e.target.value }))}
-              className="border border-gray-300 rounded px-3 py-1 text-sm"
+              className="border border-pierre-gray-300 rounded px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-pierre-violet"
             >
               <option value="all">All Status</option>
               <option value="success">Success (2xx)</option>
@@ -145,13 +145,13 @@ export default function RequestMonitor({ apiKeyId, showAllKeys = false }: Reques
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-pierre-gray-700 mb-1">
               Tool
             </label>
             <select
               value={filter.tool}
               onChange={(e) => setFilter(prev => ({ ...prev, tool: e.target.value }))}
-              className="border border-gray-300 rounded px-3 py-1 text-sm"
+              className="border border-pierre-gray-300 rounded px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-pierre-violet"
             >
               <option value="all">All Tools</option>
               <option value="get_activities">Get Activities</option>
@@ -169,13 +169,13 @@ export default function RequestMonitor({ apiKeyId, showAllKeys = false }: Reques
       <div className="card">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-medium">Request Log</h3>
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-pierre-gray-500">
             Showing {uniqueRequests.length} requests
           </span>
         </div>
 
         {uniqueRequests.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-pierre-gray-500">
             <div className="text-4xl mb-4">📊</div>
             <p className="text-lg mb-2">No requests yet</p>
             <p>Start making API calls to see request logs here</p>
@@ -185,13 +185,13 @@ export default function RequestMonitor({ apiKeyId, showAllKeys = false }: Reques
             {uniqueRequests.map((request) => (
               <div
                 key={request.id}
-                className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
+                className="flex items-center justify-between p-3 border border-pierre-gray-200 rounded-lg hover:bg-pierre-gray-50"
               >
                 <div className="flex items-center space-x-4 flex-1">
                   <div className="text-lg">
                     {getStatusIcon(request.status_code)}
                   </div>
-                  
+
                   <div className="flex-1">
                     <div className="flex items-center space-x-2">
                       <span className="font-medium text-sm">{request.tool_name}</span>
@@ -199,12 +199,12 @@ export default function RequestMonitor({ apiKeyId, showAllKeys = false }: Reques
                         {request.status_code}
                       </span>
                       {request.error_message && (
-                        <span className="text-xs text-red-600 truncate max-w-xs">
+                        <span className="text-xs text-pierre-red-600 truncate max-w-xs">
                           {request.error_message}
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-pierre-gray-500">
                       {new Date(request.timestamp).toLocaleString()}
                     </div>
                   </div>
@@ -215,7 +215,7 @@ export default function RequestMonitor({ apiKeyId, showAllKeys = false }: Reques
                     {request.response_time_ms ? formatDuration(request.response_time_ms) : 'N/A'}
                   </div>
                   {showAllKeys && (
-                    <div className="text-xs text-gray-500 font-mono">
+                    <div className="text-xs text-pierre-gray-500 font-mono">
                       {request.api_key_name}
                     </div>
                   )}

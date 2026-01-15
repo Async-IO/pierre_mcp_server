@@ -92,14 +92,14 @@ export default function MCPTokensTab() {
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+      <div className="bg-pierre-red-50 border border-pierre-red-200 rounded-lg p-6">
         <div className="flex items-center gap-3">
-          <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-6 h-6 text-pierre-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <div>
-            <h3 className="text-lg font-medium text-red-900">Failed to load tokens</h3>
-            <p className="text-red-700 mt-1">
+            <h3 className="text-lg font-medium text-pierre-red-900">Failed to load tokens</h3>
+            <p className="text-pierre-red-700 mt-1">
               {error instanceof Error ? error.message : 'An unknown error occurred'}
             </p>
           </div>
@@ -112,18 +112,18 @@ export default function MCPTokensTab() {
     <div className="space-y-6">
       {/* Created Token Display */}
       {createdToken && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+        <div className="bg-pierre-green-50 border border-pierre-green-200 rounded-lg p-6">
           <div className="flex items-start gap-3">
-            <svg className="w-6 h-6 text-green-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-6 h-6 text-pierre-green-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <div className="flex-1">
-              <h3 className="text-lg font-medium text-green-900">Token Created: {createdToken.name}</h3>
-              <p className="text-green-700 mt-1 mb-3">
+              <h3 className="text-lg font-medium text-pierre-green-900">Token Created: {createdToken.name}</h3>
+              <p className="text-pierre-green-700 mt-1 mb-3">
                 Copy this token now. You won&apos;t be able to see it again!
               </p>
               <div className="flex items-center gap-2">
-                <code className="flex-1 px-3 py-2 bg-white border border-green-300 rounded font-mono text-sm break-all">
+                <code className="flex-1 px-3 py-2 bg-white border border-pierre-green-300 rounded font-mono text-sm break-all">
                   {createdToken.token_value}
                 </code>
                 <Button
@@ -264,7 +264,7 @@ export default function MCPTokensTab() {
                       onClick={() => setTokenToRevoke(token)}
                       disabled={revokeTokenMutation.isPending}
                       variant="secondary"
-                      className="text-red-600 hover:bg-red-50"
+                      className="text-pierre-red-600 hover:bg-pierre-red-50"
                       size="sm"
                     >
                       Revoke

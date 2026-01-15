@@ -23,7 +23,7 @@ export default function ImpersonationBanner() {
   };
 
   return (
-    <div className="bg-amber-500 text-white px-4 py-2 sticky top-0 z-50 shadow-lg">
+    <div className="bg-pierre-yellow-500 text-white px-4 py-2 sticky top-0 z-50 shadow-lg">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <div className="flex items-center gap-3">
           <svg
@@ -45,12 +45,12 @@ export default function ImpersonationBanner() {
               {impersonation.targetUser.display_name || impersonation.targetUser.email}
             </span>
             {impersonation.targetUser.display_name && (
-              <span className="text-amber-100 ml-1">
+              <span className="text-pierre-yellow-100 ml-1">
                 ({impersonation.targetUser.email})
               </span>
             )}
           </span>
-          <span className="text-amber-200 text-sm">
+          <span className="text-pierre-yellow-200 text-sm">
             Role: {impersonation.targetUser.role}
           </span>
         </div>
@@ -58,7 +58,7 @@ export default function ImpersonationBanner() {
           variant="secondary"
           size="sm"
           onClick={handleEndImpersonation}
-          className="bg-white text-amber-600 hover:bg-amber-50 border-0"
+          className="bg-white text-pierre-yellow-600 hover:bg-pierre-yellow-50 border-0"
         >
           End Impersonation
         </Button>

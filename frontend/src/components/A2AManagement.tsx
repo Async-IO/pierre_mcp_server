@@ -40,7 +40,7 @@ export default function A2AManagement() {
 
         <Card>
           <div className="text-center">
-            <div className="text-3xl font-bold text-green-600">
+            <div className="text-3xl font-bold text-pierre-green-600">
               {overview?.active_sessions || 0}
             </div>
             <div className="text-sm text-pierre-gray-600 mt-1">Active Sessions</div>
@@ -52,7 +52,7 @@ export default function A2AManagement() {
 
         <Card>
           <div className="text-center">
-            <div className="text-3xl font-bold text-purple-600">
+            <div className="text-3xl font-bold text-pierre-violet-600">
               {overview?.requests_today?.toLocaleString() || 0}
             </div>
             <div className="text-sm text-pierre-gray-600 mt-1">Requests Today</div>
@@ -64,7 +64,7 @@ export default function A2AManagement() {
 
         <Card>
           <div className="text-center">
-            <div className="text-3xl font-bold text-orange-600">
+            <div className="text-3xl font-bold text-pierre-nutrition">
               {overview?.error_rate ? `${(overview.error_rate * 100).toFixed(1)}%` : '0%'}
             </div>
             <div className="text-sm text-pierre-gray-600 mt-1">Error Rate</div>
@@ -132,13 +132,13 @@ export default function A2AManagement() {
             {overview.usage_by_tier.map((tier) => (
               <div key={tier.tier} className="flex items-center justify-between p-3 bg-pierre-gray-50 rounded-lg">
                 <div className="flex items-center gap-3">
-                  <Badge 
+                  <Badge
                     variant="info"
                     className={
-                      tier.tier === 'Enterprise' ? 'bg-purple-100 text-purple-800' :
-                      tier.tier === 'Professional' ? 'bg-green-100 text-green-800' :
-                      tier.tier === 'Standard' ? 'bg-blue-100 text-blue-800' :
-                      'bg-yellow-100 text-yellow-800'
+                      tier.tier === 'Enterprise' ? 'bg-pierre-violet-100 text-pierre-violet-800' :
+                      tier.tier === 'Professional' ? 'bg-pierre-green-100 text-pierre-green-800' :
+                      tier.tier === 'Standard' ? 'bg-pierre-blue-100 text-pierre-blue-800' :
+                      'bg-pierre-yellow-100 text-pierre-yellow-800'
                     }
                   >
                     {tier.tier}

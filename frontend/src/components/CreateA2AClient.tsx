@@ -143,12 +143,12 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
           </p>
         </div>
 
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+        <div className="bg-pierre-yellow-50 border border-pierre-yellow-200 rounded-lg p-4 mb-6">
           <div className="flex items-center mb-2">
-            <span className="text-yellow-600 mr-2">⚠️</span>
-            <h3 className="text-sm font-medium text-yellow-800">Important Security Notice</h3>
+            <span className="text-pierre-yellow-600 mr-2">⚠️</span>
+            <h3 className="text-sm font-medium text-pierre-yellow-800">Important Security Notice</h3>
           </div>
-          <p className="text-sm text-yellow-700">
+          <p className="text-sm text-pierre-yellow-700">
             Store these credentials securely. The client secret and API key will not be displayed again for security reasons.
           </p>
         </div>
@@ -389,14 +389,14 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
 
         {/* Error Display */}
         {createMutation.error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="bg-pierre-red-50 border border-pierre-red-200 rounded-lg p-4">
             <div className="flex items-center">
-              <span className="text-red-500 mr-2">❌</span>
+              <span className="text-pierre-red-500 mr-2">❌</span>
               <div>
-                <h3 className="text-sm font-medium text-red-800">Registration Failed</h3>
-                <p className="text-sm text-red-700 mt-1">
-                  {createMutation.error instanceof Error 
-                    ? createMutation.error.message 
+                <h3 className="text-sm font-medium text-pierre-red-800">Registration Failed</h3>
+                <p className="text-sm text-pierre-red-700 mt-1">
+                  {createMutation.error instanceof Error
+                    ? createMutation.error.message
                     : 'An error occurred while registering the A2A client.'}
                 </p>
               </div>

@@ -34,11 +34,11 @@ interface McpToken {
 }
 
 const PROVIDERS = [
-  { id: 'strava', name: 'Strava', color: 'bg-orange-500' },
-  { id: 'fitbit', name: 'Fitbit', color: 'bg-teal-500' },
-  { id: 'garmin', name: 'Garmin', color: 'bg-blue-600' },
+  { id: 'strava', name: 'Strava', color: 'bg-pierre-nutrition' },
+  { id: 'fitbit', name: 'Fitbit', color: 'bg-pierre-cyan' },
+  { id: 'garmin', name: 'Garmin', color: 'bg-pierre-blue-600' },
   { id: 'whoop', name: 'WHOOP', color: 'bg-black' },
-  { id: 'terra', name: 'Terra', color: 'bg-green-600' },
+  { id: 'terra', name: 'Terra', color: 'bg-pierre-green-600' },
 ];
 
 type SettingsTab = 'profile' | 'connections' | 'tokens' | 'llm' | 'account';
@@ -247,7 +247,7 @@ export default function UserSettings() {
   };
 
   const getProviderInfo = (providerId: string) => {
-    return PROVIDERS.find((p) => p.id === providerId) || { id: providerId, name: providerId, color: 'bg-gray-500' };
+    return PROVIDERS.find((p) => p.id === providerId) || { id: providerId, name: providerId, color: 'bg-pierre-gray-500' };
   };
 
   const configuredProviders = oauthApps.map((app) => app.provider);
@@ -318,7 +318,7 @@ export default function UserSettings() {
                     className={`p-3 rounded-lg text-sm ${
                       message.type === 'success'
                         ? 'bg-pierre-activity-light/30 text-pierre-activity'
-                        : 'bg-red-50 text-red-600'
+                        : 'bg-pierre-red-50 text-pierre-red-600'
                     }`}
                   >
                     {message.text}
@@ -380,7 +380,7 @@ export default function UserSettings() {
                 className={`p-3 rounded-lg text-sm mb-4 ${
                   credentialMessage.type === 'success'
                     ? 'bg-pierre-activity-light/30 text-pierre-activity'
-                    : 'bg-red-50 text-red-600'
+                    : 'bg-pierre-red-50 text-pierre-red-600'
                 }`}
               >
                 {credentialMessage.text}
@@ -515,9 +515,9 @@ export default function UserSettings() {
           <>
             {/* Created Token Display */}
             {createdToken && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+              <div className="bg-pierre-green-50 border border-pierre-green-200 rounded-lg p-6">
                 <div className="flex items-start gap-3">
-                  <svg className="w-6 h-6 text-green-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6 text-pierre-green-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -526,10 +526,10 @@ export default function UserSettings() {
                     />
                   </svg>
                   <div className="flex-1">
-                    <h3 className="text-lg font-medium text-green-900">Token Created: {createdToken.name}</h3>
-                    <p className="text-green-700 mt-1 mb-3">Copy this token now. You won&apos;t be able to see it again!</p>
+                    <h3 className="text-lg font-medium text-pierre-green-900">Token Created: {createdToken.name}</h3>
+                    <p className="text-pierre-green-700 mt-1 mb-3">Copy this token now. You won&apos;t be able to see it again!</p>
                     <div className="flex items-center gap-2">
-                      <code className="flex-1 px-3 py-2 bg-white border border-green-300 rounded font-mono text-sm break-all">
+                      <code className="flex-1 px-3 py-2 bg-white border border-pierre-green-300 rounded font-mono text-sm break-all">
                         {createdToken.token_value}
                       </code>
                       <Button onClick={() => copyToClipboard(createdToken.token_value)} variant="secondary" size="sm">
@@ -659,7 +659,7 @@ export default function UserSettings() {
                             onClick={() => setTokenToRevoke(token)}
                             disabled={revokeTokenMutation.isPending}
                             variant="secondary"
-                            className="text-red-600 hover:bg-red-50"
+                            className="text-pierre-red-600 hover:bg-pierre-red-50"
                             size="sm"
                           >
                             Revoke
@@ -804,10 +804,10 @@ Authorization: Bearer <your-token-here>`}
               </div>
             </Card>
 
-            <Card className="border-red-200">
-              <h2 className="text-lg font-semibold text-red-600 mb-4">Danger Zone</h2>
+            <Card className="border-pierre-red-200">
+              <h2 className="text-lg font-semibold text-pierre-red-600 mb-4">Danger Zone</h2>
               <div className="space-y-4">
-                <div className="p-4 bg-red-50 rounded-lg">
+                <div className="p-4 bg-pierre-red-50 rounded-lg">
                   <h3 className="font-medium text-pierre-gray-900 mb-2">Sign Out</h3>
                   <p className="text-sm text-pierre-gray-600 mb-3">Sign out of your account on this device.</p>
                   <Button variant="secondary" size="sm" onClick={logout}>

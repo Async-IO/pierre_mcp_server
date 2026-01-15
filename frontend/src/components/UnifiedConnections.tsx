@@ -271,18 +271,18 @@ export default function UnifiedConnections() {
         />
       )}
       {errorMessage && (
-        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+        <div className="mb-6 bg-pierre-red-50 border border-pierre-red-200 rounded-lg p-4">
           <div className="flex items-start gap-3">
-            <svg className="w-6 h-6 text-red-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-6 h-6 text-pierre-red-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <div className="flex-1">
-              <h4 className="font-medium text-red-800">Error</h4>
-              <p className="text-sm text-red-700 mt-1">{errorMessage}</p>
+              <h4 className="font-medium text-pierre-red-800">Error</h4>
+              <p className="text-sm text-pierre-red-700 mt-1">{errorMessage}</p>
             </div>
             <button
               onClick={() => setErrorMessage(null)}
-              className="text-red-500 hover:text-red-700"
+              className="text-pierre-red-500 hover:text-pierre-red-700"
               aria-label="Dismiss error"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

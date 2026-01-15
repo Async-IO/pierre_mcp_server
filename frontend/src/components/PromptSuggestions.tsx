@@ -60,8 +60,8 @@ export default function PromptSuggestions({ onSelectPrompt }: PromptSuggestionsP
   if (error) {
     return (
       <div className="mt-4 text-center">
-        <Card className="p-6 border-red-200 bg-red-50">
-          <div className="text-red-600 mb-2">
+        <Card className="p-6 border-pierre-red-200 bg-pierre-red-50">
+          <div className="text-pierre-red-600 mb-2">
             <svg
               className="w-8 h-8 mx-auto mb-2"
               fill="none"
@@ -76,7 +76,7 @@ export default function PromptSuggestions({ onSelectPrompt }: PromptSuggestionsP
               />
             </svg>
             <p className="font-medium">Failed to load coaches</p>
-            <p className="text-sm text-red-500 mt-1">
+            <p className="text-sm text-pierre-red-500 mt-1">
               {error instanceof Error ? error.message : 'Please try refreshing the page'}
             </p>
           </div>
@@ -199,7 +199,7 @@ function CoachesSection({
               </span>
               <div className="flex items-center gap-1">
                 {coach.is_favorite && (
-                  <span className="text-yellow-500">★</span>
+                  <span className="text-pierre-yellow-500">★</span>
                 )}
                 <span className={`text-xs px-1.5 py-0.5 rounded ${getCategoryBadgeClass(coach.category)}`}>
                   {getCategoryIcon(coach.category)}
@@ -231,11 +231,11 @@ function CoachesSection({
 // Helper functions for category styling
 function getCategoryBadgeClass(category: string): string {
   const classes: Record<string, string> = {
-    training: 'bg-green-100 text-green-700',
-    nutrition: 'bg-orange-100 text-orange-700',
-    recovery: 'bg-blue-100 text-blue-700',
-    recipes: 'bg-amber-100 text-amber-700',
-    analysis: 'bg-purple-100 text-purple-700',
+    training: 'bg-pierre-green-100 text-pierre-green-700',
+    nutrition: 'bg-pierre-nutrition/10 text-pierre-nutrition',
+    recovery: 'bg-pierre-blue-100 text-pierre-blue-700',
+    recipes: 'bg-pierre-yellow-100 text-pierre-yellow-700',
+    analysis: 'bg-pierre-violet/10 text-pierre-violet',
     custom: 'bg-pierre-gray-100 text-pierre-gray-600',
   };
   return classes[category.toLowerCase()] || classes.custom;

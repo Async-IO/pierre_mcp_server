@@ -116,14 +116,14 @@ export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+      <div className="bg-pierre-red-50 border border-pierre-red-200 rounded-lg p-6">
         <div className="flex items-center gap-3">
-          <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-6 h-6 text-pierre-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <div>
-            <h3 className="text-lg font-medium text-red-900">Failed to load API tokens</h3>
-            <p className="text-red-700 mt-1">
+            <h3 className="text-lg font-medium text-pierre-red-900">Failed to load API tokens</h3>
+            <p className="text-pierre-red-700 mt-1">
               {error instanceof Error ? error.message : 'An unknown error occurred'}
             </p>
           </div>
@@ -161,7 +161,7 @@ export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
                   onClick={handleBulkRevoke}
                   disabled={revokeTokenMutation.isPending}
                   variant="secondary"
-                  className="text-red-600 hover:bg-red-50"
+                  className="text-pierre-red-600 hover:bg-pierre-red-50"
                   size="sm"
                 >
                   Revoke Selected
@@ -246,7 +246,7 @@ export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
                             onClick={() => handleSingleRevoke(token)}
                             disabled={revokeTokenMutation.isPending}
                             variant="secondary"
-                            className="text-red-600 hover:bg-red-50 text-sm"
+                            className="text-pierre-red-600 hover:bg-pierre-red-50 text-sm"
                           >
                             Revoke
                           </Button>

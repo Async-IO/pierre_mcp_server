@@ -96,28 +96,28 @@ export default function A2AClientList({ onCreateClient }: A2AClientListProps) {
   const getTierBadgeColor = (tier: string) => {
     switch (tier.toLowerCase()) {
       case 'trial':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-pierre-yellow-100 text-pierre-yellow-800';
       case 'standard':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-pierre-blue-100 text-pierre-blue-800';
       case 'professional':
-        return 'bg-green-100 text-green-800';
+        return 'bg-pierre-green-100 text-pierre-green-800';
       case 'enterprise':
-        return 'bg-purple-100 text-purple-800';
+        return 'bg-pierre-violet-100 text-pierre-violet-800';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-pierre-gray-100 text-pierre-gray-800';
     }
   };
 
   const getCapabilityBadgeColor = (capability: string) => {
     const colorMap: { [key: string]: string } = {
-      'fitness-data-analysis': 'bg-blue-100 text-blue-800',
-      'activity-intelligence': 'bg-green-100 text-green-800',
-      'goal-management': 'bg-purple-100 text-purple-800',
-      'performance-prediction': 'bg-orange-100 text-orange-800',
-      'training-analytics': 'bg-teal-100 text-teal-800',
-      'provider-integration': 'bg-indigo-100 text-indigo-800',
+      'fitness-data-analysis': 'bg-pierre-blue-100 text-pierre-blue-800',
+      'activity-intelligence': 'bg-pierre-green-100 text-pierre-green-800',
+      'goal-management': 'bg-pierre-violet-100 text-pierre-violet-800',
+      'performance-prediction': 'bg-pierre-yellow-100 text-pierre-yellow-800',
+      'training-analytics': 'bg-pierre-cyan-100 text-pierre-cyan-800',
+      'provider-integration': 'bg-pierre-recovery-100 text-pierre-recovery-800',
     };
-    return colorMap[capability] || 'bg-gray-100 text-gray-800';
+    return colorMap[capability] || 'bg-pierre-gray-100 text-pierre-gray-800';
   };
 
   const handleDeactivate = (client: A2AClient) => {
@@ -156,7 +156,7 @@ export default function A2AClientList({ onCreateClient }: A2AClientListProps) {
     return (
       <Card>
         <div className="text-center py-8">
-          <div className="text-red-500 mb-4">❌</div>
+          <div className="text-pierre-red-500 mb-4">❌</div>
           <h3 className="text-lg font-medium text-pierre-gray-900 mb-2">Failed to load A2A clients</h3>
           <p className="text-pierre-gray-600 mb-4">There was an error loading your A2A clients.</p>
           <Button onClick={() => window.location.reload()}>
@@ -169,10 +169,10 @@ export default function A2AClientList({ onCreateClient }: A2AClientListProps) {
 
   if (allClients.length === 0) {
     return (
-      <div className="text-center py-16 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-        <div className="text-6xl mb-4 text-gray-400">🤖</div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">No Connected Apps Yet</h3>
-        <p className="text-gray-600 mb-6 max-w-md mx-auto">
+      <div className="text-center py-16 bg-pierre-gray-50 rounded-lg border-2 border-dashed border-pierre-gray-300">
+        <div className="text-6xl mb-4 text-pierre-gray-400">🤖</div>
+        <h3 className="text-lg font-semibold text-pierre-gray-900 mb-2">No Connected Apps Yet</h3>
+        <p className="text-pierre-gray-600 mb-6 max-w-md mx-auto">
           Register your first app to enable secure agent-to-agent communication with AI assistants and third-party integrations.
         </p>
         <Button
@@ -226,7 +226,7 @@ export default function A2AClientList({ onCreateClient }: A2AClientListProps) {
                       size="sm"
                     />
                     {client.is_verified && (
-                      <Badge variant="success" className="bg-green-100 text-green-800">
+                      <Badge variant="success" className="bg-pierre-green-100 text-pierre-green-800">
                         Verified
                       </Badge>
                     )}
@@ -356,8 +356,8 @@ export default function A2AClientList({ onCreateClient }: A2AClientListProps) {
                       <span className="text-pierre-gray-600">Remaining:</span>
                       <span className={`font-medium ${
                         clientRateLimit.remaining && clientRateLimit.remaining < clientRateLimit.limit * 0.1
-                          ? 'text-red-600'
-                          : 'text-green-600'
+                          ? 'text-pierre-red-600'
+                          : 'text-pierre-green-600'
                       }`}>
                         {clientRateLimit.remaining?.toLocaleString() || 0}
                       </span>

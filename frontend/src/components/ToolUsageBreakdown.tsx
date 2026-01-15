@@ -11,9 +11,9 @@ interface ToolUsageBreakdownProps {
   timeRange?: string;
 }
 
-export default function ToolUsageBreakdownComponent({ 
-  apiKeyId, 
-  timeRange = '7d' 
+export default function ToolUsageBreakdownComponent({
+  apiKeyId,
+  timeRange = '7d'
 }: ToolUsageBreakdownProps) {
   const { data: toolUsage, isLoading } = useQuery<ToolUsageBreakdown[]>({
     queryKey: ['tool-usage-breakdown', apiKeyId, timeRange],
@@ -23,7 +23,7 @@ export default function ToolUsageBreakdownComponent({
   if (isLoading) {
     return (
       <div className="flex justify-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-api-blue"></div>
+        <div className="pierre-spinner w-8 h-8"></div>
       </div>
     );
   }
@@ -31,7 +31,7 @@ export default function ToolUsageBreakdownComponent({
   if (!toolUsage || toolUsage.length === 0) {
     return (
       <div className="card">
-        <div className="text-center py-8 text-gray-500">
+        <div className="text-center py-8 text-pierre-gray-500">
           <div className="text-4xl mb-4">🔧</div>
           <p className="text-lg mb-2">No tool usage data</p>
           <p>Start making API calls to see tool usage breakdown</p>
@@ -43,7 +43,7 @@ export default function ToolUsageBreakdownComponent({
   // Prepare chart data
   const colors = [
     '#2563EB', // Blue
-    '#10B981', // Green  
+    '#10B981', // Green
     '#F59E0B', // Yellow
     '#EF4444', // Red
     '#8B5CF6', // Purple
@@ -148,63 +148,63 @@ export default function ToolUsageBreakdownComponent({
       <div className="card">
         <h3 className="text-lg font-medium mb-4">Tool Usage Details</h3>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-pierre-gray-200">
+            <thead className="bg-pierre-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-pierre-gray-500 uppercase tracking-wider">
                   Tool Name
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-pierre-gray-500 uppercase tracking-wider">
                   Requests
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-pierre-gray-500 uppercase tracking-wider">
                   Success Rate
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-pierre-gray-500 uppercase tracking-wider">
                   Avg Response Time
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-pierre-gray-500 uppercase tracking-wider">
                   Errors
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-pierre-gray-500 uppercase tracking-wider">
                   Share
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white divide-y divide-pierre-gray-200">
               {toolUsage.map((tool, index) => (
-                <tr key={tool.tool_name} className="hover:bg-gray-50">
+                <tr key={tool.tool_name} className="hover:bg-pierre-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <div 
+                      <div
                         className="w-3 h-3 rounded-full mr-3"
                         style={{ backgroundColor: colors[index % colors.length] }}
                       />
-                      <div className="text-sm font-medium text-gray-900">
+                      <div className="text-sm font-medium text-pierre-gray-900">
                         {formatToolName(tool.tool_name)}
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-pierre-gray-900">
                     {tool.request_count.toLocaleString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <div className="text-sm text-gray-900">
+                      <div className="text-sm text-pierre-gray-900">
                         {tool.success_rate.toFixed(1)}%
                       </div>
-                      <div className="ml-2 w-16 bg-gray-200 rounded-full h-2">
+                      <div className="ml-2 w-16 bg-pierre-gray-200 rounded-full h-2">
                         <div
                           className={`h-2 rounded-full ${
-                            tool.success_rate >= 95 ? 'bg-green-500' :
-                            tool.success_rate >= 90 ? 'bg-yellow-500' : 'bg-red-500'
+                            tool.success_rate >= 95 ? 'bg-pierre-green-500' :
+                            tool.success_rate >= 90 ? 'bg-pierre-yellow-500' : 'bg-pierre-red-500'
                           }`}
                           style={{ width: `${tool.success_rate}%` }}
                         />
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-pierre-gray-900">
                     {tool.average_response_time.toFixed(0)}ms
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -212,18 +212,18 @@ export default function ToolUsageBreakdownComponent({
                       const errorCount = Math.round(tool.request_count * (100 - tool.success_rate) / 100);
                       return (
                         <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                          errorCount === 0 
-                            ? 'bg-green-100 text-green-800'
+                          errorCount === 0
+                            ? 'bg-pierre-green-100 text-pierre-green-800'
                             : errorCount < 10
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-red-100 text-red-800'
+                            ? 'bg-pierre-yellow-100 text-pierre-yellow-800'
+                            : 'bg-pierre-red-100 text-pierre-red-800'
                         }`}>
                           {errorCount}
                         </span>
                       );
                     })()}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-pierre-gray-900">
                     {(() => {
                       const totalRequests = toolUsage?.reduce((sum, t) => sum + t.request_count, 0) || 1;
                       const percentage = (tool.request_count / totalRequests) * 100;
@@ -243,27 +243,27 @@ export default function ToolUsageBreakdownComponent({
           <div className="text-2xl font-bold text-api-blue">
             {toolUsage.length}
           </div>
-          <div className="text-sm text-gray-600">Tools Used</div>
+          <div className="text-sm text-pierre-gray-600">Tools Used</div>
         </div>
         <div className="stat-card">
           <div className="text-2xl font-bold text-api-green">
             {toolUsage.reduce((sum, tool) => sum + tool.request_count, 0).toLocaleString()}
           </div>
-          <div className="text-sm text-gray-600">Total Requests</div>
+          <div className="text-sm text-pierre-gray-600">Total Requests</div>
         </div>
         <div className="stat-card">
           <div className="text-2xl font-bold text-api-yellow">
-            {(toolUsage.reduce((sum, tool) => sum + tool.success_rate * tool.request_count, 0) / 
+            {(toolUsage.reduce((sum, tool) => sum + tool.success_rate * tool.request_count, 0) /
              toolUsage.reduce((sum, tool) => sum + tool.request_count, 0)).toFixed(1)}%
           </div>
-          <div className="text-sm text-gray-600">Overall Success Rate</div>
+          <div className="text-sm text-pierre-gray-600">Overall Success Rate</div>
         </div>
         <div className="stat-card">
-          <div className="text-2xl font-bold text-gray-700">
-            {(toolUsage.reduce((sum, tool) => sum + tool.average_response_time * tool.request_count, 0) / 
+          <div className="text-2xl font-bold text-pierre-gray-700">
+            {(toolUsage.reduce((sum, tool) => sum + tool.average_response_time * tool.request_count, 0) /
              toolUsage.reduce((sum, tool) => sum + tool.request_count, 0)).toFixed(0)}ms
           </div>
-          <div className="text-sm text-gray-600">Avg Response Time</div>
+          <div className="text-sm text-pierre-gray-600">Avg Response Time</div>
         </div>
       </div>
     </div>

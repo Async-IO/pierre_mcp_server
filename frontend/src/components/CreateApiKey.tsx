@@ -117,7 +117,7 @@ export default function CreateApiKey({ onBack, onTokenCreated }: CreateApiKeyPro
       <div className="bg-white border border-pierre-gray-200 rounded-lg p-6">
         <form onSubmit={handleSubmit} className="space-y-6">
           {createTokenMutation.error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded">
+            <div className="bg-pierre-red-50 border border-pierre-red-200 text-pierre-red-600 px-4 py-3 rounded">
               {createTokenMutation.error instanceof Error
                 ? createTokenMutation.error.message
                 : 'Failed to create API token'}

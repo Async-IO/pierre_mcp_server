@@ -55,7 +55,7 @@ export default function AdminSettings() {
               {isLoading ? (
                 <div className="w-11 h-6 bg-pierre-gray-200 rounded-full animate-pulse" />
               ) : error ? (
-                <span className="text-xs text-red-500">Error loading</span>
+                <span className="text-xs text-pierre-red-500">Error loading</span>
               ) : (
                 <button
                   onClick={handleToggleAutoApproval}
@@ -107,7 +107,7 @@ export default function AdminSettings() {
             </div>
           )}
           {updateAutoApprovalMutation.isError && (
-            <div className="p-3 rounded-lg bg-red-50 text-red-600 text-sm">
+            <div className="p-3 rounded-lg bg-pierre-red-50 text-pierre-red-600 text-sm">
               Failed to update setting. Please try again.
             </div>
           )}

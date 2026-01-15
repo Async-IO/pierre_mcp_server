@@ -152,6 +152,7 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onDismiss }) => {
           <button
             type="button"
             onClick={onDismiss}
+            aria-label="Dismiss notification"
             className="flex-shrink-0 p-1 text-pierre-gray-400 hover:text-pierre-gray-600 rounded transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

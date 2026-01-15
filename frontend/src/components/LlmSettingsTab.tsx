@@ -310,7 +310,7 @@ export default function LlmSettingsTab() {
                   'p-4 rounded-lg',
                   validationResult.valid
                     ? 'bg-pierre-activity-light/30 border border-pierre-activity/30'
-                    : 'bg-red-50 border border-red-200'
+                    : 'bg-pierre-red-50 border border-pierre-red-200'
                 )}
               >
                 {validationResult.valid ? (
@@ -334,7 +334,7 @@ export default function LlmSettingsTab() {
                     )}
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 text-red-600">
+                  <div className="flex items-center gap-2 text-pierre-red-600">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path
                         strokeLinecap="round"
@@ -380,7 +380,7 @@ export default function LlmSettingsTab() {
               'p-3 rounded-lg text-sm',
               message.type === 'success'
                 ? 'bg-pierre-activity-light/30 text-pierre-activity'
-                : 'bg-red-50 text-red-600'
+                : 'bg-pierre-red-50 text-pierre-red-600'
             )}
           >
             {message.text}
