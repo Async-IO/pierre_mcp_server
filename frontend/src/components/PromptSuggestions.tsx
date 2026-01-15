@@ -22,7 +22,6 @@ interface Coach {
   last_used_at?: string;
   is_system: boolean;
   is_assigned: boolean;
-  sample_prompts?: string[];
 }
 
 interface PromptSuggestionsProps {
@@ -177,80 +176,52 @@ function CoachesSection({
       </div>
 
       {/* Coach list */}
-      <div className="space-y-3">
+      <div className="space-y-2">
         {coaches.map((coach) => (
-          <div
+          <button
             key={coach.id}
-            className="rounded-lg border border-pierre-gray-100 hover:border-pierre-gray-200 transition-colors"
+            type="button"
+            onClick={() => {
+              apiService.recordCoachUsage(coach.id).catch(() => {
+                // Silently ignore usage tracking errors
+              });
+              onSelectPrompt(
+                coach.description || `Chat with ${coach.title}`,
+                coach.id,
+                coach.system_prompt
+              );
+            }}
+            className="w-full text-left text-sm rounded-lg border border-pierre-gray-100 hover:border-pierre-violet hover:bg-pierre-gray-50 px-3 py-2 transition-colors focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-opacity-50 group"
           >
-            {/* Coach header - clickable to start generic conversation */}
-            <button
-              type="button"
-              onClick={() => {
-                apiService.recordCoachUsage(coach.id).catch(() => {
-                  // Silently ignore usage tracking errors
-                });
-                onSelectPrompt(
-                  coach.description || `Chat with ${coach.title}`,
-                  coach.id,
-                  coach.system_prompt
-                );
-              }}
-              className="w-full text-left text-sm hover:bg-pierre-gray-50 rounded-t-lg px-3 py-2 transition-colors focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-opacity-50 group"
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-pierre-gray-800 group-hover:text-pierre-violet">
-                  {coach.title}
+            <div className="flex items-center justify-between">
+              <span className="font-medium text-pierre-gray-800 group-hover:text-pierre-violet">
+                {coach.title}
+              </span>
+              <div className="flex items-center gap-1">
+                {coach.is_favorite && (
+                  <span className="text-yellow-500">★</span>
+                )}
+                <span className={`text-xs px-1.5 py-0.5 rounded ${getCategoryBadgeClass(coach.category)}`}>
+                  {getCategoryIcon(coach.category)}
                 </span>
-                <div className="flex items-center gap-1">
-                  {coach.is_favorite && (
-                    <span className="text-yellow-500">★</span>
-                  )}
-                  <span className={`text-xs px-1.5 py-0.5 rounded ${getCategoryBadgeClass(coach.category)}`}>
-                    {getCategoryIcon(coach.category)}
-                  </span>
-                </div>
               </div>
-              {coach.description && (
-                <p className="text-pierre-gray-500 text-xs mt-0.5 line-clamp-2">
-                  {coach.description}
-                </p>
-              )}
-              <div className="flex items-center gap-2 mt-1 text-xs text-pierre-gray-400">
-                {coach.is_system && (
-                  <span className="bg-pierre-violet bg-opacity-10 text-pierre-violet px-1.5 py-0.5 rounded">
-                    System
-                  </span>
-                )}
-                {coach.use_count > 0 && (
-                  <span>Used {coach.use_count}x</span>
-                )}
-              </div>
-            </button>
-
-            {/* Sample prompts - quick start suggestions */}
-            {coach.sample_prompts && coach.sample_prompts.length > 0 && (
-              <div className="px-3 pb-2 pt-1 border-t border-pierre-gray-100">
-                <div className="flex flex-wrap gap-1.5">
-                  {coach.sample_prompts.map((prompt, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => {
-                        apiService.recordCoachUsage(coach.id).catch(() => {
-                          // Silently ignore usage tracking errors
-                        });
-                        onSelectPrompt(prompt, coach.id, coach.system_prompt);
-                      }}
-                      className="text-xs px-2 py-1 rounded-full bg-pierre-gray-50 hover:bg-pierre-violet hover:text-white text-pierre-gray-600 transition-colors"
-                    >
-                      {prompt}
-                    </button>
-                  ))}
-                </div>
-              </div>
+            </div>
+            {coach.description && (
+              <p className="text-pierre-gray-500 text-xs mt-0.5 line-clamp-2">
+                {coach.description}
+              </p>
             )}
-          </div>
+            <div className="flex items-center gap-2 mt-1 text-xs text-pierre-gray-400">
+              {coach.is_system && (
+                <span className="bg-pierre-violet bg-opacity-10 text-pierre-violet px-1.5 py-0.5 rounded">
+                  System
+                </span>
+              )}
+              {coach.use_count > 0 && (
+                <span>Used {coach.use_count}x</span>
+              )}
+            </div>
+          </button>
         ))}
       </div>
     </Card>
@@ -260,24 +231,26 @@ function CoachesSection({
 // Helper functions for category styling
 function getCategoryBadgeClass(category: string): string {
   const classes: Record<string, string> = {
-    Training: 'bg-green-100 text-green-700',
-    Nutrition: 'bg-orange-100 text-orange-700',
-    Recovery: 'bg-blue-100 text-blue-700',
-    Recipes: 'bg-amber-100 text-amber-700',
-    Custom: 'bg-pierre-gray-100 text-pierre-gray-600',
+    training: 'bg-green-100 text-green-700',
+    nutrition: 'bg-orange-100 text-orange-700',
+    recovery: 'bg-blue-100 text-blue-700',
+    recipes: 'bg-amber-100 text-amber-700',
+    analysis: 'bg-purple-100 text-purple-700',
+    custom: 'bg-pierre-gray-100 text-pierre-gray-600',
   };
-  return classes[category] || classes.Custom;
+  return classes[category.toLowerCase()] || classes.custom;
 }
 
 function getCategoryIcon(category: string): string {
   const icons: Record<string, string> = {
-    Training: '🏃',
-    Nutrition: '🥗',
-    Recovery: '😴',
-    Recipes: '👨‍🍳',
-    Custom: '⚙️',
+    training: '🏃',
+    nutrition: '🥗',
+    recovery: '😴',
+    recipes: '👨‍🍳',
+    analysis: '📊',
+    custom: '⚙️',
   };
-  return icons[category] || icons.Custom;
+  return icons[category.toLowerCase()] || icons.custom;
 }
 
 // Hook to get coaches data for use in other components

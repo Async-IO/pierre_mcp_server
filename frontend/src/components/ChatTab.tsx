@@ -11,7 +11,7 @@ import { ConfirmDialog } from './ui';
 import { clsx } from 'clsx';
 import { apiService } from '../services/api';
 import Markdown from 'react-markdown';
-import PromptSuggestions, { useWelcomePrompt } from './PromptSuggestions';
+import PromptSuggestions from './PromptSuggestions';
 import ProviderConnectionCards from './ProviderConnectionCards';
 import { useAuth } from '../hooks/useAuth';
 
@@ -139,9 +139,6 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
   // Check if any provider is connected
   const hasConnectedProvider = oauthStatus?.providers?.some(p => p.connected) ?? false;
 
-  // Fetch welcome prompt from API
-  const { welcomePrompt } = useWelcomePrompt();
-
   // Fetch messages for selected conversation
   const { data: messagesData, isLoading: messagesLoading } = useQuery<{ messages: Message[] }>({
     queryKey: ['chat-messages', selectedConversation],
@@ -150,8 +147,8 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
   });
 
   // Create conversation mutation - auto-creates with default title and optional system prompt
-  const createConversation = useMutation({
-    mutationFn: (systemPrompt?: string) => {
+  const createConversation = useMutation<{ id: string }, Error, string | void>({
+    mutationFn: (systemPrompt) => {
       const now = new Date();
       const defaultTitle = `Chat ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
       return apiService.createConversation({
@@ -558,7 +555,9 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
     setSelectedConversation(null);
   };
 
-  const handleSelectPrompt = (prompt: string, coachId?: string, systemPrompt?: string) => {
+  const handleSelectPrompt = (prompt: string, coachIdForTracking?: string, systemPrompt?: string) => {
+    // coachIdForTracking is used by PromptSuggestions for usage tracking before calling this
+    void coachIdForTracking; // Acknowledge the parameter is intentionally not used here
     setPendingPrompt(prompt);
     if (systemPrompt) {
       setPendingSystemPrompt(systemPrompt);
@@ -566,7 +565,9 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
     createConversation.mutate(systemPrompt);
   };
 
-  const handleFillPrompt = (prompt: string, coachId?: string, systemPrompt?: string) => {
+  const handleFillPrompt = (prompt: string, coachIdForTracking?: string, systemPrompt?: string) => {
+    // coachIdForTracking is used by PromptSuggestions for usage tracking before calling this
+    void coachIdForTracking; // Acknowledge the parameter is intentionally not used here
     setNewMessage(prompt);
     if (systemPrompt) {
       setPendingSystemPrompt(systemPrompt);
@@ -869,41 +870,7 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                 </p>
               </div>
 
-              {/* Featured action: Analyze recent activities */}
-              <div className="text-center mb-8">
-                <button
-                  type="button"
-                  onClick={() => welcomePrompt && handleSelectPrompt(welcomePrompt)}
-                  disabled={createConversation.isPending || !welcomePrompt}
-                  className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-pierre-violet to-pierre-cyan text-white font-semibold rounded-xl shadow-lg shadow-pierre-violet/25 hover:shadow-xl hover:shadow-pierre-violet/30 hover:-translate-y-0.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-offset-2 disabled:opacity-50"
-                >
-                  {createConversation.isPending ? (
-                    <>
-                      <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
-                        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-                      </svg>
-                      Analyzing...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                      </svg>
-                      Analyze my last 20 activities
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Divider */}
-              <div className="flex items-center gap-4 my-8">
-                <div className="flex-1 h-px bg-pierre-gray-200" />
-                <span className="text-pierre-gray-400 text-xs uppercase tracking-wider">Or ask something else</span>
-                <div className="flex-1 h-px bg-pierre-gray-200" />
-              </div>
-
-              {/* Additional prompt suggestions */}
+              {/* Coach selection */}
               <PromptSuggestions onSelectPrompt={handleSelectPrompt} />
 
               <div className="mt-8 text-center">
