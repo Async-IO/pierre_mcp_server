@@ -158,8 +158,8 @@ async function navigateToAiSettings(page: Page) {
   await page.waitForSelector('header', { timeout: 10000 });
 
   // For non-admin users, settings is accessed via gear icon in ChatTab sidebar
-  // Look for the settings button with title="Settings"
-  const settingsButton = page.locator('button[title="Settings"]');
+  // Look for the settings button with title="Open settings"
+  const settingsButton = page.locator('button[title="Open settings"]');
   const settingsVisible = await settingsButton.isVisible({ timeout: 5000 }).catch(() => false);
 
   if (settingsVisible) {
@@ -191,7 +191,7 @@ test.describe('LLM Settings - Display and Navigation', () => {
     await page.waitForSelector('header', { timeout: 10000 });
 
     // Navigate to settings - for non-admin users, use gear icon button
-    const settingsButton = page.locator('button[title="Settings"]');
+    const settingsButton = page.locator('button[title="Open settings"]');
     const settingsVisible = await settingsButton.isVisible({ timeout: 5000 }).catch(() => false);
 
     if (settingsVisible) {
@@ -558,7 +558,7 @@ test.describe('LLM Settings - Error Handling', () => {
     await page.waitForSelector('header', { timeout: 10000 });
 
     // Navigate to settings - for non-admin users, use gear icon button
-    const settingsButton = page.locator('button[title="Settings"]');
+    const settingsButton = page.locator('button[title="Open settings"]');
     const settingsVisible = await settingsButton.isVisible({ timeout: 5000 }).catch(() => false);
 
     if (settingsVisible) {
