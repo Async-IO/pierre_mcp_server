@@ -199,56 +199,87 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
   }, [selectedConversation]);
 
   // Listen for OAuth completion from popup/new tab
+  // Uses a processing flag to prevent race conditions when multiple events fire
   useEffect(() => {
-    // Check localStorage for OAuth result and process if found
-    const checkAndProcessOAuthResult = () => {
+    // Flag to prevent duplicate processing when multiple events fire simultaneously
+    let isProcessingOAuth = false;
+
+    // Process OAuth result - extracts and removes localStorage items atomically
+    // Returns the data if found and valid, null otherwise
+    const extractOAuthData = () => {
+      const stored = localStorage.getItem('pierre_oauth_result');
+      if (!stored) return null;
+
+      // Remove immediately to prevent duplicate processing from other handlers
+      localStorage.removeItem('pierre_oauth_result');
+
       try {
-        const stored = localStorage.getItem('pierre_oauth_result');
-        const savedConversation = localStorage.getItem('pierre_oauth_conversation');
-        const savedCoachAction = localStorage.getItem('pierre_pending_coach_action');
+        const result = JSON.parse(stored);
+        const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
 
-        if (stored) {
-          const result = JSON.parse(stored);
-          // Only process if it's recent (within last 5 minutes)
-          const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+        if (result.type === 'oauth_completed' && result.success && result.timestamp > fiveMinutesAgo) {
+          // Also extract related items atomically
+          const savedConversation = localStorage.getItem('pierre_oauth_conversation');
+          const savedCoachAction = localStorage.getItem('pierre_pending_coach_action');
 
-          if (result.type === 'oauth_completed' && result.success && result.timestamp > fiveMinutesAgo) {
-            queryClient.invalidateQueries({ queryKey: ['oauth-status'] });
-            queryClient.invalidateQueries({ queryKey: ['user-profile'] });
-            // Show visible notification in chat
-            const providerDisplay = result.provider.charAt(0).toUpperCase() + result.provider.slice(1);
-            setOauthNotification({ provider: providerDisplay, timestamp: Date.now() });
-            setConnectingProvider(null);
-            // Restore the conversation that was active before OAuth redirect
-            if (savedConversation) {
-              setSelectedConversation(savedConversation);
-              localStorage.removeItem('pierre_oauth_conversation');
-            }
-            // Restore pending coach action and create conversation
-            if (savedCoachAction) {
-              try {
-                const coachAction = JSON.parse(savedCoachAction);
-                setPendingPrompt(coachAction.prompt);
-                if (coachAction.systemPrompt) {
-                  setPendingSystemPrompt(coachAction.systemPrompt);
-                }
-                createConversation.mutate(coachAction.systemPrompt);
-              } catch {
-                // Ignore parse errors
-              }
-              localStorage.removeItem('pierre_pending_coach_action');
-            }
-            // Clean up the storage item
-            localStorage.removeItem('pierre_oauth_result');
-          } else if (result.timestamp <= fiveMinutesAgo) {
-            // Clean up stale entries
-            localStorage.removeItem('pierre_oauth_result');
-            localStorage.removeItem('pierre_oauth_conversation');
-            localStorage.removeItem('pierre_pending_coach_action');
-          }
+          // Remove these immediately too
+          if (savedConversation) localStorage.removeItem('pierre_oauth_conversation');
+          if (savedCoachAction) localStorage.removeItem('pierre_pending_coach_action');
+
+          return {
+            result,
+            savedConversation,
+            savedCoachAction: savedCoachAction ? JSON.parse(savedCoachAction) : null,
+          };
+        } else if (result.timestamp <= fiveMinutesAgo) {
+          // Clean up stale entries
+          localStorage.removeItem('pierre_oauth_conversation');
+          localStorage.removeItem('pierre_pending_coach_action');
         }
       } catch {
-        // Ignore parse errors from localStorage
+        // Ignore parse errors
+      }
+      return null;
+    };
+
+    // Process the extracted OAuth data (called after extraction to avoid races)
+    const processOAuthData = (data: { result: { provider: string }; savedConversation: string | null; savedCoachAction: { prompt: string; systemPrompt?: string } | null }) => {
+      if (isProcessingOAuth) return;
+      isProcessingOAuth = true;
+
+      queryClient.invalidateQueries({ queryKey: ['oauth-status'] });
+      queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+
+      // Show visible notification in chat
+      const providerDisplay = data.result.provider.charAt(0).toUpperCase() + data.result.provider.slice(1);
+      setOauthNotification({ provider: providerDisplay, timestamp: Date.now() });
+      setConnectingProvider(null);
+
+      // Restore the conversation that was active before OAuth redirect
+      if (data.savedConversation) {
+        setSelectedConversation(data.savedConversation);
+      }
+
+      // Restore pending coach action and create conversation
+      if (data.savedCoachAction) {
+        setPendingPrompt(data.savedCoachAction.prompt);
+        if (data.savedCoachAction.systemPrompt) {
+          setPendingSystemPrompt(data.savedCoachAction.systemPrompt);
+        }
+        createConversation.mutate(data.savedCoachAction.systemPrompt);
+      }
+
+      // Reset flag after a short delay to allow state updates to propagate
+      setTimeout(() => {
+        isProcessingOAuth = false;
+      }, 500);
+    };
+
+    // Check localStorage for OAuth result and process if found
+    const checkAndProcessOAuthResult = () => {
+      const data = extractOAuthData();
+      if (data) {
+        processOAuthData(data);
       }
     };
 
@@ -256,76 +287,40 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
       // Validate message structure
       if (event.data?.type === 'oauth_completed') {
         const { provider, success } = event.data;
-        if (success) {
-          // Invalidate any queries that depend on connection status
-          queryClient.invalidateQueries({ queryKey: ['oauth-status'] });
-          queryClient.invalidateQueries({ queryKey: ['user-profile'] });
-          // Show visible notification in chat
-          const providerDisplay = provider.charAt(0).toUpperCase() + provider.slice(1);
-          setOauthNotification({ provider: providerDisplay, timestamp: Date.now() });
-          setConnectingProvider(null);
-          // Restore the conversation that was active before OAuth redirect
+        if (success && !isProcessingOAuth) {
+          // For postMessage, we don't have localStorage data, so extract what we can
           const savedConversation = localStorage.getItem('pierre_oauth_conversation');
-          if (savedConversation) {
-            setSelectedConversation(savedConversation);
-            localStorage.removeItem('pierre_oauth_conversation');
-          }
-          // Restore pending coach action and create conversation
-          const savedCoachAction = localStorage.getItem('pierre_pending_coach_action');
-          if (savedCoachAction) {
+          const savedCoachActionStr = localStorage.getItem('pierre_pending_coach_action');
+
+          // Remove immediately
+          if (savedConversation) localStorage.removeItem('pierre_oauth_conversation');
+          if (savedCoachActionStr) localStorage.removeItem('pierre_pending_coach_action');
+
+          let savedCoachAction = null;
+          if (savedCoachActionStr) {
             try {
-              const coachAction = JSON.parse(savedCoachAction);
-              setPendingPrompt(coachAction.prompt);
-              if (coachAction.systemPrompt) {
-                setPendingSystemPrompt(coachAction.systemPrompt);
-              }
-              createConversation.mutate(coachAction.systemPrompt);
+              savedCoachAction = JSON.parse(savedCoachActionStr);
             } catch {
               // Ignore parse errors
             }
-            localStorage.removeItem('pierre_pending_coach_action');
           }
+
+          processOAuthData({
+            result: { provider },
+            savedConversation,
+            savedCoachAction,
+          });
         }
       }
     };
 
     const handleStorageChange = (event: StorageEvent) => {
       if (event.key === 'pierre_oauth_result' && event.newValue) {
-        try {
-          const result = JSON.parse(event.newValue);
-          if (result.type === 'oauth_completed' && result.success) {
-            queryClient.invalidateQueries({ queryKey: ['oauth-status'] });
-            queryClient.invalidateQueries({ queryKey: ['user-profile'] });
-            // Show visible notification in chat
-            const providerDisplay = result.provider.charAt(0).toUpperCase() + result.provider.slice(1);
-            setOauthNotification({ provider: providerDisplay, timestamp: Date.now() });
-            setConnectingProvider(null);
-            // Restore the conversation that was active before OAuth redirect
-            const savedConversation = localStorage.getItem('pierre_oauth_conversation');
-            if (savedConversation) {
-              setSelectedConversation(savedConversation);
-              localStorage.removeItem('pierre_oauth_conversation');
-            }
-            // Restore pending coach action and create conversation
-            const savedCoachAction = localStorage.getItem('pierre_pending_coach_action');
-            if (savedCoachAction) {
-              try {
-                const coachAction = JSON.parse(savedCoachAction);
-                setPendingPrompt(coachAction.prompt);
-                if (coachAction.systemPrompt) {
-                  setPendingSystemPrompt(coachAction.systemPrompt);
-                }
-                createConversation.mutate(coachAction.systemPrompt);
-              } catch {
-                // Ignore parse errors
-              }
-              localStorage.removeItem('pierre_pending_coach_action');
-            }
-            // Clean up the storage item
-            localStorage.removeItem('pierre_oauth_result');
-          }
-        } catch {
-          // Ignore parse errors
+        // The storage event fires, but another handler might have already processed it
+        // Try to extract - if extraction returns null, it was already processed
+        const data = extractOAuthData();
+        if (data) {
+          processOAuthData(data);
         }
       }
     };
