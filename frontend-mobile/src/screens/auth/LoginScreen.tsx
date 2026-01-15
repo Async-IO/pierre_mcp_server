@@ -36,14 +36,10 @@ interface LoginScreenProps {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'Login'>;
 }
 
-// Development mode pre-fills credentials for testing
-const DEV_EMAIL = __DEV__ ? 'mobile@test.com' : '';
-const DEV_PASSWORD = __DEV__ ? 'mobiletest123' : '';
-
 export function LoginScreen({ navigation }: LoginScreenProps) {
   const { login, loginWithFirebase } = useAuth();
-  const [email, setEmail] = useState(DEV_EMAIL);
-  const [password, setPassword] = useState(DEV_PASSWORD);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
