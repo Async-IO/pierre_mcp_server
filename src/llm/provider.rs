@@ -39,6 +39,7 @@ use uuid::Uuid;
 use super::{
     ChatMessage, ChatRequest, ChatResponse, ChatResponseWithTools, ChatStream, FunctionResponse,
     GeminiProvider, GroqProvider, LlmCapabilities, LlmProvider, OpenAiCompatibleProvider, Tool,
+    VertexAiProvider,
 };
 use crate::config::LlmProviderType;
 use crate::database_plugins::factory::Database;
@@ -47,13 +48,15 @@ use crate::tenant::llm_manager::{
     LlmCredentials, LlmProvider as TenantLlmProvider, TenantLlmManager,
 };
 
-/// Unified chat provider that wraps Gemini, Groq, or local LLM
+/// Unified chat provider that wraps Gemini, Groq, Vertex AI, or local LLM
 ///
 /// This enum provides a consistent interface regardless of which
 /// underlying provider is configured.
 pub enum ChatProvider {
-    /// Google Gemini provider with full tool calling support
+    /// Google Gemini provider via AI Studio API with full tool calling support
     Gemini(GeminiProvider),
+    /// Google Vertex AI provider - GCP-native with service account auth
+    Vertex(VertexAiProvider),
     /// Groq provider for fast, cost-effective inference
     Groq(GroqProvider),
     /// Local LLM provider via `OpenAI`-compatible API (Ollama, vLLM, `LocalAI`)
@@ -84,6 +87,7 @@ impl ChatProvider {
         let provider = match provider_type {
             LlmProviderType::Groq => Self::groq()?,
             LlmProviderType::Gemini => Self::gemini()?,
+            LlmProviderType::Vertex => Self::vertex()?,
             LlmProviderType::Local => Self::local()?,
         };
 
@@ -126,6 +130,23 @@ impl ChatProvider {
     /// Returns an error if the provider cannot be initialized.
     pub fn local() -> Result<Self, AppError> {
         Ok(Self::Local(OpenAiCompatibleProvider::from_env()?))
+    }
+
+    /// Create a Vertex AI provider explicitly
+    ///
+    /// Uses environment variables for configuration:
+    /// - `GCP_PROJECT_ID`: GCP project ID (required)
+    /// - `GCP_REGION`: GCP region (default: us-central1)
+    ///
+    /// Authentication uses GCP Application Default Credentials:
+    /// - In Cloud Run: Automatic via metadata server
+    /// - Locally: Run `gcloud auth application-default login`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `GCP_PROJECT_ID` is not set.
+    pub fn vertex() -> Result<Self, AppError> {
+        Ok(Self::Vertex(VertexAiProvider::from_env()?))
     }
 
     // ========================================
@@ -235,6 +256,7 @@ impl ChatProvider {
     pub const fn provider_type(&self) -> LlmProviderType {
         match self {
             Self::Gemini(_) => LlmProviderType::Gemini,
+            Self::Vertex(_) => LlmProviderType::Vertex,
             Self::Groq(_) => LlmProviderType::Groq,
             Self::Local(_) => LlmProviderType::Local,
         }
@@ -261,6 +283,7 @@ impl ChatProvider {
     ) -> Result<ChatResponseWithTools, AppError> {
         match self {
             Self::Gemini(provider) => provider.complete_with_tools(request, tools).await,
+            Self::Vertex(provider) => provider.complete_with_tools(request, tools).await,
             Self::Groq(provider) => provider.complete_with_tools(request, tools).await,
             Self::Local(provider) => provider.complete_with_tools(request, tools).await,
         }
@@ -292,6 +315,7 @@ impl ChatProvider {
     pub fn name(&self) -> &'static str {
         match self {
             Self::Gemini(p) => p.name(),
+            Self::Vertex(p) => p.name(),
             Self::Groq(p) => p.name(),
             Self::Local(p) => p.name(),
         }
@@ -302,6 +326,7 @@ impl ChatProvider {
     pub fn display_name(&self) -> &'static str {
         match self {
             Self::Gemini(p) => p.display_name(),
+            Self::Vertex(p) => p.display_name(),
             Self::Groq(p) => p.display_name(),
             Self::Local(p) => p.display_name(),
         }
@@ -312,6 +337,7 @@ impl ChatProvider {
     pub fn capabilities(&self) -> LlmCapabilities {
         match self {
             Self::Gemini(p) => p.capabilities(),
+            Self::Vertex(p) => p.capabilities(),
             Self::Groq(p) => p.capabilities(),
             Self::Local(p) => p.capabilities(),
         }
@@ -322,6 +348,7 @@ impl ChatProvider {
     pub fn default_model(&self) -> &str {
         match self {
             Self::Gemini(p) => p.default_model(),
+            Self::Vertex(p) => p.default_model(),
             Self::Groq(p) => p.default_model(),
             Self::Local(p) => p.default_model(),
         }
@@ -332,6 +359,7 @@ impl ChatProvider {
     pub fn available_models(&self) -> &'static [&'static str] {
         match self {
             Self::Gemini(p) => p.available_models(),
+            Self::Vertex(p) => p.available_models(),
             Self::Groq(p) => p.available_models(),
             Self::Local(p) => p.available_models(),
         }
@@ -345,6 +373,7 @@ impl ChatProvider {
     pub async fn complete(&self, request: &ChatRequest) -> Result<ChatResponse, AppError> {
         match self {
             Self::Gemini(p) => p.complete(request).await,
+            Self::Vertex(p) => p.complete(request).await,
             Self::Groq(p) => p.complete(request).await,
             Self::Local(p) => p.complete(request).await,
         }
@@ -358,6 +387,7 @@ impl ChatProvider {
     pub async fn complete_stream(&self, request: &ChatRequest) -> Result<ChatStream, AppError> {
         match self {
             Self::Gemini(p) => p.complete_stream(request).await,
+            Self::Vertex(p) => p.complete_stream(request).await,
             Self::Groq(p) => p.complete_stream(request).await,
             Self::Local(p) => p.complete_stream(request).await,
         }
@@ -371,6 +401,7 @@ impl ChatProvider {
     pub async fn health_check(&self) -> Result<bool, AppError> {
         match self {
             Self::Gemini(p) => p.health_check().await,
+            Self::Vertex(p) => p.health_check().await,
             Self::Groq(p) => p.health_check().await,
             Self::Local(p) => p.health_check().await,
         }
@@ -381,6 +412,7 @@ impl fmt::Debug for ChatProvider {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Gemini(_) => f.debug_tuple("ChatProvider::Gemini").finish(),
+            Self::Vertex(_) => f.debug_tuple("ChatProvider::Vertex").finish(),
             Self::Groq(_) => f.debug_tuple("ChatProvider::Groq").finish(),
             Self::Local(_) => f.debug_tuple("ChatProvider::Local").finish(),
         }
