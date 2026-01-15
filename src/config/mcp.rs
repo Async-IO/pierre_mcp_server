@@ -99,6 +99,9 @@ pub struct AppBehaviorConfig {
     pub ci_mode: bool,
     /// Auto-approve new user registrations (skip admin approval workflow)
     pub auto_approve_users: bool,
+    /// Whether `auto_approve_users` was explicitly set via environment variable.
+    /// When true, the env var value takes precedence over database settings.
+    pub auto_approve_users_from_env: bool,
     /// Protocol configuration
     pub protocol: ProtocolConfig,
 }
@@ -110,6 +113,18 @@ impl AppBehaviorConfig {
     ///
     /// Returns an error if application behavior environment variables are invalid
     pub fn from_env() -> AppResult<Self> {
+        // Check if AUTO_APPROVE_USERS was explicitly set in environment
+        let (auto_approve_users, auto_approve_users_from_env) = match env::var("AUTO_APPROVE_USERS")
+        {
+            Ok(value) => {
+                let parsed = value.parse().map_err(|e| {
+                    AppError::invalid_input(format!("Invalid AUTO_APPROVE_USERS value: {e}"))
+                })?;
+                (parsed, true)
+            }
+            Err(_) => (false, false),
+        };
+
         Ok(Self {
             max_activities_fetch: env_var_or("MAX_ACTIVITIES_FETCH", "100").parse().map_err(
                 |e| AppError::invalid_input(format!("Invalid MAX_ACTIVITIES_FETCH value: {e}")),
@@ -122,11 +137,8 @@ impl AppBehaviorConfig {
             ci_mode: env_var_or("CI", "false")
                 .parse()
                 .map_err(|e| AppError::invalid_input(format!("Invalid CI value: {e}")))?,
-            auto_approve_users: env_var_or("AUTO_APPROVE_USERS", "false")
-                .parse()
-                .map_err(|e| {
-                    AppError::invalid_input(format!("Invalid AUTO_APPROVE_USERS value: {e}"))
-                })?,
+            auto_approve_users,
+            auto_approve_users_from_env,
             protocol: ProtocolConfig::from_env(),
         })
     }

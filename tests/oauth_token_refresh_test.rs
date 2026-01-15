@@ -279,6 +279,7 @@ fn create_test_server_config_without_oauth() -> Arc<ServerConfig> {
             default_activities_limit: 20,
             ci_mode: true,
             auto_approve_users: false,
+            auto_approve_users_from_env: false,
             protocol: ProtocolConfig {
                 mcp_version: "2024-11-05".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -396,6 +397,7 @@ fn create_test_server_config() -> Arc<ServerConfig> {
             default_activities_limit: 20,
             ci_mode: true,
             auto_approve_users: false,
+            auto_approve_users_from_env: false,
             protocol: ProtocolConfig {
                 mcp_version: "2024-11-05".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),

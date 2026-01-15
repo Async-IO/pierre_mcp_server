@@ -1009,15 +1009,20 @@ impl WebAdminRoutes {
     ) -> Result<impl IntoResponse, AppError> {
         Self::authenticate_admin(&headers, &resources).await?;
 
-        // Get effective auto-approval setting (database takes precedence over config)
-        let enabled = match resources.database.is_auto_approval_enabled().await {
-            Ok(Some(db_setting)) => db_setting,
-            Ok(None) => resources.config.app_behavior.auto_approve_users,
-            Err(e) => {
-                error!(error = %e, "Failed to get auto-approval setting");
-                return Err(AppError::internal(format!(
-                    "Failed to get auto-approval setting: {e}"
-                )));
+        // Get effective auto-approval setting
+        // Precedence: env var (if set) > database > default
+        let enabled = if resources.config.app_behavior.auto_approve_users_from_env {
+            resources.config.app_behavior.auto_approve_users
+        } else {
+            match resources.database.is_auto_approval_enabled().await {
+                Ok(Some(db_setting)) => db_setting,
+                Ok(None) => resources.config.app_behavior.auto_approve_users,
+                Err(e) => {
+                    error!(error = %e, "Failed to get auto-approval setting");
+                    return Err(AppError::internal(format!(
+                        "Failed to get auto-approval setting: {e}"
+                    )));
+                }
             }
         };
 

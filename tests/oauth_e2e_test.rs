@@ -302,6 +302,7 @@ async fn test_oauth_flow_through_mcp() {
             default_activities_limit: 20,
             ci_mode: true,
             auto_approve_users: false,
+            auto_approve_users_from_env: false,
             protocol: ProtocolConfig {
                 mcp_version: "2024-11-05".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -610,6 +611,7 @@ async fn test_oauth_callback_error_handling() {
             default_activities_limit: 20,
             ci_mode: true,
             auto_approve_users: false,
+            auto_approve_users_from_env: false,
             protocol: ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -882,6 +884,7 @@ async fn test_oauth_state_csrf_protection() {
             default_activities_limit: 20,
             ci_mode: true,
             auto_approve_users: false,
+            auto_approve_users_from_env: false,
             protocol: ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -1071,6 +1074,7 @@ async fn test_connection_status_tracking() {
             default_activities_limit: 20,
             ci_mode: true,
             auto_approve_users: false,
+            auto_approve_users_from_env: false,
             protocol: ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),

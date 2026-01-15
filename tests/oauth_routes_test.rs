@@ -135,6 +135,7 @@ async fn test_email_validation() {
             default_activities_limit: 20,
             ci_mode: true,
             auto_approve_users: false,
+            auto_approve_users_from_env: false,
             protocol: ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -351,6 +352,7 @@ async fn test_password_validation() {
             default_activities_limit: 20,
             ci_mode: true,
             auto_approve_users: false,
+            auto_approve_users_from_env: false,
             protocol: ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -539,6 +541,7 @@ async fn test_duplicate_user_registration() {
             default_activities_limit: 20,
             ci_mode: true,
             auto_approve_users: false,
+            auto_approve_users_from_env: false,
             protocol: ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -718,6 +721,7 @@ async fn test_login_with_correct_credentials() {
             default_activities_limit: 20,
             ci_mode: true,
             auto_approve_users: false,
+            auto_approve_users_from_env: false,
             protocol: ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -940,6 +944,7 @@ async fn test_login_with_wrong_password() {
             default_activities_limit: 20,
             ci_mode: true,
             auto_approve_users: false,
+            auto_approve_users_from_env: false,
             protocol: ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -1126,6 +1131,7 @@ async fn test_login_with_non_existent_user() {
             default_activities_limit: 20,
             ci_mode: true,
             auto_approve_users: false,
+            auto_approve_users_from_env: false,
             protocol: ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),

@@ -532,16 +532,29 @@ impl AuthService {
         Ok(tenant_id)
     }
 
-    /// Check if auto-approval is enabled (database setting takes precedence over config)
+    /// Check if auto-approval is enabled
+    ///
+    /// Precedence order:
+    /// 1. Environment variable (if explicitly set via `AUTO_APPROVE_USERS`)
+    /// 2. Database setting (if present in `system_settings` table)
+    /// 3. Default value (false)
     async fn is_auto_approval_enabled(&self) -> bool {
+        let config = self.config.config();
+
+        // Environment variable takes precedence when explicitly set
+        if config.app_behavior.auto_approve_users_from_env {
+            return config.app_behavior.auto_approve_users;
+        }
+
+        // Fall back to database setting if present
         match self.data.database().is_auto_approval_enabled().await {
             Ok(Some(db_setting)) => db_setting,
-            Ok(None) => self.config.config().app_behavior.auto_approve_users,
+            Ok(None) => config.app_behavior.auto_approve_users,
             Err(e) => {
                 tracing::warn!(
                     "Failed to check auto-approval setting, falling back to config: {e}"
                 );
-                self.config.config().app_behavior.auto_approve_users
+                config.app_behavior.auto_approve_users
             }
         }
     }

@@ -359,13 +359,18 @@ async fn initialize_jwt_secret(database: &Database, config: &ServerConfig) -> Re
 
     info!("Admin JWT secret ready for secure token generation");
 
-    // Check auto-approval setting (database takes precedence over config)
-    let auto_approve = database
-        .is_auto_approval_enabled()
-        .await
-        .ok()
-        .flatten()
-        .unwrap_or(config.app_behavior.auto_approve_users);
+    // Check auto-approval setting
+    // Precedence: env var (if set) > database > default
+    let auto_approve = if config.app_behavior.auto_approve_users_from_env {
+        config.app_behavior.auto_approve_users
+    } else {
+        database
+            .is_auto_approval_enabled()
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or(config.app_behavior.auto_approve_users)
+    };
 
     check_admin_status(database, auto_approve).await;
 
