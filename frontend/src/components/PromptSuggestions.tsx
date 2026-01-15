@@ -175,8 +175,8 @@ function CoachesSection({
         <HelpTooltip isVisible={showHelp} onClose={() => setShowHelp(false)} />
       </div>
 
-      {/* Coach list */}
-      <div className="space-y-2">
+      {/* Coach list - two columns on larger screens */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {coaches.map((coach) => (
           <button
             key={coach.id}
@@ -191,7 +191,7 @@ function CoachesSection({
                 coach.system_prompt
               );
             }}
-            className="w-full text-left text-sm rounded-lg border border-pierre-gray-100 hover:border-pierre-violet hover:bg-pierre-gray-50 px-3 py-2 transition-colors focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-opacity-50 group"
+            className="text-left text-sm rounded-lg border border-pierre-gray-100 hover:border-pierre-violet hover:bg-pierre-gray-50 px-3 py-2 transition-colors focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-opacity-50 group"
           >
             <div className="flex items-center justify-between">
               <span className="font-medium text-pierre-gray-800 group-hover:text-pierre-violet">
