@@ -1034,6 +1034,7 @@ impl MultiTenantMcpServer {
             resources.jwks_manager.clone(),
             admin_api_key_limit,
             admin_token_cache_ttl,
+            resources.tool_selection.clone(),
         );
         let admin_routes = AdminRoutes::routes(admin_context);
 

@@ -40,6 +40,8 @@ pub mod mcp;
 pub mod oauth2;
 /// Tenant management routes
 pub mod tenants;
+/// Tool selection admin routes for per-tenant MCP tool configuration
+pub mod tool_selection;
 /// User MCP token management routes for AI client authentication
 pub mod user_mcp_tokens;
 /// User OAuth app management routes
@@ -116,6 +118,10 @@ pub use fitness::FitnessConfigurationRoutes;
 pub use impersonation::ImpersonationRoutes;
 /// Tenant route handlers
 pub use tenants::TenantRoutes;
+/// Tool selection context
+pub use tool_selection::ToolSelectionContext;
+/// Tool selection route handlers
+pub use tool_selection::ToolSelectionRoutes;
 /// User MCP token route handlers
 pub use user_mcp_tokens::UserMcpTokenRoutes;
 /// User OAuth app route handlers

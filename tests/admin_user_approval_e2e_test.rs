@@ -19,6 +19,7 @@ use pierre_mcp_server::{
     auth::AuthManager,
     constants::system_config::STARTER_MONTHLY_LIMIT,
     database_plugins::{factory::Database, DatabaseProvider},
+    mcp::ToolSelectionService,
     models::{User, UserStatus, UserTier},
     permissions::UserRole,
     routes::admin::{AdminApiContext, AdminRoutes},
@@ -60,13 +61,16 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
 
     // Create admin API context
     let admin_api_key_monthly_limit = STARTER_MONTHLY_LIMIT;
+    let database_arc = Arc::new(database.clone());
+    let tool_selection = Arc::new(ToolSelectionService::new(database_arc.clone()));
     let admin_context = AdminApiContext::new(
-        Arc::new(database.clone()),
+        database_arc,
         jwt_secret,
         Arc::new(auth_manager.clone()),
         jwks_manager.clone(),
         admin_api_key_monthly_limit,
         AdminAuthService::DEFAULT_CACHE_TTL_SECS,
+        tool_selection,
     );
 
     // Create admin routes
@@ -227,6 +231,8 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
 }
 
 /// Test admin token management functionality
+// Long function: Comprehensive test covering token creation, listing, and revocation workflow
+#[allow(clippy::too_many_lines)]
 #[tokio::test]
 async fn test_admin_token_management_workflow() -> Result<()> {
     // Initialize test database
@@ -256,13 +262,16 @@ async fn test_admin_token_management_workflow() -> Result<()> {
     let jwks_manager = common::get_shared_test_jwks();
 
     let admin_api_key_monthly_limit = STARTER_MONTHLY_LIMIT;
+    let database_arc = Arc::new(database.clone());
+    let tool_selection = Arc::new(ToolSelectionService::new(database_arc.clone()));
     let admin_context = AdminApiContext::new(
-        Arc::new(database.clone()),
+        database_arc,
         jwt_secret,
         Arc::new(auth_manager),
         jwks_manager.clone(),
         admin_api_key_monthly_limit,
         AdminAuthService::DEFAULT_CACHE_TTL_SECS,
+        tool_selection,
     );
     let admin_routes = AdminRoutes::routes(admin_context);
 
@@ -388,13 +397,16 @@ async fn test_admin_workflow_error_handling() -> Result<()> {
     let jwks_manager = common::get_shared_test_jwks();
 
     let admin_api_key_monthly_limit = STARTER_MONTHLY_LIMIT;
+    let database_arc = Arc::new(database);
+    let tool_selection = Arc::new(ToolSelectionService::new(database_arc.clone()));
     let admin_context = AdminApiContext::new(
-        Arc::new(database),
+        database_arc,
         jwt_secret,
         Arc::new(auth_manager),
         jwks_manager,
         admin_api_key_monthly_limit,
         AdminAuthService::DEFAULT_CACHE_TTL_SECS,
+        tool_selection,
     );
     let admin_routes = AdminRoutes::routes(admin_context);
 
@@ -548,13 +560,16 @@ async fn test_user_approval_with_tenant_creation() -> Result<()> {
     let auth_manager = AuthManager::new(24);
     let jwks_manager = common::get_shared_test_jwks();
 
+    let database_arc = Arc::new(database.clone());
+    let tool_selection = Arc::new(ToolSelectionService::new(database_arc.clone()));
     let admin_context = AdminApiContext::new(
-        Arc::new(database.clone()),
+        database_arc,
         jwt_secret,
         Arc::new(auth_manager.clone()),
         jwks_manager.clone(),
         STARTER_MONTHLY_LIMIT,
         AdminAuthService::DEFAULT_CACHE_TTL_SECS,
+        tool_selection,
     );
 
     let admin_routes = AdminRoutes::routes(admin_context);

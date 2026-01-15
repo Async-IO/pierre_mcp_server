@@ -30,3 +30,6 @@ pub mod tool_handlers;
 pub mod tool_selection;
 /// Transport layer abstraction
 pub mod transport_manager;
+
+// Re-exports for convenience
+pub use tool_selection::ToolSelectionService;
