@@ -42,15 +42,15 @@ export default function PromptSuggestions({ onSelectPrompt }: PromptSuggestionsP
 
   if (isLoading) {
     return (
-      <Card className="p-4 max-w-2xl mx-auto mt-6 animate-pulse">
-        <div className="flex items-center gap-2 mb-4">
+      <Card className="p-3 mt-4 animate-pulse">
+        <div className="flex items-center gap-2 mb-3">
           <div className="w-8 h-8 rounded-lg bg-pierre-gray-200" />
           <div className="h-5 w-20 bg-pierre-gray-200 rounded" />
           <div className="w-5 h-5 rounded-full bg-pierre-gray-200" />
         </div>
-        <div className="space-y-2">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-14 bg-pierre-gray-100 rounded-lg" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="h-20 bg-pierre-gray-100 rounded-xl" />
           ))}
         </div>
       </Card>
@@ -59,7 +59,7 @@ export default function PromptSuggestions({ onSelectPrompt }: PromptSuggestionsP
 
   if (error) {
     return (
-      <div className="max-w-2xl mx-auto mt-6 text-center">
+      <div className="mt-4 text-center">
         <Card className="p-6 border-red-200 bg-red-50">
           <div className="text-red-600 mb-2">
             <svg
@@ -89,7 +89,7 @@ export default function PromptSuggestions({ onSelectPrompt }: PromptSuggestionsP
 
   if (coaches.length === 0) {
     return (
-      <div className="max-w-2xl mx-auto mt-6 text-center text-pierre-gray-500">
+      <div className="mt-4 text-center text-pierre-gray-500">
         <p>No coaches available yet</p>
         <p className="text-sm mt-2">Ask your admin to assign some coaching personas to get started.</p>
       </div>
@@ -151,9 +151,9 @@ function CoachesSection({
   const [showHelp, setShowHelp] = useState(false);
 
   return (
-    <Card className="p-4 max-w-2xl mx-auto mt-6">
+    <Card className="p-3 mt-4">
       {/* Header with help button */}
-      <div className="flex items-center gap-2 mb-4 relative">
+      <div className="flex items-center gap-2 mb-3 relative">
         <div
           className="w-8 h-8 rounded-lg bg-gradient-to-br from-pierre-violet to-purple-600 flex items-center justify-center"
           role="img"
@@ -175,8 +175,8 @@ function CoachesSection({
         <HelpTooltip isVisible={showHelp} onClose={() => setShowHelp(false)} />
       </div>
 
-      {/* Coach list - two columns on larger screens */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      {/* Coach list - responsive grid: 1 col mobile, 2 col tablet, 3 col desktop */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {coaches.map((coach) => (
           <button
             key={coach.id}
@@ -191,7 +191,7 @@ function CoachesSection({
                 coach.system_prompt
               );
             }}
-            className="text-left text-sm rounded-lg border border-pierre-gray-100 hover:border-pierre-violet hover:bg-pierre-gray-50 px-3 py-2 transition-colors focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-opacity-50 group"
+            className="text-left text-sm rounded-xl border border-pierre-gray-200 hover:border-pierre-violet hover:bg-pierre-violet/5 px-4 py-3 transition-all focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-opacity-50 group hover:shadow-sm"
           >
             <div className="flex items-center justify-between">
               <span className="font-medium text-pierre-gray-800 group-hover:text-pierre-violet">
