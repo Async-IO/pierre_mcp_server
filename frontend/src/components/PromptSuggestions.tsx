@@ -252,29 +252,3 @@ function getCategoryIcon(category: string): string {
   };
   return icons[category.toLowerCase()] || icons.custom;
 }
-
-// Hook to get coaches data for use in other components
-export function useCoaches() {
-  const { data: coachesData, isLoading, error } = useQuery({
-    queryKey: ['user-coaches'],
-    queryFn: () => apiService.getCoaches(),
-    staleTime: 5 * 60 * 1000,
-    retry: 2,
-  });
-
-  return {
-    coaches: coachesData?.coaches ?? [],
-    total: coachesData?.total ?? 0,
-    isLoading,
-    error,
-  };
-}
-
-// Legacy hook for backwards compatibility - returns a default welcome prompt
-export function useWelcomePrompt() {
-  return {
-    welcomePrompt: 'Ready to analyze your fitness',
-    isLoading: false,
-    error: null,
-  };
-}
