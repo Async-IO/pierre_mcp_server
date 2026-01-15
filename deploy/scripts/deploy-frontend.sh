@@ -24,43 +24,11 @@ deploy_to_firebase() {
         exit 1
     fi
 
-    # Create firebase.json if it doesn't exist
+    # Verify firebase.json exists (should be committed to repo)
     if [[ ! -f "${frontend_dir}/firebase.json" ]]; then
-        echo "Creating firebase.json..."
-        cat > "${frontend_dir}/firebase.json" << 'FIREBASE_JSON'
-{
-  "hosting": {
-    "public": "dist",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "rewrites": [
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ],
-    "headers": [
-      {
-        "source": "**/*.@(js|css)",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "public, max-age=31536000, immutable"
-          }
-        ]
-      },
-      {
-        "source": "**/*.@(jpg|jpeg|gif|png|svg|webp|ico)",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "public, max-age=86400"
-          }
-        ]
-      }
-    ]
-  }
-}
-FIREBASE_JSON
+        echo "ERROR: firebase.json not found in ${frontend_dir}"
+        echo "This file should be committed to the repository."
+        exit 1
     fi
 
     # Deploy
