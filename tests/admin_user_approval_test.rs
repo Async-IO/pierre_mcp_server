@@ -460,4 +460,71 @@ async fn test_approved_users_share_tenant_with_admin() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test]
+#[serial]
+async fn test_delete_user() -> Result<()> {
+    let (database, _, admin_user_id) = setup_test_database().await?;
+
+    // Create a user to delete
+    let user_to_delete = User {
+        id: Uuid::new_v4(),
+        email: "to_delete@test.com".to_owned(),
+        display_name: Some("User to Delete".to_owned()),
+        password_hash: "hash".to_owned(),
+        tier: UserTier::Starter,
+        tenant_id: None,
+        strava_token: None,
+        fitbit_token: None,
+        is_active: true,
+        user_status: UserStatus::Active,
+        is_admin: false,
+        role: UserRole::User,
+        approved_by: Some(admin_user_id),
+        approved_at: Some(chrono::Utc::now()),
+        created_at: chrono::Utc::now(),
+        last_active: chrono::Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
+    };
+    let user_id = user_to_delete.id;
+    database.create_user(&user_to_delete).await?;
+
+    // Verify user exists before deletion
+    let user_before = database.get_user(user_id).await?;
+    assert!(user_before.is_some(), "User should exist before deletion");
+
+    // Delete the user
+    database.delete_user(user_id).await?;
+
+    // Verify user no longer exists
+    let user_after = database.get_user(user_id).await?;
+    assert!(user_after.is_none(), "User should not exist after deletion");
+
+    // Clean up test environment variable
+    env::remove_var("PIERRE_MASTER_ENCRYPTION_KEY");
+
+    Ok(())
+}
+
+#[tokio::test]
+#[serial]
+async fn test_delete_nonexistent_user_fails() -> Result<()> {
+    let (database, _, _) = setup_test_database().await?;
+
+    // Try to delete a user that doesn't exist
+    let nonexistent_id = Uuid::new_v4();
+    let result = database.delete_user(nonexistent_id).await;
+
+    // Should return an error
+    assert!(
+        result.is_err(),
+        "Deleting non-existent user should return error"
+    );
+
+    // Clean up test environment variable
+    env::remove_var("PIERRE_MASTER_ENCRYPTION_KEY");
+
+    Ok(())
+}
+
 // Note: Database cleanup is handled by the Database implementation itself

@@ -812,6 +812,24 @@ impl DatabaseProvider for PostgresDatabase {
             .ok_or_else(|| AppError::not_found("User after display name update"))
     }
 
+    async fn delete_user(&self, user_id: Uuid) -> AppResult<()> {
+        let result = sqlx::query(
+            r"
+            DELETE FROM users WHERE id = $1
+            ",
+        )
+        .bind(user_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to delete user: {e}")))?;
+
+        if result.rows_affected() == 0 {
+            return Err(AppError::not_found(format!("User {user_id} not found")));
+        }
+
+        Ok(())
+    }
+
     async fn upsert_user_profile(&self, user_id: Uuid, profile_data: Value) -> AppResult<()> {
         let now = chrono::Utc::now().to_rfc3339();
         sqlx::query(

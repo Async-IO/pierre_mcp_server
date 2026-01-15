@@ -748,6 +748,31 @@ impl Database {
         self.update_user_tenant_id_impl(user_id, tenant_id).await
     }
 
+    /// Delete a user and all associated data
+    ///
+    /// Permanently removes the user from the database. Related records in other tables
+    /// are automatically deleted via foreign key CASCADE constraints.
+    ///
+    /// # Errors
+    /// Returns error if user not found or database operation fails
+    pub async fn delete_user(&self, user_id: Uuid) -> AppResult<()> {
+        let result = sqlx::query(
+            r"
+            DELETE FROM users WHERE id = ?1
+            ",
+        )
+        .bind(user_id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to delete user: {e}")))?;
+
+        if result.rows_affected() == 0 {
+            return Err(AppError::not_found(format!("User {user_id} not found")));
+        }
+
+        Ok(())
+    }
+
     /// Update user's display name
     ///
     /// # Errors

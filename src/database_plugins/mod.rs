@@ -126,6 +126,12 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Update user's display name
     async fn update_user_display_name(&self, user_id: Uuid, display_name: &str) -> AppResult<User>;
 
+    /// Delete a user and all associated data
+    ///
+    /// This permanently removes the user from the database.
+    /// Associated data (tokens, conversations, etc.) are cascade deleted.
+    async fn delete_user(&self, user_id: Uuid) -> AppResult<()>;
+
     // ================================
     // User OAuth Tokens (Multi-Tenant)
     // ================================

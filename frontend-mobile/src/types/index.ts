@@ -106,3 +106,10 @@ export interface OAuthProvider {
   name: string;
   color: string;
 }
+
+export interface FirebaseLoginResponse {
+  csrf_token: string;
+  jwt_token: string;
+  user: User;
+  is_new_user: boolean;
+}

@@ -1,7 +1,7 @@
-// ABOUTME: Login screen with email/password authentication
+// ABOUTME: Login screen with email/password and Google Sign-In authentication
 // ABOUTME: Professional dark theme UI matching ChatGPT/Claude design aesthetic
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,10 +13,17 @@ import {
   TouchableOpacity,
   Alert,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button, Input } from '../../components/ui';
 import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
+import {
+  isFirebaseEnabled,
+  useGoogleAuth,
+  signInWithGoogleResponse,
+} from '../../firebase';
+import { AntDesign } from '@expo/vector-icons';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 type AuthStackParamList = {
@@ -34,11 +41,49 @@ const DEV_EMAIL = __DEV__ ? 'mobile@test.com' : '';
 const DEV_PASSWORD = __DEV__ ? 'mobiletest123' : '';
 
 export function LoginScreen({ navigation }: LoginScreenProps) {
-  const { login } = useAuth();
+  const { login, loginWithFirebase } = useAuth();
   const [email, setEmail] = useState(DEV_EMAIL);
   const [password, setPassword] = useState(DEV_PASSWORD);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+
+  // Google OAuth hook - only use if Firebase is enabled
+  const googleAuth = isFirebaseEnabled() ? useGoogleAuth() : null;
+
+  // Handle Google OAuth response
+  useEffect(() => {
+    if (!googleAuth?.response) return;
+
+    const handleGoogleResponse = async () => {
+      if (googleAuth.response?.type === 'success') {
+        setIsGoogleLoading(true);
+        try {
+          const result = await signInWithGoogleResponse(googleAuth.response);
+          if (result) {
+            await loginWithFirebase(result.idToken);
+            // Navigation handled by auth state change
+          }
+        } catch (error) {
+          let message = 'Google sign-in failed. Please try again.';
+          if (error instanceof Error) {
+            message = error.message;
+          }
+          Alert.alert('Sign In Failed', message);
+        } finally {
+          setIsGoogleLoading(false);
+        }
+      } else if (googleAuth.response?.type === 'error') {
+        Alert.alert('Sign In Error', 'Google sign-in was cancelled or failed.');
+        setIsGoogleLoading(false);
+      } else {
+        // Handle 'dismiss', 'cancel', 'locked' - reset loading state
+        setIsGoogleLoading(false);
+      }
+    };
+
+    handleGoogleResponse();
+  }, [googleAuth?.response, loginWithFirebase]);
 
   const validateForm = () => {
     const newErrors: { email?: string; password?: string } = {};
@@ -80,6 +125,26 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
       Alert.alert('Login Failed', message);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    if (!googleAuth?.promptAsync) {
+      Alert.alert('Not Available', 'Google Sign-In is not configured.');
+      return;
+    }
+
+    setIsGoogleLoading(true);
+    try {
+      await googleAuth.promptAsync();
+      // Response is handled in useEffect above
+    } catch (error) {
+      let message = 'Failed to start Google sign-in.';
+      if (error instanceof Error) {
+        message = error.message;
+      }
+      Alert.alert('Error', message);
+      setIsGoogleLoading(false);
     }
   };
 
@@ -139,6 +204,34 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
               style={styles.loginButton}
               testID="login-button"
             />
+
+            {/* Google Sign-In - only show when Firebase is configured */}
+            {isFirebaseEnabled() && (
+              <>
+                <View style={styles.dividerContainer}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>or continue with</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                <TouchableOpacity
+                  style={styles.googleButton}
+                  onPress={handleGoogleSignIn}
+                  disabled={isGoogleLoading}
+                  testID="google-signin-button"
+                  activeOpacity={0.7}
+                >
+                  {isGoogleLoading ? (
+                    <ActivityIndicator size="small" color={colors.text.primary} />
+                  ) : (
+                    <AntDesign name="google" size={20} color="#4285F4" />
+                  )}
+                  <Text style={styles.googleButtonText}>
+                    {isGoogleLoading ? 'Signing in...' : 'Continue with Google'}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
 
           {/* Register Link */}
@@ -209,5 +302,37 @@ const styles = StyleSheet.create({
     color: colors.primary[500],
     fontSize: fontSize.sm,
     fontWeight: '600',
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: spacing.lg,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border.default,
+  },
+  dividerText: {
+    color: colors.text.secondary,
+    fontSize: fontSize.sm,
+    paddingHorizontal: spacing.md,
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.background.secondary,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.sm,
+  },
+  googleButtonText: {
+    color: colors.text.primary,
+    fontSize: fontSize.md,
+    fontWeight: '500',
   },
 });

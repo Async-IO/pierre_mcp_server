@@ -14,11 +14,12 @@ import type {
   RegisterResponse,
   OAuthApp,
   OAuthAppCredentials,
+  FirebaseLoginResponse,
 } from '../types';
 
 // Configuration - should be set via environment or config
 // For iOS Simulator, localhost works directly. For Android, use 10.0.2.2
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8081';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8082';
 
 // Timeout for API requests (5 minutes to accommodate slower local LLM responses)
 const API_TIMEOUT_MS = 300000;
@@ -178,6 +179,11 @@ class ApiService {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
     });
+    return response.data;
+  }
+
+  async loginWithFirebase(idToken: string): Promise<FirebaseLoginResponse> {
+    const response = await axios.post('/api/auth/firebase', { id_token: idToken });
     return response.data;
   }
 

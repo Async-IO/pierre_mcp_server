@@ -18,7 +18,7 @@ use axum::{
     http::StatusCode,
     middleware,
     response::IntoResponse,
-    routing::{get, post, put},
+    routing::{delete, get, post, put},
     Extension, Json, Router,
 };
 use chrono::{DateTime, Duration, Utc};
@@ -109,6 +109,13 @@ pub struct ApproveUserRequest {
 #[derive(Debug, Deserialize)]
 pub struct SuspendUserRequest {
     /// Optional reason for suspension
+    pub reason: Option<String>,
+}
+
+/// User deletion request
+#[derive(Debug, Deserialize)]
+pub struct DeleteUserRequest {
+    /// Optional reason for deletion (for audit trail)
     pub reason: Option<String>,
 }
 
@@ -715,6 +722,7 @@ impl AdminRoutes {
                 "/admin/users/:user_id/activity",
                 get(Self::handle_get_user_activity),
             )
+            .route("/admin/users/:user_id", delete(Self::handle_delete_user))
             .with_state(context)
     }
 
@@ -1421,6 +1429,86 @@ impl AdminRoutes {
                         "id": updated_user.id.to_string(),
                         "email": updated_user.email,
                         "user_status": Self::user_status_str(updated_user.user_status),
+                    },
+                    "reason": reason
+                }))
+                .ok(),
+            },
+            StatusCode::OK,
+        ))
+    }
+
+    /// Handle user deletion workflow
+    ///
+    /// Permanently deletes a user and all associated data (cascades via foreign keys).
+    /// This action cannot be undone.
+    async fn handle_delete_user(
+        State(context): State<Arc<AdminApiContext>>,
+        Extension(admin_token): Extension<ValidatedAdminToken>,
+        Path(user_id): Path<String>,
+        Json(request): Json<DeleteUserRequest>,
+    ) -> AppResult<impl IntoResponse> {
+        if !admin_token
+            .permissions
+            .has_permission(&AdminPerm::ManageUsers)
+        {
+            return Ok(json_response(
+                AdminResponse {
+                    success: false,
+                    message: "Permission denied: ManageUsers required".to_owned(),
+                    data: None,
+                },
+                StatusCode::FORBIDDEN,
+            ));
+        }
+
+        info!(
+            "Deleting user {} by service: {}",
+            user_id, admin_token.service_name
+        );
+
+        let ctx = context.as_ref();
+        let user_uuid = Uuid::parse_str(&user_id).map_err(|e| {
+            error!(error = %e, "Invalid user ID format");
+            AppError::invalid_input(format!("Invalid user ID format: {e}"))
+        })?;
+
+        // Fetch user to confirm existence and get email for logging
+        let user = ctx
+            .database
+            .get_user(user_uuid)
+            .await
+            .map_err(|e| {
+                error!(error = %e, "Failed to fetch user from database");
+                AppError::internal(format!("Failed to fetch user: {e}"))
+            })?
+            .ok_or_else(|| {
+                warn!("User not found: {}", user_id);
+                AppError::not_found("User not found")
+            })?;
+
+        let user_email = user.email.clone();
+
+        // Delete user (cascades to related tables via foreign keys)
+        ctx.database.delete_user(user_uuid).await.map_err(|e| {
+            error!(error = %e, "Failed to delete user from database");
+            AppError::internal(format!("Failed to delete user: {e}"))
+        })?;
+
+        let reason = request.reason.as_deref().unwrap_or("No reason provided");
+        info!(
+            "User {} ({}) deleted successfully. Reason: {}",
+            user_id, user_email, reason
+        );
+
+        Ok(json_response(
+            AdminResponse {
+                success: true,
+                message: "User deleted successfully".to_owned(),
+                data: to_value(json!({
+                    "deleted_user": {
+                        "id": user_id,
+                        "email": user_email,
                     },
                     "reason": reason
                 }))

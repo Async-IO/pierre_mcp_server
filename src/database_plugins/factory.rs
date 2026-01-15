@@ -521,6 +521,24 @@ impl DatabaseProvider for Database {
         }
     }
 
+    /// Delete a user and all associated data
+    ///
+    /// This permanently removes the user from the database.
+    /// Associated data (tokens, conversations, etc.) are cascade deleted.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - User is not found
+    /// - Database operation fails
+    async fn delete_user(&self, user_id: uuid::Uuid) -> AppResult<()> {
+        match self {
+            Self::SQLite(db) => db.delete_user(user_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.delete_user(user_id).await,
+        }
+    }
+
     /// Create or update a user profile with the provided data
     ///
     /// # Errors

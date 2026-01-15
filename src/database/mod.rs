@@ -2288,6 +2288,10 @@ impl DatabaseProvider for Database {
         Self::update_user_display_name(self, user_id, display_name).await
     }
 
+    async fn delete_user(&self, user_id: Uuid) -> AppResult<()> {
+        Self::delete_user(self, user_id).await
+    }
+
     async fn upsert_user_profile(&self, user_id: Uuid, profile_data: Value) -> AppResult<()> {
         Self::upsert_user_profile_impl(self, user_id, profile_data).await
     }
