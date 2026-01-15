@@ -1,0 +1,86 @@
+# ABOUTME: Example Terraform variables configuration for Pierre MCP Server
+# ABOUTME: Copy to terraform.tfvars and customize for your environment
+
+# -----------------------------------------------------------------------------
+# Required Variables
+# -----------------------------------------------------------------------------
+
+# GCP project ID (required - no default)
+project_id = "pierrefitnessplatform"
+
+# -----------------------------------------------------------------------------
+# Optional Variables (defaults shown)
+# -----------------------------------------------------------------------------
+
+# GCP region
+# region = "northamerica-northeast1"
+
+# Environment (production, staging, development)
+# environment = "production"
+
+# Service name (used for resource naming)
+# service_name = "pierre-mcp-server"
+
+# -----------------------------------------------------------------------------
+# Database Configuration
+# -----------------------------------------------------------------------------
+
+# Cloud SQL machine tier
+# db-f1-micro: Shared core, 0.6 GB RAM (good for dev/testing)
+# db-g1-small: Shared core, 1.7 GB RAM (minimum for production)
+# db-custom-2-7680: 2 vCPUs, 7.5 GB RAM (recommended for production)
+# database_tier = "db-f1-micro"
+
+# PostgreSQL version
+# database_version = "POSTGRES_15"
+
+# Database name and user
+# database_name = "pierre"
+# database_user = "pierre"
+
+# Deletion protection (set to false to allow terraform destroy)
+# database_deletion_protection = true
+
+# Automated backups
+# database_backup_enabled = true
+# database_backup_start_time = "03:00"
+
+# -----------------------------------------------------------------------------
+# Networking Configuration
+# -----------------------------------------------------------------------------
+
+# VPC name
+# vpc_name = "pierre-vpc"
+
+# Subnet CIDR range
+# subnet_cidr = "10.0.0.0/24"
+
+# Serverless VPC connector CIDR range
+# vpc_connector_cidr = "10.8.0.0/28"
+
+# -----------------------------------------------------------------------------
+# GitHub Integration
+# -----------------------------------------------------------------------------
+
+# GitHub organization/user
+# github_org = "Async-IO"
+
+# GitHub repository name
+# github_repo = "pierre_mcp_server"
+
+# -----------------------------------------------------------------------------
+# Artifact Registry
+# -----------------------------------------------------------------------------
+
+# Docker repository name
+# registry_name = "pierre-images"
+
+# -----------------------------------------------------------------------------
+# Labels
+# -----------------------------------------------------------------------------
+
+# Common labels for all resources
+# labels = {
+#   app        = "pierre"
+#   managed_by = "terraform"
+# }

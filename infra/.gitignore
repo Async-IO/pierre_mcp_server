@@ -1,0 +1,37 @@
+# ABOUTME: Git ignore patterns for Terraform infrastructure
+# ABOUTME: Excludes local state, credentials, and generated files
+
+# Terraform state files
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Terraform directory
+.terraform/
+.terraform.lock.hcl
+
+# Terraform variables files (may contain secrets)
+terraform.tfvars
+*.auto.tfvars
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI configuration file
+.terraformrc
+terraform.rc
+
+# Plan output files
+*.tfplan
+plan.out
+
+# OS generated files
+.DS_Store
+Thumbs.db
