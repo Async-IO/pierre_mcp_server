@@ -625,7 +625,7 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
     inputRef.current?.focus();
   };
 
-  const handleConnectProvider = (providerName: string) => {
+  const handleConnectProvider = async (providerName: string) => {
     setConnectingProvider(providerName);
     // If we have a pending coach action, store it for after OAuth completes
     if (pendingCoachAction) {
@@ -634,11 +634,16 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
     }
     setShowProviderModal(false);
 
-    // Convert provider name to lowercase ID (e.g., "Strava" -> "strava")
-    const providerId = providerName.toLowerCase();
-    const authUrl = apiService.getOAuthAuthorizeUrl(providerId);
-    // Redirect to OAuth authorization endpoint
-    window.location.href = authUrl;
+    try {
+      // Convert provider name to lowercase ID (e.g., "Strava" -> "strava")
+      const providerId = providerName.toLowerCase();
+      const authUrl = await apiService.getOAuthAuthorizeUrl(providerId);
+      // Redirect to OAuth authorization endpoint
+      window.location.href = authUrl;
+    } catch (error) {
+      console.error('Failed to get OAuth authorization URL:', error);
+      setConnectingProvider(null);
+    }
   };
 
   // Handle skip in provider modal - proceed with pending action without provider

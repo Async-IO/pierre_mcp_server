@@ -900,9 +900,12 @@ class ApiService {
     return { providers: response.data };
   }
 
-  // Get OAuth authorization URL for a provider (redirects to provider)
-  getOAuthAuthorizeUrl(provider: string): string {
-    return `/api/oauth/authorize/${provider}`;
+  // Get OAuth authorization URL for a provider
+  // Calls the mobile/init endpoint to get the authorization URL from the backend
+  // This works through Vite's proxy in development
+  async getOAuthAuthorizeUrl(provider: string): Promise<string> {
+    const response = await axios.get(`/api/oauth/mobile/init/${provider}`);
+    return response.data.authorization_url;
   }
 
   // Prompt Suggestions API

@@ -136,7 +136,7 @@ export default function ProviderConnectionCards({
   };
 
   // Handle provider card click
-  const handleConnect = (provider: Provider) => {
+  const handleConnect = async (provider: Provider) => {
     const connected = isConnected(provider.id);
     if (connected) return;
 
@@ -147,8 +147,12 @@ export default function ProviderConnectionCards({
     }
 
     // Fallback: Navigate directly to OAuth authorization endpoint
-    const authUrl = apiService.getOAuthAuthorizeUrl(provider.id);
-    window.location.href = authUrl;
+    try {
+      const authUrl = await apiService.getOAuthAuthorizeUrl(provider.id);
+      window.location.href = authUrl;
+    } catch (error) {
+      console.error('Failed to get OAuth authorization URL:', error);
+    }
   };
 
   // Check if any provider is connected
