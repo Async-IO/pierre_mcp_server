@@ -1037,6 +1037,39 @@ class ApiService {
     await axios.delete(`/api/coaches/${coachId}`);
   }
 
+  async hideCoach(coachId: string): Promise<{ success: boolean; is_hidden: boolean }> {
+    const response = await axios.post(`/api/coaches/${coachId}/hide`);
+    return response.data;
+  }
+
+  async showCoach(coachId: string): Promise<{ success: boolean; is_hidden: boolean }> {
+    const response = await axios.delete(`/api/coaches/${coachId}/hide`);
+    return response.data;
+  }
+
+  async getHiddenCoaches(): Promise<{
+    coaches: Array<{
+      id: string;
+      title: string;
+      description: string | null;
+      system_prompt: string;
+      category: string;
+      tags: string[];
+      token_count: number;
+      is_favorite: boolean;
+      use_count: number;
+      last_used_at: string | null;
+      created_at: string;
+      updated_at: string;
+      is_system: boolean;
+      visibility: string;
+      is_assigned: boolean;
+    }>;
+  }> {
+    const response = await axios.get('/api/coaches/hidden');
+    return response.data;
+  }
+
   // LLM Settings endpoints
   async getLlmSettings(): Promise<{
     current_provider: string | null;
