@@ -740,6 +740,30 @@ impl Database {
         self.get_users_by_status_impl(status).await
     }
 
+    /// Get the first admin user in the database
+    ///
+    /// Used for system coach seeding - needs an admin user to associate coaches with.
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_first_admin_user(&self) -> AppResult<Option<User>> {
+        let row = sqlx::query(
+            r"
+            SELECT id, email, password_hash, display_name, tier, plan_tier, is_admin,
+                   is_active, user_status, created_at, last_active, tenant_id
+            FROM users
+            WHERE is_admin = 1
+            ORDER BY created_at ASC
+            LIMIT 1
+            ",
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get first admin user: {e}")))?;
+
+        row.map(|r| Self::row_to_user(&r)).transpose()
+    }
+
     /// Update user's tenant ID (public API)
     ///
     /// # Errors

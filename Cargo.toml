@@ -33,6 +33,11 @@ name = "seed-demo-data"
 path = "src/bin/seed_demo_data.rs"
 bench = false
 
+[[bin]]
+name = "seed-coaches"
+path = "src/bin/seed_coaches.rs"
+bench = false
+
 # [[bin]]
 # name = "serve-docs"
 # path = "src/bin/serve_docs.rs"

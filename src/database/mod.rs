@@ -26,6 +26,8 @@ pub mod impersonation;
 pub mod oauth_notifications;
 /// Recipe storage and management for nutrition planning
 pub mod recipes;
+/// System coaches seeding for server startup
+pub mod seed_coaches;
 /// System settings for admin-configurable options
 pub mod system_settings;
 /// Tool selection and per-tenant MCP tool configuration
@@ -2282,6 +2284,10 @@ impl DatabaseProvider for Database {
 
     async fn delete_user(&self, user_id: Uuid) -> AppResult<()> {
         Self::delete_user(self, user_id).await
+    }
+
+    async fn get_first_admin_user(&self) -> AppResult<Option<User>> {
+        Self::get_first_admin_user(self).await
     }
 
     async fn upsert_user_profile(&self, user_id: Uuid, profile_data: Value) -> AppResult<()> {
