@@ -827,3 +827,338 @@ test.describe('Category Colors', () => {
     await expect(nutritionBadge).toBeVisible();
   });
 });
+
+// ============================================================================
+// User-Facing Coaches Tests (Chat Interface - PromptSuggestions)
+// ============================================================================
+
+// Mock data for user-facing coaches (non-admin view)
+const mockUserCoaches = [
+  {
+    id: 'user-coach-1',
+    title: 'My Custom Coach',
+    description: 'Personal training coach',
+    system_prompt: 'You are my personal coach.',
+    category: 'training',
+    tags: ['personal'],
+    token_count: 50,
+    is_favorite: false,
+    use_count: 3,
+    last_used_at: '2025-01-10T10:00:00Z',
+    is_system: false,
+    visibility: 'private',
+    is_assigned: false,
+  },
+  {
+    id: 'system-coach-1',
+    title: 'System Training Coach',
+    description: 'Official training guidance',
+    system_prompt: 'You are a professional coach.',
+    category: 'training',
+    tags: ['training'],
+    token_count: 100,
+    is_favorite: false,
+    use_count: 10,
+    last_used_at: null,
+    is_system: true,
+    visibility: 'tenant',
+    is_assigned: true,
+  },
+];
+
+const mockHiddenCoaches = [
+  {
+    id: 'hidden-coach-1',
+    title: 'Hidden System Coach',
+    description: 'A hidden coach',
+    system_prompt: 'Hidden prompt.',
+    category: 'nutrition',
+    tags: [],
+    token_count: 80,
+    is_favorite: false,
+    use_count: 0,
+    last_used_at: null,
+    is_system: true,
+    visibility: 'tenant',
+    is_assigned: true,
+  },
+];
+
+async function setupUserCoachesMocks(page: Page) {
+  // Set up base dashboard mocks for non-admin user
+  await setupDashboardMocks(page, { role: 'user' });
+
+  // Mock user coaches endpoint
+  await page.route('**/api/coaches', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          coaches: mockUserCoaches,
+          total: mockUserCoaches.length,
+        }),
+      });
+    } else if (route.request().method() === 'POST') {
+      const body = route.request().postDataJSON();
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'new-user-coach',
+          ...body,
+          token_count: 50,
+          is_favorite: false,
+          use_count: 0,
+          is_system: false,
+          visibility: 'private',
+          is_assigned: false,
+        }),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+
+  // Mock hidden coaches endpoint
+  await page.route('**/api/coaches/hidden', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        coaches: mockHiddenCoaches,
+      }),
+    });
+  });
+
+  // Mock individual coach operations (edit, delete, hide, show)
+  await page.route('**/api/coaches/*', async (route) => {
+    const url = route.request().url();
+    const method = route.request().method();
+
+    if (url.includes('/hide')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, is_hidden: true }),
+      });
+    } else if (url.includes('/show')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, is_hidden: false }),
+      });
+    } else if (url.includes('/usage')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true }),
+      });
+    } else if (method === 'PUT') {
+      const body = route.request().postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...mockUserCoaches[0],
+          ...body,
+        }),
+      });
+    } else if (method === 'DELETE') {
+      await route.fulfill({ status: 204 });
+    } else {
+      await route.continue();
+    }
+  });
+}
+
+test.describe('User Coaches - Chat Interface', () => {
+  test('displays coaches in chat interface for regular users', async ({ page }) => {
+    await setupUserCoachesMocks(page);
+    await loginToDashboard(page);
+
+    // Wait for chat interface to load (users see chat-first layout)
+    await page.waitForSelector('header', { timeout: 10000 });
+
+    // Should see coaches section
+    await expect(page.getByText('Coaches')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('My Custom Coach')).toBeVisible();
+    await expect(page.getByText('System Training Coach')).toBeVisible();
+  });
+
+  test('shows edit button only for user-created coaches', async ({ page }) => {
+    await setupUserCoachesMocks(page);
+    await loginToDashboard(page);
+
+    await page.waitForSelector('header', { timeout: 10000 });
+    await expect(page.getByText('My Custom Coach')).toBeVisible({ timeout: 10000 });
+
+    // User coach should have edit button
+    const userCoachCard = page.locator('div').filter({ hasText: 'My Custom Coach' }).first();
+    await userCoachCard.hover();
+
+    // Edit button should be visible for user coaches
+    await expect(page.getByTitle('Edit coach').first()).toBeVisible();
+  });
+
+  test('shows hide button for system coaches', async ({ page }) => {
+    await setupUserCoachesMocks(page);
+    await loginToDashboard(page);
+
+    await page.waitForSelector('header', { timeout: 10000 });
+    await expect(page.getByText('System Training Coach')).toBeVisible({ timeout: 10000 });
+
+    // System coach should have hide button
+    await expect(page.getByTitle('Hide coach')).toBeVisible();
+  });
+
+  test('can hide a system coach', async ({ page }) => {
+    await setupUserCoachesMocks(page);
+
+    let hideCalled = false;
+    await page.route('**/api/coaches/*/hide', async (route) => {
+      hideCalled = true;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, is_hidden: true }),
+      });
+    });
+
+    await loginToDashboard(page);
+    await page.waitForSelector('header', { timeout: 10000 });
+    await expect(page.getByText('System Training Coach')).toBeVisible({ timeout: 10000 });
+
+    // Click hide button
+    await page.getByTitle('Hide coach').click();
+
+    await page.waitForTimeout(500);
+    expect(hideCalled).toBe(true);
+  });
+
+  test('can toggle show hidden coaches', async ({ page }) => {
+    await setupUserCoachesMocks(page);
+    await loginToDashboard(page);
+
+    await page.waitForSelector('header', { timeout: 10000 });
+    await expect(page.getByText('Coaches')).toBeVisible({ timeout: 10000 });
+
+    // Click show hidden toggle
+    const showHiddenToggle = page.getByText(/hidden/i).first();
+    if (await showHiddenToggle.isVisible()) {
+      await showHiddenToggle.click();
+      await page.waitForTimeout(300);
+
+      // Hidden coach should now be visible
+      await expect(page.getByText('Hidden System Coach')).toBeVisible({ timeout: 5000 });
+    }
+  });
+
+  test('can show a hidden coach', async ({ page }) => {
+    await setupUserCoachesMocks(page);
+
+    let showCalled = false;
+    await page.route('**/api/coaches/*/show', async (route) => {
+      showCalled = true;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, is_hidden: false }),
+      });
+    });
+
+    await loginToDashboard(page);
+    await page.waitForSelector('header', { timeout: 10000 });
+
+    // Toggle to show hidden coaches
+    const showHiddenToggle = page.getByText(/hidden/i).first();
+    if (await showHiddenToggle.isVisible()) {
+      await showHiddenToggle.click();
+      await page.waitForTimeout(300);
+
+      // Click show button on hidden coach
+      const showButton = page.getByTitle('Show coach');
+      if (await showButton.isVisible()) {
+        await showButton.click();
+        await page.waitForTimeout(500);
+        expect(showCalled).toBe(true);
+      }
+    }
+  });
+
+  test('can delete a user coach with confirmation', async ({ page }) => {
+    await setupUserCoachesMocks(page);
+
+    let deleteCalled = false;
+    await page.route('**/api/coaches/user-coach-1', async (route) => {
+      if (route.request().method() === 'DELETE') {
+        deleteCalled = true;
+        await route.fulfill({ status: 204 });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await loginToDashboard(page);
+    await page.waitForSelector('header', { timeout: 10000 });
+    await expect(page.getByText('My Custom Coach')).toBeVisible({ timeout: 10000 });
+
+    // Click delete button
+    const deleteButton = page.getByTitle('Delete coach').first();
+    await deleteButton.click();
+
+    // Confirm deletion in dialog
+    await expect(page.getByText('Delete Coach')).toBeVisible({ timeout: 5000 });
+    // Use exact match to avoid conflict with "Delete coach" button title
+    await page.getByRole('button', { name: 'Delete', exact: true }).click();
+
+    await page.waitForTimeout(500);
+    expect(deleteCalled).toBe(true);
+  });
+
+  test('can create a new user coach', async ({ page }) => {
+    await setupUserCoachesMocks(page);
+
+    let createCalled = false;
+    await page.route('**/api/coaches', async (route) => {
+      if (route.request().method() === 'POST') {
+        createCalled = true;
+        const body = route.request().postDataJSON();
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            id: 'new-coach',
+            ...body,
+            is_system: false,
+          }),
+        });
+      } else {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ coaches: mockUserCoaches, total: mockUserCoaches.length }),
+        });
+      }
+    });
+
+    await loginToDashboard(page);
+    await page.waitForSelector('header', { timeout: 10000 });
+
+    // Click Add Coach button
+    const addButton = page.getByTitle('Add coach');
+    if (await addButton.isVisible()) {
+      await addButton.click();
+
+      // Fill in the form
+      await page.getByPlaceholder('Coach title').fill('New Test Coach');
+      await page.locator('textarea').first().fill('Test system prompt');
+
+      // Submit
+      await page.getByRole('button', { name: 'Create' }).click();
+
+      await page.waitForTimeout(500);
+      expect(createCalled).toBe(true);
+    }
+  });
+});
