@@ -448,6 +448,64 @@ impl DatabaseProvider for PostgresDatabase {
             .ok_or_else(|| AppError::not_found(format!("User with email {email}")))
     }
 
+    async fn get_first_admin_user(&self) -> AppResult<Option<User>> {
+        let row = sqlx::query(
+            r"
+            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
+                   role, user_status, approved_by, approved_at, created_at, last_active,
+                   firebase_uid, auth_provider
+            FROM users
+            WHERE is_admin = true
+            ORDER BY created_at ASC
+            LIMIT 1
+            ",
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get first admin user: {e}")))?;
+
+        row.map_or_else(
+            || Ok(None),
+            |row| {
+                Ok(Some(User {
+                    id: row.get("id"),
+                    email: row.get("email"),
+                    display_name: row.get("display_name"),
+                    password_hash: row.get("password_hash"),
+                    tier: {
+                        let tier_str: String = row.get("tier");
+                        match tier_str.as_str() {
+                            tiers::PROFESSIONAL => UserTier::Professional,
+                            tiers::ENTERPRISE => UserTier::Enterprise,
+                            _ => UserTier::Starter,
+                        }
+                    },
+                    tenant_id: row.get("tenant_id"),
+                    strava_token: None,
+                    fitbit_token: None,
+                    is_active: row.get("is_active"),
+                    user_status: {
+                        let status_str: String = row.get("user_status");
+                        shared::enums::str_to_user_status(&status_str)
+                    },
+                    is_admin: row.get("is_admin"),
+                    role: {
+                        let role_str: Option<String> = row.try_get("role").ok().flatten();
+                        role_str.map_or(UserRole::User, |s| shared::enums::str_to_user_role(&s))
+                    },
+                    approved_by: row.get("approved_by"),
+                    approved_at: row.get("approved_at"),
+                    created_at: row.get("created_at"),
+                    last_active: row.get("last_active"),
+                    firebase_uid: row.try_get("firebase_uid").ok().flatten(),
+                    auth_provider: row
+                        .try_get("auth_provider")
+                        .unwrap_or_else(|_| "email".to_owned()),
+                }))
+            },
+        )
+    }
+
     async fn get_user_by_firebase_uid(&self, firebase_uid: &str) -> AppResult<Option<User>> {
         let row = sqlx::query(
             r"
