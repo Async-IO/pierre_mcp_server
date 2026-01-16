@@ -116,10 +116,12 @@ export default function PromptSuggestions({ onSelectPrompt, onEditCoach, onDelet
   }
 
   const coaches = coachesData?.coaches || [];
-  // Map hidden coaches to convert null descriptions to undefined for Coach type compatibility
+  // Map hidden coaches to convert null values to undefined for Coach type compatibility
+  // API returns string | null for optional fields but Coach type uses string | undefined
   const hiddenCoaches: Coach[] = (hiddenCoachesData?.coaches || []).map((c) => ({
     ...c,
     description: c.description ?? undefined,
+    last_used_at: c.last_used_at ?? undefined,
   }));
 
   if (coaches.length === 0 && hiddenCoaches.length === 0) {
