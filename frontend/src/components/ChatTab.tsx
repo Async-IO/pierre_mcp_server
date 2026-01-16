@@ -119,14 +119,16 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
   const [pendingCoachAction, setPendingCoachAction] = useState<{ prompt: string; systemPrompt?: string } | null>(null);
   // Track model and execution time for assistant messages (for debugging/transparency)
   const [messageMetadata, setMessageMetadata] = useState<Map<string, { model: string; executionTimeMs: number }>>(new Map());
-  // Coach creation state
-  const [showCoachCreateModal, setShowCoachCreateModal] = useState(false);
+  // Coach CRUD state
+  const [showCoachModal, setShowCoachModal] = useState(false);
+  const [editingCoachId, setEditingCoachId] = useState<string | null>(null);
   const [coachFormData, setCoachFormData] = useState({
     title: '',
     description: '',
     system_prompt: '',
     category: 'Training',
   });
+  const [coachDeleteConfirmation, setCoachDeleteConfirmation] = useState<{ id: string; title: string } | null>(null);
 
   const sidebarPanelRef = usePanelRef();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -199,8 +201,28 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
     mutationFn: (data: typeof coachFormData) => apiService.createCoach(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
-      setShowCoachCreateModal(false);
+      setShowCoachModal(false);
       setCoachFormData({ title: '', description: '', system_prompt: '', category: 'Training' });
+    },
+  });
+
+  // Update coach mutation
+  const updateCoach = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: typeof coachFormData }) => apiService.updateCoach(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
+      setShowCoachModal(false);
+      setEditingCoachId(null);
+      setCoachFormData({ title: '', description: '', system_prompt: '', category: 'Training' });
+    },
+  });
+
+  // Delete coach mutation
+  const deleteCoach = useMutation({
+    mutationFn: (id: string) => apiService.deleteCoach(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
+      setCoachDeleteConfirmation(null);
     },
   });
 
@@ -726,6 +748,30 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
     }
   };
 
+  // Coach edit handler - opens modal with coach data pre-filled
+  const handleEditCoach = (coach: { id: string; title: string; description?: string; system_prompt: string; category: string }) => {
+    setEditingCoachId(coach.id);
+    setCoachFormData({
+      title: coach.title,
+      description: coach.description || '',
+      system_prompt: coach.system_prompt,
+      category: coach.category,
+    });
+    setShowCoachModal(true);
+  };
+
+  // Coach delete handler - opens confirmation dialog
+  const handleDeleteCoach = (coach: { id: string; title: string }) => {
+    setCoachDeleteConfirmation({ id: coach.id, title: coach.title });
+  };
+
+  // Confirm coach deletion
+  const handleConfirmCoachDelete = () => {
+    if (coachDeleteConfirmation) {
+      deleteCoach.mutate(coachDeleteConfirmation.id);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -776,7 +822,11 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
           </button>
           {/* Add Coach Button */}
           <button
-            onClick={() => setShowCoachCreateModal(true)}
+            onClick={() => {
+              setEditingCoachId(null);
+              setCoachFormData({ title: '', description: '', system_prompt: '', category: 'Training' });
+              setShowCoachModal(true);
+            }}
             title="Create custom coach"
             aria-label="Create custom coach"
             className="relative px-3 py-2 mx-2 flex items-center gap-2.5 rounded-lg hover:bg-pierre-gray-100 transition-colors"
@@ -957,7 +1007,11 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
               </div>
 
               {/* Coach selection */}
-              <PromptSuggestions onSelectPrompt={handleSelectPrompt} />
+              <PromptSuggestions
+                onSelectPrompt={handleSelectPrompt}
+                onEditCoach={handleEditCoach}
+                onDeleteCoach={handleDeleteCoach}
+              />
 
               <div className="mt-8 text-center">
                 <button
@@ -1263,14 +1317,15 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
         </div>
       )}
 
-      {/* Coach Create Modal */}
-      {showCoachCreateModal && (
+      {/* Coach Create/Edit Modal */}
+      {showCoachModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={() => {
-              setShowCoachCreateModal(false);
+              setShowCoachModal(false);
+              setEditingCoachId(null);
               setCoachFormData({ title: '', description: '', system_prompt: '', category: 'Training' });
             }}
           />
@@ -1280,7 +1335,8 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
               {/* Close button */}
               <button
                 onClick={() => {
-                  setShowCoachCreateModal(false);
+                  setShowCoachModal(false);
+                  setEditingCoachId(null);
                   setCoachFormData({ title: '', description: '', system_prompt: '', category: 'Training' });
                 }}
                 className="absolute top-4 right-4 p-2 text-pierre-gray-400 hover:text-pierre-gray-600 hover:bg-pierre-gray-100 rounded-lg transition-colors"
@@ -1298,10 +1354,12 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                   </svg>
                 </div>
                 <h2 className="text-xl font-semibold text-pierre-gray-900 mb-2">
-                  Create Custom Coach
+                  {editingCoachId ? 'Edit Coach' : 'Create Custom Coach'}
                 </h2>
                 <p className="text-pierre-gray-500 text-sm">
-                  Define a specialized AI coaching persona for your training
+                  {editingCoachId
+                    ? 'Update your coaching persona settings'
+                    : 'Define a specialized AI coaching persona for your training'}
                 </p>
               </div>
 
@@ -1309,7 +1367,11 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                 onSubmit={(e) => {
                   e.preventDefault();
                   if (!coachFormData.title.trim() || !coachFormData.system_prompt.trim()) return;
-                  createCoach.mutate(coachFormData);
+                  if (editingCoachId) {
+                    updateCoach.mutate({ id: editingCoachId, data: coachFormData });
+                  } else {
+                    createCoach.mutate(coachFormData);
+                  }
                 }}
                 className="space-y-4"
               >
@@ -1381,7 +1443,8 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                   <button
                     type="button"
                     onClick={() => {
-                      setShowCoachCreateModal(false);
+                      setShowCoachModal(false);
+                      setEditingCoachId(null);
                       setCoachFormData({ title: '', description: '', system_prompt: '', category: 'Training' });
                     }}
                     className="flex-1 px-4 py-2 text-sm font-medium text-pierre-gray-600 bg-pierre-gray-100 rounded-lg hover:bg-pierre-gray-200 transition-colors"
@@ -1390,16 +1453,18 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                   </button>
                   <button
                     type="submit"
-                    disabled={createCoach.isPending || !coachFormData.title.trim() || !coachFormData.system_prompt.trim()}
+                    disabled={(editingCoachId ? updateCoach.isPending : createCoach.isPending) || !coachFormData.title.trim() || !coachFormData.system_prompt.trim()}
                     className="flex-1 px-4 py-2 text-sm font-medium text-white bg-pierre-violet rounded-lg hover:bg-pierre-violet/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    {createCoach.isPending ? 'Creating...' : 'Create Coach'}
+                    {editingCoachId
+                      ? (updateCoach.isPending ? 'Saving...' : 'Save Changes')
+                      : (createCoach.isPending ? 'Creating...' : 'Create Coach')}
                   </button>
                 </div>
 
-                {createCoach.isError && (
+                {(createCoach.isError || updateCoach.isError) && (
                   <p className="text-xs text-pierre-red-500 text-center">
-                    Failed to create coach. Please try again.
+                    Failed to {editingCoachId ? 'update' : 'create'} coach. Please try again.
                   </p>
                 )}
               </form>
@@ -1407,6 +1472,19 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
           </div>
         </div>
       )}
+
+      {/* Coach Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={!!coachDeleteConfirmation}
+        onClose={() => setCoachDeleteConfirmation(null)}
+        onConfirm={handleConfirmCoachDelete}
+        title="Delete Coach"
+        message={`Are you sure you want to delete "${coachDeleteConfirmation?.title || 'this coach'}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        isLoading={deleteCoach.isPending}
+      />
     </PanelGroup>
   );
 }

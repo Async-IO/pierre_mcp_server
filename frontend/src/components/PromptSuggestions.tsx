@@ -26,9 +26,11 @@ interface Coach {
 
 interface PromptSuggestionsProps {
   onSelectPrompt: (prompt: string, coachId?: string, systemPrompt?: string) => void;
+  onEditCoach?: (coach: Coach) => void;
+  onDeleteCoach?: (coach: Coach) => void;
 }
 
-export default function PromptSuggestions({ onSelectPrompt }: PromptSuggestionsProps) {
+export default function PromptSuggestions({ onSelectPrompt, onEditCoach, onDeleteCoach }: PromptSuggestionsProps) {
   const {
     data: coachesData,
     isLoading,
@@ -103,7 +105,12 @@ export default function PromptSuggestions({ onSelectPrompt }: PromptSuggestionsP
   });
 
   return (
-    <CoachesSection coaches={sortedCoaches} onSelectPrompt={onSelectPrompt} />
+    <CoachesSection
+      coaches={sortedCoaches}
+      onSelectPrompt={onSelectPrompt}
+      onEditCoach={onEditCoach}
+      onDeleteCoach={onDeleteCoach}
+    />
   );
 }
 
@@ -143,10 +150,14 @@ function HelpTooltip({ isVisible, onClose }: { isVisible: boolean; onClose: () =
 // Coaches section with header and help button
 function CoachesSection({
   coaches,
-  onSelectPrompt
+  onSelectPrompt,
+  onEditCoach,
+  onDeleteCoach,
 }: {
   coaches: Coach[];
   onSelectPrompt: (prompt: string, coachId?: string, systemPrompt?: string) => void;
+  onEditCoach?: (coach: Coach) => void;
+  onDeleteCoach?: (coach: Coach) => void;
 }) {
   const [showHelp, setShowHelp] = useState(false);
 
@@ -178,50 +189,91 @@ function CoachesSection({
       {/* Coach list - responsive grid: 1 col mobile, 2 col tablet, 3 col desktop */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {coaches.map((coach) => (
-          <button
+          <div
             key={coach.id}
-            type="button"
-            onClick={() => {
-              apiService.recordCoachUsage(coach.id).catch(() => {
-                // Silently ignore usage tracking errors
-              });
-              onSelectPrompt(
-                coach.description || `Chat with ${coach.title}`,
-                coach.id,
-                coach.system_prompt
-              );
-            }}
-            className="text-left text-sm rounded-xl border border-pierre-gray-200 hover:border-pierre-violet hover:bg-pierre-violet/5 px-4 py-3 transition-all focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-opacity-50 group hover:shadow-sm"
+            className="relative text-left text-sm rounded-xl border border-pierre-gray-200 hover:border-pierre-violet hover:bg-pierre-violet/5 px-4 py-3 transition-all focus-within:outline-none focus-within:ring-2 focus-within:ring-pierre-violet focus-within:ring-opacity-50 group hover:shadow-sm"
           >
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-pierre-gray-800 group-hover:text-pierre-violet">
-                {coach.title}
-              </span>
-              <div className="flex items-center gap-1">
-                {coach.is_favorite && (
-                  <span className="text-pierre-yellow-500">★</span>
+            {/* Edit/Delete buttons for user-created coaches */}
+            {!coach.is_system && (onEditCoach || onDeleteCoach) && (
+              <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                {onEditCoach && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEditCoach(coach);
+                    }}
+                    className="p-1 text-pierre-gray-400 hover:text-pierre-violet hover:bg-pierre-violet/10 rounded transition-colors"
+                    title="Edit coach"
+                    aria-label="Edit coach"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                  </button>
                 )}
-                <span className={`text-xs px-1.5 py-0.5 rounded ${getCategoryBadgeClass(coach.category)}`}>
-                  {getCategoryIcon(coach.category)}
-                </span>
+                {onDeleteCoach && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteCoach(coach);
+                    }}
+                    className="p-1 text-pierre-gray-400 hover:text-pierre-red-500 hover:bg-pierre-red-50 rounded transition-colors"
+                    title="Delete coach"
+                    aria-label="Delete coach"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                )}
               </div>
-            </div>
-            {coach.description && (
-              <p className="text-pierre-gray-500 text-xs mt-0.5 line-clamp-2">
-                {coach.description}
-              </p>
             )}
-            <div className="flex items-center gap-2 mt-1 text-xs text-pierre-gray-400">
-              {coach.is_system && (
-                <span className="bg-pierre-violet bg-opacity-10 text-pierre-violet px-1.5 py-0.5 rounded">
-                  System
+            <button
+              type="button"
+              onClick={() => {
+                apiService.recordCoachUsage(coach.id).catch(() => {
+                  // Silently ignore usage tracking errors
+                });
+                onSelectPrompt(
+                  coach.description || `Chat with ${coach.title}`,
+                  coach.id,
+                  coach.system_prompt
+                );
+              }}
+              className="w-full text-left"
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-pierre-gray-800 group-hover:text-pierre-violet">
+                  {coach.title}
                 </span>
+                <div className="flex items-center gap-1">
+                  {coach.is_favorite && (
+                    <span className="text-pierre-yellow-500">★</span>
+                  )}
+                  <span className={`text-xs px-1.5 py-0.5 rounded ${getCategoryBadgeClass(coach.category)}`}>
+                    {getCategoryIcon(coach.category)}
+                  </span>
+                </div>
+              </div>
+              {coach.description && (
+                <p className="text-pierre-gray-500 text-xs mt-0.5 line-clamp-2">
+                  {coach.description}
+                </p>
               )}
-              {coach.use_count > 0 && (
-                <span>Used {coach.use_count}x</span>
-              )}
-            </div>
-          </button>
+              <div className="flex items-center gap-2 mt-1 text-xs text-pierre-gray-400">
+                {coach.is_system && (
+                  <span className="bg-pierre-violet bg-opacity-10 text-pierre-violet px-1.5 py-0.5 rounded">
+                    System
+                  </span>
+                )}
+                {coach.use_count > 0 && (
+                  <span>Used {coach.use_count}x</span>
+                )}
+              </div>
+            </button>
+          </div>
         ))}
       </div>
     </Card>
