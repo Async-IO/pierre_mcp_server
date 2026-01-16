@@ -280,7 +280,11 @@ async fn seed_system_coaches(pool: &SqlitePool, admin: &AdminUser) -> Result<u32
 
 /// Estimate token count for system prompt (rough approximation: ~4 chars per token)
 fn estimate_token_count(text: &str) -> i64 {
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_possible_wrap)]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::cast_possible_wrap
+    )]
     let count = (text.len() / 4) as i64;
     count.max(1)
 }
