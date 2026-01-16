@@ -949,6 +949,7 @@ class ApiService {
       created_at: string;
       updated_at: string;
       is_system: boolean;
+      visibility: string;
       is_assigned: boolean;
     }>;
     total: number;
@@ -976,6 +977,64 @@ class ApiService {
   async recordCoachUsage(coachId: string): Promise<{ success: boolean }> {
     const response = await axios.post(`/api/coaches/${coachId}/usage`);
     return response.data;
+  }
+
+  async createCoach(data: {
+    title: string;
+    description?: string;
+    system_prompt: string;
+    category?: string;
+    tags?: string[];
+  }): Promise<{
+    id: string;
+    title: string;
+    description?: string;
+    system_prompt: string;
+    category: string;
+    tags: string[];
+    token_count: number;
+    is_favorite: boolean;
+    use_count: number;
+    last_used_at?: string;
+    created_at: string;
+    updated_at: string;
+    is_system: boolean;
+    visibility: string;
+    is_assigned: boolean;
+  }> {
+    const response = await axios.post('/api/coaches', data);
+    return response.data;
+  }
+
+  async updateCoach(coachId: string, data: {
+    title?: string;
+    description?: string;
+    system_prompt?: string;
+    category?: string;
+    tags?: string[];
+  }): Promise<{
+    id: string;
+    title: string;
+    description?: string;
+    system_prompt: string;
+    category: string;
+    tags: string[];
+    token_count: number;
+    is_favorite: boolean;
+    use_count: number;
+    last_used_at?: string;
+    created_at: string;
+    updated_at: string;
+    is_system: boolean;
+    visibility: string;
+    is_assigned: boolean;
+  }> {
+    const response = await axios.put(`/api/coaches/${coachId}`, data);
+    return response.data;
+  }
+
+  async deleteCoach(coachId: string): Promise<void> {
+    await axios.delete(`/api/coaches/${coachId}`);
   }
 
   // LLM Settings endpoints
