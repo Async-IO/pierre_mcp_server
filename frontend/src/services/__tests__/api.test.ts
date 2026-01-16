@@ -46,5 +46,19 @@ describe('API Service', () => {
       expect(typeof apiService.getUsageAnalytics).toBe('function')
       expect(typeof apiService.getRateLimitOverview).toBe('function')
     })
+
+    it('should have coach hide/show methods', () => {
+      expect(typeof apiService.hideCoach).toBe('function')
+      expect(typeof apiService.showCoach).toBe('function')
+      expect(typeof apiService.getHiddenCoaches).toBe('function')
+    })
+
+    it('should have coach CRUD methods', () => {
+      expect(typeof apiService.getCoaches).toBe('function')
+      expect(typeof apiService.createCoach).toBe('function')
+      expect(typeof apiService.updateCoach).toBe('function')
+      expect(typeof apiService.deleteCoach).toBe('function')
+      expect(typeof apiService.toggleCoachFavorite).toBe('function')
+    })
   })
 })
