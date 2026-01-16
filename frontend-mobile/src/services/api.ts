@@ -15,11 +15,15 @@ import type {
   OAuthApp,
   OAuthAppCredentials,
   FirebaseLoginResponse,
+  Coach,
+  CreateCoachRequest,
+  UpdateCoachRequest,
+  ListCoachesResponse,
 } from '../types';
 
 // Configuration - should be set via environment or config
 // For iOS Simulator, localhost works directly. For Android, use 10.0.2.2
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8082';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8081';
 
 // Timeout for API requests (5 minutes to accommodate slower local LLM responses)
 const API_TIMEOUT_MS = 300000;
@@ -364,6 +368,75 @@ class ApiService {
 
   async deleteUserOAuthApp(provider: string): Promise<void> {
     await axios.delete(`/api/users/oauth-apps/${provider}`);
+  }
+
+  // Coach endpoints for AI coaching personas
+  /**
+   * List user's coaches with optional filtering
+   * @param category - Filter by category (training, nutrition, recovery, recipes, custom)
+   * @param favoritesOnly - Only return favorited coaches
+   */
+  async listCoaches(category?: string, favoritesOnly?: boolean): Promise<ListCoachesResponse> {
+    const params = new URLSearchParams();
+    if (category) params.append('category', category);
+    if (favoritesOnly) params.append('favorites_only', 'true');
+    const queryString = params.toString();
+    const url = queryString ? `/api/coaches?${queryString}` : '/api/coaches';
+    const response = await axios.get(url);
+    return response.data;
+  }
+
+  /**
+   * Create a new coach
+   */
+  async createCoach(request: CreateCoachRequest): Promise<Coach> {
+    const response = await axios.post('/api/coaches', request);
+    return response.data;
+  }
+
+  /**
+   * Get a specific coach by ID
+   */
+  async getCoach(coachId: string): Promise<Coach> {
+    const response = await axios.get(`/api/coaches/${coachId}`);
+    return response.data;
+  }
+
+  /**
+   * Update an existing coach
+   */
+  async updateCoach(coachId: string, request: UpdateCoachRequest): Promise<Coach> {
+    const response = await axios.put(`/api/coaches/${coachId}`, request);
+    return response.data;
+  }
+
+  /**
+   * Delete a coach
+   */
+  async deleteCoach(coachId: string): Promise<void> {
+    await axios.delete(`/api/coaches/${coachId}`);
+  }
+
+  /**
+   * Record coach usage (call when user selects a coach)
+   * This is fire-and-forget - errors are silently ignored
+   */
+  async recordCoachUsage(coachId: string): Promise<void> {
+    try {
+      await axios.post(`/api/coaches/${coachId}/use`);
+    } catch (error) {
+      // Silent failure - usage tracking is non-critical
+      console.debug('Failed to record coach usage:', error);
+    }
+  }
+
+  /**
+   * Toggle coach favorite status
+   * @returns The new favorite status
+   */
+  async toggleCoachFavorite(coachId: string): Promise<{ is_favorite: boolean }> {
+    const response = await axios.post(`/api/coaches/${coachId}/favorite`);
+    return response.data;
   }
 
   // WebSocket URL for chat streaming

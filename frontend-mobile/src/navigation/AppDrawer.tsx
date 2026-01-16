@@ -25,6 +25,8 @@ import { ChatScreen } from '../screens/chat/ChatScreen';
 import { ConnectionsScreen } from '../screens/connections/ConnectionsScreen';
 import { SettingsScreen } from '../screens/settings/SettingsScreen';
 import { ConversationsScreen } from '../screens/conversations/ConversationsScreen';
+import { CoachLibraryScreen } from '../screens/coaches/CoachLibraryScreen';
+import { CoachEditorScreen } from '../screens/coaches/CoachEditorScreen';
 import { useAuth } from '../contexts/AuthContext';
 import { apiService } from '../services/api';
 import { colors, spacing, fontSize, borderRadius } from '../constants/theme';
@@ -35,6 +37,8 @@ export type AppDrawerParamList = {
   Conversations: undefined;
   Connections: undefined;
   Settings: undefined;
+  CoachLibrary: undefined;
+  CoachEditor: { coachId?: string } | undefined;
 };
 
 const Drawer = createDrawerNavigator<AppDrawerParamList>();
@@ -250,6 +254,16 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
         <Text style={styles.discussionsChevron}>›</Text>
       </TouchableOpacity>
 
+      {/* My Coaches Button */}
+      <TouchableOpacity
+        style={styles.discussionsButton}
+        onPress={() => navigation.navigate('CoachLibrary')}
+      >
+        <Text style={styles.discussionsIcon}>🎯</Text>
+        <Text style={styles.discussionsText}>My Coaches</Text>
+        <Text style={styles.discussionsChevron}>›</Text>
+      </TouchableOpacity>
+
       {/* Conversations List */}
       <ScrollView style={styles.conversationsContainer} contentContainerStyle={styles.conversationsContent}>
         {conversations.length > 0 && (
@@ -435,6 +449,8 @@ export function AppDrawer() {
       <Drawer.Screen name="Conversations" component={ConversationsScreen} />
       <Drawer.Screen name="Connections" component={ConnectionsScreen} />
       <Drawer.Screen name="Settings" component={SettingsScreen} />
+      <Drawer.Screen name="CoachLibrary" component={CoachLibraryScreen} />
+      <Drawer.Screen name="CoachEditor" component={CoachEditorScreen} />
     </Drawer.Navigator>
   );
 }

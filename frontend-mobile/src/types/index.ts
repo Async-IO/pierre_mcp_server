@@ -113,3 +113,47 @@ export interface FirebaseLoginResponse {
   user: User;
   is_new_user: boolean;
 }
+
+// Coach types for AI coaching personas
+export type CoachCategory = 'training' | 'nutrition' | 'recovery' | 'recipes' | 'custom';
+
+export interface Coach {
+  id: string;
+  title: string;
+  description: string | null;
+  system_prompt: string;
+  category: CoachCategory;
+  tags: string[];
+  token_count: number;
+  is_favorite: boolean;
+  use_count: number;
+  last_used_at: string | null;
+  created_at: string;
+  updated_at: string;
+  is_system: boolean;
+}
+
+export interface CreateCoachRequest {
+  title: string;
+  description?: string;
+  system_prompt: string;
+  category: CoachCategory;
+  tags?: string[];
+}
+
+export interface UpdateCoachRequest {
+  title?: string;
+  description?: string;
+  system_prompt?: string;
+  category?: CoachCategory;
+  tags?: string[];
+}
+
+export interface ListCoachesResponse {
+  coaches: Coach[];
+  total: number;
+  metadata: {
+    timestamp: string;
+    api_version: string;
+  };
+}

@@ -458,6 +458,14 @@ impl DatabaseProvider for Database {
         }
     }
 
+    async fn get_first_admin_user(&self) -> AppResult<Option<User>> {
+        match self {
+            Self::SQLite(db) => db.get_first_admin_user().await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_first_admin_user().await,
+        }
+    }
+
     async fn get_users_by_status_cursor(
         &self,
         status: &str,

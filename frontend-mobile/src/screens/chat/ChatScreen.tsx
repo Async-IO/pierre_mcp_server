@@ -16,12 +16,12 @@ import {
   Dimensions,
   ActivityIndicator,
   Alert,
-  Image,
   ScrollView,
   Modal,
   Share,
   AppState,
   ActionSheetIOS,
+  Image,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
@@ -32,54 +32,42 @@ import { useRoute, type RouteProp } from '@react-navigation/native';
 import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import type { Conversation, Message, PromptCategory, ProviderStatus } from '../../types';
+import type { Conversation, Message, ProviderStatus, Coach, CoachCategory } from '../../types';
 import type { DrawerNavigationProp } from '@react-navigation/drawer';
 import type { AppDrawerParamList } from '../../navigation/AppDrawer';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+// Coach category colors matching web frontend
+const COACH_CATEGORY_COLORS: Record<CoachCategory, string> = {
+  training: '#10B981',  // Green
+  nutrition: '#F59E0B', // Orange
+  recovery: '#6366F1',  // Indigo/Blue
+  recipes: '#F97316',   // Amber
+  custom: '#7C3AED',    // Purple
+};
+
+// Coach category badge background colors (lighter versions)
+const COACH_CATEGORY_BADGE_BG: Record<CoachCategory, string> = {
+  training: 'rgba(16, 185, 129, 0.15)',
+  nutrition: 'rgba(245, 158, 11, 0.15)',
+  recovery: 'rgba(99, 102, 241, 0.15)',
+  recipes: 'rgba(249, 115, 22, 0.15)',
+  custom: 'rgba(124, 58, 237, 0.15)',
+};
+
+// Coach category emoji icons
+const COACH_CATEGORY_ICONS: Record<CoachCategory, string> = {
+  training: '🏃',
+  nutrition: '🥗',
+  recovery: '😴',
+  recipes: '👨‍🍳',
+  custom: '⚙️',
+};
+
 interface ChatScreenProps {
   navigation: DrawerNavigationProp<AppDrawerParamList>;
 }
-
-// Default prompts - used as initial state and fallback when API is unavailable
-const DEFAULT_PROMPT_CATEGORIES: PromptCategory[] = [
-  {
-    category_key: 'training',
-    category_title: 'Training',
-    category_icon: '🏃',
-    pillar: 'activity',
-    prompts: [
-      'Am I ready for a hard workout today?',
-      "What's my predicted marathon time?",
-    ],
-  },
-  {
-    category_key: 'nutrition',
-    category_title: 'Nutrition',
-    category_icon: '🥗',
-    pillar: 'nutrition',
-    prompts: [
-      'How many calories should I eat today?',
-      'What should I eat before my morning run?',
-    ],
-  },
-  {
-    category_key: 'recovery',
-    category_title: 'Recovery',
-    category_icon: '🧘',
-    pillar: 'recovery',
-    prompts: [
-      'Do I need a rest day?',
-      'Analyze my sleep quality',
-    ],
-  },
-];
-
-const DEFAULT_WELCOME_PROMPTS = [
-  'Analyze my recent activities',
-  'Show me my last activity',
-];
 
 export function ChatScreen({ navigation }: ChatScreenProps) {
   const { isAuthenticated } = useAuth();
@@ -90,25 +78,25 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [promptCategories, setPromptCategories] = useState<PromptCategory[]>(DEFAULT_PROMPT_CATEGORIES);
-  const [welcomePrompts, setWelcomePrompts] = useState(DEFAULT_WELCOME_PROMPTS);
   const [actionMenuVisible, setActionMenuVisible] = useState(false);
   const [providerModalVisible, setProviderModalVisible] = useState(false);
   const [connectedProviders, setConnectedProviders] = useState<ProviderStatus[]>([]);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [messageFeedback, setMessageFeedback] = useState<Record<string, 'up' | 'down' | null>>({});
+  const [coaches, setCoaches] = useState<Coach[]>([]);
+  const [pendingCoachAction, setPendingCoachAction] = useState<{ coach: Coach } | null>(null);
 
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
   // Track when we just created a conversation to prevent loadMessages from clearing optimistic messages
   const justCreatedConversationRef = useRef<string | null>(null);
 
-  // Load conversations, prompts, and provider status when authenticated
+  // Load conversations, prompts, provider status, and coaches when authenticated
   useEffect(() => {
     if (isAuthenticated) {
       loadConversations();
-      loadPromptSuggestions();
       loadProviderStatus();
+      loadCoaches();
     }
   }, [isAuthenticated]);
 
@@ -118,6 +106,22 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       setConnectedProviders(response.providers || []);
     } catch (error) {
       console.error('Failed to load provider status:', error);
+    }
+  };
+
+  const loadCoaches = async () => {
+    try {
+      const response = await apiService.listCoaches();
+      // Sort: favorites first, then by use_count descending
+      const sorted = [...response.coaches].sort((a, b) => {
+        if (a.is_favorite !== b.is_favorite) {
+          return a.is_favorite ? -1 : 1;
+        }
+        return b.use_count - a.use_count;
+      });
+      setCoaches(sorted);
+    } catch (error) {
+      console.error('Failed to load coaches:', error);
     }
   };
 
@@ -210,19 +214,6 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       setTimeout(() => scrollToBottom(), 100);
     } catch (error) {
       console.error('Failed to load messages:', error);
-    }
-  };
-
-  const loadPromptSuggestions = async () => {
-    try {
-      const response = await apiService.getPromptSuggestions();
-      if (response.categories && response.categories.length > 0) {
-        setPromptCategories(response.categories);
-      }
-      // Use local welcome prompts - don't override with server's detailed prompt
-    } catch (error) {
-      console.error('Failed to load prompts:', error);
-      // Keep default prompts on error
     }
   };
 
@@ -479,6 +470,80 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     await sendPromptMessage(prompt);
   };
 
+  const handleCoachSelect = async (coach: Coach) => {
+    if (isSending) return;
+
+    // Check if any provider is connected
+    if (!hasConnectedProvider()) {
+      // Store pending action and show provider modal
+      setPendingCoachAction({ coach });
+      setProviderModalVisible(true);
+      return;
+    }
+
+    await startCoachConversation(coach);
+  };
+
+  const startCoachConversation = async (coach: Coach) => {
+    try {
+      setIsSending(true);
+
+      // Record usage (fire-and-forget)
+      apiService.recordCoachUsage(coach.id);
+
+      // Create a new conversation with the coach's system prompt
+      const conversation = await apiService.createConversation({
+        title: `Chat with ${coach.title}`,
+        system_prompt: coach.system_prompt,
+      });
+
+      if (!conversation || !conversation.id) {
+        throw new Error('Invalid conversation response');
+      }
+
+      setConversations(prev => [conversation, ...prev]);
+      justCreatedConversationRef.current = conversation.id;
+      setCurrentConversation(conversation);
+
+      // Auto-send initial message with coach description
+      const initialMessage = coach.description || `Let's get started with ${coach.title}!`;
+
+      // Add user message optimistically
+      const userMessage: Message = {
+        id: `temp-${Date.now()}`,
+        role: 'user',
+        content: initialMessage,
+        created_at: new Date().toISOString(),
+      };
+      setMessages([userMessage]);
+
+      // Send message to API
+      const response = await apiService.sendMessage(conversation.id, initialMessage);
+
+      // Update with actual messages from server
+      setMessages(prev => {
+        const filtered = prev.filter(m => m.id !== userMessage.id);
+        const newMessages: Message[] = [];
+        if (response.user_message?.id) {
+          newMessages.push(response.user_message);
+        }
+        if (response.assistant_message?.id) {
+          newMessages.push({
+            ...response.assistant_message,
+            model: response.model,
+            execution_time_ms: response.execution_time_ms,
+          });
+        }
+        return [...filtered, ...newMessages];
+      });
+    } catch (error) {
+      console.error('Failed to start coach conversation:', error);
+      Alert.alert('Error', 'Failed to start conversation with coach');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   const sendPromptMessage = async (prompt: string) => {
     setIsSending(true);
 
@@ -586,8 +651,11 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
         if (success) {
           // OAuth completed successfully - refresh connection status
           await loadProviderStatus();
-          // Send the pending prompt now that provider is connected
-          if (pendingPrompt) {
+          // Start pending coach conversation now that provider is connected
+          if (pendingCoachAction) {
+            await startCoachConversation(pendingCoachAction.coach);
+            setPendingCoachAction(null);
+          } else if (pendingPrompt) {
             await sendPromptMessage(pendingPrompt);
             setPendingPrompt(null);
           }
@@ -600,7 +668,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
           Alert.alert('Connection Complete', `${provider} connection flow completed.`);
         }
       } else if (result.type === 'cancel') {
-        // User cancelled - keep pending prompt so they can try again
+        // User cancelled - keep pending actions so they can try again
         console.log('OAuth cancelled by user');
       }
     } catch (error) {
@@ -911,6 +979,57 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     </View>
   );
 
+  // Check if current conversation is a coach conversation (has system_prompt)
+  const isCoachConversation = Boolean(currentConversation?.system_prompt);
+
+  // Render a single coach card for the grid (matching web design)
+  const renderCoachGridCard = (coach: Coach) => (
+    <TouchableOpacity
+      key={coach.id}
+      style={styles.coachGridCard}
+      onPress={() => handleCoachSelect(coach)}
+      activeOpacity={0.7}
+    >
+      {/* Header row: Title (full width, wraps to 2 lines) + Category icon */}
+      <View style={styles.coachCardHeader}>
+        <Text style={styles.coachTitle} numberOfLines={2}>
+          {coach.title}
+        </Text>
+        <View style={[
+          styles.coachCategoryBadge,
+          { backgroundColor: COACH_CATEGORY_BADGE_BG[coach.category] },
+        ]}>
+          <Text style={styles.coachCategoryIcon}>
+            {COACH_CATEGORY_ICONS[coach.category]}
+          </Text>
+        </View>
+      </View>
+      {/* Description */}
+      {coach.description && (
+        <Text style={styles.coachDescription} numberOfLines={2}>
+          {coach.description}
+        </Text>
+      )}
+      {/* Footer: Badges + Use count */}
+      <View style={styles.coachCardFooter}>
+        {coach.is_system && (
+          <View style={styles.systemBadge}>
+            <Text style={styles.systemBadgeText}>System</Text>
+          </View>
+        )}
+        {coach.is_favorite && (
+          <View style={styles.favoriteBadge}>
+            <Text style={styles.favoriteBadgeIcon}>★</Text>
+          </View>
+        )}
+        <View style={styles.footerSpacer} />
+        {coach.use_count > 0 && (
+          <Text style={styles.coachUseCount}>{coach.use_count}×</Text>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+
   const renderEmptyChat = () => (
     <ScrollView
       style={styles.emptyScrollView}
@@ -918,51 +1037,56 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
     >
-      <Image
-        source={require('../../../assets/pierre-logo.png')}
-        style={styles.welcomeLogo}
-        resizeMode="contain"
-      />
-      <View style={styles.welcomePromptContainer}>
-        <Text style={styles.categoryTitle}>
-          📊 Quick Start
-        </Text>
-        {welcomePrompts.map((prompt, index) => (
+      {/* Coach Grid - only show when NOT in a coach conversation */}
+      {!isCoachConversation && coaches.length > 0 && (
+        <View style={styles.coachGridContainer}>
+          <Text style={styles.coachGridTitle}>🎯 Your Coaches</Text>
+          <View style={styles.coachGrid}>
+            {coaches.map((coach) => renderCoachGridCard(coach))}
+          </View>
+        </View>
+      )}
+
+      {/* Empty state when no coaches */}
+      {!isCoachConversation && coaches.length === 0 && (
+        <View style={styles.noCoachesContainer}>
+          <Text style={styles.noCoachesTitle}>No coaches yet</Text>
+          <Text style={styles.noCoachesSubtitle}>
+            Create your first coach to customize how Pierre helps you.
+          </Text>
+        </View>
+      )}
+
+      {/* Coach conversation starter */}
+      {isCoachConversation && (
+        <View style={styles.coachStarterContainer}>
+          <Text style={styles.coachStarterText}>
+            Your coach is ready. Start the conversation by typing a message or try one of these:
+          </Text>
           <TouchableOpacity
-            key={`welcome-${index}`}
             style={styles.suggestionButton}
-            onPress={() => handlePromptSelect(prompt)}
+            onPress={() => handlePromptSelect("Let's get started!")}
             activeOpacity={0.6}
           >
-            <Text style={styles.suggestionText}>
-              {prompt}
-            </Text>
+            <Text style={styles.suggestionText}>Let's get started!</Text>
           </TouchableOpacity>
-        ))}
-      </View>
+          <TouchableOpacity
+            style={styles.suggestionButton}
+            onPress={() => handlePromptSelect("What can you help me with?")}
+            activeOpacity={0.6}
+          >
+            <Text style={styles.suggestionText}>What can you help me with?</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.suggestionButton}
+            onPress={() => handlePromptSelect("Give me today's plan")}
+            activeOpacity={0.6}
+          >
+            <Text style={styles.suggestionText}>Give me today's plan</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
-      {/* Prompt Suggestions */}
-      <View style={styles.suggestionsContainer}>
-        {promptCategories.slice(0, 3).map((category) => (
-          <View key={category.category_key} style={styles.categoryContainer}>
-            <Text style={styles.categoryTitle}>
-              {category.category_icon} {category.category_title}
-            </Text>
-            {category.prompts.slice(0, 2).map((prompt, promptIndex) => (
-              <TouchableOpacity
-                key={`${category.category_key}-prompt-${promptIndex}`}
-                style={styles.suggestionButton}
-                onPress={() => handlePromptSelect(prompt)}
-                activeOpacity={0.6}
-              >
-                <Text style={styles.suggestionText} numberOfLines={2}>
-                  {prompt}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        ))}
-      </View>
     </ScrollView>
   );
 
@@ -1170,6 +1294,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
                 onPress={() => {
                   setProviderModalVisible(false);
                   setPendingPrompt(null);
+                  setPendingCoachAction(null);
                 }}
               >
                 <Text style={styles.providerCancelText}>Cancel</Text>
@@ -1329,9 +1454,9 @@ const styles = StyleSheet.create({
   emptyContainer: {
     flexGrow: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xl,
+    justifyContent: 'flex-start',
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.md,
     paddingBottom: 100, // Space for floating input overlay
   },
   welcomeLogo: {
@@ -1382,6 +1507,127 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.text.primary,
     lineHeight: 20,
+  },
+  // Coach Carousel Styles
+  coachGridContainer: {
+    width: '100%',
+    paddingHorizontal: spacing.xs,
+  },
+  coachGridTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: '600',
+    color: colors.text.primary,
+    marginBottom: spacing.md,
+  },
+  coachGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  coachGridCard: {
+    backgroundColor: colors.background.secondary,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    width: '48%',
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    marginBottom: spacing.sm,
+  },
+  coachCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: spacing.xs,
+    gap: spacing.sm,
+  },
+  coachCategoryBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: borderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  coachCategoryIcon: {
+    fontSize: 14,
+  },
+  coachCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  systemBadge: {
+    backgroundColor: 'rgba(124, 58, 237, 0.15)',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+  },
+  systemBadgeText: {
+    fontSize: fontSize.xs,
+    fontWeight: '500',
+    color: '#7C3AED',
+  },
+  favoriteBadge: {
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+  },
+  favoriteBadgeIcon: {
+    fontSize: fontSize.xs,
+    color: '#F59E0B',
+  },
+  footerSpacer: {
+    flex: 1,
+  },
+  coachUseCount: {
+    fontSize: fontSize.xs,
+    color: colors.text.tertiary,
+  },
+  noCoachesContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xxl,
+  },
+  noCoachesTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: '600',
+    color: colors.text.primary,
+    marginBottom: spacing.sm,
+  },
+  noCoachesSubtitle: {
+    fontSize: fontSize.md,
+    color: colors.text.tertiary,
+    textAlign: 'center',
+  },
+  coachTitle: {
+    flex: 1,
+    fontSize: fontSize.sm,
+    fontWeight: '600',
+    color: colors.text.primary,
+    lineHeight: 18,
+  },
+  coachDescription: {
+    fontSize: fontSize.xs,
+    color: colors.text.secondary,
+    lineHeight: 16,
+    marginBottom: spacing.xs,
+  },
+  coachStarterContainer: {
+    width: '100%',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  coachStarterText: {
+    fontSize: fontSize.md,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+    lineHeight: 22,
   },
   inputContainer: {
     position: 'absolute',

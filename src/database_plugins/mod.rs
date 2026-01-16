@@ -132,6 +132,11 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Associated data (tokens, conversations, etc.) are cascade deleted.
     async fn delete_user(&self, user_id: Uuid) -> AppResult<()>;
 
+    /// Get the first admin user by creation date
+    ///
+    /// Used for system seeding to associate with a valid admin user
+    async fn get_first_admin_user(&self) -> AppResult<Option<User>>;
+
     // ================================
     // User OAuth Tokens (Multi-Tenant)
     // ================================
