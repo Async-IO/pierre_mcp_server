@@ -12,6 +12,10 @@ mod helpers;
 
 use common::{create_test_server_resources, create_test_user};
 use helpers::axum_test::AxumTestRequest;
+use pierre_mcp_server::database::coaches::{
+    CoachCategory, CoachVisibility, CoachesManager, CreateSystemCoachRequest,
+};
+use pierre_mcp_server::database_plugins::DatabaseProvider;
 use pierre_mcp_server::routes::coaches::{
     CoachResponse, CoachesRoutes, ListCoachesResponse, RecordUsageResponse, ToggleFavoriteResponse,
 };
@@ -587,4 +591,122 @@ async fn test_record_usage_nonexistent() {
         .await;
 
     assert_eq!(response.status_code(), StatusCode::NOT_FOUND);
+}
+
+// ============================================================================
+// System Coach Cross-Tenant Visibility E2E Tests
+// ============================================================================
+
+/// E2E test: System coaches should be visible to users via the API
+/// This tests the full flow from database to API response
+#[tokio::test]
+async fn test_system_coaches_visible_in_list() {
+    let resources = create_test_server_resources().await.unwrap();
+    let (user_id, user) = create_test_user(&resources.database).await.unwrap();
+
+    // Get the user's tenant_id (assigned during user creation)
+    let stored_user = resources.database.get_user(user_id).await.unwrap().unwrap();
+    let tenant_id = stored_user.tenant_id.as_deref().unwrap_or("default");
+
+    // Create a system coach directly in the database
+    let sqlite_pool = resources.database.sqlite_pool().unwrap().clone();
+    let coaches_manager = CoachesManager::new(sqlite_pool);
+    let system_request = CreateSystemCoachRequest {
+        title: "Platform Coach".to_owned(),
+        description: Some("A system-wide coach".to_owned()),
+        system_prompt: "You are a platform-wide fitness coach.".to_owned(),
+        category: CoachCategory::Training,
+        tags: vec!["system".to_owned()],
+        visibility: CoachVisibility::Tenant,
+        sample_prompts: vec![],
+    };
+    let system_coach = coaches_manager
+        .create_system_coach(user_id, tenant_id, &system_request)
+        .await
+        .unwrap();
+
+    assert!(system_coach.is_system);
+
+    // Generate a JWT token for the user
+    let token = resources
+        .auth_manager
+        .generate_token(&user, &resources.jwks_manager)
+        .unwrap();
+    let auth_token = format!("Bearer {token}");
+
+    // Create the coaches router
+    let router = CoachesRoutes::routes(resources);
+
+    // List coaches via the API - should include the system coach
+    let list_response = AxumTestRequest::get("/api/coaches")
+        .header("authorization", &auth_token)
+        .send(router)
+        .await;
+
+    assert_eq!(list_response.status_code(), StatusCode::OK);
+
+    let list: ListCoachesResponse = list_response.json();
+    // Should have at least 1 coach (the system coach)
+    assert!(!list.coaches.is_empty());
+
+    // Find the system coach in the response
+    let found_system_coach = list.coaches.iter().find(|c| c.title == "Platform Coach");
+    assert!(
+        found_system_coach.is_some(),
+        "System coach should be visible in the list"
+    );
+    assert!(
+        found_system_coach.unwrap().is_system,
+        "Coach should be marked as system"
+    );
+}
+
+/// E2E test: System coaches should be retrievable by ID
+#[tokio::test]
+async fn test_get_system_coach_by_id() {
+    let resources = create_test_server_resources().await.unwrap();
+    let (user_id, user) = create_test_user(&resources.database).await.unwrap();
+
+    // Get the user's tenant_id
+    let stored_user = resources.database.get_user(user_id).await.unwrap().unwrap();
+    let tenant_id = stored_user.tenant_id.as_deref().unwrap_or("default");
+
+    // Create a system coach
+    let sqlite_pool = resources.database.sqlite_pool().unwrap().clone();
+    let coaches_manager = CoachesManager::new(sqlite_pool);
+    let system_request = CreateSystemCoachRequest {
+        title: "Retrievable Coach".to_owned(),
+        description: None,
+        system_prompt: "You are a coach.".to_owned(),
+        category: CoachCategory::Training,
+        tags: vec![],
+        visibility: CoachVisibility::Tenant,
+        sample_prompts: vec![],
+    };
+    let system_coach = coaches_manager
+        .create_system_coach(user_id, tenant_id, &system_request)
+        .await
+        .unwrap();
+
+    // Generate JWT token
+    let token = resources
+        .auth_manager
+        .generate_token(&user, &resources.jwks_manager)
+        .unwrap();
+    let auth_token = format!("Bearer {token}");
+
+    let router = CoachesRoutes::routes(resources);
+
+    // Get the system coach by ID via the API
+    let get_response = AxumTestRequest::get(&format!("/api/coaches/{}", system_coach.id))
+        .header("authorization", &auth_token)
+        .send(router)
+        .await;
+
+    assert_eq!(get_response.status_code(), StatusCode::OK);
+
+    let coach: CoachResponse = get_response.json();
+    assert_eq!(coach.id, system_coach.id.to_string());
+    assert_eq!(coach.title, "Retrievable Coach");
+    assert!(coach.is_system);
 }

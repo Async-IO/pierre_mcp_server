@@ -372,8 +372,10 @@ impl CoachesManager {
         };
 
         // Build system coaches condition
+        // System coaches (is_system=1) are always visible to all users
+        // regardless of their visibility setting - they're platform-wide resources
         let system_condition = if filter.include_system {
-            "OR (c.is_system = 1 AND c.visibility = 'tenant' AND c.tenant_id = $2)"
+            "OR c.is_system = 1"
         } else {
             ""
         };

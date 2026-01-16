@@ -135,6 +135,7 @@ fn other_user_id() -> Uuid {
 }
 
 const TEST_TENANT: &str = "test-tenant";
+const OTHER_TENANT: &str = "other-tenant";
 
 // ============================================================================
 // Create Tests
@@ -1868,4 +1869,212 @@ async fn test_hide_coach_user_isolation() {
         .await
         .unwrap();
     assert_eq!(user2_coaches.len(), 1);
+}
+
+// ============================================================================
+// Cross-Tenant System Coach Visibility Tests
+// ============================================================================
+
+/// System coaches with `is_system=1` should be visible to users from ANY tenant
+/// when `include_system` filter is enabled, regardless of the tenant they were created in.
+#[tokio::test]
+async fn test_system_coach_visible_across_tenants() {
+    let pool = create_test_db().await;
+    let manager = CoachesManager::new(pool);
+
+    // Create a system coach in TEST_TENANT (tenant A)
+    let request = CreateSystemCoachRequest {
+        title: "Global System Coach".to_owned(),
+        description: Some("Visible to all tenants".to_owned()),
+        system_prompt: "You are a globally available coach.".to_owned(),
+        category: CoachCategory::Training,
+        tags: vec!["global".to_owned()],
+        visibility: CoachVisibility::Tenant,
+        sample_prompts: vec![],
+    };
+
+    let system_coach = manager
+        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .await
+        .unwrap();
+
+    assert!(system_coach.is_system);
+    assert_eq!(system_coach.tenant_id, TEST_TENANT);
+
+    // User from OTHER_TENANT (tenant B) should see the system coach
+    // when include_system filter is enabled
+    let filter = ListCoachesFilter {
+        include_system: true,
+        ..Default::default()
+    };
+
+    let coaches = manager
+        .list(other_user_id(), OTHER_TENANT, &filter)
+        .await
+        .unwrap();
+
+    // Should find the system coach even though user is from a different tenant
+    assert_eq!(coaches.len(), 1);
+    assert_eq!(coaches[0].coach.title, "Global System Coach");
+    assert!(coaches[0].coach.is_system);
+}
+
+/// When `include_system` is false, system coaches from other tenants should NOT be visible
+#[tokio::test]
+async fn test_system_coach_hidden_when_include_system_false() {
+    let pool = create_test_db().await;
+    let manager = CoachesManager::new(pool);
+
+    // Create a system coach in TEST_TENANT
+    let request = CreateSystemCoachRequest {
+        title: "System Coach".to_owned(),
+        description: None,
+        system_prompt: "Prompt".to_owned(),
+        category: CoachCategory::Training,
+        tags: vec![],
+        visibility: CoachVisibility::Tenant,
+        sample_prompts: vec![],
+    };
+
+    manager
+        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .await
+        .unwrap();
+
+    // User from OTHER_TENANT should NOT see the system coach
+    // when include_system is false (default)
+    let filter = ListCoachesFilter {
+        include_system: false,
+        ..Default::default()
+    };
+
+    let coaches = manager
+        .list(other_user_id(), OTHER_TENANT, &filter)
+        .await
+        .unwrap();
+
+    // Should not find any coaches - no personal coaches and system coaches excluded
+    assert!(coaches.is_empty());
+}
+
+/// Multiple system coaches from different tenants should all be visible
+/// to users from any tenant when `include_system` is enabled
+#[tokio::test]
+async fn test_multiple_system_coaches_visible_across_tenants() {
+    let pool = create_test_db().await;
+    let manager = CoachesManager::new(pool);
+
+    // Create system coach in TEST_TENANT
+    let request1 = CreateSystemCoachRequest {
+        title: "System Coach From Tenant A".to_owned(),
+        description: None,
+        system_prompt: "Prompt A".to_owned(),
+        category: CoachCategory::Training,
+        tags: vec![],
+        visibility: CoachVisibility::Tenant,
+        sample_prompts: vec![],
+    };
+    manager
+        .create_system_coach(test_user_id(), TEST_TENANT, &request1)
+        .await
+        .unwrap();
+
+    // Create system coach in OTHER_TENANT
+    let request2 = CreateSystemCoachRequest {
+        title: "System Coach From Tenant B".to_owned(),
+        description: None,
+        system_prompt: "Prompt B".to_owned(),
+        category: CoachCategory::Nutrition,
+        tags: vec![],
+        visibility: CoachVisibility::Tenant,
+        sample_prompts: vec![],
+    };
+    manager
+        .create_system_coach(other_user_id(), OTHER_TENANT, &request2)
+        .await
+        .unwrap();
+
+    // User from TEST_TENANT should see both system coaches
+    let filter = ListCoachesFilter {
+        include_system: true,
+        ..Default::default()
+    };
+
+    let coaches = manager
+        .list(test_user_id(), TEST_TENANT, &filter)
+        .await
+        .unwrap();
+
+    assert_eq!(coaches.len(), 2);
+    let titles: Vec<&str> = coaches.iter().map(|c| c.coach.title.as_str()).collect();
+    assert!(titles.contains(&"System Coach From Tenant A"));
+    assert!(titles.contains(&"System Coach From Tenant B"));
+
+    // User from OTHER_TENANT should also see both system coaches
+    let coaches = manager
+        .list(other_user_id(), OTHER_TENANT, &filter)
+        .await
+        .unwrap();
+
+    assert_eq!(coaches.len(), 2);
+}
+
+/// Personal coaches should remain tenant-isolated even when system coaches are visible
+#[tokio::test]
+async fn test_personal_coaches_remain_isolated_with_system_coaches() {
+    let pool = create_test_db().await;
+    let manager = CoachesManager::new(pool);
+
+    // Create a personal coach in TEST_TENANT
+    let personal_request = CreateCoachRequest {
+        title: "Personal Coach".to_owned(),
+        description: None,
+        system_prompt: "Personal prompt".to_owned(),
+        category: CoachCategory::Custom,
+        tags: vec![],
+        sample_prompts: vec![],
+    };
+    manager
+        .create(test_user_id(), TEST_TENANT, &personal_request)
+        .await
+        .unwrap();
+
+    // Create a system coach in TEST_TENANT
+    let system_request = CreateSystemCoachRequest {
+        title: "System Coach".to_owned(),
+        description: None,
+        system_prompt: "System prompt".to_owned(),
+        category: CoachCategory::Training,
+        tags: vec![],
+        visibility: CoachVisibility::Tenant,
+        sample_prompts: vec![],
+    };
+    manager
+        .create_system_coach(test_user_id(), TEST_TENANT, &system_request)
+        .await
+        .unwrap();
+
+    // User from OTHER_TENANT with include_system should see ONLY the system coach
+    // NOT the personal coach from TEST_TENANT
+    let filter = ListCoachesFilter {
+        include_system: true,
+        ..Default::default()
+    };
+
+    let coaches = manager
+        .list(other_user_id(), OTHER_TENANT, &filter)
+        .await
+        .unwrap();
+
+    assert_eq!(coaches.len(), 1);
+    assert_eq!(coaches[0].coach.title, "System Coach");
+    assert!(coaches[0].coach.is_system);
+
+    // User from TEST_TENANT should see both their personal coach and the system coach
+    let coaches = manager
+        .list(test_user_id(), TEST_TENANT, &filter)
+        .await
+        .unwrap();
+
+    assert_eq!(coaches.len(), 2);
 }
