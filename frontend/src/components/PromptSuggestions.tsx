@@ -195,7 +195,7 @@ function CoachesSection({
           >
             {/* Edit/Delete buttons for user-created coaches */}
             {!coach.is_system && (onEditCoach || onDeleteCoach) && (
-              <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10 bg-white/90 backdrop-blur-sm rounded-lg px-1 py-0.5 shadow-sm">
                 {onEditCoach && (
                   <button
                     type="button"
