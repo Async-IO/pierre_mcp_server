@@ -156,7 +156,7 @@ test.describe('Tools Tab - Usage Details Table', () => {
     await loginAndNavigateToTools(page);
 
     // Progress bars should be visible (green for high success rate)
-    const progressBars = page.locator('.bg-green-500.h-2.rounded-full');
+    const progressBars = page.locator('.bg-pierre-green-500.h-2.rounded-full');
     await expect(progressBars.first()).toBeVisible();
   });
 
@@ -192,7 +192,7 @@ test.describe('Tools Tab - Usage Details Table', () => {
 
     // Table rows should have hover styling
     const tableRow = page.locator('tbody tr').first();
-    await expect(tableRow).toHaveClass(/hover:bg-gray-50/);
+    await expect(tableRow).toHaveClass(/hover:bg-pierre-gray-50/);
   });
 
   test('displays color indicators for each tool', async ({ page }) => {
