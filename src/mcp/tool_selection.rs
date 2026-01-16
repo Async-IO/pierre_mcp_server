@@ -182,20 +182,22 @@ impl ToolSelectionService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("Tool '{tool_name}'")))?;
 
-        let tenant = self.database.get_tenant_by_id(tenant_id).await?;
-        let tenant_plan = TenantPlan::parse_str(&tenant.plan)
-            .ok_or_else(|| AppError::internal(format!("Invalid tenant plan: {}", tenant.plan)))?;
+        // Try to get tenant; fall back to Enterprise plan if not found
+        let tenant_plan = match self.database.get_tenant_by_id(tenant_id).await {
+            Ok(tenant) => TenantPlan::parse_str(&tenant.plan).unwrap_or(TenantPlan::Enterprise),
+            Err(_) => TenantPlan::Enterprise,
+        };
 
         // Check plan restriction
         if !tenant_plan.meets_minimum(&catalog_entry.min_plan) {
             return Ok(false);
         }
 
-        // Check tenant override
-        if let Some(override_entry) = self
+        // Check tenant override (only if tenant exists - ignore errors here)
+        if let Ok(Some(override_entry)) = self
             .database
             .get_tenant_tool_override(tenant_id, tool_name)
-            .await?
+            .await
         {
             return Ok(override_entry.is_enabled);
         }
@@ -332,22 +334,34 @@ impl ToolSelectionService {
     }
 
     /// Compute effective tools for a tenant (no caching)
+    ///
+    /// If the tenant doesn't exist in the database, falls back to catalog defaults
+    /// with Enterprise plan (no plan restrictions, all tools available by default).
     async fn compute_effective_tools(&self, tenant_id: Uuid) -> AppResult<Vec<EffectiveTool>> {
-        // Get tenant to determine plan
-        let tenant = self.database.get_tenant_by_id(tenant_id).await?;
-        let tenant_plan = TenantPlan::parse_str(&tenant.plan)
-            .ok_or_else(|| AppError::internal(format!("Invalid tenant plan: {}", tenant.plan)))?;
+        // Try to get tenant; fall back to Enterprise plan if tenant doesn't exist
+        let (tenant_plan, override_map) = match self.database.get_tenant_by_id(tenant_id).await {
+            Ok(tenant) => {
+                let plan = TenantPlan::parse_str(&tenant.plan).unwrap_or(TenantPlan::Enterprise);
+
+                // Load tenant overrides
+                let overrides: Vec<TenantToolOverride> =
+                    self.database.get_tenant_tool_overrides(tenant_id).await?;
+                let map: HashMap<String, bool> = overrides
+                    .into_iter()
+                    .map(|o| (o.tool_name, o.is_enabled))
+                    .collect();
+
+                (plan, map)
+            }
+            Err(err) => {
+                // If tenant not found, use Enterprise plan with no overrides
+                debug!("Tenant {tenant_id} not found, using Enterprise plan defaults: {err}");
+                (TenantPlan::Enterprise, HashMap::new())
+            }
+        };
 
         // Load full catalog
         let catalog: Vec<ToolCatalogEntry> = self.database.get_tool_catalog().await?;
-
-        // Load tenant overrides
-        let overrides: Vec<TenantToolOverride> =
-            self.database.get_tenant_tool_overrides(tenant_id).await?;
-        let override_map: HashMap<String, bool> = overrides
-            .into_iter()
-            .map(|o| (o.tool_name, o.is_enabled))
-            .collect();
 
         // Compute effective tools
         let effective_tools = catalog

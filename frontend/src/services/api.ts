@@ -1044,7 +1044,7 @@ class ApiService {
     return response.data;
   }
 
-  // Admin Coach Management endpoints (System Coaches)
+// Admin Coach Management endpoints (System Coaches)
   async getSystemCoaches(): Promise<{
     coaches: Array<{
       id: string;
@@ -1185,6 +1185,120 @@ class ApiService {
     }>;
   }> {
     const response = await axios.get(`/api/admin/coaches/${coachId}/assignments`);
+    return response.data;
+  }
+
+  // Tool Selection Admin API endpoints
+  async getToolCatalog(): Promise<{
+    success: boolean;
+    message: string;
+    data: Array<{
+      tool_name: string;
+      display_name: string;
+      description: string;
+      category: string;
+      default_enabled: boolean;
+      is_globally_disabled: boolean;
+      available_in_tiers: string[];
+    }>;
+  }> {
+    const response = await axios.get('/api/admin/tools/catalog');
+    return response.data;
+  }
+
+  async getToolCatalogEntry(toolName: string): Promise<{
+    success: boolean;
+    message: string;
+    data: {
+      tool_name: string;
+      display_name: string;
+      description: string;
+      category: string;
+      default_enabled: boolean;
+      is_globally_disabled: boolean;
+      available_in_tiers: string[];
+    };
+  }> {
+    const response = await axios.get(`/api/admin/tools/catalog/${toolName}`);
+    return response.data;
+  }
+
+  async getGlobalDisabledTools(): Promise<{
+    success: boolean;
+    message: string;
+    data: {
+      disabled_tools: string[];
+      count: number;
+    };
+  }> {
+    const response = await axios.get('/api/admin/tools/global-disabled');
+    return response.data;
+  }
+
+  async getTenantTools(tenantId: string): Promise<{
+    success: boolean;
+    message: string;
+    data: Array<{
+      tool_name: string;
+      display_name: string;
+      description: string;
+      category: string;
+      is_enabled: boolean;
+      source: string;
+      min_plan: string;
+    }>;
+  }> {
+    const response = await axios.get(`/api/admin/tools/tenant/${tenantId}`);
+    return response.data;
+  }
+
+  async setToolOverride(
+    tenantId: string,
+    toolName: string,
+    isEnabled: boolean,
+    reason?: string
+  ): Promise<{
+    success: boolean;
+    message: string;
+    data: {
+      tool_name: string;
+      tenant_id: string;
+      is_enabled: boolean;
+      created_by: string;
+      reason?: string;
+      created_at: string;
+    };
+  }> {
+    const response = await axios.post(`/api/admin/tools/tenant/${tenantId}/override`, {
+      tool_name: toolName,
+      is_enabled: isEnabled,
+      reason,
+    });
+    return response.data;
+  }
+
+  async removeToolOverride(tenantId: string, toolName: string): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    const response = await axios.delete(`/api/admin/tools/tenant/${tenantId}/override/${toolName}`);
+    return response.data;
+  }
+
+  async getToolAvailabilitySummary(tenantId: string): Promise<{
+    success: boolean;
+    message: string;
+    data: {
+      tenant_id: string;
+      total_tools: number;
+      enabled_tools: number;
+      disabled_tools: number;
+      overridden_tools: number;
+      globally_disabled_count: number;
+      plan_restricted_count: number;
+    };
+  }> {
+    const response = await axios.get(`/api/admin/tools/tenant/${tenantId}/summary`);
     return response.data;
   }
 }

@@ -25,7 +25,7 @@ use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{delete, get, post},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -102,6 +102,14 @@ struct ApproveUserRequest {
 /// Request to suspend a user
 #[derive(Deserialize)]
 struct SuspendUserRequest {
+    reason: Option<String>,
+}
+
+/// Request to set a tool override
+#[derive(Deserialize)]
+struct SetToolOverrideRequest {
+    tool_name: String,
+    is_enabled: bool,
     reason: Option<String>,
 }
 
@@ -262,6 +270,35 @@ impl WebAdminRoutes {
             .route(
                 "/api/admin/settings/auto-approval",
                 get(Self::handle_get_auto_approval).put(Self::handle_set_auto_approval),
+            )
+            // Tool selection routes (web admin versions with cookie auth)
+            .route(
+                "/api/admin/tools/catalog",
+                get(Self::handle_get_tool_catalog),
+            )
+            .route(
+                "/api/admin/tools/catalog/:tool_name",
+                get(Self::handle_get_tool_catalog_entry),
+            )
+            .route(
+                "/api/admin/tools/global-disabled",
+                get(Self::handle_get_global_disabled_tools),
+            )
+            .route(
+                "/api/admin/tools/tenant/:tenant_id",
+                get(Self::handle_get_tenant_tools),
+            )
+            .route(
+                "/api/admin/tools/tenant/:tenant_id/override",
+                post(Self::handle_set_tool_override),
+            )
+            .route(
+                "/api/admin/tools/tenant/:tenant_id/override/:tool_name",
+                delete(Self::handle_remove_tool_override),
+            )
+            .route(
+                "/api/admin/tools/tenant/:tenant_id/summary",
+                get(Self::handle_get_tool_summary),
             )
             .with_state(resources)
     }
@@ -1083,6 +1120,210 @@ impl WebAdminRoutes {
                     "enabled": enabled,
                     "description": "When enabled, new user registrations are automatically approved without admin intervention"
                 }
+            })),
+        )
+            .into_response())
+    }
+
+    // =========================================================================
+    // Tool Selection Routes (web admin versions with cookie auth)
+    // =========================================================================
+
+    /// GET `/api/admin/tools/catalog` - List all tools in catalog
+    async fn handle_get_tool_catalog(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+    ) -> Result<Response, AppError> {
+        Self::authenticate_admin(&headers, &resources).await?;
+
+        let catalog = resources.tool_selection.get_catalog().await?;
+
+        Ok((
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "success": true,
+                "message": format!("Retrieved {} tools from catalog", catalog.len()),
+                "data": catalog
+            })),
+        )
+            .into_response())
+    }
+
+    /// GET `/api/admin/tools/catalog/:tool_name` - Get single tool details
+    async fn handle_get_tool_catalog_entry(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Path(tool_name): Path<String>,
+    ) -> Result<Response, AppError> {
+        Self::authenticate_admin(&headers, &resources).await?;
+
+        let catalog = resources.tool_selection.get_catalog().await?;
+        let entry = catalog
+            .into_iter()
+            .find(|e| e.tool_name == tool_name)
+            .ok_or_else(|| AppError::not_found(format!("Tool '{tool_name}'")))?;
+
+        Ok((
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "success": true,
+                "message": format!("Retrieved tool '{tool_name}'"),
+                "data": entry
+            })),
+        )
+            .into_response())
+    }
+
+    /// GET `/api/admin/tools/global-disabled` - List globally disabled tools
+    async fn handle_get_global_disabled_tools(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+    ) -> Result<Response, AppError> {
+        Self::authenticate_admin(&headers, &resources).await?;
+
+        let disabled_tools = resources.tool_selection.get_globally_disabled_tools();
+        let count = disabled_tools.len();
+
+        Ok((
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "success": true,
+                "message": if count == 0 {
+                    "No tools are globally disabled".to_owned()
+                } else {
+                    format!("{count} tool(s) globally disabled via PIERRE_DISABLED_TOOLS")
+                },
+                "data": {
+                    "disabled_tools": disabled_tools,
+                    "count": count
+                }
+            })),
+        )
+            .into_response())
+    }
+
+    /// GET `/api/admin/tools/tenant/:tenant_id` - Get effective tools for tenant
+    async fn handle_get_tenant_tools(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Path(tenant_id): Path<uuid::Uuid>,
+    ) -> Result<Response, AppError> {
+        Self::authenticate_admin(&headers, &resources).await?;
+
+        let tools = resources
+            .tool_selection
+            .get_effective_tools(tenant_id)
+            .await?;
+
+        Ok((
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "success": true,
+                "message": format!("Retrieved {} effective tools for tenant {tenant_id}", tools.len()),
+                "data": tools
+            })),
+        )
+            .into_response())
+    }
+
+    /// POST `/api/admin/tools/tenant/:tenant_id/override` - Set tool override
+    async fn handle_set_tool_override(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Path(tenant_id): Path<uuid::Uuid>,
+        Json(request): Json<SetToolOverrideRequest>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate_admin(&headers, &resources).await?;
+
+        info!(
+            "Setting tool override: tenant={}, tool={}, enabled={}, by={}",
+            tenant_id, request.tool_name, request.is_enabled, auth.user_id
+        );
+
+        let override_entry = resources
+            .tool_selection
+            .set_tool_override(
+                tenant_id,
+                &request.tool_name,
+                request.is_enabled,
+                auth.user_id,
+                request.reason.clone(),
+            )
+            .await?;
+
+        let action = if request.is_enabled {
+            "enabled"
+        } else {
+            "disabled"
+        };
+
+        Ok((
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "success": true,
+                "message": format!("Tool '{}' {} for tenant {tenant_id}", request.tool_name, action),
+                "data": override_entry
+            })),
+        )
+            .into_response())
+    }
+
+    /// DELETE `/api/admin/tools/tenant/:tenant_id/override/:tool_name` - Remove override
+    async fn handle_remove_tool_override(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Path((tenant_id, tool_name)): Path<(uuid::Uuid, String)>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate_admin(&headers, &resources).await?;
+
+        info!(
+            "Removing tool override: tenant={}, tool={}, by={}",
+            tenant_id, tool_name, auth.user_id
+        );
+
+        let deleted = resources
+            .tool_selection
+            .remove_tool_override(tenant_id, &tool_name)
+            .await?;
+
+        if deleted {
+            Ok((
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "success": true,
+                    "message": format!("Override removed for tool '{tool_name}' on tenant {tenant_id}")
+                })),
+            )
+                .into_response())
+        } else {
+            Err(AppError::not_found(format!(
+                "No override found for tool '{tool_name}' on tenant {tenant_id}"
+            )))
+        }
+    }
+
+    /// GET `/api/admin/tools/tenant/:tenant_id/summary` - Get availability summary
+    async fn handle_get_tool_summary(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Path(tenant_id): Path<uuid::Uuid>,
+    ) -> Result<Response, AppError> {
+        Self::authenticate_admin(&headers, &resources).await?;
+
+        let summary = resources
+            .tool_selection
+            .get_availability_summary(tenant_id)
+            .await?;
+
+        Ok((
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "success": true,
+                "message": format!(
+                    "Tenant {tenant_id}: {}/{} tools enabled",
+                    summary.enabled_tools, summary.total_tools
+                ),
+                "data": summary
             })),
         )
             .into_response())

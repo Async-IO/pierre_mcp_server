@@ -306,8 +306,7 @@ fn map_tool_catalog_row(row: &SqliteRow) -> AppResult<ToolCatalogEntry> {
     let updated_at_str: String = row.get("updated_at");
 
     Ok(ToolCatalogEntry {
-        id: Uuid::parse_str(&id_str)
-            .map_err(|e| AppError::internal(format!("Invalid UUID in tool_catalog: {e}")))?,
+        id: id_str,
         tool_name: row.get("tool_name"),
         display_name: row.get("display_name"),
         description: row.get("description"),

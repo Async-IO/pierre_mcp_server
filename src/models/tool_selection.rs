@@ -114,8 +114,8 @@ impl TenantPlan {
 /// Tool catalog entry from the `tool_catalog` table
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolCatalogEntry {
-    /// Unique identifier for this catalog entry
-    pub id: Uuid,
+    /// Unique identifier for this catalog entry (e.g., "tc-001")
+    pub id: String,
     /// Tool name matching `ToolId::name()` (e.g., `get_activities`)
     pub tool_name: String,
     /// Human-friendly display name
