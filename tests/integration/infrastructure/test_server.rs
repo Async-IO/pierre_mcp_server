@@ -182,13 +182,14 @@ impl IntegrationTestServer {
         self.resources.database.create_user(&user).await?;
 
         // Create tenant for user
+        // Use enterprise plan to enable all tools for integration testing
         let tenant_id = Uuid::new_v4();
         let tenant = Tenant {
             id: tenant_id,
             name: format!("Tenant for {email}"),
             slug: format!("tenant-{tenant_id}"),
             domain: None,
-            plan: "professional".to_owned(),
+            plan: "enterprise".to_owned(),
             owner_user_id: user_id,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),

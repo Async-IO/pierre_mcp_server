@@ -326,7 +326,7 @@ test.describe('Overview Tab - Rate Limits', () => {
     await page.waitForSelector('nav', { timeout: 10000 });
 
     // High usage (>90%) should show red progress bar
-    await expect(page.locator('.bg-red-500.h-full')).toBeVisible();
+    await expect(page.locator('.bg-pierre-red-500.h-full')).toBeVisible();
   });
 
   test('displays circular progress indicator', async ({ page }) => {
@@ -552,7 +552,7 @@ test.describe('Overview Tab - Alerts (Admin Only)', () => {
     await page.waitForSelector('nav', { timeout: 10000 });
 
     // Red pulsing dot for rate limit warning
-    await expect(page.locator('.animate-pulse.bg-red-500')).toBeVisible();
+    await expect(page.locator('.animate-pulse.bg-pierre-red-500')).toBeVisible();
   });
 
   test('displays all systems normal when no alerts', async ({ page }) => {

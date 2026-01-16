@@ -261,7 +261,7 @@ test.describe('Monitor Tab - Request Log', () => {
     await loginAndNavigateToMonitor(page);
 
     // Timestamps should be visible (date format)
-    const datePattern = await page.locator('[class*="text-gray-500"]').filter({ hasText: /\d{1,2}\/\d{1,2}\/\d{4}/ }).first();
+    const datePattern = await page.locator('[class*="text-pierre-gray-500"]').filter({ hasText: /\d{1,2}\/\d{1,2}\/\d{4}/ }).first();
     await expect(datePattern).toBeVisible();
   });
 

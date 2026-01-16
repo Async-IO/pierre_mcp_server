@@ -45,9 +45,13 @@ use crate::{
     },
     database_plugins::{factory::Database, DatabaseProvider},
     errors::{AppError, AppResult},
+    mcp::ToolSelectionService,
     models::{Tenant, User, UserStatus},
     rate_limiting::UnifiedRateLimitCalculator,
-    routes::auth::SetupStatusResponse,
+    routes::{
+        auth::SetupStatusResponse,
+        tool_selection::{ToolSelectionContext, ToolSelectionRoutes},
+    },
 };
 
 // Helper function for JSON responses with status
@@ -270,6 +274,8 @@ pub struct AdminApiContext {
     pub jwks_manager: Arc<JwksManager>,
     /// Default monthly request limit for admin-provisioned API keys
     pub admin_api_key_monthly_limit: u32,
+    /// Tool selection service for managing per-tenant MCP tool availability
+    pub tool_selection: Arc<ToolSelectionService>,
 }
 
 impl AdminApiContext {
@@ -281,6 +287,7 @@ impl AdminApiContext {
         jwks_manager: Arc<JwksManager>,
         admin_api_key_monthly_limit: u32,
         admin_token_cache_ttl_secs: u64,
+        tool_selection: Arc<ToolSelectionService>,
     ) -> Self {
         info!("AdminApiContext initialized with JWT signing key");
         let auth_service = AdminAuthService::new(
@@ -295,6 +302,7 @@ impl AdminApiContext {
             admin_jwt_secret: jwt_secret.to_owned(),
             jwks_manager,
             admin_api_key_monthly_limit,
+            tool_selection,
         }
     }
 }
@@ -656,6 +664,9 @@ impl AdminRoutes {
     pub fn routes(context: AdminApiContext) -> Router {
         // Reuse auth service from context (already configured with proper TTL)
         let auth_service = context.auth_service.clone();
+        let tool_selection_context = ToolSelectionContext {
+            tool_selection: context.tool_selection.clone(),
+        };
         let context = Arc::new(context);
 
         // Protected routes require admin authentication
@@ -673,6 +684,11 @@ impl AdminRoutes {
         );
 
         let admin_token_routes = Self::admin_token_routes(context.clone()).layer(
+            middleware::from_fn_with_state(auth_service.clone(), admin_auth_middleware),
+        );
+
+        // Tool selection routes for per-tenant MCP tool configuration
+        let tool_selection_routes = ToolSelectionRoutes::routes(tool_selection_context).layer(
             middleware::from_fn_with_state(auth_service, admin_auth_middleware),
         );
 
@@ -684,6 +700,7 @@ impl AdminRoutes {
             .merge(user_routes)
             .merge(settings_routes)
             .merge(admin_token_routes)
+            .merge(tool_selection_routes)
             .merge(setup_routes)
     }
 

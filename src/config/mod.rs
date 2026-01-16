@@ -52,6 +52,8 @@ pub mod oauth;
 pub mod security;
 /// Sleep tool operational parameters (activity limits, trend thresholds)
 pub mod sleep_tool_params;
+/// Tool selection configuration for global tool disabling via environment variables
+pub mod tool_selection;
 /// Core configuration type definitions (`LogLevel`, `Environment`, `LlmProviderType`)
 pub mod types;
 
@@ -156,6 +158,9 @@ pub use intelligence::{
 
 // Re-export route handlers
 pub use routes::{ConfigurationRoutes, FitnessConfigurationRoutes};
+
+// Re-export tool selection types
+pub use tool_selection::ToolSelectionConfig;
 
 /// Initialize all configurations
 ///

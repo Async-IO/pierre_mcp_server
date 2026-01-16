@@ -183,6 +183,61 @@ RUST_LOG=debug cargo run 2>&1 | grep -i "secret\|password\|token" | grep -v "acc
 - performance metrics (duration, status codes)
 - error categories (not full stack traces with sensitive data)
 
+### MCP Tool Configuration
+
+Control which MCP tools are available to tenants via environment variables and admin API.
+
+#### Global Tool Disabling
+
+```bash
+# Comma-separated list of tool names to globally disable
+PIERRE_DISABLED_TOOLS=analyze_sleep_quality,suggest_rest_day,track_sleep_trends,optimize_sleep_schedule
+```
+
+**Use cases**:
+- Disable tools requiring premium provider integrations (e.g., sleep tools need WHOOP/Garmin)
+- Temporarily disable tools during maintenance or outages
+- Restrict tools based on deployment environment (dev vs production)
+
+**precedence** (highest to lowest):
+1. Global disabled (`PIERRE_DISABLED_TOOLS`) - overrides everything
+2. Plan restrictions - subscription tier limits
+3. Tenant overrides - per-tenant admin configuration
+4. Tool catalog defaults - tool's built-in enabled state
+
+#### Per-Tenant Tool Overrides
+
+Admin API endpoints for managing tool availability per tenant:
+
+```bash
+# List tool catalog
+GET /admin/tools/catalog
+
+# Get effective tools for tenant
+GET /admin/tools/tenant/{tenant_id}
+
+# Enable/disable tool for tenant
+POST /admin/tools/tenant/{tenant_id}/override
+{
+  "tool_name": "analyze_sleep_quality",
+  "is_enabled": false,
+  "reason": "Provider not configured"
+}
+
+# Remove override (revert to default)
+DELETE /admin/tools/tenant/{tenant_id}/override/{tool_name}
+
+# Get availability summary
+GET /admin/tools/tenant/{tenant_id}/summary
+
+# List globally disabled tools
+GET /admin/tools/global-disabled
+```
+
+**required permissions**:
+- `view_configuration`: read-only access to catalog and tenant tools
+- `manage_configuration`: create/delete tool overrides
+
 ### Authentication
 
 ```bash

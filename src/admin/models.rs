@@ -14,6 +14,8 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::str::FromStr;
 use uuid::Uuid;
 
+use crate::errors::{AppError, AppResult, ErrorCode};
+
 /// Admin token with full details
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AdminToken {
@@ -155,6 +157,10 @@ pub enum AdminPermission {
     ViewAuditLogs,
     /// Manage user accounts (super admin only)
     ManageUsers,
+    /// View configuration settings (tool catalog, tenant overrides)
+    ViewConfiguration,
+    /// Manage configuration settings (tool overrides, tenant settings)
+    ManageConfiguration,
 }
 
 impl Display for AdminPermission {
@@ -167,6 +173,8 @@ impl Display for AdminPermission {
             Self::ManageAdminTokens => write!(f, "manage_admin_tokens"),
             Self::ViewAuditLogs => write!(f, "view_audit_logs"),
             Self::ManageUsers => write!(f, "manage_users"),
+            Self::ViewConfiguration => write!(f, "view_configuration"),
+            Self::ManageConfiguration => write!(f, "manage_configuration"),
         }
     }
 }
@@ -183,6 +191,8 @@ impl FromStr for AdminPermission {
             "manage_admin_tokens" => Ok(Self::ManageAdminTokens),
             "view_audit_logs" => Ok(Self::ViewAuditLogs),
             "manage_users" => Ok(Self::ManageUsers),
+            "view_configuration" => Ok(Self::ViewConfiguration),
+            "manage_configuration" => Ok(Self::ManageConfiguration),
             _ => Err(format!("Unknown permission: {s}")),
         }
     }
@@ -423,4 +433,23 @@ pub struct ValidatedAdminToken {
     pub is_super_admin: bool,
     /// Additional user info from JWT claims
     pub user_info: Option<serde_json::Value>,
+}
+
+impl ValidatedAdminToken {
+    /// Check if the token has the required permission.
+    ///
+    /// Super admin tokens bypass permission checks.
+    ///
+    /// # Errors
+    /// Returns `AppError` with `PermissionDenied` code if the permission is not granted.
+    pub fn require_permission(&self, permission: &AdminPermission) -> AppResult<()> {
+        if self.is_super_admin || self.permissions.has_permission(permission) {
+            Ok(())
+        } else {
+            Err(AppError::new(
+                ErrorCode::PermissionDenied,
+                format!("Permission required: {permission}"),
+            ))
+        }
+    }
 }

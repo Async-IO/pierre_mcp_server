@@ -159,6 +159,7 @@ use pierre_mcp_server::{
     },
     constants::system_config::STARTER_MONTHLY_LIMIT,
     database_plugins::{factory::Database, DatabaseProvider},
+    mcp::ToolSelectionService,
     models::{User, UserStatus},
     routes::admin::{AdminApiContext, AdminRoutes},
 };
@@ -194,13 +195,16 @@ impl AdminTestSetup {
         // Create admin context
         let jwt_secret = "test_admin_jwt_secret_for_route_testing";
         let admin_api_key_monthly_limit = STARTER_MONTHLY_LIMIT;
+        let database_arc = Arc::new((*database).clone());
+        let tool_selection = Arc::new(ToolSelectionService::new(database_arc.clone()));
         let context = AdminApiContext::new(
-            Arc::new((*database).clone()),
+            database_arc,
             jwt_secret,
             auth_manager.clone(),
             jwks_manager.clone(),
             admin_api_key_monthly_limit,
             AdminAuthService::DEFAULT_CACHE_TTL_SECS,
+            tool_selection,
         );
 
         // Create test user

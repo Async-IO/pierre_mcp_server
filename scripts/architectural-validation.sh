@@ -612,6 +612,7 @@ if [ "$CFG_TEST_IN_SRC" -eq 0 ]; then
 else
     FIRST_CFG=$(get_first_location 'rg "#\[cfg\(test\)\]" src/ -n')
     printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_CFG"
+    VALIDATION_FAILED=true
 fi
 
 printf "│ %-35s │ %5d │ " "Problematic clippy allows" "$CLIPPY_ALLOWS_PROBLEMATIC"

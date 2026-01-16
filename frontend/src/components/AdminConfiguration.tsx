@@ -4,10 +4,13 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../services/api';
 import { Card, Badge, Input, Button, Modal, Tabs } from './ui';
+
+// Lazy load ToolAvailability to reduce initial bundle size
+const ToolAvailability = lazy(() => import('./ToolAvailability'));
 
 // Clipboard copy with fallback for older browsers
 const copyToClipboard = async (text: string): Promise<boolean> => {
@@ -104,7 +107,7 @@ type ConfigGroup = 'server' | 'intelligence';
 
 export default function AdminConfiguration() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'parameters' | 'history'>('parameters');
+  const [activeTab, setActiveTab] = useState<'parameters' | 'tools' | 'history'>('parameters');
   const [configGroup, setConfigGroup] = useState<ConfigGroup>('server');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [pendingChanges, setPendingChanges] = useState<Record<string, unknown>>({});
@@ -412,10 +415,11 @@ export default function AdminConfiguration() {
       <Tabs
         tabs={[
           { id: 'parameters', label: 'Parameters' },
+          { id: 'tools', label: 'Tool Availability' },
           { id: 'history', label: 'Change History' },
         ]}
         activeTab={activeTab}
-        onChange={(id: string) => setActiveTab(id as 'parameters' | 'history')}
+        onChange={(id: string) => setActiveTab(id as 'parameters' | 'tools' | 'history')}
       />
 
       {activeTab === 'parameters' ? (
@@ -630,6 +634,17 @@ export default function AdminConfiguration() {
         </div>
           )}
         </>
+      ) : activeTab === 'tools' ? (
+        /* Tool Availability tab */
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pierre-violet" />
+            </div>
+          }
+        >
+          <ToolAvailability />
+        </Suspense>
       ) : (
         /* History tab */
         <Card>

@@ -114,8 +114,8 @@ impl TenantPlan {
 /// Tool catalog entry from the `tool_catalog` table
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolCatalogEntry {
-    /// Unique identifier for this catalog entry
-    pub id: Uuid,
+    /// Unique identifier for this catalog entry (e.g., "tc-001")
+    pub id: String,
     /// Tool name matching `ToolId::name()` (e.g., `get_activities`)
     pub tool_name: String,
     /// Human-friendly display name
@@ -167,6 +167,8 @@ pub enum ToolEnablementSource {
     TenantOverride,
     /// Disabled because tenant plan doesn't meet `min_plan` requirement
     PlanRestriction,
+    /// Disabled globally via `PIERRE_DISABLED_TOOLS` environment variable
+    GlobalDisabled,
 }
 
 /// Effective tool state for a tenant (catalog + overrides + plan applied)
