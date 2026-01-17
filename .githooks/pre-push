@@ -205,24 +205,16 @@ elif [ "$HAS_RUST_CHANGES" = "false" ]; then
     echo ""
 fi
 
-# Run frontend tests (fast - ~4 seconds)
+# Run frontend validation (typecheck + lint + tests)
 run_frontend_tests() {
-    if [ ! -d "$PROJECT_ROOT/frontend/node_modules" ]; then
-        echo "⚠️  Warning: frontend/node_modules not found. Skipping frontend tests."
-        echo "   Run 'cd frontend && npm install' to enable."
+    if [ ! -f "$PROJECT_ROOT/scripts/pre-push-frontend-tests.sh" ]; then
+        echo "⚠️  Warning: pre-push-frontend-tests.sh not found, skipping frontend validation"
         return 0
     fi
 
-    echo "🧪 Running frontend tests..."
-    if ! (cd "$PROJECT_ROOT/frontend" && npm test -- --run --reporter=dot 2>&1 | tail -5); then
-        echo ""
-        echo "❌ Frontend tests failed!"
-        echo ""
-        echo "Run 'cd frontend && npm test' to see details."
+    if ! "$PROJECT_ROOT/scripts/pre-push-frontend-tests.sh"; then
         return 1
     fi
-    echo "✅ Frontend tests passed"
-    echo ""
     return 0
 }
 
@@ -247,24 +239,16 @@ run_sdk_unit_tests() {
     return 0
 }
 
-# Run mobile tests (fast - ~3 seconds)
+# Run mobile validation (typecheck + lint + tests)
 run_mobile_tests() {
-    if [ ! -d "$PROJECT_ROOT/frontend-mobile/node_modules" ]; then
-        echo "⚠️  Warning: frontend-mobile/node_modules not found. Skipping mobile tests."
-        echo "   Run 'cd frontend-mobile && bun install' to enable."
+    if [ ! -f "$PROJECT_ROOT/scripts/pre-push-mobile-tests.sh" ]; then
+        echo "⚠️  Warning: pre-push-mobile-tests.sh not found, skipping mobile validation"
         return 0
     fi
 
-    echo "🧪 Running mobile unit tests..."
-    if ! (cd "$PROJECT_ROOT/frontend-mobile" && bun run test --silent 2>&1 | tail -5); then
-        echo ""
-        echo "❌ Mobile unit tests failed!"
-        echo ""
-        echo "Run 'cd frontend-mobile && bun run test' to see details."
+    if ! "$PROJECT_ROOT/scripts/pre-push-mobile-tests.sh"; then
         return 1
     fi
-    echo "✅ Mobile unit tests passed"
-    echo ""
     return 0
 }
 

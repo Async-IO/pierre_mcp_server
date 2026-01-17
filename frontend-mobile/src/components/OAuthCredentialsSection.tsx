@@ -126,7 +126,7 @@ export function OAuthCredentialsSection() {
             try {
               await apiService.deleteUserOAuthApp(provider);
               await loadOAuthApps();
-            } catch (error) {
+            } catch {
               Alert.alert('Error', 'Failed to remove credentials');
             }
           },

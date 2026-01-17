@@ -102,9 +102,11 @@ export function getFirebaseAuth(): Auth | null {
 
 /**
  * Hook to get Google auth request for expo-auth-session
- * This should be called at the top level of a component
+ * This should be called at the top level of a component (unconditionally)
+ * Returns null values when Firebase is not enabled
  */
 export function useGoogleAuth() {
+  // Always call the hook unconditionally (React Rules of Hooks requirement)
   // webClientId is used with the Expo auth proxy (https://auth.expo.io/@owner/slug)
   // iosClientId/androidClientId are used for native redirects in standalone builds
   const [request, response, promptAsync] = Google.useAuthRequest({
@@ -113,6 +115,11 @@ export function useGoogleAuth() {
     webClientId: googleClientIds.webClientId,
     scopes: ['email', 'profile'],
   });
+
+  // Return null-like values if Firebase is not enabled
+  if (!isFirebaseEnabled()) {
+    return { request: null, response: null, promptAsync: null };
+  }
 
   return { request, response, promptAsync };
 }

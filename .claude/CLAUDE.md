@@ -81,6 +81,70 @@ cd frontend-mobile && bun start
 npx expo start --port 8082
 ```
 
+## Mobile Development (frontend-mobile/)
+
+### Mobile Validation Commands
+When working on `frontend-mobile/`, run these validations:
+
+```bash
+cd frontend-mobile
+
+# Tier 0: TypeScript (fastest feedback)
+bun run typecheck
+
+# Tier 1: ESLint
+bun run lint
+
+# Tier 2: Unit tests (~3s, 135 tests)
+bun test
+
+# All tiers at once (what pre-push runs)
+../scripts/pre-push-mobile-tests.sh
+
+# E2E tests (requires iOS Simulator, run before PR)
+bun run e2e:build && bun run e2e:test
+```
+
+### React Native Patterns
+- **Styling**: Use NativeWind (Tailwind) classes via `className`, not inline styles
+- **State**: React Query for server state, Context API for app state
+- **Navigation**: Follow drawer/stack patterns in `src/navigation/`
+- **Components**: Reusable UI in `src/components/ui/` (Button, Card, Input)
+
+### TypeScript Requirements
+- All files must pass `bun run typecheck` with zero errors
+- Use explicit types for component props (no implicit `any`)
+- Prefer `unknown` with type guards over `any`
+
+## Web Frontend Development (frontend/)
+
+### Frontend Validation Commands
+When working on `frontend/`, run these validations:
+
+```bash
+cd frontend
+
+# Tier 0: TypeScript (fastest feedback)
+npm run type-check
+
+# Tier 1: ESLint
+npm run lint
+
+# Tier 2: Unit tests (~4s)
+npm test -- --run
+
+# All tiers at once (what pre-push runs)
+../scripts/pre-push-frontend-tests.sh
+
+# E2E tests (requires browser, run before PR)
+npm run test:e2e
+```
+
+### Frontend Patterns
+- **Styling**: TailwindCSS classes
+- **State**: React Query for server state, React Context for app state
+- **Components**: Follow existing patterns in `src/components/`
+
 ## Claude Code Session Setup (MANDATORY)
 
 **Run this at the START OF EVERY Claude Code session:**

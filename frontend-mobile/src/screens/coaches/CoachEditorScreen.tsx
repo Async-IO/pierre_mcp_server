@@ -20,7 +20,7 @@ import { useRoute, type RouteProp } from '@react-navigation/native';
 import type { DrawerNavigationProp } from '@react-navigation/drawer';
 import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
 import { apiService } from '../../services/api';
-import type { Coach, CoachCategory, CreateCoachRequest, UpdateCoachRequest } from '../../types';
+import type { CoachCategory, CreateCoachRequest, UpdateCoachRequest } from '../../types';
 import type { AppDrawerParamList } from '../../navigation/AppDrawer';
 
 interface CoachEditorScreenProps {
@@ -63,6 +63,8 @@ export function CoachEditorScreen({ navigation }: CoachEditorScreenProps) {
     if (isEditMode && coachId) {
       loadCoach(coachId);
     }
+    // loadCoach intentionally omitted - including it would cause infinite loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditMode, coachId]);
 
   const loadCoach = async (id: string) => {

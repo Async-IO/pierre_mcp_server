@@ -18,7 +18,9 @@ This directory contains shell scripts and utilities for development, testing, de
 | **generate-sdk-types.js** | SDK | Auto-generates TypeScript type definitions from Pierre server tool schemas. Fetches MCP tool schemas and converts to TypeScript interfaces. |
 | **lint-and-test.sh** | CI/CD | Simplified validation orchestrator. Delegates to cargo fmt, cargo clippy, cargo deny, and custom architectural validation. Main CI script. |
 | **parse-validation-patterns.py** | Validation | Parses validation patterns from TOML configuration file. Outputs shell-compatible variables for use in validation scripts. |
-| **pre-push-tests.sh** | Git Hooks | Pre-push validation - Critical path tests (5-10 minutes). Runs essential tests to catch 80% of issues before pushing. |
+| **pre-push-tests.sh** | Git Hooks | Pre-push validation for Rust - Critical path tests (5-10 minutes). Runs essential tests to catch 80% of issues before pushing. |
+| **pre-push-frontend-tests.sh** | Git Hooks | Pre-push validation for web frontend (frontend/). Runs TypeScript check, ESLint, and unit tests (~5-10 seconds). |
+| **pre-push-mobile-tests.sh** | Git Hooks | Pre-push validation for mobile (frontend-mobile/). Runs TypeScript check, ESLint, and unit tests (~5-10 seconds). |
 | **run_bridge_tests.sh** | Testing | Complete bridge test suite runner. Validates bridge functionality from CLI parsing to full MCP Client simulation. |
 | **safe-test-runner.sh** | Testing | Safe incremental test runner. Runs tests in small batches with memory cleanup pauses to prevent OOM. |
 | **seed-demo-data.sh** | Development | Seeds the SQLite database with demo data for dashboard visualization. Creates users, API keys, A2A clients, usage records, and admin tokens. |
@@ -56,9 +58,14 @@ cargo test                          # Tests
 
 ### Testing Hierarchy (Fastest to Slowest)
 ```bash
+# Frontend/Mobile (TypeScript)
+./scripts/pre-push-frontend-tests.sh   # ~5-10 seconds - Web frontend
+./scripts/pre-push-mobile-tests.sh     # ~5-10 seconds - Mobile
+
+# Rust
 ./scripts/smoke-test.sh             # ~2-3 minutes - Quick feedback
 ./scripts/fast-tests.sh             # ~5 minutes - Unit + fast tests
-./scripts/pre-push-tests.sh         # ~5-10 minutes - Critical path
+./scripts/pre-push-tests.sh         # ~5-10 minutes - Critical path (Rust)
 ./scripts/safe-test-runner.sh       # ~20-30 minutes - All tests (batched)
 ./scripts/lint-and-test.sh          # Full CI suite
 ```

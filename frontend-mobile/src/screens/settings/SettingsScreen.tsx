@@ -10,7 +10,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  TextInput,
   Modal,
   ActivityIndicator,
 } from 'react-native';
@@ -87,7 +86,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
       setNewToken(token.token_value || 'Token created successfully');
       await loadTokens();
       setNewTokenName('');
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to create token');
     } finally {
       setIsCreatingToken(false);
@@ -107,7 +106,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
             try {
               await apiService.revokeMcpToken(tokenId);
               await loadTokens();
-            } catch (error) {
+            } catch {
               Alert.alert('Error', 'Failed to revoke token');
             }
           },
@@ -140,7 +139,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to change password. Please check your current password.');
     } finally {
       setIsChangingPassword(false);

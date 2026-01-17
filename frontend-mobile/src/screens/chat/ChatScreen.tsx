@@ -1,7 +1,7 @@
 // ABOUTME: Main chat screen with conversation list and message interface
 // ABOUTME: Professional dark theme UI inspired by ChatGPT and Claude design
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,15 +12,12 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  Animated,
-  Dimensions,
   ActivityIndicator,
   Alert,
   ScrollView,
   Modal,
   Share,
   AppState,
-  ActionSheetIOS,
   Image,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
@@ -35,17 +32,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import type { Conversation, Message, ProviderStatus, Coach, CoachCategory } from '../../types';
 import type { DrawerNavigationProp } from '@react-navigation/drawer';
 import type { AppDrawerParamList } from '../../navigation/AppDrawer';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-// Coach category colors matching web frontend
-const COACH_CATEGORY_COLORS: Record<CoachCategory, string> = {
-  training: '#10B981',  // Green
-  nutrition: '#F59E0B', // Orange
-  recovery: '#6366F1',  // Indigo/Blue
-  recipes: '#F97316',   // Amber
-  custom: '#7C3AED',    // Purple
-};
 
 // Coach category badge background colors (lighter versions)
 const COACH_CATEGORY_BADGE_BG: Record<CoachCategory, string> = {
@@ -151,6 +137,8 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     } else {
       setMessages([]);
     }
+    // loadMessages is intentionally omitted - including it would cause infinite loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentConversation]);
 
   // Handle explicit "new chat" navigation from drawer (conversationId becomes undefined)
@@ -180,6 +168,8 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
         setCurrentConversation(conversation);
       }
     }
+    // currentConversation intentionally omitted - including it would cause infinite loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route.params?.conversationId, conversations]);
 
   const loadConversations = async () => {
@@ -230,11 +220,6 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     setIsSending(false);
   };
 
-  const handleSelectConversation = (conversation: Conversation) => {
-    setCurrentConversation(conversation);
-    navigation.closeDrawer();
-  };
-
   const handleDeleteConversation = async (conversationId: string) => {
     try {
       await apiService.deleteConversation(conversationId);
@@ -242,7 +227,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       if (currentConversation?.id === conversationId) {
         setCurrentConversation(null);
       }
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to delete conversation');
     }
   };

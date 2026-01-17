@@ -44,8 +44,9 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
-  // Google OAuth hook - only use if Firebase is enabled
-  const googleAuth = isFirebaseEnabled() ? useGoogleAuth() : null;
+  // Google OAuth hook - always call unconditionally (React Rules of Hooks)
+  // Hook returns null values when Firebase is not enabled
+  const googleAuth = useGoogleAuth();
 
   // Handle Google OAuth response
   useEffect(() => {
@@ -79,7 +80,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
     };
 
     handleGoogleResponse();
-  }, [googleAuth?.response, loginWithFirebase]);
+  }, [googleAuth.response, loginWithFirebase]);
 
   const validateForm = () => {
     const newErrors: { email?: string; password?: string } = {};
