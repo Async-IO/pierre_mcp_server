@@ -50,7 +50,7 @@ bench = false
 
 
 [features]
-default = ["sqlite", "all-providers", "sqlx/migrate"]
+default = ["sqlite", "all-providers", "tools-all", "sqlx/migrate"]
 sqlite = []
 postgresql = ["sqlx/postgres"]
 testing = []
@@ -65,6 +65,37 @@ provider-whoop = []
 provider-coros = []
 provider-synthetic = []
 all-providers = ["provider-strava", "provider-garmin", "provider-terra", "provider-fitbit", "provider-whoop", "provider-coros", "provider-synthetic"]
+
+# Tool feature flags - enable/disable MCP tool categories
+# All tools (default)
+tools-all = [
+    "tools-connection",
+    "tools-data",
+    "tools-analytics",
+    "tools-goals",
+    "tools-config",
+    "tools-nutrition",
+    "tools-sleep",
+    "tools-recipes",
+    "tools-coaches",
+    "tools-admin",
+]
+
+# Individual tool categories
+tools-connection = []      # connect_provider, get_connection_status, disconnect
+tools-data = []            # get_activities, get_athlete, get_stats
+tools-analytics = []       # analyze_activity, calculate_metrics, trends
+tools-goals = []           # set_goal, track_progress, suggest_goals
+tools-config = []          # fitness config tools, user configuration
+tools-nutrition = []       # daily_nutrition, nutrient_timing, food search
+tools-sleep = []           # sleep_quality, recovery_score, rest_day
+tools-recipes = []         # validate_recipe, save_recipe, list_recipes
+tools-coaches = []         # coach CRUD, activate, favorites
+tools-admin = ["tools-coaches"]  # admin tools depend on coach tools
+
+# Convenience bundles for common deployments
+tools-fitness-core = ["tools-connection", "tools-data", "tools-analytics"]
+tools-wellness = ["tools-sleep", "tools-nutrition", "tools-recipes"]
 
 [profile.dev]
 debug = 1
