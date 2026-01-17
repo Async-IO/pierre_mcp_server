@@ -52,6 +52,15 @@ frontend-mobile/
 - Android Studio (for Android development)
 - Pierre backend server running on `localhost:8081`
 
+### Port Allocation
+
+| Service | Port | Notes |
+|---------|------|-------|
+| Pierre MCP Server | 8081 | Backend API (DO NOT use for Expo) |
+| Expo/Metro Bundler | 8082 | Configured in metro.config.js |
+
+**Important:** The Expo dev server is configured to use port 8082 to avoid conflicts with the Pierre backend server on 8081.
+
 ### Installation
 
 ```bash
@@ -61,7 +70,7 @@ cd frontend-mobile
 # Install dependencies
 bun install
 
-# Start Expo development server
+# Start Expo development server (uses port 8082)
 bun start
 ```
 
@@ -230,8 +239,19 @@ bun test
 ### Metro bundler issues
 
 ```bash
-# Clear cache and restart
-npx expo start --clear
+# Clear cache and restart (note: uses port 8082)
+npx expo start --clear --port 8082
+```
+
+### Port conflict with Pierre server
+
+If you see "Port 8081 is already in use", that's correct - the Pierre server uses 8081. Expo should use 8082:
+```bash
+# Always use bun start which is configured for port 8082
+bun start
+
+# Or specify port explicitly
+npx expo start --port 8082
 ```
 
 ### iOS build issues

@@ -6,4 +6,10 @@ const { withNativeWind } = require('nativewind/metro');
 
 const config = getDefaultConfig(__dirname);
 
+// Use port 8082 to avoid conflict with Pierre MCP server on 8081
+config.server = {
+  ...config.server,
+  port: 8082,
+};
+
 module.exports = withNativeWind(config, { input: './global.css' });

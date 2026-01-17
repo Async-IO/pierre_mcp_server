@@ -56,6 +56,31 @@ cargo run --bin admin-setup -- revoke-token <token_id>
 - Token refresh is transparent to tool execution
 - If refresh fails, user must re-authenticate via OAuth flow
 
+## Port Allocation (CRITICAL)
+
+**Port 8081 is RESERVED for the Pierre MCP Server. NEVER start other services on this port.**
+
+| Service | Port | Notes |
+|---------|------|-------|
+| Pierre MCP Server | 8081 | Backend API, health checks, OAuth callbacks |
+| Expo/Metro Bundler | 8082 | Mobile dev server (configured in metro.config.js) |
+| Web Frontend | 3000 | Vite dev server |
+
+### Mobile Development Warning
+When working on `frontend-mobile/`:
+- **NEVER run `expo start` without specifying port** - it defaults to 8081
+- **ALWAYS use `bun start`** which is configured for port 8082
+- The `metro.config.js` and `package.json` are configured to use port 8082
+
+If you see "Port 8081 is already in use", the Pierre server is running correctly. Use port 8082 for Expo:
+```bash
+# Correct way to start mobile dev server
+cd frontend-mobile && bun start
+
+# If you must use expo directly, specify port
+npx expo start --port 8082
+```
+
 ## Claude Code Session Setup (MANDATORY)
 
 **Run this at the START OF EVERY Claude Code session:**
