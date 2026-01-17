@@ -171,6 +171,44 @@ bun run ios # Run on iOS Simulator
 
 See [Mobile App README](frontend-mobile/README.md) and [Mobile Development Guide](docs/mobile-development.md).
 
+## AI Coaches
+
+Pierre includes an AI coaching system with 9 default coaching personas and support for user-created personalized coaches.
+
+### Default Coaches
+
+The system includes 9 AI coaching personas across 5 categories:
+
+| Category | Icon | Coaches |
+|----------|------|---------|
+| **Training** | 🏃 | Endurance Coach, Speed Coach |
+| **Nutrition** | 🥗 | Sports Nutritionist, Hydration Specialist |
+| **Recovery** | 😴 | Recovery Specialist, Sleep Coach |
+| **Recipes** | 👨‍🍳 | Performance Chef, Meal Prep Expert |
+| **Analysis** | 📊 | Data Analyst |
+
+Default coaches are seeded automatically by `./bin/setup-and-start.sh` and are visible to all users.
+
+### Personalized Coaches
+
+Users can create their own AI coaches with custom:
+- Name and personality
+- System prompts and behavior
+- Category assignment
+- Avatar customization
+
+User-created coaches appear in a "Personalized" section above system coaches and are private to each user.
+
+### Coach Seeder
+
+To seed or refresh the default coaches:
+
+```bash
+cargo run --bin seed-coaches
+```
+
+This creates the 9 default AI coaching personas if they don't already exist.
+
 ## Documentation
 
 ### Reference

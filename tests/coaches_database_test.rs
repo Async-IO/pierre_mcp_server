@@ -1222,11 +1222,27 @@ async fn test_count_coaches() {
 
 #[test]
 fn test_coach_category_parsing() {
+    // Lowercase parsing
     assert_eq!(CoachCategory::parse("training"), CoachCategory::Training);
     assert_eq!(CoachCategory::parse("nutrition"), CoachCategory::Nutrition);
     assert_eq!(CoachCategory::parse("recovery"), CoachCategory::Recovery);
     assert_eq!(CoachCategory::parse("recipes"), CoachCategory::Recipes);
+    assert_eq!(CoachCategory::parse("analysis"), CoachCategory::Analysis);
     assert_eq!(CoachCategory::parse("custom"), CoachCategory::Custom);
+
+    // Case-insensitive parsing (frontend sends capitalized values)
+    assert_eq!(CoachCategory::parse("Training"), CoachCategory::Training);
+    assert_eq!(CoachCategory::parse("Nutrition"), CoachCategory::Nutrition);
+    assert_eq!(CoachCategory::parse("Recovery"), CoachCategory::Recovery);
+    assert_eq!(CoachCategory::parse("Recipes"), CoachCategory::Recipes);
+    assert_eq!(CoachCategory::parse("Analysis"), CoachCategory::Analysis);
+    assert_eq!(CoachCategory::parse("Custom"), CoachCategory::Custom);
+
+    // Mixed case
+    assert_eq!(CoachCategory::parse("TRAINING"), CoachCategory::Training);
+    assert_eq!(CoachCategory::parse("TraInInG"), CoachCategory::Training);
+
+    // Unknown values default to Custom
     assert_eq!(CoachCategory::parse("unknown"), CoachCategory::Custom);
     assert_eq!(CoachCategory::parse(""), CoachCategory::Custom);
 }
@@ -1237,7 +1253,56 @@ fn test_coach_category_as_str() {
     assert_eq!(CoachCategory::Nutrition.as_str(), "nutrition");
     assert_eq!(CoachCategory::Recovery.as_str(), "recovery");
     assert_eq!(CoachCategory::Recipes.as_str(), "recipes");
+    assert_eq!(CoachCategory::Analysis.as_str(), "analysis");
     assert_eq!(CoachCategory::Custom.as_str(), "custom");
+}
+
+#[test]
+fn test_coach_category_round_trip() {
+    // Verify that as_str -> parse round-trips correctly for all variants
+    let categories = [
+        CoachCategory::Training,
+        CoachCategory::Nutrition,
+        CoachCategory::Recovery,
+        CoachCategory::Recipes,
+        CoachCategory::Analysis,
+        CoachCategory::Custom,
+    ];
+
+    for category in categories {
+        let serialized = category.as_str();
+        let deserialized = CoachCategory::parse(serialized);
+        assert_eq!(category, deserialized, "Round-trip failed for {serialized}");
+    }
+}
+
+#[test]
+fn test_coach_category_serde_serialization() {
+    // Test serde serialization produces snake_case values
+    let training = CoachCategory::Training;
+    let json = serde_json::to_string(&training).unwrap();
+    assert_eq!(json, "\"training\"");
+
+    let analysis = CoachCategory::Analysis;
+    let json = serde_json::to_string(&analysis).unwrap();
+    assert_eq!(json, "\"analysis\"");
+
+    let custom = CoachCategory::Custom;
+    let json = serde_json::to_string(&custom).unwrap();
+    assert_eq!(json, "\"custom\"");
+}
+
+#[test]
+fn test_coach_category_serde_deserialization() {
+    // Test serde deserialization handles various cases
+    let training: CoachCategory = serde_json::from_str("\"training\"").unwrap();
+    assert_eq!(training, CoachCategory::Training);
+
+    let analysis: CoachCategory = serde_json::from_str("\"analysis\"").unwrap();
+    assert_eq!(analysis, CoachCategory::Analysis);
+
+    // Note: serde uses rename_all = "snake_case", so it expects lowercase
+    // Frontend may send capitalized values through the API which gets parsed via parse()
 }
 
 // ============================================================================

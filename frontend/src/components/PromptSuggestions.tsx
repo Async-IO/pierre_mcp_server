@@ -133,11 +133,17 @@ export default function PromptSuggestions({ onSelectPrompt, onEditCoach, onDelet
     );
   }
 
-  // Sort coaches: favorites first, then by use_count
-  const sortedCoaches = [...coaches].sort((a, b) => {
+  // Separate user coaches (non-system) from system coaches
+  const userCoaches = coaches.filter((c) => !c.is_system);
+  const systemCoaches = coaches.filter((c) => c.is_system);
+
+  // Sort each group: favorites first, then by use_count
+  const sortByUsage = (a: Coach, b: Coach) => {
     if (a.is_favorite !== b.is_favorite) return a.is_favorite ? -1 : 1;
     return b.use_count - a.use_count;
-  });
+  };
+  const sortedUserCoaches = [...userCoaches].sort(sortByUsage);
+  const sortedSystemCoaches = [...systemCoaches].sort(sortByUsage);
 
   const handleHideCoach = (coach: Coach) => {
     hideCoach.mutate(coach.id);
@@ -149,7 +155,8 @@ export default function PromptSuggestions({ onSelectPrompt, onEditCoach, onDelet
 
   return (
     <CoachesSection
-      coaches={sortedCoaches}
+      userCoaches={sortedUserCoaches}
+      systemCoaches={sortedSystemCoaches}
       hiddenCoaches={hiddenCoaches}
       showHidden={showHidden}
       onToggleShowHidden={() => setShowHidden(!showHidden)}
@@ -199,7 +206,8 @@ function HelpTooltip({ isVisible, onClose }: { isVisible: boolean; onClose: () =
 
 // Coaches section with header and help button
 function CoachesSection({
-  coaches,
+  userCoaches,
+  systemCoaches,
   hiddenCoaches,
   showHidden,
   onToggleShowHidden,
@@ -211,7 +219,8 @@ function CoachesSection({
   isHiding,
   isShowing,
 }: {
-  coaches: Coach[];
+  userCoaches: Coach[];
+  systemCoaches: Coach[];
   hiddenCoaches: Coach[];
   showHidden: boolean;
   onToggleShowHidden: () => void;
@@ -273,20 +282,53 @@ function CoachesSection({
         )}
       </div>
 
-      {/* Coach list - responsive grid: 1 col mobile, 2 col tablet, 3 col desktop */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {coaches.map((coach) => (
-          <CoachCard
-            key={coach.id}
-            coach={coach}
-            onSelectPrompt={onSelectPrompt}
-            onEditCoach={onEditCoach}
-            onDeleteCoach={onDeleteCoach}
-            onHideCoach={onHideCoach}
-            isHiding={isHiding}
-          />
-        ))}
-      </div>
+      {/* Personalized section (user-created coaches) - always first */}
+      {userCoaches.length > 0 && (
+        <div className="mb-4">
+          <h4 className="text-sm font-medium text-pierre-gray-700 mb-2 flex items-center gap-2">
+            <span className="text-base">✨</span>
+            Personalized
+            <span className="text-xs text-pierre-gray-400 font-normal">({userCoaches.length})</span>
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {userCoaches.map((coach) => (
+              <CoachCard
+                key={coach.id}
+                coach={coach}
+                onSelectPrompt={onSelectPrompt}
+                onEditCoach={onEditCoach}
+                onDeleteCoach={onDeleteCoach}
+                onHideCoach={onHideCoach}
+                isHiding={isHiding}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* System Coaches section - below user coaches */}
+      {systemCoaches.length > 0 && (
+        <div className={userCoaches.length > 0 ? 'pt-3 border-t border-pierre-gray-200' : ''}>
+          <h4 className="text-sm font-medium text-pierre-gray-500 mb-2 flex items-center gap-2">
+            <span className="text-base">🏛️</span>
+            System Coaches
+            <span className="text-xs text-pierre-gray-400 font-normal">({systemCoaches.length})</span>
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {systemCoaches.map((coach) => (
+              <CoachCard
+                key={coach.id}
+                coach={coach}
+                onSelectPrompt={onSelectPrompt}
+                onEditCoach={onEditCoach}
+                onDeleteCoach={onDeleteCoach}
+                onHideCoach={onHideCoach}
+                isHiding={isHiding}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Hidden coaches section */}
       {showHidden && hiddenCoaches.length > 0 && (

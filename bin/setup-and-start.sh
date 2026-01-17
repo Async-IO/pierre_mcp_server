@@ -134,15 +134,20 @@ else
     echo -e "${YELLOW}Admin user may already exist (continuing...)${NC}"
 fi
 
-# Step 4: Stop any existing server
-echo -e "\n${BLUE}=== Step 4: Stopping any existing server ===${NC}"
+# Step 4: Seed default coaches (9 AI coaching personas)
+echo -e "\n${BLUE}=== Step 4: Seeding default coaches ===${NC}"
+RUST_LOG=warn cargo run --bin seed-coaches 2>&1 | grep -E "(Created|Skipped|Error|✅|❌|coach)" || true
+echo -e "${GREEN}Default coaches seeded (9 AI personas)${NC}"
+
+# Step 5: Stop any existing server
+echo -e "\n${BLUE}=== Step 5: Stopping any existing server ===${NC}"
 pkill -f "pierre-mcp-server" 2>/dev/null || true
 sleep 1
 pkill -9 -f "pierre-mcp-server" 2>/dev/null || true
 echo -e "${GREEN}Existing server processes stopped${NC}"
 
-# Step 5: Start server
-echo -e "\n${BLUE}=== Step 5: Starting Pierre MCP Server ===${NC}"
+# Step 6: Start server
+echo -e "\n${BLUE}=== Step 6: Starting Pierre MCP Server ===${NC}"
 if [ -x "$PROJECT_ROOT/bin/start-server.sh" ]; then
     "$PROJECT_ROOT/bin/start-server.sh" &
     SERVER_PID=$!
@@ -153,8 +158,8 @@ else
     SERVER_PID=$!
 fi
 
-# Step 6: Wait for server to be ready
-echo -e "\n${BLUE}=== Step 6: Waiting for server health check ===${NC}"
+# Step 7: Wait for server to be ready
+echo -e "\n${BLUE}=== Step 7: Waiting for server health check ===${NC}"
 ELAPSED=0
 while [ $ELAPSED -lt $WAIT_TIMEOUT ]; do
     if curl -s -f "http://localhost:$HTTP_PORT/health" > /dev/null 2>&1; then
@@ -180,9 +185,9 @@ echo -e "Login page:      http://localhost:$HTTP_PORT/oauth2/login"
 echo -e "Admin email:     $ADMIN_EMAIL"
 echo -e "Admin password:  $ADMIN_PASSWORD"
 
-# Step 7: Run workflow tests (optional)
+# Step 8: Run workflow tests (optional)
 if [ "$RUN_WORKFLOW_TESTS" = "true" ]; then
-    echo -e "\n${BLUE}=== Step 7: Running workflow tests ===${NC}"
+    echo -e "\n${BLUE}=== Step 8: Running workflow tests ===${NC}"
     if [ -x "$PROJECT_ROOT/scripts/complete-user-workflow.sh" ]; then
         "$PROJECT_ROOT/scripts/complete-user-workflow.sh"
     else

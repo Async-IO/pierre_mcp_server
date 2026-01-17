@@ -93,6 +93,21 @@ interface ConversationListResponse {
   total: number;
 }
 
+interface Coach {
+  id: string;
+  title: string;
+  description?: string;
+  system_prompt: string;
+  category: string;
+  tags: string[];
+  token_count: number;
+  is_favorite: boolean;
+  use_count: number;
+  last_used_at?: string;
+  is_system: boolean;
+  is_assigned: boolean;
+}
+
 interface ChatTabProps {
   onOpenSettings?: () => void;
 }
@@ -121,6 +136,9 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
   const [messageMetadata, setMessageMetadata] = useState<Map<string, { model: string; executionTimeMs: number }>>(new Map());
   // Coach CRUD state
   const [showCoachModal, setShowCoachModal] = useState(false);
+  const [showMyCoachesPanel, setShowMyCoachesPanel] = useState(false);
+  const [coachesCategoryFilter, setCoachesCategoryFilter] = useState<string | null>(null);
+  const [showHiddenCoaches, setShowHiddenCoaches] = useState(false);
   const [editingCoachId, setEditingCoachId] = useState<string | null>(null);
   const [coachFormData, setCoachFormData] = useState({
     title: '',
@@ -149,6 +167,22 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
 
   // Check if any provider is connected
   const hasConnectedProvider = oauthStatus?.providers?.some(p => p.connected) ?? false;
+
+  // Fetch coaches for My Coaches panel
+  const { data: coachesData, isLoading: coachesLoading } = useQuery({
+    queryKey: ['user-coaches'],
+    queryFn: () => apiService.getCoaches(),
+    staleTime: 5 * 60 * 1000,
+    enabled: showMyCoachesPanel,
+  });
+
+  // Fetch hidden coaches for My Coaches panel
+  const { data: hiddenCoachesData } = useQuery({
+    queryKey: ['hidden-coaches'],
+    queryFn: () => apiService.getHiddenCoaches(),
+    staleTime: 5 * 60 * 1000,
+    enabled: showMyCoachesPanel,
+  });
 
   // Fetch messages for selected conversation
   const { data: messagesData, isLoading: messagesLoading } = useQuery<{ messages: Message[] }>({
@@ -223,6 +257,24 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
       setCoachDeleteConfirmation(null);
+    },
+  });
+
+  // Hide coach mutation
+  const hideCoach = useMutation({
+    mutationFn: (coachId: string) => apiService.hideCoach(coachId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
+      queryClient.invalidateQueries({ queryKey: ['hidden-coaches'] });
+    },
+  });
+
+  // Show coach mutation
+  const showCoach = useMutation({
+    mutationFn: (coachId: string) => apiService.showCoach(coachId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
+      queryClient.invalidateQueries({ queryKey: ['hidden-coaches'] });
     },
   });
 
@@ -800,14 +852,18 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
         onResize={(size) => setSidebarCollapsed(size.asPercentage === 0)}
         className="bg-pierre-gray-50 flex flex-col"
       >
-        {/* Header with New Chat Button */}
-        <div className="py-2">
+        {/* Action Buttons */}
+        <div className="p-2 space-y-1">
+          {/* Add Chat Button */}
           <button
-            onClick={handleNewChat}
+            onClick={() => {
+              setShowMyCoachesPanel(false);
+              handleNewChat();
+            }}
             disabled={createConversation.isPending}
             title="New conversation"
-            aria-label="New conversation"
-            className="relative px-3 py-2 mx-2 flex items-center gap-2.5 rounded-lg hover:bg-pierre-gray-100 transition-colors disabled:opacity-50"
+            aria-label="Add Chat"
+            className="w-full px-3 py-2 flex items-center gap-2.5 rounded-lg hover:bg-pierre-gray-100 transition-colors disabled:opacity-50"
           >
             <div className="w-7 h-7 flex items-center justify-center rounded-lg bg-pierre-violet text-white shadow-sm flex-shrink-0">
               {createConversation.isPending ? (
@@ -818,26 +874,36 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                 </svg>
               )}
             </div>
-            <span className="text-sm font-medium text-pierre-gray-800">Add chat</span>
+            <span className="text-sm font-medium text-pierre-gray-800">Add Chat</span>
           </button>
-          {/* Add Coach Button */}
+          {/* My Coaches Button */}
           <button
             onClick={() => {
-              setEditingCoachId(null);
-              setCoachFormData({ title: '', description: '', system_prompt: '', category: 'Training' });
-              setShowCoachModal(true);
+              setSelectedConversation(null);
+              setShowMyCoachesPanel(true);
             }}
-            title="Create custom coach"
-            aria-label="Create custom coach"
-            className="relative px-3 py-2 mx-2 flex items-center gap-2.5 rounded-lg hover:bg-pierre-gray-100 transition-colors"
+            title="My Coaches"
+            aria-label="My Coaches"
+            className={clsx(
+              'w-full px-3 py-2 flex items-center gap-2.5 rounded-lg transition-colors',
+              showMyCoachesPanel
+                ? 'bg-pierre-violet/10 text-pierre-violet'
+                : 'hover:bg-pierre-gray-100'
+            )}
           >
             <div className="w-7 h-7 flex items-center justify-center rounded-lg bg-gradient-to-br from-pierre-violet/80 to-purple-600/80 text-white shadow-sm flex-shrink-0">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-              </svg>
+              <span className="text-sm">🎯</span>
             </div>
-            <span className="text-sm font-medium text-pierre-gray-800">Add coach</span>
+            <span className={clsx(
+              'text-sm font-medium',
+              showMyCoachesPanel ? 'text-pierre-violet' : 'text-pierre-gray-800'
+            )}>My Coaches</span>
           </button>
+        </div>
+
+        {/* Recent Chat Header */}
+        <div className="px-4 py-2 border-t border-pierre-gray-200">
+          <h3 className="text-xs font-semibold text-pierre-gray-500 uppercase tracking-wider">Recent Chat</h3>
         </div>
 
         {/* Conversation List */}
@@ -851,7 +917,12 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
               {conversationsData?.conversations?.map((conv) => (
                 <div
                   key={conv.id}
-                  onClick={() => editingTitle !== conv.id && setSelectedConversation(conv.id)}
+                  onClick={() => {
+                    if (editingTitle !== conv.id) {
+                      setShowMyCoachesPanel(false);
+                      setSelectedConversation(conv.id);
+                    }
+                  }}
                   className={clsx(
                     'relative px-3 py-2 mx-2 rounded-lg cursor-pointer transition-colors group',
                     selectedConversation === conv.id
@@ -973,8 +1044,274 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
 
       {/* Main Chat Area */}
       <Panel defaultSize="82%" className="flex flex-col bg-white">
-        {/* Welcome state - always show coaches first when no conversation selected */}
-        {!selectedConversation ? (
+        {/* My Coaches View - shown when My Coaches button is clicked */}
+        {showMyCoachesPanel && !selectedConversation ? (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="p-6 border-b border-pierre-gray-200 flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-gradient-to-br from-pierre-violet to-purple-600 text-white shadow-sm">
+                  <span className="text-lg">🎯</span>
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-pierre-gray-900">My Coaches</h2>
+                  <p className="text-sm text-pierre-gray-500">Select a coach to start chatting</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {/* Add Coach Button */}
+                <button
+                  onClick={() => {
+                    setShowMyCoachesPanel(false);
+                    setEditingCoachId(null);
+                    setCoachFormData({ title: '', description: '', system_prompt: '', category: 'Training' });
+                    setShowCoachModal(true);
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-pierre-violet rounded-lg hover:bg-pierre-violet/90 transition-colors"
+                  title="Add coach"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add Coach
+                </button>
+                {/* Back button */}
+                <button
+                  onClick={() => {
+                    setShowMyCoachesPanel(false);
+                    setCoachesCategoryFilter(null);
+                    setShowHiddenCoaches(false);
+                  }}
+                  className="p-2 text-pierre-gray-400 hover:text-pierre-gray-600 hover:bg-pierre-gray-100 rounded-lg transition-colors"
+                  aria-label="Back"
+                  title="Back to home"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Category Filters */}
+            <div className="px-6 py-4 border-b border-pierre-gray-100 flex-shrink-0">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                <button
+                  onClick={() => setCoachesCategoryFilter(null)}
+                  className={clsx(
+                    'px-4 py-2 text-sm font-medium rounded-full whitespace-nowrap transition-colors',
+                    coachesCategoryFilter === null
+                      ? 'bg-pierre-violet text-white'
+                      : 'bg-pierre-gray-100 text-pierre-gray-600 hover:bg-pierre-gray-200'
+                  )}
+                >
+                  All
+                </button>
+                {['Training', 'Nutrition', 'Recovery', 'Recipes', 'Analysis', 'Custom'].map((category) => (
+                  <button
+                    key={category}
+                    onClick={() => setCoachesCategoryFilter(category)}
+                    className={clsx(
+                      'px-4 py-2 text-sm font-medium rounded-full whitespace-nowrap transition-colors flex items-center gap-1.5',
+                      coachesCategoryFilter === category
+                        ? 'bg-pierre-violet text-white'
+                        : 'bg-pierre-gray-100 text-pierre-gray-600 hover:bg-pierre-gray-200'
+                    )}
+                  >
+                    <span>{getCategoryIcon(category)}</span>
+                    {category}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Coaches List */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {coachesLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[1, 2, 3, 4, 5, 6].map((i) => (
+                    <div key={i} className="h-24 bg-pierre-gray-100 rounded-xl animate-pulse" />
+                  ))}
+                </div>
+              ) : (
+                <>
+                  {/* Coaches organized: User coaches first, then System coaches by category */}
+                  {(() => {
+                    const coaches: Coach[] = coachesData?.coaches || [];
+                    const filteredCoaches = coachesCategoryFilter
+                      ? coaches.filter((c: Coach) => c.category.toLowerCase() === coachesCategoryFilter.toLowerCase())
+                      : coaches;
+
+                    // Separate user coaches from system coaches
+                    const userCoaches = filteredCoaches.filter((c: Coach) => !c.is_system);
+                    const systemCoaches = filteredCoaches.filter((c: Coach) => c.is_system);
+
+                    // Sort each group by favorites then use count
+                    const sortByUsage = (a: Coach, b: Coach) => {
+                      if (a.is_favorite !== b.is_favorite) return a.is_favorite ? -1 : 1;
+                      return b.use_count - a.use_count;
+                    };
+                    const sortedUserCoaches = [...userCoaches].sort(sortByUsage);
+                    const sortedSystemCoaches = [...systemCoaches].sort(sortByUsage);
+
+                    if (sortedUserCoaches.length === 0 && sortedSystemCoaches.length === 0 && !showHiddenCoaches) {
+                      return (
+                        <div className="text-center py-12 text-pierre-gray-500">
+                          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-pierre-gray-100 flex items-center justify-center">
+                            <span className="text-2xl">🎯</span>
+                          </div>
+                          <p className="text-base font-medium">No coaches found</p>
+                          <p className="text-sm mt-1">
+                            {coachesCategoryFilter ? 'Try selecting a different category' : 'Add a coach to get started'}
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    // Helper to render a coach card
+                    const renderCoachCard = (coach: Coach) => (
+                      <MyCoachCard
+                        key={coach.id}
+                        coach={coach}
+                        onSelect={() => {
+                          apiService.recordCoachUsage(coach.id).catch(() => {});
+                          setShowMyCoachesPanel(false);
+                          setPendingSystemPrompt(coach.system_prompt);
+                          setPendingPrompt(coach.description || `Chat with ${coach.title}`);
+                          handleNewChat();
+                        }}
+                        onEdit={() => {
+                          setShowMyCoachesPanel(false);
+                          setEditingCoachId(coach.id);
+                          setCoachFormData({
+                            title: coach.title,
+                            description: coach.description || '',
+                            system_prompt: coach.system_prompt,
+                            category: coach.category,
+                          });
+                          setShowCoachModal(true);
+                        }}
+                        onDelete={() => {
+                          setCoachDeleteConfirmation({ id: coach.id, title: coach.title });
+                        }}
+                        onHide={() => hideCoach.mutate(coach.id)}
+                        isHiding={hideCoach.isPending}
+                      />
+                    );
+
+                    // Group system coaches by category
+                    const groupedSystemCoaches = sortedSystemCoaches.reduce<Record<string, Coach[]>>((acc, coach) => {
+                      const cat = coach.category;
+                      if (!acc[cat]) acc[cat] = [];
+                      acc[cat].push(coach);
+                      return acc;
+                    }, {});
+
+                    return (
+                      <div className="space-y-8">
+                        {/* Personalized (user-created) - always first */}
+                        {sortedUserCoaches.length > 0 && (
+                          <div>
+                            <h3 className="text-sm font-semibold text-pierre-gray-700 mb-3 flex items-center gap-2">
+                              <span className="text-lg">✨</span>
+                              Personalized
+                              <span className="text-xs text-pierre-gray-400 font-normal">({sortedUserCoaches.length})</span>
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                              {sortedUserCoaches.map(renderCoachCard)}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* System Coaches - grouped by category */}
+                        {Object.keys(groupedSystemCoaches).length > 0 && (
+                          <div className={sortedUserCoaches.length > 0 ? 'pt-4 border-t border-pierre-gray-200' : ''}>
+                            <h3 className="text-sm font-semibold text-pierre-gray-500 mb-4 flex items-center gap-2">
+                              <span className="text-lg">🏛️</span>
+                              System Coaches
+                            </h3>
+                            <div className="space-y-6">
+                              {Object.entries(groupedSystemCoaches).map(([category, categoryCoaches]) => (
+                                <div key={category}>
+                                  <h4 className="text-xs font-medium text-pierre-gray-500 mb-2 flex items-center gap-1.5 uppercase tracking-wider">
+                                    <span>{getCategoryIcon(category)}</span>
+                                    {category}
+                                    <span className="text-pierre-gray-400 font-normal normal-case">({categoryCoaches.length})</span>
+                                  </h4>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {categoryCoaches.map(renderCoachCard)}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Hidden Coaches Toggle */}
+                  {(hiddenCoachesData?.coaches?.length ?? 0) > 0 && (
+                    <div className="mt-8 pt-6 border-t border-pierre-gray-200">
+                      <button
+                        onClick={() => setShowHiddenCoaches(!showHiddenCoaches)}
+                        className={clsx(
+                          'flex items-center gap-2 text-sm font-medium transition-colors',
+                          showHiddenCoaches
+                            ? 'text-pierre-violet'
+                            : 'text-pierre-gray-500 hover:text-pierre-gray-700'
+                        )}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          {showHiddenCoaches ? (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          ) : (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                          )}
+                        </svg>
+                        {showHiddenCoaches ? 'Hide' : 'Show'} hidden coaches ({hiddenCoachesData?.coaches?.length})
+                      </button>
+
+                      {showHiddenCoaches && (
+                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {hiddenCoachesData?.coaches?.map((coach: Coach) => (
+                            <div
+                              key={coach.id}
+                              className="relative text-left text-sm rounded-xl border border-pierre-gray-200 px-4 py-3 opacity-60 hover:opacity-100 transition-all group bg-pierre-gray-50"
+                            >
+                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => showCoach.mutate(coach.id)}
+                                  disabled={showCoach.isPending}
+                                  className="p-1.5 text-pierre-gray-400 hover:text-pierre-green-600 hover:bg-pierre-green-50 rounded-lg transition-colors disabled:opacity-50"
+                                  title="Show coach"
+                                  aria-label="Show coach"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                  </svg>
+                                </button>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="font-medium text-pierre-gray-600">{coach.title}</span>
+                                <span className={clsx('text-xs px-1.5 py-0.5 rounded', getCategoryBadgeClass(coach.category))}>
+                                  {getCategoryIcon(coach.category)}
+                                </span>
+                              </div>
+                              {coach.description && (
+                                <p className="text-pierre-gray-400 text-xs mt-1 line-clamp-2">{coach.description}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        ) : !selectedConversation ? (
           <div className="flex-1 flex items-center justify-center overflow-y-auto py-8">
             <div className="w-full max-w-5xl px-6">
               <div className="text-center mb-8">
@@ -1486,5 +1823,133 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
         isLoading={deleteCoach.isPending}
       />
     </PanelGroup>
+  );
+}
+
+// Helper functions for category styling
+function getCategoryBadgeClass(category: string): string {
+  const classes: Record<string, string> = {
+    training: 'bg-pierre-green-100 text-pierre-green-700',
+    nutrition: 'bg-pierre-nutrition/10 text-pierre-nutrition',
+    recovery: 'bg-pierre-blue-100 text-pierre-blue-700',
+    recipes: 'bg-pierre-yellow-100 text-pierre-yellow-700',
+    analysis: 'bg-pierre-violet/10 text-pierre-violet',
+    custom: 'bg-pierre-gray-100 text-pierre-gray-600',
+  };
+  return classes[category.toLowerCase()] || classes.custom;
+}
+
+function getCategoryIcon(category: string): string {
+  const icons: Record<string, string> = {
+    training: '🏃',
+    nutrition: '🥗',
+    recovery: '😴',
+    recipes: '👨‍🍳',
+    analysis: '📊',
+    custom: '⚙️',
+  };
+  return icons[category.toLowerCase()] || icons.custom;
+}
+
+// Coach card component for My Coaches panel
+interface MyCoachCardProps {
+  coach: Coach;
+  onSelect: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onHide: () => void;
+  isHiding: boolean;
+}
+
+function MyCoachCard({ coach, onSelect, onEdit, onDelete, onHide, isHiding }: MyCoachCardProps) {
+  return (
+    <div
+      className="relative text-left text-sm rounded-xl border border-pierre-gray-200 hover:border-pierre-violet hover:bg-pierre-violet/5 px-4 py-3 transition-all focus-within:outline-none focus-within:ring-2 focus-within:ring-pierre-violet focus-within:ring-opacity-50 group hover:shadow-sm cursor-pointer"
+      onClick={onSelect}
+    >
+      {/* Action buttons container */}
+      <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10 bg-white/90 backdrop-blur-sm rounded-lg px-1 py-0.5 shadow-sm">
+        {/* Edit/Delete for user-created coaches */}
+        {!coach.is_system && (
+          <>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit();
+              }}
+              className="p-1 text-pierre-gray-400 hover:text-pierre-violet hover:bg-pierre-violet/10 rounded transition-colors"
+              title="Edit coach"
+              aria-label="Edit coach"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              className="p-1 text-pierre-gray-400 hover:text-pierre-red-500 hover:bg-pierre-red-50 rounded transition-colors"
+              title="Delete coach"
+              aria-label="Delete coach"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          </>
+        )}
+        {/* Hide button for system coaches */}
+        {coach.is_system && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onHide();
+            }}
+            disabled={isHiding}
+            className="p-1 text-pierre-gray-400 hover:text-pierre-gray-600 hover:bg-pierre-gray-100 rounded transition-colors disabled:opacity-50"
+            title="Hide coach"
+            aria-label="Hide coach"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between">
+        <span className="font-medium text-pierre-gray-800 group-hover:text-pierre-violet">
+          {coach.title}
+        </span>
+        <div className="flex items-center gap-1">
+          {coach.is_favorite && (
+            <span className="text-pierre-yellow-500">★</span>
+          )}
+          <span className={`text-xs px-1.5 py-0.5 rounded ${getCategoryBadgeClass(coach.category)}`}>
+            {getCategoryIcon(coach.category)}
+          </span>
+        </div>
+      </div>
+      {coach.description && (
+        <p className="text-pierre-gray-500 text-xs mt-0.5 line-clamp-2">
+          {coach.description}
+        </p>
+      )}
+      <div className="flex items-center gap-2 mt-1 text-xs text-pierre-gray-400">
+        {coach.is_system && (
+          <span className="bg-pierre-violet bg-opacity-10 text-pierre-violet px-1.5 py-0.5 rounded">
+            System
+          </span>
+        )}
+        {coach.use_count > 0 && (
+          <span>Used {coach.use_count}x</span>
+        )}
+      </div>
+    </div>
   );
 }

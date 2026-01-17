@@ -60,6 +60,8 @@ pub enum CoachCategory {
     Recovery,
     /// Recipe and meal planning focused coaches
     Recipes,
+    /// Analysis and insights focused coaches
+    Analysis,
     /// User-defined custom category
     #[default]
     Custom,
@@ -74,18 +76,20 @@ impl CoachCategory {
             Self::Nutrition => "nutrition",
             Self::Recovery => "recovery",
             Self::Recipes => "recipes",
+            Self::Analysis => "analysis",
             Self::Custom => "custom",
         }
     }
 
-    /// Parse from database string representation
+    /// Parse from database string representation (case-insensitive)
     #[must_use]
     pub fn parse(s: &str) -> Self {
-        match s {
+        match s.to_lowercase().as_str() {
             "training" => Self::Training,
             "nutrition" => Self::Nutrition,
             "recovery" => Self::Recovery,
             "recipes" => Self::Recipes,
+            "analysis" => Self::Analysis,
             _ => Self::Custom,
         }
     }
