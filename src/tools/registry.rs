@@ -352,14 +352,22 @@ impl ToolRegistry {
     /// Register connection management tools
     #[cfg(feature = "tools-connection")]
     fn register_connection_tools(&mut self) {
-        // Reserve capacity for future tool registration (uses &mut self)
-        self.tools.reserve(0);
+        use super::implementations::connection::create_connection_tools;
+
         debug!(
             "Registering connection tools (registry has {} tools)",
             self.tools.len()
         );
-        // Tools: connect_provider, get_connection_status, disconnect_provider
-        // Implementation will be added in Phase 2
+
+        // Register all connection tools with the "connection" category
+        for tool in create_connection_tools() {
+            self.register_with_category(Arc::from(tool), "connection");
+        }
+
+        info!(
+            "Registered connection tools (registry now has {} tools)",
+            self.tools.len()
+        );
     }
 
     /// Register data access tools
