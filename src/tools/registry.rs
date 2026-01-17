@@ -373,14 +373,22 @@ impl ToolRegistry {
     /// Register data access tools
     #[cfg(feature = "tools-data")]
     fn register_data_tools(&mut self) {
-        // Reserve capacity for future tool registration (uses &mut self)
-        self.tools.reserve(0);
+        use super::implementations::data::create_data_tools;
+
         debug!(
             "Registering data tools (registry has {} tools)",
             self.tools.len()
         );
-        // Tools: get_activities, get_athlete, get_stats, get_activity_intelligence
-        // Implementation will be added in Phase 3
+
+        // Register all data tools with the "data" category
+        for tool in create_data_tools() {
+            self.register_with_category(Arc::from(tool), "data");
+        }
+
+        info!(
+            "Registered data tools (registry now has {} tools)",
+            self.tools.len()
+        );
     }
 
     /// Register analytics tools
