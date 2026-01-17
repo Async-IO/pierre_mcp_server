@@ -1067,14 +1067,9 @@ impl CoachesManager {
     /// # Errors
     ///
     /// Returns an error if database operation fails
-    pub async fn hide_coach(
-        &self,
-        coach_id: &str,
-        user_id: Uuid,
-        tenant_id: &str,
-    ) -> AppResult<bool> {
+    pub async fn hide_coach(&self, coach_id: &str, user_id: Uuid) -> AppResult<bool> {
         // Check if the coach is hideable (must be system or assigned, not personal)
-        if !self.is_coach_hideable(coach_id, user_id, tenant_id).await? {
+        if !self.is_coach_hideable(coach_id, user_id).await? {
             return Err(AppError::invalid_input(
                 "Only system or assigned coaches can be hidden",
             ));
@@ -1157,21 +1152,16 @@ impl CoachesManager {
     ///
     /// A coach is hideable if it's a system coach or assigned to the user,
     /// but NOT if it's a personal coach created by the user.
-    async fn is_coach_hideable(
-        &self,
-        coach_id: &str,
-        user_id: Uuid,
-        tenant_id: &str,
-    ) -> AppResult<bool> {
+    async fn is_coach_hideable(&self, coach_id: &str, user_id: Uuid) -> AppResult<bool> {
         // Check if it's a system coach
+        // System coaches are visible across all tenants, so no tenant_id restriction here
         let is_system = sqlx::query(
             r"
             SELECT 1 FROM coaches
-            WHERE id = $1 AND tenant_id = $2 AND is_system = 1
+            WHERE id = $1 AND is_system = 1
             ",
         )
         .bind(coach_id)
-        .bind(tenant_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to check system coach: {e}")))?

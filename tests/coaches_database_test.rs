@@ -1611,7 +1611,7 @@ async fn test_hide_coach() {
 
     // Hide the coach
     let hidden = manager
-        .hide_coach(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .hide_coach(&coach.id.to_string(), test_user_id())
         .await
         .unwrap();
 
@@ -1624,9 +1624,7 @@ async fn test_hide_coach_not_found() {
     let manager = CoachesManager::new(pool);
 
     // Try to hide non-existent coach - should return error
-    let result = manager
-        .hide_coach("nonexistent-id", test_user_id(), TEST_TENANT)
-        .await;
+    let result = manager.hide_coach("nonexistent-id", test_user_id()).await;
 
     assert!(result.is_err());
 }
@@ -1658,7 +1656,7 @@ async fn test_show_coach() {
 
     // Hide first
     manager
-        .hide_coach(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .hide_coach(&coach.id.to_string(), test_user_id())
         .await
         .unwrap();
 
@@ -1705,7 +1703,7 @@ async fn test_list_hidden_coaches() {
 
     // Hide only the first one
     manager
-        .hide_coach(&coach_ids[0], test_user_id(), TEST_TENANT)
+        .hide_coach(&coach_ids[0], test_user_id())
         .await
         .unwrap();
 
@@ -1755,7 +1753,7 @@ async fn test_hidden_coach_excluded_from_list() {
 
     // Hide the coach
     manager
-        .hide_coach(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .hide_coach(&coach.id.to_string(), test_user_id())
         .await
         .unwrap();
 
@@ -1794,7 +1792,7 @@ async fn test_unhidden_coach_appears_in_list() {
 
     // Hide the coach
     manager
-        .hide_coach(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .hide_coach(&coach.id.to_string(), test_user_id())
         .await
         .unwrap();
 
@@ -1851,7 +1849,7 @@ async fn test_hide_coach_user_isolation() {
 
     // User 1 hides the coach
     manager
-        .hide_coach(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .hide_coach(&coach.id.to_string(), test_user_id())
         .await
         .unwrap();
 
@@ -2077,4 +2075,123 @@ async fn test_personal_coaches_remain_isolated_with_system_coaches() {
         .unwrap();
 
     assert_eq!(coaches.len(), 2);
+}
+
+/// System coaches can be hidden by users from ANY tenant, not just the tenant that created them.
+/// This is the expected behavior because system coaches are globally visible.
+#[tokio::test]
+async fn test_hide_system_coach_cross_tenant() {
+    let pool = create_test_db().await;
+    let manager = CoachesManager::new(pool);
+
+    // Create a system coach in TEST_TENANT (tenant A)
+    let request = CreateSystemCoachRequest {
+        title: "Global System Coach".to_owned(),
+        description: None,
+        system_prompt: "You are a globally available coach.".to_owned(),
+        category: CoachCategory::Training,
+        tags: vec![],
+        visibility: CoachVisibility::Tenant,
+        sample_prompts: vec![],
+    };
+
+    let system_coach = manager
+        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .await
+        .unwrap();
+
+    assert!(system_coach.is_system);
+    assert_eq!(system_coach.tenant_id, TEST_TENANT);
+
+    // User from OTHER_TENANT (tenant B) should be able to hide this system coach
+    // Even though the coach was created by TEST_TENANT
+    let hidden = manager
+        .hide_coach(&system_coach.id.to_string(), other_user_id())
+        .await
+        .unwrap();
+
+    assert!(hidden);
+
+    // Verify the coach is hidden for other_user
+    let filter = ListCoachesFilter {
+        include_system: true,
+        include_hidden: false,
+        ..Default::default()
+    };
+
+    let coaches = manager
+        .list(other_user_id(), OTHER_TENANT, &filter)
+        .await
+        .unwrap();
+
+    // Should NOT see the system coach (it's hidden for this user)
+    assert!(coaches.is_empty());
+
+    // But the original tenant user should still see it
+    let coaches = manager
+        .list(test_user_id(), TEST_TENANT, &filter)
+        .await
+        .unwrap();
+
+    assert_eq!(coaches.len(), 1);
+    assert_eq!(coaches[0].coach.title, "Global System Coach");
+}
+
+/// Users can show (unhide) system coaches from other tenants
+#[tokio::test]
+async fn test_show_system_coach_cross_tenant() {
+    let pool = create_test_db().await;
+    let manager = CoachesManager::new(pool);
+
+    // Create a system coach in TEST_TENANT
+    let request = CreateSystemCoachRequest {
+        title: "Global System Coach".to_owned(),
+        description: None,
+        system_prompt: "Prompt".to_owned(),
+        category: CoachCategory::Training,
+        tags: vec![],
+        visibility: CoachVisibility::Tenant,
+        sample_prompts: vec![],
+    };
+
+    let system_coach = manager
+        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .await
+        .unwrap();
+
+    // User from OTHER_TENANT hides the coach
+    manager
+        .hide_coach(&system_coach.id.to_string(), other_user_id())
+        .await
+        .unwrap();
+
+    // Verify it's hidden
+    let filter = ListCoachesFilter {
+        include_system: true,
+        include_hidden: false,
+        ..Default::default()
+    };
+
+    let coaches = manager
+        .list(other_user_id(), OTHER_TENANT, &filter)
+        .await
+        .unwrap();
+    assert!(coaches.is_empty());
+
+    // Now show (unhide) the coach
+    let shown = manager
+        .show_coach(&system_coach.id.to_string(), other_user_id())
+        .await
+        .unwrap();
+
+    assert!(shown);
+
+    // Should now see the coach again
+    let coaches = manager
+        .list(other_user_id(), OTHER_TENANT, &filter)
+        .await
+        .unwrap();
+
+    assert_eq!(coaches.len(), 1);
+    assert_eq!(coaches[0].coach.title, "Global System Coach");
 }

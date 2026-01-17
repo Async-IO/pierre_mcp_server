@@ -710,3 +710,197 @@ async fn test_get_system_coach_by_id() {
     assert_eq!(coach.title, "Retrievable Coach");
     assert!(coach.is_system);
 }
+
+// ============================================================================
+// Hide/Show Coach E2E Tests
+// ============================================================================
+
+/// E2E test: User can hide a system coach via the API
+#[tokio::test]
+async fn test_hide_system_coach_via_api() {
+    let resources = create_test_server_resources().await.unwrap();
+    let (user_id, user) = create_test_user(&resources.database).await.unwrap();
+
+    // Get the user's tenant_id
+    let stored_user = resources.database.get_user(user_id).await.unwrap().unwrap();
+    let tenant_id = stored_user.tenant_id.as_deref().unwrap_or("default");
+
+    // Create a system coach
+    let sqlite_pool = resources.database.sqlite_pool().unwrap().clone();
+    let coaches_manager = CoachesManager::new(sqlite_pool);
+    let system_request = CreateSystemCoachRequest {
+        title: "Hideable Coach".to_owned(),
+        description: None,
+        system_prompt: "You are a coach.".to_owned(),
+        category: CoachCategory::Training,
+        tags: vec![],
+        visibility: CoachVisibility::Tenant,
+        sample_prompts: vec![],
+    };
+    let system_coach = coaches_manager
+        .create_system_coach(user_id, tenant_id, &system_request)
+        .await
+        .unwrap();
+
+    // Generate JWT token
+    let token = resources
+        .auth_manager
+        .generate_token(&user, &resources.jwks_manager)
+        .unwrap();
+    let auth_token = format!("Bearer {token}");
+
+    let router = CoachesRoutes::routes(resources);
+
+    // Hide the system coach via the API
+    let hide_response = AxumTestRequest::post(&format!("/api/coaches/{}/hide", system_coach.id))
+        .header("authorization", &auth_token)
+        .send(router.clone())
+        .await;
+
+    assert_eq!(hide_response.status_code(), StatusCode::OK);
+
+    // Verify the coach is hidden by listing (without include_hidden)
+    let list_response = AxumTestRequest::get("/api/coaches")
+        .header("authorization", &auth_token)
+        .send(router)
+        .await;
+
+    assert_eq!(list_response.status_code(), StatusCode::OK);
+
+    let list: ListCoachesResponse = list_response.json();
+    // The coach should not appear in the list (it's hidden)
+    let found_coach = list.coaches.iter().find(|c| c.title == "Hideable Coach");
+    assert!(
+        found_coach.is_none(),
+        "Hidden coach should not appear in list"
+    );
+}
+
+/// E2E test: User can show (unhide) a hidden coach via the API
+#[tokio::test]
+async fn test_show_hidden_coach_via_api() {
+    let resources = create_test_server_resources().await.unwrap();
+    let (user_id, user) = create_test_user(&resources.database).await.unwrap();
+
+    // Get the user's tenant_id
+    let stored_user = resources.database.get_user(user_id).await.unwrap().unwrap();
+    let tenant_id = stored_user.tenant_id.as_deref().unwrap_or("default");
+
+    // Create a system coach
+    let sqlite_pool = resources.database.sqlite_pool().unwrap().clone();
+    let coaches_manager = CoachesManager::new(sqlite_pool.clone());
+    let system_request = CreateSystemCoachRequest {
+        title: "Show Me Coach".to_owned(),
+        description: None,
+        system_prompt: "You are a coach.".to_owned(),
+        category: CoachCategory::Training,
+        tags: vec![],
+        visibility: CoachVisibility::Tenant,
+        sample_prompts: vec![],
+    };
+    let system_coach = coaches_manager
+        .create_system_coach(user_id, tenant_id, &system_request)
+        .await
+        .unwrap();
+
+    // Hide the coach first (directly via manager)
+    coaches_manager
+        .hide_coach(&system_coach.id.to_string(), user_id)
+        .await
+        .unwrap();
+
+    // Generate JWT token
+    let token = resources
+        .auth_manager
+        .generate_token(&user, &resources.jwks_manager)
+        .unwrap();
+    let auth_token = format!("Bearer {token}");
+
+    let router = CoachesRoutes::routes(resources);
+
+    // Show (unhide) the coach via the API - DELETE removes the hide preference
+    let show_response = AxumTestRequest::delete(&format!("/api/coaches/{}/hide", system_coach.id))
+        .header("authorization", &auth_token)
+        .send(router.clone())
+        .await;
+
+    assert_eq!(show_response.status_code(), StatusCode::OK);
+
+    // Verify the coach is now visible by listing
+    let list_response = AxumTestRequest::get("/api/coaches")
+        .header("authorization", &auth_token)
+        .send(router)
+        .await;
+
+    assert_eq!(list_response.status_code(), StatusCode::OK);
+
+    let list: ListCoachesResponse = list_response.json();
+    // The coach should now appear in the list
+    let found_coach = list.coaches.iter().find(|c| c.title == "Show Me Coach");
+    assert!(
+        found_coach.is_some(),
+        "Unhidden coach should appear in list"
+    );
+}
+
+/// E2E test: Hidden coaches appear when `include_hidden=true`
+#[tokio::test]
+async fn test_list_with_include_hidden() {
+    let resources = create_test_server_resources().await.unwrap();
+    let (user_id, user) = create_test_user(&resources.database).await.unwrap();
+
+    // Get the user's tenant_id
+    let stored_user = resources.database.get_user(user_id).await.unwrap().unwrap();
+    let tenant_id = stored_user.tenant_id.as_deref().unwrap_or("default");
+
+    // Create a system coach
+    let sqlite_pool = resources.database.sqlite_pool().unwrap().clone();
+    let coaches_manager = CoachesManager::new(sqlite_pool.clone());
+    let system_request = CreateSystemCoachRequest {
+        title: "Hidden But Findable".to_owned(),
+        description: None,
+        system_prompt: "You are a coach.".to_owned(),
+        category: CoachCategory::Training,
+        tags: vec![],
+        visibility: CoachVisibility::Tenant,
+        sample_prompts: vec![],
+    };
+    let system_coach = coaches_manager
+        .create_system_coach(user_id, tenant_id, &system_request)
+        .await
+        .unwrap();
+
+    // Hide the coach
+    coaches_manager
+        .hide_coach(&system_coach.id.to_string(), user_id)
+        .await
+        .unwrap();
+
+    // Generate JWT token
+    let token = resources
+        .auth_manager
+        .generate_token(&user, &resources.jwks_manager)
+        .unwrap();
+    let auth_token = format!("Bearer {token}");
+
+    let router = CoachesRoutes::routes(resources);
+
+    // List with include_hidden=true
+    let list_response = AxumTestRequest::get("/api/coaches?include_hidden=true")
+        .header("authorization", &auth_token)
+        .send(router)
+        .await;
+
+    assert_eq!(list_response.status_code(), StatusCode::OK);
+
+    let list: ListCoachesResponse = list_response.json();
+    // The hidden coach should appear when include_hidden=true
+    let found_coach = list
+        .coaches
+        .iter()
+        .find(|c| c.title == "Hidden But Findable");
+    assert!(
+        found_coach.is_some(),
+        "Hidden coach should appear when include_hidden=true"
+    );
+}
