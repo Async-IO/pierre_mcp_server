@@ -835,8 +835,6 @@ pub fn handle_hide_coach(
         }
 
         let user_id = parse_user_id_for_protocol(&request.user_id)?;
-        let user_id_string = user_id.to_string();
-        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
 
         let coach_id = request
             .parameters
@@ -848,7 +846,7 @@ pub fn handle_hide_coach(
 
         let manager = get_coaches_manager(executor)?;
         let success = manager
-            .hide_coach(coach_id, user_id, tenant_id)
+            .hide_coach(coach_id, user_id)
             .await
             .map_err(|e| ProtocolError::InternalError(format!("Failed to hide coach: {e}")))?;
 

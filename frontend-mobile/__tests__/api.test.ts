@@ -51,4 +51,42 @@ describe('API Service', () => {
       expect(typeof apiService.getOAuthStatus).toBe('function');
     });
   });
+
+  describe('Coach API methods', () => {
+    it('should have listCoaches method', () => {
+      expect(typeof apiService.listCoaches).toBe('function');
+    });
+
+    it('should have getCoach method', () => {
+      expect(typeof apiService.getCoach).toBe('function');
+    });
+
+    it('should have createCoach method', () => {
+      expect(typeof apiService.createCoach).toBe('function');
+    });
+
+    it('should have updateCoach method', () => {
+      expect(typeof apiService.updateCoach).toBe('function');
+    });
+
+    it('should have deleteCoach method', () => {
+      expect(typeof apiService.deleteCoach).toBe('function');
+    });
+
+    it('should have toggleCoachFavorite method', () => {
+      expect(typeof apiService.toggleCoachFavorite).toBe('function');
+    });
+
+    it('should have hideCoach method', () => {
+      expect(typeof apiService.hideCoach).toBe('function');
+    });
+
+    it('should have showCoach method', () => {
+      expect(typeof apiService.showCoach).toBe('function');
+    });
+
+    it('should have listHiddenCoaches method', () => {
+      expect(typeof apiService.listHiddenCoaches).toBe('function');
+    });
+  });
 });

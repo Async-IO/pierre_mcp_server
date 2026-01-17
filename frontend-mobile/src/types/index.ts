@@ -116,6 +116,7 @@ export interface FirebaseLoginResponse {
 
 // Coach types for AI coaching personas
 export type CoachCategory = 'training' | 'nutrition' | 'recovery' | 'recipes' | 'custom';
+export type CoachVisibility = 'private' | 'tenant' | 'global';
 
 export interface Coach {
   id: string;
@@ -131,6 +132,9 @@ export interface Coach {
   created_at: string;
   updated_at: string;
   is_system: boolean;
+  visibility?: CoachVisibility;
+  is_assigned?: boolean;
+  is_hidden?: boolean;
 }
 
 export interface CreateCoachRequest {

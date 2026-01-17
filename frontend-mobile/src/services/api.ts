@@ -373,13 +373,17 @@ class ApiService {
   // Coach endpoints for AI coaching personas
   /**
    * List user's coaches with optional filtering
-   * @param category - Filter by category (training, nutrition, recovery, recipes, custom)
-   * @param favoritesOnly - Only return favorited coaches
+   * @param options - Optional filtering parameters
    */
-  async listCoaches(category?: string, favoritesOnly?: boolean): Promise<ListCoachesResponse> {
+  async listCoaches(options?: {
+    category?: string;
+    favorites_only?: boolean;
+    include_hidden?: boolean;
+  }): Promise<ListCoachesResponse> {
     const params = new URLSearchParams();
-    if (category) params.append('category', category);
-    if (favoritesOnly) params.append('favorites_only', 'true');
+    if (options?.category) params.append('category', options.category);
+    if (options?.favorites_only) params.append('favorites_only', 'true');
+    if (options?.include_hidden) params.append('include_hidden', 'true');
     const queryString = params.toString();
     const url = queryString ? `/api/coaches?${queryString}` : '/api/coaches';
     const response = await axios.get(url);
@@ -436,6 +440,31 @@ class ApiService {
    */
   async toggleCoachFavorite(coachId: string): Promise<{ is_favorite: boolean }> {
     const response = await axios.post(`/api/coaches/${coachId}/favorite`);
+    return response.data;
+  }
+
+  /**
+   * Hide a system or assigned coach from user's view
+   * Only system or assigned coaches can be hidden (not personal coaches)
+   */
+  async hideCoach(coachId: string): Promise<{ success: boolean; is_hidden: boolean }> {
+    const response = await axios.post(`/api/coaches/${coachId}/hide`);
+    return response.data;
+  }
+
+  /**
+   * Show (unhide) a previously hidden coach
+   */
+  async showCoach(coachId: string): Promise<{ success: boolean; is_hidden: boolean }> {
+    const response = await axios.delete(`/api/coaches/${coachId}/hide`);
+    return response.data;
+  }
+
+  /**
+   * List hidden coaches for the user
+   */
+  async listHiddenCoaches(): Promise<ListCoachesResponse> {
+    const response = await axios.get('/api/coaches?include_hidden=true');
     return response.data;
   }
 

@@ -506,10 +506,9 @@ impl CoachesRoutes {
         Path(id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
-        let success = manager.hide_coach(&id, auth.user_id, &tenant_id).await?;
+        let success = manager.hide_coach(&id, auth.user_id).await?;
 
         let response = HideCoachResponse {
             success,

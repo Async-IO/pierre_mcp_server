@@ -37,6 +37,14 @@ const CATEGORY_FILTERS: Array<{ key: CoachCategory | 'all'; label: string }> = [
   { key: 'custom', label: 'Custom' },
 ];
 
+// Source filter options (user-created vs system coaches)
+type CoachSource = 'all' | 'user' | 'system';
+const SOURCE_FILTERS: Array<{ key: CoachSource; label: string }> = [
+  { key: 'all', label: 'All Sources' },
+  { key: 'user', label: 'My Coaches' },
+  { key: 'system', label: 'System' },
+];
+
 // Coach category colors matching web frontend
 const COACH_CATEGORY_COLORS: Record<CoachCategory, string> = {
   training: '#10B981',  // Green
@@ -51,7 +59,9 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [filteredCoaches, setFilteredCoaches] = useState<Coach[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<CoachCategory | 'all'>('all');
+  const [selectedSource, setSelectedSource] = useState<CoachSource>('all');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [showHidden, setShowHidden] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [actionMenuVisible, setActionMenuVisible] = useState(false);
@@ -66,7 +76,9 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
       } else {
         setIsLoading(true);
       }
-      const response = await apiService.listCoaches();
+      const response = await apiService.listCoaches({
+        include_hidden: showHidden,
+      });
       // Sort: favorites first, then by use_count descending
       const sorted = [...response.coaches].sort((a, b) => {
         if (a.is_favorite !== b.is_favorite) {
@@ -81,9 +93,9 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, showHidden]);
 
-  // Apply filters whenever coaches, category, or favorites filter changes
+  // Apply filters whenever coaches, category, source, or favorites filter changes
   React.useEffect(() => {
     let filtered = [...coaches];
 
@@ -92,13 +104,20 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
       filtered = filtered.filter((coach) => coach.category === selectedCategory);
     }
 
+    // Filter by source (user-created vs system)
+    if (selectedSource === 'user') {
+      filtered = filtered.filter((coach) => !coach.is_system);
+    } else if (selectedSource === 'system') {
+      filtered = filtered.filter((coach) => coach.is_system);
+    }
+
     // Filter favorites only
     if (showFavoritesOnly) {
       filtered = filtered.filter((coach) => coach.is_favorite);
     }
 
     setFilteredCoaches(filtered);
-  }, [coaches, selectedCategory, showFavoritesOnly]);
+  }, [coaches, selectedCategory, selectedSource, showFavoritesOnly]);
 
   useFocusEffect(
     useCallback(() => {
@@ -123,15 +142,16 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
     navigation.navigate('CoachEditor', { coachId: undefined });
   };
 
-  const handleToggleFavorite = async () => {
-    if (!selectedCoach) return;
+  const handleToggleFavorite = async (coach?: Coach) => {
+    const targetCoach = coach ?? selectedCoach;
+    if (!targetCoach) return;
     setActionMenuVisible(false);
 
     try {
-      const result = await apiService.toggleCoachFavorite(selectedCoach.id);
+      const result = await apiService.toggleCoachFavorite(targetCoach.id);
       setCoaches((prev) =>
         prev.map((c) =>
-          c.id === selectedCoach.id ? { ...c, is_favorite: result.is_favorite } : c
+          c.id === targetCoach.id ? { ...c, is_favorite: result.is_favorite } : c
         )
       );
     } catch (error) {
@@ -192,52 +212,125 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
     );
   };
 
+  const handleHideCoach = async (coach?: Coach) => {
+    const targetCoach = coach ?? selectedCoach;
+    if (!targetCoach) return;
+    setActionMenuVisible(false);
+
+    try {
+      await apiService.hideCoach(targetCoach.id);
+      // Remove from list if not showing hidden coaches, otherwise update the flag
+      if (showHidden) {
+        setCoaches((prev) =>
+          prev.map((c) => (c.id === targetCoach.id ? { ...c, is_hidden: true } : c))
+        );
+      } else {
+        setCoaches((prev) => prev.filter((c) => c.id !== targetCoach.id));
+      }
+    } catch (error) {
+      console.error('Failed to hide coach:', error);
+      Alert.alert('Error', 'Failed to hide coach');
+    }
+  };
+
+  const handleShowCoach = async (coach?: Coach) => {
+    const targetCoach = coach ?? selectedCoach;
+    if (!targetCoach) return;
+    setActionMenuVisible(false);
+
+    try {
+      await apiService.showCoach(targetCoach.id);
+      setCoaches((prev) =>
+        prev.map((c) => (c.id === targetCoach.id ? { ...c, is_hidden: false } : c))
+      );
+    } catch (error) {
+      console.error('Failed to show coach:', error);
+      Alert.alert('Error', 'Failed to show coach');
+    }
+  };
+
   const closeActionMenu = () => {
     setActionMenuVisible(false);
     setSelectedCoach(null);
   };
 
-  const renderCoachCard = ({ item }: { item: Coach }) => (
-    <TouchableOpacity
-      style={[
-        styles.coachCard,
-        { borderLeftColor: COACH_CATEGORY_COLORS[item.category] },
-      ]}
-      onPress={() => handleCoachPress(item)}
-      onLongPress={() => handleCoachLongPress(item)}
-      delayLongPress={300}
-      activeOpacity={0.7}
-    >
-      <View style={styles.coachHeader}>
-        <Text style={styles.coachTitle} numberOfLines={1}>
-          {item.title}
+  const renderCoachCard = ({ item }: { item: Coach }) => {
+    const isSystemCoach = item.is_system;
+    const isHidden = item.is_hidden;
+
+    return (
+      <TouchableOpacity
+        style={[
+          styles.coachCard,
+          { borderLeftColor: COACH_CATEGORY_COLORS[item.category] },
+          isHidden && styles.coachCardHidden,
+        ]}
+        onPress={() => handleCoachPress(item)}
+        onLongPress={() => handleCoachLongPress(item)}
+        delayLongPress={300}
+        activeOpacity={0.7}
+        testID={`coach-card-${item.id}`}
+      >
+        <View style={styles.coachHeader}>
+          <View style={styles.coachTitleContainer}>
+            <Text style={[styles.coachTitle, isHidden && styles.coachTitleHidden]} numberOfLines={1}>
+              {item.title}
+            </Text>
+            {isSystemCoach && (
+              <View style={styles.systemBadge}>
+                <Text style={styles.systemBadgeText}>System</Text>
+              </View>
+            )}
+            {isHidden && (
+              <Text style={styles.hiddenIcon}>👁️‍🗨️</Text>
+            )}
+          </View>
+          <View style={styles.coachActions}>
+            {/* Hide/Show button for system coaches */}
+            {isSystemCoach && (
+              <TouchableOpacity
+                style={styles.hideButton}
+                onPress={() => {
+                  if (isHidden) {
+                    handleShowCoach(item);
+                  } else {
+                    handleHideCoach(item);
+                  }
+                }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                testID={`hide-button-${item.id}`}
+              >
+                <Text style={styles.hideIcon}>{isHidden ? '👁️' : '🙈'}</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={styles.favoriteButton}
+              onPress={() => handleToggleFavorite(item)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              testID={`favorite-button-${item.id}`}
+            >
+              <Text style={[styles.favoriteIcon, item.is_favorite && styles.favoriteIconActive]}>
+                {item.is_favorite ? '★' : '☆'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        <Text style={[styles.coachTokens, isHidden && styles.coachTextHidden]}>
+          ~{Math.ceil(item.token_count / 4)} tokens ({((item.token_count / 128000) * 100).toFixed(1)}% context)
         </Text>
-        <TouchableOpacity
-          style={styles.favoriteButton}
-          onPress={() => {
-            setSelectedCoach(item);
-            handleToggleFavorite();
-          }}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Text style={[styles.favoriteIcon, item.is_favorite && styles.favoriteIconActive]}>
-            {item.is_favorite ? '★' : '☆'}
+        {item.description && (
+          <Text style={[styles.coachDescription, isHidden && styles.coachTextHidden]} numberOfLines={2}>
+            {item.description}
           </Text>
-        </TouchableOpacity>
-      </View>
-      <Text style={styles.coachTokens}>
-        ~{Math.ceil(item.token_count / 4)} tokens ({((item.token_count / 128000) * 100).toFixed(1)}% context)
-      </Text>
-      {item.description && (
-        <Text style={styles.coachDescription} numberOfLines={2}>
-          {item.description}
-        </Text>
-      )}
-      <View style={styles.coachFooter}>
-        <Text style={styles.coachUsage}>Used {item.use_count} times</Text>
-      </View>
-    </TouchableOpacity>
-  );
+        )}
+        <View style={styles.coachFooter}>
+          <Text style={[styles.coachUsage, isHidden && styles.coachTextHidden]}>
+            Used {item.use_count} times
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   const renderCategoryFilter = () => (
     <View style={styles.filterContainer}>
@@ -266,33 +359,75 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
           </TouchableOpacity>
         ))}
       </ScrollView>
-      <TouchableOpacity
-        style={[styles.favoritesToggle, showFavoritesOnly && styles.favoritesToggleActive]}
-        onPress={() => setShowFavoritesOnly(!showFavoritesOnly)}
-      >
-        <Text style={[styles.favoritesToggleIcon, showFavoritesOnly && styles.favoritesToggleIconActive]}>
-          ★
-        </Text>
-      </TouchableOpacity>
+    </View>
+  );
+
+  const renderSourceFilter = () => (
+    <View style={styles.sourceFilterContainer}>
+      {SOURCE_FILTERS.map((filter) => (
+        <TouchableOpacity
+          key={filter.key}
+          style={[
+            styles.sourceFilterChip,
+            selectedSource === filter.key && styles.sourceFilterChipActive,
+          ]}
+          onPress={() => setSelectedSource(filter.key)}
+          testID={`source-filter-${filter.key}`}
+        >
+          <Text
+            style={[
+              styles.sourceFilterChipText,
+              selectedSource === filter.key && styles.sourceFilterChipTextActive,
+            ]}
+          >
+            {filter.label}
+          </Text>
+        </TouchableOpacity>
+      ))}
     </View>
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} testID="coach-library-screen">
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.menuButton}
           onPress={() => navigation.openDrawer()}
+          testID="menu-button"
         >
           <Text style={styles.menuIcon}>☰</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Coaches</Text>
-        <View style={styles.headerSpacer} />
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={[styles.headerActionButton, showFavoritesOnly && styles.headerActionButtonActive]}
+            onPress={() => setShowFavoritesOnly(!showFavoritesOnly)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            testID="favorites-toggle"
+          >
+            <Text style={[styles.headerActionIcon, showFavoritesOnly && styles.headerActionIconFavorite]}>
+              ★
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.headerActionButton, showHidden && styles.headerActionButtonActive]}
+            onPress={() => setShowHidden(!showHidden)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            testID="show-hidden-toggle"
+          >
+            <Text style={[styles.headerActionIcon, showHidden && styles.headerActionIconActive]}>
+              {showHidden ? '👁️' : '👁️‍🗨️'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Category Filter */}
       {renderCategoryFilter()}
+
+      {/* Source Filter (User vs System) */}
+      {renderSourceFilter()}
 
       {/* Coaches List */}
       {isLoading ? (
@@ -318,6 +453,10 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
               <Text style={styles.emptyTitle}>
                 {showFavoritesOnly
                   ? 'No favorite coaches'
+                  : selectedSource === 'user'
+                  ? 'No user-created coaches'
+                  : selectedSource === 'system'
+                  ? 'No system coaches'
                   : selectedCategory !== 'all'
                   ? `No ${selectedCategory} coaches`
                   : 'No coaches yet'}
@@ -333,7 +472,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
       )}
 
       {/* Floating Action Button */}
-      <TouchableOpacity style={styles.fab} onPress={handleCreateCoach}>
+      <TouchableOpacity style={styles.fab} onPress={handleCreateCoach} testID="create-coach-button">
         <Text style={styles.fabIcon}>+</Text>
       </TouchableOpacity>
 
@@ -350,7 +489,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
           onPress={closeActionMenu}
         >
           <View style={styles.actionMenuContainer}>
-            <TouchableOpacity style={styles.actionMenuItem} onPress={handleToggleFavorite}>
+            <TouchableOpacity style={styles.actionMenuItem} onPress={() => handleToggleFavorite()}>
               <Text style={styles.actionMenuIcon}>
                 {selectedCoach?.is_favorite ? '☆' : '★'}
               </Text>
@@ -359,15 +498,36 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.actionMenuItem} onPress={handleRename}>
-              <Text style={styles.actionMenuIcon}>✎</Text>
-              <Text style={styles.actionMenuText}>Rename</Text>
-            </TouchableOpacity>
+            {/* Hide/Show option for system or assigned coaches */}
+            {(selectedCoach?.is_system || selectedCoach?.is_assigned) && (
+              <TouchableOpacity
+                style={styles.actionMenuItem}
+                onPress={() => (selectedCoach?.is_hidden ? handleShowCoach() : handleHideCoach())}
+              >
+                <Text style={styles.actionMenuIcon}>
+                  {selectedCoach?.is_hidden ? '👁️' : '🙈'}
+                </Text>
+                <Text style={styles.actionMenuText}>
+                  {selectedCoach?.is_hidden ? 'Show coach' : 'Hide coach'}
+                </Text>
+              </TouchableOpacity>
+            )}
 
-            <TouchableOpacity style={styles.actionMenuItem} onPress={handleDelete}>
-              <Text style={styles.actionMenuIconDanger}>🗑</Text>
-              <Text style={styles.actionMenuTextDanger}>Delete</Text>
-            </TouchableOpacity>
+            {/* Rename only for user-created coaches */}
+            {!selectedCoach?.is_system && (
+              <TouchableOpacity style={styles.actionMenuItem} onPress={handleRename}>
+                <Text style={styles.actionMenuIcon}>✎</Text>
+                <Text style={styles.actionMenuText}>Rename</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Delete only for user-created coaches */}
+            {!selectedCoach?.is_system && (
+              <TouchableOpacity style={styles.actionMenuItem} onPress={handleDelete}>
+                <Text style={styles.actionMenuIconDanger}>🗑</Text>
+                <Text style={styles.actionMenuTextDanger}>Delete</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </TouchableOpacity>
       </Modal>
@@ -439,27 +599,35 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     fontWeight: '600',
   },
-  favoritesToggle: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
+  sourceFilterContainer: {
+    flexDirection: 'row',
     justifyContent: 'center',
-    marginRight: spacing.md,
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    gap: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.subtle,
+  },
+  sourceFilterChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
     borderRadius: borderRadius.full,
-    backgroundColor: colors.background.secondary,
+    backgroundColor: colors.background.tertiary,
     borderWidth: 1,
     borderColor: colors.border.subtle,
   },
-  favoritesToggleActive: {
-    backgroundColor: '#F59E0B',
-    borderColor: '#F59E0B',
+  sourceFilterChipActive: {
+    backgroundColor: colors.primary[600],
+    borderColor: colors.primary[600],
   },
-  favoritesToggleIcon: {
-    fontSize: 18,
-    color: colors.text.tertiary,
+  sourceFilterChipText: {
+    fontSize: fontSize.xs,
+    color: colors.text.secondary,
   },
-  favoritesToggleIconActive: {
+  sourceFilterChipTextActive: {
     color: colors.text.primary,
+    fontWeight: '600',
   },
   loadingContainer: {
     flex: 1,
@@ -487,11 +655,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   coachTitle: {
-    flex: 1,
+    flexShrink: 1,
     fontSize: fontSize.md,
     fontWeight: '600',
     color: colors.text.primary,
-    marginRight: spacing.sm,
   },
   favoriteButton: {
     padding: spacing.xs,
@@ -604,5 +771,78 @@ const styles = StyleSheet.create({
   actionMenuTextDanger: {
     fontSize: fontSize.md,
     color: colors.error,
+  },
+  // Header action buttons container
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  headerActionButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: borderRadius.full,
+  },
+  headerActionButtonActive: {
+    backgroundColor: colors.primary[500] + '20',
+  },
+  headerActionIcon: {
+    fontSize: 18,
+    opacity: 0.5,
+  },
+  headerActionIconActive: {
+    opacity: 1,
+  },
+  headerActionIconFavorite: {
+    opacity: 1,
+    color: '#F59E0B',
+  },
+  // Coach card title container with badges
+  coachTitleContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginRight: spacing.sm,
+  },
+  coachActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  // System coach badge
+  systemBadge: {
+    backgroundColor: colors.primary[500] + '30',
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+  },
+  systemBadgeText: {
+    fontSize: fontSize.xs,
+    color: colors.primary[500],
+    fontWeight: '600',
+  },
+  // Hidden coach styles
+  coachCardHidden: {
+    opacity: 0.6,
+    borderStyle: 'dashed',
+  },
+  coachTitleHidden: {
+    color: colors.text.tertiary,
+  },
+  coachTextHidden: {
+    color: colors.text.tertiary,
+  },
+  hiddenIcon: {
+    fontSize: 14,
+  },
+  // Hide button on coach card
+  hideButton: {
+    padding: spacing.xs,
+  },
+  hideIcon: {
+    fontSize: 16,
   },
 });
