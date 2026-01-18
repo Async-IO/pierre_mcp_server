@@ -415,13 +415,22 @@ impl ToolRegistry {
     /// Register goal management tools
     #[cfg(feature = "tools-goals")]
     fn register_goals_tools(&mut self) {
-        // Reserve capacity for future tool registration (uses &mut self)
-        self.tools.reserve(0);
+        use super::implementations::goals::create_goal_tools;
+
         debug!(
             "Registering goals tools (registry has {} tools)",
             self.tools.len()
         );
-        // Tools: set_goal, track_progress, suggest_goals, analyze_goal_feasibility
+
+        // Register all goal tools with the "goals" category
+        for tool in create_goal_tools() {
+            self.register_with_category(Arc::from(tool), "goals");
+        }
+
+        info!(
+            "Registered goals tools (registry now has {} tools)",
+            self.tools.len()
+        );
     }
 
     /// Register configuration tools
