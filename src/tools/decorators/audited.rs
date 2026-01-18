@@ -17,13 +17,18 @@
 //!
 //! # Example
 //!
-//! ```rust,ignore
-//! use pierre_mcp_server::tools::decorators::AuditedTool;
-//! use std::sync::Arc;
+//! The `AuditedTool` wraps any `McpTool` implementation to add audit logging:
 //!
-//! let admin_tool = Arc::new(AdminCreateCoachTool::new());
-//! let audited_tool = AuditedTool::new(admin_tool);
+//! ```text
+//! // Wrap an existing tool with audit logging
+//! let admin_tool = Arc::new(MyAdminTool::new());
+//! let audited = AuditedTool::new(admin_tool);
+//!
+//! // Or enable argument logging for non-sensitive tools
+//! let audited_with_args = AuditedTool::with_argument_logging(Arc::new(MyTool::new()));
 //! ```
+//!
+//! See [`AuditedTool::new`] and [`AuditedTool::with_argument_logging`] for details.
 
 use std::sync::Arc;
 use std::time::Instant;

@@ -50,19 +50,19 @@
 //!
 //! ## Example
 //!
-//! ```rust,ignore
-//! use pierre_mcp_server::tools::{ToolRegistry, McpTool, ToolExecutionContext};
+//! ```
+//! use pierre_mcp_server::tools::ToolRegistry;
 //!
 //! // Create and populate registry
 //! let mut registry = ToolRegistry::new();
 //! registry.register_builtin_tools();
 //!
 //! // List user-visible tools
+//! let is_admin = false;
 //! let schemas = registry.list_schemas_for_role(is_admin);
-//!
-//! // Execute a tool
-//! let result = registry.execute("get_activities", args, &context).await?;
 //! ```
+//!
+//! For async tool execution examples, see [`ToolRegistry::execute`].
 
 // ============================================================================
 // Core Types - Pluggable MCP Tools Architecture

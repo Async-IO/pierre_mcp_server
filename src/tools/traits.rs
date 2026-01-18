@@ -170,7 +170,7 @@ impl ToolCapabilities {
 ///
 /// # Example
 ///
-/// ```rust,no_run
+/// ```text
 /// use async_trait::async_trait;
 /// use pierre_mcp_server::tools::{McpTool, ToolCapabilities, ToolResult, ToolExecutionContext};
 /// use pierre_mcp_server::mcp::schema::JsonSchema;
@@ -181,33 +181,19 @@ impl ToolCapabilities {
 ///
 /// #[async_trait]
 /// impl McpTool for GetActivitiesTool {
-///     fn name(&self) -> &'static str {
-///         "get_activities"
-///     }
-///
-///     fn description(&self) -> &'static str {
-///         "Retrieve activities from connected fitness providers"
-///     }
-///
-///     fn input_schema(&self) -> JsonSchema {
-///         JsonSchema {
-///             schema_type: "object".to_owned(),
-///             properties: None,
-///             required: None,
-///         }
-///     }
-///
+///     fn name(&self) -> &'static str { "get_activities" }
+///     fn description(&self) -> &'static str { "Retrieve activities" }
+///     fn input_schema(&self) -> JsonSchema { /* ... */ }
 ///     fn capabilities(&self) -> ToolCapabilities {
-///         ToolCapabilities::REQUIRES_AUTH
-///             | ToolCapabilities::REQUIRES_PROVIDER
-///             | ToolCapabilities::READS_DATA
+///         ToolCapabilities::REQUIRES_AUTH | ToolCapabilities::READS_DATA
 ///     }
-///
-///     async fn execute(&self, _args: Value, _context: &ToolExecutionContext) -> AppResult<ToolResult> {
+///     async fn execute(&self, args: Value, ctx: &ToolExecutionContext) -> AppResult<ToolResult> {
 ///         Ok(ToolResult::ok(serde_json::json!({"activities": []})))
 ///     }
 /// }
 /// ```
+///
+/// For complete working examples, see the tools in `src/tools/implementations/`.
 #[async_trait]
 pub trait McpTool: Send + Sync {
     /// Unique identifier for the tool (e.g., `get_activities`)
