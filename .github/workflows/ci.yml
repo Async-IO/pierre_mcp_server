@@ -3,11 +3,31 @@ name: Backend CI
 on:
   push:
     branches: [ "main", "debug/*", "feature/*", "claude/*" ]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'benches/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'scripts/**'
+      - '.github/workflows/ci.yml'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'benches/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'scripts/**'
+      - '.github/workflows/ci.yml'
   schedule:
     # Weekly release binary validation (Sundays at 2 AM UTC)
     - cron: '0 2 * * 0'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 # Security: Explicit permissions following principle of least privilege
 permissions:

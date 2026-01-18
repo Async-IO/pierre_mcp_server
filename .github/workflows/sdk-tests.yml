@@ -3,8 +3,22 @@ name: SDK Tests
 on:
   push:
     branches: [ "main", "debug/*", "feature/*", "claude/*" ]
+    paths:
+      - 'sdk/**'
+      - 'src/mcp/**'
+      - 'scripts/run_bridge_tests.sh'
+      - '.github/workflows/sdk-tests.yml'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'sdk/**'
+      - 'src/mcp/**'
+      - 'scripts/run_bridge_tests.sh'
+      - '.github/workflows/sdk-tests.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 # Security: Explicit permissions following principle of least privilege
 permissions:

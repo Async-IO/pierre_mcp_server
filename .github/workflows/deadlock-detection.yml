@@ -22,6 +22,10 @@ on:
   schedule:
     - cron: '0 3 * * 0'  # Sundays at 3 AM UTC
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 # Security: Explicit permissions following principle of least privilege
 permissions:
   contents: read

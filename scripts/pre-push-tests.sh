@@ -1,15 +1,13 @@
 #!/bin/bash
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # Copyright (c) 2025 Pierre Fitness Intelligence
-# ABOUTME: Pre-push validation - Critical path tests (5-10 minutes)
-# ABOUTME: Runs essential tests to catch 80% of issues before pushing to remote
+# ABOUTME: Pre-push validation - Critical path tests (optimized for speed)
+# ABOUTME: Runs essential tests in parallel batches to catch 80% of issues before pushing
 
 set -e
 
-echo "🚀 Pierre MCP Server - Pre-Push Validation"
-echo "==========================================="
-echo ""
-echo "Running critical path tests to catch issues before push..."
+echo "🚀 Pierre MCP Server - Pre-Push Validation (Optimized)"
+echo "======================================================="
 echo ""
 
 # ============================================================================
@@ -32,8 +30,6 @@ else
     echo "To fix this, run:"
     echo "  cargo fmt --all"
     echo ""
-    echo "Then commit the formatting changes and try pushing again."
-    echo ""
     exit 1
 fi
 
@@ -41,115 +37,123 @@ echo ""
 
 START_TIME=$(date +%s)
 
-# Counter for tracking
-PASSED=0
-FAILED=0
-TOTAL=0
-
-# Function to run a test and track results
-run_test() {
-    local test_name=$1
-    local description=$2
-
-    ((TOTAL++))
-    echo -n "[$TOTAL] $description... "
-
-    if cargo test --test "$test_name" --quiet -- --test-threads=1 > /dev/null 2>&1; then
-        echo "✅"
-        ((PASSED++))
-        return 0
-    else
-        echo "❌"
-        ((FAILED++))
-        echo "   Failed test: $test_name"
-        # Show error details
-        echo "   Running with output for details:"
-        cargo test --test "$test_name" -- --test-threads=1 2>&1 | tail -20 | sed 's/^/   /'
-        return 1
-    fi
-}
+# Temp directory for parallel job results
+RESULT_DIR=$(mktemp -d)
+trap 'rm -rf "$RESULT_DIR"' EXIT
 
 # ============================================================================
-# TIER 1: Schema & Registry Validation (must pass FIRST - prevents tool drift)
+# TIER 1: Schema Validation (must pass before other tests)
 # ============================================================================
 echo "📋 Tier 1: Schema & Registry Validation"
 echo "----------------------------------------"
+echo -n "Running schema consistency check... "
 
-run_test "schema_completeness_test" "Schema/registry consistency" || exit 1
-
-echo ""
-
-# ============================================================================
-# TIER 2: Critical Infrastructure (must pass)
-# ============================================================================
-echo "🔧 Tier 2: Critical Infrastructure"
-echo "-----------------------------------"
-
-run_test "routes_health_http_test" "Health endpoints" || exit 1
-run_test "database_test" "Database basics" || exit 1
-run_test "crypto_keys_test" "Encryption & crypto keys" || exit 1
+if cargo test --test schema_completeness_test --quiet -- --test-threads=4 > /dev/null 2>&1; then
+    echo "✅"
+else
+    echo "❌"
+    echo ""
+    echo "Schema validation failed. Run: cargo test --test schema_completeness_test"
+    exit 1
+fi
 
 echo ""
 
 # ============================================================================
-# TIER 3: Security & Authentication (must pass)
+# TIERS 2-7: Run in parallel batches
 # ============================================================================
-echo "🔒 Tier 3: Security & Authentication"
-echo "-------------------------------------"
+# Group tests into batches that can run concurrently
+# Each batch runs tests in parallel internally (--test-threads=4)
 
-run_test "auth_test" "Authentication" || exit 1
-run_test "api_keys_test" "API key validation" || exit 1
-run_test "jwt_secret_persistence_test" "JWT persistence" || exit 1
-run_test "oauth2_security_test" "OAuth2 security" || exit 1
-run_test "security_headers_test" "Security headers" || exit 1
-
+echo "🔄 Running test batches in parallel..."
+echo "--------------------------------------"
 echo ""
 
-# ============================================================================
-# TIER 4: MCP Protocol Compliance (critical for MCP functionality)
-# ============================================================================
-echo "🔌 Tier 4: MCP Protocol"
-echo "-----------------------"
+# Batch A: Infrastructure & Security (Tiers 2-3)
+run_batch_a() {
+    cargo test \
+        --test routes_health_http_test \
+        --test database_test \
+        --test crypto_keys_test \
+        --test auth_test \
+        --test api_keys_test \
+        --test jwt_secret_persistence_test \
+        --test oauth2_security_test \
+        --test security_headers_test \
+        --quiet -- --test-threads=4 2>&1
+}
 
-run_test "mcp_compliance_test" "MCP compliance" || exit 1
-run_test "jsonrpc_test" "JSON-RPC protocol" || exit 1
-run_test "mcp_tools_unit" "MCP tools" || exit 1
+# Batch B: MCP Protocol & Core (Tiers 4-5)
+run_batch_b() {
+    cargo test \
+        --test mcp_compliance_test \
+        --test jsonrpc_test \
+        --test mcp_tools_unit \
+        --test errors_test \
+        --test models_test \
+        --test database_plugins_test \
+        --test simple_integration_test \
+        --quiet -- --test-threads=4 2>&1
+}
 
+# Batch C: Multi-tenancy & Features (Tiers 6-7)
+run_batch_c() {
+    cargo test \
+        --test tenant_data_isolation \
+        --test tenant_context_resolution_test \
+        --test a2a_system_user_test \
+        --test intelligence_algorithms_test \
+        --test rate_limiting_middleware_test \
+        --quiet -- --test-threads=4 2>&1
+}
+
+# Run all batches in parallel
+echo "  [A] Infrastructure & Security (8 tests)"
+echo "  [B] MCP Protocol & Core (7 tests)"
+echo "  [C] Multi-tenancy & Features (5 tests)"
 echo ""
+echo -n "Running batches A, B, C in parallel... "
 
-# ============================================================================
-# TIER 5: Core Functionality (important features)
-# ============================================================================
-echo "⚙️  Tier 5: Core Functionality"
-echo "------------------------------"
+# Start all batches in background
+run_batch_a > "$RESULT_DIR/batch_a.log" 2>&1 && touch "$RESULT_DIR/batch_a.ok" &
+PID_A=$!
 
-run_test "errors_test" "Error handling (AppResult)" || exit 1
-run_test "models_test" "Data models" || exit 1
-run_test "database_plugins_test" "Database plugins (SQLite/Postgres)" || exit 1
-run_test "simple_integration_test" "Basic integration" || exit 1
+run_batch_b > "$RESULT_DIR/batch_b.log" 2>&1 && touch "$RESULT_DIR/batch_b.ok" &
+PID_B=$!
 
-echo ""
+run_batch_c > "$RESULT_DIR/batch_c.log" 2>&1 && touch "$RESULT_DIR/batch_c.ok" &
+PID_C=$!
 
-# ============================================================================
-# TIER 6: Multi-tenancy & Data Isolation (critical for production)
-# ============================================================================
-echo "🏢 Tier 6: Multi-tenancy"
-echo "------------------------"
+# Wait for all to complete
+wait $PID_A $PID_B $PID_C 2>/dev/null || true
 
-run_test "tenant_data_isolation" "Tenant isolation" || exit 1
-run_test "tenant_context_resolution_test" "Tenant context" || exit 1
+# Check results
+FAILED=0
+FAILED_BATCHES=""
 
-echo ""
+if [ -f "$RESULT_DIR/batch_a.ok" ]; then
+    echo -n "A✅ "
+else
+    echo -n "A❌ "
+    FAILED=1
+    FAILED_BATCHES="$FAILED_BATCHES A"
+fi
 
-# ============================================================================
-# TIER 7: Protocols & Features (critical features)
-# ============================================================================
-echo "🔌 Tier 7: Protocols & Features"
-echo "--------------------------------"
+if [ -f "$RESULT_DIR/batch_b.ok" ]; then
+    echo -n "B✅ "
+else
+    echo -n "B❌ "
+    FAILED=1
+    FAILED_BATCHES="$FAILED_BATCHES B"
+fi
 
-run_test "a2a_system_user_test" "A2A protocol basics" || exit 1
-run_test "intelligence_algorithms_test" "Algorithm correctness" || exit 1
-run_test "rate_limiting_middleware_test" "Rate limiting" || exit 1
+if [ -f "$RESULT_DIR/batch_c.ok" ]; then
+    echo "C✅"
+else
+    echo "C❌"
+    FAILED=1
+    FAILED_BATCHES="$FAILED_BATCHES C"
+fi
 
 echo ""
 
@@ -162,20 +166,38 @@ DURATION=$((END_TIME - START_TIME))
 echo "=========================================="
 echo "Pre-Push Validation Complete"
 echo "=========================================="
-echo "Total tests:  $TOTAL"
-echo "Passed:       $PASSED"
-echo "Failed:       $FAILED"
-echo "Duration:     ${DURATION}s (~$((DURATION / 60))m $((DURATION % 60))s)"
+echo "Total test files: 21"
+echo "Batches:          3 (parallel)"
+echo "Duration:         ${DURATION}s (~$((DURATION / 60))m $((DURATION % 60))s)"
 echo ""
 
 if [ $FAILED -gt 0 ]; then
-    echo "❌ Some tests failed. Please fix before pushing."
+    echo "❌ Some batches failed:$FAILED_BATCHES"
     echo ""
-    echo "To run the full test suite:"
-    echo "  ./scripts/lint-and-test.sh"
+    echo "Failed batch logs:"
+
+    if [ ! -f "$RESULT_DIR/batch_a.ok" ]; then
+        echo ""
+        echo "=== Batch A (Infrastructure & Security) ==="
+        cat "$RESULT_DIR/batch_a.log" | tail -30
+    fi
+
+    if [ ! -f "$RESULT_DIR/batch_b.ok" ]; then
+        echo ""
+        echo "=== Batch B (MCP Protocol & Core) ==="
+        cat "$RESULT_DIR/batch_b.log" | tail -30
+    fi
+
+    if [ ! -f "$RESULT_DIR/batch_c.ok" ]; then
+        echo ""
+        echo "=== Batch C (Multi-tenancy & Features) ==="
+        cat "$RESULT_DIR/batch_c.log" | tail -30
+    fi
+
     echo ""
-    echo "To run specific category:"
-    echo "  ./scripts/category-test-runner.sh <category>"
+    echo "To run individual tests for debugging:"
+    echo "  cargo test --test <test_name> -- --nocapture"
+    echo ""
     exit 1
 else
     echo "✅ All critical path tests passed!"

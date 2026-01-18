@@ -15,6 +15,10 @@ on:
       - 'frontend-mobile/**'
   workflow_dispatch:  # Allow manual triggering
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 # Security: Explicit permissions following principle of least privilege
 permissions:
   contents: read

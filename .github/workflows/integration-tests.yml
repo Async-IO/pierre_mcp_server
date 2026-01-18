@@ -3,9 +3,25 @@ name: Integration Tests
 on:
   push:
     branches: [ "main", "debug/*", "feature/*", "claude/*" ]
+    paths:
+      - 'src/**'
+      - 'frontend/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/integration-tests.yml'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'frontend/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/integration-tests.yml'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 # Security: Explicit permissions following principle of least privilege
 permissions:

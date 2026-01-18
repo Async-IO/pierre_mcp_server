@@ -18,6 +18,10 @@ on:
       - 'Cargo.lock'
       - '.github/workflows/cross-platform.yml'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 # Security: Explicit permissions following principle of least privilege
 permissions:
   contents: read
