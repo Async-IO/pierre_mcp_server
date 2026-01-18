@@ -394,14 +394,22 @@ impl ToolRegistry {
     /// Register analytics tools
     #[cfg(feature = "tools-analytics")]
     fn register_analytics_tools(&mut self) {
-        // Reserve capacity for future tool registration (uses &mut self)
-        self.tools.reserve(0);
+        use super::implementations::analytics::create_analytics_tools;
+
         debug!(
             "Registering analytics tools (registry has {} tools)",
             self.tools.len()
         );
-        // Tools: analyze_activity, calculate_metrics, analyze_performance_trends, etc.
-        // Implementation will be added in Phase 4
+
+        // Register all analytics tools with the "analytics" category
+        for tool in create_analytics_tools() {
+            self.register_with_category(Arc::from(tool), "analytics");
+        }
+
+        info!(
+            "Registered analytics tools (registry now has {} tools)",
+            self.tools.len()
+        );
     }
 
     /// Register goal management tools
