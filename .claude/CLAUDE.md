@@ -87,6 +87,31 @@ cd frontend-mobile && bun start
 npx expo start --port 8082
 ```
 
+### Mobile Testing with Cloudflare Tunnels
+
+To test the mobile app on a physical device, use Cloudflare tunnels to expose the local Pierre server:
+
+```bash
+# From frontend-mobile directory:
+bun run tunnel           # Start tunnel only (outputs URL)
+bun run start:tunnel     # Start tunnel AND Expo together
+bun run tunnel:stop      # Stop the tunnel
+```
+
+**How it works:**
+1. The tunnel script starts a Cloudflare tunnel pointing to localhost:8081
+2. It updates `BASE_URL` in `.envrc` with the tunnel URL
+3. It updates `EXPO_PUBLIC_API_URL` in `frontend-mobile/.env`
+4. OAuth callbacks use `BASE_URL` instead of hardcoded localhost
+
+**After starting the tunnel:**
+1. Run `direnv allow` in the backend directory
+2. Restart the Pierre server: `./bin/stop-server.sh && ./bin/start-server.sh`
+3. The mobile app will connect via the tunnel URL
+
+**Environment Variable:**
+- `BASE_URL` - When set, OAuth redirect URIs use this instead of `http://localhost:8081`
+
 ## Mobile Development (frontend-mobile/)
 
 ### Mobile Validation Commands

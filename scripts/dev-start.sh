@@ -11,7 +11,15 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 cd "$PROJECT_ROOT"
 
-# Default configuration
+# Load .envrc if it exists (contains OAuth credentials, BASE_URL, etc.)
+if [ -f ".envrc" ]; then
+    echo -e "\033[0;32m[INFO]\033[0m Loading environment from .envrc..."
+    set -a
+    source .envrc
+    set +a
+fi
+
+# Default configuration (these override .envrc if not set there)
 export RUST_LOG="${RUST_LOG:-info}"
 export HTTP_PORT="${HTTP_PORT:-8081}"
 export DATABASE_URL="${DATABASE_URL:-sqlite:./data/users.db}"

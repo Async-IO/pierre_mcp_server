@@ -4,6 +4,9 @@
   "main": "index.ts",
   "scripts": {
     "start": "expo start --port 8082",
+    "tunnel": "../bin/start-tunnel.sh",
+    "tunnel:stop": "pkill -f 'cloudflared tunnel' && echo 'Tunnel stopped' || echo 'No tunnel running'",
+    "start:tunnel": "../bin/start-tunnel.sh --start-expo",
     "android": "expo run:android --port 8082",
     "ios": "expo run:ios --port 8082",
     "web": "expo start --web --port 8082",

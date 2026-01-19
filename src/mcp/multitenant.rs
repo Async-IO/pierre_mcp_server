@@ -43,6 +43,7 @@ use crate::tenant::{TenantContext, TenantOAuthClient};
 use crate::types::json_schemas;
 use chrono::Utc;
 use serde_json::Value;
+use std::env;
 use std::fmt::Write;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -361,10 +362,10 @@ impl MultiTenantMcpServer {
 
         let redirect_uri = params.configured_redirect_uri.map_or_else(
             || {
-                format!(
-                    "http://localhost:{}/api/oauth/callback/{}",
-                    params.http_port, params.provider
-                )
+                // Use BASE_URL if set for tunnel/external access
+                let base_url = env::var("BASE_URL")
+                    .unwrap_or_else(|_| format!("http://localhost:{}", params.http_port));
+                format!("{base_url}/api/oauth/callback/{}", params.provider)
             },
             String::clone,
         );

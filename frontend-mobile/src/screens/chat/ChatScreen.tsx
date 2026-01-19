@@ -25,6 +25,7 @@ import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import * as Haptics from 'expo-haptics';
 import Toast from 'react-native-toast-message';
+import { getOAuthCallbackUrl } from '../../utils/oauth';
 import Markdown from 'react-native-markdown-display';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, type RouteProp } from '@react-navigation/native';
@@ -730,7 +731,8 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     setProviderModalVisible(false);
     try {
       // Create return URL for deep linking back to the app after OAuth
-      const returnUrl = Linking.createURL('oauth-callback');
+      // Uses custom scheme (pierre://) for consistent behavior in dev and prod
+      const returnUrl = getOAuthCallbackUrl();
 
       // Call the mobile OAuth init endpoint which returns the authorization URL
       const oauthResponse = await apiService.initMobileOAuth(provider, returnUrl);

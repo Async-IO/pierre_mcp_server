@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
+import { getOAuthCallbackUrl } from '../../utils/oauth';
 import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
 import { Card } from '../../components/ui';
 import { apiService } from '../../services/api';
@@ -107,7 +108,8 @@ export function ConnectionsScreen({ navigation }: ConnectionsScreenProps) {
 
       // Create return URL for the mobile app (deep link)
       // Server will redirect to this URL after OAuth completes
-      const returnUrl = Linking.createURL('oauth-callback');
+      // Uses custom scheme (pierre://) for consistent behavior in dev and prod
+      const returnUrl = getOAuthCallbackUrl();
 
       // Call the mobile OAuth init endpoint which returns the authorization URL
       // and includes the redirect URL in the OAuth state for callback handling
