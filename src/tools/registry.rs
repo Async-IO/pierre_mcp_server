@@ -497,13 +497,22 @@ impl ToolRegistry {
     /// Register admin tools
     #[cfg(feature = "tools-admin")]
     fn register_admin_tools(&mut self) {
-        // Reserve capacity for future tool registration (uses &mut self)
-        self.tools.reserve(0);
+        use super::implementations::admin::create_admin_tools;
+
         debug!(
             "Registering admin tools (registry has {} tools)",
             self.tools.len()
         );
-        // Tools: admin_create_system_coach, admin_list_system_coaches, etc.
+
+        // Register all admin tools with the "admin" category
+        for tool in create_admin_tools() {
+            self.register_with_category(Arc::from(tool), "admin");
+        }
+
+        info!(
+            "Registered admin tools (registry now has {} tools)",
+            self.tools.len()
+        );
     }
 }
 
