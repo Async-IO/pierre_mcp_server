@@ -89,13 +89,22 @@ jobs:
 
       - name: Boot iOS Simulator
         run: |
-          SIMULATOR_UDID=$(xcrun simctl list devices available | grep "iPhone 15" | head -1 | grep -oE '[0-9A-F-]{36}')
+          # Try iPhone 16 first, then fall back to any iPhone
+          SIMULATOR_UDID=$(xcrun simctl list devices available | grep "iPhone 16 Pro (" | head -1 | grep -oE '[0-9A-Fa-f-]{36}')
           if [ -z "$SIMULATOR_UDID" ]; then
-            echo "iPhone 15 not found, using any available iPhone"
-            SIMULATOR_UDID=$(xcrun simctl list devices available | grep "iPhone" | head -1 | grep -oE '[0-9A-F-]{36}')
+            echo "iPhone 16 Pro not found, trying iPhone 16..."
+            SIMULATOR_UDID=$(xcrun simctl list devices available | grep "iPhone 16 (" | head -1 | grep -oE '[0-9A-Fa-f-]{36}')
+          fi
+          if [ -z "$SIMULATOR_UDID" ]; then
+            echo "iPhone 16 not found, using any available iPhone..."
+            SIMULATOR_UDID=$(xcrun simctl list devices available | grep "iPhone" | head -1 | grep -oE '[0-9A-Fa-f-]{36}')
+          fi
+          if [ -z "$SIMULATOR_UDID" ]; then
+            echo "No iPhone simulator found!"
+            exit 1
           fi
           echo "Booting simulator: $SIMULATOR_UDID"
-          xcrun simctl boot "$SIMULATOR_UDID" || true
+          xcrun simctl boot "$SIMULATOR_UDID" || echo "Simulator may already be booted"
 
       - name: Prebuild iOS
         run: bunx expo prebuild --platform ios --clean
