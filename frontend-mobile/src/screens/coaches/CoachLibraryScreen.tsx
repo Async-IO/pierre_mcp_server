@@ -20,6 +20,7 @@ import type { DrawerNavigationProp } from '@react-navigation/drawer';
 import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
+import { PromptDialog } from '../../components/ui';
 import type { Coach, CoachCategory } from '../../types';
 import type { AppDrawerParamList } from '../../navigation/AppDrawer';
 
@@ -66,6 +67,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [actionMenuVisible, setActionMenuVisible] = useState(false);
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
+  const [renamePromptVisible, setRenamePromptVisible] = useState(false);
 
   const loadCoaches = useCallback(async (isRefresh = false) => {
     if (!isAuthenticated) return;
@@ -163,27 +165,31 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
   const handleRename = () => {
     if (!selectedCoach) return;
     setActionMenuVisible(false);
+    setRenamePromptVisible(true);
+  };
 
-    Alert.prompt(
-      'Rename Coach',
-      'Enter a new name for this coach',
-      async (newTitle: string | undefined) => {
-        if (!newTitle?.trim() || !selectedCoach) return;
-        try {
-          const updated = await apiService.updateCoach(selectedCoach.id, {
-            title: newTitle.trim(),
-          });
-          setCoaches((prev) =>
-            prev.map((c) => (c.id === selectedCoach.id ? { ...c, title: updated.title } : c))
-          );
-        } catch (error) {
-          console.error('Failed to rename coach:', error);
-          Alert.alert('Error', 'Failed to rename coach');
-        }
-      },
-      'plain-text',
-      selectedCoach.title
-    );
+  const handleRenameSubmit = async (newTitle: string) => {
+    setRenamePromptVisible(false);
+    if (!selectedCoach) return;
+
+    try {
+      const updated = await apiService.updateCoach(selectedCoach.id, {
+        title: newTitle,
+      });
+      setCoaches((prev) =>
+        prev.map((c) => (c.id === selectedCoach.id ? { ...c, title: updated.title } : c))
+      );
+    } catch (error) {
+      console.error('Failed to rename coach:', error);
+      Alert.alert('Error', 'Failed to rename coach');
+    } finally {
+      setSelectedCoach(null);
+    }
+  };
+
+  const handleRenameCancel = () => {
+    setRenamePromptVisible(false);
+    setSelectedCoach(null);
   };
 
   const handleDelete = () => {
@@ -531,6 +537,19 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* Rename Coach Prompt Dialog */}
+      <PromptDialog
+        visible={renamePromptVisible}
+        title="Rename Coach"
+        message="Enter a new name for this coach"
+        defaultValue={selectedCoach?.title || ''}
+        submitText="Save"
+        cancelText="Cancel"
+        onSubmit={handleRenameSubmit}
+        onCancel={handleRenameCancel}
+        testID="rename-coach-dialog"
+      />
     </SafeAreaView>
   );
 }

@@ -33,7 +33,7 @@ import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useVoiceInput } from '../../hooks/useVoiceInput';
 import type { VoiceError } from '../../hooks/useVoiceInput';
-import { VoiceButton } from '../../components/ui';
+import { VoiceButton, PromptDialog } from '../../components/ui';
 import type { Conversation, Message, ProviderStatus, Coach, CoachCategory } from '../../types';
 import type { DrawerNavigationProp } from '@react-navigation/drawer';
 import type { AppDrawerParamList } from '../../navigation/AppDrawer';
@@ -76,6 +76,9 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   const [messageFeedback, setMessageFeedback] = useState<Record<string, 'up' | 'down' | null>>({});
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [pendingCoachAction, setPendingCoachAction] = useState<{ coach: Coach } | null>(null);
+  const [renamePromptVisible, setRenamePromptVisible] = useState(false);
+  const [renameConversationId, setRenameConversationId] = useState<string | null>(null);
+  const [renameDefaultTitle, setRenameDefaultTitle] = useState('');
 
   // Voice input hook for speech-to-text
   const {
@@ -329,48 +332,49 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   };
 
   const handleRenameConversation = (conversationId: string, currentTitle: string) => {
-    Alert.prompt(
-      'Rename Chat',
-      'Enter a new name for this conversation',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Save',
-          onPress: async (newTitle: string | undefined) => {
-            if (!newTitle?.trim()) {
-              return;
-            }
-            try {
-              const updated = await apiService.updateConversation(conversationId, {
-                title: newTitle.trim(),
-              });
-              // Update conversation and move to top (most recently updated)
-              setConversations(prev => {
-                const updatedConv = prev.find(c => c.id === conversationId);
-                if (!updatedConv) return prev;
-                const others = prev.filter(c => c.id !== conversationId);
-                return [
-                  { ...updatedConv, title: updated.title, updated_at: updated.updated_at },
-                  ...others,
-                ];
-              });
-              // Always update currentConversation if IDs match
-              setCurrentConversation(prev => {
-                if (prev?.id === conversationId) {
-                  return { ...prev, title: updated.title, updated_at: updated.updated_at };
-                }
-                return prev;
-              });
-            } catch (error) {
-              console.error('Failed to rename conversation:', error);
-              Alert.alert('Error', 'Failed to rename conversation');
-            }
-          },
-        },
-      ],
-      'plain-text',
-      currentTitle
-    );
+    setRenameConversationId(conversationId);
+    setRenameDefaultTitle(currentTitle);
+    setRenamePromptVisible(true);
+  };
+
+  const handleRenameSubmit = async (newTitle: string) => {
+    setRenamePromptVisible(false);
+    if (!renameConversationId) return;
+
+    try {
+      const updated = await apiService.updateConversation(renameConversationId, {
+        title: newTitle,
+      });
+      // Update conversation and move to top (most recently updated)
+      setConversations(prev => {
+        const updatedConv = prev.find(c => c.id === renameConversationId);
+        if (!updatedConv) return prev;
+        const others = prev.filter(c => c.id !== renameConversationId);
+        return [
+          { ...updatedConv, title: updated.title, updated_at: updated.updated_at },
+          ...others,
+        ];
+      });
+      // Always update currentConversation if IDs match
+      setCurrentConversation(prev => {
+        if (prev?.id === renameConversationId) {
+          return { ...prev, title: updated.title, updated_at: updated.updated_at };
+        }
+        return prev;
+      });
+    } catch (error) {
+      console.error('Failed to rename conversation:', error);
+      Alert.alert('Error', 'Failed to rename conversation');
+    } finally {
+      setRenameConversationId(null);
+      setRenameDefaultTitle('');
+    }
+  };
+
+  const handleRenameCancel = () => {
+    setRenamePromptVisible(false);
+    setRenameConversationId(null);
+    setRenameDefaultTitle('');
   };
 
   const showTitleActionMenu = () => {
@@ -1411,6 +1415,19 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
             </View>
           </TouchableOpacity>
         </Modal>
+
+        {/* Rename Conversation Prompt Dialog */}
+        <PromptDialog
+          visible={renamePromptVisible}
+          title="Rename Chat"
+          message="Enter a new name for this conversation"
+          defaultValue={renameDefaultTitle}
+          submitText="Save"
+          cancelText="Cancel"
+          onSubmit={handleRenameSubmit}
+          onCancel={handleRenameCancel}
+          testID="rename-conversation-dialog"
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

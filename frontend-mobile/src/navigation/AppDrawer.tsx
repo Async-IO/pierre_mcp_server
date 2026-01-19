@@ -30,6 +30,7 @@ import { CoachEditorScreen } from '../screens/coaches/CoachEditorScreen';
 import { useAuth } from '../contexts/AuthContext';
 import { apiService } from '../services/api';
 import { colors, spacing, fontSize, borderRadius } from '../constants/theme';
+import { PromptDialog } from '../components/ui';
 import type { Conversation, ProviderStatus } from '../types';
 
 export type AppDrawerParamList = {
@@ -52,6 +53,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [providerModalVisible, setProviderModalVisible] = useState(false);
   const [connectedProviders, setConnectedProviders] = useState<ProviderStatus[]>([]);
+  const [renamePromptVisible, setRenamePromptVisible] = useState(false);
 
   const loadConversations = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -151,33 +153,37 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   const handleRename = () => {
     if (!selectedConversation) return;
     setActionMenuVisible(false);
+    setRenamePromptVisible(true);
+  };
 
-    Alert.prompt(
-      'Rename Conversation',
-      'Enter a new name for this conversation',
-      async (newTitle: string | undefined) => {
-        if (!newTitle?.trim() || !selectedConversation) return;
-        try {
-          const updated = await apiService.updateConversation(selectedConversation.id, {
-            title: newTitle.trim(),
-          });
-          // Update conversation and move to top (most recently updated)
-          setConversations(prev => {
-            const updatedConv = prev.find(c => c.id === selectedConversation.id);
-            if (!updatedConv) return prev;
-            const others = prev.filter(c => c.id !== selectedConversation.id);
-            return [
-              { ...updatedConv, title: updated.title, updated_at: updated.updated_at },
-              ...others,
-            ];
-          });
-        } catch (error) {
-          console.error('Failed to rename conversation:', error);
-        }
-      },
-      'plain-text',
-      selectedConversation.title || ''
-    );
+  const handleRenameSubmit = async (newTitle: string) => {
+    setRenamePromptVisible(false);
+    if (!selectedConversation) return;
+
+    try {
+      const updated = await apiService.updateConversation(selectedConversation.id, {
+        title: newTitle,
+      });
+      // Update conversation and move to top (most recently updated)
+      setConversations(prev => {
+        const updatedConv = prev.find(c => c.id === selectedConversation.id);
+        if (!updatedConv) return prev;
+        const others = prev.filter(c => c.id !== selectedConversation.id);
+        return [
+          { ...updatedConv, title: updated.title, updated_at: updated.updated_at },
+          ...others,
+        ];
+      });
+    } catch (error) {
+      console.error('Failed to rename conversation:', error);
+    } finally {
+      setSelectedConversation(null);
+    }
+  };
+
+  const handleRenameCancel = () => {
+    setRenamePromptVisible(false);
+    setSelectedConversation(null);
   };
 
   const handleDelete = () => {
@@ -410,6 +416,19 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* Rename Conversation Prompt Dialog */}
+      <PromptDialog
+        visible={renamePromptVisible}
+        title="Rename Conversation"
+        message="Enter a new name for this conversation"
+        defaultValue={selectedConversation?.title || ''}
+        submitText="Save"
+        cancelText="Cancel"
+        onSubmit={handleRenameSubmit}
+        onCancel={handleRenameCancel}
+        testID="rename-conversation-dialog"
+      />
     </SafeAreaView>
   );
 }
