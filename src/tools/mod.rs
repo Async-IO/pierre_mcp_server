@@ -26,8 +26,7 @@
 //!   - Feature-flag-based conditional compilation
 //!
 //! - **Decorators** (`decorators`)
-//!   - `CachingTool` - transparent caching for read operations
-//!   - (Future: `AuditedTool` - audit logging)
+//!   - `AuditedTool` - audit logging for admin operations and security tracking
 //!
 //! - **Implementations** (`implementations`)
 //!   - Tool implementations organized by category
@@ -107,6 +106,7 @@ pub mod responses;
 // ============================================================================
 
 pub use context::{AuthMethod, ToolExecutionContext};
+pub use decorators::AuditedTool;
 pub use errors::ToolError;
 pub use registry::{register_external_tool, ToolRegistry};
 pub use result::{NotificationType, ToolNotification, ToolResult};
