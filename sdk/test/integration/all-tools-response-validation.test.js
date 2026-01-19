@@ -89,12 +89,11 @@ describe('All Tools Response Validation', () => {
 
     const toolNames = response.result.tools.map(t => t.name);
 
-    // Core tools (must exist)
+    // Core data tools (must exist)
     const coreTools = [
       'get_activities',
       'get_athlete',
-      'get_stats',
-      'get_activity_intelligence'
+      'get_stats'
     ];
 
     // Connection tools
@@ -105,17 +104,11 @@ describe('All Tools Response Validation', () => {
       'disconnect_provider'
     ];
 
-    // Analytics tools
+    // Analytics tools (updated for pluggable architecture)
     const analyticsTools = [
-      'analyze_activity',
-      'calculate_metrics',
-      'analyze_performance_trends',
-      'compare_activities',
+      'analyze_training_load',
       'detect_patterns',
-      'generate_recommendations',
-      'calculate_fitness_score',
-      'predict_performance',
-      'analyze_training_load'
+      'calculate_fitness_score'
     ];
 
     // Goal tools
