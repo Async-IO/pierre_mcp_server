@@ -61,9 +61,9 @@ jobs:
   mobile-e2e-tests:
     name: Mobile E2E Tests (Detox)
     runs-on: macos-latest
-    # E2E tests require a backend server which is not available in CI
-    # Run only when manually triggered (workflow_dispatch) with local backend
-    if: github.event_name == 'workflow_dispatch'
+    continue-on-error: true  # E2E tests may fail without backend server in CI
+    # Run on main branch pushes or when explicitly triggered
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
 
     defaults:
       run:
