@@ -437,13 +437,21 @@ impl ToolRegistry {
     /// Register configuration tools
     #[cfg(feature = "tools-config")]
     fn register_config_tools(&mut self) {
-        // Reserve capacity for future tool registration (uses &mut self)
-        self.tools.reserve(0);
+        use super::implementations::configuration::create_configuration_tools;
+
         debug!(
-            "Registering config tools (registry has {} tools)",
+            "Registering configuration tools (registry has {} tools)",
             self.tools.len()
         );
-        // Tools: get_fitness_config, set_fitness_config, list_fitness_configs, etc.
+
+        for tool in create_configuration_tools() {
+            self.register_with_category(Arc::from(tool), "configuration");
+        }
+
+        info!(
+            "Registered configuration tools (registry now has {} tools)",
+            self.tools.len()
+        );
     }
 
     /// Register nutrition tools
