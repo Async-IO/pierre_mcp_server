@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
+import { getOAuthCallbackUrl } from '../utils/oauth';
 import {
   createDrawerNavigator,
   type DrawerContentComponentProps,
@@ -108,7 +109,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   const handleConnectProvider = async (provider: string) => {
     setProviderModalVisible(false);
     try {
-      const returnUrl = Linking.createURL('oauth-callback');
+      const returnUrl = getOAuthCallbackUrl();
       const oauthResponse = await apiService.initMobileOAuth(provider, returnUrl);
       const result = await WebBrowser.openAuthSessionAsync(
         oauthResponse.authorization_url,

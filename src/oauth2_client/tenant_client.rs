@@ -12,9 +12,10 @@ use crate::errors::{AppError, AppResult};
 use crate::oauth2_client::client::{OAuth2Client, OAuth2Config, OAuth2Token, PkceParams};
 use crate::tenant::oauth_manager::{CredentialConfig, TenantOAuthCredentials, TenantOAuthManager};
 use crate::tenant::TenantContext;
+use std::env;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 /// Request for storing tenant OAuth credentials  
@@ -349,12 +350,26 @@ impl TenantOAuthClient {
             }
         };
 
+        // Use BASE_URL environment variable if set, otherwise fall back to stored redirect_uri.
+        // This allows dynamic OAuth callbacks when using tunnels for local development.
+        let redirect_uri = env::var("BASE_URL").map_or_else(
+            |_| credentials.redirect_uri.clone(),
+            |base_url| {
+                let dynamic_uri = format!("{base_url}/api/oauth/callback/{provider}");
+                debug!(
+                    "Using BASE_URL for OAuth redirect: {} (overriding stored: {})",
+                    dynamic_uri, credentials.redirect_uri
+                );
+                dynamic_uri
+            },
+        );
+
         Ok(OAuth2Config {
             client_id: credentials.client_id.clone(),
             client_secret: credentials.client_secret.clone(),
             auth_url,
             token_url,
-            redirect_uri: credentials.redirect_uri.clone(),
+            redirect_uri,
             scopes: credentials.scopes.clone(), // Safe: Option<String> ownership for OAuth config
             use_pkce,
         })

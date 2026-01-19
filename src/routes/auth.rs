@@ -12,6 +12,7 @@
 
 use std::{
     collections::{HashMap, HashSet},
+    env,
     fmt::Write,
     sync::Arc,
     time::Duration as StdDuration,
@@ -1033,13 +1034,12 @@ impl OAuthService {
             ))
         })?;
 
-        // Build redirect URI
+        // Build redirect URI - use BASE_URL if set for tunnel/external access
         let server_config = self.config.config();
         let redirect_uri = env_config.redirect_uri.unwrap_or_else(|| {
-            format!(
-                "http://localhost:{}/api/oauth/callback/{}",
-                server_config.http_port, provider
-            )
+            let base_url = env::var("BASE_URL")
+                .unwrap_or_else(|_| format!("http://localhost:{}", server_config.http_port));
+            format!("{base_url}/api/oauth/callback/{provider}")
         });
 
         // Get default scopes and join with provider's separator
@@ -1330,7 +1330,10 @@ impl OAuthService {
             })?;
 
         let state = format!("{}:{}", user_id, uuid::Uuid::new_v4());
-        let base_url = format!("http://localhost:{}", self.config.config().http_port);
+        // Use BASE_URL environment variable if set, otherwise fall back to localhost.
+        // This allows dynamic OAuth callbacks when using tunnels for local development.
+        let base_url = env::var("BASE_URL")
+            .unwrap_or_else(|_| format!("http://localhost:{}", self.config.config().http_port));
         let redirect_uri = format!("{base_url}/api/oauth/callback/{provider}");
 
         // URL-encode parameters for OAuth URLs

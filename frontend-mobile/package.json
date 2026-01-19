@@ -4,6 +4,9 @@
   "main": "index.ts",
   "scripts": {
     "start": "expo start --port 8082",
+    "tunnel": "cloudflared tunnel --url http://localhost:8081",
+    "tunnel:stop": "pkill -f 'cloudflared tunnel' && echo 'Tunnel stopped' || echo 'No tunnel running'",
+    "start:local": "bash -c \"cloudflared tunnel --url http://localhost:8081 2>/tmp/cft.log & sleep 5; URL=\\$(grep -o 'https://[a-z0-9-]*.trycloudflare.com' /tmp/cft.log | head -1); echo EXPO_PUBLIC_API_URL=\\\"\\$URL\\\" > .env; if grep -q '^export BASE_URL=' ../.envrc 2>/dev/null; then sed -i '' \\\"s|^export BASE_URL=.*|export BASE_URL=\\\\\\\"\\$URL\\\\\\\"|\\\" ../.envrc; else echo \\\"export BASE_URL=\\\\\\\"\\$URL\\\\\\\"\\\" >> ../.envrc; fi; echo \\\"Tunnel: \\$URL\\\"; echo \\\"Backend .envrc updated with BASE_URL\\\"; echo \\\">>> Run 'direnv allow' in backend and restart server <<<\\\"; expo start --port 8082\"",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web --port 8082",
