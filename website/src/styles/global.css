@@ -188,6 +188,32 @@
   transition: transform 0.3s ease-out, opacity 0.3s ease-out;
 }
 
+/* Coach card styling */
+.coach-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.coach-card:hover {
+  transform: translateY(-4px);
+}
+
+/* Coach category accent colors */
+.coach-card.training {
+  --accent-color: #10B981;
+}
+
+.coach-card.nutrition {
+  --accent-color: #F59E0B;
+}
+
+.coach-card.recovery {
+  --accent-color: #6366F1;
+}
+
+.coach-card.analysis {
+  --accent-color: #7C3AED;
+}
+
 /* Respect user motion preferences */
 @media (prefers-reduced-motion: reduce) {
   .gradient-mesh,
@@ -196,12 +222,18 @@
   .float-fast,
   .stat-animate,
   .pulse-ring,
-  .mobile-menu-enter {
+  .mobile-menu-enter,
+  .coach-card {
     animation: none !important;
+    transition: none !important;
   }
 
   .stat-animate {
     opacity: 1;
+    transform: none;
+  }
+
+  .coach-card:hover {
     transform: none;
   }
 }
