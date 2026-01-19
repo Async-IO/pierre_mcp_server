@@ -5,6 +5,8 @@ import './global.css';
 import React from 'react';
 import { LogBox } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import Toast from 'react-native-toast-message';
+import { toastConfig } from './src/config/toast';
 
 // Ignore expected error logs in development
 // These are handled with user-friendly Alert dialogs in the UI
@@ -39,6 +41,7 @@ export default function App() {
           <WebSocketProvider>
             <StatusBar style="light" />
             <RootNavigator />
+            <Toast config={toastConfig} />
           </WebSocketProvider>
         </AuthProvider>
       </QueryClientProvider>

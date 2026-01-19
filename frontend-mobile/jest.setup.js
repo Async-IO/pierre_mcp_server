@@ -36,3 +36,52 @@ jest.mock('expo-web-browser', () => ({
   openBrowserAsync: jest.fn(() => Promise.resolve({ type: 'success' })),
 }));
 
+// Mock expo-haptics
+jest.mock('expo-haptics', () => ({
+  impactAsync: jest.fn(() => Promise.resolve()),
+  notificationAsync: jest.fn(() => Promise.resolve()),
+  selectionAsync: jest.fn(() => Promise.resolve()),
+  ImpactFeedbackStyle: {
+    Light: 'light',
+    Medium: 'medium',
+    Heavy: 'heavy',
+  },
+  NotificationFeedbackType: {
+    Success: 'success',
+    Warning: 'warning',
+    Error: 'error',
+  },
+}));
+
+// Mock @react-native-voice/voice
+jest.mock('@react-native-voice/voice', () => {
+  const mockVoice = {
+    isAvailable: jest.fn(() => Promise.resolve(1)),
+    start: jest.fn(() => Promise.resolve()),
+    stop: jest.fn(() => Promise.resolve()),
+    cancel: jest.fn(() => Promise.resolve()),
+    destroy: jest.fn(() => Promise.resolve()),
+    removeAllListeners: jest.fn(),
+    onSpeechStart: null,
+    onSpeechEnd: null,
+    onSpeechResults: null,
+    onSpeechPartialResults: null,
+    onSpeechError: null,
+  };
+  return {
+    __esModule: true,
+    default: mockVoice,
+  };
+});
+
+// Mock react-native-toast-message
+jest.mock('react-native-toast-message', () => {
+  const View = require('react-native').View;
+  return {
+    __esModule: true,
+    default: View,
+    show: jest.fn(),
+    hide: jest.fn(),
+  };
+});
+
