@@ -481,13 +481,22 @@ impl ToolRegistry {
     /// Register recipe tools
     #[cfg(feature = "tools-recipes")]
     fn register_recipe_tools(&mut self) {
-        // Reserve capacity for future tool registration (uses &mut self)
-        self.tools.reserve(0);
+        use super::implementations::recipes::create_recipe_tools;
+
         debug!(
             "Registering recipe tools (registry has {} tools)",
             self.tools.len()
         );
-        // Tools: get_recipe_constraints, validate_recipe, save_recipe, list_recipes, etc.
+
+        // Register all recipe tools with the "recipes" category
+        for tool in create_recipe_tools() {
+            self.register_with_category(Arc::from(tool), "recipes");
+        }
+
+        info!(
+            "Registered recipe tools (registry now has {} tools)",
+            self.tools.len()
+        );
     }
 
     /// Register coach tools
