@@ -107,14 +107,15 @@ import '../styles/global.css';
 
         <div class="relative max-w-7xl mx-auto text-center">
             <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
-                <span class="gradient-pierre-text">9 Expert AI Coaches</span><br>
-                One Platform
+                <span class="gradient-pierre-text">Fitness Intelligence</span><br>
+                for Everyone
             </h1>
 
             <p class="text-xl text-gray-300 max-w-3xl mx-auto mb-8">
-                Meet your personal team of AI fitness coaches. From <strong class="text-emerald-400">5K speed training</strong> to
-                <strong class="text-amber-400">race-day nutrition</strong> to <strong class="text-indigo-400">sleep optimization</strong>—each coach brings specialized expertise
-                powered by real sports science. Connect your <strong class="text-white">Strava</strong>, <strong class="text-white">Garmin</strong>, or <strong class="text-white">WHOOP</strong> and get guidance tailored to you.
+                Get expert AI coaching for <strong class="text-emerald-400">training</strong>,
+                <strong class="text-amber-400">nutrition</strong>, and <strong class="text-indigo-400">recovery</strong>—powered by real sports science.
+                Connect your <strong class="text-white">Strava</strong>, <strong class="text-white">Garmin</strong>, <strong class="text-white">Fitbit</strong>,
+                <strong class="text-white">WHOOP</strong>, or <strong class="text-white">Coros</strong> and get personalized guidance tailored to your goals.
             </p>
 
             <!-- Device Badges (moved up for visual break) -->
@@ -163,229 +164,88 @@ import '../styles/global.css';
                     </svg>
                     AI-Powered Expertise
                 </div>
-                <h2 class="text-3xl sm:text-4xl font-bold mb-4">Meet Your Coaching Team</h2>
+                <h2 class="text-3xl sm:text-4xl font-bold mb-4">Specialized AI Coaches</h2>
                 <p class="text-gray-400 max-w-2xl mx-auto">
-                    Each coach brings specialized expertise in their domain. Switch between coaches based on what you need—training advice, nutrition planning, or recovery optimization.
+                    Expert guidance across every aspect of your fitness journey. Each coach brings deep domain knowledge powered by real sports science.
                 </p>
             </div>
 
-            <!-- Coach Categories -->
-            <div class="space-y-12">
-                <!-- Training Coaches -->
-                <div>
-                    <div class="flex items-center gap-3 mb-6">
-                        <div class="w-10 h-10 rounded-lg gradient-activity flex items-center justify-center">
-                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                            </svg>
-                        </div>
-                        <h3 class="text-xl font-semibold text-emerald-400">Training Coaches</h3>
-                        <span class="text-xs text-gray-500 bg-emerald-500/20 px-2 py-0.5 rounded-full">3 specialists</span>
+            <!-- Coach Capabilities Grid -->
+            <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- Training -->
+                <div class="bg-[#1E1E2E] rounded-xl p-6 border border-emerald-500/20 hover:border-emerald-500/40 transition-all">
+                    <div class="w-12 h-12 rounded-lg gradient-activity flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
                     </div>
-                    <div class="grid md:grid-cols-3 gap-4">
-                        <div class="coach-card bg-[#1E1E2E] rounded-xl p-6 border border-emerald-500/20 hover:border-emerald-500/50 transition-all group">
-                            <div class="flex items-center gap-3 mb-4">
-                                <div class="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center text-2xl">🏃</div>
-                                <div>
-                                    <h4 class="font-semibold text-white">5K Speed Coach</h4>
-                                    <p class="text-xs text-emerald-400">Race Performance</p>
-                                </div>
-                            </div>
-                            <p class="text-gray-400 text-sm mb-4">Master VO2max intervals, lactate threshold workouts, and precision 5K race pacing strategies.</p>
-                            <div class="flex flex-wrap gap-2">
-                                <span class="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs">Intervals</span>
-                                <span class="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs">Pacing</span>
-                                <span class="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs">VO2max</span>
-                            </div>
-                        </div>
-                        <div class="coach-card bg-[#1E1E2E] rounded-xl p-6 border border-emerald-500/20 hover:border-emerald-500/50 transition-all group">
-                            <div class="flex items-center gap-3 mb-4">
-                                <div class="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center text-2xl">🏅</div>
-                                <div>
-                                    <h4 class="font-semibold text-white">Marathon Coach</h4>
-                                    <p class="text-xs text-emerald-400">Endurance Expert</p>
-                                </div>
-                            </div>
-                            <p class="text-gray-400 text-sm mb-4">Long run progression, marathon-specific workouts, race-day fueling, and mental resilience strategies.</p>
-                            <div class="flex flex-wrap gap-2">
-                                <span class="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs">Long Runs</span>
-                                <span class="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs">Fueling</span>
-                                <span class="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs">Mental</span>
-                            </div>
-                        </div>
-                        <div class="coach-card bg-[#1E1E2E] rounded-xl p-6 border border-emerald-500/20 hover:border-emerald-500/50 transition-all group">
-                            <div class="flex items-center gap-3 mb-4">
-                                <div class="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center text-2xl">🎽</div>
-                                <div>
-                                    <h4 class="font-semibold text-white">Half Marathon Coach</h4>
-                                    <p class="text-xs text-emerald-400">Speed & Endurance</p>
-                                </div>
-                            </div>
-                            <p class="text-gray-400 text-sm mb-4">Bridge speed and endurance with tempo runs, threshold work, and strategic race pacing.</p>
-                            <div class="flex flex-wrap gap-2">
-                                <span class="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs">Tempo</span>
-                                <span class="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs">Threshold</span>
-                                <span class="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs">Pacing</span>
-                            </div>
-                        </div>
+                    <h3 class="text-lg font-semibold text-emerald-400 mb-2">Training</h3>
+                    <p class="text-gray-400 text-sm mb-4">Race-specific coaching from 5K intervals to marathon long runs. VO2max optimization, pacing strategies, and periodization.</p>
+                    <div class="flex flex-wrap gap-1.5">
+                        <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-xs">5K-Marathon</span>
+                        <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-xs">Pacing</span>
+                        <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-xs">VO2max</span>
                     </div>
                 </div>
 
-                <!-- Nutrition Coaches -->
-                <div>
-                    <div class="flex items-center gap-3 mb-6">
-                        <div class="w-10 h-10 rounded-lg gradient-nutrition flex items-center justify-center">
-                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
-                            </svg>
-                        </div>
-                        <h3 class="text-xl font-semibold text-amber-400">Nutrition Coaches</h3>
-                        <span class="text-xs text-gray-500 bg-amber-500/20 px-2 py-0.5 rounded-full">3 specialists</span>
+                <!-- Nutrition -->
+                <div class="bg-[#1E1E2E] rounded-xl p-6 border border-amber-500/20 hover:border-amber-500/40 transition-all">
+                    <div class="w-12 h-12 rounded-lg gradient-nutrition flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
+                        </svg>
                     </div>
-                    <div class="grid md:grid-cols-3 gap-4">
-                        <div class="coach-card bg-[#1E1E2E] rounded-xl p-6 border border-amber-500/20 hover:border-amber-500/50 transition-all group">
-                            <div class="flex items-center gap-3 mb-4">
-                                <div class="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center text-2xl">⚡</div>
-                                <div>
-                                    <h4 class="font-semibold text-white">Pre-Workout Coach</h4>
-                                    <p class="text-xs text-amber-400">Fuel for Performance</p>
-                                </div>
-                            </div>
-                            <p class="text-gray-400 text-sm mb-4">Carb loading strategies, optimal meal timing (2-4 hours pre-workout), and caffeine dosing for peak performance.</p>
-                            <div class="flex flex-wrap gap-2">
-                                <span class="px-2 py-1 rounded-full bg-amber-500/10 text-amber-400 text-xs">Carb Loading</span>
-                                <span class="px-2 py-1 rounded-full bg-amber-500/10 text-amber-400 text-xs">Timing</span>
-                                <span class="px-2 py-1 rounded-full bg-amber-500/10 text-amber-400 text-xs">Caffeine</span>
-                            </div>
-                        </div>
-                        <div class="coach-card bg-[#1E1E2E] rounded-xl p-6 border border-amber-500/20 hover:border-amber-500/50 transition-all group">
-                            <div class="flex items-center gap-3 mb-4">
-                                <div class="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center text-2xl">🥗</div>
-                                <div>
-                                    <h4 class="font-semibold text-white">Post-Workout Coach</h4>
-                                    <p class="text-xs text-amber-400">Recovery Nutrition</p>
-                                </div>
-                            </div>
-                            <p class="text-gray-400 text-sm mb-4">30-60 minute recovery window optimization, protein timing, and glycogen replenishment strategies.</p>
-                            <div class="flex flex-wrap gap-2">
-                                <span class="px-2 py-1 rounded-full bg-amber-500/10 text-amber-400 text-xs">Protein</span>
-                                <span class="px-2 py-1 rounded-full bg-amber-500/10 text-amber-400 text-xs">Recovery</span>
-                                <span class="px-2 py-1 rounded-full bg-amber-500/10 text-amber-400 text-xs">Glycogen</span>
-                            </div>
-                        </div>
-                        <div class="coach-card bg-[#1E1E2E] rounded-xl p-6 border border-amber-500/20 hover:border-amber-500/50 transition-all group">
-                            <div class="flex items-center gap-3 mb-4">
-                                <div class="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center text-2xl">🏁</div>
-                                <div>
-                                    <h4 class="font-semibold text-white">Race Day Coach</h4>
-                                    <p class="text-xs text-amber-400">Competition Fueling</p>
-                                </div>
-                            </div>
-                            <p class="text-gray-400 text-sm mb-4">30-90g carbs/hour during racing, gel timing strategies, and hydration protocols for peak performance.</p>
-                            <div class="flex flex-wrap gap-2">
-                                <span class="px-2 py-1 rounded-full bg-amber-500/10 text-amber-400 text-xs">In-Race</span>
-                                <span class="px-2 py-1 rounded-full bg-amber-500/10 text-amber-400 text-xs">Gels</span>
-                                <span class="px-2 py-1 rounded-full bg-amber-500/10 text-amber-400 text-xs">Hydration</span>
-                            </div>
-                        </div>
+                    <h3 class="text-lg font-semibold text-amber-400 mb-2">Nutrition</h3>
+                    <p class="text-gray-400 text-sm mb-4">Pre-workout fueling, post-workout recovery, and race-day nutrition. Meal timing, carb loading, and hydration strategies.</p>
+                    <div class="flex flex-wrap gap-1.5">
+                        <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-xs">Meal Timing</span>
+                        <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-xs">Race Day</span>
+                        <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-xs">Recovery</span>
                     </div>
                 </div>
 
-                <!-- Recovery Coaches -->
-                <div>
-                    <div class="flex items-center gap-3 mb-6">
-                        <div class="w-10 h-10 rounded-lg gradient-recovery flex items-center justify-center">
-                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
-                            </svg>
-                        </div>
-                        <h3 class="text-xl font-semibold text-indigo-400">Recovery Coaches</h3>
-                        <span class="text-xs text-gray-500 bg-indigo-500/20 px-2 py-0.5 rounded-full">2 specialists</span>
+                <!-- Recovery -->
+                <div class="bg-[#1E1E2E] rounded-xl p-6 border border-indigo-500/20 hover:border-indigo-500/40 transition-all">
+                    <div class="w-12 h-12 rounded-lg gradient-recovery flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+                        </svg>
                     </div>
-                    <div class="grid md:grid-cols-2 gap-4 max-w-4xl">
-                        <div class="coach-card bg-[#1E1E2E] rounded-xl p-6 border border-indigo-500/20 hover:border-indigo-500/50 transition-all group">
-                            <div class="flex items-center gap-3 mb-4">
-                                <div class="w-12 h-12 rounded-full bg-indigo-500/20 flex items-center justify-center text-2xl">😴</div>
-                                <div>
-                                    <h4 class="font-semibold text-white">Sleep Optimization Coach</h4>
-                                    <p class="text-xs text-indigo-400">Rest & Recovery</p>
-                                </div>
-                            </div>
-                            <p class="text-gray-400 text-sm mb-4">Sleep architecture optimization, sleep hygiene protocols, chronotype analysis, and HRV interpretation for recovery.</p>
-                            <div class="flex flex-wrap gap-2">
-                                <span class="px-2 py-1 rounded-full bg-indigo-500/10 text-indigo-400 text-xs">Sleep Quality</span>
-                                <span class="px-2 py-1 rounded-full bg-indigo-500/10 text-indigo-400 text-xs">HRV</span>
-                                <span class="px-2 py-1 rounded-full bg-indigo-500/10 text-indigo-400 text-xs">Chronotype</span>
-                            </div>
-                        </div>
-                        <div class="coach-card bg-[#1E1E2E] rounded-xl p-6 border border-indigo-500/20 hover:border-indigo-500/50 transition-all group">
-                            <div class="flex items-center gap-3 mb-4">
-                                <div class="w-12 h-12 rounded-full bg-indigo-500/20 flex items-center justify-center text-2xl">🔋</div>
-                                <div>
-                                    <h4 class="font-semibold text-white">Recovery & Rest Day Coach</h4>
-                                    <p class="text-xs text-indigo-400">Injury Prevention</p>
-                                </div>
-                            </div>
-                            <p class="text-gray-400 text-sm mb-4">Overtraining detection, active recovery protocols, deload week planning, and readiness assessment.</p>
-                            <div class="flex flex-wrap gap-2">
-                                <span class="px-2 py-1 rounded-full bg-indigo-500/10 text-indigo-400 text-xs">Overtraining</span>
-                                <span class="px-2 py-1 rounded-full bg-indigo-500/10 text-indigo-400 text-xs">Active Recovery</span>
-                                <span class="px-2 py-1 rounded-full bg-indigo-500/10 text-indigo-400 text-xs">Deload</span>
-                            </div>
-                        </div>
+                    <h3 class="text-lg font-semibold text-indigo-400 mb-2">Recovery</h3>
+                    <p class="text-gray-400 text-sm mb-4">Sleep optimization, HRV interpretation, and overtraining prevention. Know when to push and when to rest.</p>
+                    <div class="flex flex-wrap gap-1.5">
+                        <span class="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 text-xs">Sleep</span>
+                        <span class="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 text-xs">HRV</span>
+                        <span class="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 text-xs">Rest Days</span>
                     </div>
                 </div>
 
-                <!-- Analysis Coach -->
-                <div>
-                    <div class="flex items-center gap-3 mb-6">
-                        <div class="w-10 h-10 rounded-lg bg-violet-600/30 flex items-center justify-center">
-                            <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-                            </svg>
-                        </div>
-                        <h3 class="text-xl font-semibold text-violet-400">Analysis Coach</h3>
-                        <span class="text-xs text-gray-500 bg-violet-500/20 px-2 py-0.5 rounded-full">1 specialist</span>
+                <!-- Analysis -->
+                <div class="bg-[#1E1E2E] rounded-xl p-6 border border-violet-500/20 hover:border-violet-500/40 transition-all">
+                    <div class="w-12 h-12 rounded-lg bg-violet-600/30 flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                        </svg>
                     </div>
-                    <div class="max-w-2xl">
-                        <div class="coach-card bg-[#1E1E2E] rounded-xl p-6 border border-violet-500/20 hover:border-violet-500/50 transition-all group">
-                            <div class="flex items-center gap-3 mb-4">
-                                <div class="w-12 h-12 rounded-full bg-violet-500/20 flex items-center justify-center text-2xl">📊</div>
-                                <div>
-                                    <h4 class="font-semibold text-white">Activity Analysis Coach</h4>
-                                    <p class="text-xs text-violet-400">Data Intelligence</p>
-                                </div>
-                            </div>
-                            <p class="text-gray-400 text-sm mb-4">Pattern detection across your training history, training load trends, consistency analysis, injury risk assessment, and PR celebrations.</p>
-                            <div class="flex flex-wrap gap-2">
-                                <span class="px-2 py-1 rounded-full bg-violet-500/10 text-violet-400 text-xs">Patterns</span>
-                                <span class="px-2 py-1 rounded-full bg-violet-500/10 text-violet-400 text-xs">Load Trends</span>
-                                <span class="px-2 py-1 rounded-full bg-violet-500/10 text-violet-400 text-xs">Injury Risk</span>
-                                <span class="px-2 py-1 rounded-full bg-violet-500/10 text-violet-400 text-xs">PRs</span>
-                            </div>
-                        </div>
+                    <h3 class="text-lg font-semibold text-violet-400 mb-2">Analysis</h3>
+                    <p class="text-gray-400 text-sm mb-4">Pattern detection, training load trends, injury risk assessment, and performance insights from your data.</p>
+                    <div class="flex flex-wrap gap-1.5">
+                        <span class="px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400 text-xs">Patterns</span>
+                        <span class="px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400 text-xs">Load</span>
+                        <span class="px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400 text-xs">Trends</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Custom Coaches CTA -->
-            <div class="mt-16 bg-gradient-to-r from-violet-500/10 via-cyan-500/10 to-violet-500/10 rounded-2xl p-8 border border-violet-500/20">
-                <div class="text-center">
-                    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 text-xs font-medium mb-4">
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
-                        </svg>
-                        Create Your Own
+            <!-- Custom Coaches Banner -->
+            <div class="mt-10 bg-gradient-to-r from-violet-500/10 via-cyan-500/10 to-violet-500/10 rounded-xl p-6 border border-violet-500/20">
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div class="text-center sm:text-left">
+                        <h3 class="text-lg font-semibold mb-1">Create Custom Coaches</h3>
+                        <p class="text-gray-400 text-sm">Build personalized coaches with your own expertise focus and personality.</p>
                     </div>
-                    <h3 class="text-2xl font-bold mb-3">Build Custom Coaches</h3>
-                    <p class="text-gray-400 max-w-2xl mx-auto mb-6">
-                        Beyond the 9 default coaches, create unlimited personalized coaches with your own system prompts, personality, and expertise focus. Perfect for athletes with specific needs or coaches building for their clients.
-                    </p>
-                    <a href="#early-access" class="inline-flex items-center gap-2 gradient-pierre px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity">
+                    <a href="#early-access" class="gradient-pierre px-5 py-2.5 rounded-lg font-medium text-sm hover:opacity-90 transition-opacity whitespace-nowrap">
                         Get Early Access
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
-                        </svg>
                     </a>
                 </div>
             </div>
@@ -826,56 +686,50 @@ import '../styles/global.css';
         </div>
     </section>
 
-    <!-- Stats Section (Redesigned with Coach Focus) -->
+    <!-- Stats Section -->
     <section class="py-16 px-4 bg-gradient-to-b from-[#1E1E2E]/50 to-transparent">
-        <div class="max-w-6xl mx-auto">
-            <div id="stats-container" class="grid grid-cols-2 sm:grid-cols-4 gap-6">
-                <!-- Stat 1: AI Coaches -->
-                <div class="stat-glow bg-[#0F0F1A] rounded-2xl p-6 border border-white/10 text-center group cursor-default">
-                    <div class="w-14 h-14 mx-auto mb-3 rounded-xl gradient-pierre flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
-                        </svg>
-                    </div>
-                    <div class="text-4xl font-bold gradient-pierre-text mb-1" data-count="9">9</div>
-                    <div class="text-gray-400 font-medium text-sm">Expert Coaches</div>
-                    <p class="text-gray-500 text-xs mt-1">+ unlimited custom</p>
-                </div>
-
-                <!-- Stat 2: Fitness Tools (Clickable) -->
-                <div id="tools-stat-card" class="stat-glow bg-[#0F0F1A] rounded-2xl p-6 border border-white/10 text-center group cursor-pointer transition-all hover:border-emerald-500/50 hover:shadow-lg hover:shadow-emerald-500/10">
-                    <div class="w-14 h-14 mx-auto mb-3 rounded-xl gradient-activity flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="max-w-5xl mx-auto">
+            <div id="stats-container" class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <!-- Stat 1: Fitness Tools (Clickable) -->
+                <div id="tools-stat-card" class="stat-glow bg-[#0F0F1A] rounded-2xl p-8 border border-white/10 text-center group cursor-pointer transition-all hover:border-emerald-500/50 hover:shadow-lg hover:shadow-emerald-500/10">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-xl gradient-activity flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
                         </svg>
                     </div>
-                    <div class="text-4xl font-bold gradient-pierre-text mb-1" data-count="47">47</div>
-                    <div class="text-gray-400 font-medium text-sm">MCP Tools</div>
-                    <p class="text-gray-500 text-xs mt-1">Click to explore</p>
+                    <div class="text-5xl font-bold gradient-pierre-text mb-2" data-count="47">47</div>
+                    <div class="text-gray-400 font-medium">Fitness Tools</div>
+                    <p class="text-gray-500 text-sm mt-2">Training, nutrition & recovery</p>
+                    <div class="flex items-center justify-center gap-1 mt-3 text-emerald-400 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span>Click to explore</span>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                        </svg>
+                    </div>
                 </div>
 
-                <!-- Stat 3: Supported Devices -->
-                <div class="stat-glow bg-[#0F0F1A] rounded-2xl p-6 border border-white/10 text-center group cursor-default">
-                    <div class="w-14 h-14 mx-auto mb-3 rounded-xl bg-cyan-500/30 flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <svg class="w-7 h-7 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <!-- Stat 2: Supported Devices -->
+                <div class="stat-glow bg-[#0F0F1A] rounded-2xl p-8 border border-white/10 text-center group cursor-default">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-xl gradient-pierre flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
                         </svg>
                     </div>
-                    <div class="text-4xl font-bold gradient-pierre-text mb-1" data-count="150">150+</div>
-                    <div class="text-gray-400 font-medium text-sm">Devices</div>
-                    <p class="text-gray-500 text-xs mt-1">Via Terra & more</p>
+                    <div class="text-5xl font-bold gradient-pierre-text mb-2" data-count="150">150+</div>
+                    <div class="text-gray-400 font-medium">Supported Devices</div>
+                    <p class="text-gray-500 text-sm mt-2">Via Terra, Strava, Garmin & more</p>
                 </div>
 
-                <!-- Stat 4: Foods Database -->
-                <div class="stat-glow bg-[#0F0F1A] rounded-2xl p-6 border border-white/10 text-center group cursor-default">
-                    <div class="w-14 h-14 mx-auto mb-3 rounded-xl gradient-nutrition flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <!-- Stat 3: Foods Database -->
+                <div class="stat-glow bg-[#0F0F1A] rounded-2xl p-8 border border-white/10 text-center group cursor-default">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-xl gradient-nutrition flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
                         </svg>
                     </div>
-                    <div class="text-4xl font-bold gradient-pierre-text mb-1" data-count="350000">350k+</div>
-                    <div class="text-gray-400 font-medium text-sm">Foods</div>
-                    <p class="text-gray-500 text-xs mt-1">USDA database</p>
+                    <div class="text-5xl font-bold gradient-pierre-text mb-2" data-count="350000">350k+</div>
+                    <div class="text-gray-400 font-medium">Foods in Database</div>
+                    <p class="text-gray-500 text-sm mt-2">USDA FoodData Central</p>
                 </div>
             </div>
         </div>
