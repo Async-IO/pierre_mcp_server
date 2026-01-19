@@ -191,7 +191,7 @@ If the script generated a new token, you may need to **restart the Claude Code s
 Each Claude Code session is tracked as a Linear issue for persistent memory across sessions.
 
 ### How It Works
-1. **SessionStart hook** runs `./bin/linear-session-init.sh` automatically
+1. **SessionStart hook** runs `./scripts/linear-session-init.sh` automatically
 2. Script outputs session ID and instructions for Claude
 3. Claude creates or resumes a session issue in Linear
 4. Work done during session is linked to the session issue

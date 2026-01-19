@@ -99,14 +99,32 @@ create_session() {
     local team_id="$3"
     local label_id="$4"
     local description
-
-    description="## Claude Code Session\\n\\n**Started:** $(date '+%Y-%m-%d %H:%M')\\n**Project:** $(basename "$(pwd)")\\n**Branch:** ${git_branch}\\n\\n### Work Done\\n- (Updated during session)\\n\\n### Decisions Made\\n- (Document key decisions here)\\n\\n### Related Issues\\n- (Links added automatically)"
-
     local query
-    query=$(cat <<EOF
-{"query": "mutation { issueCreate(input: { teamId: \\"${team_id}\\", title: \\"${session_id}\\", description: \\"${description}\\", labelIds: [\\"${label_id}\\"] }) { success issue { id identifier title url } } }"}
-EOF
-)
+
+    # Build description with proper markdown formatting
+    description="## Claude Code Session
+
+**Started:** $(date '+%Y-%m-%d %H:%M')
+**Project:** $(basename "$(pwd)")
+**Branch:** ${git_branch}
+
+### Work Done
+- (Updated during session)
+
+### Decisions Made
+- (Document key decisions here)
+
+### Related Issues
+- (Links added automatically)"
+
+    # Use jq to properly escape all strings for JSON
+    query=$(jq -n \
+        --arg tid "$team_id" \
+        --arg title "$session_id" \
+        --arg desc "$description" \
+        --arg lid "$label_id" \
+        '{query: "mutation ($input: IssueCreateInput!) { issueCreate(input: $input) { success issue { id identifier title url } } }", variables: {input: {teamId: $tid, title: $title, description: $desc, labelIds: [$lid]}}}')
+
     linear_query "$query"
 }
 
