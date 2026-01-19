@@ -938,14 +938,14 @@ class ApiService {
     coaches: Array<{
       id: string;
       title: string;
-      description?: string;
+      description: string | null;
       system_prompt: string;
       category: string;
       tags: string[];
       token_count: number;
       is_favorite: boolean;
       use_count: number;
-      last_used_at?: string;
+      last_used_at: string | null;
       created_at: string;
       updated_at: string;
       is_system: boolean;
@@ -988,14 +988,14 @@ class ApiService {
   }): Promise<{
     id: string;
     title: string;
-    description?: string;
+    description: string | null;
     system_prompt: string;
     category: string;
     tags: string[];
     token_count: number;
     is_favorite: boolean;
     use_count: number;
-    last_used_at?: string;
+    last_used_at: string | null;
     created_at: string;
     updated_at: string;
     is_system: boolean;
@@ -1015,14 +1015,14 @@ class ApiService {
   }): Promise<{
     id: string;
     title: string;
-    description?: string;
+    description: string | null;
     system_prompt: string;
     category: string;
     tags: string[];
     token_count: number;
     is_favorite: boolean;
     use_count: number;
-    last_used_at?: string;
+    last_used_at: string | null;
     created_at: string;
     updated_at: string;
     is_system: boolean;
@@ -1141,14 +1141,14 @@ class ApiService {
     coaches: Array<{
       id: string;
       title: string;
-      description?: string;
+      description: string | null;
       system_prompt: string;
       category: string;
       tags: string[];
       token_count: number;
       is_favorite: boolean;
       use_count: number;
-      last_used_at?: string;
+      last_used_at: string | null;
       created_at: string;
       updated_at: string;
       is_system: boolean;
@@ -1175,14 +1175,14 @@ class ApiService {
   }): Promise<{
     id: string;
     title: string;
-    description?: string;
+    description: string | null;
     system_prompt: string;
     category: string;
     tags: string[];
     token_count: number;
     is_favorite: boolean;
     use_count: number;
-    last_used_at?: string;
+    last_used_at: string | null;
     created_at: string;
     updated_at: string;
     is_system: boolean;
@@ -1196,14 +1196,14 @@ class ApiService {
   async getSystemCoach(coachId: string): Promise<{
     id: string;
     title: string;
-    description?: string;
+    description: string | null;
     system_prompt: string;
     category: string;
     tags: string[];
     token_count: number;
     is_favorite: boolean;
     use_count: number;
-    last_used_at?: string;
+    last_used_at: string | null;
     created_at: string;
     updated_at: string;
     is_system: boolean;
@@ -1223,14 +1223,14 @@ class ApiService {
   }): Promise<{
     id: string;
     title: string;
-    description?: string;
+    description: string | null;
     system_prompt: string;
     category: string;
     tags: string[];
     token_count: number;
     is_favorite: boolean;
     use_count: number;
-    last_used_at?: string;
+    last_used_at: string | null;
     created_at: string;
     updated_at: string;
     is_system: boolean;

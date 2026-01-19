@@ -801,7 +801,7 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
   };
 
   // Coach edit handler - opens modal with coach data pre-filled
-  const handleEditCoach = (coach: { id: string; title: string; description?: string; system_prompt: string; category: string }) => {
+  const handleEditCoach = (coach: { id: string; title: string; description: string | null; system_prompt: string; category: string }) => {
     setEditingCoachId(coach.id);
     setCoachFormData({
       title: coach.title,
