@@ -469,13 +469,22 @@ impl ToolRegistry {
     /// Register sleep/recovery tools
     #[cfg(feature = "tools-sleep")]
     fn register_sleep_tools(&mut self) {
-        // Reserve capacity for future tool registration (uses &mut self)
-        self.tools.reserve(0);
+        use super::implementations::sleep::create_sleep_tools;
+
         debug!(
             "Registering sleep tools (registry has {} tools)",
             self.tools.len()
         );
-        // Tools: analyze_sleep_quality, calculate_recovery_score, suggest_rest_day, etc.
+
+        // Register all sleep tools with the "sleep" category
+        for tool in create_sleep_tools() {
+            self.register_with_category(Arc::from(tool), "sleep");
+        }
+
+        info!(
+            "Registered sleep tools (registry now has {} tools)",
+            self.tools.len()
+        );
     }
 
     /// Register recipe tools
