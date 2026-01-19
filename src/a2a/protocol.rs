@@ -18,11 +18,11 @@ use crate::database_plugins::DatabaseProvider;
 use crate::jsonrpc::{JsonRpcError, JsonRpcRequest, JsonRpcResponse};
 use crate::mcp::resources::ServerResources;
 use crate::mcp::schema::OAuthAppCredentials;
-use crate::protocols::universal::{UniversalRequest, UniversalToolExecutor};
+use crate::tools::context::{AuthMethod, ToolExecutionContext};
 use crate::types::json_schemas;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use serde_json::{from_value, json, to_value, Number, Value};
+use serde_json::{from_value, json, to_value, Map, Number, Value};
 use std::collections::HashMap;
 use std::env::var;
 use std::fmt::{self, Display, Formatter};
@@ -347,7 +347,7 @@ impl A2AServer {
             "tasks/resubscribe" | "a2a/tasks/resubscribe" => Self::handle_task_resubscribe(request),
             "tasks/pushNotificationConfig/set" => Self::handle_push_notification_config(request),
             "a2a/tasks/list" => self.handle_task_list(request).await,
-            "tools/list" | "a2a/tools/list" => Self::handle_tools_list(request),
+            "tools/list" | "a2a/tools/list" => self.handle_tools_list(request),
             "tools/call" | "a2a/tools/call" => self.handle_tool_call(request).await,
             _ => Self::handle_unknown_method(request),
         }
@@ -902,43 +902,47 @@ impl A2AServer {
         }
     }
 
-    fn handle_tools_list(request: A2ARequest) -> A2AResponse {
-        // Available tools would be sourced from the universal tool executor
-        let tools = json!([
-            {
-                "name": "get_activities",
-                "description": "Retrieve user fitness activities",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "limit": {"type": "number", "description": "Number of activities to retrieve"},
-                        "before": {"type": "string", "description": "ISO date to get activities before"}
+    fn handle_tools_list(&self, request: A2ARequest) -> A2AResponse {
+        // Get tools from registry if resources are available
+        let tools = self.resources.as_ref().map_or_else(
+            || {
+                // Fallback to minimal static list when resources unavailable
+                json!([
+                    {
+                        "name": "get_activities",
+                        "description": "Retrieve user fitness activities",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "limit": {"type": "number", "description": "Number of activities to retrieve"},
+                                "before": {"type": "string", "description": "ISO date to get activities before"}
+                            }
+                        }
                     }
-                }
+                ])
             },
-            {
-                "name": "analyze_activity",
-                "description": "AI analysis of fitness activity performance",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "activity_id": {"type": "string", "description": "Activity ID to analyze"}
-                    },
-                    "required": ["activity_id"]
-                }
-            }
-        ]);
+            |resources| {
+                // Use registry's user-visible schemas (excludes admin-only tools)
+                let schemas = resources.tool_registry.user_visible_schemas();
+                // Convert ToolSchema structs to JSON values
+                let schema_values: Vec<Value> = schemas
+                    .into_iter()
+                    .filter_map(|schema| to_value(schema).ok())
+                    .collect();
+                Value::Array(schema_values)
+            },
+        );
 
         A2AResponse {
             jsonrpc: "2.0".into(),
-            result: Some(tools),
+            result: Some(json!({ "tools": tools })),
             error: None,
             id: request.id,
         }
     }
 
     async fn handle_tool_call(&self, request: A2ARequest) -> A2AResponse {
-        // Implement tool execution through universal tool layer
+        // Extract tool call parameters
         let params = request.params.unwrap_or_default();
 
         let tool_name = params
@@ -953,25 +957,12 @@ impl A2AServer {
             .get("parameters")
             .and_then(|v| v.as_object())
             .cloned()
-            .unwrap_or_default();
+            .map_or_else(|| Value::Object(Map::default()), Value::Object);
 
-        // Create universal request
-        let universal_request = UniversalRequest {
-            tool_name: tool_name.to_owned(),
-            parameters: Value::Object(tool_params),
-            user_id: "unknown".into(), // In production, this would come from authentication
-            protocol: "a2a".into(),
-            tenant_id: None, // A2A protocol doesn't have tenant context yet
-            progress_token: None,
-            cancellation_token: None,
-            progress_reporter: None,
-        };
-
-        // Check if we have proper ServerResources injected
+        // Get server resources (required for tool execution)
         let resources = match &self.resources {
             Some(res) => res.clone(), // Safe: Arc clone for server resources
             None => {
-                // Return error if ServerResources are not available
                 return A2AResponse {
                     jsonrpc: "2.0".into(),
                     result: None,
@@ -985,25 +976,54 @@ impl A2AServer {
             }
         };
 
-        let executor = UniversalToolExecutor::new(resources);
+        // Build tool execution context for A2A protocol
+        // A2A protocol uses a system user ID for unauthenticated requests
+        // In production, this should come from A2A authentication/session
+        let system_user_id = Uuid::nil(); // Sentinel value for A2A system requests
+        let tool_ctx =
+            ToolExecutionContext::new(system_user_id, resources.clone(), AuthMethod::ApiKey);
 
-        match executor.execute_tool(universal_request).await {
-            Ok(response) => A2AResponse {
-                jsonrpc: "2.0".into(),
-                result: response.result,
-                error: None,
-                id: request.id,
-            },
-            Err(e) => A2AResponse {
+        // Try the registry first, fall back to error for unregistered tools
+        if resources.tool_registry.contains(tool_name) {
+            match resources
+                .tool_registry
+                .execute(tool_name, tool_params, &tool_ctx)
+                .await
+            {
+                Ok(result) => A2AResponse {
+                    jsonrpc: "2.0".into(),
+                    result: Some(json!({
+                        "content": [{
+                            "type": "text",
+                            "text": result.content.to_string()
+                        }],
+                        "isError": result.is_error
+                    })),
+                    error: None,
+                    id: request.id,
+                },
+                Err(e) => A2AResponse {
+                    jsonrpc: "2.0".into(),
+                    result: None,
+                    error: Some(A2AErrorResponse {
+                        code: -32000,
+                        message: format!("Tool execution failed: {e}"),
+                        data: None,
+                    }),
+                    id: request.id,
+                },
+            }
+        } else {
+            A2AResponse {
                 jsonrpc: "2.0".into(),
                 result: None,
                 error: Some(A2AErrorResponse {
-                    code: -32000,
-                    message: format!("Tool execution failed: {e}"),
+                    code: -32601,
+                    message: format!("Unknown tool: {tool_name}"),
                     data: None,
                 }),
                 id: request.id,
-            },
+            }
         }
     }
 
