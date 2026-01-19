@@ -161,9 +161,7 @@ impl McpTool for GetRecipeConstraintsTool {
             "meal_timing".to_owned(),
             PropertySchema {
                 property_type: "string".to_owned(),
-                description: Some(
-                    "pre_training, post_training, rest_day, or general".to_owned(),
-                ),
+                description: Some("pre_training, post_training, rest_day, or general".to_owned()),
             },
         );
         properties.insert(

@@ -457,13 +457,22 @@ impl ToolRegistry {
     /// Register nutrition tools
     #[cfg(feature = "tools-nutrition")]
     fn register_nutrition_tools(&mut self) {
-        // Reserve capacity for future tool registration (uses &mut self)
-        self.tools.reserve(0);
+        use super::implementations::nutrition::create_nutrition_tools;
+
         debug!(
             "Registering nutrition tools (registry has {} tools)",
             self.tools.len()
         );
-        // Tools: calculate_daily_nutrition, get_nutrient_timing, search_food, etc.
+
+        // Register all nutrition tools with the "nutrition" category
+        for tool in create_nutrition_tools() {
+            self.register_with_category(Arc::from(tool), "nutrition");
+        }
+
+        info!(
+            "Registered nutrition tools (registry now has {} tools)",
+            self.tools.len()
+        );
     }
 
     /// Register sleep/recovery tools
