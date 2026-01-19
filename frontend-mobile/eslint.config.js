@@ -148,6 +148,7 @@ export default [
       '.detoxrc.js',
       'e2e/',
       'eslint.config.js',
+      'plugins/',
     ],
   },
 ];

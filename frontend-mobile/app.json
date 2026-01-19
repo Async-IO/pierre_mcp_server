@@ -40,7 +40,9 @@
       }
     },
     "plugins": [
-      "@react-native-voice/voice"
+      "@react-native-voice/voice",
+      "./plugins/withAndroidManifestFix.js",
+      "./plugins/withAndroidDependencyFix.js"
     ]
   }
 }
