@@ -5,6 +5,7 @@ import './global.css';
 import React from 'react';
 import { LogBox } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { toastConfig } from './src/config/toast';
 
@@ -36,15 +37,17 @@ const queryClient = new QueryClient({
 export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <WebSocketProvider>
-            <StatusBar style="light" />
-            <RootNavigator />
-            <Toast config={toastConfig} />
-          </WebSocketProvider>
-        </AuthProvider>
-      </QueryClientProvider>
+      <SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <WebSocketProvider>
+              <StatusBar style="light" />
+              <RootNavigator />
+              <Toast config={toastConfig} />
+            </WebSocketProvider>
+          </AuthProvider>
+        </QueryClientProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

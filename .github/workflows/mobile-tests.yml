@@ -128,6 +128,75 @@ jobs:
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: detox-artifacts
+          name: detox-artifacts-ios
+          path: frontend-mobile/artifacts/
+          retention-days: 7
+
+  mobile-e2e-tests-android:
+    name: Mobile E2E Tests - Android (Detox)
+    runs-on: ubuntu-latest
+    continue-on-error: true  # E2E tests may fail without backend server in CI
+    # Run on main branch pushes or when explicitly triggered
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+
+    defaults:
+      run:
+        working-directory: frontend-mobile
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Setup Expo
+        run: bunx expo install
+
+      - name: Prebuild Android
+        run: bunx expo prebuild --platform android --clean
+
+      - name: Enable KVM for Android emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Build Detox APK
+        run: bunx detox build --configuration android.emu.debug
+        env:
+          RCT_NO_LAUNCH_PACKAGER: 1
+
+      - name: Run Android E2E tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          target: google_apis
+          arch: x86_64
+          profile: Pixel 6
+          avd-name: Pixel_6_API_33
+          force-avd-creation: true
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            cd frontend-mobile
+            bunx detox test --configuration android.emu.debug --headless
+
+      - name: Upload Android E2E test artifacts
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: detox-artifacts-android
           path: frontend-mobile/artifacts/
           retention-days: 7

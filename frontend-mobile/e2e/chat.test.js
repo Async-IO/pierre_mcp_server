@@ -32,6 +32,13 @@ describe('Chat Screen', () => {
     await expect(element(by.id('chat-screen'))).toBeVisible();
   });
 
+  it('should show header elements with proper visibility (safe area handling)', async () => {
+    // Verify all header buttons are visible and not obscured by status bar
+    await expect(element(by.id('menu-button'))).toBeVisible();
+    await expect(element(by.id('chat-title'))).toBeVisible();
+    await expect(element(by.id('new-chat-button'))).toBeVisible();
+  });
+
   it('should show New Chat title initially', async () => {
     await expect(element(by.id('chat-title'))).toHaveText('New Chat');
   });
