@@ -83,6 +83,7 @@ describe('Tools List Snapshot Tests', () => {
 
   describe('Critical Tools Presence', () => {
     // These tools MUST always be present - removing them would be a breaking change
+    // NOTE: Tool names updated for pluggable architecture (commit 787cbc31)
     const CRITICAL_TOOLS = [
       // Core connection tools
       // Note: connect_to_pierre removed - SDK bridge handles authentication locally via RFC 8414 discovery
@@ -90,17 +91,19 @@ describe('Tools List Snapshot Tests', () => {
       'disconnect_provider',
       'get_connection_status',
 
-      // Activity tools
+      // Activity/Data tools
       'get_activities',
       'get_athlete',
       'get_stats',
-      'analyze_activity',
 
-      // Intelligence tools
-      'get_activity_intelligence',
+      // Analytics tools (renamed in pluggable architecture)
+      'analyze_training_load',      // was: analyze_activity
+      'calculate_fitness_score',    // was: calculate_metrics
+      'detect_patterns',            // was: analyze_performance_trends
+
+      // Sleep/Recovery tools
       'calculate_recovery_score',
-      'calculate_metrics',
-      'analyze_performance_trends',
+      'suggest_rest_day',
 
       // Goal tools
       'set_goal',
