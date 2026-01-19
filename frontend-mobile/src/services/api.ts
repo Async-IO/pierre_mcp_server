@@ -25,11 +25,13 @@ import type {
 // Configuration - should be set via environment or config
 // For iOS Simulator, localhost works directly. For Android emulator, use 10.0.2.2
 const getDefaultApiUrl = (): string => {
+  // First, check for explicit environment configuration
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL;
   }
   // Android emulator cannot access localhost - it needs 10.0.2.2 to reach host machine
-  if (Platform.OS === 'android' && process.env.NODE_ENV !== 'production') {
+  // This applies to both debug and release builds running on emulator without explicit URL config
+  if (Platform.OS === 'android') {
     return 'http://10.0.2.2:8081';
   }
   return 'http://localhost:8081';
