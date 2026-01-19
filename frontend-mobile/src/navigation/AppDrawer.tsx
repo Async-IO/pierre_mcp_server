@@ -7,13 +7,13 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   ActivityIndicator,
   Alert,
   Modal,
   ScrollView,
   AppState,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import {
@@ -46,6 +46,7 @@ const Drawer = createDrawerNavigator<AppDrawerParamList>();
 
 function CustomDrawerContent(props: DrawerContentComponentProps) {
   const { user, isAuthenticated } = useAuth();
+  const insets = useSafeAreaInsets();
   const { navigation } = props;
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
@@ -217,7 +218,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   };
 
   return (
-    <SafeAreaView style={styles.drawerContainer}>
+    <View style={[styles.drawerContainer, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       {/* Brand Header */}
       <View style={styles.brandHeader}>
         <Text style={styles.brandTitle}>Pierre</Text>
@@ -429,7 +430,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
         onCancel={handleRenameCancel}
         testID="rename-conversation-dialog"
       />
-    </SafeAreaView>
+    </View>
   );
 }
 

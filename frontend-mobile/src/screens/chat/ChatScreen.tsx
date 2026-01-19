@@ -6,7 +6,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   TextInput,
   TouchableOpacity,
@@ -20,6 +19,7 @@ import {
   AppState,
   Image,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
@@ -62,6 +62,7 @@ interface ChatScreenProps {
 
 export function ChatScreen({ navigation }: ChatScreenProps) {
   const { isAuthenticated } = useAuth();
+  const insets = useSafeAreaInsets();
   const route = useRoute<RouteProp<AppDrawerParamList, 'Chat'>>();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
@@ -1190,14 +1191,14 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   );
 
   return (
-    <SafeAreaView style={styles.container} testID="chat-screen">
+    <View style={styles.container} testID="chat-screen">
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        {/* Header */}
-        <View style={styles.header}>
+        {/* Header with safe area inset for status bar */}
+        <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
           <TouchableOpacity
             style={styles.menuButton}
             onPress={() => navigation.openDrawer()}
@@ -1429,7 +1430,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
           testID="rename-conversation-dialog"
         />
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
