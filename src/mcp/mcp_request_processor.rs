@@ -13,7 +13,7 @@ use super::{
     multitenant::{McpError, McpRequest, McpResponse},
     protocol::ProtocolHandler,
     resources::ServerResources,
-    schema::{get_tools, CreateMessageRequest},
+    schema::CreateMessageRequest,
     tool_handlers::ToolHandlers,
 };
 use crate::constants::errors::{ERROR_INTERNAL_ERROR, ERROR_METHOD_NOT_FOUND};
@@ -95,7 +95,7 @@ impl McpRequestProcessor {
         match request.method.as_str() {
             "initialize" => Ok(Self::handle_initialize(&request)),
             "ping" => Ok(Self::handle_ping(&request)),
-            "tools/list" => Ok(Self::handle_tools_list(&request)),
+            "tools/list" => Ok(self.handle_tools_list(&request)),
             "tools/call" => self.handle_tools_call(&request).await,
             "authenticate" => Ok(Self::handle_authenticate(&request)),
             method if method.starts_with("resources/") => Ok(Self::handle_resources(&request)),
@@ -188,15 +188,16 @@ impl McpRequestProcessor {
     /// Handle tools/list request
     ///
     /// Per MCP specification, tools/list does NOT require authentication.
-    /// All tools are returned regardless of authentication status.
+    /// All user-visible tools are returned regardless of authentication status.
+    /// Admin-only tools are excluded from the public listing.
     /// Individual tool calls will check authentication and trigger OAuth if needed.
-    fn handle_tools_list(request: &McpRequest) -> McpResponse {
+    fn handle_tools_list(&self, request: &McpRequest) -> McpResponse {
         debug!("Handling tools/list request");
 
-        // Get all available tools from schema
+        // Get user-visible tools from registry (excludes admin-only tools)
         // MCP spec: tools/list must work without authentication
         // Authentication is checked at tools/call time, not discovery time
-        let tools = get_tools();
+        let tools = self.resources.tool_registry.user_visible_schemas();
 
         McpResponse {
             jsonrpc: JSONRPC_VERSION.to_owned(),

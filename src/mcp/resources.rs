@@ -40,6 +40,7 @@ use crate::providers::ProviderRegistry;
 use crate::security::csrf::CsrfTokenManager;
 use crate::sse::SseManager;
 use crate::tenant::{oauth_manager::TenantOAuthManager, TenantOAuthClient};
+use crate::tools::registry::ToolRegistry;
 use crate::websocket::WebSocketManager;
 use chrono::Utc;
 use std::collections::HashMap;
@@ -105,6 +106,8 @@ pub struct ServerResources {
     pub admin_config: Option<Arc<AdminConfigService>>,
     /// Tool selection service for per-tenant MCP tool filtering
     pub tool_selection: Arc<ToolSelectionService>,
+    /// Central registry for MCP tool discovery and execution
+    pub tool_registry: Arc<ToolRegistry>,
 }
 
 impl ServerResources {
@@ -204,6 +207,9 @@ impl ServerResources {
         // Create tool selection service for per-tenant tool filtering
         let tool_selection = Arc::new(ToolSelectionService::new(database_arc.clone()));
 
+        // Create and populate tool registry with all built-in tools
+        let tool_registry = Arc::new(Self::create_tool_registry());
+
         Self {
             database: database_arc,
             auth_manager: auth_manager_arc,
@@ -231,7 +237,15 @@ impl ServerResources {
             firebase_auth,
             admin_config,
             tool_selection,
+            tool_registry,
         }
+    }
+
+    /// Create and initialize the tool registry with all built-in tools
+    fn create_tool_registry() -> ToolRegistry {
+        let mut registry = ToolRegistry::new();
+        registry.register_builtin_tools();
+        registry
     }
 
     /// Create default activity intelligence for MCP server

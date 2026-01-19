@@ -56,6 +56,12 @@ cargo run --bin admin-setup -- revoke-token <token_id>
 - Token refresh is transparent to tool execution
 - If refresh fails, user must re-authenticate via OAuth flow
 
+## Development Guides
+
+| Guide | Description |
+|-------|-------------|
+| [Tool Development](../docs/tool-development.md) | How to create new MCP tools using the pluggable architecture |
+
 ## Port Allocation (CRITICAL)
 
 **Port 8081 is RESERVED for the Pierre MCP Server. NEVER start other services on this port.**

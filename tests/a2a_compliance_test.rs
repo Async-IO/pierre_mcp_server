@@ -186,14 +186,20 @@ async fn test_tools_schema_compliance() {
     let response = server.handle_request(request).await;
     assert!(response.result.is_some());
 
-    let tools = response.result.unwrap();
-    assert!(tools.is_array());
+    let result = response.result.unwrap();
+    // Response format is {"tools": [...]} with tools wrapped in an object
+    let tools = &result["tools"];
+    assert!(tools.is_array(), "Expected tools array in response");
 
     // Verify each tool has required schema
     for tool in tools.as_array().unwrap() {
         assert!(tool["name"].is_string());
         assert!(tool["description"].is_string());
-        assert!(tool["parameters"].is_object());
+        // Schema may use either "inputSchema" (MCP standard) or "parameters" (legacy)
+        assert!(
+            tool["inputSchema"].is_object() || tool["parameters"].is_object(),
+            "Tool must have inputSchema or parameters"
+        );
     }
 }
 
