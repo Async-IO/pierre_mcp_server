@@ -485,13 +485,22 @@ impl ToolRegistry {
     /// Register coach tools
     #[cfg(feature = "tools-coaches")]
     fn register_coach_tools(&mut self) {
-        // Reserve capacity for future tool registration (uses &mut self)
-        self.tools.reserve(0);
+        use super::implementations::coaches::create_coach_tools;
+
         debug!(
             "Registering coach tools (registry has {} tools)",
             self.tools.len()
         );
-        // Tools: list_coaches, create_coach, get_coach, update_coach, etc.
+
+        // Register all coach tools with the "coaches" category
+        for tool in create_coach_tools() {
+            self.register_with_category(Arc::from(tool), "coaches");
+        }
+
+        info!(
+            "Registered coach tools (registry now has {} tools)",
+            self.tools.len()
+        );
     }
 
     /// Register admin tools
