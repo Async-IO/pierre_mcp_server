@@ -42,7 +42,8 @@
     "plugins": [
       "@react-native-voice/voice",
       "./plugins/withAndroidManifestFix.js",
-      "./plugins/withAndroidDependencyFix.js"
+      "./plugins/withAndroidDependencyFix.js",
+      "./plugins/withAndroidPackagingFix.js"
     ]
   }
 }
