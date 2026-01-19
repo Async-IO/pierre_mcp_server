@@ -2,6 +2,7 @@
 // ABOUTME: Handles all HTTP requests with JWT auth and AsyncStorage for persistence
 
 import axios, { type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   User,
@@ -22,8 +23,19 @@ import type {
 } from '../types';
 
 // Configuration - should be set via environment or config
-// For iOS Simulator, localhost works directly. For Android, use 10.0.2.2
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8081';
+// For iOS Simulator, localhost works directly. For Android emulator, use 10.0.2.2
+const getDefaultApiUrl = (): string => {
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
+  // Android emulator cannot access localhost - it needs 10.0.2.2 to reach host machine
+  if (Platform.OS === 'android' && process.env.NODE_ENV !== 'production') {
+    return 'http://10.0.2.2:8081';
+  }
+  return 'http://localhost:8081';
+};
+
+const API_BASE_URL = getDefaultApiUrl();
 
 // Timeout for API requests (5 minutes to accommodate slower local LLM responses)
 const API_TIMEOUT_MS = 300000;
