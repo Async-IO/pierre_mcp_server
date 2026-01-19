@@ -336,14 +336,14 @@ export type CoachCategory = 'Training' | 'Nutrition' | 'Recovery' | 'Recipes' | 
 export interface Coach {
   id: string;
   title: string;
-  description: string | null;
+  description?: string;
   system_prompt: string;
   category: string;
   tags: string[];
   token_count: number;
   is_favorite: boolean;
   use_count: number;
-  last_used_at: string | null;
+  last_used_at?: string;
   created_at: string;
   updated_at: string;
   is_system: boolean;
