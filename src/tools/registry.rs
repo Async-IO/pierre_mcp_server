@@ -312,6 +312,10 @@ impl ToolRegistry {
         #[cfg(feature = "tools-config")]
         self.register_config_tools();
 
+        // Fitness config tools
+        #[cfg(feature = "tools-config")]
+        self.register_fitness_config_tools();
+
         // Nutrition tools
         #[cfg(feature = "tools-nutrition")]
         self.register_nutrition_tools();
@@ -450,6 +454,26 @@ impl ToolRegistry {
 
         info!(
             "Registered configuration tools (registry now has {} tools)",
+            self.tools.len()
+        );
+    }
+
+    /// Register fitness config tools
+    #[cfg(feature = "tools-config")]
+    fn register_fitness_config_tools(&mut self) {
+        use super::implementations::fitness_config::create_fitness_config_tools;
+
+        debug!(
+            "Registering fitness config tools (registry has {} tools)",
+            self.tools.len()
+        );
+
+        for tool in create_fitness_config_tools() {
+            self.register_with_category(Arc::from(tool), "fitness_config");
+        }
+
+        info!(
+            "Registered fitness config tools (registry now has {} tools)",
             self.tools.len()
         );
     }
