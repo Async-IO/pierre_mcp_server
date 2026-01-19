@@ -154,6 +154,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          testID="login-scroll-view"
         >
           {/* Logo and Header */}
           <View style={styles.header}>

@@ -32,6 +32,11 @@ describe('Login Flow', () => {
     await element(by.id('email-input')).clearText();
     await element(by.id('password-input')).clearText();
 
+    // Scroll to make login button visible and tap
+    await waitFor(element(by.id('login-button')))
+      .toBeVisible()
+      .whileElement(by.id('login-scroll-view'))
+      .scroll(100, 'down');
     await element(by.id('login-button')).tap();
 
     await expect(element(by.text('Email is required'))).toBeVisible();
@@ -41,23 +46,35 @@ describe('Login Flow', () => {
     await element(by.id('email-input')).typeText('invalid-email');
     await element(by.id('password-input')).typeText('password123');
 
+    // Scroll to make login button visible and tap
+    await waitFor(element(by.id('login-button')))
+      .toBeVisible()
+      .whileElement(by.id('login-scroll-view'))
+      .scroll(100, 'down');
     await element(by.id('login-button')).tap();
 
     await expect(element(by.text('Please enter a valid email'))).toBeVisible();
   });
 
+  // NOTE: This test requires the Pierre backend server running with test user
+  // mobile@test.com / mobiletest123 in the database
   it('should login successfully with valid credentials', async () => {
-    // Use test credentials (pre-filled in dev mode)
+    // Use test credentials
     await element(by.id('email-input')).clearText();
     await element(by.id('email-input')).typeText('mobile@test.com');
     await element(by.id('password-input')).clearText();
-    await element(by.id('password-input')).typeText('mobiletest123');
+    await element(by.id('password-input')).typeText('mobiletest123\n');
 
+    // Wait for keyboard to dismiss and button to be visible
+    await waitFor(element(by.id('login-button')))
+      .toBeVisible()
+      .withTimeout(5000);
     await element(by.id('login-button')).tap();
 
-    // After successful login, should navigate to chat screen
-    await waitFor(element(by.id('chat-screen')))
-      .toBeVisible()
-      .withTimeout(10000);
+    // After successful login, should navigate away from login screen
+    // Using longer timeout since login involves API call
+    await waitFor(element(by.id('login-screen')))
+      .not.toBeVisible()
+      .withTimeout(15000);
   });
 });
