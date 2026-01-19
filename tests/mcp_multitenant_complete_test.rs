@@ -754,14 +754,14 @@ async fn test_mcp_authentication_required() -> Result<()> {
     assert!(tools_response["error"].is_null());
     assert!(!tools_response["result"]["tools"].is_null());
     let tools = tools_response["result"]["tools"].as_array().unwrap();
-    // 53 user-visible tools (61 total - 8 admin-only tools)
+    // 61 total tools exposed for discovery
     // Categories: connection(3), data(3), analytics(3), goals(4), config(6), fitness_config(4),
-    //             nutrition(5), sleep(5), recipes(7), coaches(13) = 53 user-visible
-    // Admin tools (8) are not exposed in tools/list per MCP specification
+    //             nutrition(5), sleep(5), recipes(7), coaches(13), admin(8) = 61 total
+    // Admin tools are discoverable; admin privileges checked at tools/call time
     assert_eq!(
         tools.len(),
-        53,
-        "Should expose all 53 user-visible tools (admin tools excluded from discovery)"
+        61,
+        "Should expose all 61 tools for discovery (admin privileges checked at call time)"
     );
 
     // Try to call a tool without authentication (this should fail)

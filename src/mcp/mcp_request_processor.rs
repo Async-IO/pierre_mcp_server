@@ -188,16 +188,15 @@ impl McpRequestProcessor {
     /// Handle tools/list request
     ///
     /// Per MCP specification, tools/list does NOT require authentication.
-    /// All user-visible tools are returned regardless of authentication status.
-    /// Admin-only tools are excluded from the public listing.
-    /// Individual tool calls will check authentication and trigger OAuth if needed.
+    /// All tools are returned for discovery regardless of authentication status.
+    /// Individual tool calls will check authentication and admin privileges at execution time.
     fn handle_tools_list(&self, request: &McpRequest) -> McpResponse {
         debug!("Handling tools/list request");
 
-        // Get user-visible tools from registry (excludes admin-only tools)
+        // Return all tools for discovery (including admin tools)
         // MCP spec: tools/list must work without authentication
-        // Authentication is checked at tools/call time, not discovery time
-        let tools = self.resources.tool_registry.user_visible_schemas();
+        // Admin privileges are checked at tools/call time, not discovery time
+        let tools = self.resources.tool_registry.all_schemas();
 
         McpResponse {
             jsonrpc: JSONRPC_VERSION.to_owned(),
