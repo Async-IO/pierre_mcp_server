@@ -5,6 +5,11 @@ describe('Synthetic Provider Tests', () => {
   beforeAll(async () => {
     await device.launchApp({ newInstance: true });
 
+    // Wait for login screen to be visible
+    await waitFor(element(by.id('login-screen')))
+      .toBeVisible()
+      .withTimeout(10000);
+
     // Login
     await element(by.id('email-input')).clearText();
     await element(by.id('email-input')).typeText('mobile@test.com');

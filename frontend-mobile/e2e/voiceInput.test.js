@@ -8,6 +8,11 @@ describe('Voice Input', () => {
 
   beforeEach(async () => {
     await device.reloadReactNative();
+    // Wait for login screen to be visible after reload
+    await waitFor(element(by.id('login-screen')))
+      .toBeVisible()
+      .withTimeout(10000);
+
     // Login first to reach chat screen
     await element(by.id('email-input')).clearText();
     await element(by.id('email-input')).typeText('mobile@test.com');

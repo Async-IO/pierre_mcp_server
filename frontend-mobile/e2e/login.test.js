@@ -8,6 +8,10 @@ describe('Login Flow', () => {
 
   beforeEach(async () => {
     await device.reloadReactNative();
+    // Wait for login screen to be visible after reload
+    await waitFor(element(by.id('login-screen')))
+      .toBeVisible()
+      .withTimeout(10000);
   });
 
   it('should show login screen on app launch', async () => {
