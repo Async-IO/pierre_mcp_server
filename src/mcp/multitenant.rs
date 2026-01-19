@@ -1012,6 +1012,8 @@ impl MultiTenantMcpServer {
         use crate::routes::llm_settings::LlmSettingsRoutes;
         use crate::routes::mcp::McpRoutes;
         use crate::routes::oauth2::OAuth2Routes;
+        #[cfg(feature = "openapi")]
+        use crate::routes::openapi::OpenApiRoutes;
         use crate::routes::tenants::TenantRoutes;
         use crate::routes::user_mcp_tokens::UserMcpTokenRoutes;
         use crate::routes::user_oauth_apps::UserOAuthAppRoutes;
@@ -1070,7 +1072,7 @@ impl MultiTenantMcpServer {
         );
 
         // Combine all routes into the main router
-        Router::new()
+        let app = Router::new()
             .merge(health_routes)
             .merge(admin_routes)
             .merge(AuthRoutes::routes(Arc::clone(resources)))
@@ -1100,7 +1102,13 @@ impl MultiTenantMcpServer {
             .merge(ChatRoutes::routes(Arc::clone(resources)))
             .merge(UserOAuthAppRoutes::routes(Arc::clone(resources)))
             .merge(LlmSettingsRoutes::routes(Arc::clone(resources)))
-            .merge(CoachesRoutes::routes(Arc::clone(resources)))
+            .merge(CoachesRoutes::routes(Arc::clone(resources)));
+
+        // OpenAPI documentation routes (feature-gated for production exclusion)
+        #[cfg(feature = "openapi")]
+        let app = app.merge(OpenApiRoutes::routes());
+
+        app
     }
 
     /// Create health check routes for Axum

@@ -38,6 +38,9 @@ pub mod llm_settings;
 pub mod mcp;
 /// OAuth 2.0 server implementation routes
 pub mod oauth2;
+/// `OpenAPI` documentation routes (feature-gated)
+#[cfg(feature = "openapi")]
+pub mod openapi;
 /// Tenant management routes
 pub mod tenants;
 /// Tool selection admin routes for per-tenant MCP tool configuration
@@ -116,6 +119,9 @@ pub use dashboard::DashboardRoutes;
 pub use fitness::FitnessConfigurationRoutes;
 /// Impersonation route handlers
 pub use impersonation::ImpersonationRoutes;
+/// `OpenAPI` documentation route handlers (feature-gated)
+#[cfg(feature = "openapi")]
+pub use openapi::OpenApiRoutes;
 /// Tenant route handlers
 pub use tenants::TenantRoutes;
 /// Tool selection context

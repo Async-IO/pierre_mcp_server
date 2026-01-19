@@ -8,11 +8,19 @@ on:
     branches: [ "main", "debug/*", "feature/*", "claude/*" ]
     paths:
       - 'frontend-mobile/**'
+      - 'src/routes/auth.rs'
+      - 'src/routes/coaches.rs'
+      - 'src/routes/chat.rs'
+      - 'src/models/**'
       - '.github/workflows/mobile-tests.yml'
   pull_request:
     branches: [ main ]
     paths:
       - 'frontend-mobile/**'
+      - 'src/routes/auth.rs'
+      - 'src/routes/coaches.rs'
+      - 'src/routes/chat.rs'
+      - 'src/models/**'
   workflow_dispatch:  # Allow manual triggering
 
 concurrency:

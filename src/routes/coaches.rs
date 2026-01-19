@@ -32,10 +32,13 @@ use axum::{
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+#[cfg(feature = "openapi")]
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// Response for a coach
 #[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
 pub struct CoachResponse {
     /// Unique identifier
     pub id: String,
@@ -115,6 +118,7 @@ impl From<CoachListItem> for CoachResponse {
 
 /// Response for listing coaches
 #[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
 pub struct ListCoachesResponse {
     /// List of coaches
     pub coaches: Vec<CoachResponse>,
@@ -126,6 +130,7 @@ pub struct ListCoachesResponse {
 
 /// Metadata for coaches response
 #[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
 pub struct CoachesMetadata {
     /// Response timestamp
     pub timestamp: String,
@@ -135,6 +140,7 @@ pub struct CoachesMetadata {
 
 /// Query parameters for listing coaches
 #[derive(Debug, Deserialize, Default)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
 pub struct ListCoachesQuery {
     /// Filter by category
     pub category: Option<String>,
@@ -152,6 +158,7 @@ pub struct ListCoachesQuery {
 
 /// Query parameters for searching coaches
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
 pub struct SearchCoachesQuery {
     /// Search query string
     pub q: String,
@@ -161,6 +168,7 @@ pub struct SearchCoachesQuery {
 
 /// Response for toggle favorite
 #[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
 pub struct ToggleFavoriteResponse {
     /// New favorite status
     pub is_favorite: bool,
@@ -168,6 +176,7 @@ pub struct ToggleFavoriteResponse {
 
 /// Response for record usage
 #[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
 pub struct RecordUsageResponse {
     /// Whether the usage was recorded
     pub success: bool,
@@ -175,6 +184,7 @@ pub struct RecordUsageResponse {
 
 /// Response for hide/show coach operations
 #[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
 pub struct HideCoachResponse {
     /// Whether the operation was successful
     pub success: bool,
@@ -184,6 +194,7 @@ pub struct HideCoachResponse {
 
 /// Request body for creating a coach (mirrors `CreateCoachRequest` with serde derives)
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
 pub struct CreateCoachBody {
     /// Display title for the coach
     pub title: String,
@@ -219,6 +230,7 @@ impl From<CreateCoachBody> for CreateCoachRequest {
 
 /// Request body for updating a coach
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
 pub struct UpdateCoachBody {
     /// New title (if provided)
     pub title: Option<String>,

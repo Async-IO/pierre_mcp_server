@@ -1,0 +1,172 @@
+# ABOUTME: CI workflow for API contract validation between backend and frontends
+# ABOUTME: Detects type drift between OpenAPI spec and committed TypeScript types
+
+name: API Contracts
+
+on:
+  push:
+    branches: [ "main", "debug/*", "feature/*", "claude/*" ]
+    paths:
+      - 'src/routes/**'
+      - 'src/models/**'
+      - 'frontend/src/types/api-generated.ts'
+      - 'frontend-mobile/src/types/api-generated.ts'
+      - '.github/workflows/api-contracts.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/routes/**'
+      - 'src/models/**'
+      - 'frontend/src/types/api-generated.ts'
+      - 'frontend-mobile/src/types/api-generated.ts'
+  workflow_dispatch:  # Allow manual triggering
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Security: Explicit permissions following principle of least privilege
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  DATABASE_URL: sqlite:./data/test_api_contracts.db
+  RUST_LOG: warn
+  # Standard CI encryption key (32 bytes base64 encoded)
+  PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+  # OAuth credentials (dummy values for CI)
+  STRAVA_CLIENT_ID: test_client_id
+  STRAVA_CLIENT_SECRET: test_client_secret
+
+jobs:
+  validate-contracts:
+    name: Validate API Contracts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          cache: true
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Create data directory
+        run: mkdir -p data
+
+      - name: Build server with OpenAPI
+        run: cargo build --release --quiet --features openapi
+
+      - name: Start server in background
+        run: |
+          cargo run --release --quiet --features openapi --bin pierre-mcp-server &
+          echo $! > server.pid
+
+          # Wait for server to be ready
+          for i in {1..30}; do
+            if curl -s http://localhost:8081/health > /dev/null 2>&1; then
+              echo "Server is ready!"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "Server failed to start within 30 seconds"
+              exit 1
+            fi
+            sleep 1
+          done
+
+      - name: Verify OpenAPI spec available
+        run: |
+          curl -sf http://localhost:8081/api-docs/openapi.json > /dev/null
+          echo "OpenAPI spec is available"
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: bun install --frozen-lockfile
+
+      - name: Install mobile dependencies
+        working-directory: frontend-mobile
+        run: bun install --frozen-lockfile
+
+      - name: Generate types for web frontend
+        working-directory: frontend
+        run: |
+          if grep -q '"generate:types"' package.json 2>/dev/null; then
+            bun run generate:types
+            echo "Generated types for web frontend"
+          else
+            echo "::warning::generate:types script not found in frontend - skipping type generation"
+          fi
+
+      - name: Generate types for mobile
+        working-directory: frontend-mobile
+        run: |
+          if grep -q '"generate:types"' package.json 2>/dev/null; then
+            bun run generate:types
+            echo "Generated types for mobile frontend"
+          else
+            echo "::warning::generate:types script not found in frontend-mobile - skipping type generation"
+          fi
+
+      - name: Check for type drift (web)
+        working-directory: frontend
+        run: |
+          if [ -f src/types/api-generated.ts ]; then
+            if ! git diff --exit-code src/types/api-generated.ts; then
+              echo ""
+              echo "::error::API type drift detected in frontend/src/types/api-generated.ts"
+              echo "The committed types don't match the current OpenAPI spec."
+              echo ""
+              echo "To fix:"
+              echo "  1. Start the server: cargo run --bin pierre-mcp-server"
+              echo "  2. Regenerate types: cd frontend && bun run generate:types"
+              echo "  3. Commit the updated types"
+              exit 1
+            fi
+            echo "Web frontend types are up to date"
+          else
+            echo "::warning::No api-generated.ts found in frontend - initial generation needed"
+          fi
+
+      - name: Check for type drift (mobile)
+        working-directory: frontend-mobile
+        run: |
+          if [ -f src/types/api-generated.ts ]; then
+            if ! git diff --exit-code src/types/api-generated.ts; then
+              echo ""
+              echo "::error::API type drift detected in frontend-mobile/src/types/api-generated.ts"
+              echo "The committed types don't match the current OpenAPI spec."
+              echo ""
+              echo "To fix:"
+              echo "  1. Start the server: cargo run --bin pierre-mcp-server"
+              echo "  2. Regenerate types: cd frontend-mobile && bun run generate:types"
+              echo "  3. Commit the updated types"
+              exit 1
+            fi
+            echo "Mobile frontend types are up to date"
+          else
+            echo "::warning::No api-generated.ts found in frontend-mobile - initial generation needed"
+          fi
+
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -f server.pid ]; then
+            kill $(cat server.pid) 2>/dev/null || true
+          fi
+
+      - name: Upload OpenAPI spec as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-spec
+          path: |
+            frontend/src/types/api-generated.ts
+            frontend-mobile/src/types/api-generated.ts
+          retention-days: 7

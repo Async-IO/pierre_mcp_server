@@ -97,6 +97,10 @@ tools-admin = ["tools-coaches"]  # admin tools depend on coach tools
 tools-fitness-core = ["tools-connection", "tools-data", "tools-analytics"]
 tools-wellness = ["tools-sleep", "tools-nutrition", "tools-recipes"]
 
+# OpenAPI documentation (SwaggerUI) - excluded from production by default
+# Enable with: cargo build --features openapi
+openapi = ["dep:utoipa", "dep:utoipa-axum", "dep:utoipa-swagger-ui"]
+
 [profile.dev]
 debug = 1
 opt-level = 0
@@ -187,6 +191,11 @@ x509-parser = "0.18.0"
 # TOON format for token-efficient LLM serialization (~40% token reduction vs JSON)
 toon-format = "0.2"
 rand_chacha = "0.3"
+# OpenAPI documentation generation with utoipa
+# OpenAPI documentation - optional (enable with --features openapi)
+utoipa = { version = "5.3", features = ["axum_extras", "chrono", "uuid"], optional = true }
+utoipa-axum = { version = "0.2", optional = true }
+utoipa-swagger-ui = { version = "8.1", features = ["axum"], optional = true }
 [dev-dependencies]
 tempfile = "3.20"
 serial_test = "3.1"
