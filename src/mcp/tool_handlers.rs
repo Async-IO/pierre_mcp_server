@@ -395,6 +395,9 @@ impl ToolHandlers {
     }
 
     /// Convert a `ToolResult` to an `McpResponse`
+    ///
+    /// The response includes both `content` (text representation for MCP protocol)
+    /// and `structuredContent` (original JSON for programmatic access).
     fn tool_result_to_mcp_response(result: &ToolResult, request_id: Value) -> McpResponse {
         McpResponse {
             jsonrpc: JSONRPC_VERSION.to_owned(),
@@ -404,6 +407,7 @@ impl ToolHandlers {
                     "type": "text",
                     "text": result.content.to_string()
                 }],
+                "structuredContent": result.content,
                 "isError": result.is_error
             })),
             error: None,
