@@ -13,9 +13,13 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "build:ios": "detox build --configuration ios.sim.debug",
+    "build:android": "detox build --configuration android.emu.debug",
     "test:e2e:ios": "detox test --configuration ios.sim.debug",
+    "test:e2e:android": "detox test --configuration android.emu.debug",
     "e2e:build": "detox build --configuration ios.sim.debug",
-    "e2e:test": "detox test --configuration ios.sim.debug"
+    "e2e:build:android": "detox build --configuration android.emu.debug",
+    "e2e:test": "detox test --configuration ios.sim.debug",
+    "e2e:test:android": "detox test --configuration android.emu.debug"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
