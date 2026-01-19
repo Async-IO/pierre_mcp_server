@@ -7,6 +7,7 @@
 use super::multitenant::{McpError, McpRequest, McpResponse, MultiTenantMcpServer};
 use super::resources::ServerResources;
 use super::tenant_isolation::extract_tenant_context_internal;
+use crate::auth::AuthMethod as AuthResultMethod;
 use crate::auth::AuthResult;
 use crate::constants::{
     errors::{
@@ -15,16 +16,15 @@ use crate::constants::{
         MSG_TOKEN_INVALID, MSG_TOKEN_MALFORMED,
     },
     protocol::JSONRPC_VERSION,
-    tools::{
-        CONNECT_PROVIDER, DELETE_FITNESS_CONFIG, DISCONNECT_PROVIDER, GET_CONNECTION_STATUS,
-        GET_FITNESS_CONFIG, LIST_FITNESS_CONFIGS, SET_FITNESS_CONFIG,
-    },
+    tools::{CONNECT_PROVIDER, DISCONNECT_PROVIDER, GET_CONNECTION_STATUS},
 };
 use crate::database::oauth_notifications::OAuthNotification;
 use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
-use crate::errors::AppError;
+use crate::errors::{AppError, ErrorCode};
 use crate::tenant::TenantContext;
+use crate::tools::context::{AuthMethod, ToolExecutionContext};
+use crate::tools::result::ToolResult;
 use crate::types::json_schemas;
 use serde_json::{json, Value};
 use std::fmt::Write;
@@ -367,8 +367,74 @@ impl ToolHandlers {
         )
     }
 
+    /// Build a `ToolExecutionContext` from MCP routing context
+    fn build_tool_context(
+        user_id: Uuid,
+        request_id: Option<Value>,
+        ctx: &ToolRoutingContext<'_>,
+    ) -> ToolExecutionContext {
+        // Map AuthResult auth_method to ToolExecutionContext AuthMethod
+        let auth_method = match &ctx.auth_result.auth_method {
+            AuthResultMethod::JwtToken { .. } => AuthMethod::JwtBearer,
+            AuthResultMethod::ApiKey { .. } => AuthMethod::ApiKey,
+        };
+
+        let mut tool_ctx = ToolExecutionContext::new(user_id, ctx.resources.clone(), auth_method);
+
+        // Add tenant context if available
+        if let Some(ref tenant_ctx) = ctx.tenant_context {
+            tool_ctx = tool_ctx.with_tenant(tenant_ctx.tenant_id);
+        }
+
+        // Add request ID if available
+        if let Some(req_id) = request_id {
+            tool_ctx = tool_ctx.with_request_id(req_id);
+        }
+
+        tool_ctx
+    }
+
+    /// Convert a `ToolResult` to an `McpResponse`
+    fn tool_result_to_mcp_response(result: &ToolResult, request_id: Value) -> McpResponse {
+        McpResponse {
+            jsonrpc: JSONRPC_VERSION.to_owned(),
+            id: Some(request_id),
+            result: Some(json!({
+                "content": [{
+                    "type": "text",
+                    "text": result.content.to_string()
+                }],
+                "isError": result.is_error
+            })),
+            error: None,
+        }
+    }
+
+    /// Convert an `AppError` to an `McpResponse`
+    fn error_to_mcp_response(error: &AppError, request_id: Value) -> McpResponse {
+        let error_code = match error.code {
+            ErrorCode::ResourceNotFound => ERROR_METHOD_NOT_FOUND,
+            ErrorCode::InvalidInput => ERROR_INVALID_PARAMS,
+            ErrorCode::PermissionDenied => ERROR_UNAUTHORIZED,
+            _ => ERROR_INTERNAL_ERROR,
+        };
+
+        McpResponse {
+            jsonrpc: JSONRPC_VERSION.to_owned(),
+            id: Some(request_id),
+            result: None,
+            error: Some(McpError {
+                code: error_code,
+                message: error.to_string(),
+                data: None,
+            }),
+        }
+    }
+
     /// Route tool calls to appropriate handlers based on tool type and tenant context
-    #[allow(clippy::too_many_lines)] // Long function: Handles comprehensive tool routing for all tool types
+    ///
+    /// Uses the `ToolRegistry` for tool execution. OAuth connection tools are handled
+    /// specially due to their complex flow requirements.
     pub async fn route_tool_call(
         tool_name: &str,
         args: &Value,
@@ -376,503 +442,163 @@ impl ToolHandlers {
         user_id: Uuid,
         ctx: &ToolRoutingContext<'_>,
     ) -> McpResponse {
+        // Handle OAuth connection tools specially - they have complex flow requirements
+        // that don't fit the standard McpTool pattern
         match tool_name {
-            // Note: connect_to_pierre removed - SDK bridge handles authentication locally
-            // The bridge intercepts connect_to_pierre calls and triggers OAuth via RFC 8414 discovery
             CONNECT_PROVIDER => {
-                // Handle unified OAuth flow: Pierre + Provider authentication in one session
-                let params =
-                    serde_json::from_value::<json_schemas::ConnectProviderParams>(args.clone())
-                        .unwrap_or_else(|_| json_schemas::ConnectProviderParams {
-                            provider: String::new(),
-                            strava_client_id: None,
-                            strava_client_secret: None,
-                            fitbit_client_id: None,
-                            fitbit_client_secret: None,
-                        });
-
-                let provider_name = params.provider.to_lowercase();
-
-                // Validate provider
-                if provider_name.is_empty()
-                    || !["strava", "fitbit"].contains(&provider_name.as_str())
-                {
-                    return McpResponse {
-                        jsonrpc: JSONRPC_VERSION.to_owned(),
-                        id: Some(request_id),
-                        result: Some(json!({
-                            "content": [{
-                                "type": "text",
-                                "text": format!("Invalid provider '{provider_name}'. Supported providers are: strava, fitbit")
-                            }],
-                            "isError": true
-                        })),
-                        error: None,
-                    };
-                }
-
-                // Return unified auth flow response
-                McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_owned(),
-                    id: Some(request_id),
-                    result: Some(json!({
-                        "content": [{
-                            "type": "text",
-                            "text": format!(
-                                "Starting unified authentication for {}. This will:\n\n1. First authenticate you with Pierre Fitness Server\n2. Then connect you to {} for your fitness data\n\nOpening browser for secure authentication...",
-                                provider_name.to_uppercase(),
-                                provider_name.to_uppercase()
-                            )
-                        }],
-                        "isError": false,
-                        "requiresAuth": true,
-                        "authUrl": "oauth2/authorize",
-                        "unifiedFlow": true,
-                        "provider": provider_name,
-                        "message": format!("Please complete unified authentication with Pierre and {} in your browser.", provider_name.to_uppercase())
-                    })),
-                    error: None,
-                }
+                return Self::handle_connect_provider(args, request_id);
             }
             GET_CONNECTION_STATUS => {
-                if let Some(ref tenant_ctx) = ctx.tenant_context {
-                    // Extract optional OAuth credentials from args using typed params
-                    let params = serde_json::from_value::<json_schemas::GetConnectionStatusParams>(
-                        args.clone(),
-                    )
-                    .unwrap_or_default();
-
-                    let credentials = McpOAuthCredentials {
-                        strava_client_id: params.strava_client_id.as_deref(),
-                        strava_client_secret: params.strava_client_secret.as_deref(),
-                        fitbit_client_id: params.fitbit_client_id.as_deref(),
-                        fitbit_client_secret: params.fitbit_client_secret.as_deref(),
-                    };
-
-                    return MultiTenantMcpServer::handle_tenant_connection_status(
-                        tenant_ctx,
-                        &ctx.resources.tenant_oauth_client,
-                        &ctx.resources.database,
-                        request_id,
-                        credentials,
-                        ctx.resources.config.http_port,
-                        &ctx.resources.config,
-                    )
-                    .await;
-                }
-                // No legacy fallback - require tenant context
-                McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_owned(),
-                    result: None,
-                    error: Some(McpError {
-                        code: ERROR_INVALID_PARAMS,
-                        message: "No tenant context found. User must be assigned to a tenant."
-                            .to_owned(),
-                        data: None,
-                    }),
-                    id: Some(request_id),
-                }
+                return Self::handle_get_connection_status(args, request_id, ctx).await;
             }
             DISCONNECT_PROVIDER => {
-                let params = match serde_json::from_value::<json_schemas::DisconnectProviderParams>(
-                    args.clone(),
-                ) {
-                    Ok(p) => p,
-                    Err(e) => {
-                        return McpResponse {
-                            jsonrpc: JSONRPC_VERSION.to_owned(),
-                            result: None,
-                            error: Some(McpError {
-                                code: ERROR_INVALID_PARAMS,
-                                message: format!("Invalid disconnect_provider parameters: {e}"),
-                                data: None,
-                            }),
-                            id: Some(request_id),
-                        };
-                    }
-                };
-                MultiTenantMcpServer::route_disconnect_tool(
-                    &params.provider,
-                    user_id,
-                    request_id,
-                    ctx,
-                )
+                return Self::handle_disconnect_provider(args, request_id, user_id, ctx).await;
+            }
+            _ => {}
+        }
+
+        // Try the registry first for all other tools
+        if ctx.resources.tool_registry.contains(tool_name) {
+            let tool_ctx = Self::build_tool_context(user_id, Some(request_id.clone()), ctx);
+
+            match ctx
+                .resources
+                .tool_registry
+                .execute(tool_name, args.clone(), &tool_ctx)
                 .await
+            {
+                Ok(result) => Self::tool_result_to_mcp_response(&result, request_id),
+                Err(e) => Self::error_to_mcp_response(&e, request_id),
             }
-            // Fitness configuration tools
-            GET_FITNESS_CONFIG
-            | SET_FITNESS_CONFIG
-            | LIST_FITNESS_CONFIGS
-            | DELETE_FITNESS_CONFIG => {
-                Self::handle_fitness_config_tool(
-                    tool_name,
-                    args.clone(),
-                    request_id,
-                    &user_id,
-                    ctx.resources.clone(),
-                )
+        } else {
+            // Fall back to provider tool routing for tools not in the registry
+            MultiTenantMcpServer::route_provider_tool(tool_name, args, request_id, user_id, ctx)
                 .await
-            }
-            _ => {
-                MultiTenantMcpServer::route_provider_tool(tool_name, args, request_id, user_id, ctx)
-                    .await
-            }
         }
     }
 
-    /// Handle fitness configuration tool calls
-    #[allow(clippy::too_many_lines)] // Long function: Handles complete fitness configuration tool operations
-    async fn handle_fitness_config_tool(
-        tool_name: &str,
-        args: serde_json::Value,
-        request_id: serde_json::Value,
-        user_id: &Uuid,
-        resources: Arc<ServerResources>,
-    ) -> McpResponse {
-        // Get user's tenant_id for tenant isolation
-        let tenant_id = match resources.database.get_user(*user_id).await {
-            Ok(Some(user)) => match user.tenant_id {
-                Some(tid) => tid,
-                None => {
-                    return McpResponse {
-                        jsonrpc: JSONRPC_VERSION.to_owned(),
-                        result: None,
-                        error: Some(McpError {
-                            code: ERROR_INVALID_PARAMS,
-                            message: "User has no tenant assigned".to_owned(),
-                            data: None,
-                        }),
-                        id: Some(request_id),
-                    };
-                }
-            },
-            Ok(None) => {
-                return McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_owned(),
-                    result: None,
-                    error: Some(McpError {
-                        code: ERROR_INVALID_PARAMS,
-                        message: "User not found".to_owned(),
-                        data: None,
-                    }),
-                    id: Some(request_id),
-                };
-            }
-            Err(e) => {
-                error!("Database error getting user: {}", e);
-                return McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_owned(),
-                    result: None,
-                    error: Some(McpError {
-                        code: ERROR_INTERNAL_ERROR,
-                        message: "Database error".to_owned(),
-                        data: None,
-                    }),
-                    id: Some(request_id),
-                };
-            }
-        };
-
-        match tool_name {
-            GET_FITNESS_CONFIG => {
-                Self::handle_get_fitness_config(
-                    args,
-                    request_id,
-                    &tenant_id,
-                    &user_id.to_string(),
-                    &resources.database,
-                )
-                .await
-            }
-            SET_FITNESS_CONFIG => {
-                Self::handle_set_fitness_config(
-                    args,
-                    request_id,
-                    &tenant_id,
-                    &user_id.to_string(),
-                    &resources.database,
-                )
-                .await
-            }
-            LIST_FITNESS_CONFIGS => {
-                Self::handle_list_fitness_configs(
-                    request_id,
-                    &tenant_id,
-                    &user_id.to_string(),
-                    &resources.database,
-                )
-                .await
-            }
-            DELETE_FITNESS_CONFIG => {
-                Self::handle_delete_fitness_config(
-                    args,
-                    request_id,
-                    &tenant_id,
-                    &user_id.to_string(),
-                    &resources.database,
-                )
-                .await
-            }
-            _ => McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_owned(),
-                result: None,
-                error: Some(McpError {
-                    code: ERROR_METHOD_NOT_FOUND,
-                    message: "Unknown fitness config tool".to_owned(),
-                    data: None,
-                }),
-                id: Some(request_id),
-            },
-        }
-    }
-
-    async fn handle_get_fitness_config(
-        args: serde_json::Value,
-        request_id: serde_json::Value,
-        tenant_id: &str,
-        user_id: &str,
-        database: &Database,
-    ) -> McpResponse {
-        let params = serde_json::from_value::<json_schemas::GetFitnessConfigParams>(args)
-            .unwrap_or_default();
-        let config_name = &params.configuration_name;
-
-        match database
-            .get_user_fitness_config(tenant_id, user_id, config_name)
-            .await
-        {
-            Ok(Some(config)) => McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_owned(),
-                result: Some(json!({
-                    "configuration_name": config_name,
-                    "configuration": config
-                })),
-                error: None,
-                id: Some(request_id),
-            },
-            Ok(None) => {
-                // Try tenant-level config
-                match database
-                    .get_tenant_fitness_config(tenant_id, config_name)
-                    .await
-                {
-                    Ok(Some(config)) => McpResponse {
-                        jsonrpc: JSONRPC_VERSION.to_owned(),
-                        result: Some(json!({
-                            "configuration_name": config_name,
-                            "configuration": config,
-                            "source": "tenant"
-                        })),
-                        error: None,
-                        id: Some(request_id),
-                    },
-                    Ok(None) => McpResponse {
-                        jsonrpc: JSONRPC_VERSION.to_owned(),
-                        result: None,
-                        error: Some(McpError {
-                            code: ERROR_INVALID_PARAMS,
-                            message: format!("Configuration '{config_name}' not found"),
-                            data: None,
-                        }),
-                        id: Some(request_id),
-                    },
-                    Err(e) => {
-                        error!("Error getting tenant fitness config: {}", e);
-                        McpResponse {
-                            jsonrpc: JSONRPC_VERSION.to_owned(),
-                            result: None,
-                            error: Some(McpError {
-                                code: ERROR_INTERNAL_ERROR,
-                                message: "Database error".to_owned(),
-                                data: None,
-                            }),
-                            id: Some(request_id),
-                        }
-                    }
-                }
-            }
-            Err(e) => {
-                error!("Error getting user fitness config: {}", e);
-                McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_owned(),
-                    result: None,
-                    error: Some(McpError {
-                        code: ERROR_INTERNAL_ERROR,
-                        message: "Database error".to_owned(),
-                        data: None,
-                    }),
-                    id: Some(request_id),
-                }
-            }
-        }
-    }
-
-    async fn handle_set_fitness_config(
-        args: serde_json::Value,
-        request_id: serde_json::Value,
-        tenant_id: &str,
-        user_id: &str,
-        database: &Database,
-    ) -> McpResponse {
-        // Parse params with typed FitnessConfig (validates configuration structure at parse time)
-        let params = match serde_json::from_value::<json_schemas::SetFitnessConfigParams>(args) {
-            Ok(p) => p,
-            Err(e) => {
-                return McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_owned(),
-                    result: None,
-                    error: Some(McpError {
-                        code: ERROR_INVALID_PARAMS,
-                        message: format!("Invalid parameters: {e}"),
-                        data: None,
-                    }),
-                    id: Some(request_id),
-                };
-            }
-        };
-
-        let config_name = &params.configuration_name;
-        // Configuration is already typed (FitnessConfig) - no second parse needed
-        let configuration = &params.configuration;
-
-        match database
-            .save_user_fitness_config(tenant_id, user_id, config_name, configuration)
-            .await
-        {
-            Ok(config_id) => McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_owned(),
-                result: Some(json!({
-                    "configuration_id": config_id,
-                    "configuration_name": config_name,
-                    "message": "Fitness configuration saved successfully"
-                })),
-                error: None,
-                id: Some(request_id),
-            },
-            Err(e) => {
-                error!("Error saving fitness config: {}", e);
-                McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_owned(),
-                    result: None,
-                    error: Some(McpError {
-                        code: ERROR_INTERNAL_ERROR,
-                        message: "Failed to save configuration".to_owned(),
-                        data: None,
-                    }),
-                    id: Some(request_id),
-                }
-            }
-        }
-    }
-
-    async fn handle_list_fitness_configs(
-        request_id: serde_json::Value,
-        tenant_id: &str,
-        user_id: &str,
-        database: &Database,
-    ) -> McpResponse {
-        let user_configs = database
-            .list_user_fitness_configurations(tenant_id, user_id)
-            .await
-            .unwrap_or_else(|e| {
-                warn!(
-                    tenant_id = %tenant_id,
-                    user_id = %user_id,
-                    error = %e,
-                    "Failed to fetch user fitness configurations, using empty list"
-                );
-                Vec::new()
-            });
-        let tenant_configs = database
-            .list_tenant_fitness_configurations(tenant_id)
-            .await
-            .unwrap_or_else(|e| {
-                warn!(
-                    tenant_id = %tenant_id,
-                    error = %e,
-                    "Failed to fetch tenant fitness configurations, using empty list"
-                );
-                Vec::new()
+    /// Handle `connect_provider` OAuth tool
+    fn handle_connect_provider(args: &Value, request_id: Value) -> McpResponse {
+        let params = serde_json::from_value::<json_schemas::ConnectProviderParams>(args.clone())
+            .unwrap_or_else(|_| json_schemas::ConnectProviderParams {
+                provider: String::new(),
+                strava_client_id: None,
+                strava_client_secret: None,
+                fitbit_client_id: None,
+                fitbit_client_secret: None,
             });
 
-        let mut all_configs = user_configs;
-        all_configs.extend(tenant_configs);
-        all_configs.sort();
-        all_configs.dedup();
+        let provider_name = params.provider.to_lowercase();
 
+        // Validate provider
+        if provider_name.is_empty() || !["strava", "fitbit"].contains(&provider_name.as_str()) {
+            return McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_owned(),
+                id: Some(request_id),
+                result: Some(json!({
+                    "content": [{
+                        "type": "text",
+                        "text": format!("Invalid provider '{provider_name}'. Supported providers are: strava, fitbit")
+                    }],
+                    "isError": true
+                })),
+                error: None,
+            };
+        }
+
+        // Return unified auth flow response
         McpResponse {
             jsonrpc: JSONRPC_VERSION.to_owned(),
+            id: Some(request_id),
             result: Some(json!({
-                "configurations": all_configs,
-                "total_count": all_configs.len()
+                "content": [{
+                    "type": "text",
+                    "text": format!(
+                        "Starting unified authentication for {}. This will:\n\n1. First authenticate you with Pierre Fitness Server\n2. Then connect you to {} for your fitness data\n\nOpening browser for secure authentication...",
+                        provider_name.to_uppercase(),
+                        provider_name.to_uppercase()
+                    )
+                }],
+                "isError": false,
+                "requiresAuth": true,
+                "authUrl": "oauth2/authorize",
+                "unifiedFlow": true,
+                "provider": provider_name,
+                "message": format!("Please complete unified authentication with Pierre and {} in your browser.", provider_name.to_uppercase())
             })),
             error: None,
+        }
+    }
+
+    /// Handle `get_connection_status` OAuth tool
+    async fn handle_get_connection_status(
+        args: &Value,
+        request_id: Value,
+        ctx: &ToolRoutingContext<'_>,
+    ) -> McpResponse {
+        if let Some(ref tenant_ctx) = ctx.tenant_context {
+            let params =
+                serde_json::from_value::<json_schemas::GetConnectionStatusParams>(args.clone())
+                    .unwrap_or_default();
+
+            let credentials = McpOAuthCredentials {
+                strava_client_id: params.strava_client_id.as_deref(),
+                strava_client_secret: params.strava_client_secret.as_deref(),
+                fitbit_client_id: params.fitbit_client_id.as_deref(),
+                fitbit_client_secret: params.fitbit_client_secret.as_deref(),
+            };
+
+            return MultiTenantMcpServer::handle_tenant_connection_status(
+                tenant_ctx,
+                &ctx.resources.tenant_oauth_client,
+                &ctx.resources.database,
+                request_id,
+                credentials,
+                ctx.resources.config.http_port,
+                &ctx.resources.config,
+            )
+            .await;
+        }
+
+        // No tenant context - require tenant assignment
+        McpResponse {
+            jsonrpc: JSONRPC_VERSION.to_owned(),
+            result: None,
+            error: Some(McpError {
+                code: ERROR_INVALID_PARAMS,
+                message: "No tenant context found. User must be assigned to a tenant.".to_owned(),
+                data: None,
+            }),
             id: Some(request_id),
         }
     }
 
-    async fn handle_delete_fitness_config(
-        args: serde_json::Value,
-        request_id: serde_json::Value,
-        tenant_id: &str,
-        user_id: &str,
-        database: &Database,
+    /// Handle `disconnect_provider` OAuth tool
+    async fn handle_disconnect_provider(
+        args: &Value,
+        request_id: Value,
+        user_id: Uuid,
+        ctx: &ToolRoutingContext<'_>,
     ) -> McpResponse {
-        let params = match serde_json::from_value::<json_schemas::DeleteFitnessConfigParams>(args) {
-            Ok(p) => p,
-            Err(e) => {
-                return McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_owned(),
-                    result: None,
-                    error: Some(McpError {
-                        code: ERROR_INVALID_PARAMS,
-                        message: format!("Invalid parameters: {e}"),
-                        data: None,
-                    }),
-                    id: Some(request_id),
-                };
-            }
-        };
-
-        let config_name = &params.configuration_name;
-
-        match database
-            .delete_fitness_config(tenant_id, Some(user_id), config_name)
-            .await
-        {
-            Ok(true) => McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_owned(),
-                result: Some(json!({
-                    "configuration_name": config_name,
-                    "message": "Fitness configuration deleted successfully"
-                })),
-                error: None,
-                id: Some(request_id),
-            },
-            Ok(false) => McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_owned(),
-                result: None,
-                error: Some(McpError {
-                    code: ERROR_INVALID_PARAMS,
-                    message: format!("Configuration '{config_name}' not found"),
-                    data: None,
-                }),
-                id: Some(request_id),
-            },
-            Err(e) => {
-                error!("Error deleting fitness config: {}", e);
-                McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_owned(),
-                    result: None,
-                    error: Some(McpError {
-                        code: ERROR_INTERNAL_ERROR,
-                        message: "Failed to delete configuration".to_owned(),
-                        data: None,
-                    }),
-                    id: Some(request_id),
+        let params =
+            match serde_json::from_value::<json_schemas::DisconnectProviderParams>(args.clone()) {
+                Ok(p) => p,
+                Err(e) => {
+                    return McpResponse {
+                        jsonrpc: JSONRPC_VERSION.to_owned(),
+                        result: None,
+                        error: Some(McpError {
+                            code: ERROR_INVALID_PARAMS,
+                            message: format!("Invalid disconnect_provider parameters: {e}"),
+                            data: None,
+                        }),
+                        id: Some(request_id),
+                    };
                 }
-            }
-        }
+            };
+
+        MultiTenantMcpServer::route_disconnect_tool(&params.provider, user_id, request_id, ctx)
+            .await
     }
 
     /// Build notification text from a list of OAuth notifications
