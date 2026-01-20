@@ -737,7 +737,11 @@ async fn test_search_food_with_api_key() -> Result<()> {
     let result = response.result.unwrap();
 
     assert!(result["foods"].is_array(), "Should return foods array");
-    assert!(result["total"].as_u64().unwrap() > 0, "Should find results");
+    // Response uses total_hits for total result count
+    assert!(
+        result["total_hits"].as_u64().unwrap_or(0) > 0 || result["count"].as_u64().unwrap_or(0) > 0,
+        "Should find results"
+    );
 
     Ok(())
 }
