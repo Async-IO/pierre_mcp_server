@@ -305,7 +305,7 @@ significant_drop_tightening = "allow"
 
 # Cognitive complexity - warn on overly complex functions
 # Enforces CLAUDE.md guideline of small, focused functions (max 50 lines)
-cognitive_complexity = "warn"
+cognitive_complexity = "deny"
 
 # ============================================================================
 # Additional Code Quality Lints
