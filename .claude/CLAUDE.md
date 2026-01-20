@@ -213,36 +213,28 @@ If the script generated a new token, you may need to **restart the Claude Code s
 
 ## Linear Session Tracking
 
-Each Claude Code session is tracked as a Linear issue for persistent memory across sessions.
+Sessions are tracked via Linear issues for persistent memory across Claude Code sessions.
 
-### How It Works
-1. **SessionStart hook** runs `./scripts/linear-session-init.sh` automatically
-2. Script outputs session ID and instructions for Claude
-3. Claude creates or resumes a session issue in Linear
-4. Work done during session is linked to the session issue
+### Automatic Setup
+- **SessionStart hook** runs `./scripts/linear-session-init.sh` automatically
+- Creates or resumes a session issue with the `claude-session` label
+- Outputs: `📋 Linear Session RESUMED: ASY-XXX (branch) - <url>`
 
-### Session ID Format
-```
-Session: YYYY-MM-DD-<project_name>-<short_hash>
-Example: Session: 2026-01-14-pierre_mcp_server-a3f2
-```
+### Using the `/session` Skill
+Use the session skill to update the Linear issue with meaningful content:
 
-### Claude's Responsibilities on Session Start
-When the session init script runs, Claude MUST:
-1. Search for existing session issue with the generated session ID
-2. If exists: resume it, add "Session resumed" comment
-3. If not: create new session issue with `claude-session` label
-4. Link any branch-related issues
-5. Present current work context (in-progress, todos)
+| Command | Purpose |
+|---------|---------|
+| `/session` | Show current session status |
+| `/session update <notes>` | Add work log entry |
+| `/session decision <text>` | Document a key decision |
+| `/session link <issue-id>` | Link related issue to session |
+| `/session end` | Add end-of-session summary |
 
-### During the Session
-- Link issues being worked on to the session issue (`relatedTo`)
-- Add comments to session issue for important decisions
-- The session issue becomes the "memory" of what happened
-
-### Cross-Day Sessions
-- Same day resume → same session issue
-- Different day → new session issue (previous remains in history)
+### Best Practices
+- Run `/session update` after completing significant tasks
+- Run `/session decision` for architectural choices
+- Run `/session end` before ending with incomplete work
 
 ## Claude Code for Web - Special Instructions
 

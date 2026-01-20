@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2025 Pierre Fitness Intelligence
 # ABOUTME: Automatically creates or resumes Linear session issues for Claude Code sessions.
 # ABOUTME: Uses LINEAR_API_KEY to manage sessions via the Linear GraphQL API.
 
@@ -208,9 +210,12 @@ output_session_status() {
         local issues
         issues=$(echo "$in_progress" | jq -r '.[].identifier' 2>/dev/null | tr '\n' ' ')
         if [[ -n "$issues" ]]; then
-            echo "📊 In-Progress: ${issues}"
+            echo "   In-Progress: ${issues}"
         fi
     fi
+
+    # Hint for using the session skill
+    echo "   Use /session to update progress, /session end when done"
 }
 
 # Output instructions for Claude when API key is missing
