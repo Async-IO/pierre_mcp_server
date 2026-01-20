@@ -24,7 +24,7 @@ use pierre_mcp_server::{
     providers::synthetic_provider::set_synthetic_test_seed,
 };
 use rand::Rng;
-use std::{net::TcpListener, path::PathBuf, sync::Arc, time::Duration};
+use std::{env, net::TcpListener, path::PathBuf, sync::Arc, time::Duration};
 use tokio::{task::JoinHandle, time::sleep};
 use uuid::Uuid;
 
@@ -277,7 +277,7 @@ fn create_test_server_config(port: u16) -> ServerConfig {
             },
         },
         external_services: ExternalServicesConfig::default(),
-        usda_api_key: std::env::var("USDA_API_KEY").ok(),
+        usda_api_key: env::var("USDA_API_KEY").ok(),
         app_behavior: AppBehaviorConfig {
             max_activities_fetch: 100,
             default_activities_limit: 20,
