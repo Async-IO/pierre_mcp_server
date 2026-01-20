@@ -386,7 +386,10 @@ pub async fn create_test_server_resources() -> Result<Arc<ServerResources>> {
     let auth_manager = AuthManager::new(24);
 
     let admin_jwt_secret = "test_admin_secret";
-    let config = Arc::new(ServerConfig::default());
+    let config = Arc::new(ServerConfig {
+        usda_api_key: env::var("USDA_API_KEY").ok(),
+        ..ServerConfig::default()
+    });
 
     // Create test cache with background cleanup disabled for tests
     let cache_config = CacheConfig {
