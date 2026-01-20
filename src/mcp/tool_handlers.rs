@@ -396,8 +396,18 @@ impl ToolHandlers {
 
     /// Convert a `ToolResult` to an `McpResponse`
     ///
-    /// The response includes both `content` (text representation for MCP protocol)
-    /// and `structuredContent` (original JSON for programmatic access).
+    /// Returns both `content` and `structuredContent` per MCP Specification 2025-06-18:
+    ///
+    /// > "For backwards compatibility, a tool that returns structured content
+    /// > SHOULD also return the serialized JSON in a `TextContent` block."
+    ///
+    /// - `content`: Text array containing serialized JSON for older MCP clients
+    ///   (pre-June 2025) that only understand this format
+    /// - `structuredContent`: Typed JSON for modern clients that can leverage
+    ///   schema validation and programmatic access
+    ///
+    /// Both fields are returned to ensure maximum interoperability across the
+    /// MCP ecosystem. See `sdk/MCP_COMPLIANCE.md` for compliance details.
     fn tool_result_to_mcp_response(result: &ToolResult, request_id: Value) -> McpResponse {
         McpResponse {
             jsonrpc: JSONRPC_VERSION.to_owned(),
