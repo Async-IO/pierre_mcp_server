@@ -1,13 +1,13 @@
 #!/bin/bash
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # Copyright (c) 2025 Pierre Fitness Intelligence
-# ABOUTME: Pre-push validation - Critical path tests (optimized for speed)
-# ABOUTME: Runs essential tests in single batch for efficient compilation
+# ABOUTME: Pre-push validation - Smart test selection based on changed files
+# ABOUTME: Only runs tests relevant to modified code for faster feedback
 
 set -e
 
-echo "🚀 Pierre MCP Server - Pre-Push Validation (Optimized)"
-echo "======================================================="
+echo "🚀 Pierre MCP Server - Pre-Push Validation (Smart)"
+echo "==================================================="
 echo ""
 
 # ============================================================================
@@ -42,7 +42,7 @@ RESULT_DIR=$(mktemp -d)
 trap 'rm -rf "$RESULT_DIR"' EXIT
 
 # ============================================================================
-# TIER 1: Schema Validation (must pass before other tests)
+# TIER 1: Schema Validation (always runs - fast and catches structural issues)
 # ============================================================================
 echo "📋 Tier 1: Schema & Registry Validation"
 echo "----------------------------------------"
@@ -60,43 +60,183 @@ fi
 echo ""
 
 # ============================================================================
-# TIER 2: Run all critical tests in single batch
+# TIER 2: Smart Test Selection Based on Changed Files
 # ============================================================================
-# Single cargo invocation is faster than parallel batches because:
-# - One Cargo lock acquisition
-# - One dependency graph resolution
-# - Cargo handles compilation parallelism internally
-# - --test-threads handles test execution parallelism
 
-echo "🔄 Running critical path tests..."
-echo "---------------------------------"
-echo ""
-echo "Tests: 20 files covering infrastructure, security, protocol, and multi-tenancy"
+# Get current branch
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+# Determine base for comparison
+if git rev-parse --verify "origin/$CURRENT_BRANCH" &>/dev/null; then
+    BASE_REF="origin/$CURRENT_BRANCH"
+elif git rev-parse --verify "origin/main" &>/dev/null; then
+    BASE_REF="origin/main"
+else
+    BASE_REF="HEAD~1"
+fi
+
+# Get changed Rust files
+CHANGED_FILES=$(git diff --name-only "$BASE_REF" HEAD 2>/dev/null | grep -E '\.(rs)$' || echo "")
+
+if [ -z "$CHANGED_FILES" ]; then
+    echo "📭 No Rust files changed - skipping tests"
+    echo ""
+    END_TIME=$(date +%s)
+    DURATION=$((END_TIME - START_TIME))
+    echo "=========================================="
+    echo "Pre-Push Validation Complete"
+    echo "=========================================="
+    echo "Duration: ${DURATION}s"
+    echo "✅ Schema validation passed (no code tests needed)"
+    exit 0
+fi
+
+echo "🔍 Analyzing changed files..."
+echo "-----------------------------"
+
+# Collect tests to run (using associative array to dedupe)
+declare -A TESTS_TO_RUN
+
+# Function to add tests for a module
+add_tests() {
+    for test in "$@"; do
+        TESTS_TO_RUN["$test"]=1
+    done
+}
+
+# Map changed files to relevant tests
+for file in $CHANGED_FILES; do
+    echo "  📄 $file"
+
+    case "$file" in
+        # Database layer
+        src/database/*)
+            add_tests database_test database_plugins_test tenant_data_isolation
+            ;;
+
+        # Authentication & Security
+        src/auth/*|src/routes/auth.rs)
+            add_tests auth_test api_keys_test jwt_secret_persistence_test oauth2_security_test
+            ;;
+
+        # Routes & HTTP
+        src/routes/*)
+            add_tests routes_health_http_test security_headers_test rate_limiting_middleware_test
+            ;;
+
+        # MCP Protocol
+        src/protocols/*|src/mcp/*)
+            add_tests mcp_compliance_test jsonrpc_test mcp_tools_unit
+            ;;
+
+        # Tools
+        src/tools/*)
+            add_tests mcp_tools_unit
+            ;;
+
+        # Intelligence/Algorithms
+        src/intelligence/*)
+            add_tests intelligence_algorithms_test
+            ;;
+
+        # A2A Protocol
+        src/a2a/*)
+            add_tests a2a_system_user_test
+            ;;
+
+        # Models
+        src/models/*)
+            add_tests models_test
+            ;;
+
+        # Errors
+        src/errors/*)
+            add_tests errors_test
+            ;;
+
+        # Crypto
+        src/crypto/*)
+            add_tests crypto_keys_test
+            ;;
+
+        # Tenant/Context
+        src/context/*|src/tenant/*)
+            add_tests tenant_context_resolution_test tenant_data_isolation
+            ;;
+
+        # Config changes - run broader set
+        src/config/*)
+            add_tests simple_integration_test
+            ;;
+
+        # Migrations - database tests
+        migrations/*)
+            add_tests database_test
+            ;;
+
+        # Test files - run the specific test
+        tests/*.rs)
+            test_name=$(basename "$file" .rs)
+            # Only add if it's a known test file (not a helper module)
+            if [[ "$test_name" != "common" && "$test_name" != "helpers" && "$test_name" != "fixtures" ]]; then
+                add_tests "$test_name"
+            fi
+            ;;
+
+        # Cargo.toml - schema check is enough (already ran)
+        Cargo.toml|Cargo.lock)
+            # Schema test already covers dependency changes
+            ;;
+
+        # Lib.rs or main modules - run core tests
+        src/lib.rs|src/main.rs)
+            add_tests simple_integration_test routes_health_http_test
+            ;;
+
+        # Binaries
+        src/bin/*)
+            # Binary changes don't need specific tests in pre-push
+            ;;
+
+        # Catch-all for other src/ files
+        src/*)
+            add_tests simple_integration_test
+            ;;
+    esac
+done
+
 echo ""
 
-# Run all tests in a single cargo invocation
-if cargo test \
-    --test routes_health_http_test \
-    --test database_test \
-    --test crypto_keys_test \
-    --test auth_test \
-    --test api_keys_test \
-    --test jwt_secret_persistence_test \
-    --test oauth2_security_test \
-    --test security_headers_test \
-    --test mcp_compliance_test \
-    --test jsonrpc_test \
-    --test mcp_tools_unit \
-    --test errors_test \
-    --test models_test \
-    --test database_plugins_test \
-    --test simple_integration_test \
-    --test tenant_data_isolation \
-    --test tenant_context_resolution_test \
-    --test a2a_system_user_test \
-    --test intelligence_algorithms_test \
-    --test rate_limiting_middleware_test \
-    --quiet -- --test-threads=4 > "$RESULT_DIR/tests.log" 2>&1; then
+# Build the test command
+TEST_COUNT=${#TESTS_TO_RUN[@]}
+
+if [ "$TEST_COUNT" -eq 0 ]; then
+    echo "📭 No tests mapped for changed files"
+    echo ""
+    END_TIME=$(date +%s)
+    DURATION=$((END_TIME - START_TIME))
+    echo "=========================================="
+    echo "Pre-Push Validation Complete"
+    echo "=========================================="
+    echo "Duration: ${DURATION}s"
+    echo "✅ Schema validation passed"
+    exit 0
+fi
+
+echo "🔄 Running $TEST_COUNT targeted test file(s)..."
+echo "------------------------------------------------"
+
+# Build cargo test arguments
+TEST_ARGS=""
+for test in "${!TESTS_TO_RUN[@]}"; do
+    echo "  🧪 $test"
+    TEST_ARGS="$TEST_ARGS --test $test"
+done
+
+echo ""
+
+# Run selected tests
+if cargo test $TEST_ARGS --quiet -- --test-threads=4 > "$RESULT_DIR/tests.log" 2>&1; then
     TESTS_PASSED=true
 else
     TESTS_PASSED=false
@@ -111,12 +251,12 @@ DURATION=$((END_TIME - START_TIME))
 echo "=========================================="
 echo "Pre-Push Validation Complete"
 echo "=========================================="
-echo "Total test files: 21 (schema + 20 critical)"
-echo "Duration:         ${DURATION}s (~$((DURATION / 60))m $((DURATION % 60))s)"
+echo "Test files run: $TEST_COUNT (targeted) + 1 (schema)"
+echo "Duration:       ${DURATION}s (~$((DURATION / 60))m $((DURATION % 60))s)"
 echo ""
 
 if [ "$TESTS_PASSED" = false ]; then
-    echo "❌ Critical path tests failed!"
+    echo "❌ Targeted tests failed!"
     echo ""
     echo "Test output (last 50 lines):"
     echo "-----------------------------"
@@ -127,7 +267,7 @@ if [ "$TESTS_PASSED" = false ]; then
     echo ""
     exit 1
 else
-    echo "✅ All critical path tests passed!"
+    echo "✅ All targeted tests passed!"
     echo ""
     echo "⚠️  Note: Full test suite will run in CI"
     echo "   To run locally: ./scripts/lint-and-test.sh"
