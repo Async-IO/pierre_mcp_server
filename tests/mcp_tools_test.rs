@@ -519,7 +519,7 @@ async fn test_tool_get_nutrient_timing() -> Result<()> {
 }
 
 /// Test: `search_food` searches USDA database
-/// Note: Requires USDA_API_KEY environment variable
+/// Note: Requires `USDA_API_KEY` environment variable
 #[tokio::test]
 async fn test_tool_search_food() -> Result<()> {
     let (_server, client) = setup_test_client().await?;
@@ -534,19 +534,11 @@ async fn test_tool_search_food() -> Result<()> {
         )
         .await?;
 
-    // Accept either success or missing API key error (CI may not have USDA key)
-    if result.is_error {
-        let error_text = result
-            .content
-            .first()
-            .and_then(|c| c.text.as_ref())
-            .map(|s| s.as_str())
-            .unwrap_or("");
-        if error_text.contains("USDA API key not configured") {
-            println!("⚠️ search_food: Skipped (USDA_API_KEY not set in CI)");
-            return Ok(());
-        }
-    }
+    // Requires USDA_API_KEY to be set in environment/GitHub secrets
+    assert!(
+        !result.is_error,
+        "search_food failed - ensure USDA_API_KEY is configured"
+    );
 
     let summary = summarize_result(&result);
     println!("✅ search_food: {summary}");

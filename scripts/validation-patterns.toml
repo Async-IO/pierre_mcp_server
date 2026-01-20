@@ -179,6 +179,19 @@ production_hygiene = [
     "for demo"
 ]
 
+# Magic input anti-patterns - tools that generate fake data based on special input values
+# These patterns detect when tools bypass real data requirements by accepting "magic" parameters
+# Example anti-pattern: calculate_recovery_score({ "provider": "synthetic" }) generates internal fake data
+# Correct pattern: calculate_recovery_score({ "sleep_data": {...} }) requires explicit real input
+magic_input_antipatterns = [
+    "SyntheticProvider::new\\(\\)",                    # Direct synthetic provider instantiation in tool handlers
+    "SyntheticProvider::from_seed",                    # Seeded synthetic provider in tool handlers
+    "generate_.*_data\\(",                             # Functions that generate data internally
+    "create_synthetic_",                               # Functions that create synthetic data
+    "if.*provider.*==.*\"synthetic\"",                 # Conditional logic based on synthetic provider
+    "match.*provider.*synthetic",                      # Match arms for synthetic provider in tools
+]
+
 # Temporary solutions - code that should be permanent
 temporary_code = [
     "\\bhack\\b",
@@ -397,6 +410,7 @@ max_anyhow_type_antipatterns = 0    # ZERO TOLERANCE: use AppResult<T> instead o
 max_anyhow_method_antipatterns = 20 # WARNING ONLY: .context() should migrate to .map_err() (20 existing uses in providers)
 max_async_antipatterns = 5
 max_lifetime_antipatterns = 3
+max_magic_input_antipatterns = 0  # ZERO TOLERANCE: tools must require explicit input, not generate fake data
 
 # File patterns to exclude from certain checks
 [ignored_tests_allowlist]

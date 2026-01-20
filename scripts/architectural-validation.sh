@@ -164,6 +164,9 @@ TODOS_SDK=$(rg "TODO|FIXME|XXX" sdk/ -g "!*.json" -g "!*.md" -g "!*.lock" -g "!n
 TODOS_FRONTEND=$(rg "TODO|FIXME|XXX" frontend/ -g "!*.json" -g "!*.md" -g "!*.lock" -g "!node_modules/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 TODOS=$((TODOS_SRC + TODOS_TESTS + TODOS_SDK + TODOS_FRONTEND))
 PRODUCTION_MOCKS=$(rg "mock_|get_mock|return.*mock|demo purposes|for demo|stub implementation|mock implementation" src/ -g "!src/bin/*" -g "!tests/*" | wc -l 2>/dev/null | tr -d ' ' || echo 0)
+# Magic input anti-patterns: tools that generate fake data based on special input values
+# Excludes: synthetic_provider.rs (legitimate provider), registry.rs (provider registration), spi.rs (provider interface)
+MAGIC_INPUT_ANTIPATTERNS=$(rg "SyntheticProvider::new\(\)|SyntheticProvider::from_seed|generate_.*_data\(|create_synthetic_|if.*provider.*==.*\"synthetic\"|match.*provider.*synthetic" src/tools/ src/protocols/universal/handlers/ -g "!*synthetic_provider.rs" -g "!*registry.rs" -g "!*spi.rs" 2>/dev/null | wc -l | tr -d ' ' || echo 0)
 PROBLEMATIC_UNDERSCORE_NAMES=$(rg "fn _|let _[a-zA-Z]|struct _|enum _" src/ | rg -v "let _[[:space:]]*=" | rg -v "let _result|let _response|let _output" | wc -l 2>/dev/null | tr -d ' ' || echo 0)
 CFG_TEST_IN_SRC=$(rg "#\[cfg\(test\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 CLIPPY_ALLOWS_PROBLEMATIC=$(rg "#!?\[allow\(clippy::" src/ | rg -v "cast_possible_truncation|cast_sign_loss|cast_precision_loss|cast_possible_wrap|struct_excessive_bools|too_many_lines|let_unit_value|option_if_let_else|cognitive_complexity|bool_to_int_with_if|type_complexity|too_many_arguments" | wc -l 2>/dev/null | tr -d ' ' || echo 0)
@@ -596,6 +599,15 @@ if [ "$PRODUCTION_MOCKS" -eq 0 ]; then
 else
     FIRST_MOCK=$(get_first_location 'rg "mock_|get_mock|stub implementation" src/ -g "!src/bin/*" -g "!tests/*" -n')
     printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_MOCK"
+fi
+
+printf "│ %-35s │ %5d │ " "Magic input anti-patterns" "$MAGIC_INPUT_ANTIPATTERNS"
+if [ "$MAGIC_INPUT_ANTIPATTERNS" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "Tools require explicit input"
+else
+    FIRST_MAGIC=$(get_first_location 'rg "SyntheticProvider::new|SyntheticProvider::from_seed|generate_.*_data\(|if.*provider.*==.*synthetic" src/tools/ src/protocols/universal/handlers/ -g "!*synthetic_provider.rs" -n')
+    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_MAGIC"
+    VALIDATION_FAILED=true
 fi
 
 printf "│ %-35s │ %5d │ " "Underscore-prefixed names" "$PROBLEMATIC_UNDERSCORE_NAMES"
