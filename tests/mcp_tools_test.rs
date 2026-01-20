@@ -423,6 +423,7 @@ async fn test_tool_calculate_recovery_score() -> Result<()> {
             "calculate_recovery_score",
             json!({
                 "sleep_data": {
+                    "date": "2026-01-19",
                     "duration_hours": 7.5,
                     "efficiency_percent": 85.0,
                     "deep_sleep_percent": 20.0,
@@ -448,6 +449,7 @@ async fn test_tool_suggest_rest_day() -> Result<()> {
             "suggest_rest_day",
             json!({
                 "sleep_data": {
+                    "date": "2026-01-19",
                     "duration_hours": 6.5,
                     "efficiency_percent": 78.0,
                     "deep_sleep_percent": 15.0,
@@ -481,7 +483,8 @@ async fn test_tool_calculate_daily_nutrition() -> Result<()> {
                 "age": 30,
                 "gender": "male",
                 "activity_level": "moderately_active",
-                "goal": "maintenance"
+                "goal": "maintenance",
+                "training_goal": "endurance"
             }),
         )
         .await?;
