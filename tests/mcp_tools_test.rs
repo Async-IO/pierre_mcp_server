@@ -422,7 +422,13 @@ async fn test_tool_calculate_recovery_score() -> Result<()> {
         .call_tool_raw(
             "calculate_recovery_score",
             json!({
-                "provider": "synthetic"
+                "sleep_data": {
+                    "duration_hours": 7.5,
+                    "efficiency_percent": 85.0,
+                    "deep_sleep_percent": 20.0,
+                    "rem_sleep_percent": 22.0,
+                    "awakenings": 2
+                }
             }),
         )
         .await?;
@@ -441,7 +447,13 @@ async fn test_tool_suggest_rest_day() -> Result<()> {
         .call_tool_raw(
             "suggest_rest_day",
             json!({
-                "provider": "synthetic"
+                "sleep_data": {
+                    "duration_hours": 6.5,
+                    "efficiency_percent": 78.0,
+                    "deep_sleep_percent": 15.0,
+                    "rem_sleep_percent": 18.0,
+                    "awakenings": 4
+                }
             }),
         )
         .await?;
@@ -468,7 +480,7 @@ async fn test_tool_calculate_daily_nutrition() -> Result<()> {
                 "height_cm": 175.0,
                 "age": 30,
                 "gender": "male",
-                "activity_level": "moderate",
+                "activity_level": "moderately_active",
                 "goal": "maintenance"
             }),
         )
@@ -507,6 +519,7 @@ async fn test_tool_get_nutrient_timing() -> Result<()> {
 }
 
 /// Test: `search_food` searches USDA database
+/// Note: Requires USDA_API_KEY environment variable
 #[tokio::test]
 async fn test_tool_search_food() -> Result<()> {
     let (_server, client) = setup_test_client().await?;
@@ -520,6 +533,20 @@ async fn test_tool_search_food() -> Result<()> {
             }),
         )
         .await?;
+
+    // Accept either success or missing API key error (CI may not have USDA key)
+    if result.is_error {
+        let error_text = result
+            .content
+            .first()
+            .and_then(|c| c.text.as_ref())
+            .map(|s| s.as_str())
+            .unwrap_or("");
+        if error_text.contains("USDA API key not configured") {
+            println!("⚠️ search_food: Skipped (USDA_API_KEY not set in CI)");
+            return Ok(());
+        }
+    }
 
     let summary = summarize_result(&result);
     println!("✅ search_food: {summary}");
