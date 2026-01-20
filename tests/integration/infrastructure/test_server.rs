@@ -121,7 +121,8 @@ impl IntegrationTestServer {
         let client = reqwest::Client::new();
         let url = format!("{}/health", self.base_url());
 
-        for _ in 0..50 {
+        // 100 iterations × 100ms = 10 seconds timeout for CI environments under load
+        for _ in 0..100 {
             match client.get(&url).send().await {
                 Ok(response) if response.status().is_success() => return Ok(()),
                 _ => sleep(Duration::from_millis(100)).await,
@@ -129,7 +130,7 @@ impl IntegrationTestServer {
         }
 
         Err(anyhow::anyhow!(
-            "Server failed to become healthy within 5 seconds"
+            "Server failed to become healthy within 10 seconds"
         ))
     }
 
