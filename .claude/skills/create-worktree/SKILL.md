@@ -1,6 +1,8 @@
 ---
 name: create-worktree
 description: Creates a git worktree with branch and copies environment files (.envrc, .mcp.json)
+argument-hint: [branch-name]
+user-invocable: true
 ---
 
 # Create Worktree Skill
@@ -53,3 +55,6 @@ When done with a worktree:
 git worktree remove ../pierre_mcp_server-feature-my-feature
 git branch -d feature/my-feature  # if merged
 ```
+
+## Related Skills
+- `finish-worktree` - Completes feature branch work with rebase and merge

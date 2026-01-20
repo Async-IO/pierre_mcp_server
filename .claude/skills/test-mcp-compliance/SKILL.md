@@ -1,6 +1,7 @@
 ---
 name: test-mcp-compliance
 description: Validates Model Context Protocol (MCP) compliance by running official compliance test suite against Pierre server
+user-invocable: true
 ---
 
 # MCP Compliance Validation Skill
@@ -106,5 +107,4 @@ curl -X POST http://localhost:8081/mcp \
 - `src/protocols/universal/tool_registry.rs` - Tool definitions
 
 ## Related Skills
-- `protocol-compliance.md` (agent) - Comprehensive protocol validation
-- `test-oauth-flows.md` - OAuth 2.0 compliance
+- `run-full-test-suite` - Full test suite execution

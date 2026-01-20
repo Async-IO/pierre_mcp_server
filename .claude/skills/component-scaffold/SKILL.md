@@ -1,5 +1,8 @@
 ---
+name: component-scaffold
 description: Scaffold a new UI component following Pierre design system patterns
+argument-hint: [ComponentName]
+user-invocable: true
 ---
 
 # Component Scaffold

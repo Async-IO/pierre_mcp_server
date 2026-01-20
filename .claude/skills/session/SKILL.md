@@ -1,5 +1,8 @@
 ---
-description: Session Management Skill
+name: session
+description: Session Management Skill - manage Linear session tracking for persistent memory across conversations
+argument-hint: [status|update|decision|link|end] [text]
+user-invocable: true
 ---
 
 # Session Management

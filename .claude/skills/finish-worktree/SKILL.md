@@ -1,6 +1,7 @@
 ---
 name: finish-worktree
 description: Completes feature branch work by rebasing, pushing, monitoring CI, and squash merging to main
+user-invocable: true
 ---
 
 # Finish Worktree Skill
@@ -88,4 +89,4 @@ cd /path/to/main/worktree
 ```
 
 ## Related Skills
-- `create-worktree.md` - Creates worktree with environment setup
+- `create-worktree` - Creates worktree with environment setup

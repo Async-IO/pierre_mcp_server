@@ -1,6 +1,7 @@
 ---
 name: strict-clippy-check
 description: Enforces zero-tolerance code quality policy using Clippy with strict lints, all warnings treated as errors
+user-invocable: true
 ---
 
 # Strict Clippy Check Skill
@@ -229,5 +230,5 @@ rustup component add clippy
 - `scripts/architectural-validation.sh` - Pattern validation
 
 ## Related Skills
-- `validate-architecture.md` - Architectural pattern validation
-- `check-no-secrets.md` - Secret detection
+- `validate-architecture` - Architectural pattern validation
+- `check-no-secrets` - Secret detection

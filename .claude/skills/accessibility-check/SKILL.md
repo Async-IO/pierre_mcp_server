@@ -1,5 +1,7 @@
 ---
-description: Run accessibility audit on frontend components
+name: accessibility-check
+description: Run accessibility audit on frontend components for WCAG 2.1 AA compliance
+user-invocable: true
 ---
 
 # Accessibility Check

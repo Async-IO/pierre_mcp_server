@@ -1,6 +1,7 @@
 ---
 name: test-multitenant-isolation
 description: Validates complete data isolation between tenants, tests cross-tenant access, ensures proper query scoping
+user-invocable: true
 ---
 
 # Multi-Tenant Isolation Testing Skill
@@ -58,35 +59,6 @@ rg "Extension.*TenantContext" src/routes/ --type rust -n | wc -l
 
 # Check for hardcoded tenant IDs (security issue)
 rg -i "tenant.*=.*\"[a-f0-9-]{36}\"" src/ --type rust -n || echo "✓ No hardcoded tenant IDs"
-```
-
-### Manual Multi-Tenant Test
-```bash
-# 1. Start server
-cargo run --bin pierre-mcp-server &
-SERVER_PID=$!
-sleep 3
-
-# 2. Create two test tenants
-TENANT_A=$(curl -s -X POST http://localhost:8081/api/tenants \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Tenant A"}' | jq -r '.tenant_id')
-
-TENANT_B=$(curl -s -X POST http://localhost:8081/api/tenants \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Tenant B"}' | jq -r '.tenant_id')
-
-echo "Tenant A: $TENANT_A"
-echo "Tenant B: $TENANT_B"
-
-# 3. Create users in each tenant
-# (requires tenant-specific JWT tokens)
-
-# 4. Attempt cross-tenant access
-# (should fail with 403 Forbidden)
-
-# 5. Cleanup
-kill $SERVER_PID
 ```
 
 ## Test Scenarios
@@ -187,41 +159,6 @@ test test_cross_tenant_activity_access ... FAILED
   let tenant_id = params.tenant_id;  // User can forge!
 ```
 
-## Common Vulnerabilities
-
-### TOCTOU (Time-of-Check-Time-of-Use)
-```rust
-// ❌ Vulnerable
-let user = db.get_user(user_id).await?;  // Check
-if user.tenant_id == tenant.tenant_id {
-    db.delete_user(user_id).await?;  // Use (tenant_id could change!)
-}
-
-// ✅ Safe
-db.delete_user_scoped(user_id, tenant.tenant_id).await?;  // Atomic
-```
-
-### Parameter Injection
-```rust
-// ❌ Vulnerable
-let tenant_id = params.tenant_id;  // User-controlled!
-
-// ✅ Safe
-let tenant_id = tenant.tenant_id;  // From validated JWT
-```
-
-### Missing Middleware
-```rust
-// ❌ Vulnerable route (no tenant extraction)
-Router::new()
-    .route("/activities", get(get_activities))
-
-// ✅ Protected route
-Router::new()
-    .route("/activities", get(get_activities))
-    .layer(middleware::from_fn(extract_tenant_context))
-```
-
 ## Success Criteria
 - ✅ All multi-tenant tests pass
 - ✅ Cross-tenant access attempts fail (403 or empty)
@@ -232,32 +169,6 @@ Router::new()
 - ✅ API keys isolated per tenant
 - ✅ Zero data leakage in logs (PII redaction active)
 
-## Troubleshooting
-
-**Issue:** Test fails with "database locked"
-```bash
-# Use serial_test to prevent concurrent access
-#[serial_test::serial]
-#[tokio::test]
-async fn test_tenant_isolation() { }
-```
-
-**Issue:** Tenant context not available in route
-```bash
-# Ensure middleware is applied
-Router::new()
-    .route("/activities", get(get_activities))
-    .layer(Extension(resources.clone()))
-    .layer(middleware::from_fn(extract_tenant_context))
-```
-
-**Issue:** Query returns data from wrong tenant
-```bash
-# Add debug logging
-tracing::debug!("Query tenant_id: {}, user tenant_id: {}",
-    query_tenant_id, tenant.tenant_id);
-```
-
 ## Related Files
 - `tests/mcp_multitenant_complete_test.rs` - Main test suite
 - `src/tenant/mod.rs` - TenantContext definition
@@ -265,6 +176,5 @@ tracing::debug!("Query tenant_id: {}, user tenant_id: {}",
 - `src/database/mod.rs` - Scoped database queries
 
 ## Related Skills
-- `security-auditor.md` (agent) - Comprehensive security audit
-- `test-oauth-flows.md` - OAuth isolation testing
-- `validate-architecture.md` - Architectural validation
+- `check-no-secrets` - Secret detection
+- `validate-architecture` - Architectural validation

@@ -1,3 +1,9 @@
+---
+name: ui-patterns
+description: Ready-to-use UI patterns library for common scenarios - stats dashboards, data tables, forms, modals, and feedback states
+user-invocable: false
+---
+
 # Pierre UI Patterns Library
 
 Ready-to-use UI patterns for common scenarios. Copy and adapt these patterns when building features.

@@ -1,5 +1,7 @@
 ---
+name: design-review
 description: Review UI components for design system compliance, accessibility, and visual consistency
+user-invocable: true
 ---
 
 # Design Review
@@ -91,6 +93,6 @@ Verify all component variants have CSS definitions:
 
 ## After Review
 
-If issues are found, provide specific code fixes following the patterns in `.claude/skills/frontend-design.md`.
+If issues are found, provide specific code fixes following the patterns in `.claude/skills/frontend-design/SKILL.md`.
 
 Run this review after any frontend changes before committing.

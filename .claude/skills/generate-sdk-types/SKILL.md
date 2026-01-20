@@ -1,6 +1,7 @@
 ---
 name: generate-sdk-types
 description: Generates TypeScript type definitions for SDK from Rust tool schemas, ensuring type safety between server and client
+user-invocable: true
 ---
 
 # Generate SDK Types Skill
@@ -207,78 +208,6 @@ git add sdk/src/types.ts
 git commit -m "feat: add my_new_feature tool with TypeScript types"
 ```
 
-## Common Issues
-
-### Issue: Server fails to start
-```bash
-# Check if port is in use
-lsof -i :8081
-
-# Use different port temporarily
-PORT=8082 cargo run --bin pierre-mcp-server
-# Update type generation script to use PORT=8082
-```
-
-### Issue: Generated types don't match
-```bash
-# Ensure server is latest build
-cargo build --bin pierre-mcp-server
-
-# Clear any cached responses
-rm -rf /tmp/tools.json
-
-# Regenerate
-cd sdk && bun run generate-types && cd ..
-```
-
-### Issue: TypeScript compilation errors
-```bash
-# Check for invalid JSON schema
-rg "inputSchema|input_schema" src/protocols/universal/tool_registry.rs -A 10
-
-# Validate JSON schema
-cargo test test_tool_schema_validation
-```
-
-### Issue: Type drift detected
-```bash
-# Rust tools changed but types not regenerated
-echo "⚠️  Types out of sync!"
-
-# Compare tool count
-RUST_TOOLS=$(rg "^pub const TOOL_" src/protocols/universal/tool_registry.rs | wc -l)
-TS_TOOLS=$(rg "^export const TOOL_" sdk/src/types.ts | wc -l)
-
-if [ "$RUST_TOOLS" != "$TS_TOOLS" ]; then
-    echo "Rust tools: $RUST_TOOLS"
-    echo "TypeScript tools: $TS_TOOLS"
-    echo "Run: bun run generate-types"
-fi
-```
-
-## CI/CD Integration
-
-### GitHub Actions Check
-```yaml
-# .github/workflows/sdk-tests.yml
-- name: Check TypeScript types are up to date
-  run: |
-    cd sdk
-    bun run generate-types
-    git diff --exit-code src/types.ts || \
-      (echo "Types out of sync! Run: bun run generate-types" && exit 1)
-```
-
-### Pre-Commit Hook
-```bash
-# .git/hooks/pre-commit
-# Regenerate types if tool registry changed
-if git diff --cached --name-only | grep -q "tool_registry.rs"; then
-    echo "Tool registry changed, regenerating TypeScript types..."
-    cd sdk && bun run generate-types && git add src/types.ts && cd ..
-fi
-```
-
 ## Success Criteria
 - ✅ TypeScript types match Rust tool definitions
 - ✅ All tools have corresponding TypeScript interfaces
@@ -294,5 +223,4 @@ fi
 - `sdk/TYPE_GENERATION.md` - Type generation documentation
 
 ## Related Skills
-- `test-mcp-compliance.md` - MCP protocol validation
-- `run-sdk-tests.md` - SDK testing
+- `test-mcp-compliance` - MCP protocol validation

@@ -1,3 +1,9 @@
+---
+name: frontend-design
+description: Create distinctive, production-grade frontend interfaces with high design quality. Use this skill when the user asks to build web components, pages, or applications.
+user-invocable: true
+---
+
 # Pierre Frontend Design Skill
 
 When generating UI components or modifying frontend code, follow these principles.

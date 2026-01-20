@@ -1,6 +1,7 @@
 ---
 name: validate-architecture
 description: Validates architectural patterns and code quality per CLAUDE.md, detects anti-patterns and design violations
+user-invocable: true
 ---
 
 # Validate Architecture Skill
@@ -196,94 +197,6 @@ ARCHITECTURAL VALIDATION: PASSED
 ARCHITECTURAL VALIDATION: FAILED
 ```
 
-## Fixing Common Violations
-
-### Fix: Placeholder Implementation
-```rust
-// ❌ Before
-fn process_data(data: Data) -> Result<Output> {
-    // TODO: Implementation
-    Ok(Output::default())
-}
-
-// ✅ After
-fn process_data(data: Data) -> Result<Output> {
-    let processed = data.transform()?;
-    let validated = processed.validate()?;
-    Ok(Output::new(validated))
-}
-```
-
-### Fix: Unwrap Usage
-```rust
-// ❌ Before
-let value = map.get(&key).unwrap();
-
-// ✅ After
-let value = map.get(&key)
-    .ok_or(AppError::KeyNotFound(key.clone()))?;
-```
-
-### Fix: anyhow! Usage
-```rust
-// ❌ Before
-return Err(anyhow::anyhow!("Database connection failed"));
-
-// ✅ After
-#[derive(Debug, thiserror::Error)]
-pub enum AppError {
-    #[error("Database connection failed: {0}")]
-    DatabaseConnectionFailed(String),
-}
-
-return Err(AppError::DatabaseConnectionFailed(details));
-```
-
-### Fix: Hardcoded Formula
-```rust
-// ❌ Before (in src/services/training.rs)
-let max_hr = 220.0 - athlete.age;
-
-// ✅ After (use algorithm module)
-use crate::intelligence::algorithms::maxhr::MaxHrAlgorithm;
-let max_hr = MaxHrAlgorithm::Fox.calculate(athlete.age)?;
-```
-
-### Fix: Direct Resource Creation
-```rust
-// ❌ Before
-let auth = AuthManager::new(config);
-
-// ✅ After (use DI)
-pub struct MyService {
-    resources: Arc<ServerResources>,
-}
-
-impl MyService {
-    fn new(resources: Arc<ServerResources>) -> Self {
-        Self { resources }
-    }
-
-    fn authenticate(&self) {
-        self.resources.auth_manager.verify(token)
-    }
-}
-```
-
-## Thresholds
-
-From `validation-patterns.toml`:
-```toml
-[validation_thresholds]
-max_magic_numbers = 10
-max_clippy_allows = 5
-max_total_clones = 600
-max_development_artifacts = 20
-max_resource_creation = 0  # ZERO TOLERANCE
-max_fake_resources = 0     # ZERO TOLERANCE
-max_error_context_antipatterns = 0  # anyhow! FORBIDDEN
-```
-
 ## Success Criteria
 - ✅ Zero placeholder implementations
 - ✅ Zero unwrap/expect/panic in src/ (except approved)
@@ -302,6 +215,6 @@ max_error_context_antipatterns = 0  # anyhow! FORBIDDEN
 - `docs/tutorial/appendix-b-claude-md.md` - CLAUDE.md standards
 
 ## Related Skills
-- `strict-clippy-check.md` - Code quality linting
-- `check-no-secrets.md` - Secret detection
-- `test-multitenant-isolation.md` - Security validation
+- `strict-clippy-check` - Code quality linting
+- `check-no-secrets` - Secret detection
+- `test-multitenant-isolation` - Security validation

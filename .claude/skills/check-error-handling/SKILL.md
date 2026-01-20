@@ -1,6 +1,7 @@
 ---
 name: check-error-handling
 description: Validates error handling follows AppResult/AppError pattern, detects anyhow regression, ensures ErrorCode usage
+user-invocable: true
 ---
 
 # Check Error Handling Skill
@@ -207,80 +208,13 @@ let user = db.get_user(id)
     ))?;
 ```
 
-## Integration with Git Hooks
-
-### Pre-Commit Hook
-Add to `.git/hooks/pre-commit`:
-```bash
-#!/bin/bash
-
-# Check staged Rust files for anyhow usage
-if git diff --cached --name-only | grep -q "\.rs$"; then
-    if git diff --cached | grep -q "use anyhow"; then
-        echo "❌ ERROR: anyhow import detected in staged files!"
-        echo "Use AppResult and AppError instead."
-        echo ""
-        echo "Run: .claude/skills/check-error-handling.md"
-        exit 1
-    fi
-fi
-```
-
-## CI/CD Integration
-
-### GitHub Actions
-```yaml
-# .github/workflows/error-handling.yml
-name: Error Handling Check
-
-on: [push, pull_request]
-
-jobs:
-  check-error-handling:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Install ripgrep
-        run: sudo apt-get install -y ripgrep
-
-      - name: Check for anyhow usage
-        run: |
-          if rg "use anyhow::|anyhow!\(" src/ --type rust --quiet; then
-            echo "❌ anyhow usage detected - use AppResult instead"
-            rg "use anyhow" src/ --type rust -n
-            exit 1
-          fi
-          echo "✓ Error handling check passed"
-```
-
 ## Related Files
 - `src/errors.rs` - ErrorCode and AppError definitions
 - `src/lib.rs` - Error type exports
 - Commit b592b5e - Error handling migration
 
 ## Related Agents
-- `error-handling-guardian.md` - Comprehensive error validation
-
-## Troubleshooting
-
-**Issue:** False positive in test files
-```bash
-# Exclude tests from check
-rg "use anyhow" src/ --type rust | grep -v "^tests/"
-```
-
-**Issue:** Need to use anyhow in tests
-```bash
-# Anyhow is OK in tests and bin files
-# This check only scans src/ production code
-```
-
-**Issue:** .context() detected but it's not from anyhow
-```bash
-# Check if it's actually anyhow
-rg "\.context\(" src/file.rs -B 5 | grep "use anyhow"
-```
+- `error-handling-guardian` - Comprehensive error validation
 
 ## Quick Reference
 
