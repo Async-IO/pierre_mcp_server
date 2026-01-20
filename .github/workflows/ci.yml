@@ -180,6 +180,7 @@ jobs:
           STRAVA_CLIENT_ID: "test_client_id_ci"
           STRAVA_CLIENT_SECRET: "test_client_secret_ci"
           STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
+          USDA_API_KEY: ${{ secrets.USDA_API_KEY }}
 
   postgres-tests:
     name: Database Tests (PostgreSQL)
@@ -265,6 +266,7 @@ jobs:
           POSTGRES_MIN_CONNECTIONS: "1"
           POSTGRES_ACQUIRE_TIMEOUT: "20"
           RUST_LOG: "info"
+          USDA_API_KEY: ${{ secrets.USDA_API_KEY }}
 
   redis-tests:
     name: Cache Tests (Redis)
