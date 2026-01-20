@@ -484,7 +484,7 @@ async fn test_tool_calculate_daily_nutrition() -> Result<()> {
                 "gender": "male",
                 "activity_level": "moderately_active",
                 "goal": "maintenance",
-                "training_goal": "endurance"
+                "training_goal": "endurance_performance"
             }),
         )
         .await?;
