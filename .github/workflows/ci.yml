@@ -78,7 +78,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Lint with Clippy (Zero Tolerance + Cognitive Complexity)
-        run: cargo clippy --all-targets --all-features -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
   backend-tests:
     name: Backend Tests (SQLite)

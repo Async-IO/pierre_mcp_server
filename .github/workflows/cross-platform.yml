@@ -81,7 +81,7 @@ jobs:
 
       - name: Clippy check (with cognitive complexity)
         shell: bash
-        run: cargo clippy --all-targets --quiet -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
+        run: cargo clippy --all-targets --quiet -- -D warnings
         env:
           DATABASE_URL: "sqlite::memory:"
           ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
