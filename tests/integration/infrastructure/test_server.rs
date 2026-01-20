@@ -277,6 +277,7 @@ fn create_test_server_config(port: u16) -> ServerConfig {
             },
         },
         external_services: ExternalServicesConfig::default(),
+        usda_api_key: std::env::var("USDA_API_KEY").ok(),
         app_behavior: AppBehaviorConfig {
             max_activities_fetch: 100,
             default_activities_limit: 20,
