@@ -92,6 +92,7 @@ jobs:
           STRAVA_CLIENT_ID: "test_client_id_ci"
           STRAVA_CLIENT_SECRET: "test_client_secret_ci"
           STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
+          USDA_API_KEY: ${{ secrets.USDA_API_KEY }}
           CARGO_INCREMENTAL: 0
 
       - name: Upload coverage to Codecov
