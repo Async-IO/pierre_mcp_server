@@ -45,6 +45,7 @@ const COACH_CATEGORY_BADGE_BG: Record<CoachCategory, string> = {
   nutrition: 'rgba(245, 158, 11, 0.15)',
   recovery: 'rgba(99, 102, 241, 0.15)',
   recipes: 'rgba(249, 115, 22, 0.15)',
+  mobility: 'rgba(236, 72, 153, 0.15)',
   custom: 'rgba(124, 58, 237, 0.15)',
 };
 
@@ -54,6 +55,7 @@ const COACH_CATEGORY_ICONS: Record<CoachCategory, string> = {
   nutrition: '🥗',
   recovery: '😴',
   recipes: '👨‍🍳',
+  mobility: '🧘',
   custom: '⚙️',
 };
 

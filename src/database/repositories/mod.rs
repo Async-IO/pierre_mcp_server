@@ -50,6 +50,8 @@ pub mod tool_selection_repository;
 pub mod usage_repository;
 /// User account management repository implementation
 pub mod user_repository;
+/// Mobility (stretching/yoga) repository implementation
+pub mod mobility_repository;
 
 // Re-export implementations
 pub use a2a_repository::A2ARepositoryImpl;
@@ -68,6 +70,7 @@ pub use tenant_repository::TenantRepositoryImpl;
 pub use tool_selection_repository::ToolSelectionRepositoryImpl;
 pub use usage_repository::UsageRepositoryImpl;
 pub use user_repository::UserRepositoryImpl;
+pub use mobility_repository::MobilityRepositoryImpl;
 
 // ================================
 // Repository Trait Definitions
@@ -1065,4 +1068,71 @@ pub trait CoachesRepository: Send + Sync {
 
     /// Count coaches for a user
     async fn count(&self, user_id: Uuid, tenant_id: &str) -> Result<u32, DatabaseError>;
+}
+
+/// Mobility (stretching exercises and yoga poses) read-only repository
+#[async_trait]
+pub trait MobilityRepository: Send + Sync {
+    /// Get a stretching exercise by ID
+    async fn get_stretching_exercise(
+        &self,
+        id: &str,
+    ) -> Result<Option<crate::database::mobility::StretchingExercise>, DatabaseError>;
+
+    /// List stretching exercises with filtering
+    async fn list_stretching_exercises(
+        &self,
+        filter: &crate::database::mobility::ListStretchingFilter,
+    ) -> Result<Vec<crate::database::mobility::StretchingExercise>, DatabaseError>;
+
+    /// Search stretching exercises by name or description
+    async fn search_stretching_exercises(
+        &self,
+        query: &str,
+        limit: Option<u32>,
+    ) -> Result<Vec<crate::database::mobility::StretchingExercise>, DatabaseError>;
+
+    /// Get stretches recommended for a specific activity
+    async fn get_stretches_for_activity(
+        &self,
+        activity_type: &str,
+        limit: Option<u32>,
+    ) -> Result<Vec<crate::database::mobility::StretchingExercise>, DatabaseError>;
+
+    /// Get a yoga pose by ID
+    async fn get_yoga_pose(
+        &self,
+        id: &str,
+    ) -> Result<Option<crate::database::mobility::YogaPose>, DatabaseError>;
+
+    /// List yoga poses with filtering
+    async fn list_yoga_poses(
+        &self,
+        filter: &crate::database::mobility::ListYogaFilter,
+    ) -> Result<Vec<crate::database::mobility::YogaPose>, DatabaseError>;
+
+    /// Search yoga poses by name
+    async fn search_yoga_poses(
+        &self,
+        query: &str,
+        limit: Option<u32>,
+    ) -> Result<Vec<crate::database::mobility::YogaPose>, DatabaseError>;
+
+    /// Get poses recommended for a recovery context
+    async fn get_poses_for_recovery(
+        &self,
+        recovery_context: &str,
+        limit: Option<u32>,
+    ) -> Result<Vec<crate::database::mobility::YogaPose>, DatabaseError>;
+
+    /// Get activity-muscle mapping
+    async fn get_activity_muscle_mapping(
+        &self,
+        activity_type: &str,
+    ) -> Result<Option<crate::database::mobility::ActivityMuscleMapping>, DatabaseError>;
+
+    /// List all activity-muscle mappings
+    async fn list_activity_muscle_mappings(
+        &self,
+    ) -> Result<Vec<crate::database::mobility::ActivityMuscleMapping>, DatabaseError>;
 }

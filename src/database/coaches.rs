@@ -60,6 +60,8 @@ pub enum CoachCategory {
     Recovery,
     /// Recipe and meal planning focused coaches
     Recipes,
+    /// Mobility, stretching, and yoga focused coaches
+    Mobility,
     /// Analysis and insights focused coaches
     Analysis,
     /// User-defined custom category
@@ -76,6 +78,7 @@ impl CoachCategory {
             Self::Nutrition => "nutrition",
             Self::Recovery => "recovery",
             Self::Recipes => "recipes",
+            Self::Mobility => "mobility",
             Self::Analysis => "analysis",
             Self::Custom => "custom",
         }
@@ -89,6 +92,7 @@ impl CoachCategory {
             "nutrition" => Self::Nutrition,
             "recovery" => Self::Recovery,
             "recipes" => Self::Recipes,
+            "mobility" => Self::Mobility,
             "analysis" => Self::Analysis,
             _ => Self::Custom,
         }

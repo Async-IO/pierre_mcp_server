@@ -38,6 +38,11 @@ name = "seed-coaches"
 path = "src/bin/seed_coaches.rs"
 bench = false
 
+[[bin]]
+name = "seed-mobility"
+path = "src/bin/seed_mobility.rs"
+bench = false
+
 # [[bin]]
 # name = "serve-docs"
 # path = "src/bin/serve_docs.rs"
@@ -79,6 +84,7 @@ tools-all = [
     "tools-recipes",
     "tools-coaches",
     "tools-admin",
+    "tools-mobility",
 ]
 
 # Individual tool categories
@@ -92,10 +98,11 @@ tools-sleep = []           # sleep_quality, recovery_score, rest_day
 tools-recipes = []         # validate_recipe, save_recipe, list_recipes
 tools-coaches = []         # coach CRUD, activate, favorites
 tools-admin = ["tools-coaches"]  # admin tools depend on coach tools
+tools-mobility = []        # stretching exercises, yoga poses, mobility recommendations
 
 # Convenience bundles for common deployments
 tools-fitness-core = ["tools-connection", "tools-data", "tools-analytics"]
-tools-wellness = ["tools-sleep", "tools-nutrition", "tools-recipes"]
+tools-wellness = ["tools-sleep", "tools-nutrition", "tools-recipes", "tools-mobility"]
 
 # OpenAPI documentation (SwaggerUI) - excluded from production by default
 # Enable with: cargo build --features openapi

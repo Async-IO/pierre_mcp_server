@@ -1107,7 +1107,7 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                 >
                   All
                 </button>
-                {['Training', 'Nutrition', 'Recovery', 'Recipes', 'Analysis', 'Custom'].map((category) => (
+                {['Training', 'Nutrition', 'Recovery', 'Recipes', 'Mobility', 'Analysis', 'Custom'].map((category) => (
                   <button
                     key={category}
                     onClick={() => setCoachesCategoryFilter(category)}
@@ -1771,6 +1771,7 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                     <option value="Nutrition">Nutrition</option>
                     <option value="Recovery">Recovery</option>
                     <option value="Recipes">Recipes</option>
+                    <option value="Mobility">Mobility</option>
                     <option value="Analysis">Analysis</option>
                     <option value="Custom">Custom</option>
                   </select>
@@ -1833,6 +1834,7 @@ function getCategoryBadgeClass(category: string): string {
     nutrition: 'bg-pierre-nutrition/10 text-pierre-nutrition',
     recovery: 'bg-pierre-blue-100 text-pierre-blue-700',
     recipes: 'bg-pierre-yellow-100 text-pierre-yellow-700',
+    mobility: 'bg-pink-100 text-pink-700',
     analysis: 'bg-pierre-violet/10 text-pierre-violet',
     custom: 'bg-pierre-gray-100 text-pierre-gray-600',
   };
@@ -1845,6 +1847,7 @@ function getCategoryIcon(category: string): string {
     nutrition: '🥗',
     recovery: '😴',
     recipes: '👨‍🍳',
+    mobility: '🧘',
     analysis: '📊',
     custom: '⚙️',
   };

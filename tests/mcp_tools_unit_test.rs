@@ -14,7 +14,7 @@
 //! - Parameter validation tests
 //! - Factory function tests
 //!
-//! ## Test Categories (61 tools total)
+//! ## Test Categories (67 tools total)
 //!
 //! - Coaches (13 tools)
 //! - Configuration (6 tools)
@@ -27,6 +27,7 @@
 //! - Goals (4 tools)
 //! - Connection (3 tools)
 //! - Admin (8 tools)
+//! - Mobility (6 tools)
 //!
 //! ## Test Coverage Requirements
 //!
@@ -1373,8 +1374,8 @@ fn test_total_tool_count() {
         admin::create_admin_tools, analytics::create_analytics_tools, coaches::create_coach_tools,
         configuration::create_configuration_tools, connection::create_connection_tools,
         data::create_data_tools, fitness_config::create_fitness_config_tools,
-        goals::create_goal_tools, nutrition::create_nutrition_tools, recipes::create_recipe_tools,
-        sleep::create_sleep_tools,
+        goals::create_goal_tools, mobility::create_mobility_tools,
+        nutrition::create_nutrition_tools, recipes::create_recipe_tools, sleep::create_sleep_tools,
     };
 
     let coaches = create_coach_tools();
@@ -1388,6 +1389,7 @@ fn test_total_tool_count() {
     let goals = create_goal_tools();
     let connection = create_connection_tools();
     let admin = create_admin_tools();
+    let mobility = create_mobility_tools();
 
     let total = coaches.len()
         + configuration.len()
@@ -1399,9 +1401,10 @@ fn test_total_tool_count() {
         + analytics.len()
         + goals.len()
         + connection.len()
-        + admin.len();
+        + admin.len()
+        + mobility.len();
 
-    assert_eq!(total, 61, "Expected 61 tools across all categories");
+    assert_eq!(total, 67, "Expected 67 tools across all categories");
 }
 
 #[test]

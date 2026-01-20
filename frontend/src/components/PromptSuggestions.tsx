@@ -535,6 +535,7 @@ function getCategoryBadgeClass(category: string): string {
     nutrition: 'bg-pierre-nutrition/10 text-pierre-nutrition',
     recovery: 'bg-pierre-blue-100 text-pierre-blue-700',
     recipes: 'bg-pierre-yellow-100 text-pierre-yellow-700',
+    mobility: 'bg-pink-500/10 text-pink-600',
     analysis: 'bg-pierre-violet/10 text-pierre-violet',
     custom: 'bg-pierre-gray-100 text-pierre-gray-600',
   };
@@ -547,6 +548,7 @@ function getCategoryIcon(category: string): string {
     nutrition: '🥗',
     recovery: '😴',
     recipes: '👨‍🍳',
+    mobility: '🧘',
     analysis: '📊',
     custom: '⚙️',
   };

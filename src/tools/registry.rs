@@ -336,6 +336,10 @@ impl ToolRegistry {
         #[cfg(feature = "tools-admin")]
         self.register_admin_tools();
 
+        // Mobility tools
+        #[cfg(feature = "tools-mobility")]
+        self.register_mobility_tools();
+
         // Always register default tools (no feature flag required)
         self.register_default_tools();
 
@@ -579,6 +583,27 @@ impl ToolRegistry {
 
         info!(
             "Registered admin tools (registry now has {} tools)",
+            self.tools.len()
+        );
+    }
+
+    /// Register mobility tools (stretching exercises, yoga poses)
+    #[cfg(feature = "tools-mobility")]
+    fn register_mobility_tools(&mut self) {
+        use super::implementations::mobility::create_mobility_tools;
+
+        debug!(
+            "Registering mobility tools (registry has {} tools)",
+            self.tools.len()
+        );
+
+        // Register all mobility tools with the "mobility" category
+        for tool in create_mobility_tools() {
+            self.register_with_category(Arc::from(tool), "mobility");
+        }
+
+        info!(
+            "Registered mobility tools (registry now has {} tools)",
             self.tools.len()
         );
     }

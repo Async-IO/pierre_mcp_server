@@ -12,7 +12,7 @@ import { Card, Button } from './ui';
 import { clsx } from 'clsx';
 
 // Coach category options
-const COACH_CATEGORIES = ['Training', 'Nutrition', 'Recovery', 'Recipes', 'Custom'];
+const COACH_CATEGORIES = ['Training', 'Nutrition', 'Recovery', 'Recipes', 'Mobility', 'Custom'];
 
 // Category colors for visual differentiation
 const CATEGORY_COLORS: Record<string, string> = {
@@ -20,8 +20,15 @@ const CATEGORY_COLORS: Record<string, string> = {
   Nutrition: 'bg-pierre-nutrition/10 text-pierre-nutrition border-pierre-nutrition/20',
   Recovery: 'bg-pierre-recovery/10 text-pierre-recovery border-pierre-recovery/20',
   Recipes: 'bg-pierre-yellow-500/10 text-pierre-yellow-600 border-pierre-yellow-500/20',
+  Mobility: 'bg-pink-500/10 text-pink-600 border-pink-500/20',
   Custom: 'bg-pierre-violet/10 text-pierre-violet border-pierre-violet/20',
 };
+
+// Helper to get category color class with case-insensitive lookup
+function getCategoryColorClass(category: string): string {
+  const normalized = category.charAt(0).toUpperCase() + category.slice(1).toLowerCase();
+  return CATEGORY_COLORS[normalized] || CATEGORY_COLORS.Custom;
+}
 
 interface CoachFormData {
   title: string;
@@ -238,7 +245,7 @@ export default function SystemCoachesTab() {
                     <h3 className="font-semibold text-pierre-gray-900 truncate">{coach.title}</h3>
                     <span className={clsx(
                       'inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded-full border',
-                      CATEGORY_COLORS[coach.category] || CATEGORY_COLORS.Custom
+                      getCategoryColorClass(coach.category)
                     )}>
                       {coach.category}
                     </span>
@@ -466,7 +473,7 @@ export default function SystemCoachesTab() {
               <h2 className="text-2xl font-semibold text-pierre-gray-900">{selectedCoach.title}</h2>
               <span className={clsx(
                 'px-2 py-1 text-xs font-medium rounded-full border',
-                CATEGORY_COLORS[selectedCoach.category] || CATEGORY_COLORS.Custom
+                getCategoryColorClass(selectedCoach.category)
               )}>
                 {selectedCoach.category}
               </span>
@@ -691,9 +698,12 @@ function getCategoryColor(category: string): string {
     Nutrition: '#F59E0B',
     Recovery: '#6366F1',
     Recipes: '#F97316',
+    Mobility: '#EC4899',
     Custom: '#7C3AED',
   };
-  return colors[category] || colors.Custom;
+  // Normalize category to title case for lookup
+  const normalized = category.charAt(0).toUpperCase() + category.slice(1).toLowerCase();
+  return colors[normalized] || colors.Custom;
 }
 
 // Simple token count estimation (roughly 4 chars per token)

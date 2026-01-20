@@ -8,9 +8,11 @@ use crate::constants::tools::{
     ACTIVATE_COACH, ADMIN_ASSIGN_COACH, ADMIN_CREATE_SYSTEM_COACH, ADMIN_DELETE_SYSTEM_COACH,
     ADMIN_GET_SYSTEM_COACH, ADMIN_LIST_COACH_ASSIGNMENTS, ADMIN_LIST_SYSTEM_COACHES,
     ADMIN_UNASSIGN_COACH, ADMIN_UPDATE_SYSTEM_COACH, CREATE_COACH, DEACTIVATE_COACH, DELETE_COACH,
-    DELETE_RECIPE, GET_ACTIVE_COACH, GET_COACH, GET_RECIPE, GET_RECIPE_CONSTRAINTS, HIDE_COACH,
-    LIST_COACHES, LIST_HIDDEN_COACHES, LIST_RECIPES, SAVE_RECIPE, SEARCH_COACHES, SEARCH_RECIPES,
-    SHOW_COACH, TOGGLE_COACH_FAVORITE, UPDATE_COACH, VALIDATE_RECIPE,
+    DELETE_RECIPE, GET_ACTIVE_COACH, GET_COACH, GET_RECIPE, GET_RECIPE_CONSTRAINTS,
+    GET_STRETCHING_EXERCISE, GET_YOGA_POSE, HIDE_COACH, LIST_COACHES, LIST_HIDDEN_COACHES,
+    LIST_RECIPES, LIST_STRETCHING_EXERCISES, LIST_YOGA_POSES, SAVE_RECIPE, SEARCH_COACHES,
+    SEARCH_RECIPES, SHOW_COACH, SUGGEST_STRETCHES_FOR_ACTIVITY, SUGGEST_YOGA_SEQUENCE,
+    TOGGLE_COACH_FAVORITE, UPDATE_COACH, VALIDATE_RECIPE,
 };
 use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalToolExecutor};
 use crate::protocols::ProtocolError;
@@ -159,6 +161,20 @@ pub enum ToolId {
     /// List all hidden coaches for the user
     ListHiddenCoaches,
 
+    // Mobility tools (stretching exercises, yoga poses)
+    /// List stretching exercises with optional filtering
+    ListStretchingExercises,
+    /// Get a specific stretching exercise by ID
+    GetStretchingExercise,
+    /// Suggest stretches for a specific activity type
+    SuggestStretchesForActivity,
+    /// List yoga poses with optional filtering
+    ListYogaPoses,
+    /// Get a specific yoga pose by ID
+    GetYogaPose,
+    /// Suggest a yoga sequence for recovery
+    SuggestYogaSequence,
+
     // Admin coach management tools (system coaches - admin only)
     /// List system coaches in tenant (admin only)
     AdminListSystemCoaches,
@@ -247,6 +263,13 @@ impl ToolId {
             HIDE_COACH => Some(Self::HideCoach),
             SHOW_COACH => Some(Self::ShowCoach),
             LIST_HIDDEN_COACHES => Some(Self::ListHiddenCoaches),
+            // Mobility tools
+            LIST_STRETCHING_EXERCISES => Some(Self::ListStretchingExercises),
+            GET_STRETCHING_EXERCISE => Some(Self::GetStretchingExercise),
+            SUGGEST_STRETCHES_FOR_ACTIVITY => Some(Self::SuggestStretchesForActivity),
+            LIST_YOGA_POSES => Some(Self::ListYogaPoses),
+            GET_YOGA_POSE => Some(Self::GetYogaPose),
+            SUGGEST_YOGA_SEQUENCE => Some(Self::SuggestYogaSequence),
             // Admin coach management tools (system coaches)
             ADMIN_LIST_SYSTEM_COACHES => Some(Self::AdminListSystemCoaches),
             ADMIN_CREATE_SYSTEM_COACH => Some(Self::AdminCreateSystemCoach),
@@ -326,6 +349,13 @@ impl ToolId {
             Self::HideCoach => HIDE_COACH,
             Self::ShowCoach => SHOW_COACH,
             Self::ListHiddenCoaches => LIST_HIDDEN_COACHES,
+            // Mobility tools
+            Self::ListStretchingExercises => LIST_STRETCHING_EXERCISES,
+            Self::GetStretchingExercise => GET_STRETCHING_EXERCISE,
+            Self::SuggestStretchesForActivity => SUGGEST_STRETCHES_FOR_ACTIVITY,
+            Self::ListYogaPoses => LIST_YOGA_POSES,
+            Self::GetYogaPose => GET_YOGA_POSE,
+            Self::SuggestYogaSequence => SUGGEST_YOGA_SEQUENCE,
             // Admin coach management tools
             Self::AdminListSystemCoaches => ADMIN_LIST_SYSTEM_COACHES,
             Self::AdminCreateSystemCoach => ADMIN_CREATE_SYSTEM_COACH,
@@ -402,6 +432,12 @@ impl ToolId {
             Self::HideCoach => "Hide a system or assigned coach",
             Self::ShowCoach => "Show (unhide) a hidden coach",
             Self::ListHiddenCoaches => "List all hidden coaches for the user",
+            Self::ListStretchingExercises => "List stretching exercises with optional filters",
+            Self::GetStretchingExercise => "Get a specific stretching exercise by ID",
+            Self::SuggestStretchesForActivity => "Suggest stretches for a specific activity",
+            Self::ListYogaPoses => "List yoga poses with optional filters",
+            Self::GetYogaPose => "Get a specific yoga pose by ID",
+            Self::SuggestYogaSequence => "Suggest a yoga sequence for recovery",
             Self::AdminListSystemCoaches => "List all system coaches (admin only)",
             Self::AdminCreateSystemCoach => "Create a system coach (admin only)",
             Self::AdminGetSystemCoach => "Get a specific system coach (admin only)",

@@ -19,6 +19,7 @@
 //! - `coaches` - AI coach management tools
 //! - `admin` - Admin-only tools
 //! - `configuration` - User configuration tools
+//! - `mobility` - Stretching exercises, yoga poses, mobility recommendations
 //!
 //! Each category is conditionally compiled based on feature flags,
 //! allowing for reduced binary size in deployments that don't need all tools.
@@ -66,3 +67,7 @@ pub mod admin;
 // Configuration tools: get_configuration_catalog, get_user_configuration, etc.
 #[cfg(feature = "tools-config")]
 pub mod configuration;
+
+// Mobility tools: stretching exercises, yoga poses, mobility recommendations
+#[cfg(feature = "tools-mobility")]
+pub mod mobility;

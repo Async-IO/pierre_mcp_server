@@ -115,7 +115,7 @@ export interface FirebaseLoginResponse {
 }
 
 // Coach types for AI coaching personas
-export type CoachCategory = 'training' | 'nutrition' | 'recovery' | 'recipes' | 'custom';
+export type CoachCategory = 'training' | 'nutrition' | 'recovery' | 'recipes' | 'mobility' | 'custom';
 export type CoachVisibility = 'private' | 'tenant' | 'global';
 
 export interface Coach {

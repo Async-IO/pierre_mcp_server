@@ -98,6 +98,7 @@ describe('CoachLibraryScreen', () => {
         expect(getByText('Nutrition')).toBeTruthy();
         expect(getByText('Recovery')).toBeTruthy();
         expect(getByText('Recipes')).toBeTruthy();
+        expect(getByText('Mobility')).toBeTruthy();
         expect(getByText('Custom')).toBeTruthy();
       });
     });
@@ -187,6 +188,34 @@ describe('CoachLibraryScreen', () => {
 
       await waitFor(() => {
         expect(getByText('Training Coach')).toBeTruthy();
+        expect(queryByText('Nutrition Coach')).toBeNull();
+      });
+    });
+
+    it('should filter by mobility category', async () => {
+      const coaches = [
+        createMockCoach({ id: '1', title: 'Mobility Coach', category: 'mobility' }),
+        createMockCoach({ id: '2', title: 'Training Coach', category: 'training' }),
+        createMockCoach({ id: '3', title: 'Nutrition Coach', category: 'nutrition' }),
+      ];
+      mockListCoaches.mockResolvedValue({ coaches });
+
+      const { getByText, queryByText } = render(
+        <CoachLibraryScreen navigation={mockNavigation as never} />
+      );
+
+      await waitFor(() => {
+        expect(getByText('Mobility Coach')).toBeTruthy();
+        expect(getByText('Training Coach')).toBeTruthy();
+        expect(getByText('Nutrition Coach')).toBeTruthy();
+      });
+
+      // Filter by mobility
+      fireEvent.press(getByText('Mobility'));
+
+      await waitFor(() => {
+        expect(getByText('Mobility Coach')).toBeTruthy();
+        expect(queryByText('Training Coach')).toBeNull();
         expect(queryByText('Nutrition Coach')).toBeNull();
       });
     });

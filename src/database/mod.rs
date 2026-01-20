@@ -22,6 +22,8 @@ pub mod errors;
 pub mod fitness_configurations;
 /// Impersonation session management for super admin user impersonation
 pub mod impersonation;
+/// Mobility features (stretching exercises and yoga poses)
+pub mod mobility;
 /// OAuth callback notification handling
 pub mod oauth_notifications;
 /// Recipe storage and management for nutrition planning
@@ -48,6 +50,10 @@ pub use coaches::{
     Coach, CoachCategory, CoachesManager, CreateCoachRequest, ListCoachesFilter, UpdateCoachRequest,
 };
 pub use errors::{DatabaseError, DatabaseResult};
+pub use mobility::{
+    ActivityMuscleMapping, DifficultyLevel, ListStretchingFilter, ListYogaFilter, MobilityManager,
+    StretchingCategory, StretchingExercise, YogaCategory, YogaPose, YogaPoseType,
+};
 pub use oauth_notifications::OAuthNotification;
 pub use user_mcp_tokens::{
     CreateUserMcpTokenRequest, UserMcpToken, UserMcpTokenCreated, UserMcpTokenInfo,

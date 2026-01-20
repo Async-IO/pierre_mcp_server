@@ -331,7 +331,7 @@ export interface ProvisionedKey {
 }
 
 // Coach Management Types
-export type CoachCategory = 'Training' | 'Nutrition' | 'Recovery' | 'Recipes' | 'Custom';
+export type CoachCategory = 'Training' | 'Nutrition' | 'Recovery' | 'Recipes' | 'Mobility' | 'Custom';
 
 export interface Coach {
   id: string;

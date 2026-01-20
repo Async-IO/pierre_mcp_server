@@ -35,6 +35,7 @@ const CATEGORY_FILTERS: Array<{ key: CoachCategory | 'all'; label: string }> = [
   { key: 'nutrition', label: 'Nutrition' },
   { key: 'recovery', label: 'Recovery' },
   { key: 'recipes', label: 'Recipes' },
+  { key: 'mobility', label: 'Mobility' },
   { key: 'custom', label: 'Custom' },
 ];
 
@@ -52,6 +53,7 @@ const COACH_CATEGORY_COLORS: Record<CoachCategory, string> = {
   nutrition: '#F59E0B', // Orange
   recovery: '#6366F1',  // Indigo/Blue
   recipes: '#F97316',   // Amber
+  mobility: '#EC4899',  // Pink - for stretching/yoga
   custom: '#7C3AED',    // Purple
 };
 

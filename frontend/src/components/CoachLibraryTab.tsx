@@ -12,7 +12,7 @@ import { Card, Button } from './ui';
 import { clsx } from 'clsx';
 
 // Coach category options
-const COACH_CATEGORIES = ['Training', 'Nutrition', 'Recovery', 'Recipes', 'Custom'];
+const COACH_CATEGORIES = ['Training', 'Nutrition', 'Recovery', 'Recipes', 'Mobility', 'Custom'];
 
 // Category colors for visual differentiation (matching ASY-35 specs)
 const CATEGORY_COLORS: Record<string, string> = {
@@ -20,6 +20,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   Nutrition: 'bg-pierre-nutrition/10 text-pierre-nutrition border-pierre-nutrition/20',
   Recovery: 'bg-pierre-recovery/10 text-pierre-recovery border-pierre-recovery/20',
   Recipes: 'bg-pierre-yellow-500/10 text-pierre-yellow-600 border-pierre-yellow-500/20',
+  Mobility: 'bg-pink-500/10 text-pink-600 border-pink-500/20',
   Custom: 'bg-pierre-violet/10 text-pierre-violet border-pierre-violet/20',
 };
 
@@ -29,6 +30,7 @@ const CATEGORY_BORDER_COLORS: Record<string, string> = {
   Nutrition: '#F59E0B',
   Recovery: '#6366F1',
   Recipes: '#F97316',
+  Mobility: '#EC4899',
   Custom: '#7C3AED',
 };
 

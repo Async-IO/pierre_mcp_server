@@ -16,6 +16,8 @@ pub mod fitness_api;
 pub mod goals;
 /// Activity intelligence and analysis tool handlers
 pub mod intelligence;
+/// Mobility tool handlers (stretching exercises, yoga poses)
+pub mod mobility;
 /// Nutrition analysis and USDA database tool handlers
 pub mod nutrition;
 /// Shared provider helper functions
@@ -114,4 +116,10 @@ pub use coaches::{
     handle_admin_get_system_coach, handle_admin_list_coach_assignments,
     handle_admin_list_system_coaches, handle_admin_unassign_coach,
     handle_admin_update_system_coach,
+};
+
+/// Re-export mobility handlers (stretching exercises, yoga poses)
+pub use mobility::{
+    handle_get_stretching_exercise, handle_get_yoga_pose, handle_list_stretching_exercises,
+    handle_list_yoga_poses, handle_suggest_stretches_for_activity, handle_suggest_yoga_sequence,
 };

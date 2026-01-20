@@ -120,3 +120,17 @@ pub const ADMIN_ASSIGN_COACH: &str = "admin_assign_coach";
 pub const ADMIN_UNASSIGN_COACH: &str = "admin_unassign_coach";
 /// Tool identifier for listing coach assignments (admin only)
 pub const ADMIN_LIST_COACH_ASSIGNMENTS: &str = "admin_list_coach_assignments";
+
+/// Mobility tools (stretching exercises, yoga poses)
+/// Tool identifier for listing stretching exercises
+pub const LIST_STRETCHING_EXERCISES: &str = "list_stretching_exercises";
+/// Tool identifier for getting a specific stretching exercise
+pub const GET_STRETCHING_EXERCISE: &str = "get_stretching_exercise";
+/// Tool identifier for suggesting stretches for a specific activity
+pub const SUGGEST_STRETCHES_FOR_ACTIVITY: &str = "suggest_stretches_for_activity";
+/// Tool identifier for listing yoga poses
+pub const LIST_YOGA_POSES: &str = "list_yoga_poses";
+/// Tool identifier for getting a specific yoga pose
+pub const GET_YOGA_POSE: &str = "get_yoga_pose";
+/// Tool identifier for suggesting a yoga sequence
+pub const SUGGEST_YOGA_SEQUENCE: &str = "suggest_yoga_sequence";
