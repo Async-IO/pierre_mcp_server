@@ -65,7 +65,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-cross-platform-${{ hashFiles('**/Cargo.lock', 'migrations/**') }}
+          key: ${{ runner.os }}-cargo-cross-platform-v2-${{ hashFiles('**/Cargo.lock', 'migrations/**') }}
 
       - name: Check formatting
         run: cargo fmt --all -- --check

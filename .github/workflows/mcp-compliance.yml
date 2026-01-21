@@ -65,9 +65,9 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-1.92.0-${{ hashFiles('**/Cargo.lock', 'migrations/**') }}
+          key: ${{ runner.os }}-cargo-1.92.0-v2-${{ hashFiles('**/Cargo.lock', 'migrations/**') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-1.92.0-
+            ${{ runner.os }}-cargo-1.92.0-v2-
 
       - name: Install MCP Validator
         run: |

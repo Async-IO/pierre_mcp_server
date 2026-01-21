@@ -74,7 +74,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-clippy-1.92.0-${{ hashFiles('**/Cargo.lock', 'migrations/**') }}
+          key: ${{ runner.os }}-cargo-clippy-1.92.0-v2-${{ hashFiles('**/Cargo.lock', 'migrations/**') }}
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -113,7 +113,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-1.92.0-${{ hashFiles('**/Cargo.lock', 'migrations/**') }}
+          key: ${{ runner.os }}-cargo-1.92.0-v2-${{ hashFiles('**/Cargo.lock', 'migrations/**') }}
 
       - name: Install cargo-deny
         uses: taiki-e/install-action@cargo-deny
@@ -230,7 +230,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-postgres-1.92.0-${{ hashFiles('**/Cargo.lock', 'migrations/**') }}
+          key: ${{ runner.os }}-cargo-postgres-1.92.0-v2-${{ hashFiles('**/Cargo.lock', 'migrations/**') }}
 
       - name: Wait for PostgreSQL
         run: |
@@ -312,7 +312,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-redis-1.92.0-${{ hashFiles('**/Cargo.lock', 'migrations/**') }}
+          key: ${{ runner.os }}-cargo-redis-1.92.0-v2-${{ hashFiles('**/Cargo.lock', 'migrations/**') }}
 
       - name: Install Redis tools
         run: sudo apt-get update && sudo apt-get install -y redis-tools
@@ -375,9 +375,9 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-release-1.92.0-${{ hashFiles('**/Cargo.lock', 'migrations/**') }}
+          key: ${{ runner.os }}-cargo-release-1.92.0-v2-${{ hashFiles('**/Cargo.lock', 'migrations/**') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-release-1.92.0-
+            ${{ runner.os }}-cargo-release-1.92.0-v2-
 
       # SDK build removed - release binary validation focuses on Rust binary only
       # Full test suite with SDK is covered by backend-tests job
