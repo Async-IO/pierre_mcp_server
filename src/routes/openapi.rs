@@ -4,6 +4,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+// Allow: utoipa's OpenApi derive macro generates code triggering this lint
+#![allow(clippy::needless_for_each)]
+
 //! `OpenAPI` documentation routes
 //!
 //! This module provides `OpenAPI` 3.0 specification generation and Swagger UI
