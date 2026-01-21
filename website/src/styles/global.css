@@ -29,6 +29,10 @@
   background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
 }
 
+.gradient-mobility {
+  background: linear-gradient(135deg, #F43F5E 0%, #E11D48 100%);
+}
+
 /* Card hover effect */
 .card-hover {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -212,6 +216,10 @@
 
 .coach-card.analysis {
   --accent-color: #7C3AED;
+}
+
+.coach-card.mobility {
+  --accent-color: #F43F5E;
 }
 
 /* Respect user motion preferences */

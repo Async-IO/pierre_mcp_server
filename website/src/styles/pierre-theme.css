@@ -11,6 +11,7 @@
   --pierre-activity: #10B981;
   --pierre-nutrition: #F59E0B;
   --pierre-recovery: #6366F1;
+  --pierre-mobility: #F43F5E;
   --pierre-dark: #0F0F1A;
   --pierre-slate: #1E1E2E;
   --pierre-violet-light: #A78BFA;
@@ -58,6 +59,10 @@
 
 .gradient-recovery {
   background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+}
+
+.gradient-mobility {
+  background: linear-gradient(135deg, #F43F5E 0%, #E11D48 100%);
 }
 
 /* Card hover effect */

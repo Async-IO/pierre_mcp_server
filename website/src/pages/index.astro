@@ -9,7 +9,7 @@ import '../styles/global.css';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pierre - AI-Powered Fitness Intelligence</title>
-    <meta name="description" content="Meet your team of 9 expert AI fitness coaches. Pierre brings specialized coaching for training, nutrition, and recovery—powered by real sports science and your Strava, Garmin, or WHOOP data.">
+    <meta name="description" content="AI fitness coaching powered by real sports science. Specialized coaches for training, nutrition, recovery, and mobility—connected to your fitness devices.">
     <meta name="keywords" content="fitness insights, AI fitness coach, Strava analysis, Garmin insights, training load, recovery score, nutrition tracking, sleep analysis">
 
     <!-- Open Graph -->
@@ -112,10 +112,9 @@ import '../styles/global.css';
             </h1>
 
             <p class="text-xl text-gray-300 max-w-3xl mx-auto mb-8">
-                Get expert AI coaching for <strong class="text-emerald-400">training</strong>,
-                <strong class="text-amber-400">nutrition</strong>, and <strong class="text-indigo-400">recovery</strong>—powered by real sports science.
-                Connect your <strong class="text-white">Strava</strong>, <strong class="text-white">Garmin</strong>, <strong class="text-white">Fitbit</strong>,
-                <strong class="text-white">WHOOP</strong>, or <strong class="text-white">Coros</strong> and get personalized guidance tailored to your goals.
+                Expert AI coaching for <strong class="text-emerald-400">training</strong>,
+                <strong class="text-amber-400">nutrition</strong>, <strong class="text-indigo-400">recovery</strong>, and <strong class="text-rose-400">mobility</strong>—powered by real sports science.
+                Connect your fitness devices and get personalized guidance tailored to your goals.
             </p>
 
             <!-- Device Badges (moved up for visual break) -->
@@ -171,7 +170,7 @@ import '../styles/global.css';
             </div>
 
             <!-- Coach Capabilities Grid -->
-            <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="grid sm:grid-cols-2 lg:grid-cols-5 gap-6">
                 <!-- Training -->
                 <div class="bg-[#1E1E2E] rounded-xl p-6 border border-emerald-500/20 hover:border-emerald-500/40 transition-all">
                     <div class="w-12 h-12 rounded-lg gradient-activity flex items-center justify-center mb-4">
@@ -180,11 +179,10 @@ import '../styles/global.css';
                         </svg>
                     </div>
                     <h3 class="text-lg font-semibold text-emerald-400 mb-2">Training</h3>
-                    <p class="text-gray-400 text-sm mb-4">Race-specific coaching from 5K intervals to marathon long runs. VO2max optimization, pacing strategies, and periodization.</p>
+                    <p class="text-gray-400 text-sm mb-4">Race-specific coaching from 5K to marathon. Pacing strategies and periodization.</p>
                     <div class="flex flex-wrap gap-1.5">
                         <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-xs">5K-Marathon</span>
                         <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-xs">Pacing</span>
-                        <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-xs">VO2max</span>
                     </div>
                 </div>
 
@@ -196,11 +194,10 @@ import '../styles/global.css';
                         </svg>
                     </div>
                     <h3 class="text-lg font-semibold text-amber-400 mb-2">Nutrition</h3>
-                    <p class="text-gray-400 text-sm mb-4">Pre-workout fueling, post-workout recovery, and race-day nutrition. Meal timing, carb loading, and hydration strategies.</p>
+                    <p class="text-gray-400 text-sm mb-4">Pre/post-workout fueling and race-day nutrition. Meal timing and hydration.</p>
                     <div class="flex flex-wrap gap-1.5">
                         <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-xs">Meal Timing</span>
                         <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-xs">Race Day</span>
-                        <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-xs">Recovery</span>
                     </div>
                 </div>
 
@@ -212,11 +209,25 @@ import '../styles/global.css';
                         </svg>
                     </div>
                     <h3 class="text-lg font-semibold text-indigo-400 mb-2">Recovery</h3>
-                    <p class="text-gray-400 text-sm mb-4">Sleep optimization, HRV interpretation, and overtraining prevention. Know when to push and when to rest.</p>
+                    <p class="text-gray-400 text-sm mb-4">Sleep optimization and HRV interpretation. Know when to push and when to rest.</p>
                     <div class="flex flex-wrap gap-1.5">
                         <span class="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 text-xs">Sleep</span>
                         <span class="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 text-xs">HRV</span>
-                        <span class="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 text-xs">Rest Days</span>
+                    </div>
+                </div>
+
+                <!-- Mobility -->
+                <div class="bg-[#1E1E2E] rounded-xl p-6 border border-rose-500/20 hover:border-rose-500/40 transition-all">
+                    <div class="w-12 h-12 rounded-lg gradient-mobility flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-rose-400 mb-2">Mobility</h3>
+                    <p class="text-gray-400 text-sm mb-4">Stretching routines, yoga for athletes, and injury prevention. Desk athlete solutions.</p>
+                    <div class="flex flex-wrap gap-1.5">
+                        <span class="px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 text-xs">Stretching</span>
+                        <span class="px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 text-xs">Yoga</span>
                     </div>
                 </div>
 
@@ -228,21 +239,20 @@ import '../styles/global.css';
                         </svg>
                     </div>
                     <h3 class="text-lg font-semibold text-violet-400 mb-2">Analysis</h3>
-                    <p class="text-gray-400 text-sm mb-4">Pattern detection, training load trends, injury risk assessment, and performance insights from your data.</p>
+                    <p class="text-gray-400 text-sm mb-4">Pattern detection and training load trends. Performance insights from your data.</p>
                     <div class="flex flex-wrap gap-1.5">
                         <span class="px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400 text-xs">Patterns</span>
                         <span class="px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400 text-xs">Load</span>
-                        <span class="px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400 text-xs">Trends</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Custom Coaches Banner -->
+            <!-- Coach Library Banner -->
             <div class="mt-10 bg-gradient-to-r from-violet-500/10 via-cyan-500/10 to-violet-500/10 rounded-xl p-6 border border-violet-500/20">
                 <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div class="text-center sm:text-left">
-                        <h3 class="text-lg font-semibold mb-1">Create Custom Coaches</h3>
-                        <p class="text-gray-400 text-sm">Build personalized coaches with your own expertise focus and personality.</p>
+                        <h3 class="text-lg font-semibold mb-1">Coach Library &amp; Marketplace</h3>
+                        <p class="text-gray-400 text-sm">Browse expert coaches or create your own. Share and discover community coaches.</p>
                     </div>
                     <a href="#early-access" class="gradient-pierre px-5 py-2.5 rounded-lg font-medium text-sm hover:opacity-90 transition-opacity whitespace-nowrap">
                         Get Early Access
@@ -1867,7 +1877,7 @@ import '../styles/global.css';
             </div>
             <h2 class="text-3xl sm:text-4xl font-bold mb-4">Meet Your Coaching Team</h2>
             <p class="text-gray-300 max-w-2xl mx-auto mb-8">
-                Pierre is launching soon with 9 expert AI coaches ready to guide your training, nutrition, and recovery. Be the first to get access and help shape the future of AI fitness coaching.
+                Pierre is launching soon with expert AI coaches ready to guide your training, nutrition, recovery, and mobility. Be the first to get access and help shape the future of AI fitness coaching.
             </p>
 
             <!-- Signup Form -->
