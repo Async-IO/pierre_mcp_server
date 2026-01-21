@@ -10,8 +10,23 @@ use super::spi::{ProviderBundle, ProviderCapabilities, ProviderDescriptor};
 use crate::cache::memory::InMemoryCache;
 use crate::cache::{CacheConfig, CacheTtlConfig};
 use crate::config::admin::service::AdminConfigService;
+#[cfg(any(
+    feature = "provider-strava",
+    feature = "provider-garmin",
+    feature = "provider-fitbit",
+    feature = "provider-whoop",
+    feature = "provider-coros"
+))]
 use crate::config::environment::load_provider_env_config;
-use crate::constants::oauth::GARMIN_DEFAULT_SCOPES;
+#[cfg(any(
+    feature = "provider-strava",
+    feature = "provider-garmin",
+    feature = "provider-fitbit",
+    feature = "provider-terra",
+    feature = "provider-whoop",
+    feature = "provider-coros",
+    feature = "provider-synthetic"
+))]
 use crate::constants::oauth_providers;
 use crate::errors::{AppError, AppResult};
 use std::{
@@ -149,10 +164,7 @@ impl ProviderRegistry {
                 "https://connectapi.garmin.com/oauth-service/oauth/access_token",
                 "https://apis.garmin.com/wellness-api/rest",
                 Some("https://connectapi.garmin.com/oauth-service/oauth/revoke"),
-                &GARMIN_DEFAULT_SCOPES
-                    .split(',')
-                    .map(str::to_owned)
-                    .collect::<Vec<_>>(),
+                &["wellness:read".to_owned(), "activities:read".to_owned()],
             );
         registry.set_default_config(
             oauth_providers::GARMIN,

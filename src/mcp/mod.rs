@@ -8,7 +8,8 @@
 pub mod mcp_request_processor;
 /// Multi-tenant MCP server implementation
 pub mod multitenant;
-/// OAuth 2.0 authorization flow management
+/// OAuth 2.0 authorization flow management (requires protocol-rest for response types)
+#[cfg(feature = "protocol-rest")]
 pub mod oauth_flow_manager;
 /// Progress notification handling
 pub mod progress;

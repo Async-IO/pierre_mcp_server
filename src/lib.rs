@@ -60,6 +60,9 @@
 //! }
 //! ```
 
+/// Feature flag configuration and validation
+pub mod features;
+
 /// Fitness provider implementations for various services
 pub mod providers;
 
@@ -142,9 +145,11 @@ pub mod api_key_routes;
 pub mod dashboard_routes;
 
 /// WebSocket support for real-time updates
+#[cfg(feature = "transport-websocket")]
 pub mod websocket;
 
 /// Server-Sent Events (SSE) for real-time streaming
+#[cfg(feature = "transport-sse")]
 pub mod sse;
 
 /// Security headers and protection middleware

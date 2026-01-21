@@ -21,6 +21,7 @@ use pierre_mcp_server::{
     constants::init_server_config,
     database_plugins::{factory::Database, DatabaseProvider},
     errors::AppError,
+    features::FeatureConfig,
     key_management::KeyManager,
     logging,
     mcp::{
@@ -255,6 +256,10 @@ fn log_validation_result(all_valid: bool) {
 
 /// Bootstrap the complete server with all dependencies
 async fn bootstrap_server(config: ServerConfig, stdio_only: bool) -> Result<()> {
+    // Validate feature configuration before any expensive initialization
+    // The validate() function logs all enabled features
+    FeatureConfig::validate()?;
+
     initialize_global_configs(&config)?;
     let (database, auth_manager, jwt_secret) = initialize_core_systems(&config).await?;
     let cache = initialize_cache().await?;

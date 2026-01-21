@@ -38,8 +38,20 @@ use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::errors::{AppError, AppResult};
 use crate::models::{AuthRequest, AuthResponse, User, UserSession};
 use crate::rate_limiting::UnifiedRateLimitInfo;
-use crate::routes::SetupStatusResponse;
 use crate::utils::uuid::parse_uuid;
+
+/// Response for checking system setup status
+///
+/// Used by admin setup flow to determine if initial configuration is needed.
+#[derive(Debug, Serialize)]
+pub struct SetupStatusResponse {
+    /// Whether the system needs initial setup
+    pub needs_setup: bool,
+    /// Whether an admin user already exists
+    pub admin_user_exists: bool,
+    /// Optional status message
+    pub message: Option<String>,
+}
 
 /// Convert a duration to a human-readable format
 fn humanize_duration(duration: Duration) -> String {

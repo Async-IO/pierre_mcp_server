@@ -20,12 +20,14 @@ use super::{
 use crate::api_keys::ApiKeyUsage;
 use crate::auth::{AuthManager, AuthResult};
 use crate::config::environment::ServerConfig;
+#[cfg(feature = "provider-strava")]
+use crate::constants::oauth::STRAVA_DEFAULT_SCOPES;
 use crate::constants::{
     errors::{ERROR_INTERNAL_ERROR, ERROR_INVALID_PARAMS, ERROR_METHOD_NOT_FOUND},
     get_server_config,
-    oauth::STRAVA_DEFAULT_SCOPES,
     protocol::JSONRPC_VERSION,
 };
+#[cfg(feature = "protocol-rest")]
 use crate::context::ServerContext;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::errors::{AppError, AppResult};
@@ -36,6 +38,7 @@ use crate::protocols::universal::tool_registry::ToolId;
 use crate::protocols::universal::types::{CancellationToken, ProgressReporter};
 use crate::protocols::universal::{UniversalRequest, UniversalToolExecutor};
 use crate::providers::ProviderRegistry;
+#[cfg(feature = "protocol-rest")]
 use crate::routes::OAuthRoutes;
 use crate::security::headers::SecurityConfig;
 use crate::tenant::oauth_client::StoreCredentialsRequest;
@@ -55,8 +58,11 @@ use uuid::Uuid;
 
 use crate::constants::service_names::PIERRE_MCP_SERVER;
 use crate::middleware::{request_id_middleware, setup_cors};
+#[cfg(feature = "oauth")]
 use crate::oauth2_server::OAuth2RateLimiter;
+#[cfg(feature = "client-admin-api")]
 use crate::routes::admin::AdminApiContext;
+#[cfg(feature = "oauth")]
 use crate::routes::oauth2::OAuth2Context;
 use axum::middleware;
 use tokio::net::TcpListener;
@@ -203,7 +209,8 @@ impl MultiTenantMcpServer {
         }
     }
 
-    /// Handle `disconnect_provider` tool call
+    /// Handle `disconnect_provider` tool call (requires protocol-rest feature)
+    #[cfg(feature = "protocol-rest")]
     async fn handle_disconnect_provider(
         user_id: Uuid,
         provider: &str,
@@ -243,6 +250,28 @@ impl MultiTenantMcpServer {
                 }),
                 id: Some(id),
             },
+        }
+    }
+
+    /// Handle `disconnect_provider` tool call (stub when protocol-rest is disabled)
+    #[cfg(not(feature = "protocol-rest"))]
+    async fn handle_disconnect_provider(
+        _user_id: Uuid,
+        provider: &str,
+        _resources: &Arc<ServerResources>,
+        id: Value,
+    ) -> McpResponse {
+        McpResponse {
+            jsonrpc: JSONRPC_VERSION.to_owned(),
+            result: None,
+            error: Some(McpError {
+                code: ERROR_METHOD_NOT_FOUND,
+                message: format!(
+                    "disconnect_provider for '{provider}' requires the 'protocol-rest' feature"
+                ),
+                data: None,
+            }),
+            id: Some(id),
         }
     }
 
@@ -309,6 +338,7 @@ impl MultiTenantMcpServer {
         config: &Arc<ServerConfig>,
     ) {
         // Store Strava credentials if provided
+        #[cfg(feature = "provider-strava")]
         if let (Some(id), Some(secret)) = (
             credentials.strava_client_id,
             credentials.strava_client_secret,
@@ -390,6 +420,7 @@ impl MultiTenantMcpServer {
     }
 
     /// Get default Strava OAuth scopes
+    #[cfg(feature = "provider-strava")]
     fn get_strava_scopes() -> Vec<String> {
         STRAVA_DEFAULT_SCOPES
             .split(',')
@@ -995,116 +1026,213 @@ impl MultiTenantMcpServer {
     }
 
     /// Setup complete Axum router with all route modules
+    ///
+    /// Routes are conditionally compiled based on feature flags to support
+    /// modular server configurations. See Cargo.toml for feature definitions.
+    ///
+    /// Note: This function is intentionally long due to the conditional route
+    /// registration pattern. Splitting it would fragment related route setup
+    /// logic and make the code harder to follow. Each section is clearly
+    /// documented and the structure follows the feature flag hierarchy.
+    #[allow(clippy::too_many_lines)]
     fn setup_axum_router(resources: &Arc<ServerResources>) -> axum::Router {
         use axum::Router;
 
-        // Import the Axum route implementations
+        // ═══════════════════════════════════════════════════════════════
+        // CONDITIONAL IMPORTS - Based on feature flags
+        // ═══════════════════════════════════════════════════════════════
+
+        #[cfg(feature = "protocol-a2a")]
         use crate::routes::a2a::A2ARoutes;
+        #[cfg(feature = "client-admin-api")]
         use crate::routes::admin::AdminRoutes;
+        #[cfg(feature = "client-api-keys")]
         use crate::routes::api_keys::ApiKeyRoutes;
+        #[cfg(feature = "protocol-rest")]
         use crate::routes::auth::AuthRoutes;
+        #[cfg(feature = "client-chat")]
         use crate::routes::chat::ChatRoutes;
+        #[cfg(feature = "client-coaches")]
         use crate::routes::coaches::CoachesRoutes;
+        #[cfg(feature = "client-settings")]
         use crate::routes::configuration::ConfigurationRoutes;
+        #[cfg(feature = "client-dashboard")]
         use crate::routes::dashboard::DashboardRoutes;
+        #[cfg(feature = "client-settings")]
         use crate::routes::fitness::FitnessConfigurationRoutes;
+        #[cfg(feature = "client-impersonation")]
         use crate::routes::impersonation::ImpersonationRoutes;
+        #[cfg(feature = "client-llm-settings")]
         use crate::routes::llm_settings::LlmSettingsRoutes;
+        #[cfg(feature = "protocol-mcp")]
         use crate::routes::mcp::McpRoutes;
+        #[cfg(feature = "oauth")]
         use crate::routes::oauth2::OAuth2Routes;
         #[cfg(feature = "openapi")]
         use crate::routes::openapi::OpenApiRoutes;
+        #[cfg(feature = "client-tenants")]
         use crate::routes::tenants::TenantRoutes;
+        #[cfg(feature = "client-mcp-tokens")]
         use crate::routes::user_mcp_tokens::UserMcpTokenRoutes;
+        #[cfg(feature = "client-oauth-apps")]
         use crate::routes::user_oauth_apps::UserOAuthAppRoutes;
+        #[cfg(feature = "client-admin-ui")]
         use crate::routes::web_admin::WebAdminRoutes;
+        #[cfg(feature = "transport-websocket")]
         use crate::routes::websocket::WebSocketRoutes;
+        #[cfg(feature = "transport-sse")]
         use crate::sse::SseRoutes;
 
-        // Admin configuration routes
+        #[cfg(feature = "client-admin-api")]
         use crate::config::routes::{admin_config_router, AdminConfigState};
 
-        // Create admin routes using the routes::admin::AdminApiContext
-        let admin_api_key_limit = resources
-            .config
-            .rate_limiting
-            .admin_provisioned_api_key_monthly_limit;
-        let admin_token_cache_ttl = resources.config.auth.admin_token_cache_ttl_secs;
-        let admin_context = AdminApiContext::new(
-            resources.database.clone(),
-            &resources.admin_jwt_secret,
-            resources.auth_manager.clone(),
-            resources.jwks_manager.clone(),
-            admin_api_key_limit,
-            admin_token_cache_ttl,
-            resources.tool_selection.clone(),
-        );
-        let admin_routes = AdminRoutes::routes(admin_context);
+        // ═══════════════════════════════════════════════════════════════
+        // HEALTH ROUTES - Always enabled
+        // ═══════════════════════════════════════════════════════════════
 
-        // Create health check routes
         let health_routes = Self::create_axum_health_routes();
+        let app = Router::new().merge(health_routes);
 
-        // Create OAuth2 server context
-        let oauth2_context = OAuth2Context {
-            database: resources.database.clone(),
-            auth_manager: resources.auth_manager.clone(),
-            jwks_manager: resources.jwks_manager.clone(),
-            config: resources.config.clone(),
-            rate_limiter: Arc::new(OAuth2RateLimiter::from_rate_limit_config(
-                resources.config.rate_limiting.clone(),
-            )),
+        // ═══════════════════════════════════════════════════════════════
+        // CLIENT-ADMIN-API ROUTES
+        // ═══════════════════════════════════════════════════════════════
+
+        #[cfg(feature = "client-admin-api")]
+        let app = {
+            let admin_api_key_limit = resources
+                .config
+                .rate_limiting
+                .admin_provisioned_api_key_monthly_limit;
+            let admin_token_cache_ttl = resources.config.auth.admin_token_cache_ttl_secs;
+            let admin_context = AdminApiContext::new(
+                resources.database.clone(),
+                &resources.admin_jwt_secret,
+                resources.auth_manager.clone(),
+                resources.jwks_manager.clone(),
+                admin_api_key_limit,
+                admin_token_cache_ttl,
+                resources.tool_selection.clone(),
+            );
+            let admin_routes = AdminRoutes::routes(admin_context);
+
+            let admin_config_routes = resources.admin_config.as_ref().map_or_else(
+                || {
+                    tracing::warn!(
+                        "Admin config service not available - admin config API disabled"
+                    );
+                    Router::new()
+                },
+                |admin_config| {
+                    let admin_config_state = Arc::new(AdminConfigState::new(
+                        Arc::clone(admin_config),
+                        Arc::clone(resources),
+                    ));
+                    admin_config_router(admin_config_state)
+                },
+            );
+
+            app.merge(admin_routes)
+                .nest("/api/admin/config", admin_config_routes)
         };
-        let oauth2_routes = OAuth2Routes::routes(oauth2_context);
 
-        // Create admin configuration routes if service is available
-        let admin_config_routes = resources.admin_config.as_ref().map_or_else(
-            || {
-                tracing::warn!("Admin config service not available - admin config API disabled");
-                Router::new()
-            },
-            |admin_config| {
-                let admin_config_state = Arc::new(AdminConfigState::new(
-                    Arc::clone(admin_config),
-                    Arc::clone(resources),
-                ));
-                admin_config_router(admin_config_state)
-            },
-        );
+        // ═══════════════════════════════════════════════════════════════
+        // PROTOCOL ROUTES
+        // ═══════════════════════════════════════════════════════════════
 
-        // Combine all routes into the main router
-        let app = Router::new()
-            .merge(health_routes)
-            .merge(admin_routes)
-            .merge(AuthRoutes::routes(Arc::clone(resources)))
-            .merge(oauth2_routes)
-            .merge(McpRoutes::routes(Arc::clone(resources)))
-            .merge(SseRoutes::routes(
-                Arc::clone(&resources.sse_manager),
-                Arc::clone(resources),
-            ))
-            .merge(WebSocketRoutes::routes(Arc::clone(
-                &resources.websocket_manager,
-            )))
-            .merge(A2ARoutes::routes(Arc::clone(resources)))
-            .merge(ApiKeyRoutes::routes(Arc::clone(resources)))
-            .merge(TenantRoutes::routes(Arc::clone(resources)))
-            .merge(DashboardRoutes::routes(Arc::clone(resources)))
+        #[cfg(feature = "protocol-rest")]
+        let app = app.merge(AuthRoutes::routes(Arc::clone(resources)));
+
+        #[cfg(feature = "oauth")]
+        let app = {
+            let oauth2_context = OAuth2Context {
+                database: resources.database.clone(),
+                auth_manager: resources.auth_manager.clone(),
+                jwks_manager: resources.jwks_manager.clone(),
+                config: resources.config.clone(),
+                rate_limiter: Arc::new(OAuth2RateLimiter::from_rate_limit_config(
+                    resources.config.rate_limiting.clone(),
+                )),
+            };
+            app.merge(OAuth2Routes::routes(oauth2_context))
+        };
+
+        #[cfg(feature = "protocol-mcp")]
+        let app = app.merge(McpRoutes::routes(Arc::clone(resources)));
+
+        #[cfg(feature = "protocol-a2a")]
+        let app = app.merge(A2ARoutes::routes(Arc::clone(resources)));
+
+        // ═══════════════════════════════════════════════════════════════
+        // TRANSPORT ROUTES
+        // ═══════════════════════════════════════════════════════════════
+
+        #[cfg(feature = "transport-sse")]
+        let app = app.merge(SseRoutes::routes(
+            Arc::clone(&resources.sse_manager),
+            Arc::clone(resources),
+        ));
+
+        #[cfg(feature = "transport-websocket")]
+        let app = app.merge(WebSocketRoutes::routes(Arc::clone(
+            &resources.websocket_manager,
+        )));
+
+        // ═══════════════════════════════════════════════════════════════
+        // CLIENT-WEB ROUTES
+        // ═══════════════════════════════════════════════════════════════
+
+        #[cfg(feature = "client-dashboard")]
+        let app = app.merge(DashboardRoutes::routes(Arc::clone(resources)));
+
+        #[cfg(feature = "client-settings")]
+        let app = app
             .merge(ConfigurationRoutes::routes(Arc::clone(resources)))
-            .merge(FitnessConfigurationRoutes::routes(Arc::clone(resources)))
-            .merge(WebAdminRoutes::routes(Arc::clone(resources)))
-            .nest("/api/admin/config", admin_config_routes)
+            .merge(FitnessConfigurationRoutes::routes(Arc::clone(resources)));
+
+        #[cfg(feature = "client-chat")]
+        let app = app.merge(ChatRoutes::routes(Arc::clone(resources)));
+
+        #[cfg(feature = "client-coaches")]
+        let app = app
+            .merge(CoachesRoutes::routes(Arc::clone(resources)))
             .nest(
                 "/api/admin",
                 CoachesRoutes::admin_routes(Arc::clone(resources)),
-            )
-            .merge(ImpersonationRoutes::routes(Arc::clone(resources)))
-            .merge(UserMcpTokenRoutes::routes(Arc::clone(resources)))
-            .merge(ChatRoutes::routes(Arc::clone(resources)))
-            .merge(UserOAuthAppRoutes::routes(Arc::clone(resources)))
-            .merge(LlmSettingsRoutes::routes(Arc::clone(resources)))
-            .merge(CoachesRoutes::routes(Arc::clone(resources)));
+            );
 
-        // OpenAPI documentation routes (feature-gated for production exclusion)
+        #[cfg(feature = "client-oauth-apps")]
+        let app = app.merge(UserOAuthAppRoutes::routes(Arc::clone(resources)));
+
+        // ═══════════════════════════════════════════════════════════════
+        // CLIENT-ADMIN ROUTES
+        // ═══════════════════════════════════════════════════════════════
+
+        #[cfg(feature = "client-admin-ui")]
+        let app = app.merge(WebAdminRoutes::routes(Arc::clone(resources)));
+
+        #[cfg(feature = "client-api-keys")]
+        let app = app.merge(ApiKeyRoutes::routes(Arc::clone(resources)));
+
+        #[cfg(feature = "client-tenants")]
+        let app = app.merge(TenantRoutes::routes(Arc::clone(resources)));
+
+        #[cfg(feature = "client-impersonation")]
+        let app = app.merge(ImpersonationRoutes::routes(Arc::clone(resources)));
+
+        #[cfg(feature = "client-llm-settings")]
+        let app = app.merge(LlmSettingsRoutes::routes(Arc::clone(resources)));
+
+        // ═══════════════════════════════════════════════════════════════
+        // OTHER CLIENT ROUTES
+        // ═══════════════════════════════════════════════════════════════
+
+        #[cfg(feature = "client-mcp-tokens")]
+        let app = app.merge(UserMcpTokenRoutes::routes(Arc::clone(resources)));
+
+        // ═══════════════════════════════════════════════════════════════
+        // OPENAPI DOCUMENTATION ROUTES
+        // ═══════════════════════════════════════════════════════════════
+
         #[cfg(feature = "openapi")]
         let app = app.merge(OpenApiRoutes::routes());
 

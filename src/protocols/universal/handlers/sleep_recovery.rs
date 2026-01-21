@@ -15,7 +15,6 @@ use uuid::Uuid;
 
 use crate::config::environment::ServerConfig;
 use crate::config::intelligence::IntelligenceConfig;
-use crate::constants::oauth::STRAVA_DEFAULT_SCOPES;
 use crate::intelligence::algorithms::RecoveryAggregationAlgorithm;
 use crate::intelligence::{RecoveryCalculator, SleepAnalyzer, SleepData, TrainingLoadCalculator};
 use crate::models::{Activity, SleepSession, SleepStageType};
@@ -55,10 +54,7 @@ fn get_provider_oauth_config(
 /// Get default OAuth scopes for a provider
 fn get_provider_default_scopes(provider_name: &str) -> Vec<String> {
     match provider_name {
-        "strava" => STRAVA_DEFAULT_SCOPES
-            .split(',')
-            .map(str::to_owned)
-            .collect(),
+        "strava" => "activity:read_all".split(',').map(str::to_owned).collect(),
         "fitbit" => vec![
             "activity".to_owned(),
             "profile".to_owned(),

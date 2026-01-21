@@ -11,37 +11,46 @@
 //! externally registered providers.
 
 /// Strava fitness provider identifier
-#[cfg(feature = "provider-strava")]
+/// Note: Provider name constants are always available for configuration;
+/// the provider implementation is gated behind `provider-strava` feature.
 pub const STRAVA: &str = "strava";
 
 /// Fitbit fitness provider identifier
-#[cfg(feature = "provider-fitbit")]
+/// Note: Provider name constants are always available for configuration;
+/// the provider implementation is gated behind `provider-fitbit` feature.
 pub const FITBIT: &str = "fitbit";
 
 /// Garmin fitness provider identifier
-#[cfg(feature = "provider-garmin")]
+/// Note: Provider name constants are always available for configuration;
+/// the provider implementation is gated behind `provider-garmin` feature.
 pub const GARMIN: &str = "garmin";
 
 /// Terra unified fitness provider identifier (150+ wearables)
-#[cfg(feature = "provider-terra")]
+/// Note: Provider name constants are always available for configuration;
+/// the provider implementation is gated behind `provider-terra` feature.
 pub const TERRA: &str = "terra";
 
 /// WHOOP fitness provider identifier
-#[cfg(feature = "provider-whoop")]
+/// Note: Provider name constants are always available for configuration;
+/// the provider implementation is gated behind `provider-whoop` feature.
 pub const WHOOP: &str = "whoop";
 
 /// COROS fitness provider identifier (GPS sports watches)
-#[cfg(feature = "provider-coros")]
+/// Note: Provider name constants are always available for configuration;
+/// the provider implementation is gated behind `provider-coros` feature.
 pub const COROS: &str = "coros";
 
 /// Synthetic fitness provider identifier (for testing)
-#[cfg(feature = "provider-synthetic")]
+/// Note: Provider name constants are always available for configuration;
+/// the provider implementation is gated behind `provider-synthetic` feature.
 pub const SYNTHETIC: &str = "synthetic";
 
-/// Synthetic sleep provider identifier (for cross-provider testing)
+/// Synthetic sleep provider identifier (for cross-provider testing).
+///
 /// Used to simulate a second provider that provides sleep data while
 /// the primary synthetic provider provides activity data.
-#[cfg(feature = "provider-synthetic")]
+/// Provider name constants are always available for configuration;
+/// the provider implementation is gated behind `provider-synthetic` feature.
 pub const SYNTHETIC_SLEEP: &str = "synthetic_sleep";
 
 /// Get statically-known OAuth providers

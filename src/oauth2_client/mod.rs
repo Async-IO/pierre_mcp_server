@@ -15,7 +15,8 @@
 
 /// Core OAuth 2.0 client implementation
 pub mod client;
-/// OAuth authorization flow management
+/// OAuth authorization flow management (requires protocol-rest for response types)
+#[cfg(feature = "protocol-rest")]
 pub mod flow_manager;
 /// Multi-tenant OAuth client wrapper
 pub mod tenant_client;
@@ -26,5 +27,6 @@ pub use client::{OAuth2Client, OAuth2Config, OAuth2Token, PkceParams};
 /// Re-export tenant-aware OAuth client types
 pub use tenant_client::{StoreCredentialsRequest, TenantOAuthClient};
 
-/// Re-export OAuth template renderer for HTML responses
+/// Re-export OAuth template renderer for HTML responses (requires protocol-rest)
+#[cfg(feature = "protocol-rest")]
 pub use flow_manager::OAuthTemplateRenderer;

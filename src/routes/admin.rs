@@ -38,7 +38,7 @@ use crate::{
         AdminPermission as AdminPerm,
     },
     api_keys::{ApiKey, ApiKeyManager, ApiKeyTier, CreateApiKeyRequest},
-    auth::AuthManager,
+    auth::{AuthManager, SetupStatusResponse},
     constants::{
         tiers,
         time_constants::{SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MONTH, SECONDS_PER_WEEK},
@@ -48,10 +48,7 @@ use crate::{
     mcp::ToolSelectionService,
     models::{Tenant, User, UserStatus},
     rate_limiting::UnifiedRateLimitCalculator,
-    routes::{
-        auth::SetupStatusResponse,
-        tool_selection::{ToolSelectionContext, ToolSelectionRoutes},
-    },
+    routes::tool_selection::{ToolSelectionContext, ToolSelectionRoutes},
 };
 
 // Helper function for JSON responses with status

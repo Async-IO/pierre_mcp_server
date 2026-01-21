@@ -12,16 +12,34 @@ use super::resources::ServerResources;
 use crate::errors::{AppError, AppResult};
 use crate::mcp::schema::OAuthCompletedNotification;
 use std::sync::Arc;
+#[cfg(feature = "transport-stdio")]
 use tokio::io::{stdin, stdout, AsyncBufReadExt, BufReader};
 use tokio::sync::broadcast;
+#[cfg(feature = "transport-sse")]
 use tokio::sync::broadcast::error::RecvError;
+#[cfg(feature = "transport-stdio")]
 use tokio::sync::mpsc;
+#[cfg(feature = "transport-stdio")]
 use tokio::sync::Mutex;
+#[cfg(feature = "transport-http")]
 use tokio::time::{sleep, Duration};
 use tracing::{error, info, warn};
+#[cfg(feature = "transport-sse")]
 use uuid::Uuid;
 
+/// Log the status of a transport feature
+fn log_transport_status(name: &str, enabled: bool, extra: Option<String>) {
+    let status = if enabled { "ENABLED" } else { "DISABLED" };
+    match extra {
+        Some(details) if enabled => info!("  - {name} transport: {status} ({details})"),
+        _ => info!("  - {name} transport: {status}"),
+    }
+}
+
 /// Manages multiple transport methods for MCP communication
+///
+/// The transport manager coordinates stdio, HTTP, and SSE transports based on
+/// enabled feature flags. At least one transport must be enabled.
 pub struct TransportManager {
     resources: Arc<ServerResources>,
     notification_sender: broadcast::Sender<OAuthCompletedNotification>,
@@ -59,6 +77,7 @@ impl TransportManager {
     ///
     /// # Errors
     /// Returns an error if stdio transport setup or processing fails
+    #[cfg(feature = "transport-stdio")]
     pub async fn start_stdio_only(&self) -> AppResult<()> {
         info!("Starting MCP server in stdio-only mode (HTTP/SSE disabled)");
 
@@ -79,7 +98,16 @@ impl TransportManager {
         stdio_transport.run(notification_receiver).await
     }
 
+    /// Start stdio transport only (stub when feature is disabled)
+    #[cfg(not(feature = "transport-stdio"))]
+    pub async fn start_stdio_only(&self) -> AppResult<()> {
+        Err(AppError::config(
+            "stdio transport is not available - enable the 'transport-stdio' feature",
+        ))
+    }
+
     /// Spawn progress notification handler
+    #[cfg(feature = "transport-stdio")]
     fn spawn_progress_handler(resources: &mut ServerResources) {
         let (progress_tx, mut progress_rx) = mpsc::unbounded_channel();
         resources.set_progress_notification_sender(progress_tx);
@@ -94,6 +122,7 @@ impl TransportManager {
     }
 
     /// Spawn stdio transport task
+    #[cfg(feature = "transport-stdio")]
     fn spawn_stdio_transport(
         resources: Arc<ServerResources>,
         notification_receiver: broadcast::Receiver<OAuthCompletedNotification>,
@@ -115,6 +144,7 @@ impl TransportManager {
     }
 
     /// Spawn SSE notification forwarder task
+    #[cfg(feature = "transport-sse")]
     fn spawn_sse_forwarder(
         resources: Arc<ServerResources>,
         notification_receiver: broadcast::Receiver<OAuthCompletedNotification>,
@@ -128,6 +158,7 @@ impl TransportManager {
     }
 
     /// Run HTTP server with restart on failure
+    #[cfg(feature = "transport-http")]
     async fn run_http_server_loop(shared_resources: Arc<ServerResources>, port: u16) -> ! {
         loop {
             info!("Starting unified Axum HTTP server on port {}", port);
@@ -141,6 +172,7 @@ impl TransportManager {
         }
     }
 
+    #[cfg(feature = "transport-http")]
     async fn handle_server_restart(result: AppResult<()>) {
         match result {
             Ok(()) => {
@@ -155,35 +187,109 @@ impl TransportManager {
     }
 
     /// Unified server startup using existing transport coordination
+    ///
+    /// Conditionally starts transports based on enabled features:
+    /// - `transport-stdio`: stdio transport for MCP communication
+    /// - `transport-sse`: SSE notification forwarder
+    /// - `transport-http`: HTTP server with Axum
     async fn start_legacy_unified_server(&self, port: u16) -> AppResult<()> {
-        info!("Starting MCP server with stdio and HTTP transports (Axum framework)");
+        info!("Starting MCP server with configured transports (Axum framework)");
+        Self::log_enabled_transports(port);
 
-        let notification_receiver = self.notification_sender.subscribe();
-        let sse_notification_receiver = self.notification_sender.subscribe();
+        let shared_resources = self.prepare_resources();
 
+        self.spawn_background_transports(&shared_resources);
+
+        Self::run_primary_transport(shared_resources, port).await
+    }
+
+    /// Log which transports are enabled at startup
+    fn log_enabled_transports(port: u16) {
+        log_transport_status("stdio", cfg!(feature = "transport-stdio"), None);
+        log_transport_status("SSE", cfg!(feature = "transport-sse"), None);
+        log_transport_status(
+            "HTTP",
+            cfg!(feature = "transport-http"),
+            Some(format!("port {port}")),
+        );
+        log_transport_status("WebSocket", cfg!(feature = "transport-websocket"), None);
+    }
+
+    /// Prepare resources for transport initialization
+    fn prepare_resources(&self) -> Arc<ServerResources> {
         let mut resources_clone = (*self.resources).clone();
         resources_clone.set_oauth_notification_sender(self.notification_sender.clone());
 
-        let stdout_handle = Arc::new(Mutex::new(stdout()));
-        let sampling_peer = Arc::new(super::sampling_peer::SamplingPeer::new(stdout_handle));
-        resources_clone.set_sampling_peer(sampling_peer);
+        #[cfg(feature = "transport-stdio")]
+        {
+            use tokio::io::stdout;
+            let stdout_handle = Arc::new(Mutex::new(stdout()));
+            let sampling_peer = Arc::new(super::sampling_peer::SamplingPeer::new(stdout_handle));
+            resources_clone.set_sampling_peer(sampling_peer);
+            Self::spawn_progress_handler(&mut resources_clone);
+        }
 
-        Self::spawn_progress_handler(&mut resources_clone);
+        Arc::new(resources_clone)
+    }
 
-        let shared_resources = Arc::new(resources_clone);
+    /// Spawn background transports (stdio, SSE)
+    fn spawn_background_transports(&self, shared_resources: &Arc<ServerResources>) {
+        #[cfg(feature = "transport-stdio")]
+        {
+            let notification_receiver = self.notification_sender.subscribe();
+            Self::spawn_stdio_transport(shared_resources.clone(), notification_receiver);
+        }
 
-        Self::spawn_stdio_transport(shared_resources.clone(), notification_receiver);
-        Self::spawn_sse_forwarder(shared_resources.clone(), sse_notification_receiver);
+        #[cfg(feature = "transport-sse")]
+        {
+            let sse_notification_receiver = self.notification_sender.subscribe();
+            Self::spawn_sse_forwarder(shared_resources.clone(), sse_notification_receiver);
+        }
+    }
 
+    /// Run the primary transport (HTTP or wait for signal)
+    #[cfg(feature = "transport-http")]
+    async fn run_primary_transport(
+        shared_resources: Arc<ServerResources>,
+        port: u16,
+    ) -> AppResult<()> {
         Self::run_http_server_loop(shared_resources, port).await
+    }
+
+    #[cfg(not(feature = "transport-http"))]
+    async fn run_primary_transport(
+        shared_resources: Arc<ServerResources>,
+        port: u16,
+    ) -> AppResult<()> {
+        let _ = (shared_resources, port); // Suppress unused warnings
+
+        #[cfg(feature = "transport-stdio")]
+        {
+            info!("Running in non-HTTP mode with stdio transport");
+            tokio::signal::ctrl_c()
+                .await
+                .map_err(|e| AppError::internal(format!("Failed to wait for ctrl-c: {e}")))?;
+            info!("Received shutdown signal, exiting...");
+            return Ok(());
+        }
+
+        #[cfg(not(feature = "transport-stdio"))]
+        {
+            warn!("No transports enabled - server has nothing to do");
+            Err(AppError::config(
+                "No transports enabled. Enable at least one of: transport-http, transport-stdio",
+            ))
+        }
     }
 }
 
 /// Handles stdio transport for MCP communication
+#[cfg(feature = "transport-stdio")]
 pub struct StdioTransport {
     resources: Arc<ServerResources>,
 }
 
+#[cfg(feature = "transport-stdio")]
 impl StdioTransport {
     /// Creates a new stdio transport instance
     #[must_use]
@@ -336,8 +442,10 @@ impl StdioTransport {
 }
 
 /// Handles SSE notification forwarding
+#[cfg(feature = "transport-sse")]
 pub struct SseNotificationForwarder;
 
+#[cfg(feature = "transport-sse")]
 impl SseNotificationForwarder {
     /// Creates a new SSE notification forwarder instance
     #[must_use]

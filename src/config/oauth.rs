@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-use crate::constants::{oauth, oauth_providers};
+use crate::constants::oauth_providers;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::env;
@@ -142,6 +142,8 @@ impl OAuthProviderConfig {
     /// Load Strava OAuth configuration from environment
     #[must_use]
     pub fn load_strava() -> Self {
+        // Default scopes inline to avoid feature-gated constant dependency
+        const STRAVA_SCOPES: &str = "activity:read_all";
         let base_url = env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8081".to_owned());
         Self {
             client_id: env::var("STRAVA_CLIENT_ID").ok(),
@@ -150,7 +152,7 @@ impl OAuthProviderConfig {
                 env::var("STRAVA_REDIRECT_URI")
                     .unwrap_or_else(|_| format!("{base_url}/auth/strava/callback")),
             ),
-            scopes: parse_scopes(oauth::STRAVA_DEFAULT_SCOPES),
+            scopes: parse_scopes(STRAVA_SCOPES),
             enabled: env::var("STRAVA_CLIENT_ID").is_ok()
                 && env::var("STRAVA_CLIENT_SECRET").is_ok(),
         }
@@ -159,6 +161,8 @@ impl OAuthProviderConfig {
     /// Load Fitbit OAuth configuration from environment
     #[must_use]
     pub fn load_fitbit() -> Self {
+        // Default scopes inline to avoid feature-gated constant dependency
+        const FITBIT_SCOPES: &str = "activity profile sleep heartrate weight";
         let base_url = env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8081".to_owned());
         Self {
             client_id: env::var("FITBIT_CLIENT_ID").ok(),
@@ -167,7 +171,7 @@ impl OAuthProviderConfig {
                 env::var("FITBIT_REDIRECT_URI")
                     .unwrap_or_else(|_| format!("{base_url}/auth/fitbit/callback")),
             ),
-            scopes: parse_scopes(oauth::FITBIT_DEFAULT_SCOPES),
+            scopes: parse_scopes(FITBIT_SCOPES),
             enabled: env::var("FITBIT_CLIENT_ID").is_ok()
                 && env::var("FITBIT_CLIENT_SECRET").is_ok(),
         }
@@ -193,6 +197,9 @@ impl OAuthProviderConfig {
     /// Load WHOOP OAuth configuration from environment
     #[must_use]
     pub fn load_whoop() -> Self {
+        // Default scopes inline to avoid feature-gated constant dependency
+        const WHOOP_SCOPES: &str =
+            "offline read:profile read:body_measurement read:workout read:sleep read:recovery read:cycles";
         let base_url = env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8081".to_owned());
         Self {
             client_id: env::var("WHOOP_CLIENT_ID").ok(),
@@ -201,7 +208,7 @@ impl OAuthProviderConfig {
                 env::var("WHOOP_REDIRECT_URI")
                     .unwrap_or_else(|_| format!("{base_url}/auth/whoop/callback")),
             ),
-            scopes: parse_scopes(oauth::WHOOP_DEFAULT_SCOPES),
+            scopes: parse_scopes(WHOOP_SCOPES),
             enabled: env::var("WHOOP_CLIENT_ID").is_ok() && env::var("WHOOP_CLIENT_SECRET").is_ok(),
         }
     }
@@ -209,6 +216,8 @@ impl OAuthProviderConfig {
     /// Load Terra OAuth configuration from environment
     #[must_use]
     pub fn load_terra() -> Self {
+        // Default scopes inline to avoid feature-gated constant dependency
+        const TERRA_SCOPES: &str = "activity,sleep,body,daily,nutrition";
         let base_url = env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8081".to_owned());
         Self {
             client_id: env::var("TERRA_DEV_ID").ok(),
@@ -217,7 +226,7 @@ impl OAuthProviderConfig {
                 env::var("TERRA_REDIRECT_URI")
                     .unwrap_or_else(|_| format!("{base_url}/auth/terra/callback")),
             ),
-            scopes: parse_scopes(oauth::TERRA_DEFAULT_SCOPES),
+            scopes: parse_scopes(TERRA_SCOPES),
             enabled: env::var("TERRA_DEV_ID").is_ok() && env::var("TERRA_API_KEY").is_ok(),
         }
     }

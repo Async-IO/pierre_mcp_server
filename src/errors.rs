@@ -11,6 +11,7 @@
 //! consistent error handling across all modules and APIs.
 
 use std::array::TryFromSliceError;
+#[cfg(any(feature = "postgresql", feature = "sqlite"))]
 use std::error::Error;
 use std::fmt::{self, Display};
 use std::io;

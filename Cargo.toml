@@ -55,7 +55,7 @@ bench = false
 
 
 [features]
-default = ["sqlite", "all-providers", "tools-all", "sqlx/migrate"]
+default = ["sqlite", "server-full", "sqlx/migrate"]
 sqlite = []
 postgresql = ["sqlx/postgres"]
 testing = []
@@ -103,6 +103,72 @@ tools-mobility = []        # stretching exercises, yoga poses, mobility recommen
 # Convenience bundles for common deployments
 tools-fitness-core = ["tools-connection", "tools-data", "tools-analytics"]
 tools-wellness = ["tools-sleep", "tools-nutrition", "tools-recipes", "tools-mobility"]
+
+# ═══════════════════════════════════════════════════════════════
+# PROTOCOL FEATURES
+# ═══════════════════════════════════════════════════════════════
+protocol-rest = []
+protocol-mcp = ["transport-http"]  # Requires at least HTTP transport
+protocol-a2a = ["transport-http"]
+
+protocol-all = ["protocol-rest", "protocol-mcp", "protocol-a2a"]
+
+# ═══════════════════════════════════════════════════════════════
+# TRANSPORT FEATURES
+# ═══════════════════════════════════════════════════════════════
+transport-http = []
+transport-websocket = []
+transport-sse = []
+transport-stdio = []
+
+transport-all = ["transport-http", "transport-websocket", "transport-sse", "transport-stdio"]
+transport-web = ["transport-http", "transport-websocket", "transport-sse"]
+
+# ═══════════════════════════════════════════════════════════════
+# GRANULAR CLIENT-WEB FEATURES
+# ═══════════════════════════════════════════════════════════════
+client-dashboard = ["protocol-rest"]     # dashboard.rs
+client-settings = ["protocol-rest"]      # configuration.rs, fitness.rs
+client-chat = ["protocol-rest"]          # chat.rs
+client-coaches = ["protocol-rest", "tools-coaches"]  # coaches.rs
+client-oauth-apps = ["protocol-rest", "oauth"]       # user_oauth_apps.rs
+
+client-web = ["client-dashboard", "client-settings", "client-chat", "client-coaches", "client-oauth-apps"]
+
+# ═══════════════════════════════════════════════════════════════
+# GRANULAR CLIENT-ADMIN FEATURES
+# ═══════════════════════════════════════════════════════════════
+client-admin-api = ["protocol-rest"]     # admin.rs
+client-admin-ui = ["protocol-rest"]      # web_admin.rs
+client-api-keys = ["protocol-rest"]      # api_keys.rs
+client-tenants = ["protocol-rest"]       # tenants.rs
+client-impersonation = ["protocol-rest"] # impersonation.rs
+client-llm-settings = ["protocol-rest"]  # llm_settings.rs
+client-tool-selection = ["protocol-mcp"] # tool_selection.rs
+
+client-admin = ["client-admin-api", "client-admin-ui", "client-api-keys", "client-tenants", "client-impersonation", "client-llm-settings", "client-tool-selection"]
+
+# ═══════════════════════════════════════════════════════════════
+# OTHER CLIENT FEATURES
+# ═══════════════════════════════════════════════════════════════
+client-mobile = ["protocol-rest"]        # Mobile-specific routes (subset)
+client-mcp-tokens = ["protocol-mcp"]     # user_mcp_tokens.rs
+
+client-all = ["client-web", "client-admin", "client-mobile", "client-mcp-tokens"]
+
+# ═══════════════════════════════════════════════════════════════
+# OAUTH (shared infrastructure)
+# ═══════════════════════════════════════════════════════════════
+oauth = []
+
+# ═══════════════════════════════════════════════════════════════
+# SERVER PROFILES
+# ═══════════════════════════════════════════════════════════════
+server-full = ["protocol-all", "transport-all", "client-all", "oauth", "all-providers", "tools-all"]
+server-claude-desktop = ["protocol-mcp", "transport-stdio", "oauth", "all-providers", "tools-all"]
+server-mcp-bridge = ["protocol-mcp", "protocol-a2a", "transport-web", "oauth", "all-providers", "tools-all"]
+server-mobile-backend = ["protocol-rest", "protocol-mcp", "client-mobile", "client-settings", "oauth", "all-providers", "tools-all"]
+server-saas-full = ["protocol-rest", "protocol-mcp", "transport-web", "client-web", "client-admin", "oauth", "all-providers", "tools-all"]
 
 # OpenAPI documentation (SwaggerUI) - excluded from production by default
 # Enable with: cargo build --features openapi

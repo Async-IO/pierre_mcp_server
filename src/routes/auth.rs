@@ -31,6 +31,7 @@ use tokio::task;
 use tracing::{debug, error, field::Empty, info, warn, Span};
 use urlencoding::encode;
 
+use crate::mcp::oauth_flow_manager::OAuthTemplateRenderer;
 use crate::{
     admin::{AdminAuthService, FirebaseAuth, FirebaseClaims},
     config::environment::get_oauth_config,
@@ -38,10 +39,7 @@ use crate::{
     context::{AuthContext, ConfigContext, DataContext, NotificationContext, ServerContext},
     database_plugins::{factory::Database, DatabaseProvider},
     errors::{AppError, AppResult, ErrorCode},
-    mcp::{
-        oauth_flow_manager::OAuthTemplateRenderer, resources::ServerResources,
-        schema::OAuthCompletedNotification,
-    },
+    mcp::{resources::ServerResources, schema::OAuthCompletedNotification},
     models::{Tenant, User, UserOAuthToken, UserStatus, UserTier},
     oauth2_client::{OAuth2Client, OAuth2Config, OAuth2Token},
     permissions::UserRole,
@@ -218,17 +216,6 @@ pub struct OAuthStatus {
     pub connected: bool,
     /// When the last sync occurred (ISO 8601 format)
     pub last_sync: Option<String>,
-}
-
-/// Setup status response for admin setup endpoint
-#[derive(Debug, Clone, Serialize)]
-pub struct SetupStatusResponse {
-    /// Whether the system needs initial setup
-    pub needs_setup: bool,
-    /// Whether an admin user already exists
-    pub admin_user_exists: bool,
-    /// Optional status message
-    pub message: Option<String>,
 }
 
 /// OAuth authorization response for provider auth URLs

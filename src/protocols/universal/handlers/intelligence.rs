@@ -7,7 +7,6 @@
 use crate::config::environment::default_provider;
 use crate::config::intelligence::IntelligenceConfig;
 use crate::constants::limits::{self, METERS_PER_KILOMETER};
-use crate::constants::oauth::STRAVA_DEFAULT_SCOPES;
 use crate::constants::time_constants;
 use crate::constants::units::METERS_PER_KM;
 use crate::errors::{AppResult, ErrorCode};
@@ -459,10 +458,8 @@ async fn fetch_and_calculate_metrics(
         access_token: Some(token_data.access_token.clone()),
         refresh_token: Some(token_data.refresh_token.clone()),
         expires_at: Some(token_data.expires_at),
-        scopes: STRAVA_DEFAULT_SCOPES
-            .split(',')
-            .map(str::to_owned)
-            .collect(),
+        // Inline scope to avoid feature-gated constant
+        scopes: "activity:read_all".split(',').map(str::to_owned).collect(),
     };
 
     provider.set_credentials(credentials).await.map_err(|e| {

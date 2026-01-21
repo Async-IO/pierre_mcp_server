@@ -125,7 +125,9 @@ impl From<&ServerResources> for ServerContext {
         );
 
         let notification = NotificationContext::new(
+            #[cfg(feature = "transport-websocket")]
             resources.websocket_manager.clone(),
+            #[cfg(feature = "transport-sse")]
             resources.sse_manager.clone(),
             resources.oauth_notification_sender.clone(),
         );

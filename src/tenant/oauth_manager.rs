@@ -5,7 +5,6 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::config::environment::OAuthConfig;
-use crate::constants::oauth::STRAVA_DEFAULT_SCOPES;
 use crate::constants::rate_limits::{
     FITBIT_DEFAULT_DAILY_RATE_LIMIT, GARMIN_DEFAULT_DAILY_RATE_LIMIT,
     STRAVA_DEFAULT_DAILY_RATE_LIMIT, TERRA_DEFAULT_DAILY_RATE_LIMIT,
@@ -247,10 +246,7 @@ impl TenantOAuthManager {
                 client_secret: client_secret.clone(),
                 redirect_uri,
                 scopes: if strava_config.scopes.is_empty() {
-                    STRAVA_DEFAULT_SCOPES
-                        .split(',')
-                        .map(str::to_owned)
-                        .collect()
+                    "activity:read_all".split(',').map(str::to_owned).collect()
                 } else {
                     strava_config.scopes.clone()
                 },
@@ -479,10 +475,7 @@ impl TenantOAuthManager {
     /// Get default scopes for a provider
     fn default_scopes_for_provider(provider: &str) -> Vec<String> {
         match provider.to_lowercase().as_str() {
-            "strava" => STRAVA_DEFAULT_SCOPES
-                .split(',')
-                .map(str::to_owned)
-                .collect(),
+            "strava" => "activity:read_all".split(',').map(str::to_owned).collect(),
             "fitbit" => vec![
                 "activity".to_owned(),
                 "heartrate".to_owned(),

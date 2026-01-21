@@ -38,9 +38,11 @@ use crate::plugins::executor::PluginToolExecutor;
 use crate::protocols::universal::types::CancellationToken;
 use crate::providers::ProviderRegistry;
 use crate::security::csrf::CsrfTokenManager;
+#[cfg(feature = "transport-sse")]
 use crate::sse::SseManager;
 use crate::tenant::{oauth_manager::TenantOAuthManager, TenantOAuthClient};
 use crate::tools::registry::ToolRegistry;
+#[cfg(feature = "transport-websocket")]
 use crate::websocket::WebSocketManager;
 use chrono::Utc;
 use std::collections::HashMap;
@@ -63,8 +65,10 @@ pub struct ServerResources {
     /// Authentication middleware for MCP request validation
     pub auth_middleware: Arc<McpAuthMiddleware>,
     /// WebSocket connection manager for real-time updates
+    #[cfg(feature = "transport-websocket")]
     pub websocket_manager: Arc<WebSocketManager>,
     /// Server-Sent Events manager for streaming notifications and MCP protocol
+    #[cfg(feature = "transport-sse")]
     pub sse_manager: Arc<SseManager>,
     /// OAuth client for multi-tenant authentication flows
     pub tenant_oauth_client: Arc<TenantOAuthClient>,
@@ -164,6 +168,7 @@ impl ServerResources {
             Self::resolve_jwks_manager(jwks_manager, &database_arc, rsa_key_size_bits).await;
 
         // Create websocket manager after jwks_manager is initialized
+        #[cfg(feature = "transport-websocket")]
         let websocket_manager = Arc::new(WebSocketManager::new(
             database_arc.clone(),
             &auth_manager_arc,
@@ -172,6 +177,7 @@ impl ServerResources {
         ));
 
         // Create SSE manager with configured buffer size
+        #[cfg(feature = "transport-sse")]
         let sse_manager = Arc::new(SseManager::new(config.sse.max_buffer_size));
 
         // Create auth middleware after jwks_manager is initialized
@@ -215,7 +221,9 @@ impl ServerResources {
             auth_manager: auth_manager_arc,
             jwks_manager: jwks_manager_arc,
             auth_middleware,
+            #[cfg(feature = "transport-websocket")]
             websocket_manager,
+            #[cfg(feature = "transport-sse")]
             sse_manager,
             tenant_oauth_client,
             provider_registry,
