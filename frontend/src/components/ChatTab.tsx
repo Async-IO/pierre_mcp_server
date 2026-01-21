@@ -850,33 +850,31 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
         collapsible
         collapsedSize="0%"
         onResize={(size) => setSidebarCollapsed(size.asPercentage === 0)}
-        className="bg-pierre-gray-50 flex flex-col"
+        className="bg-pierre-gray-50 flex flex-col relative"
       >
-        {/* Action Buttons */}
-        <div className="p-2 space-y-1">
-          {/* Add Chat Button */}
+        {/* Quick Action Rows - Mobile-inspired design */}
+        <div className="p-3 space-y-1">
+          {/* Discussions Row */}
           <button
             onClick={() => {
               setShowMyCoachesPanel(false);
-              handleNewChat();
+              // Show all conversations (deselect current)
             }}
-            disabled={createConversation.isPending}
-            title="New conversation"
-            aria-label="Add Chat"
-            className="w-full px-3 py-2 flex items-center gap-2.5 rounded-lg hover:bg-pierre-gray-100 transition-colors disabled:opacity-50"
+            className={clsx(
+              'w-full px-3 py-2.5 flex items-center gap-3 rounded-lg transition-colors',
+              !showMyCoachesPanel && !selectedConversation
+                ? 'bg-pierre-violet/10'
+                : 'hover:bg-pierre-gray-100'
+            )}
           >
-            <div className="w-7 h-7 flex items-center justify-center rounded-lg bg-pierre-violet text-white shadow-sm flex-shrink-0">
-              {createConversation.isPending ? (
-                <div className="pierre-spinner w-3.5 h-3.5 border-white border-t-transparent"></div>
-              ) : (
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-                </svg>
-              )}
-            </div>
-            <span className="text-sm font-medium text-pierre-gray-800">Add Chat</span>
+            <span className="text-lg">💬</span>
+            <span className="flex-1 text-left text-sm font-medium text-pierre-gray-800">Discussions</span>
+            <svg className="w-4 h-4 text-pierre-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
           </button>
-          {/* My Coaches Button */}
+
+          {/* My Coaches Row */}
           <button
             onClick={() => {
               setSelectedConversation(null);
@@ -885,29 +883,27 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
             title="My Coaches"
             aria-label="My Coaches"
             className={clsx(
-              'w-full px-3 py-2 flex items-center gap-2.5 rounded-lg transition-colors',
+              'w-full px-3 py-2.5 flex items-center gap-3 rounded-lg transition-colors',
               showMyCoachesPanel
-                ? 'bg-pierre-violet/10 text-pierre-violet'
+                ? 'bg-pierre-violet/10'
                 : 'hover:bg-pierre-gray-100'
             )}
           >
-            <div className="w-7 h-7 flex items-center justify-center rounded-lg bg-gradient-to-br from-pierre-violet/80 to-purple-600/80 text-white shadow-sm flex-shrink-0">
-              <span className="text-sm">🎯</span>
-            </div>
-            <span className={clsx(
-              'text-sm font-medium',
-              showMyCoachesPanel ? 'text-pierre-violet' : 'text-pierre-gray-800'
-            )}>My Coaches</span>
+            <span className="text-lg">🎯</span>
+            <span className="flex-1 text-left text-sm font-medium text-pierre-gray-800">My Coaches</span>
+            <svg className="w-4 h-4 text-pierre-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
           </button>
         </div>
 
         {/* Recent Chat Header */}
         <div className="px-4 py-2 border-t border-pierre-gray-200">
-          <h3 className="text-xs font-semibold text-pierre-gray-500 uppercase tracking-wider">Recent Chat</h3>
+          <h3 className="text-xs font-semibold text-pierre-gray-500 uppercase tracking-wider">Recents</h3>
         </div>
 
-        {/* Conversation List */}
-        <div className="flex-1 overflow-y-auto">
+        {/* Conversation List - with bottom padding for floating bar */}
+        <div className="flex-1 overflow-y-auto pb-20">
           {conversationsLoading ? (
             <div className="p-4 text-center text-pierre-gray-500 text-sm">Loading...</div>
           ) : conversationsData?.conversations?.length === 0 ? (
@@ -986,39 +982,49 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
           )}
         </div>
 
-        {/* User Profile Section - Bottom of sidebar (clickable) */}
-        <button
-          onClick={onOpenSettings}
-          className="w-full border-t border-pierre-gray-200 px-3 py-3 hover:bg-pierre-gray-100 transition-colors text-left group"
-          title="Open settings"
-        >
-          <div className="flex items-center gap-3">
-            {/* User Avatar with online indicator */}
+        {/* Floating Bottom Bar - User Profile + New Chat FAB */}
+        <div className="absolute bottom-3 left-3 right-3 bg-white rounded-xl shadow-lg border border-pierre-gray-200 px-3 py-2 flex items-center justify-between">
+          {/* User Profile Button */}
+          <button
+            onClick={onOpenSettings}
+            className="flex items-center gap-2 px-2 py-1 rounded-full bg-pierre-gray-100 hover:bg-pierre-gray-200 transition-colors group"
+            title="Open settings"
+          >
+            {/* User Avatar */}
             <div className="relative flex-shrink-0">
-              <div className="w-8 h-8 bg-gradient-to-br from-pierre-violet to-pierre-cyan rounded-full flex items-center justify-center">
+              <div className="w-7 h-7 bg-gradient-to-br from-pierre-violet to-pierre-cyan rounded-full flex items-center justify-center">
                 <span className="text-xs font-bold text-white">
                   {(user?.display_name || user?.email)?.charAt(0).toUpperCase()}
                 </span>
               </div>
               {/* Online status dot */}
-              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-pierre-green-500 rounded-full border-2 border-pierre-gray-50" />
+              <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-pierre-green-500 rounded-full border-2 border-white" />
             </div>
+            <span className="text-sm font-medium text-pierre-gray-800 truncate max-w-[100px] group-hover:text-pierre-violet transition-colors">
+              {user?.display_name || 'User'}
+            </span>
+          </button>
 
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-pierre-gray-900 truncate group-hover:text-pierre-violet transition-colors">
-                {user?.display_name || user?.email}
-              </p>
-              <p className="text-xs text-pierre-gray-500 truncate">
-                {user?.email}
-              </p>
-            </div>
-
-            {/* Chevron indicator */}
-            <svg className="w-4 h-4 text-pierre-gray-400 group-hover:text-pierre-violet transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </div>
-        </button>
+          {/* New Chat FAB */}
+          <button
+            onClick={() => {
+              setShowMyCoachesPanel(false);
+              handleNewChat();
+            }}
+            disabled={createConversation.isPending}
+            title="New conversation"
+            aria-label="New Chat"
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-gradient-to-br from-pierre-violet to-pierre-recovery-dark text-white shadow-md hover:shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100"
+          >
+            {createConversation.isPending ? (
+              <div className="pierre-spinner w-4 h-4 border-white border-t-transparent"></div>
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+              </svg>
+            )}
+          </button>
+        </div>
       </Panel>
 
       {/* Resize Handle with Toggle Button */}
@@ -1050,7 +1056,7 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
             {/* Header */}
             <div className="p-6 border-b border-pierre-gray-200 flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-gradient-to-br from-pierre-violet to-purple-600 text-white shadow-sm">
+                <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-gradient-to-br from-pierre-violet to-pierre-recovery-dark text-white shadow-sm">
                   <span className="text-lg">🎯</span>
                 </div>
                 <div>
