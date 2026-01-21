@@ -228,7 +228,7 @@ echo "------------------------------------------------"
 
 # Build cargo test arguments
 TEST_ARGS=""
-for test in "${!TESTS_TO_RUN[@]}"; do
+for test in "${(@k)TESTS_TO_RUN}"; do
     echo "  🧪 $test"
     TEST_ARGS="$TEST_ARGS --test $test"
 done
