@@ -57,19 +57,21 @@ fi
 # Check if gh is installed, install if not
 if ! command -v gh &> /dev/null; then
     install_gh
+    # Refresh shell's command hash after installation
+    hash -r 2>/dev/null || true
 fi
 
-# Verify installation
-if ! command -v gh &> /dev/null; then
+# Verify installation using direct file check (command -v may have stale cache)
+if [ ! -x "$GH_INSTALL_DIR/gh" ] && ! command -v gh &> /dev/null; then
     echo "❌ gh CLI installation failed"
     exit 0
 fi
 
 # Check if gh is authenticated
 if ! gh auth status &> /dev/null; then
-    echo "⚠️  GH CLI NOT AUTHENTICATED"
-    echo "   Ask user for GitHub Personal Access Token (needs 'repo' and 'workflow' scopes)"
-    echo "   Then run: echo '<token>' | gh auth login --with-token"
+    echo "⚠️  GH CLI NOT AUTHENTICATED - GitHub token required"
+    echo "   ChefFamille, please provide a GitHub Personal Access Token with 'repo' and 'workflow' scopes."
+    echo "   Once provided, run: echo '<token>' | gh auth login --with-token"
     exit 0
 fi
 
