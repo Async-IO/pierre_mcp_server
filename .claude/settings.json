@@ -13,7 +13,7 @@
           },
           {
             "type": "command",
-            "command": "./scripts/linear-session-init.sh"
+            "command": "sh ./scripts/linear-session-init.sh"
           },
           {
             "type": "command",
