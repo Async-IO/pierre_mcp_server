@@ -245,6 +245,39 @@ cargo test                        # all tests
 
 See [Testing Documentation](docs/testing.md).
 
+## Development Workflow
+
+### Before Committing
+
+```bash
+# 1. Format code
+cargo fmt
+
+# 2. Architectural validation
+./scripts/architectural-validation.sh
+
+# 3. Clippy (strict mode)
+cargo clippy --all-targets -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery
+
+# 4. Run relevant tests
+cargo test <test_pattern>
+```
+
+### Before Pushing
+
+```bash
+# 1. Enable git hooks (once per clone)
+git config core.hooksPath .githooks
+
+# 2. Run validation (creates marker valid for 15 min)
+./scripts/pre-push-validate.sh
+
+# 3. Push (hook checks for valid marker)
+git push
+```
+
+The pre-push hook blocks pushes without a valid marker. This decouples test execution from the push to avoid SSH timeout issues.
+
 ## Contributing
 
 See [Contributing Guide](docs/contributing.md).

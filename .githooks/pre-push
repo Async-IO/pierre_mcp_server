@@ -1,19 +1,17 @@
 #!/bin/bash
-# ABOUTME: Git pre-push hook - Runs critical path tests before push
-# ABOUTME: Prevents pushing code that fails essential tests (5-10 minute run)
+# ABOUTME: Git pre-push hook - Checks for validation marker before allowing push
+# ABOUTME: Requires running ./scripts/pre-push-validate.sh first (prevents SSH timeout)
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # Copyright (c) 2025 Pierre Fitness Intelligence
 
 set -e
-set -o pipefail
 
-# Get the project root (git hooks run from repo root)
 PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+MARKER_FILE="$PROJECT_ROOT/.git/validation-passed"
+VALIDATION_TTL_MINUTES=15
 
 # Check if this is a delete operation (no validation needed)
-# Pre-push hook receives: <local ref> <local sha1> <remote ref> <remote sha1>
-# For deletes, local sha1 is all zeros
 ZERO_SHA="0000000000000000000000000000000000000000"
 IS_DELETE=true
 
@@ -29,89 +27,72 @@ if [ "$IS_DELETE" = true ]; then
     exit 0
 fi
 
-echo ""
-echo "🔍 Running pre-push validation..."
-echo ""
-
-# Get current branch name
+# Get current commit
+CURRENT_COMMIT=$(git rev-parse HEAD)
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
-# Detect what types of files changed (compared to origin/main or origin/$CURRENT_BRANCH)
-detect_changed_file_types() {
-    local base_ref="origin/main"
-
-    # Try to use the remote tracking branch if it exists
-    if git rev-parse --verify "origin/$CURRENT_BRANCH" &>/dev/null; then
-        base_ref="origin/$CURRENT_BRANCH"
-    fi
-
-    # Get list of changed files
-    CHANGED_FILES=$(git diff --name-only "$base_ref" HEAD 2>/dev/null || git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
-
-    # Detect file types
-    HAS_RUST_CHANGES=false
-    HAS_FRONTEND_CHANGES=false
-    HAS_SDK_CHANGES=false
-    HAS_MOBILE_CHANGES=false
-    HAS_WORKFLOW_CHANGES=false
-    HAS_HOOK_CHANGES=false
-
-    for file in $CHANGED_FILES; do
-        case "$file" in
-            *.rs|Cargo.toml|Cargo.lock)
-                HAS_RUST_CHANGES=true
-                ;;
-            frontend/*)
-                HAS_FRONTEND_CHANGES=true
-                ;;
-            sdk/*)
-                HAS_SDK_CHANGES=true
-                ;;
-            frontend-mobile/*)
-                HAS_MOBILE_CHANGES=true
-                ;;
-            .github/workflows/*)
-                HAS_WORKFLOW_CHANGES=true
-                ;;
-            .githooks/*)
-                HAS_HOOK_CHANGES=true
-                ;;
-        esac
-    done
-
-    export HAS_RUST_CHANGES HAS_FRONTEND_CHANGES HAS_SDK_CHANGES HAS_MOBILE_CHANGES HAS_WORKFLOW_CHANGES HAS_HOOK_CHANGES
-
-    echo "📋 Changed file types:"
-    echo "   Rust (.rs/Cargo.*): $HAS_RUST_CHANGES"
-    echo "   Frontend: $HAS_FRONTEND_CHANGES"
-    echo "   SDK: $HAS_SDK_CHANGES"
-    echo "   Mobile: $HAS_MOBILE_CHANGES"
-    echo "   Workflows: $HAS_WORKFLOW_CHANGES"
-    echo "   Hooks: $HAS_HOOK_CHANGES"
+# Function to print validation required message
+print_validation_required() {
+    local reason="$1"
     echo ""
+    echo "🚫 Push blocked - validation required"
+    echo "======================================"
+    echo ""
+    echo "Reason: $reason"
+    echo ""
+    echo "Run validation first:"
+    echo "  ./scripts/pre-push-validate.sh"
+    echo ""
+    echo "Then push:"
+    echo "  git push"
+    echo ""
+    echo "To bypass (NOT RECOMMENDED):"
+    echo "  git push --no-verify"
+    echo ""
+    exit 1
 }
 
-detect_changed_file_types
+# Check if marker file exists
+if [ ! -f "$MARKER_FILE" ]; then
+    print_validation_required "No validation marker found"
+fi
 
-# Function to check for in-flight workflows and provide cancel command
+# Read marker file (format: timestamp commit_hash)
+MARKER_CONTENT=$(cat "$MARKER_FILE")
+MARKER_TIMESTAMP=$(echo "$MARKER_CONTENT" | cut -d' ' -f1)
+MARKER_COMMIT=$(echo "$MARKER_CONTENT" | cut -d' ' -f2)
+
+# Check if marker is fresh (within TTL)
+CURRENT_TIMESTAMP=$(date +%s)
+AGE_SECONDS=$((CURRENT_TIMESTAMP - MARKER_TIMESTAMP))
+AGE_MINUTES=$((AGE_SECONDS / 60))
+TTL_SECONDS=$((VALIDATION_TTL_MINUTES * 60))
+
+if [ "$AGE_SECONDS" -gt "$TTL_SECONDS" ]; then
+    print_validation_required "Validation expired (${AGE_MINUTES} minutes old, TTL is ${VALIDATION_TTL_MINUTES} minutes)"
+fi
+
+# Check if commit matches (no new commits since validation)
+if [ "$MARKER_COMMIT" != "$CURRENT_COMMIT" ]; then
+    print_validation_required "Commit changed since validation (validated: ${MARKER_COMMIT:0:8}, current: ${CURRENT_COMMIT:0:8})"
+fi
+
+# Check for in-flight workflows and suggest cancellation
 check_inflight_workflows() {
     if ! command -v gh &> /dev/null; then
         return 0
     fi
 
-    # Get repository info from git remote
     REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
     if [ -z "$REMOTE_URL" ]; then
         return 0
     fi
 
-    # Extract owner/repo from remote URL (handles both HTTPS and SSH formats)
     REPO_SLUG=$(echo "$REMOTE_URL" | sed -E 's|.*github\.com[:/]([^/]+/[^/.]+)(\.git)?$|\1|')
     if [ -z "$REPO_SLUG" ]; then
         return 0
     fi
 
-    # Find in-progress and queued workflow runs for this branch
     IN_PROGRESS_RUNS=$(gh run list --repo "$REPO_SLUG" --branch "$CURRENT_BRANCH" --status in_progress --json databaseId --jq '.[].databaseId' 2>/dev/null || echo "")
     QUEUED_RUNS=$(gh run list --repo "$REPO_SLUG" --branch "$CURRENT_BRANCH" --status queued --json databaseId --jq '.[].databaseId' 2>/dev/null || echo "")
 
@@ -127,205 +108,29 @@ check_inflight_workflows() {
     done
 
     if [ "$RUN_COUNT" -gt 0 ]; then
+        echo ""
         echo "⚠️  Found $RUN_COUNT in-flight workflow(s) on branch '$CURRENT_BRANCH'"
         echo ""
-        echo "   After your push succeeds, cancel stale workflows with:"
-        echo ""
+        echo "   Consider cancelling stale workflows after push:"
         for run_id in $RUN_IDS; do
             echo "   gh run cancel $run_id --repo $REPO_SLUG"
         done
         echo ""
-        echo "   Or cancel all at once:"
-        echo "   for id in$RUN_IDS; do gh run cancel \$id --repo $REPO_SLUG; done"
-        echo ""
-        # Store for post-push suggestion
-        export PENDING_CANCEL_RUNS="$RUN_IDS"
-        export PENDING_CANCEL_REPO="$REPO_SLUG"
     fi
 }
 
-# Check for CCFW mode (either no gh CLI OR .git/ccfw_mode marker exists)
-CCFW_MODE=false
-if [ -f "$PROJECT_ROOT/.git/ccfw_mode" ] || ! command -v gh &> /dev/null; then
-    CCFW_MODE=true
-    echo "⚠️  =============================================="
-    echo "⚠️  CCFW MODE ACTIVE"
-    echo "⚠️  (Strict validation enabled)"
-    echo "⚠️  =============================================="
-    echo ""
-    echo "You MUST manually verify CI status before pushing!"
-    echo ""
-    echo "Use WebFetch to check GitHub Actions status:"
-    echo "  URL: https://github.com/Async-IO/pierre_mcp_server/actions"
-    echo "  Prompt: 'What is the status of the most recent workflow run on branch $CURRENT_BRANCH?'"
-    echo ""
-    echo "If CI is currently running or failing, DO NOT push until resolved."
-    echo ""
+# All checks passed
+echo ""
+echo "✅ Validation marker found and valid"
+echo "   Validated: ${AGE_MINUTES}m ago"
+echo "   Commit:    ${CURRENT_COMMIT:0:8}"
+echo ""
 
-    # CCFW gets strict clippy validation since they can't easily check CI
-    # Skip if no Rust files changed
-    if [ "$HAS_RUST_CHANGES" = "true" ]; then
-        # Uses Cargo.toml [lints.clippy] configuration for lint levels
-        echo "🔬 Running STRICT clippy validation..."
-        echo ""
-        cd "$PROJECT_ROOT"
-        if ! cargo clippy --all-targets --all-features --quiet; then
-            echo ""
-            echo "❌ Strict clippy validation failed!"
-            echo ""
-            echo "Fix the warnings above before pushing."
-            echo "To bypass (NOT RECOMMENDED): git push --no-verify"
-            echo ""
-            exit 1
-        fi
-        echo "✅ Strict clippy passed"
-        echo ""
-    else
-        echo "⏭️  Skipping clippy (no Rust files changed)"
-        echo ""
-    fi
-fi
-
-# Run architectural validation first (fast, catches pattern violations)
-# Skip if no Rust files changed (architectural validation is Rust-focused)
-if [ -f "$PROJECT_ROOT/scripts/architectural-validation.sh" ] && [ "$HAS_RUST_CHANGES" = "true" ]; then
-    echo "📐 Running architectural validation..."
-    if ! "$PROJECT_ROOT/scripts/architectural-validation.sh"; then
-        echo ""
-        echo "❌ Architectural validation failed!"
-        echo ""
-        echo "Fix the violations above before pushing."
-        echo "To bypass (NOT RECOMMENDED): git push --no-verify"
-        echo ""
-        exit 1
-    fi
-    echo ""
-elif [ "$HAS_RUST_CHANGES" = "false" ]; then
-    echo "⏭️  Skipping architectural validation (no Rust files changed)"
-    echo ""
-fi
-
-# Run frontend validation (typecheck + lint + tests)
-run_frontend_tests() {
-    if [ ! -f "$PROJECT_ROOT/scripts/pre-push-frontend-tests.sh" ]; then
-        echo "⚠️  Warning: pre-push-frontend-tests.sh not found, skipping frontend validation"
-        return 0
-    fi
-
-    if ! "$PROJECT_ROOT/scripts/pre-push-frontend-tests.sh"; then
-        return 1
-    fi
-    return 0
-}
-
-# Run SDK unit tests (fast - ~0.3 seconds)
-run_sdk_unit_tests() {
-    if [ ! -d "$PROJECT_ROOT/sdk/node_modules" ]; then
-        echo "⚠️  Warning: sdk/node_modules not found. Skipping SDK tests."
-        echo "   Run 'cd sdk && npm install' to enable."
-        return 0
-    fi
-
-    echo "🧪 Running SDK unit tests..."
-    if ! (cd "$PROJECT_ROOT/sdk" && npm run test:unit --silent 2>&1 | tail -5); then
-        echo ""
-        echo "❌ SDK unit tests failed!"
-        echo ""
-        echo "Run 'cd sdk && npm run test:unit' to see details."
-        return 1
-    fi
-    echo "✅ SDK unit tests passed"
-    echo ""
-    return 0
-}
-
-# Run mobile validation (typecheck + lint + tests)
-run_mobile_tests() {
-    if [ ! -f "$PROJECT_ROOT/scripts/pre-push-mobile-tests.sh" ]; then
-        echo "⚠️  Warning: pre-push-mobile-tests.sh not found, skipping mobile validation"
-        return 0
-    fi
-
-    if ! "$PROJECT_ROOT/scripts/pre-push-mobile-tests.sh"; then
-        return 1
-    fi
-    return 0
-}
-
-# Run frontend tests only if frontend files changed
-if [ "$HAS_FRONTEND_CHANGES" = "true" ]; then
-    if ! run_frontend_tests; then
-        echo "To bypass (NOT RECOMMENDED): git push --no-verify"
-        exit 1
-    fi
-else
-    echo "⏭️  Skipping frontend tests (no frontend/ files changed)"
-    echo ""
-fi
-
-# Run SDK tests only if SDK files changed
-if [ "$HAS_SDK_CHANGES" = "true" ]; then
-    if ! run_sdk_unit_tests; then
-        echo "To bypass (NOT RECOMMENDED): git push --no-verify"
-        exit 1
-    fi
-else
-    echo "⏭️  Skipping SDK tests (no sdk/ files changed)"
-    echo ""
-fi
-
-# Run mobile tests only if mobile files changed
-if [ "$HAS_MOBILE_CHANGES" = "true" ]; then
-    if ! run_mobile_tests; then
-        echo "To bypass (NOT RECOMMENDED): git push --no-verify"
-        exit 1
-    fi
-else
-    echo "⏭️  Skipping mobile tests (no frontend-mobile/ files changed)"
-    echo ""
-fi
-
-# Run Rust pre-push tests only if Rust files changed
-if [ "$HAS_RUST_CHANGES" = "true" ]; then
-    # Check if pre-push tests script exists
-    if [ ! -f "$PROJECT_ROOT/scripts/pre-push-tests.sh" ]; then
-        echo "⚠️  Warning: pre-push-tests.sh not found, skipping Rust tests"
-        echo "   Location: $PROJECT_ROOT/scripts/pre-push-tests.sh"
-        check_inflight_workflows
-        exit 0
-    fi
-
-    # Run the Rust pre-push tests
-    cd "$PROJECT_ROOT"
-
-    if ./scripts/pre-push-tests.sh; then
-        echo ""
-        echo "✅ Rust pre-push validation passed!"
-        echo ""
-    else
-        echo ""
-        echo "❌ Pre-push validation failed!"
-        echo ""
-        echo "Your push has been blocked to prevent CI failures."
-        echo ""
-        echo "Options:"
-        echo "  1. Fix the failing tests and try again"
-        echo "  2. Run specific tests: cargo test --test <test_name>"
-        echo "  3. Run full test suite: ./scripts/lint-and-test.sh"
-        echo "  4. Skip this check (NOT RECOMMENDED): git push --no-verify"
-        echo ""
-        exit 1
-    fi
-else
-    echo "⏭️  Skipping Rust tests (no .rs/Cargo.* files changed)"
-    echo ""
-fi
-
-# Check for in-flight workflows and suggest cancellation
+# Check for in-flight workflows
 check_inflight_workflows
 
+echo "🚀 Push proceeding..."
 echo ""
-echo "✅ Pre-push validation passed!"
-echo ""
-echo "🚀 Push will proceed. After it succeeds, consider cancelling stale workflows above."
-echo ""
+
+# Delete marker - validation consumed. If push fails, re-run validation.
+rm -f "$MARKER_FILE"

@@ -246,91 +246,54 @@ git config core.hooksPath .githooks
 # 2. Setup server and validate/refresh JWT token
 ./bin/claude-session-setup.sh
 ```
-This enables the pre-push hook that runs strict clippy validation AND ensures the Pierre MCP server is running with a valid JWT token. Sessions get archived/revived, so this must run EVERY time you start working, not just once.
+This enables the pre-push hook and ensures the Pierre MCP server is running with a valid JWT token. Sessions get archived/revived, so this must run EVERY time you start working, not just once.
 
-Claude Code for Web does not have access to `gh` CLI or MCP tools. The pre-push hook will detect this and warn you. You MUST follow this workflow to prevent CI overload:
+## Pre-Push Validation Workflow
 
-### Before EVERY Push
+The pre-push hook uses a **marker-based validation** to avoid SSH timeout issues. Tests run separately from the push.
 
-1. **Use WebFetch to check CI status BEFORE pushing:**
+### Workflow
+
+1. **Make your changes and commit**
+2. **Run validation before pushing:**
+   ```bash
+   ./scripts/pre-push-validate.sh
    ```
-   WebFetch(
-     url: "https://github.com/jfacousern/pierre_mcp_server/actions",
-     prompt: "What is the status of the most recent workflow run? Is it passing, failing, or in progress? What branch is it on?"
-   )
+   This runs:
+   - Tier 0: Code formatting check
+   - Tier 1: Architectural validation
+   - Tier 2: Schema validation
+   - Tier 3: Targeted tests (smart selection based on changed files)
+   - Tier 4-6: Frontend/SDK/Mobile tests (if those files changed)
+
+   On success, creates `.git/validation-passed` marker (valid for 15 minutes).
+
+3. **Push:**
+   ```bash
+   git push
    ```
+   The pre-push hook checks:
+   - Marker exists
+   - Marker is fresh (< 15 minutes)
+   - Marker matches current commit (no changes since validation)
 
-2. **If CI is failing or in progress:** DO NOT push. Wait for it to complete and fix any issues first.
+### Why This Design
 
-3. **After pushing:** Wait for CI to complete before making more commits. Check status again with WebFetch.
+- **Avoids SSH timeout**: Tests run in a separate terminal, not blocking the push
+- **Enforces validation**: Can't push without running validation first
+- **Prevents stale validation**: Marker expires, must re-validate after changes
 
-### The Problem This Solves
+### Important Notes
 
-Without `gh` CLI, you cannot:
-- Cancel in-flight workflows before pushing
-- Check CI status programmatically
-- Avoid queueing redundant workflow runs
+- **Clippy is NOT in `pre-push-validate.sh`** - Claude Code must follow CLAUDE.md and run clippy manually as part of the validation workflow
+- If validation expires or commit changes, re-run `./scripts/pre-push-validate.sh`
+- To bypass (NOT RECOMMENDED): `git push --no-verify`
 
-**Why Claude Code for Web cannot cancel workflows:**
-- WebFetch is **read-only** - it can GET web pages but cannot POST to APIs
-- The GitHub MCP tools available don't include workflow management
-- Cancellation requires `POST /repos/{owner}/{repo}/actions/runs/{run_id}/cancel`
+### Before Pushing
 
-**Normal Claude Code with `gh` CLI will automatically cancel in-flight workflows** after local validation passes, ensuring only the latest push's workflow runs.
-
-Rapid "fix" pushes without checking CI status cause:
-- Workflow queue overload (10+ runs queued)
-- Wasted CI minutes
-- Delayed feedback on actual issues
-- GitHub Actions rate limiting
-
-### Claude Code for Web Commit Workflow
-
-0. **EVERY SESSION:** Run `git config core.hooksPath .githooks` to enable validation hooks
-1. Make your changes
-2. Run `cargo fmt` to format code
-3. **BEFORE pushing:** Use WebFetch to check CI status at `https://github.com/Async-IO/pierre_mcp_server/actions`
-   - Ask: "What is the status of the most recent workflow? Is it passing, failing, or in-progress?"
-4. **DO NOT push if CI is in-progress or failing** - wait for it to complete or fix the issue
-5. If CI is clear, commit and push
-   - **Clippy runs AUTOMATICALLY** - the pre-push hook runs strict clippy, you don't need to run it manually
-   - If clippy fails, the push is blocked - fix the issues and try again
-6. **AFTER pushing:** Use WebFetch to monitor your new workflow run
-7. **WAIT for CI to complete** before making more changes
-8. If CI fails, fix the issue, then repeat from step 3
-
-### Automatic Claude Code for Web Validation
-
-When the pre-push hook detects Claude Code for Web (no `gh` CLI available), it automatically runs:
-```
-cargo clippy --all-targets --all-features --quiet -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery
-```
-
-This strict validation compensates for Claude Code for Web's inability to check CI status. If clippy fails, your push is blocked until you fix the issues.
-
-### Claude Code for Web Directives
-
-**Before any push:**
-- Check GitHub Actions page for current workflow status
-- If workflows are running or queued, WAIT - do not add to the queue
-- If the last workflow failed, DO NOT push new code until you understand why
-
-**After a successful push:**
-- Monitor your workflow run via WebFetch
-- Do not start new work until CI passes
-- If CI fails, that is your top priority to fix
-
-**After a failed CI run:**
-- Use WebFetch to read the workflow run page and identify the failure
-- Fix locally, validate locally, then check CI status again before pushing
-
-### NEVER Do This in Claude Code for Web
-
-- Push multiple commits without checking CI between each
-- Assume your "fix" will work without waiting for CI
-- Push rapid-fire "oops" commits
-- Ignore the pre-push hook warning about missing `gh` CLI
-- Push while workflows are still running (causes queue overload)
+1. Run `./scripts/pre-push-validate.sh` to create the validation marker
+2. Check CI status before pushing to avoid queueing redundant workflows
+3. After pushing, monitor the workflow run to catch any CI failures early
 
 # Writing code
 
