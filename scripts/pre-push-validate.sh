@@ -1,4 +1,4 @@
-#!/usr/bin/env zsh
+#!/usr/bin/env bash
 # ABOUTME: Pre-push validation script - runs all checks before pushing
 # ABOUTME: Creates .git/validation-passed marker on success for pre-push hook
 #
@@ -41,14 +41,14 @@ HAS_FRONTEND_CHANGES=false
 HAS_SDK_CHANGES=false
 HAS_MOBILE_CHANGES=false
 
-for file in ${(f)CHANGED_FILES}; do
+while IFS= read -r file; do
     case "$file" in
         *.rs|Cargo.toml|Cargo.lock) HAS_RUST_CHANGES=true ;;
         frontend/*) HAS_FRONTEND_CHANGES=true ;;
         sdk/*) HAS_SDK_CHANGES=true ;;
         frontend-mobile/*) HAS_MOBILE_CHANGES=true ;;
     esac
-done
+done <<< "$CHANGED_FILES"
 
 echo "📋 Changed file types:"
 echo "   Rust: $HAS_RUST_CHANGES"
@@ -131,7 +131,7 @@ if [[ "$HAS_RUST_CHANGES" == "true" ]]; then
             done
         }
 
-        for file in ${(f)RUST_CHANGED_FILES}; do
+        while IFS= read -r file; do
             case "$file" in
                 src/database/*) add_tests database_test database_plugins_test tenant_data_isolation ;;
                 src/auth/*|src/routes/auth.rs) add_tests auth_test api_keys_test jwt_secret_persistence_test oauth2_security_test ;;
@@ -155,7 +155,7 @@ if [[ "$HAS_RUST_CHANGES" == "true" ]]; then
                 src/lib.rs|src/main.rs) add_tests simple_integration_test routes_health_http_test ;;
                 src/*) add_tests simple_integration_test ;;
             esac
-        done
+        done <<< "$RUST_CHANGED_FILES"
 
         TEST_COUNT=${#TESTS_TO_RUN[@]}
 
@@ -165,13 +165,13 @@ if [[ "$HAS_RUST_CHANGES" == "true" ]]; then
             echo "Running $TEST_COUNT targeted test file(s):"
 
             TEST_ARGS=""
-            for test in "${(@k)TESTS_TO_RUN}"; do
+            for test in "${!TESTS_TO_RUN[@]}"; do
                 echo "  🧪 $test"
                 TEST_ARGS="$TEST_ARGS --test $test"
             done
             echo ""
 
-            if ! cargo test ${=TEST_ARGS} --quiet -- --test-threads=4; then
+            if ! cargo test $TEST_ARGS --quiet -- --test-threads=4; then
                 echo ""
                 echo "❌ Targeted tests failed!"
                 echo ""

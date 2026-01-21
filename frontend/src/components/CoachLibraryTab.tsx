@@ -20,7 +20,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   Nutrition: 'bg-pierre-nutrition/10 text-pierre-nutrition border-pierre-nutrition/20',
   Recovery: 'bg-pierre-recovery/10 text-pierre-recovery border-pierre-recovery/20',
   Recipes: 'bg-pierre-yellow-500/10 text-pierre-yellow-600 border-pierre-yellow-500/20',
-  Mobility: 'bg-pink-500/10 text-pink-600 border-pink-500/20',
+  Mobility: 'bg-pierre-mobility/10 text-pierre-mobility border-pierre-mobility/20',
   Custom: 'bg-pierre-violet/10 text-pierre-violet border-pierre-violet/20',
 };
 

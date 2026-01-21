@@ -135,6 +135,10 @@
     @apply badge bg-pierre-gray-100 text-pierre-gray-800;
   }
 
+  .badge-mobility {
+    @apply badge bg-pierre-pink-100 text-pierre-pink-800;
+  }
+
   /* Pierre Status Indicators */
   .status-dot {
     @apply w-2 h-2 rounded-full inline-block mr-2;

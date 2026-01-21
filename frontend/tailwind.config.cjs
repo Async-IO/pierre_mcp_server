@@ -20,6 +20,7 @@ module.exports = {
           activity: '#10B981',   // Emerald - Movement, fitness, energy
           nutrition: '#F59E0B',  // Amber - Food, fuel, nourishment
           recovery: '#6366F1',   // Indigo - Rest, sleep, restoration
+          mobility: '#EC4899',   // Pink - Flexibility, stretching, movement quality
 
           // Dark theme backgrounds
           dark: '#0F0F1A',       // Deep Space - Primary dark bg
@@ -44,6 +45,10 @@ module.exports = {
           // Extended recovery (indigo) palette
           'recovery-light': '#818CF8',
           'recovery-dark': '#4F46E5',
+
+          // Extended mobility (pink) palette
+          'mobility-light': '#F472B6',
+          'mobility-dark': '#DB2777',
 
           // Legacy color scales (for backward compatibility)
           blue: {
@@ -113,6 +118,15 @@ module.exports = {
             700: '#0f766e',
             800: '#115e59',
           },
+          pink: {
+            50: '#fdf2f8',
+            100: '#fce7f3',
+            200: '#fbcfe8',
+            500: '#ec4899',
+            600: '#db2777',
+            700: '#be185d',
+            800: '#9d174d',
+          },
         },
         // API tier colors
         tier: {
@@ -177,6 +191,7 @@ module.exports = {
         'gradient-activity': 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
         'gradient-nutrition': 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
         'gradient-recovery': 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)',
+        'gradient-mobility': 'linear-gradient(135deg, #EC4899 0%, #DB2777 100%)',
         'gradient-pierre-horizontal': 'linear-gradient(90deg, #7C3AED 0%, #06B6D4 100%)',
       },
       animation: {

@@ -5,7 +5,7 @@ import React from 'react';
 import { clsx } from 'clsx';
 
 interface BadgeProps {
-  variant: 'success' | 'warning' | 'error' | 'info' | 'trial' | 'starter' | 'professional' | 'enterprise' | 'destructive' | 'secondary';
+  variant: 'success' | 'warning' | 'error' | 'info' | 'trial' | 'starter' | 'professional' | 'enterprise' | 'destructive' | 'secondary' | 'mobility';
   children: React.ReactNode;
   className?: string;
 }
@@ -24,6 +24,7 @@ export const Badge: React.FC<BadgeProps> = ({ variant, children, className }) =>
       'badge-enterprise': variant === 'enterprise',
       'badge-destructive': variant === 'destructive',
       'badge-secondary': variant === 'secondary',
+      'badge-mobility': variant === 'mobility',
     },
     className
   );
