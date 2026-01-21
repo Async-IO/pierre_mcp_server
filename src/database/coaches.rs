@@ -272,7 +272,7 @@ impl CoachesManager {
                 id, user_id, tenant_id, title, description, system_prompt,
                 category, tags, sample_prompts, token_count, is_favorite, use_count,
                 last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $16)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $16, $17, $18)
             ",
         )
         .bind(id.to_string())
@@ -291,6 +291,8 @@ impl CoachesManager {
         .bind(now.to_rfc3339())
         .bind(0i64) // is_system (user-created coaches are not system)
         .bind(CoachVisibility::Private.as_str()) // visibility
+        .bind(Option::<String>::None) // prerequisites (user-created coaches don't have prerequisites)
+        .bind(Option::<String>::None) // forked_from (not a fork)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to create coach: {e}")))?;
@@ -887,7 +889,7 @@ impl CoachesManager {
                 id, user_id, tenant_id, title, description, system_prompt,
                 category, tags, sample_prompts, token_count, is_favorite, use_count,
                 last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $16)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $16, $17, $18)
             ",
         )
         .bind(id.to_string())
@@ -906,6 +908,8 @@ impl CoachesManager {
         .bind(now.to_rfc3339())
         .bind(1i64) // is_system = true
         .bind(request.visibility.as_str())
+        .bind(Option::<String>::None) // prerequisites (system coaches may have this set later)
+        .bind(Option::<String>::None) // forked_from (system coaches are originals)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to create system coach: {e}")))?;

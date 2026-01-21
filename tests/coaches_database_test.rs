@@ -15,6 +15,7 @@ use sqlx::SqlitePool;
 use uuid::Uuid;
 
 /// Create a test database with coaches schema
+#[allow(clippy::too_many_lines)]
 async fn create_test_db() -> SqlitePool {
     let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
 
@@ -81,6 +82,17 @@ async fn create_test_db() -> SqlitePool {
             is_system INTEGER NOT NULL DEFAULT 0,
             visibility TEXT NOT NULL DEFAULT 'private',
             sample_prompts TEXT,
+            slug TEXT,
+            purpose TEXT,
+            when_to_use TEXT,
+            instructions TEXT,
+            example_inputs TEXT,
+            example_outputs TEXT,
+            success_criteria TEXT,
+            prerequisites TEXT,
+            source_file TEXT,
+            content_hash TEXT,
+            forked_from TEXT REFERENCES coaches(id) ON DELETE SET NULL,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
         ",
@@ -116,6 +128,43 @@ async fn create_test_db() -> SqlitePool {
             is_hidden INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL,
             UNIQUE(user_id, coach_id)
+        )
+        ",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    // Create coach_relations table (for coach relationships)
+    sqlx::query(
+        r"
+        CREATE TABLE IF NOT EXISTS coach_relations (
+            id TEXT PRIMARY KEY,
+            coach_id TEXT NOT NULL REFERENCES coaches(id) ON DELETE CASCADE,
+            related_coach_id TEXT NOT NULL REFERENCES coaches(id) ON DELETE CASCADE,
+            relation_type TEXT NOT NULL CHECK (relation_type IN ('related', 'alternative', 'prerequisite', 'sequel')),
+            created_at TEXT NOT NULL,
+            UNIQUE(coach_id, related_coach_id, relation_type)
+        )
+        ",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    // Create coach_versions table (for version history)
+    sqlx::query(
+        r"
+        CREATE TABLE IF NOT EXISTS coach_versions (
+            id TEXT PRIMARY KEY,
+            coach_id TEXT NOT NULL REFERENCES coaches(id) ON DELETE CASCADE,
+            version INTEGER NOT NULL,
+            content_hash TEXT NOT NULL,
+            content_snapshot TEXT NOT NULL,
+            change_summary TEXT,
+            created_at TEXT NOT NULL,
+            created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+            UNIQUE(coach_id, version)
         )
         ",
     )
