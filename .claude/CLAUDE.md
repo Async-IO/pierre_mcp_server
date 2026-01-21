@@ -289,6 +289,12 @@ The pre-push hook uses a **marker-based validation** to avoid SSH timeout issues
 - If validation expires or commit changes, re-run `./scripts/pre-push-validate.sh`
 - To bypass (NOT RECOMMENDED): `git push --no-verify`
 
+### NEVER
+
+- Manually create `.git/validation-passed` marker - always run `./scripts/pre-push-validate.sh`
+- Skip validation by creating a fake marker - CI will catch issues and main will break
+- Claim "rustfmt isn't installed" or similar excuses to bypass validation
+
 ### Before Pushing
 
 1. Run `./scripts/pre-push-validate.sh` to create the validation marker
