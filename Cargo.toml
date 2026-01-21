@@ -165,7 +165,7 @@ oauth = []
 # SERVER PROFILES
 # ═══════════════════════════════════════════════════════════════
 server-full = ["protocol-all", "transport-all", "client-all", "oauth", "all-providers", "tools-all"]
-server-claude-desktop = ["protocol-mcp", "transport-stdio", "oauth", "all-providers", "tools-all"]
+server-mcp-stdio = ["protocol-mcp", "transport-stdio", "oauth", "all-providers", "tools-all"]
 server-mcp-bridge = ["protocol-mcp", "protocol-a2a", "transport-web", "oauth", "all-providers", "tools-all"]
 server-mobile-backend = ["protocol-rest", "protocol-mcp", "client-mobile", "client-settings", "oauth", "all-providers", "tools-all"]
 server-saas-full = ["protocol-rest", "protocol-mcp", "transport-web", "client-web", "client-admin", "oauth", "all-providers", "tools-all"]

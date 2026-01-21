@@ -293,8 +293,8 @@ Pre-configured bundles for common deployments:
 # Full platform (default)
 server-full = ["protocol-all", "transport-all", "client-all", "oauth", "all-providers", "tools-all"]
 
-# Claude Desktop integration (stdio only)
-server-claude-desktop = ["protocol-mcp", "transport-stdio", "oauth", "all-providers", "tools-all"]
+# Desktop MCP clients via stdio
+server-mcp-stdio = ["protocol-mcp", "transport-stdio", "oauth", "all-providers", "tools-all"]
 
 # AI agent bridge (MCP + A2A)
 server-mcp-bridge = ["protocol-mcp", "protocol-a2a", "transport-web", "oauth", "all-providers", "tools-all"]
@@ -312,8 +312,8 @@ server-saas-full = ["protocol-rest", "protocol-mcp", "transport-web", "client-we
 # Full platform (default)
 cargo build --release
 
-# Claude Desktop only (~35MB)
-cargo build --release --no-default-features --features "sqlite,server-claude-desktop"
+# Desktop MCP clients only (~35MB)
+cargo build --release --no-default-features --features "sqlite,server-mcp-stdio"
 
 # SaaS with PostgreSQL (~45MB)
 cargo build --release --no-default-features --features "postgresql,server-saas-full"
@@ -329,7 +329,7 @@ cargo build --release --no-default-features --features "sqlite,protocol-rest,tra
 
 | Configuration | Size |
 |---------------|------|
-| `server-claude-desktop` | ~35MB |
+| `server-mcp-stdio` | ~35MB |
 | `server-mcp-bridge` | ~40MB |
 | `server-mobile-backend` | ~42MB |
 | `server-saas-full` | ~45MB |

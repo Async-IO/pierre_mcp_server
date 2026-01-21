@@ -15,10 +15,10 @@ pub const ERROR_INVALID_PARAMS: i32 = -32602;
 /// Internal error
 pub const ERROR_INTERNAL_ERROR: i32 = -32603;
 
-/// Unauthorized - using standard JSON-RPC Internal Error for better Claude Desktop integration
+/// Unauthorized - using standard JSON-RPC Internal Error for better MCP client integration
 pub const ERROR_UNAUTHORIZED: i32 = -32603;
 
-/// Token-specific error codes (using standard JSON-RPC codes for better Claude Desktop integration)
+/// Token-specific error codes (using standard JSON-RPC codes for better MCP client integration)
 pub const ERROR_TOKEN_EXPIRED: i32 = -32603; // Internal error - token expired
 /// JWT token signature validation failed (internal error)
 pub const ERROR_TOKEN_INVALID: i32 = -32603; // Internal error - token invalid

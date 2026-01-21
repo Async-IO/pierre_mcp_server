@@ -59,14 +59,14 @@ Pre-configured bundles for common deployment scenarios:
 | Profile | Description | Binary Size |
 |---------|-------------|-------------|
 | `server-full` | All protocols, transports, clients (default) | ~50MB |
-| `server-claude-desktop` | MCP protocol + stdio transport | ~35MB |
+| `server-mcp-stdio` | MCP protocol + stdio transport (desktop clients) | ~35MB |
 | `server-mcp-bridge` | MCP + A2A protocols, web transports | ~40MB |
 | `server-mobile-backend` | REST + MCP, mobile client routes | ~42MB |
 | `server-saas-full` | REST + MCP, web + admin clients | ~45MB |
 
 ```bash
-# Build for Claude Desktop (minimal)
-cargo build --release --no-default-features --features "sqlite,server-claude-desktop"
+# Build for desktop MCP clients (minimal)
+cargo build --release --no-default-features --features "sqlite,server-mcp-stdio"
 
 # Build for SaaS deployment
 cargo build --release --no-default-features --features "postgresql,server-saas-full"
