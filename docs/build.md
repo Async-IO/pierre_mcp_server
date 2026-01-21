@@ -228,7 +228,7 @@ Control communication layers:
 transport-http = []              # HTTP/HTTPS
 transport-websocket = []         # WebSocket connections
 transport-sse = []               # Server-Sent Events
-transport-stdio = []             # Standard I/O (Claude Desktop)
+transport-stdio = []             # Standard I/O (desktop MCP clients)
 transport-all = ["transport-http", "transport-websocket", "transport-sse", "transport-stdio"]
 transport-web = ["transport-http", "transport-websocket", "transport-sse"]
 ```
@@ -338,6 +338,7 @@ cargo build --release --no-default-features --features "sqlite,protocol-rest,tra
 ### Other Features
 
 ```toml
+oauth = []       # OAuth infrastructure (required for provider auth)
 testing = []     # Test utilities
 telemetry = []   # OpenTelemetry instrumentation
 openapi = [...]  # SwaggerUI documentation (optional)
