@@ -48,6 +48,41 @@ cargo build --release --no-default-features --features "sqlite,provider-strava" 
 
 See [Pluggable Provider Architecture](docs/tutorial/chapter-17.5-pluggable-providers.md).
 
+## Modular Architecture
+
+Pierre uses compile-time feature flags for modular deployments. Build only what you need.
+
+### Server Profiles
+
+Pre-configured bundles for common deployment scenarios:
+
+| Profile | Description | Binary Size |
+|---------|-------------|-------------|
+| `server-full` | All protocols, transports, clients (default) | ~50MB |
+| `server-claude-desktop` | MCP protocol + stdio transport | ~35MB |
+| `server-mcp-bridge` | MCP + A2A protocols, web transports | ~40MB |
+| `server-mobile-backend` | REST + MCP, mobile client routes | ~42MB |
+| `server-saas-full` | REST + MCP, web + admin clients | ~45MB |
+
+```bash
+# Build for Claude Desktop (minimal)
+cargo build --release --no-default-features --features "sqlite,server-claude-desktop"
+
+# Build for SaaS deployment
+cargo build --release --no-default-features --features "postgresql,server-saas-full"
+```
+
+### Feature Categories
+
+| Category | Features | Description |
+|----------|----------|-------------|
+| **Protocols** | `protocol-rest`, `protocol-mcp`, `protocol-a2a` | API protocols |
+| **Transports** | `transport-http`, `transport-websocket`, `transport-sse`, `transport-stdio` | Communication layers |
+| **Clients** | `client-web`, `client-admin`, `client-mobile` | Route groups |
+| **Tools** | `tools-fitness-core`, `tools-wellness`, `tools-all` | MCP tool categories |
+
+See [Build Configuration](docs/build.md) for detailed feature documentation.
+
 ## What You Can Ask
 
 - "Calculate my daily nutrition needs for marathon training"

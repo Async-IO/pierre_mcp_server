@@ -187,15 +187,18 @@ lto = "fat"          # cross-crate optimization
 
 ## Feature Flags
 
-```toml
-[features]
-default = ["sqlite", "all-providers", "sqlx/migrate"]
-sqlite = []
-postgresql = ["sqlx/postgres"]
-testing = []
-telemetry = []
+Pierre uses compile-time feature flags for modular deployments. The architecture supports fine-grained control over protocols, transports, clients, tools, and providers.
 
-# Provider feature flags - enable/disable individual fitness data providers
+### Database Features
+
+```toml
+sqlite = []                      # SQLite (default, development)
+postgresql = ["sqlx/postgres"]   # PostgreSQL (production)
+```
+
+### Provider Features
+
+```toml
 provider-strava = []
 provider-garmin = []
 provider-terra = []
@@ -203,22 +206,142 @@ provider-fitbit = []
 provider-whoop = []
 provider-coros = []
 provider-synthetic = []
-all-providers = ["provider-strava", "provider-garmin", "provider-terra", "provider-fitbit", "provider-whoop", "provider-coros", "provider-synthetic"]
+all-providers = ["provider-strava", "provider-garmin", ...]
 ```
 
-**Design decision**: Compile-time feature selection eliminates runtime configuration complexity.
+### Protocol Features
 
-**sqlite (default)**: Development and single-instance deployments
-**postgresql**: Production multi-instance deployments with shared state
-**all-providers (default)**: All fitness provider integrations enabled
-**provider-***: Individual provider feature flags for selective builds
-**testing**: Test utilities and mock implementations
-**telemetry**: OpenTelemetry instrumentation (production observability)
+Control which API protocols are compiled:
 
-**Binary size impact**:
-- sqlite-only: ~45MB
-- sqlite+postgresql: ~48MB
-- All features: ~50MB
+```toml
+protocol-rest = []               # REST API endpoints
+protocol-mcp = ["transport-http"] # MCP JSON-RPC (requires HTTP transport)
+protocol-a2a = ["transport-http"] # Agent-to-Agent protocol
+protocol-all = ["protocol-rest", "protocol-mcp", "protocol-a2a"]
+```
+
+### Transport Features
+
+Control communication layers:
+
+```toml
+transport-http = []              # HTTP/HTTPS
+transport-websocket = []         # WebSocket connections
+transport-sse = []               # Server-Sent Events
+transport-stdio = []             # Standard I/O (Claude Desktop)
+transport-all = ["transport-http", "transport-websocket", "transport-sse", "transport-stdio"]
+transport-web = ["transport-http", "transport-websocket", "transport-sse"]
+```
+
+### Client Features
+
+Control which route groups are compiled:
+
+```toml
+# Web client routes
+client-dashboard = ["protocol-rest"]
+client-settings = ["protocol-rest"]
+client-chat = ["protocol-rest"]
+client-coaches = ["protocol-rest", "tools-coaches"]
+client-oauth-apps = ["protocol-rest", "oauth"]
+client-web = ["client-dashboard", "client-settings", "client-chat", "client-coaches", "client-oauth-apps"]
+
+# Admin client routes
+client-admin-api = ["protocol-rest"]
+client-admin-ui = ["protocol-rest"]
+client-api-keys = ["protocol-rest"]
+client-tenants = ["protocol-rest"]
+client-impersonation = ["protocol-rest"]
+client-llm-settings = ["protocol-rest"]
+client-tool-selection = ["protocol-mcp"]
+client-admin = ["client-admin-api", "client-admin-ui", ...]
+
+# Other clients
+client-mobile = ["protocol-rest"]
+client-mcp-tokens = ["protocol-mcp"]
+client-all = ["client-web", "client-admin", "client-mobile", "client-mcp-tokens"]
+```
+
+### Tool Features
+
+Control which MCP tools are compiled:
+
+```toml
+tools-connection = []            # connect_provider, disconnect
+tools-data = []                  # get_activities, get_athlete
+tools-analytics = []             # analyze_activity, calculate_metrics
+tools-goals = []                 # set_goal, track_progress
+tools-config = []                # fitness config, user settings
+tools-nutrition = []             # daily_nutrition, food search
+tools-sleep = []                 # sleep_quality, recovery_score
+tools-recipes = []               # validate_recipe, save_recipe
+tools-coaches = []               # coach CRUD, favorites
+tools-admin = ["tools-coaches"]  # admin tools
+tools-mobility = []              # stretching, yoga poses
+tools-all = ["tools-connection", "tools-data", ...]
+
+# Convenience bundles
+tools-fitness-core = ["tools-connection", "tools-data", "tools-analytics"]
+tools-wellness = ["tools-sleep", "tools-nutrition", "tools-recipes", "tools-mobility"]
+```
+
+### Server Profiles
+
+Pre-configured bundles for common deployments:
+
+```toml
+# Full platform (default)
+server-full = ["protocol-all", "transport-all", "client-all", "oauth", "all-providers", "tools-all"]
+
+# Claude Desktop integration (stdio only)
+server-claude-desktop = ["protocol-mcp", "transport-stdio", "oauth", "all-providers", "tools-all"]
+
+# AI agent bridge (MCP + A2A)
+server-mcp-bridge = ["protocol-mcp", "protocol-a2a", "transport-web", "oauth", "all-providers", "tools-all"]
+
+# Mobile app backend
+server-mobile-backend = ["protocol-rest", "protocol-mcp", "client-mobile", "client-settings", "oauth", "all-providers", "tools-all"]
+
+# SaaS deployment
+server-saas-full = ["protocol-rest", "protocol-mcp", "transport-web", "client-web", "client-admin", "oauth", "all-providers", "tools-all"]
+```
+
+### Build Examples
+
+```bash
+# Full platform (default)
+cargo build --release
+
+# Claude Desktop only (~35MB)
+cargo build --release --no-default-features --features "sqlite,server-claude-desktop"
+
+# SaaS with PostgreSQL (~45MB)
+cargo build --release --no-default-features --features "postgresql,server-saas-full"
+
+# Minimal MCP bridge (~40MB)
+cargo build --release --no-default-features --features "sqlite,server-mcp-bridge"
+
+# Custom: REST API + specific providers
+cargo build --release --no-default-features --features "sqlite,protocol-rest,transport-http,client-web,provider-strava,provider-garmin,tools-fitness-core"
+```
+
+### Binary Size Impact
+
+| Configuration | Size |
+|---------------|------|
+| `server-claude-desktop` | ~35MB |
+| `server-mcp-bridge` | ~40MB |
+| `server-mobile-backend` | ~42MB |
+| `server-saas-full` | ~45MB |
+| `server-full` (default) | ~50MB |
+
+### Other Features
+
+```toml
+testing = []     # Test utilities
+telemetry = []   # OpenTelemetry instrumentation
+openapi = [...]  # SwaggerUI documentation (optional)
+```
 
 ## Dependency Strategy
 
