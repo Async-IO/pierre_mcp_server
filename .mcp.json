@@ -17,6 +17,13 @@
     "chrome-devtools": {
       "command": "npx",
       "args": ["-y", "chrome-devtools-mcp@latest"]
+    },
+    "linear": {
+      "command": "npx",
+      "args": ["-y", "@linear/mcp-server"],
+      "env": {
+        "LINEAR_API_KEY": "${LINEAR_API_KEY}"
+      }
     }
   }
 }

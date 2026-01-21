@@ -298,8 +298,8 @@ The pre-push hook uses a **marker-based validation** to avoid SSH timeout issues
 ### Before Pushing
 
 1. Run `./scripts/pre-push-validate.sh` to create the validation marker
-2. Check CI status before pushing to avoid queueing redundant workflows
-3. After pushing, monitor the workflow run to catch any CI failures early
+2. Check CI: `gh run list --branch main` to avoid queueing redundant workflows
+3. After push: `gh run watch` to monitor for CI failures
 
 # Writing code
 
