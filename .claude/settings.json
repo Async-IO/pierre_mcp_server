@@ -21,7 +21,7 @@
           },
           {
             "type": "command",
-            "command": "./scripts/check-gh-cli.sh"
+            "command": "sh ./scripts/check-gh-cli.sh"
           }
         ]
       }
