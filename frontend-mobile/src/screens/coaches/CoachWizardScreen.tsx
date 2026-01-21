@@ -26,6 +26,7 @@ import {
 } from 'react-native-reanimated';
 import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
 import { apiService } from '../../services/api';
+import { CoachVersionHistoryModal } from '../../components/CoachVersionHistoryModal';
 import type { CoachCategory, CreateCoachRequest, UpdateCoachRequest } from '../../types';
 import type { AppDrawerParamList } from '../../navigation/AppDrawer';
 
@@ -75,6 +76,7 @@ export function CoachWizardScreen({ navigation }: CoachWizardScreenProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [expandedTextArea, setExpandedTextArea] = useState<'description' | 'systemPrompt' | null>(null);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
 
   // Load coach data for edit mode
   const loadCoach = useCallback(async (id: string) => {
@@ -512,7 +514,17 @@ export function CoachWizardScreen({ navigation }: CoachWizardScreenProps) {
           <Text style={styles.headerTitle}>
             {isEditMode ? 'Edit Coach' : 'New Coach'}
           </Text>
-          <View style={styles.headerButton} />
+          {isEditMode ? (
+            <TouchableOpacity
+              onPress={() => setShowVersionHistory(true)}
+              style={styles.headerButton}
+              testID="history-button"
+            >
+              <Text style={styles.headerButtonText}>History</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.headerButton} />
+          )}
         </View>
 
         {/* Step Indicator */}
@@ -565,6 +577,23 @@ export function CoachWizardScreen({ navigation }: CoachWizardScreenProps) {
 
         {/* Expanded Text Area Modal */}
         {renderExpandedModal()}
+
+        {/* Version History Modal */}
+        {isEditMode && coachId && (
+          <CoachVersionHistoryModal
+            visible={showVersionHistory}
+            onClose={() => setShowVersionHistory(false)}
+            coachId={coachId}
+            coachTitle={title || 'Coach'}
+            onReverted={() => {
+              setShowVersionHistory(false);
+              // Reload coach data after revert
+              if (coachId) {
+                loadCoach(coachId);
+              }
+            }}
+          />
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

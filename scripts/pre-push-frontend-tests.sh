@@ -43,10 +43,10 @@ echo -n "Running type-check... "
 
 if npm run type-check > /dev/null 2>&1; then
     echo "✅"
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
 else
     echo "❌"
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
     echo ""
     echo "TypeScript errors found:"
     npm run type-check 2>&1 | head -30
@@ -66,10 +66,10 @@ echo -n "Running lint... "
 
 if npm run lint -- --quiet > /dev/null 2>&1; then
     echo "✅"
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
 else
     echo "❌"
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
     echo ""
     echo "Lint errors found:"
     npm run lint 2>&1 | head -30
@@ -89,10 +89,10 @@ echo -n "Running tests... "
 
 if npm test -- --run --reporter=dot > /dev/null 2>&1; then
     echo "✅"
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
 else
     echo "❌"
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
     echo ""
     echo "Test failures:"
     npm test -- --run 2>&1 | tail -30

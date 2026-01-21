@@ -400,3 +400,36 @@ export interface ListAssignmentsResponse {
   coach_id: string;
   assignments: CoachAssignment[];
 }
+
+// Coach Version History Types (ASY-153)
+export interface CoachVersion {
+  version: number;
+  content_snapshot: Record<string, unknown>;
+  change_summary: string | null;
+  created_at: string;
+  created_by_name: string | null;
+}
+
+export interface ListVersionsResponse {
+  versions: CoachVersion[];
+  current_version: number;
+  total: number;
+}
+
+export interface RevertVersionResponse {
+  coach: Coach;
+  reverted_to_version: number;
+  new_version: number;
+}
+
+export interface FieldChange {
+  field: string;
+  old_value: unknown | null;
+  new_value: unknown | null;
+}
+
+export interface CoachDiffResponse {
+  from_version: number;
+  to_version: number;
+  changes: FieldChange[];
+}

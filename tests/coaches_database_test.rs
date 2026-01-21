@@ -74,11 +74,11 @@ async fn create_test_db() -> SqlitePool {
             tags TEXT,
             token_count INTEGER NOT NULL DEFAULT 0,
             is_favorite INTEGER NOT NULL DEFAULT 0,
-            is_active INTEGER NOT NULL DEFAULT 0,
             use_count INTEGER NOT NULL DEFAULT 0,
             last_used_at TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
+            is_active INTEGER NOT NULL DEFAULT 0,
             is_system INTEGER NOT NULL DEFAULT 0,
             visibility TEXT NOT NULL DEFAULT 'private',
             sample_prompts TEXT,
@@ -94,6 +94,26 @@ async fn create_test_db() -> SqlitePool {
             content_hash TEXT,
             forked_from TEXT REFERENCES coaches(id) ON DELETE SET NULL,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        ",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    // Create coach_versions table (for version history)
+    sqlx::query(
+        r"
+        CREATE TABLE IF NOT EXISTS coach_versions (
+            id TEXT PRIMARY KEY,
+            coach_id TEXT NOT NULL REFERENCES coaches(id) ON DELETE CASCADE,
+            version INTEGER NOT NULL,
+            content_hash TEXT NOT NULL,
+            content_snapshot TEXT NOT NULL,
+            change_summary TEXT,
+            created_at TEXT NOT NULL,
+            created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+            UNIQUE(coach_id, version)
         )
         ",
     )

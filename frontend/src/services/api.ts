@@ -1070,6 +1070,76 @@ class ApiService {
     return response.data;
   }
 
+  // Coach Version History endpoints (ASY-153)
+  async getCoachVersions(coachId: string, limit?: number): Promise<{
+    versions: Array<{
+      version: number;
+      content_snapshot: Record<string, unknown>;
+      change_summary: string | null;
+      created_at: string;
+      created_by_name: string | null;
+    }>;
+    current_version: number;
+    total: number;
+  }> {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit.toString());
+    const url = params.toString()
+      ? `/api/coaches/${coachId}/versions?${params}`
+      : `/api/coaches/${coachId}/versions`;
+    const response = await axios.get(url);
+    return response.data;
+  }
+
+  async getCoachVersion(coachId: string, version: number): Promise<{
+    version: number;
+    content_snapshot: Record<string, unknown>;
+    change_summary: string | null;
+    created_at: string;
+    created_by_name: string | null;
+  }> {
+    const response = await axios.get(`/api/coaches/${coachId}/versions/${version}`);
+    return response.data;
+  }
+
+  async revertCoachToVersion(coachId: string, version: number): Promise<{
+    coach: {
+      id: string;
+      title: string;
+      description: string | null;
+      system_prompt: string;
+      category: string;
+      tags: string[];
+      token_count: number;
+      is_favorite: boolean;
+      use_count: number;
+      last_used_at: string | null;
+      created_at: string;
+      updated_at: string;
+      is_system: boolean;
+      visibility: string;
+      is_assigned: boolean;
+    };
+    reverted_to_version: number;
+    new_version: number;
+  }> {
+    const response = await axios.post(`/api/coaches/${coachId}/versions/${version}/revert`);
+    return response.data;
+  }
+
+  async getCoachVersionDiff(coachId: string, fromVersion: number, toVersion: number): Promise<{
+    from_version: number;
+    to_version: number;
+    changes: Array<{
+      field: string;
+      old_value: unknown | null;
+      new_value: unknown | null;
+    }>;
+  }> {
+    const response = await axios.get(`/api/coaches/${coachId}/versions/${fromVersion}/diff/${toVersion}`);
+    return response.data;
+  }
+
   // LLM Settings endpoints
   async getLlmSettings(): Promise<{
     current_provider: string | null;

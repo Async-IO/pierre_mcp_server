@@ -4,6 +4,7 @@
 // ABOUTME: Includes markdown toggle, live preview, token counter, and export/import
 
 import React, { useState, useCallback, useMemo } from 'react';
+import { CoachVersionHistory } from './CoachVersionHistory';
 
 // Types
 interface CoachWizardProps {
@@ -88,6 +89,7 @@ export function CoachWizard({ coachId, onSave, onCancel, initialData }: CoachWiz
   const [showPreview, setShowPreview] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [newTag, setNewTag] = useState('');
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
 
   // Calculate token counts
   const tokenCounts = useMemo(() => {
@@ -707,6 +709,14 @@ ${formData.successCriteria}
           {isEditMode ? 'Edit Coach' : 'Create Coach'}
         </h2>
         <div className="flex gap-2">
+          {isEditMode && (
+            <button
+              onClick={() => setShowVersionHistory(true)}
+              className="px-3 py-1 text-sm bg-pierre-gray-100 text-pierre-gray-700 rounded hover:bg-pierre-gray-200 transition-colors"
+            >
+              History
+            </button>
+          )}
           <label className="cursor-pointer px-3 py-1 text-sm bg-pierre-gray-100 text-pierre-gray-700 rounded hover:bg-pierre-gray-200 transition-colors">
             Import
             <input type="file" accept=".md" onChange={importFromMarkdown} className="hidden" />
@@ -769,6 +779,20 @@ ${formData.successCriteria}
           </button>
         )}
       </div>
+
+      {/* Version History Modal */}
+      {isEditMode && coachId && (
+        <CoachVersionHistory
+          coachId={coachId}
+          coachTitle={formData.title || 'Coach'}
+          isOpen={showVersionHistory}
+          onClose={() => setShowVersionHistory(false)}
+          onReverted={() => {
+            setShowVersionHistory(false);
+            // Optionally refresh the form data after revert
+          }}
+        />
+      )}
     </div>
   );
 }

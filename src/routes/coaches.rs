@@ -18,9 +18,10 @@ use crate::{
         CoachSections,
     },
     database::coaches::{
-        Coach, CoachAssignment as DbCoachAssignment, CoachCategory, CoachListItem, CoachVisibility,
-        CoachesManager, CreateCoachRequest, CreateSystemCoachRequest as DbCreateSystemCoachRequest,
-        ListCoachesFilter, UpdateCoachRequest,
+        Coach, CoachAssignment as DbCoachAssignment, CoachCategory, CoachListItem, CoachVersion,
+        CoachVisibility, CoachesManager, CreateCoachRequest,
+        CreateSystemCoachRequest as DbCreateSystemCoachRequest, ListCoachesFilter,
+        UpdateCoachRequest,
     },
     database_plugins::DatabaseProvider,
     errors::{AppError, ErrorCode},
@@ -237,6 +238,94 @@ pub struct ForkCoachResponse {
     pub source_coach_id: String,
 }
 
+// ============================================
+// Version History Response Types (ASY-153)
+// ============================================
+
+/// Response for a coach version
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct CoachVersionResponse {
+    /// Version number
+    pub version: i32,
+    /// Full content snapshot
+    pub content_snapshot: serde_json::Value,
+    /// Summary of what changed
+    pub change_summary: Option<String>,
+    /// When this version was created
+    pub created_at: String,
+    /// Name of the user who created this version
+    pub created_by_name: Option<String>,
+}
+
+impl From<CoachVersion> for CoachVersionResponse {
+    fn from(v: CoachVersion) -> Self {
+        Self {
+            version: v.version,
+            content_snapshot: v.content_snapshot,
+            change_summary: v.change_summary,
+            created_at: v.created_at.to_rfc3339(),
+            created_by_name: None, // Populated separately with user lookup
+        }
+    }
+}
+
+/// Response for listing coach versions
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct ListVersionsResponse {
+    /// List of versions
+    pub versions: Vec<CoachVersionResponse>,
+    /// Current version number
+    pub current_version: i32,
+    /// Total number of versions
+    pub total: usize,
+}
+
+/// Response for reverting to a version
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct RevertVersionResponse {
+    /// The coach after reversion
+    pub coach: CoachResponse,
+    /// The version that was reverted to
+    pub reverted_to_version: i32,
+    /// The new version number (after revert)
+    pub new_version: i32,
+}
+
+/// Response for comparing two versions
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct CoachDiffResponse {
+    /// Source version number
+    pub from_version: i32,
+    /// Target version number
+    pub to_version: i32,
+    /// List of field changes
+    pub changes: Vec<FieldChange>,
+}
+
+/// A single field change between versions
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct FieldChange {
+    /// Name of the field that changed
+    pub field: String,
+    /// Old value (None if field was added)
+    pub old_value: Option<serde_json::Value>,
+    /// New value (None if field was removed)
+    pub new_value: Option<serde_json::Value>,
+}
+
+/// Query parameters for listing versions
+#[derive(Debug, Deserialize, Default)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct ListVersionsQuery {
+    /// Maximum number of versions to return
+    pub limit: Option<u32>,
+}
+
 /// Request body for creating a coach (mirrors `CreateCoachRequest` with serde derives)
 #[derive(Debug, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(ToSchema))]
@@ -328,6 +417,20 @@ impl CoachesRoutes {
             .route("/api/coaches/:id/hide", post(Self::handle_hide_coach))
             .route("/api/coaches/:id/hide", delete(Self::handle_show_coach))
             .route("/api/coaches/:id/fork", post(Self::handle_fork))
+            // Version history routes (ASY-153)
+            .route("/api/coaches/:id/versions", get(Self::handle_list_versions))
+            .route(
+                "/api/coaches/:id/versions/:version",
+                get(Self::handle_get_version),
+            )
+            .route(
+                "/api/coaches/:id/versions/:version/revert",
+                post(Self::handle_revert_version),
+            )
+            .route(
+                "/api/coaches/:id/versions/:v1/diff/:v2",
+                get(Self::handle_diff_versions),
+            )
             .with_state(resources)
     }
 
@@ -790,6 +893,114 @@ impl CoachesRoutes {
     }
 
     // ============================================
+    // Version History Routes (ASY-153)
+    // ============================================
+
+    /// Handle GET /api/coaches/:id/versions - List version history
+    async fn handle_list_versions(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Path(id): Path<String>,
+        Query(query): Query<ListVersionsQuery>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        let manager = Self::get_coaches_manager(&resources)?;
+        let limit = query.limit.unwrap_or(50);
+        let versions = manager.get_versions(&id, &tenant_id, limit).await?;
+        let current_version = manager.get_current_version(&id).await?;
+
+        let version_responses: Vec<CoachVersionResponse> =
+            versions.into_iter().map(Into::into).collect();
+
+        let response = ListVersionsResponse {
+            total: version_responses.len(),
+            versions: version_responses,
+            current_version,
+        };
+
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Handle GET /api/coaches/:id/versions/:version - Get a specific version
+    async fn handle_get_version(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Path((id, version)): Path<(String, i32)>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        let manager = Self::get_coaches_manager(&resources)?;
+        let version_data = manager
+            .get_version(&id, version, &tenant_id)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("Version {version} for coach {id}")))?;
+
+        let response: CoachVersionResponse = version_data.into();
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Handle POST /api/coaches/:id/versions/:version/revert - Revert to a version
+    async fn handle_revert_version(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Path((id, version)): Path<(String, i32)>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        let manager = Self::get_coaches_manager(&resources)?;
+        let coach = manager
+            .revert_to_version(&id, version, auth.user_id, &tenant_id)
+            .await?;
+
+        let new_version = manager.get_current_version(&id).await?;
+
+        let response = RevertVersionResponse {
+            coach: coach.into(),
+            reverted_to_version: version,
+            new_version,
+        };
+
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Handle GET /api/coaches/:id/versions/:v1/diff/:v2 - Compare two versions
+    async fn handle_diff_versions(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Path((id, v1, v2)): Path<(String, i32, i32)>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        let manager = Self::get_coaches_manager(&resources)?;
+
+        let version1 = manager
+            .get_version(&id, v1, &tenant_id)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("Version {v1} for coach {id}")))?;
+
+        let version2 = manager
+            .get_version(&id, v2, &tenant_id)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("Version {v2} for coach {id}")))?;
+
+        // Compare the content snapshots
+        let changes = compute_diff(&version1.content_snapshot, &version2.content_snapshot);
+
+        let response = CoachDiffResponse {
+            from_version: v1,
+            to_version: v2,
+            changes,
+        };
+
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    // ============================================
     // Admin Routes for System Coaches (ASY-59)
     // ============================================
 
@@ -1238,4 +1449,56 @@ fn capitalize_provider(provider: &str) -> String {
             })
         }
     }
+}
+
+// ============================================
+// Version Diff Helper (ASY-153)
+// ============================================
+
+/// Compute field-level differences between two JSON snapshots
+fn compute_diff(from: &serde_json::Value, to: &serde_json::Value) -> Vec<FieldChange> {
+    let mut changes = Vec::new();
+
+    // Fields we care about comparing
+    let fields = [
+        "title",
+        "description",
+        "system_prompt",
+        "category",
+        "tags",
+        "sample_prompts",
+        "visibility",
+    ];
+
+    for field in fields {
+        let old_val = from.get(field);
+        let new_val = to.get(field);
+
+        match (old_val, new_val) {
+            (Some(old), Some(new)) if old != new => {
+                changes.push(FieldChange {
+                    field: field.to_owned(),
+                    old_value: Some(old.clone()),
+                    new_value: Some(new.clone()),
+                });
+            }
+            (None, Some(new)) => {
+                changes.push(FieldChange {
+                    field: field.to_owned(),
+                    old_value: None,
+                    new_value: Some(new.clone()),
+                });
+            }
+            (Some(old), None) => {
+                changes.push(FieldChange {
+                    field: field.to_owned(),
+                    old_value: Some(old.clone()),
+                    new_value: None,
+                });
+            }
+            _ => {}
+        }
+    }
+
+    changes
 }

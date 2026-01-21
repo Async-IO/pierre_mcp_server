@@ -43,10 +43,10 @@ echo -n "Running typecheck... "
 
 if bun run typecheck > /dev/null 2>&1; then
     echo "✅"
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
 else
     echo "❌"
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
     echo ""
     echo "TypeScript errors found:"
     bun run typecheck 2>&1 | head -30
@@ -66,10 +66,10 @@ echo -n "Running lint... "
 
 if bun run lint > /dev/null 2>&1; then
     echo "✅"
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
 else
     echo "❌"
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
     echo ""
     echo "Lint errors found:"
     bun run lint 2>&1 | head -30
@@ -89,12 +89,12 @@ echo -n "Running tests... "
 
 if bun run test --silent > /dev/null 2>&1; then
     echo "✅"
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
     # Show summary
     bun run test --silent 2>&1 | grep -E "^(Test Suites|Tests):" | sed 's/^/   /'
 else
     echo "❌"
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
     echo ""
     echo "Test failures:"
     bun run test 2>&1 | tail -30

@@ -492,6 +492,86 @@ class ApiService {
     return response.data;
   }
 
+  /**
+   * Get version history for a coach (ASY-153)
+   */
+  async getCoachVersions(
+    coachId: string,
+    limit?: number
+  ): Promise<{
+    versions: Array<{
+      version: number;
+      content_snapshot: Record<string, unknown>;
+      change_summary: string | null;
+      created_at: string;
+      created_by_name: string | null;
+    }>;
+    current_version: number;
+    total: number;
+  }> {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit.toString());
+    const url = params.toString()
+      ? `/api/coaches/${coachId}/versions?${params}`
+      : `/api/coaches/${coachId}/versions`;
+    const response = await axios.get(url);
+    return response.data;
+  }
+
+  /**
+   * Get a specific version of a coach
+   */
+  async getCoachVersion(
+    coachId: string,
+    version: number
+  ): Promise<{
+    version: number;
+    content_snapshot: Record<string, unknown>;
+    change_summary: string | null;
+    created_at: string;
+    created_by_name: string | null;
+  }> {
+    const response = await axios.get(`/api/coaches/${coachId}/versions/${version}`);
+    return response.data;
+  }
+
+  /**
+   * Revert a coach to a previous version (creates new version with old content)
+   */
+  async revertCoachToVersion(
+    coachId: string,
+    version: number
+  ): Promise<{
+    coach: Coach;
+    reverted_to_version: number;
+    new_version: number;
+  }> {
+    const response = await axios.post(`/api/coaches/${coachId}/versions/${version}/revert`);
+    return response.data;
+  }
+
+  /**
+   * Get diff between two versions of a coach
+   */
+  async getCoachVersionDiff(
+    coachId: string,
+    fromVersion: number,
+    toVersion: number
+  ): Promise<{
+    from_version: number;
+    to_version: number;
+    changes: Array<{
+      field: string;
+      old_value: unknown | null;
+      new_value: unknown | null;
+    }>;
+  }> {
+    const response = await axios.get(
+      `/api/coaches/${coachId}/versions/${fromVersion}/diff/${toVersion}`
+    );
+    return response.data;
+  }
+
   // WebSocket URL for chat streaming
   getWebSocketUrl(conversationId: string): string {
     const wsBase = API_BASE_URL.replace(/^http/, 'ws');
