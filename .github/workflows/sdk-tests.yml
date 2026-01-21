@@ -49,7 +49,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-sdk-1.92.0-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-sdk-1.92.0-${{ hashFiles('**/Cargo.lock', 'migrations/**') }}
           restore-keys: |
             ${{ runner.os }}-cargo-sdk-1.92.0-
             ${{ runner.os }}-cargo-

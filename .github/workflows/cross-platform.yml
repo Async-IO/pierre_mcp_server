@@ -6,6 +6,7 @@ on:
     paths:
       - 'src/**'
       - 'tests/**'
+      - 'migrations/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - '.github/workflows/cross-platform.yml'
@@ -14,6 +15,7 @@ on:
     paths:
       - 'src/**'
       - 'tests/**'
+      - 'migrations/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - '.github/workflows/cross-platform.yml'
@@ -63,7 +65,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-cross-platform-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-cross-platform-${{ hashFiles('**/Cargo.lock', 'migrations/**') }}
 
       - name: Check formatting
         run: cargo fmt --all -- --check
