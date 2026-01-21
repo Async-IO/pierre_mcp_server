@@ -28,6 +28,7 @@ import { SettingsScreen } from '../screens/settings/SettingsScreen';
 import { ConversationsScreen } from '../screens/conversations/ConversationsScreen';
 import { CoachLibraryScreen } from '../screens/coaches/CoachLibraryScreen';
 import { CoachEditorScreen } from '../screens/coaches/CoachEditorScreen';
+import { CoachWizardScreen } from '../screens/coaches/CoachWizardScreen';
 import { useAuth } from '../contexts/AuthContext';
 import { apiService } from '../services/api';
 import { colors, spacing, fontSize, borderRadius } from '../constants/theme';
@@ -41,6 +42,7 @@ export type AppDrawerParamList = {
   Settings: undefined;
   CoachLibrary: undefined;
   CoachEditor: { coachId?: string } | undefined;
+  CoachWizard: { coachId?: string } | undefined;
 };
 
 const Drawer = createDrawerNavigator<AppDrawerParamList>();
@@ -455,6 +457,7 @@ export function AppDrawer() {
       <Drawer.Screen name="Settings" component={SettingsScreen} />
       <Drawer.Screen name="CoachLibrary" component={CoachLibraryScreen} />
       <Drawer.Screen name="CoachEditor" component={CoachEditorScreen} />
+      <Drawer.Screen name="CoachWizard" component={CoachWizardScreen} />
     </Drawer.Navigator>
   );
 }

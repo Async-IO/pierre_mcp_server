@@ -9,8 +9,14 @@
 //! This module handles coach endpoints for custom AI personas.
 //! All endpoints require JWT authentication to identify the user and tenant.
 
+use std::collections::HashSet;
+
 use crate::{
     auth::AuthResult,
+    coaches::{
+        parse_coach_content, to_markdown, CoachDefinition, CoachFrontmatter, CoachPrerequisites,
+        CoachSections,
+    },
     database::coaches::{
         Coach, CoachAssignment as DbCoachAssignment, CoachCategory, CoachListItem, CoachVisibility,
         CoachesManager, CreateCoachRequest, CreateSystemCoachRequest as DbCreateSystemCoachRequest,
@@ -70,6 +76,27 @@ pub struct CoachResponse {
     pub visibility: String,
     /// Whether this coach is assigned to the current user
     pub is_assigned: bool,
+    /// ID of the coach this was forked from (if any)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub forked_from: Option<String>,
+    /// Whether prerequisites are met (only present if `check_prerequisites=true`)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prerequisites_met: Option<bool>,
+    /// List of missing prerequisites (only present if `check_prerequisites=true`)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub missing_prerequisites: Option<Vec<MissingPrerequisite>>,
+}
+
+/// A missing prerequisite for a coach
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct MissingPrerequisite {
+    /// Type of prerequisite (provider, `activity_count`, `activity_type`)
+    pub prerequisite_type: String,
+    /// The specific requirement (e.g., "strava", "50 activities", "Run")
+    pub requirement: String,
+    /// Human-readable message explaining what's missing
+    pub message: String,
 }
 
 impl From<Coach> for CoachResponse {
@@ -90,6 +117,9 @@ impl From<Coach> for CoachResponse {
             is_system: coach.is_system,
             visibility: coach.visibility.as_str().to_owned(),
             is_assigned: false, // Default for single coach responses
+            forked_from: coach.forked_from,
+            prerequisites_met: None,
+            missing_prerequisites: None,
         }
     }
 }
@@ -112,6 +142,9 @@ impl From<CoachListItem> for CoachResponse {
             is_system: item.coach.is_system,
             visibility: item.coach.visibility.as_str().to_owned(),
             is_assigned: item.is_assigned,
+            forked_from: item.coach.forked_from,
+            prerequisites_met: None,
+            missing_prerequisites: None,
         }
     }
 }
@@ -154,6 +187,8 @@ pub struct ListCoachesQuery {
     pub include_system: Option<bool>,
     /// Include hidden coaches (default: false)
     pub include_hidden: Option<bool>,
+    /// Check prerequisites against user's connected providers (default: false)
+    pub check_prerequisites: Option<bool>,
 }
 
 /// Query parameters for searching coaches
@@ -190,6 +225,16 @@ pub struct HideCoachResponse {
     pub success: bool,
     /// Whether the coach is now hidden (true) or visible (false)
     pub is_hidden: bool,
+}
+
+/// Response for forking a coach
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct ForkCoachResponse {
+    /// The newly created forked coach
+    pub coach: CoachResponse,
+    /// The ID of the original coach that was forked
+    pub source_coach_id: String,
 }
 
 /// Request body for creating a coach (mirrors `CreateCoachRequest` with serde derives)
@@ -270,9 +315,11 @@ impl CoachesRoutes {
             .route("/api/coaches", post(Self::handle_create))
             .route("/api/coaches/search", get(Self::handle_search))
             .route("/api/coaches/hidden", get(Self::handle_list_hidden))
+            .route("/api/coaches/import", post(Self::handle_import))
             .route("/api/coaches/:id", get(Self::handle_get))
             .route("/api/coaches/:id", put(Self::handle_update))
             .route("/api/coaches/:id", delete(Self::handle_delete))
+            .route("/api/coaches/:id/export", get(Self::handle_export))
             .route(
                 "/api/coaches/:id/favorite",
                 post(Self::handle_toggle_favorite),
@@ -280,6 +327,7 @@ impl CoachesRoutes {
             .route("/api/coaches/:id/usage", post(Self::handle_record_usage))
             .route("/api/coaches/:id/hide", post(Self::handle_hide_coach))
             .route("/api/coaches/:id/hide", delete(Self::handle_show_coach))
+            .route("/api/coaches/:id/fork", post(Self::handle_fork))
             .with_state(resources)
     }
 
@@ -364,13 +412,83 @@ impl CoachesRoutes {
         let coaches = manager.list(auth.user_id, &tenant_id, &filter).await?;
         let total = manager.count(auth.user_id, &tenant_id).await?;
 
+        // Check prerequisites if requested
+        let check_prereqs = query.check_prerequisites.unwrap_or(false);
+        let user_providers = if check_prereqs {
+            resources
+                .database
+                .get_user_oauth_tokens(auth.user_id)
+                .await
+                .map(|tokens| {
+                    tokens
+                        .iter()
+                        .map(|t| t.provider.to_lowercase())
+                        .collect::<HashSet<_>>()
+                })
+                .unwrap_or_default()
+        } else {
+            HashSet::new()
+        };
+
+        let coaches_with_prereqs: Vec<CoachResponse> = coaches
+            .into_iter()
+            .map(|item| {
+                let mut response: CoachResponse = item.coach.clone().into();
+                response.is_assigned = item.is_assigned;
+
+                if check_prereqs {
+                    let (met, missing) =
+                        Self::check_prerequisites(&item.coach.prerequisites, &user_providers);
+                    response.prerequisites_met = Some(met);
+                    response.missing_prerequisites = if missing.is_empty() {
+                        None
+                    } else {
+                        Some(missing)
+                    };
+                }
+
+                response
+            })
+            .collect();
+
         let response = ListCoachesResponse {
-            coaches: coaches.into_iter().map(Into::into).collect(),
+            coaches: coaches_with_prereqs,
             total,
             metadata: Self::build_metadata(),
         };
 
         Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Check if prerequisites are met given user's connected providers
+    fn check_prerequisites(
+        prerequisites: &CoachPrerequisites,
+        user_providers: &HashSet<String>,
+    ) -> (bool, Vec<MissingPrerequisite>) {
+        let mut missing = Vec::new();
+
+        // Check required providers
+        for provider in &prerequisites.providers {
+            let provider_lower = provider.to_lowercase();
+            if !user_providers.contains(&provider_lower) {
+                missing.push(MissingPrerequisite {
+                    prerequisite_type: "provider".to_owned(),
+                    requirement: provider.clone(),
+                    message: format!(
+                        "Connect {} to unlock this coach",
+                        capitalize_provider(provider)
+                    ),
+                });
+            }
+        }
+
+        // Note: min_activities and activity_types checks would require
+        // fetching activity data, which could be expensive. For now,
+        // we only check providers. Activity-based checks can be added
+        // in a future iteration when needed.
+
+        let met = missing.is_empty();
+        (met, missing)
     }
 
     /// Handle POST /api/coaches - Create a new coach
@@ -430,6 +548,89 @@ impl CoachesRoutes {
 
         let response: CoachResponse = coach.into();
         Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Handle GET /api/coaches/:id/export - Export coach as markdown
+    async fn handle_export(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Path(id): Path<String>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        let manager = Self::get_coaches_manager(&resources)?;
+        let coach = manager
+            .get(&id, auth.user_id, &tenant_id)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("Coach {id}")))?;
+
+        // Convert Coach to CoachDefinition for export
+        let definition = coach_to_definition(&coach);
+        let markdown = to_markdown(&definition);
+
+        // Generate filename from coach name/title
+        let filename = generate_coach_filename(&coach.title);
+
+        Ok((
+            StatusCode::OK,
+            [
+                ("content-type", "text/markdown; charset=utf-8"),
+                (
+                    "content-disposition",
+                    &format!("attachment; filename=\"{filename}\""),
+                ),
+            ],
+            markdown,
+        )
+            .into_response())
+    }
+
+    /// Handle POST /api/coaches/import - Import coach from markdown
+    async fn handle_import(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        body: String,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        // Parse the markdown content
+        let definition = parse_coach_content(&body, None)
+            .map_err(|e| AppError::invalid_input(format!("Invalid markdown format: {e}")))?;
+
+        // Create coach from the parsed definition
+        let request = CreateCoachRequest {
+            title: definition.frontmatter.title,
+            description: Some(definition.sections.purpose.clone()),
+            system_prompt: definition.sections.instructions,
+            category: definition.frontmatter.category,
+            tags: definition.frontmatter.tags,
+            sample_prompts: definition
+                .sections
+                .example_inputs
+                .map(|inputs| {
+                    inputs
+                        .lines()
+                        .filter_map(|line| {
+                            line.trim()
+                                .strip_prefix('-')
+                                .map(|s| s.trim().trim_matches('"').to_owned())
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+        };
+
+        let manager = Self::get_coaches_manager(&resources)?;
+        let coach = manager.create(auth.user_id, &tenant_id, &request).await?;
+
+        let response = ImportCoachResponse {
+            coach: coach.into(),
+            parsed_name: definition.frontmatter.name,
+            token_count: definition.token_count,
+        };
+        Ok((StatusCode::CREATED, Json(response)).into_response())
     }
 
     /// Handle PUT /api/coaches/:id - Update a coach
@@ -545,6 +746,25 @@ impl CoachesRoutes {
             is_hidden: false,
         };
         Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Handle POST /api/coaches/:id/fork - Fork a system coach to create a user copy
+    async fn handle_fork(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Path(id): Path<String>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        let manager = Self::get_coaches_manager(&resources)?;
+        let forked_coach = manager.fork_coach(&id, auth.user_id, &tenant_id).await?;
+
+        let response = ForkCoachResponse {
+            coach: forked_coach.into(),
+            source_coach_id: id,
+        };
+        Ok((StatusCode::CREATED, Json(response)).into_response())
     }
 
     /// Handle GET /api/coaches/hidden - List hidden coaches for user
@@ -926,4 +1146,96 @@ pub struct ListAssignmentsResponse {
     pub coach_id: String,
     /// List of assignments
     pub assignments: Vec<CoachAssignment>,
+}
+
+/// Response for importing a coach from markdown
+#[derive(Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct ImportCoachResponse {
+    /// The created coach
+    pub coach: CoachResponse,
+    /// The parsed name/slug from the markdown
+    pub parsed_name: String,
+    /// Estimated token count from the markdown
+    pub token_count: u32,
+}
+
+// ============================================
+// Helper Functions for Export/Import
+// ============================================
+
+/// Convert a Coach database model to `CoachDefinition` for export
+fn coach_to_definition(coach: &Coach) -> CoachDefinition {
+    let name = coach
+        .title
+        .to_lowercase()
+        .replace(' ', "-")
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '-')
+        .collect::<String>();
+
+    CoachDefinition {
+        frontmatter: CoachFrontmatter {
+            name,
+            title: coach.title.clone(),
+            category: coach.category,
+            tags: coach.tags.clone(),
+            prerequisites: CoachPrerequisites::default(),
+            visibility: coach.visibility,
+        },
+        sections: CoachSections {
+            purpose: coach.description.clone().unwrap_or_default(),
+            when_to_use: None,
+            instructions: coach.system_prompt.clone(),
+            example_inputs: if coach.sample_prompts.is_empty() {
+                None
+            } else {
+                Some(
+                    coach
+                        .sample_prompts
+                        .iter()
+                        .map(|p| format!("- {p}"))
+                        .collect::<Vec<_>>()
+                        .join("\n"),
+                )
+            },
+            example_outputs: None,
+            success_criteria: None,
+            related_coaches: Vec::new(),
+        },
+        source_file: format!("exported/{}.md", coach.id),
+        content_hash: String::new(),
+        token_count: coach.token_count,
+    }
+}
+
+/// Generate a safe filename from coach title
+fn generate_coach_filename(title: &str) -> String {
+    let safe_name: String = title
+        .to_lowercase()
+        .replace(' ', "-")
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '-')
+        .collect();
+
+    format!("{safe_name}.md")
+}
+
+/// Capitalize provider name for user-friendly display
+fn capitalize_provider(provider: &str) -> String {
+    let provider_lower = provider.to_lowercase();
+    match provider_lower.as_str() {
+        "strava" => "Strava".to_owned(),
+        "garmin" => "Garmin".to_owned(),
+        "fitbit" => "Fitbit".to_owned(),
+        "wahoo" => "Wahoo".to_owned(),
+        "polar" => "Polar".to_owned(),
+        _ => {
+            // Capitalize first letter
+            let mut chars = provider.chars();
+            chars.next().map_or_else(String::new, |first| {
+                first.to_uppercase().collect::<String>() + chars.as_str()
+            })
+        }
+    }
 }

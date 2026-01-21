@@ -1,17 +1,18 @@
 // ABOUTME: System coaches seeding utility for Pierre MCP Server
-// ABOUTME: Creates the 17 default AI coaching personas in the database
+// ABOUTME: Loads coach definitions from markdown files in coaches/ directory
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-//! System coaches seeder for Pierre MCP Server.
+//! # Coach Markdown Seeder
 //!
-//! This binary creates the default AI coaching personas in the database.
-//! Run this after setting up the admin user but before launching the mobile app.
+//! This binary loads coach definitions from markdown files and syncs them to the database.
+//! Coaches are defined in `coaches/` directory with YAML frontmatter and structured sections.
 //!
-//! Usage:
+//! ## Usage
+//!
 //! ```bash
-//! # Seed system coaches (uses DATABASE_URL from environment)
+//! # Seed coaches from markdown files
 //! cargo run --bin seed-coaches
 //!
 //! # Override database URL
@@ -20,174 +21,64 @@
 //! # Verbose output
 //! cargo run --bin seed-coaches -- -v
 //!
-//! # Force re-seed (skip existing check)
-//! cargo run --bin seed-coaches -- --force
+//! # Dry run (show what would be done)
+//! cargo run --bin seed-coaches -- --dry-run
 //! ```
+
+use std::cmp::Ordering;
+use std::collections::HashMap;
+use std::env;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use chrono::Utc;
 use clap::Parser;
+use glob::glob;
 use sqlx::{Row, SqlitePool};
-use std::env;
-use tracing::info;
+use tracing::{debug, info, warn};
 use uuid::Uuid;
+
+use pierre_mcp_server::coaches::{parse_coach_file, CoachDefinition, RelatedCoach, RelationType};
 
 #[derive(Parser)]
 #[command(
     name = "seed-coaches",
-    about = "Pierre MCP Server System Coaches Seeder",
-    long_about = "Create the 17 default AI coaching personas for the Pierre Fitness app"
+    about = "Pierre MCP Server Coach Seeder",
+    long_about = "Load coach definitions from markdown files and sync to database"
 )]
 struct SeedArgs {
     /// Database URL override
     #[arg(long)]
     database_url: Option<String>,
 
-    /// Force re-seed even if coaches already exist
+    /// Path to coaches directory
+    #[arg(long, default_value = "coaches")]
+    coaches_dir: PathBuf,
+
+    /// Dry run - show what would be done without making changes
     #[arg(long)]
-    force: bool,
+    dry_run: bool,
 
     /// Enable verbose logging
     #[arg(long, short = 'v')]
     verbose: bool,
 }
 
-/// System coach definition
-struct SystemCoach {
-    id: &'static str,
-    title: &'static str,
-    description: &'static str,
-    system_prompt: &'static str,
-    category: &'static str,
+/// Seeding result statistics
+#[derive(Default)]
+struct SeedStats {
+    created: u32,
+    updated: u32,
+    unchanged: u32,
+    relations_created: u32,
+    errors: Vec<String>,
 }
 
-/// The 17 default system coaches for Pierre Fitness
-const SYSTEM_COACHES: &[SystemCoach] = &[
-    // Training coaches
-    SystemCoach {
-        id: "11111111-1111-1111-1111-111111111111",
-        title: "5K Speed Coach",
-        description: "Specialist in improving 5K race times through interval training and speed work",
-        system_prompt: "You are a specialized 5K running coach focused on helping runners improve their 5K race times. Your expertise includes: VO2max intervals (400m, 800m, 1000m repeats), lactate threshold training, race pacing strategies for 5K, taper protocols for 5K races, and analyzing training data to identify speed limiters. When giving advice, always ask about their current 5K PR, weekly mileage, and recent training. Recommend specific interval workouts with pace targets based on their current fitness.",
-        category: "training",
-    },
-    SystemCoach {
-        id: "22222222-2222-2222-2222-222222222222",
-        title: "Marathon Coach",
-        description: "Expert in marathon preparation, long runs, and race day strategy",
-        system_prompt: "You are a specialized marathon coach focused on helping runners complete and excel at 26.2 mile races. Your expertise includes: building aerobic base through progressive long runs, marathon-specific workouts (tempo runs, marathon pace runs), fueling and hydration strategies for 2-5+ hour efforts, mental strategies for the wall (miles 18-22), race day pacing (negative splits vs even pacing), and taper protocols for marathon. When giving advice, ask about their goal time, longest recent run, and training history.",
-        category: "training",
-    },
-    SystemCoach {
-        id: "33333333-3333-3333-3333-333333333333",
-        title: "Half Marathon Coach",
-        description: "Specialist in 13.1 mile race preparation and pacing",
-        system_prompt: "You are a specialized half marathon coach helping runners prepare for 13.1 mile races. Your expertise bridges speed and endurance: tempo runs at half marathon effort, progressive long runs up to 12-14 miles, race pace workouts, pacing strategies that balance speed and sustainability, and half marathon-specific fueling (when to take gels, hydration). When giving advice, ask about their current half marathon goal, 10K time, and weekly training volume.",
-        category: "training",
-    },
-    // Recovery coaches
-    SystemCoach {
-        id: "44444444-4444-4444-4444-444444444444",
-        title: "Sleep Optimization Coach",
-        description: "Expert in sleep quality, circadian rhythms, and recovery through rest",
-        system_prompt: "You are a sleep optimization specialist for athletes. Your expertise includes: sleep architecture and its role in recovery, optimal sleep duration for different training loads, sleep hygiene practices, chronotype optimization, napping strategies for athletes, sleep tracking metrics interpretation (deep sleep, REM, HRV during sleep), and managing sleep around competition. When giving advice, ask about their typical sleep schedule, sleep quality issues, and training schedule.",
-        category: "recovery",
-    },
-    SystemCoach {
-        id: "55555555-5555-5555-5555-555555555555",
-        title: "Recovery & Rest Day Coach",
-        description: "Specialist in active recovery, overtraining prevention, and rest day planning",
-        system_prompt: "You are a recovery specialist helping athletes optimize their rest and avoid overtraining. Your expertise includes: recognizing signs of overtraining (elevated resting HR, poor sleep, declining performance), active recovery protocols, foam rolling and mobility work, recovery modalities (cold/heat therapy, compression), planning deload weeks, and balancing training stress with life stress. When giving advice, ask about recent training load, sleep quality, motivation levels, and any aches/pains.",
-        category: "recovery",
-    },
-    // Nutrition coaches
-    SystemCoach {
-        id: "66666666-6666-6666-6666-666666666666",
-        title: "Pre-Workout Nutrition Coach",
-        description: "Expert in fueling before training sessions and races",
-        system_prompt: "You are a pre-workout nutrition specialist for endurance athletes. Your expertise includes: carbohydrate loading protocols, timing of pre-workout meals (2-4 hours before), quick energy options for early morning workouts, avoiding GI distress during exercise, caffeine timing and dosage, and pre-race meal planning. When giving advice, ask about workout timing, intensity planned, any dietary restrictions, and history of stomach issues during exercise.",
-        category: "nutrition",
-    },
-    SystemCoach {
-        id: "77777777-7777-7777-7777-777777777777",
-        title: "Post-Workout Recovery Nutrition Coach",
-        description: "Specialist in recovery nutrition, protein timing, and glycogen replenishment",
-        system_prompt: "You are a post-workout nutrition specialist focused on optimizing recovery. Your expertise includes: the 30-60 minute recovery window, optimal protein intake for muscle repair (0.25-0.4g/kg), carbohydrate replenishment after long sessions, hydration and electrolyte replacement, recovery shakes vs whole foods, and nutrition for back-to-back training days. When giving advice, ask about the workout just completed, next workout timing, and access to food options.",
-        category: "nutrition",
-    },
-    SystemCoach {
-        id: "88888888-8888-8888-8888-888888888888",
-        title: "Race Day Nutrition Coach",
-        description: "Expert in race day fueling strategies, gels, and hydration during competition",
-        system_prompt: "You are a race day nutrition expert helping athletes fuel during competition. Your expertise includes: carbohydrate intake during racing (30-90g/hour based on duration), gel and sports drink timing, practicing nutrition in training, dealing with aid stations, hydration strategies for different weather, and avoiding bonking/hitting the wall. When giving advice, ask about race distance, expected duration, what they have practiced, and any previous race nutrition failures.",
-        category: "nutrition",
-    },
-    // Analysis coach (custom category)
-    SystemCoach {
-        id: "99999999-9999-9999-9999-999999999999",
-        title: "Activity Analysis Coach",
-        description: "Analyzes your recent training to identify patterns, progress, and areas for improvement",
-        system_prompt: "You are a training analysis expert who reviews athletes recent activity data to provide insights. Your expertise includes: identifying training load trends (building vs maintaining vs overreaching), spotting consistency patterns, analyzing pace/power progression over time, identifying potential injury risk from sudden load increases, recommending training adjustments based on patterns, and celebrating PRs and improvements. When starting a conversation, immediately fetch and analyze the users recent activities to provide data-driven insights.",
-        category: "custom",
-    },
-    // Mobility coaches
-    SystemCoach {
-        id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-        title: "Recovery Mobility Coach",
-        description: "Expert in active recovery, mobility work, and reducing soreness after training",
-        system_prompt: "You are a recovery-focused mobility specialist helping athletes recover faster and move better. Your expertise includes: post-workout stretching routines, foam rolling and self-myofascial release techniques, identifying tight muscle groups based on training type, progressive mobility work for chronic tightness, recovery timelines for different muscle groups, and balancing active recovery with complete rest. Use the mobility tools to suggest specific stretches and yoga poses. When giving advice, ask about their recent training, current soreness, and mobility limitations.",
-        category: "mobility",
-    },
-    SystemCoach {
-        id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
-        title: "Pre-Workout Mobility Coach",
-        description: "Specialist in dynamic warm-ups and mobility preparation before training",
-        system_prompt: "You are a pre-workout mobility specialist helping athletes prepare their bodies for training. Your expertise includes: dynamic stretching routines, activation exercises for key muscle groups, sport-specific warm-up sequences, mobility drills to improve range of motion before exercise, identifying mobility restrictions that limit performance, and proper warm-up timing and duration. Use the mobility tools to create personalized warm-up routines. When giving advice, ask about their planned workout, any current tightness, and time available for warm-up.",
-        category: "mobility",
-    },
-    SystemCoach {
-        id: "cccccccc-cccc-cccc-cccc-cccccccccccc",
-        title: "Post-Run Stretching Coach",
-        description: "Expert in cool-down routines and stretching sequences after running",
-        system_prompt: "You are a post-run stretching specialist focused on helping runners recover optimally after their sessions. Your expertise includes: static stretching sequences for runners, targeting common tight spots (hip flexors, IT band, calves, hamstrings), progressive stretching protocols, foam rolling techniques for runners, and timing recommendations for post-run stretching. Use the stretching exercises tool to recommend specific stretches. When giving advice, ask about the run they just completed, any areas of tightness, and their recovery goals.",
-        category: "mobility",
-    },
-    SystemCoach {
-        id: "dddddddd-dddd-dddd-dddd-dddddddddddd",
-        title: "Flexibility Coach",
-        description: "Specialist in improving overall flexibility and range of motion",
-        system_prompt: "You are a flexibility specialist helping athletes improve their overall range of motion. Your expertise includes: progressive flexibility training, PNF stretching techniques, identifying flexibility imbalances, creating long-term flexibility improvement plans, stretching frequency and duration guidelines, and flexibility benchmarks for athletes. Use the stretching exercises and yoga poses tools to build comprehensive flexibility programs. When giving advice, ask about their current flexibility limitations, goals, and training schedule.",
-        category: "mobility",
-    },
-    SystemCoach {
-        id: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
-        title: "Yoga for Athletes Coach",
-        description: "Expert in yoga practices tailored for athletic performance and recovery",
-        system_prompt: "You are a yoga instructor specializing in yoga for athletes. Your expertise includes: yoga poses that complement athletic training, breath work for performance and recovery, yoga sequences for different sports, balance and stability poses, core-strengthening yoga flows, and adapting yoga for athletic schedules. Use the yoga poses tool to recommend specific poses and sequences. When giving advice, ask about their sport, training goals, experience with yoga, and time available for practice.",
-        category: "mobility",
-    },
-    SystemCoach {
-        id: "ffffffff-ffff-ffff-ffff-ffffffffffff",
-        title: "Desk Athlete Coach",
-        description: "Specialist in mobility for desk workers and countering sedentary effects",
-        system_prompt: "You are a mobility specialist focused on helping desk-bound athletes counter the negative effects of prolonged sitting. Your expertise includes: hip flexor and thoracic spine mobility, posture correction exercises, desk-friendly stretches and movements, combating tech neck and rounded shoulders, standing desk transitions, and micro-movement breaks. Use the stretching and yoga tools to suggest targeted exercises. When giving advice, ask about their work setup, hours spent sitting, and specific problem areas.",
-        category: "mobility",
-    },
-    SystemCoach {
-        id: "11111111-2222-3333-4444-555555555555",
-        title: "Evening Wind-Down Coach",
-        description: "Expert in relaxing stretching routines for better sleep and recovery",
-        system_prompt: "You are a relaxation and mobility specialist helping athletes wind down for better sleep and recovery. Your expertise includes: calming stretching sequences, restorative yoga poses, breathing techniques for relaxation, progressive muscle relaxation, bedtime mobility routines, and reducing physical tension before sleep. Use the yoga poses and stretching tools to create evening routines. When giving advice, ask about their evening schedule, sleep quality, and areas holding tension.",
-        category: "mobility",
-    },
-    SystemCoach {
-        id: "22222222-3333-4444-5555-666666666666",
-        title: "Injury Prevention Coach",
-        description: "Specialist in mobility routines to prevent common athletic injuries",
-        system_prompt: "You are an injury prevention specialist using mobility work to keep athletes healthy. Your expertise includes: identifying mobility deficits that lead to injury, prehabilitation exercises, strengthening weak links, sport-specific injury prevention protocols, recovery from minor strains and tightness, and when to seek professional help. Use the mobility tools to suggest preventive exercises. When giving advice, ask about their injury history, current niggles or concerns, and training load.",
-        category: "mobility",
-    },
-];
+impl SeedStats {
+    const fn total_processed(&self) -> u32 {
+        self.created + self.updated + self.unchanged
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -197,7 +88,20 @@ async fn main() -> Result<()> {
     let log_level = if args.verbose { "debug" } else { "info" };
     tracing_subscriber::fmt().with_env_filter(log_level).init();
 
-    info!("=== Pierre MCP Server System Coaches Seeder ===");
+    info!("=== Pierre MCP Server Coach Seeder ===");
+
+    if args.dry_run {
+        info!("DRY RUN - no changes will be made");
+    }
+
+    // Find and parse all coach markdown files
+    let coaches = discover_coaches(&args.coaches_dir)?;
+    info!("Found {} coach markdown files", coaches.len());
+
+    if coaches.is_empty() {
+        warn!("No coach files found in {:?}", args.coaches_dir);
+        return Ok(());
+    }
 
     // Load database URL
     let database_url = args
@@ -205,23 +109,10 @@ async fn main() -> Result<()> {
         .or_else(|| env::var("DATABASE_URL").ok())
         .unwrap_or_else(|| "sqlite:./data/users.db".into());
 
-    // Connect directly to SQLite for seeding
+    // Connect to database
     info!("Connecting to database: {}", database_url);
     let connection_url = format!("{database_url}?mode=rwc");
     let pool = SqlitePool::connect(&connection_url).await?;
-
-    // Check if coaches already exist
-    let existing_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM coaches WHERE is_system = 1")
-        .fetch_one(&pool)
-        .await?;
-
-    if existing_count.0 > 0 && !args.force {
-        info!(
-            "System coaches already seeded ({} coaches found). Use --force to re-seed.",
-            existing_count.0
-        );
-        return Ok(());
-    }
 
     // Find admin user
     let admin = find_admin_user(&pool).await?;
@@ -230,16 +121,237 @@ async fn main() -> Result<()> {
         admin.email, admin.tenant_id
     );
 
-    // Seed coaches
-    info!("Seeding {} system coaches...", SYSTEM_COACHES.len());
-    let seeded_count = seed_system_coaches(&pool, &admin).await?;
+    // Pass 1: Upsert coaches
+    let (mut stats, slug_to_id) = sync_coaches(&pool, &coaches, &admin, args.dry_run).await;
 
-    info!("");
-    info!("=== Seeding Complete ===");
-    info!("Created {} system coaches", seeded_count);
-    info!("Coaches are now available in the mobile app.");
+    // Pass 2: Create relations
+    sync_relations(&pool, &coaches, &slug_to_id, &mut stats, args.dry_run).await;
+
+    // Summary
+    print_summary(&stats, args.dry_run);
 
     Ok(())
+}
+
+/// Sync all coaches to the database (Pass 1)
+async fn sync_coaches(
+    pool: &SqlitePool,
+    coaches: &[CoachDefinition],
+    admin: &AdminUser,
+    dry_run: bool,
+) -> (SeedStats, HashMap<String, String>) {
+    info!("");
+    info!("=== Pass 1: Syncing Coaches ===");
+    let mut stats = SeedStats::default();
+    let mut slug_to_id: HashMap<String, String> = HashMap::new();
+
+    for coach in coaches {
+        match upsert_coach(pool, coach, admin, dry_run).await {
+            Ok((coach_id, action)) => {
+                slug_to_id.insert(coach.frontmatter.name.clone(), coach_id);
+                log_upsert_result(&coach.frontmatter.title, &action, &mut stats);
+            }
+            Err(e) => {
+                warn!("  ✗ {} - Error: {}", coach.frontmatter.title, e);
+                stats
+                    .errors
+                    .push(format!("{}: {}", coach.frontmatter.name, e));
+            }
+        }
+    }
+
+    (stats, slug_to_id)
+}
+
+/// Log the result of an upsert operation and update stats
+fn log_upsert_result(title: &str, action: &UpsertAction, stats: &mut SeedStats) {
+    match action {
+        UpsertAction::Created => {
+            info!("  + {} (created)", title);
+            stats.created += 1;
+        }
+        UpsertAction::Updated => {
+            info!("  ~ {} (updated)", title);
+            stats.updated += 1;
+        }
+        UpsertAction::Unchanged => {
+            debug!("  = {} (unchanged)", title);
+            stats.unchanged += 1;
+        }
+    }
+}
+
+/// Sync coach relations to the database (Pass 2)
+async fn sync_relations(
+    pool: &SqlitePool,
+    coaches: &[CoachDefinition],
+    slug_to_id: &HashMap<String, String>,
+    stats: &mut SeedStats,
+    dry_run: bool,
+) {
+    info!("");
+    info!("=== Pass 2: Syncing Relations ===");
+
+    for coach in coaches {
+        process_coach_relations(pool, coach, slug_to_id, stats, dry_run).await;
+    }
+
+    log_relations_created(stats.relations_created);
+}
+
+/// Process all relations for a single coach
+async fn process_coach_relations(
+    pool: &SqlitePool,
+    coach: &CoachDefinition,
+    slug_to_id: &HashMap<String, String>,
+    stats: &mut SeedStats,
+    dry_run: bool,
+) {
+    let Some(coach_id) = slug_to_id.get(&coach.frontmatter.name) else {
+        return;
+    };
+
+    for relation in &coach.sections.related_coaches {
+        process_single_relation(
+            pool,
+            coach_id,
+            &coach.frontmatter.name,
+            relation,
+            slug_to_id,
+            stats,
+            dry_run,
+        )
+        .await;
+    }
+}
+
+/// Log how many relations were created
+fn log_relations_created(count: u32) {
+    if count > 0 {
+        info!("  Created {} relations", count);
+    }
+}
+
+/// Process a single coach relation
+async fn process_single_relation(
+    pool: &SqlitePool,
+    coach_id: &str,
+    coach_name: &str,
+    relation: &RelatedCoach,
+    slug_to_id: &HashMap<String, String>,
+    stats: &mut SeedStats,
+    dry_run: bool,
+) {
+    let Some(related_id) = slug_to_id.get(&relation.slug) else {
+        debug!(
+            "  Skipping relation {} -> {} (target not found)",
+            coach_name, relation.slug
+        );
+        return;
+    };
+
+    if dry_run {
+        log_dry_run_relation(coach_name, relation.relation_type, &relation.slug);
+        return;
+    }
+
+    let relation_created = create_relation(pool, coach_id, related_id, relation.relation_type)
+        .await
+        .unwrap_or(false);
+    if relation_created {
+        stats.relations_created += 1;
+    }
+}
+
+/// Log a relation that would be created in dry run mode
+fn log_dry_run_relation(coach_name: &str, relation_type: RelationType, target_slug: &str) {
+    info!(
+        "  Would create: {} --[{}]--> {}",
+        coach_name,
+        format!("{relation_type:?}").to_lowercase(),
+        target_slug
+    );
+}
+
+/// Print final summary
+fn print_summary(stats: &SeedStats, dry_run: bool) {
+    info!("");
+    info!("=== Seeding Complete ===");
+    log_coach_counts(stats);
+    print_errors(&stats.errors);
+    log_dry_run_status(dry_run);
+}
+
+/// Log the coach processing counts
+fn log_coach_counts(stats: &SeedStats) {
+    info!(
+        "Processed: {} coaches ({} created, {} updated, {} unchanged)",
+        stats.total_processed(),
+        stats.created,
+        stats.updated,
+        stats.unchanged
+    );
+}
+
+/// Print error list if any errors occurred
+fn print_errors(errors: &[String]) {
+    if errors.is_empty() {
+        return;
+    }
+    warn!("Errors: {}", errors.len());
+    for error in errors {
+        warn!("  - {}", error);
+    }
+}
+
+/// Log dry run completion status
+fn log_dry_run_status(dry_run: bool) {
+    if dry_run {
+        info!("DRY RUN complete - no changes were made");
+    }
+}
+
+/// Discover and parse all coach markdown files
+fn discover_coaches(coaches_dir: &Path) -> Result<Vec<CoachDefinition>> {
+    let pattern = coaches_dir.join("**/*.md");
+    let pattern_str = pattern.to_string_lossy();
+
+    let mut coaches = Vec::new();
+
+    for entry in glob(&pattern_str)? {
+        let path = entry?;
+
+        // Skip README files
+        if path.file_name().is_some_and(|n| n == "README.md") {
+            continue;
+        }
+
+        match parse_coach_file(&path) {
+            Ok(coach) => {
+                debug!("Parsed: {} ({})", coach.frontmatter.name, path.display());
+                coaches.push(coach);
+            }
+            Err(e) => {
+                warn!("Failed to parse {}: {}", path.display(), e);
+            }
+        }
+    }
+
+    // Sort by category then name for consistent ordering
+    coaches.sort_by(|a, b| {
+        let cat_cmp = a
+            .frontmatter
+            .category
+            .as_str()
+            .cmp(b.frontmatter.category.as_str());
+        if cat_cmp == Ordering::Equal {
+            a.frontmatter.name.cmp(&b.frontmatter.name)
+        } else {
+            cat_cmp
+        }
+    });
+
+    Ok(coaches)
 }
 
 /// Admin user info needed for seeding
@@ -283,127 +395,210 @@ async fn find_admin_user(pool: &SqlitePool) -> Result<AdminUser> {
     })
 }
 
-/// Insert a single system coach into the database
-async fn insert_system_coach(
+/// Result of upsert operation
+enum UpsertAction {
+    Created,
+    Updated,
+    Unchanged,
+}
+
+/// Upsert a coach into the database
+async fn upsert_coach(
     pool: &SqlitePool,
-    coach: &SystemCoach,
+    coach: &CoachDefinition,
+    admin: &AdminUser,
+    dry_run: bool,
+) -> Result<(String, UpsertAction)> {
+    let now = Utc::now().to_rfc3339();
+    let slug = &coach.frontmatter.name;
+
+    // Check if coach exists by slug
+    let existing: Option<(String, Option<String>)> =
+        sqlx::query_as("SELECT id, content_hash FROM coaches WHERE slug = $1 AND tenant_id = $2")
+            .bind(slug)
+            .bind(admin.tenant_id.to_string())
+            .fetch_optional(pool)
+            .await?;
+
+    let action = if let Some((existing_id, existing_hash)) = existing {
+        // Coach exists - check if content changed
+        if existing_hash.as_deref() == Some(&coach.content_hash) {
+            return Ok((existing_id, UpsertAction::Unchanged));
+        }
+
+        if !dry_run {
+            update_coach(pool, &existing_id, coach, &now).await?;
+        }
+        (existing_id, UpsertAction::Updated)
+    } else {
+        // New coach
+        let new_id = Uuid::new_v4().to_string();
+
+        if !dry_run {
+            insert_coach(pool, &new_id, coach, admin, &now).await?;
+        }
+        (new_id, UpsertAction::Created)
+    };
+
+    Ok(action)
+}
+
+/// Convert example inputs bullet list to JSON array
+fn parse_sample_prompts(example_inputs: Option<&String>) -> String {
+    example_inputs.map_or_else(
+        || "[]".to_owned(),
+        |inputs| {
+            let prompts: Vec<&str> = inputs
+                .lines()
+                .filter_map(|line| {
+                    line.trim()
+                        .strip_prefix('-')
+                        .map(|rest| rest.trim().trim_matches('"'))
+                })
+                .collect();
+            serde_json::to_string(&prompts).unwrap_or_else(|_| "[]".to_owned())
+        },
+    )
+}
+
+/// Insert a new coach
+async fn insert_coach(
+    pool: &SqlitePool,
+    id: &str,
+    coach: &CoachDefinition,
     admin: &AdminUser,
     now: &str,
-) -> Result<bool> {
-    let coach_id = Uuid::parse_str(coach.id)?;
+) -> Result<()> {
+    let prerequisites_json = serde_json::to_string(&coach.frontmatter.prerequisites)?;
+    let tags_json = serde_json::to_string(&coach.frontmatter.tags)?;
+    let sample_prompts_json = parse_sample_prompts(coach.sections.example_inputs.as_ref());
 
-    let result = sqlx::query(
+    sqlx::query(
         r"
-        INSERT OR REPLACE INTO coaches (
+        INSERT INTO coaches (
             id, user_id, tenant_id, title, description, system_prompt,
             category, tags, sample_prompts, token_count, is_favorite, use_count,
-            last_used_at, created_at, updated_at, is_system, visibility
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+            last_used_at, created_at, updated_at, is_system, visibility, is_active,
+            slug, purpose, when_to_use, instructions, example_inputs, example_outputs,
+            success_criteria, prerequisites, source_file, content_hash
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
+            $19, $20, $21, $22, $23, $24, $25, $26, $27, $28
+        )
         ",
     )
-    .bind(coach_id.to_string())
+    .bind(id)
     .bind(admin.id.to_string())
     .bind(admin.tenant_id.to_string())
-    .bind(coach.title)
-    .bind(coach.description)
-    .bind(coach.system_prompt)
-    .bind(coach.category)
-    .bind("[]")
-    .bind("[]")
-    .bind(estimate_token_count(coach.system_prompt))
+    .bind(&coach.frontmatter.title)
+    .bind(&coach.sections.purpose)
+    .bind(&coach.sections.instructions) // system_prompt = instructions for compatibility
+    .bind(coach.frontmatter.category.as_str())
+    .bind(&tags_json)
+    .bind(&sample_prompts_json)
+    .bind(i64::from(coach.token_count))
     .bind(false)
     .bind(0i64)
     .bind(Option::<String>::None)
     .bind(now)
     .bind(now)
-    .bind(1i64)
-    .bind("public")
+    .bind(1i64) // is_system = true for markdown-defined coaches
+    .bind(coach.frontmatter.visibility.as_str())
+    .bind(false)
+    // New columns
+    .bind(&coach.frontmatter.name)
+    .bind(&coach.sections.purpose)
+    .bind(&coach.sections.when_to_use)
+    .bind(&coach.sections.instructions)
+    .bind(&coach.sections.example_inputs)
+    .bind(&coach.sections.example_outputs)
+    .bind(&coach.sections.success_criteria)
+    .bind(&prerequisites_json)
+    .bind(&coach.source_file)
+    .bind(&coach.content_hash)
     .execute(pool)
-    .await;
+    .await?;
 
-    match result {
-        Ok(_) => {
-            info!("  ✓ {}", coach.title);
-            Ok(true)
-        }
-        Err(e) => {
-            info!("  ✗ {} - Error: {}", coach.title, e);
-            Ok(false)
-        }
-    }
+    Ok(())
 }
 
-/// Seed system coaches into the database
-async fn seed_system_coaches(pool: &SqlitePool, admin: &AdminUser) -> Result<u32> {
+/// Update an existing coach
+async fn update_coach(
+    pool: &SqlitePool,
+    id: &str,
+    coach: &CoachDefinition,
+    now: &str,
+) -> Result<()> {
+    let prerequisites_json = serde_json::to_string(&coach.frontmatter.prerequisites)?;
+    let tags_json = serde_json::to_string(&coach.frontmatter.tags)?;
+    let sample_prompts_json = parse_sample_prompts(coach.sections.example_inputs.as_ref());
+
+    sqlx::query(
+        r"
+        UPDATE coaches SET
+            title = $1, description = $2, system_prompt = $3, category = $4,
+            tags = $5, sample_prompts = $6, token_count = $7, updated_at = $8,
+            visibility = $9, purpose = $10, when_to_use = $11, instructions = $12,
+            example_inputs = $13, example_outputs = $14, success_criteria = $15,
+            prerequisites = $16, source_file = $17, content_hash = $18
+        WHERE id = $19
+        ",
+    )
+    .bind(&coach.frontmatter.title)
+    .bind(&coach.sections.purpose)
+    .bind(&coach.sections.instructions)
+    .bind(coach.frontmatter.category.as_str())
+    .bind(&tags_json)
+    .bind(&sample_prompts_json)
+    .bind(i64::from(coach.token_count))
+    .bind(now)
+    .bind(coach.frontmatter.visibility.as_str())
+    .bind(&coach.sections.purpose)
+    .bind(&coach.sections.when_to_use)
+    .bind(&coach.sections.instructions)
+    .bind(&coach.sections.example_inputs)
+    .bind(&coach.sections.example_outputs)
+    .bind(&coach.sections.success_criteria)
+    .bind(&prerequisites_json)
+    .bind(&coach.source_file)
+    .bind(&coach.content_hash)
+    .bind(id)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+/// Create a relation between two coaches
+async fn create_relation(
+    pool: &SqlitePool,
+    coach_id: &str,
+    related_id: &str,
+    relation_type: RelationType,
+) -> Result<bool> {
+    let id = Uuid::new_v4().to_string();
     let now = Utc::now().to_rfc3339();
-    let mut seeded_count = 0u32;
 
-    for coach in SYSTEM_COACHES {
-        if insert_system_coach(pool, coach, admin, &now).await? {
-            seeded_count += 1;
-        }
-    }
+    let relation_str = match relation_type {
+        RelationType::Related => "related",
+        RelationType::Alternative => "alternative",
+        RelationType::Prerequisite => "prerequisite",
+        RelationType::Sequel => "sequel",
+    };
 
-    info!("Assigning system coaches to existing users...");
-    let assigned = assign_coaches_to_users(pool, admin).await?;
-    info!("  Assigned {} coach-user relationships", assigned);
+    let result = sqlx::query(
+        r"
+        INSERT OR IGNORE INTO coach_relations (id, coach_id, related_coach_id, relation_type, created_at)
+        VALUES ($1, $2, $3, $4, $5)
+        ",
+    )
+    .bind(&id)
+    .bind(coach_id)
+    .bind(related_id)
+    .bind(relation_str)
+    .bind(&now)
+    .execute(pool)
+    .await?;
 
-    Ok(seeded_count)
-}
-
-/// Assign all system coaches to all existing users in the database
-async fn assign_coaches_to_users(pool: &SqlitePool, admin: &AdminUser) -> Result<u32> {
-    let now = Utc::now().to_rfc3339();
-
-    // Get all system coach IDs
-    let coach_ids: Vec<String> = sqlx::query_scalar("SELECT id FROM coaches WHERE is_system = 1")
-        .fetch_all(pool)
-        .await?;
-
-    // Get all user IDs
-    let user_ids: Vec<String> = sqlx::query_scalar("SELECT id FROM users")
-        .fetch_all(pool)
-        .await?;
-
-    let mut assigned_count = 0u32;
-
-    for coach_id in &coach_ids {
-        for user_id in &user_ids {
-            let assignment_id = Uuid::new_v4().to_string();
-
-            // INSERT OR IGNORE to avoid duplicates
-            let result = sqlx::query(
-                r"
-                INSERT OR IGNORE INTO coach_assignments (id, coach_id, user_id, assigned_by, created_at)
-                VALUES ($1, $2, $3, $4, $5)
-                ",
-            )
-            .bind(&assignment_id)
-            .bind(coach_id)
-            .bind(user_id)
-            .bind(admin.id.to_string())
-            .bind(&now)
-            .execute(pool)
-            .await;
-
-            if let Ok(r) = result {
-                if r.rows_affected() > 0 {
-                    assigned_count += 1;
-                }
-            }
-        }
-    }
-
-    Ok(assigned_count)
-}
-
-/// Estimate token count for system prompt (rough approximation: ~4 chars per token)
-fn estimate_token_count(text: &str) -> i64 {
-    #[allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_possible_wrap
-    )]
-    let count = (text.len() / 4) as i64;
-    count.max(1)
+    Ok(result.rows_affected() > 0)
 }

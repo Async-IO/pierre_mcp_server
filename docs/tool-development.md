@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
+
 # Tool Development Guide
 
 This guide explains how to create new MCP tools using the Pluggable Tools Architecture.

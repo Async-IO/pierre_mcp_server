@@ -135,6 +135,13 @@ export interface Coach {
   visibility?: CoachVisibility;
   is_assigned?: boolean;
   is_hidden?: boolean;
+  forked_from?: string; // ID of source coach if forked
+}
+
+// Response when forking a coach
+export interface ForkCoachResponse {
+  coach: Coach;
+  source_coach_id: string;
 }
 
 export interface CreateCoachRequest {

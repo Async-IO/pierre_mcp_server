@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use crate::coaches::CoachPrerequisites;
 use crate::errors::{AppError, AppResult};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -141,6 +142,12 @@ pub struct Coach {
     /// Visibility level for the coach
     #[serde(default)]
     pub visibility: CoachVisibility,
+    /// Prerequisites required to use this coach (providers, activities, etc.)
+    #[serde(default)]
+    pub prerequisites: CoachPrerequisites,
+    /// ID of the coach this was forked from (None for original coaches)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub forked_from: Option<String>,
 }
 
 /// Coach with computed context-dependent fields for list responses
@@ -264,7 +271,7 @@ impl CoachesManager {
             INSERT INTO coaches (
                 id, user_id, tenant_id, title, description, system_prompt,
                 category, tags, sample_prompts, token_count, is_favorite, use_count,
-                last_used_at, created_at, updated_at, is_system, visibility
+                last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $16)
             ",
         )
@@ -307,6 +314,8 @@ impl CoachesManager {
             updated_at: now,
             is_system: false,
             visibility: CoachVisibility::Private,
+            prerequisites: CoachPrerequisites::default(),
+            forked_from: None,
         })
     }
 
@@ -325,7 +334,7 @@ impl CoachesManager {
             r"
             SELECT id, user_id, tenant_id, title, description, system_prompt,
                    category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
-                   last_used_at, created_at, updated_at, is_system, visibility
+                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from
             FROM coaches
             WHERE id = $1 AND user_id = $2 AND tenant_id = $3
             ",
@@ -394,7 +403,7 @@ impl CoachesManager {
             r"
             SELECT c.id, c.user_id, c.tenant_id, c.title, c.description, c.system_prompt,
                    c.category, c.tags, c.sample_prompts, c.token_count, c.is_favorite, c.is_active, c.use_count,
-                   c.last_used_at, c.created_at, c.updated_at, c.is_system, c.visibility,
+                   c.last_used_at, c.created_at, c.updated_at, c.is_system, c.visibility, c.prerequisites, c.forked_from,
                    CASE WHEN ca.coach_id IS NOT NULL THEN 1 ELSE 0 END as is_assigned
             FROM coaches c
             LEFT JOIN coach_assignments ca ON c.id = ca.coach_id AND ca.user_id = $1
@@ -512,6 +521,93 @@ impl CoachesManager {
         .map_err(|e| AppError::database(format!("Failed to delete coach: {e}")))?;
 
         Ok(result.rows_affected() > 0)
+    }
+
+    /// Fork a system coach to create a user-owned copy
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Source coach is not found
+    /// - Source coach is not a system coach
+    /// - Database operation fails
+    pub async fn fork_coach(
+        &self,
+        source_coach_id: &str,
+        user_id: Uuid,
+        tenant_id: &str,
+    ) -> AppResult<Coach> {
+        // Get the source coach (must be a system coach)
+        let source = self
+            .get_system_coach(source_coach_id, tenant_id)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("System coach {source_coach_id}")))?;
+
+        if !source.is_system {
+            return Err(AppError::invalid_input(
+                "Only system coaches can be forked. Use duplicate for personal coaches.",
+            ));
+        }
+
+        let now = Utc::now();
+        let id = Uuid::new_v4();
+        let tags_json = serde_json::to_string(&source.tags)?;
+        let sample_prompts_json = serde_json::to_string(&source.sample_prompts)?;
+        let prerequisites_json = serde_json::to_string(&source.prerequisites)?;
+
+        sqlx::query(
+            r"
+            INSERT INTO coaches (
+                id, user_id, tenant_id, title, description, system_prompt,
+                category, tags, sample_prompts, token_count, is_favorite, use_count,
+                last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $16, $17, $18)
+            ",
+        )
+        .bind(id.to_string())
+        .bind(user_id.to_string())
+        .bind(tenant_id)
+        .bind(&source.title)
+        .bind(&source.description)
+        .bind(&source.system_prompt)
+        .bind(source.category.as_str())
+        .bind(&tags_json)
+        .bind(&sample_prompts_json)
+        .bind(i64::from(source.token_count))
+        .bind(false) // is_favorite
+        .bind(0i64) // use_count
+        .bind(Option::<String>::None) // last_used_at
+        .bind(now.to_rfc3339())
+        .bind(0i64) // is_system = false (user's copy)
+        .bind(CoachVisibility::Private.as_str()) // visibility = private
+        .bind(&prerequisites_json) // prerequisites
+        .bind(source_coach_id) // forked_from
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fork coach: {e}")))?;
+
+        Ok(Coach {
+            id,
+            user_id,
+            tenant_id: tenant_id.to_owned(),
+            title: source.title,
+            description: source.description,
+            system_prompt: source.system_prompt,
+            category: source.category,
+            tags: source.tags,
+            sample_prompts: source.sample_prompts,
+            token_count: source.token_count,
+            is_favorite: false,
+            is_active: false,
+            use_count: 0,
+            last_used_at: None,
+            created_at: now,
+            updated_at: now,
+            is_system: false,
+            visibility: CoachVisibility::Private,
+            prerequisites: source.prerequisites,
+            forked_from: Some(source_coach_id.to_owned()),
+        })
     }
 
     /// Record coach usage (increment `use_count` and update `last_used_at`)
@@ -639,7 +735,7 @@ impl CoachesManager {
             r"
             SELECT id, user_id, tenant_id, title, description, system_prompt,
                    category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
-                   last_used_at, created_at, updated_at, is_system, visibility
+                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from
             FROM coaches
             WHERE user_id = $1 AND tenant_id = $2 AND (
                 title LIKE $3 OR description LIKE $3 OR tags LIKE $3
@@ -750,7 +846,7 @@ impl CoachesManager {
             r"
             SELECT id, user_id, tenant_id, title, description, system_prompt,
                    category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
-                   last_used_at, created_at, updated_at, is_system, visibility
+                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from
             FROM coaches
             WHERE user_id = $1 AND tenant_id = $2 AND is_active = 1
             ",
@@ -790,7 +886,7 @@ impl CoachesManager {
             INSERT INTO coaches (
                 id, user_id, tenant_id, title, description, system_prompt,
                 category, tags, sample_prompts, token_count, is_favorite, use_count,
-                last_used_at, created_at, updated_at, is_system, visibility
+                last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $16)
             ",
         )
@@ -833,6 +929,8 @@ impl CoachesManager {
             updated_at: now,
             is_system: true,
             visibility: request.visibility,
+            prerequisites: CoachPrerequisites::default(),
+            forked_from: None,
         })
     }
 
@@ -846,7 +944,7 @@ impl CoachesManager {
             r"
             SELECT id, user_id, tenant_id, title, description, system_prompt,
                    category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
-                   last_used_at, created_at, updated_at, is_system, visibility
+                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from
             FROM coaches
             WHERE tenant_id = $1 AND is_system = 1
             ORDER BY created_at DESC
@@ -874,7 +972,7 @@ impl CoachesManager {
             r"
             SELECT id, user_id, tenant_id, title, description, system_prompt,
                    category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
-                   last_used_at, created_at, updated_at, is_system, visibility
+                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from
             FROM coaches
             WHERE id = $1 AND tenant_id = $2 AND is_system = 1
             ",
@@ -1140,7 +1238,7 @@ impl CoachesManager {
             r"
             SELECT c.id, c.user_id, c.tenant_id, c.title, c.description, c.system_prompt,
                    c.category, c.tags, c.sample_prompts, c.token_count, c.is_favorite, c.is_active, c.use_count,
-                   c.last_used_at, c.created_at, c.updated_at, c.is_system, c.visibility
+                   c.last_used_at, c.created_at, c.updated_at, c.is_system, c.visibility, c.prerequisites, c.forked_from
             FROM coaches c
             INNER JOIN user_coach_preferences ucp ON c.id = ucp.coach_id
             WHERE ucp.user_id = $1 AND ucp.is_hidden = 1 AND c.tenant_id = $2
@@ -1250,9 +1348,15 @@ fn row_to_coach(row: &SqliteRow) -> AppResult<Coach> {
     let sample_prompts_json: String = row
         .try_get("sample_prompts")
         .unwrap_or_else(|_| "[]".to_owned());
+    let prerequisites_json: String = row
+        .try_get("prerequisites")
+        .unwrap_or_else(|_| "{}".to_owned());
+    let forked_from: Option<String> = row.try_get("forked_from").ok();
 
     let tags: Vec<String> = serde_json::from_str(&tags_json)?;
     let sample_prompts: Vec<String> = serde_json::from_str(&sample_prompts_json)?;
+    let prerequisites: CoachPrerequisites =
+        serde_json::from_str(&prerequisites_json).unwrap_or_default();
 
     Ok(Coach {
         id: Uuid::parse_str(&id_str)
@@ -1283,6 +1387,8 @@ fn row_to_coach(row: &SqliteRow) -> AppResult<Coach> {
             .with_timezone(&Utc),
         is_system: is_system == 1,
         visibility: CoachVisibility::parse(&visibility_str),
+        prerequisites,
+        forked_from,
     })
 }
 

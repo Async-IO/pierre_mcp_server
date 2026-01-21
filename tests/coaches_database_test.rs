@@ -1227,7 +1227,7 @@ fn test_coach_category_parsing() {
     assert_eq!(CoachCategory::parse("nutrition"), CoachCategory::Nutrition);
     assert_eq!(CoachCategory::parse("recovery"), CoachCategory::Recovery);
     assert_eq!(CoachCategory::parse("recipes"), CoachCategory::Recipes);
-    assert_eq!(CoachCategory::parse("analysis"), CoachCategory::Analysis);
+    assert_eq!(CoachCategory::parse("mobility"), CoachCategory::Mobility);
     assert_eq!(CoachCategory::parse("custom"), CoachCategory::Custom);
 
     // Case-insensitive parsing (frontend sends capitalized values)
@@ -1235,7 +1235,7 @@ fn test_coach_category_parsing() {
     assert_eq!(CoachCategory::parse("Nutrition"), CoachCategory::Nutrition);
     assert_eq!(CoachCategory::parse("Recovery"), CoachCategory::Recovery);
     assert_eq!(CoachCategory::parse("Recipes"), CoachCategory::Recipes);
-    assert_eq!(CoachCategory::parse("Analysis"), CoachCategory::Analysis);
+    assert_eq!(CoachCategory::parse("Mobility"), CoachCategory::Mobility);
     assert_eq!(CoachCategory::parse("Custom"), CoachCategory::Custom);
 
     // Mixed case
@@ -1253,7 +1253,7 @@ fn test_coach_category_as_str() {
     assert_eq!(CoachCategory::Nutrition.as_str(), "nutrition");
     assert_eq!(CoachCategory::Recovery.as_str(), "recovery");
     assert_eq!(CoachCategory::Recipes.as_str(), "recipes");
-    assert_eq!(CoachCategory::Analysis.as_str(), "analysis");
+    assert_eq!(CoachCategory::Mobility.as_str(), "mobility");
     assert_eq!(CoachCategory::Custom.as_str(), "custom");
 }
 
@@ -1265,7 +1265,7 @@ fn test_coach_category_round_trip() {
         CoachCategory::Nutrition,
         CoachCategory::Recovery,
         CoachCategory::Recipes,
-        CoachCategory::Analysis,
+        CoachCategory::Mobility,
         CoachCategory::Custom,
     ];
 
@@ -1283,9 +1283,9 @@ fn test_coach_category_serde_serialization() {
     let json = serde_json::to_string(&training).unwrap();
     assert_eq!(json, "\"training\"");
 
-    let analysis = CoachCategory::Analysis;
-    let json = serde_json::to_string(&analysis).unwrap();
-    assert_eq!(json, "\"analysis\"");
+    let mobility = CoachCategory::Mobility;
+    let json = serde_json::to_string(&mobility).unwrap();
+    assert_eq!(json, "\"mobility\"");
 
     let custom = CoachCategory::Custom;
     let json = serde_json::to_string(&custom).unwrap();
@@ -1298,8 +1298,8 @@ fn test_coach_category_serde_deserialization() {
     let training: CoachCategory = serde_json::from_str("\"training\"").unwrap();
     assert_eq!(training, CoachCategory::Training);
 
-    let analysis: CoachCategory = serde_json::from_str("\"analysis\"").unwrap();
-    assert_eq!(analysis, CoachCategory::Analysis);
+    let mobility: CoachCategory = serde_json::from_str("\"mobility\"").unwrap();
+    assert_eq!(mobility, CoachCategory::Mobility);
 
     // Note: serde uses rename_all = "snake_case", so it expects lowercase
     // Frontend may send capitalized values through the API which gets parsed via parse()

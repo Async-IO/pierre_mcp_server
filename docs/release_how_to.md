@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
+
 # Release How-To Guide
 
 This guide explains how to release Pierre MCP Server (Rust binaries) and the SDK (npm package).

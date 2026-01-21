@@ -134,7 +134,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
   };
 
   const handleCoachPress = (coach: Coach) => {
-    navigation.navigate('CoachEditor', { coachId: coach.id });
+    navigation.navigate('CoachWizard', { coachId: coach.id });
   };
 
   const handleCoachLongPress = (coach: Coach) => {
@@ -143,7 +143,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
   };
 
   const handleCreateCoach = () => {
-    navigation.navigate('CoachEditor', { coachId: undefined });
+    navigation.navigate('CoachWizard', { coachId: undefined });
   };
 
   const handleToggleFavorite = async (coach?: Coach) => {
@@ -257,6 +257,35 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
     }
   };
 
+  const handleForkCoach = (coach?: Coach) => {
+    const targetCoach = coach ?? selectedCoach;
+    if (!targetCoach || !targetCoach.is_system) return;
+    setActionMenuVisible(false);
+
+    Alert.alert(
+      'Fork Coach',
+      `Create your own copy of "${targetCoach.title}"? You can customize the forked coach however you like.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Fork',
+          onPress: async () => {
+            try {
+              const result = await apiService.forkCoach(targetCoach.id);
+              // Add the new forked coach to the list
+              setCoaches((prev) => [result.coach, ...prev]);
+              // Navigate to wizard to customize
+              navigation.navigate('CoachWizard', { coachId: result.coach.id });
+            } catch (error) {
+              console.error('Failed to fork coach:', error);
+              Alert.alert('Error', 'Failed to fork coach. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const closeActionMenu = () => {
     setActionMenuVisible(false);
     setSelectedCoach(null);
@@ -294,6 +323,17 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
             )}
           </View>
           <View style={styles.coachActions}>
+            {/* Fork button for system coaches */}
+            {isSystemCoach && (
+              <TouchableOpacity
+                style={styles.forkButton}
+                onPress={() => handleForkCoach(item)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                testID={`fork-button-${item.id}`}
+              >
+                <Text style={styles.forkIcon}>🔀</Text>
+              </TouchableOpacity>
+            )}
             {/* Hide/Show button for system coaches */}
             {isSystemCoach && (
               <TouchableOpacity
@@ -518,6 +558,17 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
                 <Text style={styles.actionMenuText}>
                   {selectedCoach?.is_hidden ? 'Show coach' : 'Hide coach'}
                 </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Fork option for system coaches */}
+            {selectedCoach?.is_system && (
+              <TouchableOpacity
+                style={styles.actionMenuItem}
+                onPress={() => handleForkCoach()}
+              >
+                <Text style={styles.actionMenuIcon}>🔀</Text>
+                <Text style={styles.actionMenuText}>Fork (create my copy)</Text>
               </TouchableOpacity>
             )}
 
@@ -858,6 +909,13 @@ const styles = StyleSheet.create({
   },
   hiddenIcon: {
     fontSize: 14,
+  },
+  // Fork button on coach card
+  forkButton: {
+    padding: spacing.xs,
+  },
+  forkIcon: {
+    fontSize: 16,
   },
   // Hide button on coach card
   hideButton: {

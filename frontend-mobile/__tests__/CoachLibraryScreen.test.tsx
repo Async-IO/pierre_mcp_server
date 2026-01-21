@@ -304,7 +304,7 @@ describe('CoachLibraryScreen', () => {
   });
 
   describe('navigation', () => {
-    it('should navigate to CoachEditor when coach is pressed', async () => {
+    it('should navigate to CoachWizard when coach is pressed', async () => {
       const coaches = [createMockCoach({ id: 'coach-1', title: 'Test Coach' })];
       mockListCoaches.mockResolvedValue({ coaches });
 
@@ -318,12 +318,12 @@ describe('CoachLibraryScreen', () => {
 
       fireEvent.press(getByText('Test Coach'));
 
-      expect(mockNavigation.navigate).toHaveBeenCalledWith('CoachEditor', {
+      expect(mockNavigation.navigate).toHaveBeenCalledWith('CoachWizard', {
         coachId: 'coach-1',
       });
     });
 
-    it('should navigate to CoachEditor for new coach when FAB pressed', async () => {
+    it('should navigate to CoachWizard for new coach when FAB pressed', async () => {
       const { getByText } = render(
         <CoachLibraryScreen navigation={mockNavigation as never} />
       );
@@ -334,7 +334,7 @@ describe('CoachLibraryScreen', () => {
 
       fireEvent.press(getByText('+'));
 
-      expect(mockNavigation.navigate).toHaveBeenCalledWith('CoachEditor', {
+      expect(mockNavigation.navigate).toHaveBeenCalledWith('CoachWizard', {
         coachId: undefined,
       });
     });

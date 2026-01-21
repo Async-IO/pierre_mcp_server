@@ -99,6 +99,9 @@ pub mod a2a;
 /// `HTTP` routes for A2A protocol endpoints
 pub mod a2a_routes;
 
+/// Coach definition parsing from markdown files
+pub mod coaches;
+
 /// Multi-tenant database management (legacy)
 pub mod database;
 

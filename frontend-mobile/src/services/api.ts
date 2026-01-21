@@ -20,6 +20,7 @@ import type {
   CreateCoachRequest,
   UpdateCoachRequest,
   ListCoachesResponse,
+  ForkCoachResponse,
 } from '../types';
 
 // Configuration - should be set via environment or config
@@ -479,6 +480,15 @@ class ApiService {
    */
   async listHiddenCoaches(): Promise<ListCoachesResponse> {
     const response = await axios.get('/api/coaches?include_hidden=true');
+    return response.data;
+  }
+
+  /**
+   * Fork a system coach to create a user-owned copy
+   * Only system coaches (is_system=true) can be forked
+   */
+  async forkCoach(coachId: string): Promise<ForkCoachResponse> {
+    const response = await axios.post(`/api/coaches/${coachId}/fork`);
     return response.data;
   }
 
