@@ -18,6 +18,10 @@
           {
             "type": "command",
             "command": "echo 'PORT ALLOCATION: 8081=Pierre Server, 8082=Expo/Metro. Use bun start for mobile dev.'"
+          },
+          {
+            "type": "command",
+            "command": "./scripts/check-gh-cli.sh"
           }
         ]
       }
