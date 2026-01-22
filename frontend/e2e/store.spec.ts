@@ -617,7 +617,7 @@ test.describe('Coach Store Add/Remove', () => {
     await expect(page.getByText('Remove Coach?')).toBeVisible({ timeout: 5000 });
   });
 
-  test('unusers coach when confirmed', async ({ page }) => {
+  test('removes coach when confirmed', async ({ page }) => {
     await setupStoreMocks(page, { installed: ['store-coach-1'] });
 
     let uninstallCalled = false;
@@ -652,9 +652,11 @@ test.describe('Coach Store Add/Remove', () => {
     // Click Remove
     await page.getByRole('button', { name: 'Remove' }).click();
 
-    // Confirm in dialog
+    // Confirm in dialog - the ConfirmDialog uses confirmLabel="Remove" so there are now 2 Remove buttons
     await expect(page.getByText('Remove Coach?')).toBeVisible({ timeout: 5000 });
-    await page.getByRole('button', { name: 'Confirm' }).click();
+    // Get all Remove buttons and click the second one (the dialog confirm button)
+    const removeButtons = await page.getByRole('button', { name: 'Remove' }).all();
+    await removeButtons[1].click();
 
     await page.waitForTimeout(500);
     expect(uninstallCalled).toBe(true);
