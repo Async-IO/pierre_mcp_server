@@ -1,0 +1,39 @@
+# ABOUTME: mdBook configuration for Pierre documentation
+# ABOUTME: Builds to /documentation/ path on pierre.async-io.org
+
+[book]
+title = "Pierre Fitness Intelligence"
+authors = ["Pierre Team"]
+description = "Documentation for Pierre MCP Server - AI-powered fitness intelligence"
+language = "en"
+src = "."
+
+[build]
+build-dir = "../documentation-build"
+create-missing = false
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "ayu"
+git-repository-url = "https://github.com/Async-IO/pierre_mcp_server"
+site-url = "/documentation/"
+cname = "pierre.async-io.org"
+
+[output.html.fold]
+enable = true
+level = 1
+
+[output.html.search]
+enable = true
+limit-results = 30
+teaser-word-count = 30
+boost-title = 2
+boost-hierarchy = 1
+boost-paragraph = 1
+expand = true
+heading-split-level = 3
+
+[output.html.playground]
+editable = false
+copyable = true
+copy-js = true

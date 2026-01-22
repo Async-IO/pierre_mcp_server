@@ -25,7 +25,8 @@ This comprehensive guide explains the scientific methods, algorithms, and decisi
 - [architecture overview](#architecture-overview)
   - [foundation modules](#foundation-modules)
   - [core modules](#core-modules)
-  - [intelligence tools (47 tools)](#intelligence-tools-47-tools)
+  - [intelligence tools - comprehensive mapping](#intelligence-tools---comprehensive-mapping)
+  - [intelligence algorithm modules summary](#intelligence-algorithm-modules-summary)
 - [data sources and permissions](#data-sources-and-permissions)
   - [primary data](#primary-data)
   - [user profile (optional)](#user-profile-optional)
@@ -193,36 +194,156 @@ Pierre's intelligence system uses a **foundation modules** approach for code reu
 **`src/intelligence/recommendation_engine.rs`** - training recommendations
 **`src/intelligence/goal_engine.rs`** - goal tracking and progress
 
-### Intelligence Tools (47 tools)
+### Intelligence Tools - Comprehensive Mapping
 
-All 47 MCP tools now use real calculations from foundation modules:
+All MCP tools use real calculations from foundation modules. The table below maps each tool to its algorithm, implementation file, and test file.
 
-**group 1: analysis** (use StatisticalAnalyzer + PatternDetector)
-- analyze_performance_trends
-- detect_patterns
-- compare_activities
+#### Analytics Tools (`src/tools/implementations/analytics.rs`)
 
-**group 2: recommendations** (use TrainingLoadCalculator + PatternDetector)
-- generate_recommendations
-- calculate_fitness_score
-- analyze_training_load
+| Tool Name | Algorithm/Intelligence | Implementation | Test Files |
+|-----------|------------------------|----------------|------------|
+| `analyze_training_load` | CTL/ATL/TSB (exponential moving average), TSS calculation | `intelligence/training_load.rs` | `intelligence_test.rs`, `intelligence_algorithms_test.rs` |
+| `detect_patterns` | PatternDetector: hard/easy alternation, weekly schedule, volume progression, overtraining signals | `intelligence/pattern_detection.rs` | `intelligence_test.rs`, `intelligence_comprehensive_test.rs` |
+| `calculate_fitness_score` | CTL + PatternDetector composite scoring (25% consistency, 35% load, 25% volume, 15% balance) | `intelligence/training_load.rs`, `intelligence/pattern_detection.rs` | `intelligence_comprehensive_test.rs` |
 
-**group 3: predictions** (use PerformancePredictor)
-- predict_performance
+#### Sleep & Recovery Tools (`src/tools/implementations/sleep.rs`)
 
-**group 4: configuration** (use physiological_constants validation)
-- validate_configuration (ranges + relationships)
-- suggest_goals (real profile from activities)
+| Tool Name | Algorithm/Intelligence | Implementation | Test Files |
+|-----------|------------------------|----------------|------------|
+| `analyze_sleep_quality` | NSF/AASM-based scoring: duration (7-9h), stages (deep 15-25%, REM 20-25%), efficiency (>90% excellent) | `intelligence/sleep_analysis.rs` | `intelligence_sleep_analysis_test.rs` |
+| `calculate_recovery_score` | Weighted aggregation: 40% TSB, 40% sleep, 20% HRV (RecoveryAggregationAlgorithm) | `intelligence/recovery_calculator.rs` | `intelligence_test.rs`, `intelligence_comprehensive_test.rs` |
+| `suggest_rest_day` | RecoveryCalculator threshold-based recommendation | `intelligence/recovery_calculator.rs` | `intelligence_test.rs` |
+| `track_sleep_trends` | Trend detection (improving/stable/declining) with configurable thresholds | `intelligence/sleep_analysis.rs` | `intelligence_sleep_analysis_test.rs` |
+| `optimize_sleep_schedule` | TSB-based sleep duration adjustment, bedtime calculation | `config/intelligence.rs` (SleepRecoveryConfig) | `intelligence_sleep_analysis_test.rs` |
 
-**group 5: goals** (use 10% improvement rule)
-- analyze_goal_feasibility
+#### Nutrition Tools (`src/tools/implementations/nutrition.rs`)
 
-**group 6: sleep and recovery** (use SleepAnalyzer + RecoveryCalculator)
-- analyze_sleep_quality (NSF/AASM-based scoring)
-- calculate_recovery_score (TSB + sleep + HRV)
-- track_sleep_trends (longitudinal analysis)
-- optimize_sleep_schedule (personalized timing)
-- get_rest_day_recommendations (training load-based)
+| Tool Name | Algorithm/Intelligence | Implementation | Test Files |
+|-----------|------------------------|----------------|------------|
+| `calculate_daily_nutrition` | Mifflin-St Jeor BMR, TDEE with activity multipliers, macro distribution | `intelligence/nutrition_calculator.rs` | `nutrition_comprehensive_test.rs` |
+| `get_nutrient_timing` | Pre/post-workout nutrient timing based on workout intensity | `intelligence/nutrition_calculator.rs` | `nutrition_comprehensive_test.rs` |
+| `search_food` | USDA FoodData Central API integration | External API | API integration tests |
+| `get_food_details` | USDA FoodData Central API | External API | API integration tests |
+| `analyze_meal_nutrition` | Macro/micronutrient summation and analysis | `intelligence/nutrition_calculator.rs` | `nutrition_comprehensive_test.rs` |
+
+#### Configuration Tools (`src/tools/implementations/configuration.rs`)
+
+| Tool Name | Algorithm/Intelligence | Implementation | Test Files |
+|-----------|------------------------|----------------|------------|
+| `get_configuration_catalog` | Static catalog builder | `config/configuration_catalog.rs` | `configuration_catalog_test.rs` |
+| `get_configuration_profiles` | Profile templates (beginner/intermediate/advanced/elite) | `config/configuration_profiles.rs` | `configuration_profiles_test.rs` |
+| `get_user_configuration` | Database retrieval | Database layer | `configuration_runtime_test.rs` |
+| `update_user_configuration` | Database + validation | Database layer | `configuration_runtime_test.rs` |
+| `calculate_personalized_zones` | Karvonen HR zones, Jack Daniels VDOT pace zones, FTP power zones | `intelligence/physiological_constants.rs`, `intelligence/algorithms/vdot.rs` | `configuration_tools_integration_test.rs`, `vdot_table_verification_test.rs` |
+| `validate_configuration` | Physiological parameter validation (bounds checking) | `intelligence/physiological_constants.rs` | `configuration_validation_test.rs` |
+
+#### Goal Management Tools (`src/tools/implementations/goals.rs`)
+
+| Tool Name | Algorithm/Intelligence | Implementation | Test Files |
+|-----------|------------------------|----------------|------------|
+| `set_goal` | Database storage | Database layer | Database tests |
+| `suggest_goals` | AdvancedGoalEngine: fitness level assessment, activity analysis | `intelligence/goal_engine.rs` | `intelligence_comprehensive_test.rs` |
+| `track_progress` | AdvancedGoalEngine: milestone tracking, progress percentage | `intelligence/goal_engine.rs` | `progress_tracker_test.rs` |
+| `analyze_goal_feasibility` | 10% monthly improvement rule, safe progression capacity | Custom calculation in tool | Fitness tests |
+
+#### Data Access Tools (`src/tools/implementations/data.rs`)
+
+| Tool Name | Algorithm/Intelligence | Implementation | Test Files |
+|-----------|------------------------|----------------|------------|
+| `get_activities` | Provider normalization, pagination | `protocols/universal/handlers/fitness_api.rs` | `mcp_e2e_test.rs`, `mcp_workflow_test.rs` |
+| `get_athlete` | Provider normalization | `protocols/universal/handlers/fitness_api.rs` | `mcp_e2e_test.rs` |
+| `get_stats` | Provider aggregation | `protocols/universal/handlers/fitness_api.rs` | `mcp_e2e_test.rs` |
+
+#### Connection Tools (`src/tools/implementations/connection.rs`)
+
+| Tool Name | Algorithm/Intelligence | Implementation | Test Files |
+|-----------|------------------------|----------------|------------|
+| `connect_provider` | OAuth 2.0 flow | OAuth2 client | `oauth_http_test.rs`, `oauth2_pkce_flow_test.rs` |
+| `get_connection_status` | Token validation | OAuth/auth service | `oauth_validate_refresh_test.rs` |
+| `disconnect_provider` | Token revocation | Database | OAuth tests |
+
+#### Coach Management Tools (`src/tools/implementations/coaches.rs`)
+
+| Tool Name | Algorithm/Intelligence | Implementation | Test Files |
+|-----------|------------------------|----------------|------------|
+| `list_coaches` | CRUD via CoachesManager | `database/coaches.rs` | Database integration tests |
+| `create_coach` | CRUD via CoachesManager | `database/coaches.rs` | Database integration tests |
+| `get_coach` | CRUD via CoachesManager | `database/coaches.rs` | Database integration tests |
+| `update_coach` | CRUD via CoachesManager | `database/coaches.rs` | Database integration tests |
+| `delete_coach` | CRUD via CoachesManager | `database/coaches.rs` | Database integration tests |
+| `toggle_favorite` | CRUD via CoachesManager | `database/coaches.rs` | Database integration tests |
+| `search_coaches` | CRUD via CoachesManager | `database/coaches.rs` | Database integration tests |
+| `activate_coach` | CRUD via CoachesManager | `database/coaches.rs` | Database integration tests |
+| `deactivate_coach` | CRUD via CoachesManager | `database/coaches.rs` | Database integration tests |
+| `get_active_coach` | CRUD via CoachesManager | `database/coaches.rs` | Database integration tests |
+| `hide_coach` | CRUD via CoachesManager | `database/coaches.rs` | Database integration tests |
+| `show_coach` | CRUD via CoachesManager | `database/coaches.rs` | Database integration tests |
+| `list_hidden_coaches` | CRUD via CoachesManager | `database/coaches.rs` | Database integration tests |
+
+#### Admin Tools (`src/tools/implementations/admin.rs`)
+
+| Tool Name | Algorithm/Intelligence | Implementation | Test Files |
+|-----------|------------------------|----------------|------------|
+| `list_system_coaches` | SystemCoachesManager CRUD | `database/system_coaches.rs` | `admin_functionality_test.rs` |
+| `create_system_coach` | SystemCoachesManager CRUD | `database/system_coaches.rs` | `admin_functionality_test.rs` |
+| `get_system_coach` | SystemCoachesManager CRUD | `database/system_coaches.rs` | `admin_functionality_test.rs` |
+| `update_system_coach` | SystemCoachesManager CRUD | `database/system_coaches.rs` | `admin_functionality_test.rs` |
+| `delete_system_coach` | SystemCoachesManager CRUD | `database/system_coaches.rs` | `admin_functionality_test.rs` |
+| `publish_system_coach` | SystemCoachesManager CRUD | `database/system_coaches.rs` | `admin_functionality_test.rs` |
+| `unpublish_system_coach` | SystemCoachesManager CRUD | `database/system_coaches.rs` | `admin_functionality_test.rs` |
+| `list_published_coaches` | SystemCoachesManager CRUD | `database/system_coaches.rs` | `admin_functionality_test.rs` |
+
+#### Mobility Tools (`src/tools/implementations/mobility.rs`)
+
+| Tool Name | Algorithm/Intelligence | Implementation | Test Files |
+|-----------|------------------------|----------------|------------|
+| `list_stretches` | MobilityManager database operations | `database/mobility.rs` | Database integration tests |
+| `get_stretch` | MobilityManager database operations | `database/mobility.rs` | Database integration tests |
+| `list_yoga_poses` | MobilityManager database operations | `database/mobility.rs` | Database integration tests |
+| `get_yoga_pose` | MobilityManager database operations | `database/mobility.rs` | Database integration tests |
+| `get_mobility_routine` | MobilityManager database operations | `database/mobility.rs` | Database integration tests |
+| `suggest_mobility_routine` | MobilityManager + sport-specific suggestions | `database/mobility.rs` | Database integration tests |
+
+#### Recipe Tools (`src/tools/implementations/recipes.rs`)
+
+| Tool Name | Algorithm/Intelligence | Implementation | Test Files |
+|-----------|------------------------|----------------|------------|
+| `list_recipes` | RecipeManager + filtering | `database/recipes.rs` | `recipes_test.rs`, `recipe_tools_integration_test.rs` |
+| `get_recipe` | RecipeManager | `database/recipes.rs` | `recipes_test.rs` |
+| `search_recipes` | RecipeManager search | `database/recipes.rs` | `recipes_test.rs` |
+| `create_recipe` | RecipeManager + macro calculation | `intelligence/recipes/` | `recipe_tools_integration_test.rs` |
+| `update_recipe` | RecipeManager | `database/recipes.rs` | `recipe_tools_integration_test.rs` |
+| `delete_recipe` | RecipeManager | `database/recipes.rs` | `recipe_tools_integration_test.rs` |
+| `scale_recipe` | Unit conversion + proportional scaling | `intelligence/recipes/` | `recipe_tools_integration_test.rs` |
+
+#### Fitness Config Tools (`src/tools/implementations/fitness_config.rs`)
+
+| Tool Name | Algorithm/Intelligence | Implementation | Test Files |
+|-----------|------------------------|----------------|------------|
+| `get_fitness_config` | FitnessConfigurationManager | `database/fitness_configurations.rs` | Configuration tests |
+| `set_fitness_config` | FitnessConfigurationManager + validation | `database/fitness_configurations.rs` | Configuration tests |
+| `list_fitness_configs` | FitnessConfigurationManager | `database/fitness_configurations.rs` | Configuration tests |
+| `delete_fitness_config` | FitnessConfigurationManager | `database/fitness_configurations.rs` | Configuration tests |
+
+### Intelligence Algorithm Modules Summary
+
+| Algorithm Module | Key Algorithms | Used By Tools |
+|------------------|----------------|---------------|
+| `intelligence/algorithms/vdot.rs` | Jack Daniels VDOT, pace zone calculation | `calculate_personalized_zones`, `predict_performance` |
+| `intelligence/algorithms/tss.rs` | Training Stress Score (power/HR based) | `analyze_training_load` |
+| `intelligence/algorithms/trimp.rs` | TRIMP (Training Impulse) | `analyze_training_load` |
+| `intelligence/algorithms/ftp.rs` | FTP estimation algorithms | `calculate_personalized_zones` |
+| `intelligence/algorithms/maxhr.rs` | Max HR estimation (Fox, Tanaka) | `calculate_personalized_zones` |
+| `intelligence/algorithms/lthr.rs` | LTHR detection | Configuration tools |
+| `intelligence/algorithms/vo2max.rs` | VO2max estimation | Performance prediction |
+| `intelligence/training_load.rs` | CTL/ATL/TSB exponential moving averages | `analyze_training_load`, `calculate_fitness_score` |
+| `intelligence/pattern_detection.rs` | Hard/easy, weekly schedule, volume trends, overtraining | `detect_patterns`, `calculate_fitness_score` |
+| `intelligence/sleep_analysis.rs` | Sleep quality scoring (NSF/AASM), HRV trends | Sleep tools (5 tools) |
+| `intelligence/recovery_calculator.rs` | Recovery score aggregation | `calculate_recovery_score`, `suggest_rest_day` |
+| `intelligence/nutrition_calculator.rs` | Mifflin-St Jeor BMR, TDEE, macro distribution | Nutrition tools (5 tools) |
+| `intelligence/goal_engine.rs` | Goal suggestion, progress tracking | Goal tools (4 tools) |
+| `intelligence/performance_prediction.rs` | VDOT race prediction, Riegel formula | `predict_performance` |
+| `intelligence/statistical_analysis.rs` | Linear regression, trend detection | `analyze_performance_trends` |
 
 ---
 
