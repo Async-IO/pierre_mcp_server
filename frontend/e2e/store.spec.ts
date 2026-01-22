@@ -320,11 +320,11 @@ test.describe('Coach Store Filtering', () => {
 
     await expect(page.getByRole('heading', { name: 'Coach Store' })).toBeVisible({ timeout: 5000 });
 
-    // Should display category filters
-    await expect(page.getByRole('button', { name: 'All' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Training' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Nutrition' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Recovery' })).toBeVisible();
+    // Should display category filters (use exact: true to avoid matching coach cards)
+    await expect(page.getByRole('button', { name: 'All', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Training', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Nutrition', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Recovery', exact: true })).toBeVisible();
   });
 
   test('filters by category when clicked', async ({ page }) => {
@@ -337,8 +337,8 @@ test.describe('Coach Store Filtering', () => {
     await expect(page.getByRole('heading', { name: 'Coach Store' })).toBeVisible({ timeout: 5000 });
     await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 10000 });
 
-    // Click Training filter
-    await page.getByRole('button', { name: 'Training' }).click();
+    // Click Training filter (use exact: true to avoid matching coach cards)
+    await page.getByRole('button', { name: 'Training', exact: true }).click();
 
     await page.waitForTimeout(500);
 
