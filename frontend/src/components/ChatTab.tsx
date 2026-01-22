@@ -16,6 +16,7 @@ import ProviderConnectionCards from './ProviderConnectionCards';
 import StoreScreen from './StoreScreen';
 import StoreCoachDetail from './StoreCoachDetail';
 import { useAuth } from '../hooks/useAuth';
+import { MessageCircle, Users, Compass, History, Plus, Settings, Zap, ChevronRight, Pencil, Trash2 } from 'lucide-react';
 
 // Convert plain URLs to markdown links with friendly display names
 // Matches http/https URLs that aren't already in markdown link format
@@ -143,6 +144,7 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
   const [selectedStoreCoach, setSelectedStoreCoach] = useState<string | null>(null);
   const [coachesCategoryFilter, setCoachesCategoryFilter] = useState<string | null>(null);
   const [showHiddenCoaches, setShowHiddenCoaches] = useState(false);
+  const [coachesSearchQuery, setCoachesSearchQuery] = useState('');
   const [editingCoachId, setEditingCoachId] = useState<string | null>(null);
   const [coachFormData, setCoachFormData] = useState({
     title: '',
@@ -845,7 +847,7 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
       orientation="horizontal"
       className="h-full"
     >
-      {/* Left Sidebar - Conversation List (collapsible) */}
+      {/* Left Sidebar - Premium Dark Theme Design */}
       <Panel
         panelRef={sidebarPanelRef}
         defaultSize="18%"
@@ -854,33 +856,44 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
         collapsible
         collapsedSize="0%"
         onResize={(size) => setSidebarCollapsed(size.asPercentage === 0)}
-        className="bg-pierre-gray-50 flex flex-col relative"
+        className="bg-pierre-dark flex flex-col relative border-r border-white/5"
+        style={{
+          background: 'rgba(15, 15, 26, 0.95)',
+          backdropFilter: 'blur(12px)',
+        }}
       >
-        {/* Quick Action Rows - Mobile-inspired design */}
-        <div className="p-3 space-y-1">
-          {/* Discussions Row */}
+        {/* Header / Logo */}
+        <div className="px-6 py-5 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-pierre-violet to-pierre-violet-dark flex items-center justify-center shadow-glow-sm">
+            <Zap className="w-5 h-5 text-white" />
+          </div>
+          <h1 className="text-white text-lg font-bold tracking-tight">Pierre</h1>
+        </div>
+
+        {/* Main Navigation */}
+        <nav className="px-3 py-2 flex flex-col gap-1.5">
+          {/* Chat - Active when not in My Coaches or Store */}
           <button
             onClick={() => {
               setShowMyCoachesPanel(false);
               setShowStorePanel(false);
               setSelectedStoreCoach(null);
-              // Show all conversations (deselect current)
             }}
             className={clsx(
-              'w-full px-3 py-2.5 flex items-center gap-3 rounded-lg transition-colors',
-              !showMyCoachesPanel && !showStorePanel && !selectedConversation
-                ? 'bg-pierre-violet/10'
-                : 'hover:bg-pierre-gray-100'
+              'group flex items-center gap-3 px-3 py-2.5 rounded-full transition-all duration-200',
+              !showMyCoachesPanel && !showStorePanel
+                ? 'bg-pierre-violet/10 border border-pierre-violet/20 text-pierre-violet shadow-[inset_0_0_12px_rgba(124,59,237,0.1)]'
+                : 'text-zinc-400 hover:text-white hover:bg-white/5'
             )}
           >
-            <span className="text-lg">💬</span>
-            <span className="flex-1 text-left text-sm font-medium text-pierre-gray-800">Discussions</span>
-            <svg className="w-4 h-4 text-pierre-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
+            <MessageCircle className={clsx('w-5 h-5', !showMyCoachesPanel && !showStorePanel && 'fill-current')} />
+            <span className="text-sm font-medium">Chat</span>
+            {!showMyCoachesPanel && !showStorePanel && (
+              <div className="ml-auto w-1.5 h-1.5 rounded-full bg-pierre-violet shadow-glow" />
+            )}
           </button>
 
-          {/* My Coaches Row */}
+          {/* My Coaches */}
           <button
             onClick={() => {
               setSelectedConversation(null);
@@ -890,20 +903,20 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
             title="My Coaches"
             aria-label="My Coaches"
             className={clsx(
-              'w-full px-3 py-2.5 flex items-center gap-3 rounded-lg transition-colors',
+              'group flex items-center gap-3 px-3 py-2.5 rounded-full transition-all duration-200',
               showMyCoachesPanel && !showStorePanel
-                ? 'bg-pierre-violet/10'
-                : 'hover:bg-pierre-gray-100'
+                ? 'bg-pierre-violet/10 border border-pierre-violet/20 text-pierre-violet shadow-[inset_0_0_12px_rgba(124,59,237,0.1)]'
+                : 'text-zinc-400 hover:text-white hover:bg-white/5'
             )}
           >
-            <span className="text-lg">🎯</span>
-            <span className="flex-1 text-left text-sm font-medium text-pierre-gray-800">My Coaches</span>
-            <svg className="w-4 h-4 text-pierre-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
+            <Users className="w-5 h-5" />
+            <span className="text-sm font-medium">My Coaches</span>
+            {showMyCoachesPanel && !showStorePanel && (
+              <div className="ml-auto w-1.5 h-1.5 rounded-full bg-pierre-violet shadow-glow" />
+            )}
           </button>
 
-          {/* Coach Store Row */}
+          {/* Discover (formerly Coach Store) */}
           <button
             onClick={() => {
               setSelectedConversation(null);
@@ -911,176 +924,150 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
               setShowStorePanel(true);
               setSelectedStoreCoach(null);
             }}
-            title="Coach Store"
-            aria-label="Coach Store"
+            title="Discover Coaches"
+            aria-label="Discover Coaches"
             className={clsx(
-              'w-full px-3 py-2.5 flex items-center gap-3 rounded-lg transition-colors',
+              'group flex items-center gap-3 px-3 py-2.5 rounded-full transition-all duration-200',
               showStorePanel
-                ? 'bg-pierre-violet/10'
-                : 'hover:bg-pierre-gray-100'
+                ? 'bg-pierre-violet/10 border border-pierre-violet/20 text-pierre-violet shadow-[inset_0_0_12px_rgba(124,59,237,0.1)]'
+                : 'text-zinc-400 hover:text-white hover:bg-white/5'
             )}
           >
-            <span className="text-lg">🏪</span>
-            <span className="flex-1 text-left text-sm font-medium text-pierre-gray-800">Coach Store</span>
-            <svg className="w-4 h-4 text-pierre-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
+            <Compass className="w-5 h-5" />
+            <span className="text-sm font-medium">Discover</span>
+            {showStorePanel && (
+              <div className="ml-auto w-1.5 h-1.5 rounded-full bg-pierre-violet shadow-glow" />
+            )}
           </button>
+        </nav>
+
+        {/* Section Divider */}
+        <div className="px-6 py-4">
+          <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
         </div>
 
-        {/* Recent Chat Header */}
-        <div className="px-4 py-2 border-t border-pierre-gray-200">
-          <h3 className="text-xs font-semibold text-pierre-gray-500 uppercase tracking-wider">Recents</h3>
+        {/* Recent Conversations Header */}
+        <div className="px-6 pb-2">
+          <h3 className="text-[11px] font-bold text-zinc-500 tracking-[0.15em] uppercase">Recent Conversations</h3>
         </div>
 
-        {/* Conversation List - with bottom padding for floating bar */}
-        <div className="flex-1 overflow-y-auto pb-20">
+        {/* Conversation List - Scrollable */}
+        <div className="flex-1 overflow-y-auto pb-44 px-3 space-y-0.5 sidebar-scroll">
           {conversationsLoading ? (
-            <div className="p-4 text-center text-pierre-gray-500 text-sm">Loading...</div>
+            <div className="p-4 text-center text-zinc-500 text-sm">Loading...</div>
           ) : conversationsData?.conversations?.length === 0 ? (
-            <div className="p-4 text-center text-pierre-gray-500 text-sm">No conversations yet</div>
+            <div className="p-4 text-center text-zinc-500 text-sm">No conversations yet</div>
           ) : (
-            <div className="py-2">
-              {conversationsData?.conversations?.map((conv) => (
-                <div
-                  key={conv.id}
-                  onClick={() => {
-                    if (editingTitle !== conv.id) {
-                      setShowMyCoachesPanel(false);
-                      setSelectedConversation(conv.id);
-                    }
-                  }}
-                  className={clsx(
-                    'relative px-3 py-2 mx-2 rounded-lg cursor-pointer transition-colors group',
-                    selectedConversation === conv.id
-                      ? 'bg-white shadow-sm'
-                      : 'hover:bg-pierre-gray-100'
-                  )}
-                >
-                  {/* Accent bar for selected state */}
-                  {selectedConversation === conv.id && (
-                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-pierre-violet rounded-r-full" />
-                  )}
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0 pl-1">
-                      {editingTitle === conv.id ? (
-                        <input
-                          ref={titleInputRef}
-                          type="text"
-                          value={editedTitleValue}
-                          onChange={(e) => setEditedTitleValue(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleSaveRename(conv.id);
-                            if (e.key === 'Escape') handleCancelRename();
-                          }}
-                          onBlur={() => handleSaveRename(conv.id)}
-                          className="w-full text-sm font-medium text-pierre-gray-800 bg-white border border-pierre-violet rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-pierre-violet"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      ) : (
-                        <p className="text-sm font-medium text-pierre-gray-800 truncate">
-                          {conv.title}
-                        </p>
-                      )}
-                      <p className="text-xs text-pierre-gray-500">{formatDate(conv.updated_at)}</p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {/* Rename button */}
-                      <button
-                        onClick={(e) => handleStartRename(e, conv)}
-                        className="opacity-0 group-hover:opacity-100 text-pierre-gray-400 hover:text-pierre-violet transition-all p-1"
-                        title="Rename"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                        </svg>
-                      </button>
-                      {/* Delete button */}
-                      <button
-                        onClick={(e) => handleDeleteConversation(e, conv)}
-                        className="opacity-0 group-hover:opacity-100 text-pierre-gray-400 hover:text-pierre-red-500 transition-all p-1"
-                        title="Delete"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
+            conversationsData?.conversations?.map((conv) => (
+              <button
+                key={conv.id}
+                onClick={() => {
+                  if (editingTitle !== conv.id) {
+                    setShowMyCoachesPanel(false);
+                    setShowStorePanel(false);
+                    setSelectedConversation(conv.id);
+                  }
+                }}
+                className={clsx(
+                  'w-full flex items-center gap-3 px-3 py-2 rounded-lg group transition-colors text-left',
+                  selectedConversation === conv.id
+                    ? 'bg-white/10 text-white'
+                    : 'hover:bg-white/5 text-zinc-300'
+                )}
+              >
+                <div className="text-zinc-500 group-hover:text-zinc-300 transition-colors flex-shrink-0">
+                  <History className="w-4 h-4" />
                 </div>
-              ))}
-            </div>
+                <div className="flex-1 min-w-0">
+                  {editingTitle === conv.id ? (
+                    <input
+                      ref={titleInputRef}
+                      type="text"
+                      value={editedTitleValue}
+                      onChange={(e) => setEditedTitleValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveRename(conv.id);
+                        if (e.key === 'Escape') handleCancelRename();
+                      }}
+                      onBlur={() => handleSaveRename(conv.id)}
+                      className="w-full text-sm font-medium text-white bg-pierre-slate border border-pierre-violet rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-pierre-violet"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  ) : (
+                    <p className="text-sm font-normal truncate group-hover:text-white transition-colors">
+                      {conv.title}
+                    </p>
+                  )}
+                </div>
+                <span className="text-zinc-600 text-xs whitespace-nowrap flex-shrink-0">{formatDate(conv.updated_at)}</span>
+                {/* Action buttons on hover */}
+                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={(e) => handleStartRename(e, conv)}
+                    className="p-1 text-zinc-500 hover:text-pierre-violet transition-colors"
+                    title="Rename"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={(e) => handleDeleteConversation(e, conv)}
+                    className="p-1 text-zinc-500 hover:text-pierre-red-500 transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </button>
+            ))
           )}
         </div>
 
-        {/* Floating Bottom Bar - User Profile + New Chat FAB */}
-        <div className="absolute bottom-3 left-3 right-3 bg-white rounded-xl shadow-lg border border-pierre-gray-200 px-3 py-2 flex items-center justify-between">
-          {/* User Profile Button */}
+        {/* Footer Area - Gradient fade + user profile */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-pierre-dark via-pierre-dark/95 to-transparent">
+          {/* User Profile Pill */}
           <button
             onClick={onOpenSettings}
-            className="flex items-center gap-2 px-2 py-1 rounded-full bg-pierre-gray-100 hover:bg-pierre-gray-200 transition-colors group"
+            className="w-full flex items-center gap-3 p-1.5 pr-3 bg-white/5 border border-white/5 rounded-full hover:bg-white/10 transition-colors cursor-pointer group"
             title="Open settings"
           >
-            {/* User Avatar */}
-            <div className="relative flex-shrink-0">
-              <div className="w-7 h-7 bg-gradient-to-br from-pierre-violet to-pierre-cyan rounded-full flex items-center justify-center">
-                <span className="text-xs font-bold text-white">
-                  {(user?.display_name || user?.email)?.charAt(0).toUpperCase()}
-                </span>
-              </div>
-              {/* Online status dot */}
-              <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-pierre-green-500 rounded-full border-2 border-white" />
+            {/* Avatar */}
+            <div className="relative w-9 h-9 rounded-full overflow-hidden border border-white/10 flex-shrink-0 bg-gradient-to-br from-pierre-violet to-pierre-cyan flex items-center justify-center">
+              <span className="text-sm font-bold text-white">
+                {(user?.display_name || user?.email)?.charAt(0).toUpperCase()}
+              </span>
             </div>
-            <span className="text-sm font-medium text-pierre-gray-800 truncate max-w-[100px] group-hover:text-pierre-violet transition-colors">
-              {user?.display_name || 'User'}
-            </span>
-          </button>
-
-          {/* New Chat FAB */}
-          <button
-            onClick={() => {
-              setShowMyCoachesPanel(false);
-              handleNewChat();
-            }}
-            disabled={createConversation.isPending}
-            title="New conversation"
-            aria-label="New Chat"
-            className="w-10 h-10 flex items-center justify-center rounded-full bg-gradient-to-br from-pierre-violet to-pierre-recovery-dark text-white shadow-md hover:shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100"
-          >
-            {createConversation.isPending ? (
-              <div className="pierre-spinner w-4 h-4 border-white border-t-transparent"></div>
-            ) : (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-              </svg>
-            )}
+            {/* Text */}
+            <div className="flex flex-col flex-1 min-w-0">
+              <p className="text-sm font-medium text-white truncate group-hover:text-pierre-violet transition-colors">
+                {user?.display_name || 'User'}
+              </p>
+              <p className="text-[11px] text-zinc-400 truncate">
+                {user?.email || 'Settings'}
+              </p>
+            </div>
+            {/* Settings Icon */}
+            <Settings className="w-5 h-5 text-zinc-400 group-hover:text-white transition-all group-hover:rotate-90 duration-500" />
           </button>
         </div>
       </Panel>
 
-      {/* Resize Handle with Toggle Button */}
-      <PanelResizeHandle className="w-2 bg-pierre-gray-200 hover:bg-pierre-violet/50 transition-colors relative group">
+      {/* Resize Handle with Toggle Button - Dark Theme */}
+      <PanelResizeHandle className="w-1 bg-pierre-dark/50 hover:bg-pierre-violet/30 transition-colors relative group">
         {/* Toggle button - appears on hover or when collapsed */}
         <button
           onClick={toggleSidebar}
           className={clsx(
-            'absolute top-3 -left-3 w-6 h-6 rounded-full bg-white border border-pierre-gray-200 shadow-sm flex items-center justify-center text-pierre-gray-500 hover:text-pierre-violet hover:border-pierre-violet transition-all z-10',
+            'absolute top-3 -left-3 w-6 h-6 rounded-full bg-pierre-slate border border-white/10 shadow-sm flex items-center justify-center text-zinc-400 hover:text-pierre-violet hover:border-pierre-violet transition-all z-10',
             sidebarCollapsed ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
           )}
           title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
         >
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            {sidebarCollapsed ? (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            ) : (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            )}
-          </svg>
+          <ChevronRight className={clsx('w-3 h-3', !sidebarCollapsed && 'rotate-180')} />
         </button>
       </PanelResizeHandle>
 
-      {/* Main Chat Area */}
-      <Panel defaultSize="82%" className="flex flex-col bg-white">
+      {/* Main Chat Area - Dark Theme */}
+      <Panel defaultSize="82%" className="flex flex-col bg-pierre-dark">
         {/* Coach Store View - shown when Coach Store button is clicked */}
         {showStorePanel && !selectedConversation ? (
           selectedStoreCoach ? (
@@ -1104,15 +1091,15 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
           )
         ) : showMyCoachesPanel && !selectedConversation ? (
           <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Header */}
-            <div className="p-6 border-b border-pierre-gray-200 flex items-center justify-between flex-shrink-0">
+            {/* Header - Dark Theme */}
+            <div className="p-6 border-b border-white/5 flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-gradient-to-br from-pierre-violet to-pierre-recovery-dark text-white shadow-sm">
-                  <span className="text-lg">🎯</span>
+                <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-gradient-to-br from-pierre-violet to-pierre-recovery-dark text-white shadow-glow-sm">
+                  <Users className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-semibold text-pierre-gray-900">My Coaches</h2>
-                  <p className="text-sm text-pierre-gray-500">Select a coach to start chatting</p>
+                  <h2 className="text-xl font-semibold text-white">My Coaches</h2>
+                  <p className="text-sm text-zinc-400">Select a coach to start chatting</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -1124,42 +1111,56 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                     setCoachFormData({ title: '', description: '', system_prompt: '', category: 'Training' });
                     setShowCoachModal(true);
                   }}
-                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-pierre-violet rounded-lg hover:bg-pierre-violet/90 transition-colors"
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-pierre-violet rounded-lg hover:bg-pierre-violet-dark transition-colors shadow-glow-sm hover:shadow-glow"
                   title="Add coach"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
+                  <Plus className="w-4 h-4" />
                   Add Coach
-                </button>
-                {/* Back button */}
-                <button
-                  onClick={() => {
-                    setShowMyCoachesPanel(false);
-                    setCoachesCategoryFilter(null);
-                    setShowHiddenCoaches(false);
-                  }}
-                  className="p-2 text-pierre-gray-400 hover:text-pierre-gray-600 hover:bg-pierre-gray-100 rounded-lg transition-colors"
-                  aria-label="Back"
-                  title="Back to home"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
                 </button>
               </div>
             </div>
 
-            {/* Category Filters */}
-            <div className="px-6 py-4 border-b border-pierre-gray-100 flex-shrink-0">
+            {/* Search Bar */}
+            <div className="px-6 py-4 border-b border-white/10">
+              <div className="relative">
+                <svg
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search coaches..."
+                  value={coachesSearchQuery}
+                  onChange={(e) => setCoachesSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-pierre-violet/30 focus:border-pierre-violet transition-colors"
+                />
+                {coachesSearchQuery && (
+                  <button
+                    onClick={() => setCoachesSearchQuery('')}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Category Filters - Dark Theme */}
+            <div className="px-6 py-4 border-b border-white/5 flex-shrink-0">
               <div className="flex items-center gap-2 overflow-x-auto pb-1">
                 <button
                   onClick={() => setCoachesCategoryFilter(null)}
                   className={clsx(
                     'px-4 py-2 text-sm font-medium rounded-full whitespace-nowrap transition-colors',
                     coachesCategoryFilter === null
-                      ? 'bg-pierre-violet text-white'
-                      : 'bg-pierre-gray-100 text-pierre-gray-600 hover:bg-pierre-gray-200'
+                      ? 'bg-pierre-violet text-white shadow-glow-sm'
+                      : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'
                   )}
                 >
                   All
@@ -1171,8 +1172,8 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                     className={clsx(
                       'px-4 py-2 text-sm font-medium rounded-full whitespace-nowrap transition-colors flex items-center gap-1.5',
                       coachesCategoryFilter === category
-                        ? 'bg-pierre-violet text-white'
-                        : 'bg-pierre-gray-100 text-pierre-gray-600 hover:bg-pierre-gray-200'
+                        ? 'bg-pierre-violet text-white shadow-glow-sm'
+                        : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'
                     )}
                   >
                     <span>{getCategoryIcon(category)}</span>
@@ -1182,12 +1183,12 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
               </div>
             </div>
 
-            {/* Coaches List */}
+            {/* Coaches List - Dark Theme */}
             <div className="flex-1 overflow-y-auto p-6">
               {coachesLoading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {[1, 2, 3, 4, 5, 6].map((i) => (
-                    <div key={i} className="h-24 bg-pierre-gray-100 rounded-xl animate-pulse" />
+                    <div key={i} className="h-24 bg-white/5 rounded-xl animate-pulse" />
                   ))}
                 </div>
               ) : (
@@ -1195,9 +1196,19 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                   {/* Coaches organized: User coaches first, then System coaches by category */}
                   {(() => {
                     const coaches: Coach[] = coachesData?.coaches || [];
-                    const filteredCoaches = coachesCategoryFilter
+                    // Filter by category
+                    let filteredCoaches = coachesCategoryFilter
                       ? coaches.filter((c: Coach) => c.category.toLowerCase() === coachesCategoryFilter.toLowerCase())
                       : coaches;
+                    // Filter by search query
+                    if (coachesSearchQuery.trim()) {
+                      const query = coachesSearchQuery.toLowerCase().trim();
+                      filteredCoaches = filteredCoaches.filter((c: Coach) =>
+                        c.title.toLowerCase().includes(query) ||
+                        (c.description?.toLowerCase().includes(query)) ||
+                        c.tags.some((tag: string) => tag.toLowerCase().includes(query))
+                      );
+                    }
 
                     // Separate user coaches from system coaches
                     const userCoaches = filteredCoaches.filter((c: Coach) => !c.is_system);
@@ -1269,10 +1280,10 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                         {/* Personalized (user-created) - always first */}
                         {sortedUserCoaches.length > 0 && (
                           <div>
-                            <h3 className="text-sm font-semibold text-pierre-gray-700 mb-3 flex items-center gap-2">
+                            <h3 className="text-sm font-semibold text-zinc-300 mb-3 flex items-center gap-2">
                               <span className="text-lg">✨</span>
                               Personalized
-                              <span className="text-xs text-pierre-gray-400 font-normal">({sortedUserCoaches.length})</span>
+                              <span className="text-xs text-zinc-500 font-normal">({sortedUserCoaches.length})</span>
                             </h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                               {sortedUserCoaches.map(renderCoachCard)}
@@ -1282,18 +1293,18 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
 
                         {/* System Coaches - grouped by category */}
                         {Object.keys(groupedSystemCoaches).length > 0 && (
-                          <div className={sortedUserCoaches.length > 0 ? 'pt-4 border-t border-pierre-gray-200' : ''}>
-                            <h3 className="text-sm font-semibold text-pierre-gray-500 mb-4 flex items-center gap-2">
+                          <div className={sortedUserCoaches.length > 0 ? 'pt-4 border-t border-white/5' : ''}>
+                            <h3 className="text-sm font-semibold text-zinc-400 mb-4 flex items-center gap-2">
                               <span className="text-lg">🏛️</span>
                               System Coaches
                             </h3>
                             <div className="space-y-6">
                               {Object.entries(groupedSystemCoaches).map(([category, categoryCoaches]) => (
                                 <div key={category}>
-                                  <h4 className="text-xs font-medium text-pierre-gray-500 mb-2 flex items-center gap-1.5 uppercase tracking-wider">
+                                  <h4 className="text-xs font-medium text-zinc-500 mb-2 flex items-center gap-1.5 uppercase tracking-wider">
                                     <span>{getCategoryIcon(category)}</span>
                                     {category}
-                                    <span className="text-pierre-gray-400 font-normal normal-case">({categoryCoaches.length})</span>
+                                    <span className="text-zinc-600 font-normal normal-case">({categoryCoaches.length})</span>
                                   </h4>
                                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {categoryCoaches.map(renderCoachCard)}
@@ -1307,16 +1318,16 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                     );
                   })()}
 
-                  {/* Hidden Coaches Toggle */}
+                  {/* Hidden Coaches Toggle - Dark Theme */}
                   {(hiddenCoachesData?.coaches?.length ?? 0) > 0 && (
-                    <div className="mt-8 pt-6 border-t border-pierre-gray-200">
+                    <div className="mt-8 pt-6 border-t border-white/5">
                       <button
                         onClick={() => setShowHiddenCoaches(!showHiddenCoaches)}
                         className={clsx(
                           'flex items-center gap-2 text-sm font-medium transition-colors',
                           showHiddenCoaches
                             ? 'text-pierre-violet'
-                            : 'text-pierre-gray-500 hover:text-pierre-gray-700'
+                            : 'text-zinc-500 hover:text-zinc-300'
                         )}
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1334,13 +1345,13 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                           {hiddenCoachesData?.coaches?.map((coach: Coach) => (
                             <div
                               key={coach.id}
-                              className="relative text-left text-sm rounded-xl border border-pierre-gray-200 px-4 py-3 opacity-60 hover:opacity-100 transition-all group bg-pierre-gray-50"
+                              className="relative text-left text-sm rounded-xl border border-white/5 px-4 py-3 opacity-60 hover:opacity-100 transition-all group bg-white/5"
                             >
                               <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button
                                   onClick={() => showCoach.mutate(coach.id)}
                                   disabled={showCoach.isPending}
-                                  className="p-1.5 text-pierre-gray-400 hover:text-pierre-green-600 hover:bg-pierre-green-50 rounded-lg transition-colors disabled:opacity-50"
+                                  className="p-1.5 text-zinc-400 hover:text-pierre-activity hover:bg-pierre-activity/10 rounded-lg transition-colors disabled:opacity-50"
                                   title="Show coach"
                                   aria-label="Show coach"
                                 >
@@ -1350,13 +1361,13 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                                 </button>
                               </div>
                               <div className="flex items-center justify-between">
-                                <span className="font-medium text-pierre-gray-600">{coach.title}</span>
+                                <span className="font-medium text-zinc-400">{coach.title}</span>
                                 <span className={clsx('text-xs px-1.5 py-0.5 rounded', getCategoryBadgeClass(coach.category))}>
                                   {getCategoryIcon(coach.category)}
                                 </span>
                               </div>
                               {coach.description && (
-                                <p className="text-pierre-gray-400 text-xs mt-1 line-clamp-2">{coach.description}</p>
+                                <p className="text-zinc-500 text-xs mt-1 line-clamp-2">{coach.description}</p>
                               )}
                             </div>
                           ))}
@@ -1369,53 +1380,113 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
             </div>
           </div>
         ) : !selectedConversation ? (
-          <div className="flex-1 flex items-center justify-center overflow-y-auto py-8">
-            <div className="w-full max-w-5xl px-6">
-              <div className="text-center mb-8">
-                {/* Show connection badge only if provider is connected */}
-                {hasConnectedProvider ? (
-                  <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-pierre-activity/10 text-pierre-activity text-sm font-medium rounded-full mb-4">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    {oauthStatus?.providers?.filter(p => p.connected).map(p =>
-                      p.provider.charAt(0).toUpperCase() + p.provider.slice(1)
-                    ).join(', ')} connected
-                  </div>
-                ) : (
-                  <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-pierre-gray-100 text-pierre-gray-600 text-sm font-medium rounded-full mb-4">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                    No provider connected
-                  </div>
-                )}
-                <h2 className="text-2xl font-semibold text-pierre-gray-900 mb-2">
-                  Ready to analyze your fitness
-                </h2>
-                <p className="text-pierre-gray-500 text-sm">
-                  {hasConnectedProvider
-                    ? 'Get personalized insights from your activity data'
-                    : 'Select a coach to get started - connect your data anytime'}
-                </p>
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Header - matches My Coaches layout */}
+            <div className="p-6 border-b border-white/5 flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-gradient-to-br from-pierre-violet to-pierre-cyan text-white shadow-glow-sm">
+                  <MessageCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-white">Chat</h2>
+                  <p className="text-sm text-zinc-400">
+                    {hasConnectedProvider
+                      ? oauthStatus?.providers?.filter(p => p.connected).map(p =>
+                          p.provider.charAt(0).toUpperCase() + p.provider.slice(1)
+                        ).join(', ') + ' connected'
+                      : 'No provider connected'}
+                  </p>
+                </div>
               </div>
-
-              {/* Coach selection */}
-              <PromptSuggestions
-                onSelectPrompt={handleSelectPrompt}
-                onEditCoach={handleEditCoach}
-                onDeleteCoach={handleDeleteCoach}
-              />
-
-              <div className="mt-8 text-center">
+              <div className="flex items-center gap-2">
+                {/* New Chat Button */}
                 <button
-                  type="button"
-                  onClick={handleNewChat}
+                  onClick={() => {
+                    setShowMyCoachesPanel(false);
+                    setShowStorePanel(false);
+                    createConversation.mutate();
+                  }}
                   disabled={createConversation.isPending}
-                  className="text-pierre-gray-500 hover:text-pierre-violet text-sm font-medium transition-colors"
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-pierre-violet rounded-lg hover:bg-pierre-violet-dark transition-colors shadow-glow-sm hover:shadow-glow"
+                  title="New chat"
                 >
-                  Start a blank conversation
+                  <Plus className="w-4 h-4" />
+                  New Chat
                 </button>
+              </div>
+            </div>
+
+            {/* Scrollable content area */}
+            <div className="flex-1 overflow-y-auto">
+              <div className="w-full max-w-5xl mx-auto px-6 py-8">
+                <div className="text-center mb-8">
+                  <h2 className="text-2xl font-semibold text-white mb-2">
+                    Ready to analyze your fitness
+                  </h2>
+                  <p className="text-zinc-400 text-sm">
+                    {hasConnectedProvider
+                      ? 'Get personalized insights from your activity data'
+                      : 'Select a coach to get started - connect your data anytime'}
+                  </p>
+
+                  {/* Chat Input */}
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (newMessage.trim()) {
+                        setPendingPrompt(newMessage.trim());
+                        createConversation.mutate();
+                      }
+                    }}
+                    className="relative mt-6 max-w-2xl mx-auto"
+                  >
+                    <input
+                      type="text"
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      placeholder="Message Pierre..."
+                      className="w-full rounded-xl border border-white/10 bg-[#151520] text-white placeholder-zinc-500 pl-4 pr-24 py-3.5 focus:outline-none focus:ring-2 focus:ring-pierre-violet/30 focus:border-pierre-violet text-sm transition-colors"
+                      disabled={createConversation.isPending}
+                    />
+                    <button
+                      type="submit"
+                      disabled={!newMessage.trim() || createConversation.isPending}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-1.5 bg-pierre-violet text-white text-sm font-medium rounded-lg hover:bg-pierre-violet-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                    >
+                      {createConversation.isPending ? (
+                        <div className="pierre-spinner w-4 h-4 border-white border-t-transparent" />
+                      ) : (
+                        <>
+                          Send
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                          </svg>
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </div>
+
+                {/* Coach selection */}
+                <PromptSuggestions
+                  onSelectPrompt={handleSelectPrompt}
+                  onEditCoach={handleEditCoach}
+                  onDeleteCoach={handleDeleteCoach}
+                />
+
+                {/* Discover more coaches button */}
+                <div className="text-center mt-6">
+                  <button
+                    onClick={() => {
+                      setShowMyCoachesPanel(false);
+                      setShowStorePanel(true);
+                    }}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                  >
+                    <Compass className="w-4 h-4" />
+                    Discover more coaches
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1425,7 +1496,7 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
             <div className="flex-1 overflow-y-auto min-h-0">
               <div className="max-w-3xl mx-auto py-6 px-6">
                 {messagesLoading ? (
-                  <div className="text-center text-pierre-gray-500 py-8 text-sm">Loading messages...</div>
+                  <div className="text-center text-zinc-400 py-8 text-sm">Loading messages...</div>
                 ) : (
                   <div className="space-y-6">
                     {messagesData?.messages?.map((msg) => (
@@ -1433,8 +1504,8 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                         {/* Avatar */}
                         <div className="flex-shrink-0">
                           {msg.role === 'user' ? (
-                            <div className="w-8 h-8 rounded-full bg-pierre-gray-200 flex items-center justify-center">
-                              <svg className="w-4 h-4 text-pierre-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                              <svg className="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                               </svg>
                             </div>
@@ -1444,10 +1515,10 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                         </div>
                         {/* Message Content */}
                         <div className="flex-1 min-w-0 pt-1">
-                          <div className="font-medium text-pierre-gray-900 text-sm mb-1">
+                          <div className="font-medium text-white text-sm mb-1">
                             {msg.role === 'user' ? 'You' : 'Pierre'}
                           </div>
-                          <div className="text-pierre-gray-700 text-sm leading-relaxed prose prose-sm max-w-none prose-a:text-pierre-violet prose-a:underline hover:prose-a:text-pierre-violet/80">
+                          <div className="text-zinc-300 text-sm leading-relaxed prose prose-sm prose-invert max-w-none prose-a:text-pierre-violet prose-a:underline hover:prose-a:text-pierre-violet/80">
                             <Markdown
                               components={{
                                 a: ({ href, children }) => (
@@ -1462,7 +1533,7 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                           </div>
                           {/* Model and execution time metadata for assistant messages */}
                           {msg.role === 'assistant' && messageMetadata.get(msg.id) && (
-                            <div className="mt-2 text-xs text-pierre-gray-400 flex items-center gap-2">
+                            <div className="mt-2 text-xs text-zinc-500 flex items-center gap-2">
                               <span className="inline-flex items-center gap-1">
                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -1488,18 +1559,18 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                           <img src="/pierre-icon.svg" alt="Pierre" className="w-8 h-8 rounded-xl" />
                         </div>
                         <div className="flex-1 min-w-0 pt-1">
-                          <div className="font-medium text-pierre-gray-900 text-sm mb-1 flex items-center gap-2">
+                          <div className="font-medium text-white text-sm mb-1 flex items-center gap-2">
                             Pierre
                             <button
                               onClick={() => setOauthNotification(null)}
-                              className="text-pierre-gray-400 hover:text-pierre-gray-600"
+                              className="text-zinc-500 hover:text-white transition-colors"
                             >
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                               </svg>
                             </button>
                           </div>
-                          <div className="text-pierre-gray-700 text-sm leading-relaxed">
+                          <div className="text-zinc-300 text-sm leading-relaxed">
                             {oauthNotification.provider} connected successfully. You can now access your {oauthNotification.provider} data.
                           </div>
                         </div>
@@ -1513,11 +1584,11 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                           <img src="/pierre-icon.svg" alt="Pierre" className="w-8 h-8 rounded-xl" />
                         </div>
                         <div className="flex-1 min-w-0 pt-1">
-                          <div className="font-medium text-pierre-gray-900 text-sm mb-1 flex items-center gap-2">
+                          <div className="font-medium text-white text-sm mb-1 flex items-center gap-2">
                             Pierre
                             <span className="w-1.5 h-1.5 bg-pierre-violet rounded-full animate-pulse" />
                           </div>
-                          <div className="text-pierre-gray-700 text-sm leading-relaxed prose prose-sm max-w-none prose-a:text-pierre-violet prose-a:underline hover:prose-a:text-pierre-violet/80">
+                          <div className="text-zinc-300 text-sm leading-relaxed prose prose-sm prose-invert max-w-none prose-a:text-pierre-violet prose-a:underline hover:prose-a:text-pierre-violet/80">
                             <Markdown
                               components={{
                                 a: ({ href, children }) => (
@@ -1541,10 +1612,10 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                           <img src="/pierre-icon.svg" alt="Pierre" className="w-8 h-8 rounded-xl" />
                         </div>
                         <div className="flex-1 pt-1">
-                          <div className="font-medium text-pierre-gray-900 text-sm mb-2 flex items-center gap-2">
+                          <div className="font-medium text-white text-sm mb-2 flex items-center gap-2">
                             Pierre
                           </div>
-                          <div className="flex items-center gap-2 text-pierre-gray-500 text-sm">
+                          <div className="flex items-center gap-2 text-zinc-400 text-sm">
                             <div className="pierre-spinner w-4 h-4"></div>
                             <span>Thinking...</span>
                           </div>
@@ -1556,22 +1627,22 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                     {errorMessage && !isStreaming && (
                       <div className="flex gap-3">
                         <div className="flex-shrink-0">
-                          <div className="w-8 h-8 rounded-full bg-pierre-red-100 flex items-center justify-center">
-                            <svg className="w-4 h-4 text-pierre-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center">
+                            <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                             </svg>
                           </div>
                         </div>
                         <div className="flex-1 pt-1">
-                          <div className="bg-pierre-red-50 border border-pierre-red-100 rounded-lg px-4 py-3">
-                            <p className="text-pierre-red-700 text-sm">
+                          <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3">
+                            <p className="text-red-400 text-sm">
                               {errorCountdown !== null
                                 ? errorMessage.replace(/in \d+ seconds/, `in ${errorCountdown} seconds`)
                                 : errorMessage}
                             </p>
                             <button
                               onClick={() => { setErrorMessage(null); setErrorCountdown(null); }}
-                              className="text-pierre-red-500 hover:text-pierre-red-700 text-xs mt-2 underline"
+                              className="text-red-400 hover:text-red-300 text-xs mt-2 underline transition-colors"
                             >
                               Dismiss
                             </button>
@@ -1586,20 +1657,20 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
             </div>
 
             {/* Input Area */}
-            <div className="border-t border-pierre-gray-100 p-4 bg-white">
+            <div className="border-t border-white/10 p-4 bg-pierre-slate">
               <div className="max-w-3xl mx-auto">
                 {/* Ideas popover */}
                 {showIdeas && (
-                  <div className="mb-4 p-4 bg-pierre-gray-50 rounded-xl border border-pierre-gray-200 relative">
+                  <div className="mb-4 p-4 bg-white/5 rounded-xl border border-white/10 relative">
                     <button
                       onClick={() => setShowIdeas(false)}
-                      className="absolute top-2 right-2 text-pierre-gray-400 hover:text-pierre-gray-600"
+                      className="absolute top-2 right-2 text-zinc-500 hover:text-white transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                       </svg>
                     </button>
-                    <p className="text-xs text-pierre-gray-500 mb-3">Click a suggestion to fill the input:</p>
+                    <p className="text-xs text-zinc-400 mb-3">Click a suggestion to fill the input:</p>
                     <PromptSuggestions onSelectPrompt={handleFillPrompt} />
                   </div>
                 )}
@@ -1610,7 +1681,7 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder="Message Pierre..."
-                    className="w-full resize-none rounded-xl border border-pierre-gray-200 bg-pierre-gray-50 pl-4 pr-14 py-3 focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:border-transparent focus:bg-white text-sm transition-colors overflow-hidden"
+                    className="w-full resize-none rounded-xl border border-white/10 bg-[#151520] text-white placeholder-zinc-500 pl-4 pr-14 py-3 focus:outline-none focus:ring-2 focus:ring-pierre-violet/30 focus:border-pierre-violet text-sm transition-colors overflow-hidden"
                     rows={1}
                     disabled={isStreaming}
                   />
@@ -1621,8 +1692,8 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                     className={clsx(
                       'absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-lg transition-colors',
                       newMessage.trim() && !isStreaming
-                        ? 'bg-pierre-violet text-white hover:bg-pierre-violet/90 shadow-sm'
-                        : 'text-pierre-gray-400 cursor-not-allowed'
+                        ? 'bg-pierre-violet text-white hover:bg-pierre-violet/90 shadow-glow-sm'
+                        : 'text-zinc-600 cursor-not-allowed'
                     )}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1631,13 +1702,13 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                   </button>
                 </div>
                 <div className="flex items-center justify-center gap-2 mt-2">
-                  <p className="text-xs text-pierre-gray-400">
+                  <p className="text-xs text-zinc-500">
                     Press Enter to send, Shift+Enter for new line
                   </p>
-                  <span className="text-pierre-gray-300">|</span>
+                  <span className="text-zinc-600">|</span>
                   <button
                     onClick={() => setShowIdeas(!showIdeas)}
-                    className="text-xs text-pierre-violet hover:text-pierre-violet/80 flex items-center gap-1"
+                    className="text-xs text-pierre-violet hover:text-pierre-violet/80 flex items-center gap-1 transition-colors"
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
@@ -1669,16 +1740,16 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           {/* Backdrop */}
           <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             onClick={handleProviderModalClose}
           />
           {/* Modal Content */}
-          <div className="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="relative bg-pierre-slate rounded-2xl shadow-2xl border border-white/10 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               {/* Close button */}
               <button
                 onClick={handleProviderModalClose}
-                className="absolute top-4 right-4 p-2 text-pierre-gray-400 hover:text-pierre-gray-600 hover:bg-pierre-gray-100 rounded-lg transition-colors"
+                className="absolute top-4 right-4 p-2 text-zinc-500 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
                 aria-label="Close"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1687,15 +1758,15 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
               </button>
 
               <div className="text-center mb-6">
-                <div className="w-12 h-12 bg-pierre-violet/10 rounded-xl flex items-center justify-center mx-auto mb-4">
+                <div className="w-12 h-12 bg-pierre-violet/20 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-glow-sm">
                   <svg className="w-6 h-6 text-pierre-violet" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
                 </div>
-                <h2 className="text-xl font-semibold text-pierre-gray-900 mb-2">
+                <h2 className="text-xl font-semibold text-white mb-2">
                   Connect your fitness data
                 </h2>
-                <p className="text-pierre-gray-500 text-sm">
+                <p className="text-zinc-400 text-sm">
                   Link a provider for personalized insights, or continue without
                 </p>
               </div>
@@ -1924,11 +1995,11 @@ interface MyCoachCardProps {
 function MyCoachCard({ coach, onSelect, onEdit, onDelete, onHide, isHiding }: MyCoachCardProps) {
   return (
     <div
-      className="relative text-left text-sm rounded-xl border border-pierre-gray-200 hover:border-pierre-violet hover:bg-pierre-violet/5 px-4 py-3 transition-all focus-within:outline-none focus-within:ring-2 focus-within:ring-pierre-violet focus-within:ring-opacity-50 group hover:shadow-sm cursor-pointer"
+      className="relative text-left text-sm rounded-xl border border-white/10 bg-white/5 hover:border-pierre-violet/50 hover:bg-white/10 px-4 py-3 transition-all focus-within:outline-none focus-within:ring-2 focus-within:ring-pierre-violet focus-within:ring-opacity-50 group hover:shadow-glow-sm cursor-pointer"
       onClick={onSelect}
     >
-      {/* Action buttons container */}
-      <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10 bg-white/90 backdrop-blur-sm rounded-lg px-1 py-0.5 shadow-sm">
+      {/* Action buttons container - Dark Theme */}
+      <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10 bg-pierre-slate/90 backdrop-blur-sm rounded-lg px-1 py-0.5 shadow-sm border border-white/10">
         {/* Edit/Delete for user-created coaches */}
         {!coach.is_system && (
           <>
@@ -1938,13 +2009,11 @@ function MyCoachCard({ coach, onSelect, onEdit, onDelete, onHide, isHiding }: My
                 e.stopPropagation();
                 onEdit();
               }}
-              className="p-1 text-pierre-gray-400 hover:text-pierre-violet hover:bg-pierre-violet/10 rounded transition-colors"
+              className="p-1 text-zinc-400 hover:text-pierre-violet hover:bg-pierre-violet/10 rounded transition-colors"
               title="Edit coach"
               aria-label="Edit coach"
             >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-              </svg>
+              <Pencil className="w-3.5 h-3.5" />
             </button>
             <button
               type="button"
@@ -1952,13 +2021,11 @@ function MyCoachCard({ coach, onSelect, onEdit, onDelete, onHide, isHiding }: My
                 e.stopPropagation();
                 onDelete();
               }}
-              className="p-1 text-pierre-gray-400 hover:text-pierre-red-500 hover:bg-pierre-red-50 rounded transition-colors"
+              className="p-1 text-zinc-400 hover:text-pierre-red-500 hover:bg-pierre-red-500/10 rounded transition-colors"
               title="Delete coach"
               aria-label="Delete coach"
             >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
           </>
         )}
@@ -1971,7 +2038,7 @@ function MyCoachCard({ coach, onSelect, onEdit, onDelete, onHide, isHiding }: My
               onHide();
             }}
             disabled={isHiding}
-            className="p-1 text-pierre-gray-400 hover:text-pierre-gray-600 hover:bg-pierre-gray-100 rounded transition-colors disabled:opacity-50"
+            className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 rounded transition-colors disabled:opacity-50"
             title="Hide coach"
             aria-label="Hide coach"
           >
@@ -1983,7 +2050,7 @@ function MyCoachCard({ coach, onSelect, onEdit, onDelete, onHide, isHiding }: My
       </div>
 
       <div className="flex items-center justify-between">
-        <span className="font-medium text-pierre-gray-800 group-hover:text-pierre-violet">
+        <span className="font-medium text-zinc-200 group-hover:text-pierre-violet">
           {coach.title}
         </span>
         <div className="flex items-center gap-1">
@@ -1996,13 +2063,13 @@ function MyCoachCard({ coach, onSelect, onEdit, onDelete, onHide, isHiding }: My
         </div>
       </div>
       {coach.description && (
-        <p className="text-pierre-gray-500 text-xs mt-0.5 line-clamp-2">
+        <p className="text-zinc-400 text-xs mt-0.5 line-clamp-2">
           {coach.description}
         </p>
       )}
-      <div className="flex items-center gap-2 mt-1 text-xs text-pierre-gray-400">
+      <div className="flex items-center gap-2 mt-1 text-xs text-zinc-500">
         {coach.is_system && (
-          <span className="bg-pierre-violet bg-opacity-10 text-pierre-violet px-1.5 py-0.5 rounded">
+          <span className="bg-pierre-violet/20 text-pierre-violet px-1.5 py-0.5 rounded">
             System
           </span>
         )}

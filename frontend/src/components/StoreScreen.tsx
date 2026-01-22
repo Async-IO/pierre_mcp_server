@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { clsx } from 'clsx';
+import { Compass } from 'lucide-react';
 import { apiService } from '../services/api';
 
 // Category filter options
@@ -31,14 +32,14 @@ const SORT_OPTIONS = [
 
 type SortOption = typeof SORT_OPTIONS[number]['key'];
 
-// Coach category colors
+// Coach category colors (dark theme)
 const COACH_CATEGORY_COLORS: Record<string, string> = {
-  training: 'bg-emerald-100 text-emerald-700',
-  nutrition: 'bg-amber-100 text-amber-700',
-  recovery: 'bg-indigo-100 text-indigo-700',
-  recipes: 'bg-orange-100 text-orange-700',
-  mobility: 'bg-pink-100 text-pink-700',
-  custom: 'bg-violet-100 text-violet-700',
+  training: 'bg-emerald-500/20 text-emerald-400',
+  nutrition: 'bg-amber-500/20 text-amber-400',
+  recovery: 'bg-indigo-500/20 text-indigo-400',
+  recipes: 'bg-orange-500/20 text-orange-400',
+  mobility: 'bg-pink-500/20 text-pink-400',
+  custom: 'bg-violet-500/20 text-violet-400',
 };
 
 interface StoreCoach {
@@ -57,10 +58,10 @@ interface StoreCoach {
 
 interface StoreScreenProps {
   onSelectCoach: (coachId: string) => void;
-  onBack: () => void;
+  onBack?: () => void;
 }
 
-export default function StoreScreen({ onSelectCoach, onBack }: StoreScreenProps) {
+export default function StoreScreen({ onSelectCoach }: StoreScreenProps) {
   const [selectedCategory, setSelectedCategory] = useState<CategoryFilter>('all');
   const [selectedSort, setSelectedSort] = useState<SortOption>('popular');
   const [searchQuery, setSearchQuery] = useState('');
@@ -109,29 +110,25 @@ export default function StoreScreen({ onSelectCoach, onBack }: StoreScreenProps)
   }, []);
 
   return (
-    <div className="h-full flex flex-col bg-white">
-      {/* Header */}
-      <div className="flex items-center gap-4 px-6 py-4 border-b border-pierre-gray-200">
-        <button
-          onClick={onBack}
-          className="p-2 rounded-lg hover:bg-pierre-gray-100 transition-colors"
-          title="Back to Chat"
-        >
-          <svg className="w-5 h-5 text-pierre-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <div>
-          <h1 className="text-xl font-semibold text-pierre-gray-900">Coach Store</h1>
-          <p className="text-sm text-pierre-gray-500">Discover AI coaching assistants</p>
+    <div className="h-full flex flex-col bg-pierre-dark">
+      {/* Header - matches Chat and My Coaches layout */}
+      <div className="p-6 border-b border-white/5 flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-gradient-to-br from-pierre-activity to-pierre-activity-dark text-white shadow-glow-sm">
+            <Compass className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-xl font-semibold text-white">Discover</h2>
+            <p className="text-sm text-zinc-400">Find AI coaching assistants</p>
+          </div>
         </div>
       </div>
 
       {/* Search Bar */}
-      <div className="px-6 py-4 border-b border-pierre-gray-100">
+      <div className="px-6 py-4 border-b border-white/10">
         <div className="relative">
           <svg
-            className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-pierre-gray-400"
+            className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -143,12 +140,12 @@ export default function StoreScreen({ onSelectCoach, onBack }: StoreScreenProps)
             placeholder="Search coaches..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-10 py-2.5 bg-pierre-gray-50 border border-pierre-gray-200 rounded-lg text-sm text-pierre-gray-900 placeholder-pierre-gray-500 focus:outline-none focus:ring-2 focus:ring-pierre-violet/20 focus:border-pierre-violet transition-colors"
+            className="w-full pl-10 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-pierre-violet/30 focus:border-pierre-violet transition-colors"
           />
           {searchQuery && (
             <button
               onClick={handleClearSearch}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-pierre-gray-400 hover:text-pierre-gray-600"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-300"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -164,7 +161,7 @@ export default function StoreScreen({ onSelectCoach, onBack }: StoreScreenProps)
       </div>
 
       {/* Category Filters */}
-      <div className="px-6 py-3 border-b border-pierre-gray-100 overflow-x-auto">
+      <div className="px-6 py-3 border-b border-white/10 overflow-x-auto">
         <div className="flex items-center gap-2">
           {CATEGORY_FILTERS.map((filter) => (
             <button
@@ -173,8 +170,8 @@ export default function StoreScreen({ onSelectCoach, onBack }: StoreScreenProps)
               className={clsx(
                 'px-4 py-1.5 text-sm font-medium rounded-full whitespace-nowrap transition-colors',
                 selectedCategory === filter.key
-                  ? 'bg-pierre-violet text-white'
-                  : 'bg-pierre-gray-100 text-pierre-gray-600 hover:bg-pierre-gray-200'
+                  ? 'bg-pierre-violet text-white shadow-glow-sm'
+                  : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-300'
               )}
             >
               {filter.label}
@@ -184,8 +181,8 @@ export default function StoreScreen({ onSelectCoach, onBack }: StoreScreenProps)
       </div>
 
       {/* Sort Options */}
-      <div className="px-6 py-2 bg-pierre-gray-50 border-b border-pierre-gray-100 flex items-center gap-3">
-        <span className="text-sm text-pierre-gray-500">Sort by:</span>
+      <div className="px-6 py-2 bg-white/5 border-b border-white/10 flex items-center gap-3">
+        <span className="text-sm text-gray-500">Sort by:</span>
         {SORT_OPTIONS.map((option) => (
           <button
             key={option.key}
@@ -193,8 +190,8 @@ export default function StoreScreen({ onSelectCoach, onBack }: StoreScreenProps)
             className={clsx(
               'px-3 py-1 text-sm rounded transition-colors',
               selectedSort === option.key
-                ? 'bg-pierre-violet/10 text-pierre-violet font-medium'
-                : 'text-pierre-gray-600 hover:text-pierre-violet'
+                ? 'bg-pierre-violet/20 text-pierre-violet font-medium'
+                : 'text-gray-400 hover:text-pierre-violet'
             )}
           >
             {option.label}
@@ -203,28 +200,28 @@ export default function StoreScreen({ onSelectCoach, onBack }: StoreScreenProps)
       </div>
 
       {/* Coach Grid */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-6 sidebar-scroll">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
               <div className="w-8 h-8 border-2 border-pierre-violet border-t-transparent rounded-full animate-spin mx-auto" />
-              <p className="mt-3 text-sm text-pierre-gray-500">Loading coaches...</p>
+              <p className="mt-3 text-sm text-gray-500">Loading coaches...</p>
             </div>
           </div>
         ) : coaches.length === 0 ? (
           <div className="text-center py-12">
             <svg
-              className="w-12 h-12 text-pierre-gray-300 mx-auto mb-4"
+              className="w-12 h-12 text-gray-600 mx-auto mb-4"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <h3 className="text-lg font-medium text-pierre-gray-900">
+            <h3 className="text-lg font-medium text-white">
               {searchQuery ? 'No coaches found' : 'Store is empty'}
             </h3>
-            <p className="text-sm text-pierre-gray-500 mt-1">
+            <p className="text-sm text-gray-500 mt-1">
               {searchQuery
                 ? `No coaches match "${searchQuery}"`
                 : 'No published coaches available yet'}
@@ -248,31 +245,31 @@ interface CoachCardProps {
 }
 
 function CoachCard({ coach, onClick }: CoachCardProps) {
-  const categoryColors = COACH_CATEGORY_COLORS[coach.category] ?? 'bg-gray-100 text-gray-700';
+  const categoryColors = COACH_CATEGORY_COLORS[coach.category] ?? 'bg-gray-500/20 text-gray-400';
 
   return (
     <button
       onClick={onClick}
-      className="text-left p-4 bg-white border border-pierre-gray-200 rounded-xl hover:border-pierre-violet/30 hover:shadow-md transition-all duration-200 group"
+      className="text-left p-4 bg-white/5 border border-white/10 rounded-xl hover:border-pierre-violet/40 hover:bg-white/10 hover:shadow-glow-sm transition-all duration-200 group"
     >
       {/* Header with category and install count */}
       <div className="flex items-center justify-between mb-2">
         <span className={clsx('px-2.5 py-0.5 text-xs font-medium rounded-full capitalize', categoryColors)}>
           {coach.category}
         </span>
-        <span className="text-xs text-pierre-gray-500">
+        <span className="text-xs text-gray-500">
           {coach.install_count} {coach.install_count === 1 ? 'user' : 'users'}
         </span>
       </div>
 
       {/* Title */}
-      <h3 className="font-semibold text-pierre-gray-900 mb-1 line-clamp-1 group-hover:text-pierre-violet transition-colors">
+      <h3 className="font-semibold text-white mb-1 line-clamp-1 group-hover:text-pierre-violet transition-colors">
         {coach.title}
       </h3>
 
       {/* Description */}
       {coach.description && (
-        <p className="text-sm text-pierre-gray-600 line-clamp-2 mb-3">{coach.description}</p>
+        <p className="text-sm text-gray-400 line-clamp-2 mb-3">{coach.description}</p>
       )}
 
       {/* Tags */}
@@ -281,13 +278,13 @@ function CoachCard({ coach, onClick }: CoachCardProps) {
           {coach.tags.slice(0, 3).map((tag, index) => (
             <span
               key={index}
-              className="px-2 py-0.5 text-xs bg-pierre-gray-100 text-pierre-gray-600 rounded"
+              className="px-2 py-0.5 text-xs bg-white/10 text-gray-400 rounded"
             >
               {tag}
             </span>
           ))}
           {coach.tags.length > 3 && (
-            <span className="text-xs text-pierre-gray-500">+{coach.tags.length - 3}</span>
+            <span className="text-xs text-gray-500">+{coach.tags.length - 3}</span>
           )}
         </div>
       )}
