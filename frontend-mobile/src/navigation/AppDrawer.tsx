@@ -34,6 +34,7 @@ import { StoreCoachDetailScreen } from '../screens/store/StoreCoachDetailScreen'
 import { useAuth } from '../contexts/AuthContext';
 import { apiService } from '../services/api';
 import { colors, spacing, fontSize, borderRadius } from '../constants/theme';
+import { Feather } from '@expo/vector-icons';
 import { PromptDialog } from '../components/ui';
 import type { Conversation, ProviderStatus } from '../types';
 
@@ -236,9 +237,9 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
         style={styles.discussionsButton}
         onPress={() => navigation.navigate('Conversations')}
       >
-        <Text style={styles.discussionsIcon}>💬</Text>
+        <Feather name="message-circle" size={20} color={colors.text.secondary} style={styles.discussionsIcon} />
         <Text style={styles.discussionsText}>Discussions</Text>
-        <Text style={styles.discussionsChevron}>›</Text>
+        <Feather name="chevron-right" size={18} color={colors.text.tertiary} />
       </TouchableOpacity>
 
       {/* Connect Providers Button */}
@@ -246,9 +247,9 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
         style={styles.discussionsButton}
         onPress={() => setProviderModalVisible(true)}
       >
-        <Text style={styles.discussionsIcon}>🔗</Text>
+        <Feather name="link" size={20} color={colors.text.secondary} style={styles.discussionsIcon} />
         <Text style={styles.discussionsText}>Connect Providers</Text>
-        <Text style={styles.discussionsChevron}>›</Text>
+        <Feather name="chevron-right" size={18} color={colors.text.tertiary} />
       </TouchableOpacity>
 
       {/* My Coaches Button */}
@@ -256,19 +257,19 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
         style={styles.discussionsButton}
         onPress={() => navigation.navigate('CoachLibrary')}
       >
-        <Text style={styles.discussionsIcon}>🎯</Text>
+        <Feather name="users" size={20} color={colors.text.secondary} style={styles.discussionsIcon} />
         <Text style={styles.discussionsText}>My Coaches</Text>
-        <Text style={styles.discussionsChevron}>›</Text>
+        <Feather name="chevron-right" size={18} color={colors.text.tertiary} />
       </TouchableOpacity>
 
-      {/* Coach Store Button */}
+      {/* Discover Button */}
       <TouchableOpacity
         style={styles.discussionsButton}
         onPress={() => navigation.navigate('Store')}
       >
-        <Text style={styles.discussionsIcon}>🏪</Text>
-        <Text style={styles.discussionsText}>Coach Store</Text>
-        <Text style={styles.discussionsChevron}>›</Text>
+        <Feather name="compass" size={20} color={colors.text.secondary} style={styles.discussionsIcon} />
+        <Text style={styles.discussionsText}>Discover</Text>
+        <Feather name="chevron-right" size={18} color={colors.text.tertiary} />
       </TouchableOpacity>
 
       {/* Conversations List */}

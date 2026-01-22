@@ -1,4 +1,4 @@
-// ABOUTME: Coach Store browse screen for discovering and installing coaches
+// ABOUTME: Discover screen for browsing and installing coaches
 // ABOUTME: Lists published coaches with category filters, search, and install actions
 
 import React, { useState, useCallback } from 'react';
@@ -225,7 +225,7 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <Text style={styles.emptyStateTitle}>
-        {searchQuery ? 'No coaches found' : 'Store is empty'}
+        {searchQuery ? 'No coaches found' : 'No coaches available'}
       </Text>
       <Text style={styles.emptyStateSubtitle}>
         {searchQuery
@@ -240,7 +240,7 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
       <SafeAreaView style={styles.container} testID="store-screen">
         <View style={styles.loadingContainer} testID="loading-indicator">
           <ActivityIndicator size="large" color={colors.primary[500]} />
-          <Text style={styles.loadingText}>Loading Store...</Text>
+          <Text style={styles.loadingText}>Loading coaches...</Text>
         </View>
       </SafeAreaView>
     );
@@ -257,7 +257,7 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
         >
           <Text style={styles.menuIcon}>☰</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Coach Store</Text>
+        <Text style={styles.headerTitle}>Discover</Text>
         <View style={styles.headerSpacer} />
       </View>
 
