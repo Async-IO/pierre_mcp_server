@@ -131,11 +131,11 @@ describe('StoreCoachDetail', () => {
       });
     });
 
-    it('should render install count', async () => {
+    it('should render user count', async () => {
       renderStoreCoachDetail();
 
       await waitFor(() => {
-        expect(screen.getByText('75 installs')).toBeInTheDocument();
+        expect(screen.getByText('75 users')).toBeInTheDocument();
       });
     });
 

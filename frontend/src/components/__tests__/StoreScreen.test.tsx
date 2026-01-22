@@ -141,13 +141,13 @@ describe('StoreScreen', () => {
       });
     });
 
-    it('should display coach install counts', async () => {
+    it('should display coach user counts', async () => {
       renderStoreScreen();
 
       await waitFor(() => {
-        expect(screen.getByText('75 installs')).toBeInTheDocument();
-        expect(screen.getByText('120 installs')).toBeInTheDocument();
-        expect(screen.getByText('45 installs')).toBeInTheDocument();
+        expect(screen.getByText('75 users')).toBeInTheDocument();
+        expect(screen.getByText('120 users')).toBeInTheDocument();
+        expect(screen.getByText('45 users')).toBeInTheDocument();
       });
     });
 
