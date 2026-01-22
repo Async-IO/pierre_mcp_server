@@ -250,7 +250,7 @@ test.describe('Coach Store Browse', () => {
     await expect(page.getByText('Recovery Coach')).toBeVisible();
   });
 
-  test('displays coach install counts', async ({ page }) => {
+  test('displays coach user counts', async ({ page }) => {
     await setupStoreMocks(page);
     await loginToDashboard(page);
 
@@ -260,10 +260,10 @@ test.describe('Coach Store Browse', () => {
     await expect(page.getByRole('heading', { name: 'Coach Store' })).toBeVisible({ timeout: 5000 });
     await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 10000 });
 
-    // Should display install counts
-    await expect(page.getByText('75 installs')).toBeVisible();
-    await expect(page.getByText('120 installs')).toBeVisible();
-    await expect(page.getByText('45 installs')).toBeVisible();
+    // Should display user counts
+    await expect(page.getByText('75 users')).toBeVisible();
+    await expect(page.getByText('120 users')).toBeVisible();
+    await expect(page.getByText('45 users')).toBeVisible();
   });
 
   test('displays coach category badges', async ({ page }) => {
@@ -448,7 +448,7 @@ test.describe('Coach Store Detail View', () => {
     await page.getByText('Marathon Training Coach').click();
 
     // Should see detail view
-    await expect(page.getByText('Install Coach')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Add Coach')).toBeVisible({ timeout: 5000 });
     await expect(page.getByText('System Prompt')).toBeVisible();
   });
 
@@ -495,7 +495,7 @@ test.describe('Coach Store Detail View', () => {
     await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 10000 });
     await page.getByText('Marathon Training Coach').click();
 
-    await expect(page.getByText('Install Coach')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Add Coach')).toBeVisible({ timeout: 5000 });
 
     // Click back button
     await page.getByTitle('Back to Store').click();
@@ -507,8 +507,8 @@ test.describe('Coach Store Detail View', () => {
   });
 });
 
-test.describe('Coach Store Install/Uninstall', () => {
-  test('shows Install button for uninstalled coach', async ({ page }) => {
+test.describe('Coach Store Add/Remove', () => {
+  test('shows Add button for coach not in library', async ({ page }) => {
     await setupStoreMocks(page);
     await loginToDashboard(page);
 
@@ -519,11 +519,11 @@ test.describe('Coach Store Install/Uninstall', () => {
     await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 10000 });
     await page.getByText('Marathon Training Coach').click();
 
-    // Should show Install button
-    await expect(page.getByRole('button', { name: 'Install Coach' })).toBeVisible({ timeout: 5000 });
+    // Should show Add button
+    await expect(page.getByRole('button', { name: 'Add Coach' })).toBeVisible({ timeout: 5000 });
   });
 
-  test('installs coach when Install button is clicked', async ({ page }) => {
+  test('adds coach when Add button is clicked', async ({ page }) => {
     await setupStoreMocks(page);
 
     let installCalled = false;
@@ -553,10 +553,10 @@ test.describe('Coach Store Install/Uninstall', () => {
     await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 10000 });
     await page.getByText('Marathon Training Coach').click();
 
-    await expect(page.getByRole('button', { name: 'Install Coach' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('button', { name: 'Add Coach' })).toBeVisible({ timeout: 5000 });
 
     // Click Install
-    await page.getByRole('button', { name: 'Install Coach' }).click();
+    await page.getByRole('button', { name: 'Add Coach' }).click();
 
     await page.waitForTimeout(500);
     expect(installCalled).toBe(true);
@@ -573,16 +573,16 @@ test.describe('Coach Store Install/Uninstall', () => {
     await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 10000 });
     await page.getByText('Marathon Training Coach').click();
 
-    await expect(page.getByRole('button', { name: 'Install Coach' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('button', { name: 'Add Coach' })).toBeVisible({ timeout: 5000 });
 
     // Click Install
-    await page.getByRole('button', { name: 'Install Coach' }).click();
+    await page.getByRole('button', { name: 'Add Coach' }).click();
 
     // Should show success message
     await expect(page.getByText(/has been added to your coaches/)).toBeVisible({ timeout: 5000 });
   });
 
-  test('shows Uninstall button for installed coach', async ({ page }) => {
+  test('shows Remove button for coach in library', async ({ page }) => {
     await setupStoreMocks(page, { installed: ['store-coach-1'] });
     await loginToDashboard(page);
 
@@ -593,11 +593,11 @@ test.describe('Coach Store Install/Uninstall', () => {
     await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 10000 });
     await page.getByText('Marathon Training Coach').click();
 
-    // Should show Uninstall button
-    await expect(page.getByRole('button', { name: 'Uninstall' })).toBeVisible({ timeout: 5000 });
+    // Should show Remove button
+    await expect(page.getByRole('button', { name: 'Remove' })).toBeVisible({ timeout: 5000 });
   });
 
-  test('shows confirmation dialog when Uninstall is clicked', async ({ page }) => {
+  test('shows confirmation dialog when Remove is clicked', async ({ page }) => {
     await setupStoreMocks(page, { installed: ['store-coach-1'] });
     await loginToDashboard(page);
 
@@ -608,16 +608,16 @@ test.describe('Coach Store Install/Uninstall', () => {
     await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 10000 });
     await page.getByText('Marathon Training Coach').click();
 
-    await expect(page.getByRole('button', { name: 'Uninstall' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('button', { name: 'Remove' })).toBeVisible({ timeout: 5000 });
 
-    // Click Uninstall
-    await page.getByRole('button', { name: 'Uninstall' }).click();
+    // Click Remove
+    await page.getByRole('button', { name: 'Remove' }).click();
 
     // Should show confirmation dialog
-    await expect(page.getByText('Uninstall Coach?')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Remove Coach?')).toBeVisible({ timeout: 5000 });
   });
 
-  test('uninstalls coach when confirmed', async ({ page }) => {
+  test('unusers coach when confirmed', async ({ page }) => {
     await setupStoreMocks(page, { installed: ['store-coach-1'] });
 
     let uninstallCalled = false;
@@ -647,13 +647,13 @@ test.describe('Coach Store Install/Uninstall', () => {
     await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 10000 });
     await page.getByText('Marathon Training Coach').click();
 
-    await expect(page.getByRole('button', { name: 'Uninstall' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('button', { name: 'Remove' })).toBeVisible({ timeout: 5000 });
 
-    // Click Uninstall
-    await page.getByRole('button', { name: 'Uninstall' }).click();
+    // Click Remove
+    await page.getByRole('button', { name: 'Remove' }).click();
 
     // Confirm in dialog
-    await expect(page.getByText('Uninstall Coach?')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Remove Coach?')).toBeVisible({ timeout: 5000 });
     await page.getByRole('button', { name: 'Confirm' }).click();
 
     await page.waitForTimeout(500);
@@ -691,10 +691,10 @@ test.describe('Coach Store Navigation', () => {
     await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 10000 });
     await page.getByText('Marathon Training Coach').click();
 
-    await expect(page.getByRole('button', { name: 'Install Coach' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('button', { name: 'Add Coach' })).toBeVisible({ timeout: 5000 });
 
     // Install coach
-    await page.getByRole('button', { name: 'Install Coach' }).click();
+    await page.getByRole('button', { name: 'Add Coach' }).click();
 
     // Should show View My Coaches link
     await expect(page.getByText('View My Coaches →')).toBeVisible({ timeout: 5000 });
