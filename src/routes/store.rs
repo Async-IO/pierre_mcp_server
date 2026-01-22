@@ -273,14 +273,13 @@ impl StoreRoutes {
         Query(query): Query<BrowseCoachesQuery>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
 
         let category = query.category.as_ref().map(|c| CoachCategory::parse(c));
+        // Published coaches are visible cross-tenant (global Store)
         let coaches = manager
             .get_published_coaches(
-                &tenant_id,
                 category,
                 query.sort_by.as_deref(),
                 query.limit,
@@ -315,7 +314,6 @@ impl StoreRoutes {
         Path(coach_id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
 
@@ -323,9 +321,9 @@ impl StoreRoutes {
         Uuid::parse_str(&coach_id)
             .map_err(|_| AppError::invalid_input(format!("Invalid coach ID: {coach_id}")))?;
 
-        // Get the published coach directly (only returns published coaches)
+        // Get the published coach (cross-tenant - any published coach is visible)
         let coach = manager
-            .get_published_coach(&coach_id, &tenant_id)
+            .get_published_coach(&coach_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("Coach {coach_id}")))?;
 
@@ -344,11 +342,10 @@ impl StoreRoutes {
         headers: HeaderMap,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
 
-        // Get counts for each category
+        // Get counts for each category (cross-tenant)
         let all_categories = [
             CoachCategory::Training,
             CoachCategory::Nutrition,
@@ -363,7 +360,7 @@ impl StoreRoutes {
         for cat in all_categories {
             // Get coaches in this category (up to 100 for counting)
             let coaches = manager
-                .get_published_coaches(&tenant_id, Some(cat), None, Some(100), None)
+                .get_published_coaches(Some(cat), None, Some(100), None)
                 .await?;
 
             if !coaches.is_empty() {
@@ -396,7 +393,6 @@ impl StoreRoutes {
         Query(query): Query<SearchCoachesQuery>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
 
         if query.q.trim().is_empty() {
             return Err(AppError::invalid_input("Search query cannot be empty"));
@@ -404,8 +400,9 @@ impl StoreRoutes {
 
         let manager = Self::get_coaches_manager(&resources)?;
 
+        // Search across all tenants (global Store)
         let coaches = manager
-            .search_published_coaches(&tenant_id, &query.q, query.limit)
+            .search_published_coaches(&query.q, query.limit)
             .await?;
 
         let store_coaches: Vec<StoreCoach> = coaches.into_iter().map(StoreCoach::from).collect();

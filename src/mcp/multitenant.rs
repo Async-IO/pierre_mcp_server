@@ -1200,6 +1200,12 @@ impl MultiTenantMcpServer {
                 CoachesRoutes::admin_routes(Arc::clone(resources)),
             );
 
+        #[cfg(feature = "client-store")]
+        let app = {
+            use crate::routes::StoreRoutes;
+            app.merge(StoreRoutes::router(resources))
+        };
+
         #[cfg(feature = "client-oauth-apps")]
         let app = app.merge(UserOAuthAppRoutes::routes(Arc::clone(resources)));
 

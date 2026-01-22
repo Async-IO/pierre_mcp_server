@@ -2057,9 +2057,12 @@ impl CoachesManager {
     /// # Errors
     ///
     /// Returns an error if database operation fails
+    /// Get published coaches for the Store (cross-tenant)
+    ///
+    /// Published coaches are visible to ALL users regardless of tenant.
+    /// This enables the Store to be a global marketplace.
     pub async fn get_published_coaches(
         &self,
-        tenant_id: &str,
         category: Option<CoachCategory>,
         sort_by: Option<&str>,
         limit: Option<u32>,
@@ -2087,14 +2090,13 @@ impl CoachesManager {
                 publish_status, published_at, review_submitted_at, review_decision_at,
                 review_decision_by, rejection_reason, install_count, icon_url, author_id
             FROM coaches
-            WHERE tenant_id = $1 AND publish_status = 'published' {category_filter}
+            WHERE publish_status = 'published' {category_filter}
             ORDER BY {order_clause}
-            LIMIT $2 OFFSET $3
+            LIMIT $1 OFFSET $2
             "
         );
 
         let rows = sqlx::query(&query)
-            .bind(tenant_id)
             .bind(limit_val)
             .bind(offset_val)
             .fetch_all(&self.pool)
@@ -2104,16 +2106,16 @@ impl CoachesManager {
         rows.iter().map(row_to_coach).collect()
     }
 
-    /// Search published coaches in the Store
+    /// Search published coaches in the Store (cross-tenant)
     ///
     /// Searches title, description, and tags of published coaches.
+    /// Published coaches are visible to ALL users regardless of tenant.
     ///
     /// # Errors
     ///
     /// Returns an error if database operation fails
     pub async fn search_published_coaches(
         &self,
-        tenant_id: &str,
         query: &str,
         limit: Option<u32>,
     ) -> AppResult<Vec<Coach>> {
@@ -2128,13 +2130,12 @@ impl CoachesManager {
                 publish_status, published_at, review_submitted_at, review_decision_at,
                 review_decision_by, rejection_reason, install_count, icon_url, author_id
             FROM coaches
-            WHERE tenant_id = $1 AND publish_status = 'published'
-                AND (title LIKE $2 OR description LIKE $2 OR tags LIKE $2)
+            WHERE publish_status = 'published'
+                AND (title LIKE $1 OR description LIKE $1 OR tags LIKE $1)
             ORDER BY install_count DESC, published_at DESC
-            LIMIT $3
+            LIMIT $2
             ",
         )
-        .bind(tenant_id)
         .bind(&search_pattern)
         .bind(limit_val)
         .fetch_all(&self.pool)
@@ -2144,18 +2145,15 @@ impl CoachesManager {
         rows.iter().map(row_to_coach).collect()
     }
 
-    /// Get a published coach by ID (for Store viewing)
+    /// Get a published coach by ID (for Store viewing, cross-tenant)
     ///
-    /// Returns a published coach regardless of ownership. Used for Store detail page.
+    /// Returns a published coach regardless of ownership or tenant.
+    /// Used for Store detail page. Published coaches are visible to ALL users.
     ///
     /// # Errors
     ///
     /// Returns an error if database operation fails
-    pub async fn get_published_coach(
-        &self,
-        coach_id: &str,
-        tenant_id: &str,
-    ) -> AppResult<Option<Coach>> {
+    pub async fn get_published_coach(&self, coach_id: &str) -> AppResult<Option<Coach>> {
         let row = sqlx::query(
             r"
             SELECT id, user_id, tenant_id, title, description, system_prompt,
@@ -2164,11 +2162,10 @@ impl CoachesManager {
                 publish_status, published_at, review_submitted_at, review_decision_at,
                 review_decision_by, rejection_reason, install_count, icon_url, author_id
             FROM coaches
-            WHERE id = $1 AND tenant_id = $2 AND publish_status = 'published'
+            WHERE id = $1 AND publish_status = 'published'
             ",
         )
         .bind(coach_id)
-        .bind(tenant_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get published coach: {e}")))?;
@@ -2237,9 +2234,9 @@ impl CoachesManager {
         user_id: Uuid,
         tenant_id: &str,
     ) -> AppResult<Coach> {
-        // Get the source coach (must be published)
+        // Get the source coach (must be published, cross-tenant lookup)
         let source = self
-            .get_published_coach(source_coach_id, tenant_id)
+            .get_published_coach(source_coach_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("Published coach {source_coach_id}")))?;
 
