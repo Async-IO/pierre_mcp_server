@@ -1,7 +1,7 @@
-// ABOUTME: E2E tests for Coach Store functionality
+// ABOUTME: E2E tests for Discover functionality
 // ABOUTME: Tests store browsing, filtering, coach detail, and install/uninstall flow
 
-describe('Coach Store', () => {
+describe('Discover', () => {
   beforeAll(async () => {
     await device.launchApp({ newInstance: true });
 
@@ -14,7 +14,12 @@ describe('Coach Store', () => {
     await element(by.id('email-input')).clearText();
     await element(by.id('email-input')).typeText('mobile@test.com');
     await element(by.id('password-input')).clearText();
-    await element(by.id('password-input')).typeText('mobiletest123');
+    await element(by.id('password-input')).typeText('mobiletest123\n');
+
+    // Wait for keyboard to dismiss and button to be visible
+    await waitFor(element(by.id('login-button')))
+      .toBeVisible()
+      .withTimeout(5000);
     await element(by.id('login-button')).tap();
 
     // Wait for chat screen to load first
@@ -22,12 +27,12 @@ describe('Coach Store', () => {
       .toBeVisible()
       .withTimeout(10000);
 
-    // Navigate to Coach Store via drawer
+    // Navigate to Discover via drawer
     await element(by.id('menu-button')).tap();
-    await waitFor(element(by.text('Coach Store')))
+    await waitFor(element(by.text('Discover')))
       .toBeVisible()
       .withTimeout(3000);
-    await element(by.text('Coach Store')).tap();
+    await element(by.text('Discover')).tap();
 
     // Wait for store screen
     await waitFor(element(by.id('store-screen')))
@@ -42,7 +47,7 @@ describe('Coach Store', () => {
     } catch (error) {
       // Navigate back if not on the store screen
       await element(by.id('menu-button')).tap();
-      await element(by.text('Coach Store')).tap();
+      await element(by.text('Discover')).tap();
       await waitFor(element(by.id('store-screen')))
         .toBeVisible()
         .withTimeout(5000);
@@ -54,8 +59,8 @@ describe('Coach Store', () => {
       await expect(element(by.id('store-screen'))).toBeVisible();
     });
 
-    it('should show Coach Store title', async () => {
-      await expect(element(by.text('Coach Store'))).toBeVisible();
+    it('should show Discover title', async () => {
+      await expect(element(by.text('Discover'))).toBeVisible();
     });
 
     it('should show search input', async () => {
@@ -338,12 +343,12 @@ describe('Coach Store', () => {
       await element(by.id('menu-button')).tap();
 
       // Drawer should be visible
-      await waitFor(element(by.text('Coach Store')))
+      await waitFor(element(by.text('Discover')))
         .toBeVisible()
         .withTimeout(3000);
 
       // Close drawer
-      await element(by.text('Coach Store')).tap();
+      await element(by.text('Discover')).tap();
     });
 
     it('should navigate to My Coaches from drawer', async () => {
@@ -361,7 +366,7 @@ describe('Coach Store', () => {
 
       // Navigate back to store
       await element(by.id('menu-button')).tap();
-      await element(by.text('Coach Store')).tap();
+      await element(by.text('Discover')).tap();
     });
   });
 

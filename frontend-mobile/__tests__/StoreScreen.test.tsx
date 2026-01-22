@@ -75,12 +75,12 @@ describe('StoreScreen', () => {
   });
 
   describe('rendering', () => {
-    it('should render header with Coach Store title', async () => {
+    it('should render header with Discover title', async () => {
       const { getByText } = render(
         <StoreScreen navigation={mockNavigation as never} />
       );
       await waitFor(() => {
-        expect(getByText('Coach Store')).toBeTruthy();
+        expect(getByText('Discover')).toBeTruthy();
       });
     });
 
@@ -122,7 +122,7 @@ describe('StoreScreen', () => {
         <StoreScreen navigation={mockNavigation as never} />
       );
       await waitFor(() => {
-        expect(getByText('Store is empty')).toBeTruthy();
+        expect(getByText('No coaches available')).toBeTruthy();
       });
     });
   });

@@ -17,7 +17,12 @@ describe('Voice Input', () => {
     await element(by.id('email-input')).clearText();
     await element(by.id('email-input')).typeText('mobile@test.com');
     await element(by.id('password-input')).clearText();
-    await element(by.id('password-input')).typeText('mobiletest123');
+    await element(by.id('password-input')).typeText('mobiletest123\n');
+
+    // Wait for keyboard to dismiss and button to be visible
+    await waitFor(element(by.id('login-button')))
+      .toBeVisible()
+      .withTimeout(5000);
     await element(by.id('login-button')).tap();
 
     // Wait for chat screen
