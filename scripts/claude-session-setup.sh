@@ -225,11 +225,31 @@ fi
 
 rm -f /tmp/mcp_verify.json
 
+# Step 7: Refresh Stitch MCP token (if gcloud is available)
+echo -e "${BLUE}Step 7: Refreshing Stitch MCP token...${NC}"
+if command -v gcloud &> /dev/null; then
+    STITCH_TOKEN=$(gcloud auth application-default print-access-token 2>/dev/null) || true
+    if [ -n "$STITCH_TOKEN" ]; then
+        claude mcp remove stitch -s user 2>/dev/null || true
+        claude mcp add stitch \
+            --transport http https://stitch.googleapis.com/mcp \
+            --header "Authorization: Bearer ${STITCH_TOKEN}" \
+            --header "X-Goog-User-Project: pierre-fitness-intelligence" \
+            -s user 2>/dev/null
+        echo -e "${GREEN}  Stitch MCP token refreshed (expires in ~1 hour)${NC}"
+    else
+        echo -e "${YELLOW}  Could not get Stitch token - run: gcloud auth application-default login${NC}"
+    fi
+else
+    echo -e "${YELLOW}  gcloud not found - Stitch MCP skipped${NC}"
+fi
+
 echo ""
 echo -e "${GREEN}=== Setup Complete ===${NC}"
 echo -e "Server: http://localhost:8081"
 echo -e "MCP endpoint: http://localhost:8081/mcp"
-echo -e "Token: Valid for 7 days"
+echo -e "Pierre Token: Valid for 7 days"
+echo -e "Stitch Token: Valid for ~1 hour"
 echo ""
 echo -e "${YELLOW}NOTE: If using Claude Code built-in MCP, restart the session${NC}"
 echo -e "${YELLOW}      to pick up the new PIERRE_JWT_TOKEN environment variable.${NC}"

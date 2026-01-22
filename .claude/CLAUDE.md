@@ -180,7 +180,7 @@ npm run test:e2e
 
 **Run this at the START OF EVERY Claude Code session:**
 ```bash
-./bin/claude-session-setup.sh
+./scripts/claude-session-setup.sh
 ```
 
 This script automatically:
@@ -244,7 +244,7 @@ Use the session skill to update the Linear issue with meaningful content:
 git config core.hooksPath .githooks
 
 # 2. Setup server and validate/refresh JWT token
-./bin/claude-session-setup.sh
+./scripts/claude-session-setup.sh
 ```
 This enables the pre-push hook and ensures the Pierre MCP server is running with a valid JWT token. Sessions get archived/revived, so this must run EVERY time you start working, not just once.
 

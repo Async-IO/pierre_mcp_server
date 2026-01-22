@@ -97,7 +97,7 @@ curl http://localhost:8081/health
 **Run this at the START OF EVERY Claude Code session:**
 
 ```bash
-./bin/claude-session-setup.sh
+./scripts/claude-session-setup.sh
 ```
 
 This script automatically:
@@ -405,13 +405,13 @@ See [configuration.md](configuration.md) for database configuration.
 | `stop-server.sh` | Stop Pierre backend |
 | `start-frontend.sh` | Start web dashboard |
 | `start-tunnel.sh` | Start Cloudflare tunnel for mobile |
-| `claude-session-setup.sh` | **MANDATORY** session setup |
 | `setup-and-start.sh` | Combined setup and start |
 
 ### Development Scripts (`scripts/`)
 
 | Script | Description |
 |--------|-------------|
+| `claude-session-setup.sh` | **MANDATORY** session setup |
 | `fresh-start.sh` | Clean database and start fresh |
 | `complete-user-workflow.sh` | Create admin, user, tenant |
 | `dev-start.sh` | Development startup |
