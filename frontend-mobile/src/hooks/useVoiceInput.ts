@@ -2,13 +2,30 @@
 // ABOUTME: Wraps @react-native-voice/voice with state management and error handling
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import Voice, {
-  SpeechResultsEvent,
-  SpeechErrorEvent,
-  SpeechStartEvent,
-  SpeechEndEvent,
-} from '@react-native-voice/voice';
 import { Platform } from 'react-native';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
+
+// Conditionally import Voice - it's not available in Expo Go
+// The native module only exists in development builds
+const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+
+// Dynamic import types for Voice module
+type VoiceModule = typeof import('@react-native-voice/voice').default;
+type SpeechResultsEvent = import('@react-native-voice/voice').SpeechResultsEvent;
+type SpeechErrorEvent = import('@react-native-voice/voice').SpeechErrorEvent;
+type SpeechStartEvent = import('@react-native-voice/voice').SpeechStartEvent;
+type SpeechEndEvent = import('@react-native-voice/voice').SpeechEndEvent;
+
+// Only import Voice in development builds, not Expo Go
+let Voice: VoiceModule | null = null;
+if (!isExpoGo) {
+  try {
+    Voice = require('@react-native-voice/voice').default;
+  } catch {
+    // Voice module not available - running in Expo Go or native module not linked
+    Voice = null;
+  }
+}
 
 // Voice recognition error types for consumer handling
 export type VoiceErrorType =
@@ -90,6 +107,15 @@ export function useVoiceInput(): UseVoiceInputResult {
   }, []);
 
   useEffect(() => {
+    // If Voice module is not available (Expo Go), mark as unavailable and skip setup
+    if (!Voice) {
+      setState((prev) => ({
+        ...prev,
+        isAvailable: false,
+      }));
+      return;
+    }
+
     // Check if voice recognition is available on this device
     Voice.isAvailable().then((available) => {
       // Voice.isAvailable() returns number (0/1) on some platforms, boolean on others
@@ -163,7 +189,8 @@ export function useVoiceInput(): UseVoiceInputResult {
   }, [clearTimeoutRef]);
 
   const startListening = useCallback(async () => {
-    if (!state.isAvailable) {
+    // Check if Voice module is available (not in Expo Go)
+    if (!Voice || !state.isAvailable) {
       setState((prev) => ({
         ...prev,
         error: { type: 'not_available', message: 'Speech recognition is not available on this device.' },
@@ -217,6 +244,7 @@ export function useVoiceInput(): UseVoiceInputResult {
 
   const stopListening = useCallback(async () => {
     clearTimeoutRef();
+    if (!Voice) return;
     try {
       await Voice.stop();
     } catch (error) {
@@ -226,6 +254,7 @@ export function useVoiceInput(): UseVoiceInputResult {
 
   const cancelListening = useCallback(async () => {
     clearTimeoutRef();
+    if (!Voice) return;
     try {
       await Voice.cancel();
       setState((prev) => ({
