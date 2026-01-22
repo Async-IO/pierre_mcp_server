@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { DrawerNavigationProp } from '@react-navigation/drawer';
-import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
+import { colors, spacing, fontSize, borderRadius, glassCard } from '../../constants/theme';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { PromptDialog } from '../../components/ui';
@@ -713,12 +713,18 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   coachCard: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.md,
+    backgroundColor: glassCard.background,
+    borderRadius: borderRadius.lg,
     padding: spacing.md,
     borderLeftWidth: 4,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
+    borderWidth: glassCard.borderWidth,
+    borderColor: glassCard.borderColor,
+    // Glassmorphism shadow
+    shadowColor: glassCard.shadowColor,
+    shadowOffset: glassCard.shadowOffset,
+    shadowOpacity: glassCard.shadowOpacity,
+    shadowRadius: glassCard.shadowRadius,
+    elevation: glassCard.elevation,
   },
   coachHeader: {
     flexDirection: 'row',

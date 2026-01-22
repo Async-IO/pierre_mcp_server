@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { DrawerNavigationProp } from '@react-navigation/drawer';
-import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
+import { colors, spacing, fontSize, borderRadius, glassCard } from '../../constants/theme';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { StoreCoach, CoachCategory } from '../../types';
@@ -443,12 +443,18 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl,
   },
   coachCard: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.md,
+    backgroundColor: glassCard.background,
+    borderRadius: borderRadius.lg,
     padding: spacing.md,
     marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border.default,
+    borderWidth: glassCard.borderWidth,
+    borderColor: glassCard.borderColor,
+    // Glassmorphism shadow
+    shadowColor: glassCard.shadowColor,
+    shadowOffset: glassCard.shadowOffset,
+    shadowOpacity: glassCard.shadowOpacity,
+    shadowRadius: glassCard.shadowRadius,
+    elevation: glassCard.elevation,
   },
   cardHeader: {
     flexDirection: 'row',

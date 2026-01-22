@@ -30,27 +30,27 @@ export const colors = {
     950: '#082f49',
   },
 
-  // Dark theme backgrounds
+  // Dark theme backgrounds - Pierre Design System
   background: {
-    primary: '#0f0f0f',
-    secondary: '#1a1a1a',
-    tertiary: '#2a2a2a',
-    elevated: '#333333',
+    primary: '#0F0F1A',    // pierre-dark - deepest background
+    secondary: '#1E1E2E',  // pierre-slate - cards, elevated surfaces
+    tertiary: '#2A2A3E',   // slightly lighter for hover states
+    elevated: '#363650',   // elevated components like modals
   },
 
-  // Text colors
+  // Text colors - using zinc palette for secondary/muted
   text: {
     primary: '#ffffff',
-    secondary: '#a1a1a1',
-    tertiary: '#6b6b6b',
-    accent: '#7C3AED', // Use pierre-violet for accent
+    secondary: '#a1a1aa',  // zinc-400
+    tertiary: '#71717a',   // zinc-500
+    accent: '#7C3AED',     // pierre-violet for accent
   },
 
-  // Border colors
+  // Border colors - subtle white opacity borders
   border: {
-    subtle: '#2a2a2a',
-    default: '#3a3a3a',
-    strong: '#4a4a4a',
+    subtle: 'rgba(255, 255, 255, 0.05)',   // white/5
+    default: 'rgba(255, 255, 255, 0.1)',   // white/10
+    strong: 'rgba(255, 255, 255, 0.15)',   // white/15
   },
 
   // Semantic colors (mapped to Pierre Design System)
@@ -105,3 +105,34 @@ export const fontWeight = {
   semibold: '600' as const,
   bold: '700' as const,
 };
+
+// Glassmorphism card styles for premium look
+export const glassCard = {
+  // Base glass card style - use with StyleSheet
+  background: 'rgba(124, 59, 237, 0.08)',  // Subtle violet tint
+  borderColor: 'rgba(255, 255, 255, 0.1)',
+  borderWidth: 1,
+  // Shadow for depth (iOS)
+  shadowColor: '#7C3AED',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.15,
+  shadowRadius: 12,
+  // Android elevation
+  elevation: 8,
+} as const;
+
+// Glow effect for primary buttons
+export const buttonGlow = {
+  shadowColor: '#7C3AED',
+  shadowOffset: { width: 0, height: 0 },
+  shadowOpacity: 0.4,
+  shadowRadius: 20,
+  elevation: 12,
+} as const;
+
+// Gradient colors for premium effects
+export const gradients = {
+  violetIndigo: ['rgba(124, 59, 237, 0.15)', 'rgba(79, 70, 229, 0.05)'],
+  violetCyan: ['#7C3AED', '#06B6D4'],
+  darkOverlay: ['rgba(15, 15, 26, 0)', 'rgba(15, 15, 26, 0.8)'],
+} as const;
