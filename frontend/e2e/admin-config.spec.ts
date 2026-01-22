@@ -627,13 +627,13 @@ test.describe('Admin Configuration - Access Control', () => {
   test('non-admin users cannot see Configuration tab', async ({ page }) => {
     await setupDashboardMocks(page, { role: 'user' });
     await loginToDashboard(page);
-    // Non-admin users see chat-first layout with header (no sidebar nav)
-    await page.waitForSelector('header', { timeout: 10000 });
+    // Non-admin users see chat-first layout (no sidebar nav)
+    await page.waitForSelector('main', { timeout: 10000 });
 
-    // Non-admin users don't have a sidebar at all - verify the chat layout is shown
-    await expect(page.getByText('Pierre Fitness Intelligence')).toBeVisible();
-    // Configuration tab should not be visible (no sidebar for non-admin users)
-    await expect(page.locator('nav')).not.toBeVisible();
+    // Non-admin users see the ChatTab interface with settings button, not admin sidebar
+    await expect(page.locator('button[title="Open settings"]')).toBeVisible();
+    // Non-admin users see ChatTab sidebar (nav), but NOT admin-specific tabs like Configuration
+    await expect(page.locator('button').filter({ has: page.locator('span:has-text("Configuration")') })).not.toBeVisible();
   });
 
   test('admin users can see Configuration tab', async ({ page }) => {

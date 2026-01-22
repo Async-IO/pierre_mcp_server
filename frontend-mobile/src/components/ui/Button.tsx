@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
 
   // Variants
   variant_primary: {
-    backgroundColor: colors.primary[600],
+    backgroundColor: colors.pierre.violet,
   },
   variant_secondary: {
     backgroundColor: 'transparent',

@@ -9,7 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { useAuth } from '../hooks/useAuth';
 import { apiService } from '../services/api';
-import { Card, Button, Input, Badge, ConfirmDialog } from './ui';
+import { Card, Button, Badge, ConfirmDialog } from './ui';
 import { clsx } from 'clsx';
 import A2AClientList from './A2AClientList';
 import CreateA2AClient from './CreateA2AClient';
@@ -255,19 +255,25 @@ export default function UserSettings() {
 
   return (
     <div className="flex gap-6">
-      {/* Settings Navigation Sidebar */}
-      <div className="w-56 flex-shrink-0">
-        <Card className="sticky top-6">
+      {/* Settings Navigation Sidebar - Dark Glassmorphism */}
+      <div className="w-64 flex-shrink-0">
+        <div
+          className="sticky top-6 rounded-xl border border-white/10 p-4"
+          style={{
+            background: 'rgba(15, 15, 26, 0.7)',
+            backdropFilter: 'blur(12px)',
+          }}
+        >
           <nav className="space-y-1">
             {SETTINGS_TABS.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={clsx(
-                  'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all',
+                  'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200',
                   activeTab === tab.id
-                    ? 'bg-gradient-to-r from-pierre-violet/10 to-pierre-cyan/5 text-pierre-violet'
-                    : 'text-pierre-gray-600 hover:bg-pierre-gray-50 hover:text-pierre-violet'
+                    ? 'bg-pierre-violet/15 border-l-[3px] border-pierre-violet text-pierre-violet shadow-[0_0_15px_rgba(124,58,237,0.15)]'
+                    : 'text-zinc-400 hover:text-white hover:bg-white/5'
                 )}
               >
                 {tab.icon}
@@ -275,50 +281,52 @@ export default function UserSettings() {
               </button>
             ))}
           </nav>
-        </Card>
+        </div>
       </div>
 
-      {/* Settings Content */}
+      {/* Settings Content - Dark Theme */}
       <div className="flex-1 space-y-6">
         {/* Profile Tab */}
         {activeTab === 'profile' && (
           <>
-            <Card>
-              <h2 className="text-lg font-semibold text-pierre-gray-900 mb-4">Profile Information</h2>
+            <Card variant="dark">
+              <h2 className="text-lg font-semibold text-white mb-4">Profile Information</h2>
               <div className="space-y-4">
-                <div className="flex items-center gap-4 pb-4 border-b border-pierre-gray-100">
-                  <div className="w-16 h-16 bg-gradient-to-br from-pierre-violet to-pierre-cyan rounded-full flex items-center justify-center flex-shrink-0">
+                <div className="flex items-center gap-4 pb-4 border-b border-white/10">
+                  <div className="w-16 h-16 bg-gradient-to-br from-pierre-violet to-pierre-cyan rounded-full flex items-center justify-center flex-shrink-0 shadow-glow">
                     <span className="text-2xl font-bold text-white">
                       {(user?.display_name || user?.email)?.charAt(0).toUpperCase()}
                     </span>
                   </div>
                   <div>
-                    <p className="font-medium text-pierre-gray-900">{user?.display_name || 'No name set'}</p>
-                    <p className="text-sm text-pierre-gray-500">{user?.email}</p>
+                    <p className="font-medium text-white">{user?.display_name || 'No name set'}</p>
+                    <p className="text-sm text-zinc-400">{user?.email}</p>
                   </div>
                 </div>
 
                 <div>
-                  <Input
-                    label="Display Name"
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">Display Name</label>
+                  <input
+                    type="text"
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     placeholder="Enter your display name"
+                    className="w-full px-4 py-3 bg-[#151520] border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-pierre-violet/50 focus:ring-1 focus:ring-pierre-violet/50 transition-all"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-pierre-gray-700 mb-1">Email</label>
-                  <p className="text-pierre-gray-900 bg-pierre-gray-50 px-3 py-2 rounded-lg">{user?.email}</p>
-                  <p className="text-xs text-pierre-gray-500 mt-1">Email cannot be changed</p>
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">Email</label>
+                  <p className="text-zinc-400 bg-[#151520]/50 px-4 py-3 rounded-xl border border-white/10">{user?.email}</p>
+                  <p className="text-xs text-zinc-500 mt-1">Email cannot be changed</p>
                 </div>
 
                 {message && (
                   <div
                     className={`p-3 rounded-lg text-sm ${
                       message.type === 'success'
-                        ? 'bg-pierre-activity-light/30 text-pierre-activity'
-                        : 'bg-pierre-red-50 text-pierre-red-600'
+                        ? 'bg-pierre-activity/20 text-pierre-activity border border-pierre-activity/30'
+                        : 'bg-pierre-red-500/20 text-pierre-red-500 border border-pierre-red-500/30'
                     }`}
                   >
                     {message.text}
@@ -330,6 +338,7 @@ export default function UserSettings() {
                   onClick={handleSaveProfile}
                   loading={isSaving}
                   disabled={displayName === user?.display_name}
+                  className="shadow-glow hover:shadow-glow-lg"
                 >
                   Save Changes
                 </Button>
@@ -338,20 +347,20 @@ export default function UserSettings() {
 
             {/* Quick Stats */}
             <div className="grid grid-cols-2 gap-4">
-              <Card>
+              <Card variant="dark">
                 <div className="text-center">
                   <div className="text-3xl font-bold text-pierre-violet">
                     {statsLoading ? '...' : (stats?.connected_providers ?? 0)}
                   </div>
-                  <div className="text-sm text-pierre-gray-600 mt-1">Connected Providers</div>
+                  <div className="text-sm text-zinc-400 mt-1">Connected Providers</div>
                 </div>
               </Card>
-              <Card>
+              <Card variant="dark">
                 <div className="text-center">
                   <div className="text-3xl font-bold text-pierre-nutrition">
                     {statsLoading ? '...' : (stats?.days_active ?? 0)}
                   </div>
-                  <div className="text-sm text-pierre-gray-600 mt-1">Days Active</div>
+                  <div className="text-sm text-zinc-400 mt-1">Days Active</div>
                 </div>
               </Card>
             </div>
@@ -360,11 +369,11 @@ export default function UserSettings() {
 
         {/* Connections Tab */}
         {activeTab === 'connections' && (
-          <Card>
+          <Card variant="dark">
             <div className="flex justify-between items-center mb-4">
               <div>
-                <h2 className="text-lg font-semibold text-pierre-gray-900">Provider Credentials</h2>
-                <p className="text-sm text-pierre-gray-500 mt-1">
+                <h2 className="text-lg font-semibold text-white">Provider Credentials</h2>
+                <p className="text-sm text-zinc-400 mt-1">
                   Configure your own OAuth app credentials to avoid rate limits
                 </p>
               </div>
@@ -379,8 +388,8 @@ export default function UserSettings() {
               <div
                 className={`p-3 rounded-lg text-sm mb-4 ${
                   credentialMessage.type === 'success'
-                    ? 'bg-pierre-activity-light/30 text-pierre-activity'
-                    : 'bg-pierre-red-50 text-pierre-red-600'
+                    ? 'bg-pierre-activity/20 text-pierre-activity border border-pierre-activity/30'
+                    : 'bg-pierre-red-500/20 text-pierre-red-500 border border-pierre-red-500/30'
                 }`}
               >
                 {credentialMessage.text}
@@ -392,9 +401,9 @@ export default function UserSettings() {
                 <div className="pierre-spinner w-6 h-6"></div>
               </div>
             ) : oauthApps.length === 0 ? (
-              <div className="text-center py-8 bg-pierre-gray-50 rounded-lg">
+              <div className="text-center py-8 bg-[#151520] rounded-xl border border-white/10">
                 <svg
-                  className="w-12 h-12 text-pierre-gray-400 mx-auto mb-3"
+                  className="w-12 h-12 text-zinc-600 mx-auto mb-3"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -406,8 +415,8 @@ export default function UserSettings() {
                     d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
                   />
                 </svg>
-                <p className="text-pierre-gray-600 font-medium">No custom credentials configured</p>
-                <p className="text-sm text-pierre-gray-500 mt-1">
+                <p className="text-white font-medium">No custom credentials configured</p>
+                <p className="text-sm text-zinc-500 mt-1">
                   Add your own OAuth app credentials to use your personal API quotas
                 </p>
               </div>
@@ -416,14 +425,14 @@ export default function UserSettings() {
                 {oauthApps.map((app) => {
                   const provider = getProviderInfo(app.provider);
                   return (
-                    <div key={app.provider} className="flex items-center justify-between p-4 bg-pierre-gray-50 rounded-lg">
+                    <div key={app.provider} className="flex items-center justify-between p-4 bg-[#151520] rounded-xl border border-white/10">
                       <div className="flex items-center gap-3">
                         <div className={`w-10 h-10 ${provider.color} rounded-lg flex items-center justify-center`}>
                           <span className="text-white font-bold text-sm">{provider.name.charAt(0)}</span>
                         </div>
                         <div>
-                          <p className="font-medium text-pierre-gray-900">{provider.name}</p>
-                          <p className="text-xs text-pierre-gray-500">Client ID: {app.client_id.substring(0, 8)}...</p>
+                          <p className="font-medium text-white">{provider.name}</p>
+                          <p className="text-xs text-zinc-500">Client ID: {app.client_id.substring(0, 8)}...</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -440,15 +449,15 @@ export default function UserSettings() {
 
             {/* Add Credentials Form */}
             {showAddCredentials && (
-              <div className="mt-4 p-4 border border-pierre-gray-200 rounded-lg bg-white">
-                <h3 className="font-medium text-pierre-gray-900 mb-4">Add Provider Credentials</h3>
+              <div className="mt-4 p-4 border border-white/10 rounded-xl bg-[#151520]">
+                <h3 className="font-medium text-white mb-4">Add Provider Credentials</h3>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-pierre-gray-700 mb-1">Provider</label>
+                    <label className="block text-sm font-medium text-zinc-300 mb-2">Provider</label>
                     <select
                       value={selectedProvider}
                       onChange={(e) => setSelectedProvider(e.target.value)}
-                      className="w-full px-3 py-2 border border-pierre-gray-300 rounded-lg focus:ring-2 focus:ring-pierre-violet focus:border-transparent"
+                      className="w-full px-4 py-3 bg-[#0F0F1A] border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-pierre-violet focus:border-transparent"
                     >
                       <option value="">Select a provider</option>
                       {availableProviders.map((provider) => (
@@ -459,27 +468,38 @@ export default function UserSettings() {
                     </select>
                   </div>
 
-                  <Input
-                    label="Client ID"
-                    value={clientId}
-                    onChange={(e) => setClientId(e.target.value)}
-                    placeholder="Enter your OAuth client ID"
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-2">Client ID</label>
+                    <input
+                      type="text"
+                      value={clientId}
+                      onChange={(e) => setClientId(e.target.value)}
+                      placeholder="Enter your OAuth client ID"
+                      className="w-full px-4 py-3 bg-[#0F0F1A] border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-pierre-violet/50 focus:ring-1 focus:ring-pierre-violet/50"
+                    />
+                  </div>
 
-                  <Input
-                    label="Client Secret"
-                    type="password"
-                    value={clientSecret}
-                    onChange={(e) => setClientSecret(e.target.value)}
-                    placeholder="Enter your OAuth client secret"
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-2">Client Secret</label>
+                    <input
+                      type="password"
+                      value={clientSecret}
+                      onChange={(e) => setClientSecret(e.target.value)}
+                      placeholder="Enter your OAuth client secret"
+                      className="w-full px-4 py-3 bg-[#0F0F1A] border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-pierre-violet/50 focus:ring-1 focus:ring-pierre-violet/50"
+                    />
+                  </div>
 
-                  <Input
-                    label="Redirect URI"
-                    value={redirectUri}
-                    onChange={(e) => setRedirectUri(e.target.value)}
-                    placeholder="e.g., http://localhost:8081/api/oauth/callback/strava"
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-2">Redirect URI</label>
+                    <input
+                      type="text"
+                      value={redirectUri}
+                      onChange={(e) => setRedirectUri(e.target.value)}
+                      placeholder="e.g., http://localhost:8081/api/oauth/callback/strava"
+                      className="w-full px-4 py-3 bg-[#0F0F1A] border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-pierre-violet/50 focus:ring-1 focus:ring-pierre-violet/50"
+                    />
+                  </div>
 
                   <div className="flex gap-2 justify-end">
                     <Button
@@ -515,9 +535,9 @@ export default function UserSettings() {
           <>
             {/* Created Token Display */}
             {createdToken && (
-              <div className="bg-pierre-green-50 border border-pierre-green-200 rounded-lg p-6">
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-6">
                 <div className="flex items-start gap-3">
-                  <svg className="w-6 h-6 text-pierre-green-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6 text-emerald-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -526,10 +546,10 @@ export default function UserSettings() {
                     />
                   </svg>
                   <div className="flex-1">
-                    <h3 className="text-lg font-medium text-pierre-green-900">Token Created: {createdToken.name}</h3>
-                    <p className="text-pierre-green-700 mt-1 mb-3">Copy this token now. You won&apos;t be able to see it again!</p>
+                    <h3 className="text-lg font-medium text-emerald-400">Token Created: {createdToken.name}</h3>
+                    <p className="text-emerald-400/80 mt-1 mb-3">Copy this token now. You won&apos;t be able to see it again!</p>
                     <div className="flex items-center gap-2">
-                      <code className="flex-1 px-3 py-2 bg-white border border-pierre-green-300 rounded font-mono text-sm break-all">
+                      <code className="flex-1 px-3 py-2 bg-[#151520] border border-emerald-500/30 rounded font-mono text-sm break-all text-white">
                         {createdToken.token_value}
                       </code>
                       <Button onClick={() => copyToClipboard(createdToken.token_value)} variant="secondary" size="sm">
@@ -544,11 +564,11 @@ export default function UserSettings() {
               </div>
             )}
 
-            <Card>
+            <Card variant="dark">
               <div className="flex justify-between items-center mb-4">
                 <div>
-                  <h2 className="text-lg font-semibold text-pierre-gray-900">API Tokens</h2>
-                  <p className="text-sm text-pierre-gray-500 mt-1">
+                  <h2 className="text-lg font-semibold text-white">API Tokens</h2>
+                  <p className="text-sm text-zinc-400 mt-1">
                     {activeTokens.length} active tokens for AI client connections
                   </p>
                 </div>
@@ -561,25 +581,25 @@ export default function UserSettings() {
                     Create New Token
                   </Button>
                 ) : (
-                  <div className="bg-pierre-gray-50 rounded-lg p-4 space-y-4">
-                    <h4 className="font-medium text-pierre-gray-900">Create Token</h4>
+                  <div className="bg-white/5 border border-white/10 rounded-lg p-4 space-y-4">
+                    <h4 className="font-medium text-white">Create Token</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-pierre-gray-700 mb-1">Token Name</label>
+                        <label className="block text-sm font-medium text-zinc-300 mb-1">Token Name</label>
                         <input
                           type="text"
                           value={newTokenName}
                           onChange={(e) => setNewTokenName(e.target.value)}
                           placeholder="e.g., Claude Desktop, Cursor IDE"
-                          className="w-full px-3 py-2 border border-pierre-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pierre-blue-500"
+                          className="w-full px-3 py-2 bg-[#151520] border border-white/10 rounded-md text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-pierre-violet/30 focus:border-pierre-violet"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-pierre-gray-700 mb-1">Expires In (days)</label>
+                        <label className="block text-sm font-medium text-zinc-300 mb-1">Expires In (days)</label>
                         <select
                           value={expiresInDays || ''}
                           onChange={(e) => setExpiresInDays(e.target.value ? Number(e.target.value) : undefined)}
-                          className="w-full px-3 py-2 border border-pierre-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pierre-blue-500"
+                          className="w-full px-3 py-2 bg-[#151520] border border-white/10 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-pierre-violet/30 focus:border-pierre-violet"
                         >
                           <option value="">Never expires</option>
                           <option value="30">30 days</option>
@@ -611,44 +631,44 @@ export default function UserSettings() {
                   <div className="pierre-spinner w-8 h-8"></div>
                 </div>
               ) : tokens.length === 0 ? (
-                <div className="text-center py-8 text-pierre-gray-500">
+                <div className="text-center py-8 text-zinc-400">
                   <div className="text-4xl mb-4">🔑</div>
-                  <p className="text-lg mb-2">No tokens yet</p>
+                  <p className="text-lg mb-2 text-white">No tokens yet</p>
                   <p>Create a token to connect AI clients like Claude Desktop or Cursor to Pierre</p>
                 </div>
               ) : (
                 <div className="space-y-4">
                   {tokens.map((token) => (
-                    <div key={token.id} className="p-4 bg-pierre-gray-50 rounded-lg">
+                    <div key={token.id} className="p-4 bg-white/5 border border-white/10 rounded-lg">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <h3 className="text-lg font-medium text-pierre-gray-900">{token.name}</h3>
+                            <h3 className="text-lg font-medium text-white">{token.name}</h3>
                             <Badge variant={token.is_revoked ? 'info' : 'success'}>
                               {token.is_revoked ? 'Revoked' : 'Active'}
                             </Badge>
                           </div>
-                          <code className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-pierre-gray-100 text-pierre-gray-700 text-xs font-mono rounded border border-pierre-gray-200">
+                          <code className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-white/10 text-zinc-300 text-xs font-mono rounded border border-white/10">
                             {token.token_prefix}...
                           </code>
                           <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                             <div>
-                              <span className="text-pierre-gray-500">Created:</span>
-                              <p className="font-medium">{format(new Date(token.created_at), 'MMM d, yyyy')}</p>
+                              <span className="text-zinc-500">Created:</span>
+                              <p className="font-medium text-white">{format(new Date(token.created_at), 'MMM d, yyyy')}</p>
                             </div>
                             <div>
-                              <span className="text-pierre-gray-500">Expires:</span>
-                              <p className="font-medium">
+                              <span className="text-zinc-500">Expires:</span>
+                              <p className="font-medium text-white">
                                 {token.expires_at ? format(new Date(token.expires_at), 'MMM d, yyyy') : 'Never'}
                               </p>
                             </div>
                             <div>
-                              <span className="text-pierre-gray-500">Usage:</span>
-                              <p className="font-medium">{token.usage_count} requests</p>
+                              <span className="text-zinc-500">Usage:</span>
+                              <p className="font-medium text-white">{token.usage_count} requests</p>
                             </div>
                             <div>
-                              <span className="text-pierre-gray-500">Last Used:</span>
-                              <p className="font-medium">
+                              <span className="text-zinc-500">Last Used:</span>
+                              <p className="font-medium text-white">
                                 {token.last_used_at ? format(new Date(token.last_used_at), 'MMM d, yyyy') : 'Never'}
                               </p>
                             </div>
@@ -659,7 +679,7 @@ export default function UserSettings() {
                             onClick={() => setTokenToRevoke(token)}
                             disabled={revokeTokenMutation.isPending}
                             variant="secondary"
-                            className="text-pierre-red-600 hover:bg-pierre-red-50"
+                            className="text-red-400 hover:bg-red-500/20"
                             size="sm"
                           >
                             Revoke
@@ -672,13 +692,13 @@ export default function UserSettings() {
               )}
 
               {/* Setup Instructions - Collapsible */}
-              <div className="border-t border-pierre-gray-200 mt-6 pt-4">
+              <div className="border-t border-white/10 mt-6 pt-4">
                 <button
                   onClick={() => setShowSetupInstructions(!showSetupInstructions)}
                   className="flex items-center justify-between w-full text-left"
                 >
                   <div className="flex items-center gap-2">
-                    <svg className="w-5 h-5 text-pierre-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -686,11 +706,11 @@ export default function UserSettings() {
                         d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                       />
                     </svg>
-                    <span className="font-medium text-pierre-gray-900">Setup Instructions</span>
-                    <span className="text-sm text-pierre-gray-500">for Claude & ChatGPT</span>
+                    <span className="font-medium text-white">Setup Instructions</span>
+                    <span className="text-sm text-zinc-400">for Claude & ChatGPT</span>
                   </div>
                   <svg
-                    className={`w-5 h-5 text-pierre-gray-400 transition-transform ${showSetupInstructions ? 'rotate-180' : ''}`}
+                    className={`w-5 h-5 text-zinc-500 transition-transform ${showSetupInstructions ? 'rotate-180' : ''}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -701,12 +721,12 @@ export default function UserSettings() {
 
                 {showSetupInstructions && (
                   <div className="mt-4 space-y-4">
-                    <div className="bg-pierre-gray-50 rounded-lg p-4">
-                      <h4 className="font-medium text-pierre-gray-900 mb-2">Claude Desktop</h4>
-                      <p className="text-sm text-pierre-gray-600 mb-3">
+                    <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+                      <h4 className="font-medium text-white mb-2">Claude Desktop</h4>
+                      <p className="text-sm text-zinc-400 mb-3">
                         Add the following to your Claude Desktop config file:
                       </p>
-                      <pre className="text-xs bg-pierre-gray-800 text-pierre-gray-100 p-3 rounded overflow-x-auto">
+                      <pre className="text-xs bg-[#151520] text-zinc-300 p-3 rounded overflow-x-auto border border-white/10">
                         {`{
   "mcpServers": {
     "pierre": {
@@ -722,10 +742,10 @@ export default function UserSettings() {
                       </pre>
                     </div>
 
-                    <div className="bg-pierre-gray-50 rounded-lg p-4">
-                      <h4 className="font-medium text-pierre-gray-900 mb-2">ChatGPT</h4>
-                      <p className="text-sm text-pierre-gray-600 mb-3">Configure in ChatGPT MCP settings:</p>
-                      <pre className="text-xs bg-pierre-gray-800 text-pierre-gray-100 p-3 rounded overflow-x-auto">
+                    <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+                      <h4 className="font-medium text-white mb-2">ChatGPT</h4>
+                      <p className="text-sm text-zinc-400 mb-3">Configure in ChatGPT MCP settings:</p>
+                      <pre className="text-xs bg-[#151520] text-zinc-300 p-3 rounded overflow-x-auto border border-white/10">
                         {`Server URL: ${window.location.origin}/mcp
 Authorization: Bearer <your-token-here>`}
                       </pre>
@@ -736,11 +756,11 @@ Authorization: Bearer <your-token-here>`}
             </Card>
 
             {/* Connected Apps Section */}
-            <Card>
+            <Card variant="dark">
               <div className="flex justify-between items-center mb-4">
                 <div>
-                  <h2 className="text-lg font-semibold text-pierre-gray-900">Connected Apps</h2>
-                  <p className="text-sm text-pierre-gray-500 mt-1">
+                  <h2 className="text-lg font-semibold text-white">Connected Apps</h2>
+                  <p className="text-sm text-zinc-400 mt-1">
                     Third-party applications authorized to access your fitness data via OAuth
                   </p>
                 </div>
@@ -763,53 +783,53 @@ Authorization: Bearer <your-token-here>`}
         {/* Account Tab */}
         {activeTab === 'account' && (
           <>
-            <Card>
-              <h2 className="text-lg font-semibold text-pierre-gray-900 mb-4">Account Status</h2>
+            <Card variant="dark">
+              <h2 className="text-lg font-semibold text-white mb-4">Account Status</h2>
               <div className="space-y-3">
-                <div className="flex justify-between items-center py-2 border-b border-pierre-gray-100">
-                  <span className="text-pierre-gray-600">Status</span>
+                <div className="flex justify-between items-center py-2 border-b border-white/10">
+                  <span className="text-zinc-400">Status</span>
                   <span
                     className={`px-2 py-1 rounded-full text-xs font-medium ${
                       user?.user_status === 'active'
-                        ? 'bg-pierre-activity-light/30 text-pierre-activity'
-                        : 'bg-pierre-nutrition-light/30 text-pierre-nutrition'
+                        ? 'bg-emerald-500/20 text-emerald-400'
+                        : 'bg-amber-500/20 text-amber-400'
                     }`}
                   >
                     {user?.user_status?.charAt(0).toUpperCase()}
                     {user?.user_status?.slice(1)}
                   </span>
                 </div>
-                <div className="flex justify-between items-center py-2 border-b border-pierre-gray-100">
-                  <span className="text-pierre-gray-600">Role</span>
-                  <span className="text-pierre-gray-900 capitalize">{user?.role}</span>
+                <div className="flex justify-between items-center py-2 border-b border-white/10">
+                  <span className="text-zinc-400">Role</span>
+                  <span className="text-white capitalize">{user?.role}</span>
                 </div>
                 <div className="flex justify-between items-center py-2">
-                  <span className="text-pierre-gray-600">Member Since</span>
-                  <span className="text-pierre-gray-900">N/A</span>
+                  <span className="text-zinc-400">Member Since</span>
+                  <span className="text-white">N/A</span>
                 </div>
               </div>
             </Card>
 
-            <Card>
-              <h2 className="text-lg font-semibold text-pierre-gray-900 mb-4">Security</h2>
+            <Card variant="dark">
+              <h2 className="text-lg font-semibold text-white mb-4">Security</h2>
               <div className="space-y-4">
-                <div className="p-4 bg-pierre-gray-50 rounded-lg">
-                  <h3 className="font-medium text-pierre-gray-900 mb-2">Password</h3>
-                  <p className="text-sm text-pierre-gray-600 mb-3">Change your password to keep your account secure.</p>
+                <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
+                  <h3 className="font-medium text-white mb-2">Password</h3>
+                  <p className="text-sm text-zinc-400 mb-3">Change your password to keep your account secure.</p>
                   <Button variant="secondary" size="sm" disabled>
                     Change Password
                   </Button>
-                  <p className="text-xs text-pierre-gray-400 mt-2">Coming soon</p>
+                  <p className="text-xs text-zinc-500 mt-2">Coming soon</p>
                 </div>
               </div>
             </Card>
 
-            <Card className="border-pierre-red-200">
-              <h2 className="text-lg font-semibold text-pierre-red-600 mb-4">Danger Zone</h2>
+            <Card variant="dark" className="border-red-500/30">
+              <h2 className="text-lg font-semibold text-red-400 mb-4">Danger Zone</h2>
               <div className="space-y-4">
-                <div className="p-4 bg-pierre-red-50 rounded-lg">
-                  <h3 className="font-medium text-pierre-gray-900 mb-2">Sign Out</h3>
-                  <p className="text-sm text-pierre-gray-600 mb-3">Sign out of your account on this device.</p>
+                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+                  <h3 className="font-medium text-white mb-2">Sign Out</h3>
+                  <p className="text-sm text-zinc-400 mb-3">Sign out of your account on this device.</p>
                   <Button variant="secondary" size="sm" onClick={logout}>
                     Sign Out
                   </Button>

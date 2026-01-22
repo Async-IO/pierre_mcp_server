@@ -252,8 +252,9 @@ export async function loginToDashboard(page: Page, credentials?: { email?: strin
   await page.locator('input[name="password"]').fill(password);
   await page.getByRole('button', { name: 'Sign in' }).click();
 
-  // Wait for dashboard to load
-  await page.waitForSelector('text=Pierre', { timeout: 10000 });
+  // Wait for dashboard to load - wait for main content area which only exists after successful login
+  // Note: 'text=Pierre' would match login page's "Pierre Fitness Platform" title, so use 'main' instead
+  await page.waitForSelector('main', { timeout: 10000 });
   await page.waitForTimeout(300);
 }
 

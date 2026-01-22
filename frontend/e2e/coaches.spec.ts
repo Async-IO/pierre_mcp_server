@@ -209,7 +209,7 @@ test.describe('System Coaches Tab Visibility', () => {
     await loginToDashboard(page);
 
     // Non-admin users see chat-first layout (no admin sidebar)
-    await page.waitForSelector('header', { timeout: 10000 });
+    await page.waitForSelector('main', { timeout: 10000 });
 
     // Admin Coaches tab should NOT be visible (user may see "My Coaches" button instead)
     // Look specifically in nav for the admin tab - non-admins don't have nav with admin tabs
@@ -532,6 +532,9 @@ test.describe('Edit Coach Form', () => {
 
     // Wait for edit form to be visible
     await expect(page.getByText('Edit "Marathon Training Coach"')).toBeVisible({ timeout: 5000 });
+
+    // Wait for form to be populated - token count > 0 indicates system_prompt has content
+    await expect(page.getByText(/Estimated tokens: [1-9]/)).toBeVisible({ timeout: 5000 });
 
     // Modify title using placeholder selector
     await page.getByPlaceholder('e.g., Marathon Training Coach').fill('Updated Marathon Coach');
@@ -979,10 +982,14 @@ test.describe('User Coaches - Chat Interface', () => {
     await loginToDashboard(page);
 
     // Wait for chat interface to load (users see chat-first layout)
-    await page.waitForSelector('header', { timeout: 10000 });
+    await page.waitForSelector('main', { timeout: 10000 });
 
-    // Should see coaches section heading (use exact match to avoid My Coaches button)
-    await expect(page.getByRole('heading', { name: 'Coaches', exact: true })).toBeVisible({ timeout: 10000 });
+    // Click the My Coaches button to open the panel
+    await page.locator('button[title="My Coaches"]').click();
+    await page.waitForTimeout(300);
+
+    // Should see My Coaches heading
+    await expect(page.getByRole('heading', { name: 'My Coaches' })).toBeVisible({ timeout: 10000 });
     // User-created coaches are shown in Personalized section
     await expect(page.getByText('My Custom Coach')).toBeVisible();
     // System coaches shown in System Coaches section
@@ -993,7 +1000,12 @@ test.describe('User Coaches - Chat Interface', () => {
     await setupUserCoachesMocks(page);
     await loginToDashboard(page);
 
-    await page.waitForSelector('header', { timeout: 10000 });
+    await page.waitForSelector('main', { timeout: 10000 });
+
+    // Click the My Coaches button to open the panel
+    await page.locator('button[title="My Coaches"]').click();
+    await page.waitForTimeout(300);
+
     await expect(page.getByText('My Custom Coach')).toBeVisible({ timeout: 10000 });
 
     // User coach should have edit button
@@ -1008,7 +1020,12 @@ test.describe('User Coaches - Chat Interface', () => {
     await setupUserCoachesMocks(page);
     await loginToDashboard(page);
 
-    await page.waitForSelector('header', { timeout: 10000 });
+    await page.waitForSelector('main', { timeout: 10000 });
+
+    // Click the My Coaches button to open the panel
+    await page.locator('button[title="My Coaches"]').click();
+    await page.waitForTimeout(300);
+
     await expect(page.getByText('System Training Coach')).toBeVisible({ timeout: 10000 });
 
     // System coach should have hide button
@@ -1029,7 +1046,12 @@ test.describe('User Coaches - Chat Interface', () => {
     });
 
     await loginToDashboard(page);
-    await page.waitForSelector('header', { timeout: 10000 });
+    await page.waitForSelector('main', { timeout: 10000 });
+
+    // Click the My Coaches button to open the panel
+    await page.locator('button[title="My Coaches"]').click();
+    await page.waitForTimeout(300);
+
     await expect(page.getByText('System Training Coach')).toBeVisible({ timeout: 10000 });
 
     // Click hide button
@@ -1043,9 +1065,14 @@ test.describe('User Coaches - Chat Interface', () => {
     await setupUserCoachesMocks(page);
     await loginToDashboard(page);
 
-    await page.waitForSelector('header', { timeout: 10000 });
+    await page.waitForSelector('main', { timeout: 10000 });
+
+    // Click the My Coaches button to open the panel
+    await page.locator('button[title="My Coaches"]').click();
+    await page.waitForTimeout(300);
+
     // Use exact match to avoid ambiguity with "My Coaches" button and "System Coaches" heading
-    await expect(page.getByRole('heading', { name: 'Coaches', exact: true })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'My Coaches' })).toBeVisible({ timeout: 10000 });
 
     // Click show hidden toggle
     const showHiddenToggle = page.getByText(/hidden/i).first();
@@ -1072,7 +1099,11 @@ test.describe('User Coaches - Chat Interface', () => {
     });
 
     await loginToDashboard(page);
-    await page.waitForSelector('header', { timeout: 10000 });
+    await page.waitForSelector('main', { timeout: 10000 });
+
+    // Click the My Coaches button to open the panel
+    await page.locator('button[title="My Coaches"]').click();
+    await page.waitForTimeout(300);
 
     // Toggle to show hidden coaches
     const showHiddenToggle = page.getByText(/hidden/i).first();
@@ -1104,7 +1135,12 @@ test.describe('User Coaches - Chat Interface', () => {
     });
 
     await loginToDashboard(page);
-    await page.waitForSelector('header', { timeout: 10000 });
+    await page.waitForSelector('main', { timeout: 10000 });
+
+    // Click the My Coaches button to open the panel
+    await page.locator('button[title="My Coaches"]').click();
+    await page.waitForTimeout(300);
+
     await expect(page.getByText('My Custom Coach')).toBeVisible({ timeout: 10000 });
 
     // Click delete button
@@ -1147,7 +1183,7 @@ test.describe('User Coaches - Chat Interface', () => {
     });
 
     await loginToDashboard(page);
-    await page.waitForSelector('header', { timeout: 10000 });
+    await page.waitForSelector('main', { timeout: 10000 });
 
     // Click My Coaches button in sidebar to open the My Coaches panel
     await page.getByRole('button', { name: 'My Coaches' }).click();
@@ -1195,7 +1231,7 @@ test.describe('User Coaches - Chat Interface', () => {
     });
 
     await loginToDashboard(page);
-    await page.waitForSelector('header', { timeout: 10000 });
+    await page.waitForSelector('main', { timeout: 10000 });
 
     // Open My Coaches panel
     await page.getByRole('button', { name: 'My Coaches' }).click();
@@ -1227,7 +1263,7 @@ test.describe('User Coaches - Chat Interface', () => {
     await setupUserCoachesMocks(page);
     await loginToDashboard(page);
 
-    await page.waitForSelector('header', { timeout: 10000 });
+    await page.waitForSelector('main', { timeout: 10000 });
 
     // Open My Coaches panel
     await page.getByRole('button', { name: 'My Coaches' }).click();
@@ -1253,7 +1289,7 @@ test.describe('User Coaches - Chat Interface', () => {
     await setupUserCoachesMocks(page);
     await loginToDashboard(page);
 
-    await page.waitForSelector('header', { timeout: 10000 });
+    await page.waitForSelector('main', { timeout: 10000 });
 
     // Open My Coaches panel
     await page.getByRole('button', { name: 'My Coaches' }).click();
@@ -1295,7 +1331,7 @@ test.describe('User Coaches - Chat Interface', () => {
     });
 
     await loginToDashboard(page);
-    await page.waitForSelector('header', { timeout: 10000 });
+    await page.waitForSelector('main', { timeout: 10000 });
 
     // Open My Coaches panel
     await page.getByRole('button', { name: 'My Coaches' }).click();

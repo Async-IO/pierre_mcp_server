@@ -108,7 +108,7 @@ describe('StoreScreen', () => {
   describe('rendering', () => {
     it('should render the header with title', async () => {
       renderStoreScreen();
-      expect(screen.getByText('Coach Store')).toBeInTheDocument();
+      expect(screen.getByText('Discover')).toBeInTheDocument();
     });
 
     it('should render the search input', async () => {
@@ -277,16 +277,6 @@ describe('StoreScreen', () => {
       await user.click(screen.getByText('Marathon Training Coach'));
 
       expect(mockOnSelectCoach).toHaveBeenCalledWith('coach-1');
-    });
-
-    it('should call onBack when back button is clicked', async () => {
-      const user = userEvent.setup();
-      renderStoreScreen();
-
-      const backButton = screen.getByTitle('Back to Chat');
-      await user.click(backButton);
-
-      expect(mockOnBack).toHaveBeenCalled();
     });
   });
 

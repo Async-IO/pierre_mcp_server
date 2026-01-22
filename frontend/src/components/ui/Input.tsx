@@ -13,10 +13,11 @@ export interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElem
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
   size?: 'sm' | 'md' | 'lg';
+  variant?: 'light' | 'dark';
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, helpText, leftIcon, rightIcon, size = 'md', className = '', id, ...props }, ref) => {
+  ({ label, error, helpText, leftIcon, rightIcon, size = 'md', variant = 'light', className = '', id, ...props }, ref) => {
     const inputId = id || `input-${Math.random().toString(36).substring(7)}`;
 
     const sizeClasses = {
@@ -25,30 +26,49 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
       lg: 'px-4 py-3 text-base',
     };
 
+    const variantClasses = {
+      light: `
+        bg-white text-pierre-gray-900 placeholder-pierre-gray-400
+        disabled:bg-pierre-gray-100 disabled:text-pierre-gray-500
+      `,
+      dark: `
+        bg-[#151520] text-white placeholder-zinc-500
+        disabled:bg-zinc-900 disabled:text-zinc-600
+      `,
+    };
+
     const baseInputClasses = `
       w-full border rounded-lg transition-all duration-base
-      bg-white text-pierre-gray-900 placeholder-pierre-gray-400
-      focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-opacity-20 focus:border-pierre-violet
-      disabled:bg-pierre-gray-100 disabled:text-pierre-gray-500 disabled:cursor-not-allowed
+      focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-opacity-30 focus:border-pierre-violet
+      disabled:cursor-not-allowed
+      ${variantClasses[variant]}
     `;
 
     const errorClasses = error
-      ? 'border-pierre-red-500 focus:ring-pierre-red-500 focus:ring-opacity-20 focus:border-pierre-red-500'
-      : 'border-pierre-gray-300';
+      ? 'border-red-500/50 focus:ring-red-500 focus:ring-opacity-20 focus:border-red-500'
+      : variant === 'dark'
+        ? 'border-white/10'
+        : 'border-pierre-gray-300';
 
     const iconPaddingLeft = leftIcon ? 'pl-10' : '';
     const iconPaddingRight = rightIcon ? 'pr-10' : '';
 
+    const labelClasses = variant === 'dark'
+      ? 'block text-sm font-medium text-zinc-300 mb-1.5'
+      : 'block text-sm font-medium text-pierre-gray-700 mb-1.5';
+
+    const iconClasses = variant === 'dark' ? 'text-zinc-500' : 'text-pierre-gray-400';
+
     return (
       <div className="w-full">
         {label && (
-          <label htmlFor={inputId} className="block text-sm font-medium text-pierre-gray-700 mb-1.5">
+          <label htmlFor={inputId} className={labelClasses}>
             {label}
           </label>
         )}
         <div className="relative">
           {leftIcon && (
-            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-pierre-gray-400">
+            <div className={`absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none ${iconClasses}`}>
               {leftIcon}
             </div>
           )}
@@ -59,16 +79,16 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             {...props}
           />
           {rightIcon && (
-            <div className="absolute inset-y-0 right-0 flex items-center pr-3 text-pierre-gray-400">
+            <div className={`absolute inset-y-0 right-0 flex items-center pr-3 ${iconClasses}`}>
               {rightIcon}
             </div>
           )}
         </div>
         {error && (
-          <p className="mt-1.5 text-sm text-pierre-red-500">{error}</p>
+          <p className={`mt-1.5 text-sm ${variant === 'dark' ? 'text-red-400' : 'text-pierre-red-500'}`}>{error}</p>
         )}
         {helpText && !error && (
-          <p className="mt-1.5 text-sm text-pierre-gray-500">{helpText}</p>
+          <p className={`mt-1.5 text-sm ${variant === 'dark' ? 'text-zinc-500' : 'text-pierre-gray-500'}`}>{helpText}</p>
         )}
       </div>
     );

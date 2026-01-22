@@ -97,10 +97,16 @@ export default function Register({ onNavigateToLogin, onRegistrationSuccess }: R
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-pierre-gray-50">
+    <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-pierre-dark">
       <div className="max-w-md w-full">
-        {/* Card with gradient accent bar */}
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden relative">
+        {/* Card with glassmorphism and gradient accent bar */}
+        <div
+          className="rounded-xl border border-white/10 overflow-hidden relative"
+          style={{
+            background: 'rgba(30, 30, 46, 0.8)',
+            backdropFilter: 'blur(12px)',
+          }}
+        >
           {/* Gradient accent bar at top */}
           <div className="h-1 w-full bg-gradient-pierre-horizontal" />
 
@@ -108,10 +114,10 @@ export default function Register({ onNavigateToLogin, onRegistrationSuccess }: R
             {/* Logo and brand */}
             <div className="flex flex-col items-center">
               <PierreLogo />
-              <h1 className="mt-4 text-xl font-bold text-pierre-gray-900 tracking-tight">
+              <h1 className="mt-4 text-xl font-bold text-white tracking-tight">
                 Create Your Account
               </h1>
-              <p className="mt-1 text-sm text-pierre-gray-500">
+              <p className="mt-1 text-sm text-zinc-400">
                 Join Pierre Fitness Intelligence
               </p>
             </div>
@@ -119,7 +125,7 @@ export default function Register({ onNavigateToLogin, onRegistrationSuccess }: R
             {/* Registration form */}
             <form className="space-y-5" onSubmit={handleSubmit}>
               {error && (
-                <div className="bg-pierre-red-50 border border-pierre-red-200 text-pierre-red-600 px-4 py-3 rounded-lg text-sm">
+                <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
                   {error}
                 </div>
               )}
@@ -134,6 +140,7 @@ export default function Register({ onNavigateToLogin, onRegistrationSuccess }: R
                   placeholder="Enter your name (optional)"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
+                  variant="dark"
                 />
 
                 <Input
@@ -146,6 +153,7 @@ export default function Register({ onNavigateToLogin, onRegistrationSuccess }: R
                   placeholder="Enter your email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  variant="dark"
                 />
 
                 <Input
@@ -158,11 +166,12 @@ export default function Register({ onNavigateToLogin, onRegistrationSuccess }: R
                   placeholder="Create a password (min 8 characters)"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  variant="dark"
                   rightIcon={
                     <button
                       type="button"
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
-                      className="hover:text-pierre-gray-600"
+                      className="text-zinc-400 hover:text-white transition-colors"
                       onClick={() => setShowPassword(!showPassword)}
                     >
                       {showPassword ? (
@@ -189,6 +198,7 @@ export default function Register({ onNavigateToLogin, onRegistrationSuccess }: R
                   placeholder="Confirm your password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
+                  variant="dark"
                 />
               </div>
 
@@ -196,7 +206,7 @@ export default function Register({ onNavigateToLogin, onRegistrationSuccess }: R
                 type="submit"
                 variant="gradient"
                 loading={isLoading}
-                className="w-full"
+                className="w-full shadow-glow-sm"
               >
                 {isLoading ? 'Creating account...' : 'Create Account'}
               </Button>
@@ -206,7 +216,7 @@ export default function Register({ onNavigateToLogin, onRegistrationSuccess }: R
                 <button
                   type="button"
                   onClick={onNavigateToLogin}
-                  className="text-sm text-pierre-violet hover:text-pierre-violet/80 font-medium"
+                  className="text-sm text-pierre-violet hover:text-pierre-violet/80 font-medium transition-colors"
                 >
                   Already have an account? Sign in
                 </button>

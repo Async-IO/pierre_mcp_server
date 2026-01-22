@@ -155,7 +155,7 @@ async function navigateToAiSettings(page: Page) {
   await loginToDashboard(page);
 
   // Wait for dashboard to load - user mode shows header
-  await page.waitForSelector('header', { timeout: 10000 });
+  await page.waitForSelector('main', { timeout: 10000 });
 
   // For non-admin users, settings is accessed via gear icon in ChatTab sidebar
   // Look for the settings button with title="Open settings"
@@ -188,7 +188,7 @@ test.describe('LLM Settings - Display and Navigation', () => {
   test('displays AI Settings tab in user settings', async ({ page }) => {
     await setupLlmSettingsMocks(page);
     await loginToDashboard(page);
-    await page.waitForSelector('header', { timeout: 10000 });
+    await page.waitForSelector('main', { timeout: 10000 });
 
     // Navigate to settings - for non-admin users, use gear icon button
     const settingsButton = page.locator('button[title="Open settings"]');
@@ -555,7 +555,7 @@ test.describe('LLM Settings - Error Handling', () => {
     });
 
     await loginToDashboard(page);
-    await page.waitForSelector('header', { timeout: 10000 });
+    await page.waitForSelector('main', { timeout: 10000 });
 
     // Navigate to settings - for non-admin users, use gear icon button
     const settingsButton = page.locator('button[title="Open settings"]');

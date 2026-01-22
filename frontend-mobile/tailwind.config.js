@@ -79,21 +79,21 @@ module.exports = {
           950: '#082f49',
         },
         background: {
-          primary: '#0f0f0f',
-          secondary: '#1a1a1a',
-          tertiary: '#2a2a2a',
-          elevated: '#333333',
+          primary: '#0F0F1A',    // pierre-dark - deepest background
+          secondary: '#1E1E2E',  // pierre-slate - cards, elevated surfaces
+          tertiary: '#2A2A3E',   // slightly lighter for hover states
+          elevated: '#363650',   // elevated components like modals
         },
         text: {
           primary: '#ffffff',
-          secondary: '#a1a1a1',
-          tertiary: '#6b6b6b',
-          accent: '#7C3AED',
+          secondary: '#a1a1aa',  // zinc-400
+          tertiary: '#71717a',   // zinc-500
+          accent: '#7C3AED',     // pierre-violet
         },
         border: {
-          subtle: '#2a2a2a',
-          default: '#3a3a3a',
-          strong: '#4a4a4a',
+          subtle: 'rgba(255, 255, 255, 0.05)',   // white/5
+          default: 'rgba(255, 255, 255, 0.1)',   // white/10
+          strong: 'rgba(255, 255, 255, 0.15)',   // white/15
         },
         success: '#22c55e',
         warning: '#f59e0b',

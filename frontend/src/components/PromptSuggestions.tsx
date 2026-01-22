@@ -72,15 +72,15 @@ export default function PromptSuggestions({ onSelectPrompt, onEditCoach, onDelet
 
   if (isLoading) {
     return (
-      <Card className="p-3 mt-4 animate-pulse">
+      <Card variant="dark" className="p-3 mt-4 animate-pulse">
         <div className="flex items-center gap-2 mb-3">
-          <div className="w-8 h-8 rounded-lg bg-pierre-gray-200" />
-          <div className="h-5 w-20 bg-pierre-gray-200 rounded" />
-          <div className="w-5 h-5 rounded-full bg-pierre-gray-200" />
+          <div className="w-8 h-8 rounded-lg bg-white/10" />
+          <div className="h-5 w-20 bg-white/10 rounded" />
+          <div className="w-5 h-5 rounded-full bg-white/10" />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="h-20 bg-pierre-gray-100 rounded-xl" />
+            <div key={i} className="h-20 bg-white/5 rounded-xl" />
           ))}
         </div>
       </Card>
@@ -90,8 +90,8 @@ export default function PromptSuggestions({ onSelectPrompt, onEditCoach, onDelet
   if (error) {
     return (
       <div className="mt-4 text-center">
-        <Card className="p-6 border-pierre-red-200 bg-pierre-red-50">
-          <div className="text-pierre-red-600 mb-2">
+        <Card variant="dark" className="p-6 border-red-500/30 bg-red-500/10">
+          <div className="text-red-400 mb-2">
             <svg
               className="w-8 h-8 mx-auto mb-2"
               fill="none"
@@ -106,7 +106,7 @@ export default function PromptSuggestions({ onSelectPrompt, onEditCoach, onDelet
               />
             </svg>
             <p className="font-medium">Failed to load coaches</p>
-            <p className="text-sm text-pierre-red-500 mt-1">
+            <p className="text-sm text-red-400/80 mt-1">
               {error instanceof Error ? error.message : 'Please try refreshing the page'}
             </p>
           </div>
@@ -120,9 +120,9 @@ export default function PromptSuggestions({ onSelectPrompt, onEditCoach, onDelet
 
   if (coaches.length === 0 && hiddenCoaches.length === 0) {
     return (
-      <div className="mt-4 text-center text-pierre-gray-500">
+      <div className="mt-4 text-center text-zinc-400">
         <p>No coaches available yet</p>
-        <p className="text-sm mt-2">Ask your admin to assign some coaching personas to get started.</p>
+        <p className="text-sm mt-2 text-zinc-500">Ask your admin to assign some coaching personas to get started.</p>
       </div>
     );
   }
@@ -171,13 +171,13 @@ function HelpTooltip({ isVisible, onClose }: { isVisible: boolean; onClose: () =
 
   return (
     <div className="absolute top-full left-0 mt-2 z-50">
-      <div className="bg-white rounded-lg shadow-lg border border-pierre-gray-200 p-4 max-w-sm">
+      <div className="bg-pierre-slate rounded-lg shadow-lg border border-white/10 p-4 max-w-sm">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <p className="text-sm text-pierre-gray-700 font-medium mb-2">
+            <p className="text-sm text-white font-medium mb-2">
               AI Coaching Personas
             </p>
-            <p className="text-xs text-pierre-gray-500">
+            <p className="text-xs text-zinc-400">
               Coaches are specialized AI assistants trained to help with specific aspects of your fitness journey.
               Select a coach to start a conversation focused on their expertise area.
             </p>
@@ -185,7 +185,7 @@ function HelpTooltip({ isVisible, onClose }: { isVisible: boolean; onClose: () =
           <button
             type="button"
             onClick={onClose}
-            className="text-pierre-gray-400 hover:text-pierre-gray-600 flex-shrink-0"
+            className="text-zinc-500 hover:text-white flex-shrink-0 transition-colors"
             aria-label="Close help"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -229,11 +229,11 @@ function CoachesSection({
   const [showHelp, setShowHelp] = useState(false);
 
   return (
-    <Card className="p-3 mt-4">
+    <Card variant="dark" className="p-3 mt-4">
       {/* Header with help button */}
       <div className="flex items-center gap-2 mb-3 relative">
         <div
-          className="w-8 h-8 rounded-lg bg-gradient-to-br from-pierre-violet to-purple-600 flex items-center justify-center"
+          className="w-8 h-8 rounded-lg bg-gradient-to-br from-pierre-violet to-purple-600 flex items-center justify-center shadow-glow-sm"
           role="img"
           aria-label="Coaches"
         >
@@ -241,11 +241,11 @@ function CoachesSection({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
           </svg>
         </div>
-        <h3 className="font-medium text-pierre-gray-900">Coaches</h3>
+        <h3 className="font-medium text-white">Coaches</h3>
         <button
           type="button"
           onClick={() => setShowHelp(!showHelp)}
-          className="w-5 h-5 rounded-full bg-pierre-gray-100 hover:bg-pierre-gray-200 flex items-center justify-center text-pierre-gray-500 hover:text-pierre-gray-700 transition-colors"
+          className="w-5 h-5 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
           aria-label="What are coaches?"
         >
           <span className="text-xs font-medium">?</span>
@@ -259,8 +259,8 @@ function CoachesSection({
             onClick={onToggleShowHidden}
             className={`ml-auto flex items-center gap-1.5 px-2 py-1 text-xs rounded-lg transition-colors ${
               showHidden
-                ? 'bg-pierre-violet/10 text-pierre-violet'
-                : 'bg-pierre-gray-100 text-pierre-gray-500 hover:bg-pierre-gray-200'
+                ? 'bg-pierre-violet/20 text-pierre-violet'
+                : 'bg-white/10 text-zinc-400 hover:bg-white/15 hover:text-zinc-300'
             }`}
             title={showHidden ? 'Hide hidden coaches' : 'Show hidden coaches'}
           >
@@ -279,10 +279,10 @@ function CoachesSection({
       {/* Personalized section (user-created coaches) - always first */}
       {userCoaches.length > 0 && (
         <div className="mb-4">
-          <h4 className="text-sm font-medium text-pierre-gray-700 mb-2 flex items-center gap-2">
+          <h4 className="text-sm font-medium text-zinc-300 mb-2 flex items-center gap-2">
             <span className="text-base">✨</span>
             Personalized
-            <span className="text-xs text-pierre-gray-400 font-normal">({userCoaches.length})</span>
+            <span className="text-xs text-zinc-500 font-normal">({userCoaches.length})</span>
           </h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {userCoaches.map((coach) => (
@@ -302,11 +302,11 @@ function CoachesSection({
 
       {/* System Coaches section - below user coaches */}
       {systemCoaches.length > 0 && (
-        <div className={userCoaches.length > 0 ? 'pt-3 border-t border-pierre-gray-200' : ''}>
-          <h4 className="text-sm font-medium text-pierre-gray-500 mb-2 flex items-center gap-2">
+        <div className={userCoaches.length > 0 ? 'pt-3 border-t border-white/10' : ''}>
+          <h4 className="text-sm font-medium text-zinc-400 mb-2 flex items-center gap-2">
             <span className="text-base">🏛️</span>
             System Coaches
-            <span className="text-xs text-pierre-gray-400 font-normal">({systemCoaches.length})</span>
+            <span className="text-xs text-zinc-500 font-normal">({systemCoaches.length})</span>
           </h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {systemCoaches.map((coach) => (
@@ -326,8 +326,8 @@ function CoachesSection({
 
       {/* Hidden coaches section */}
       {showHidden && hiddenCoaches.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-pierre-gray-200">
-          <h4 className="text-sm font-medium text-pierre-gray-500 mb-3 flex items-center gap-2">
+        <div className="mt-4 pt-4 border-t border-white/10">
+          <h4 className="text-sm font-medium text-zinc-400 mb-3 flex items-center gap-2">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
             </svg>
@@ -367,10 +367,10 @@ function CoachCard({
 }) {
   return (
     <div
-      className="relative text-left text-sm rounded-xl border border-pierre-gray-200 hover:border-pierre-violet hover:bg-pierre-violet/5 px-4 py-3 transition-all focus-within:outline-none focus-within:ring-2 focus-within:ring-pierre-violet focus-within:ring-opacity-50 group hover:shadow-sm"
+      className="relative text-left text-sm rounded-xl border border-white/10 bg-white/5 hover:border-pierre-violet/50 hover:bg-pierre-violet/10 px-4 py-3 transition-all focus-within:outline-none focus-within:ring-2 focus-within:ring-pierre-violet focus-within:ring-opacity-50 group hover:shadow-glow-sm"
     >
       {/* Action buttons container */}
-      <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10 bg-white/90 backdrop-blur-sm rounded-lg px-1 py-0.5 shadow-sm">
+      <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10 bg-pierre-slate/90 backdrop-blur-sm rounded-lg px-1 py-0.5 shadow-sm border border-white/10">
         {/* Edit/Delete for user-created coaches */}
         {!coach.is_system && onEditCoach && (
           <button
@@ -379,7 +379,7 @@ function CoachCard({
               e.stopPropagation();
               onEditCoach(coach);
             }}
-            className="p-1 text-pierre-gray-400 hover:text-pierre-violet hover:bg-pierre-violet/10 rounded transition-colors"
+            className="p-1 text-zinc-400 hover:text-pierre-violet hover:bg-pierre-violet/20 rounded transition-colors"
             title="Edit coach"
             aria-label="Edit coach"
           >
@@ -395,7 +395,7 @@ function CoachCard({
               e.stopPropagation();
               onDeleteCoach(coach);
             }}
-            className="p-1 text-pierre-gray-400 hover:text-pierre-red-500 hover:bg-pierre-red-50 rounded transition-colors"
+            className="p-1 text-zinc-400 hover:text-red-400 hover:bg-red-500/20 rounded transition-colors"
             title="Delete coach"
             aria-label="Delete coach"
           >
@@ -413,7 +413,7 @@ function CoachCard({
               onHideCoach(coach);
             }}
             disabled={isHiding}
-            className="p-1 text-pierre-gray-400 hover:text-pierre-gray-600 hover:bg-pierre-gray-100 rounded transition-colors disabled:opacity-50"
+            className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 rounded transition-colors disabled:opacity-50"
             title="Hide coach"
             aria-label="Hide coach"
           >
@@ -438,12 +438,12 @@ function CoachCard({
         className="w-full text-left"
       >
         <div className="flex items-center justify-between">
-          <span className="font-medium text-pierre-gray-800 group-hover:text-pierre-violet">
+          <span className="font-medium text-white group-hover:text-pierre-violet transition-colors">
             {coach.title}
           </span>
           <div className="flex items-center gap-1">
             {coach.is_favorite && (
-              <span className="text-pierre-yellow-500">★</span>
+              <span className="text-amber-400">★</span>
             )}
             <span className={`text-xs px-1.5 py-0.5 rounded ${getCategoryBadgeClass(coach.category)}`}>
               {getCategoryIcon(coach.category)}
@@ -451,13 +451,13 @@ function CoachCard({
           </div>
         </div>
         {coach.description && (
-          <p className="text-pierre-gray-500 text-xs mt-0.5 line-clamp-2">
+          <p className="text-zinc-400 text-xs mt-0.5 line-clamp-2">
             {coach.description}
           </p>
         )}
-        <div className="flex items-center gap-2 mt-1 text-xs text-pierre-gray-400">
+        <div className="flex items-center gap-2 mt-1 text-xs text-zinc-500">
           {coach.is_system && (
-            <span className="bg-pierre-violet bg-opacity-10 text-pierre-violet px-1.5 py-0.5 rounded">
+            <span className="bg-pierre-violet/20 text-pierre-violet px-1.5 py-0.5 rounded">
               System
             </span>
           )}
@@ -482,10 +482,10 @@ function HiddenCoachCard({
 }) {
   return (
     <div
-      className="relative text-left text-sm rounded-xl border border-pierre-gray-200 px-4 py-3 opacity-60 hover:opacity-100 transition-all group bg-pierre-gray-50"
+      className="relative text-left text-sm rounded-xl border border-white/5 px-4 py-3 opacity-50 hover:opacity-100 transition-all group bg-white/5"
     >
       {/* Show button */}
-      <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10 bg-white/90 backdrop-blur-sm rounded-lg px-1 py-0.5 shadow-sm">
+      <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10 bg-pierre-slate/90 backdrop-blur-sm rounded-lg px-1 py-0.5 shadow-sm border border-white/10">
         <button
           type="button"
           onClick={(e) => {
@@ -493,7 +493,7 @@ function HiddenCoachCard({
             onShowCoach(coach);
           }}
           disabled={isShowing}
-          className="p-1 text-pierre-gray-400 hover:text-pierre-green-600 hover:bg-pierre-green-50 rounded transition-colors disabled:opacity-50"
+          className="p-1 text-zinc-400 hover:text-emerald-400 hover:bg-emerald-500/20 rounded transition-colors disabled:opacity-50"
           title="Show coach"
           aria-label="Show coach"
         >
@@ -503,7 +503,7 @@ function HiddenCoachCard({
         </button>
       </div>
       <div className="flex items-center justify-between">
-        <span className="font-medium text-pierre-gray-600">
+        <span className="font-medium text-zinc-400">
           {coach.title}
         </span>
         <div className="flex items-center gap-1">
@@ -513,13 +513,13 @@ function HiddenCoachCard({
         </div>
       </div>
       {coach.description && (
-        <p className="text-pierre-gray-400 text-xs mt-0.5 line-clamp-2">
+        <p className="text-zinc-500 text-xs mt-0.5 line-clamp-2">
           {coach.description}
         </p>
       )}
-      <div className="flex items-center gap-2 mt-1 text-xs text-pierre-gray-400">
+      <div className="flex items-center gap-2 mt-1 text-xs text-zinc-500">
         {coach.is_system && (
-          <span className="bg-pierre-gray-200 text-pierre-gray-500 px-1.5 py-0.5 rounded">
+          <span className="bg-white/10 text-zinc-400 px-1.5 py-0.5 rounded">
             System
           </span>
         )}
@@ -528,16 +528,16 @@ function HiddenCoachCard({
   );
 }
 
-// Helper functions for category styling
+// Helper functions for category styling (dark theme)
 function getCategoryBadgeClass(category: string): string {
   const classes: Record<string, string> = {
-    training: 'bg-pierre-green-100 text-pierre-green-700',
-    nutrition: 'bg-pierre-nutrition/10 text-pierre-nutrition',
-    recovery: 'bg-pierre-blue-100 text-pierre-blue-700',
-    recipes: 'bg-pierre-yellow-100 text-pierre-yellow-700',
-    mobility: 'bg-pierre-mobility/10 text-pierre-mobility',
-    analysis: 'bg-pierre-violet/10 text-pierre-violet',
-    custom: 'bg-pierre-gray-100 text-pierre-gray-600',
+    training: 'bg-emerald-500/20 text-emerald-400',
+    nutrition: 'bg-amber-500/20 text-amber-400',
+    recovery: 'bg-indigo-500/20 text-indigo-400',
+    recipes: 'bg-orange-500/20 text-orange-400',
+    mobility: 'bg-pink-500/20 text-pink-400',
+    analysis: 'bg-pierre-violet/20 text-pierre-violet',
+    custom: 'bg-white/10 text-zinc-400',
   };
   return classes[category.toLowerCase()] || classes.custom;
 }

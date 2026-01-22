@@ -54,26 +54,6 @@ const PierreLogo = () => (
   </svg>
 );
 
-const PierreLogoSmall = () => (
-  <svg width="32" height="32" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="pg-sm" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#7C3AED"/><stop offset="100%" stopColor="#06B6D4"/></linearGradient>
-      <linearGradient id="ag-sm" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#10B981"/><stop offset="100%" stopColor="#059669"/></linearGradient>
-      <linearGradient id="ng-sm" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#F59E0B"/><stop offset="100%" stopColor="#D97706"/></linearGradient>
-      <linearGradient id="rg-sm" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#6366F1"/><stop offset="100%" stopColor="#4F46E5"/></linearGradient>
-    </defs>
-    <g strokeWidth="2" opacity="0.5" strokeLinecap="round">
-      <line x1="40" y1="30" x2="52" y2="42" stroke="url(#ag-sm)"/><line x1="52" y1="42" x2="70" y2="35" stroke="url(#ag-sm)"/>
-      <line x1="52" y1="42" x2="48" y2="55" stroke="url(#pg-sm)"/><line x1="48" y1="55" x2="75" y2="52" stroke="url(#ng-sm)"/>
-      <line x1="48" y1="55" x2="55" y2="72" stroke="url(#pg-sm)"/><line x1="55" y1="72" x2="35" y2="85" stroke="url(#rg-sm)"/><line x1="55" y1="72" x2="72" y2="82" stroke="url(#rg-sm)"/>
-    </g>
-    <circle cx="40" cy="30" r="7" fill="url(#ag-sm)"/><circle cx="52" cy="42" r="5" fill="url(#ag-sm)"/><circle cx="70" cy="35" r="3.5" fill="url(#ag-sm)"/>
-    <circle cx="48" cy="55" r="6" fill="url(#pg-sm)"/><circle cx="48" cy="55" r="3" fill="#fff" opacity="0.9"/>
-    <circle cx="75" cy="52" r="4.5" fill="url(#ng-sm)"/><circle cx="88" cy="60" r="3.5" fill="url(#ng-sm)"/>
-    <circle cx="55" cy="72" r="5" fill="url(#rg-sm)"/><circle cx="35" cy="85" r="4" fill="url(#rg-sm)"/><circle cx="72" cy="82" r="4" fill="url(#rg-sm)"/>
-  </svg>
-);
-
 export default function Dashboard() {
   const { user, logout } = useAuth();
   // Default tab depends on user role: admin sees 'overview', regular users see 'chat'
@@ -203,49 +183,23 @@ export default function Dashboard() {
   // For admin users, use sidebar tabs
   const tabs = isSuperAdmin ? superAdminTabs : adminTabs;
 
-  // Regular user view: Clean chat interface with minimal header
+  // Regular user view: Full-height chat interface - Dark Theme (no header, branding in sidebar)
   if (!isAdminUser) {
     return (
-      <div className="h-screen bg-white flex flex-col overflow-hidden">
-        {/* Minimal Header for Regular Users - Branding + Navigation */}
-        <header className="h-12 border-b border-pierre-gray-100 flex items-center justify-between px-4 bg-white">
-          <div className="flex items-center gap-2">
-            <PierreLogoSmall />
-            <span className="text-lg font-semibold bg-gradient-to-r from-pierre-violet to-pierre-cyan bg-clip-text text-transparent">
-              Pierre Fitness Intelligence
-            </span>
-          </div>
-          {/* Settings icon for regular users */}
-          <button
-            onClick={() => setActiveTab('settings')}
-            className={clsx(
-              'p-2 rounded-lg transition-colors',
-              activeTab === 'settings'
-                ? 'bg-pierre-violet/10 text-pierre-violet'
-                : 'text-pierre-gray-500 hover:bg-pierre-gray-100 hover:text-pierre-gray-700'
-            )}
-            title="Settings"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </button>
-        </header>
-
+      <div className="h-screen bg-pierre-dark flex flex-col overflow-hidden">
         {/* Main Content - Full height chat or settings */}
         <main className="flex-1 overflow-hidden">
           {activeTab === 'chat' && (
-            <Suspense fallback={<div className="flex justify-center items-center h-full"><div className="pierre-spinner w-8 h-8"></div></div>}>
+            <Suspense fallback={<div className="flex justify-center items-center h-full bg-pierre-dark"><div className="pierre-spinner w-8 h-8 border-pierre-violet border-t-transparent"></div></div>}>
               <ChatTab onOpenSettings={() => setActiveTab('settings')} />
             </Suspense>
           )}
           {activeTab === 'settings' && (
-            <div className="h-full overflow-auto p-6">
+            <div className="h-full overflow-auto p-6 bg-pierre-dark">
               <div className="mb-4">
                 <button
                   onClick={() => setActiveTab('chat')}
-                  className="flex items-center gap-2 text-pierre-gray-600 hover:text-pierre-violet transition-colors"
+                  className="flex items-center gap-2 text-zinc-400 hover:text-pierre-violet transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -253,7 +207,7 @@ export default function Dashboard() {
                   Back to Chat
                 </button>
               </div>
-              <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner w-8 h-8"></div></div>}>
+              <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner w-8 h-8 border-pierre-violet border-t-transparent"></div></div>}>
                 <UserSettings />
               </Suspense>
             </div>

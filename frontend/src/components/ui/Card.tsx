@@ -7,7 +7,7 @@ import { clsx } from 'clsx';
 interface CardProps {
   children: React.ReactNode;
   className?: string;
-  variant?: 'default' | 'stat';
+  variant?: 'default' | 'stat' | 'dark';
   onClick?: () => void;
 }
 
@@ -21,6 +21,7 @@ export const Card: React.FC<CardProps> = ({
     {
       'card': variant === 'default',
       'stat-card': variant === 'stat',
+      'card-dark': variant === 'dark',
     },
     className
   );

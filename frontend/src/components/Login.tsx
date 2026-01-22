@@ -149,10 +149,16 @@ export default function Login({ onNavigateToRegister }: LoginProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-pierre-gray-50">
+    <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-pierre-dark">
       <div className="max-w-md w-full">
-        {/* Card with gradient accent bar */}
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden relative">
+        {/* Card with glassmorphism and gradient accent bar */}
+        <div
+          className="rounded-xl border border-white/10 overflow-hidden relative"
+          style={{
+            background: 'rgba(30, 30, 46, 0.8)',
+            backdropFilter: 'blur(12px)',
+          }}
+        >
           {/* Gradient accent bar at top */}
           <div className="h-1 w-full bg-gradient-pierre-horizontal" />
 
@@ -160,10 +166,10 @@ export default function Login({ onNavigateToRegister }: LoginProps) {
             {/* Logo and brand */}
             <div className="flex flex-col items-center">
               <PierreLogo />
-              <h1 className="mt-4 text-xl font-bold text-pierre-gray-900 tracking-tight">
+              <h1 className="mt-4 text-xl font-bold text-white tracking-tight">
                 Pierre Fitness Platform
               </h1>
-              <p className="mt-1 text-sm text-pierre-gray-500">
+              <p className="mt-1 text-sm text-zinc-400">
                 Sign in to your account
               </p>
             </div>
@@ -171,7 +177,7 @@ export default function Login({ onNavigateToRegister }: LoginProps) {
             {/* Login form */}
             <form className="space-y-5" onSubmit={handleSubmit}>
               {error && (
-                <div className="bg-pierre-red-50 border border-pierre-red-200 text-pierre-red-600 px-4 py-3 rounded-lg text-sm">
+                <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
                   {error}
                 </div>
               )}
@@ -187,6 +193,7 @@ export default function Login({ onNavigateToRegister }: LoginProps) {
                   placeholder="Enter your email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  variant="dark"
                 />
                 <Input
                   id="password"
@@ -198,11 +205,12 @@ export default function Login({ onNavigateToRegister }: LoginProps) {
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  variant="dark"
                   rightIcon={
                     <button
                       type="button"
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
-                      className="hover:text-pierre-gray-600"
+                      className="text-zinc-400 hover:text-white transition-colors"
                       onClick={() => setShowPassword(!showPassword)}
                     >
                       {showPassword ? (
@@ -224,7 +232,7 @@ export default function Login({ onNavigateToRegister }: LoginProps) {
                 type="submit"
                 variant="gradient"
                 loading={isLoading}
-                className="w-full"
+                className="w-full shadow-glow-sm"
               >
                 {isLoading ? 'Signing in...' : 'Sign in'}
               </Button>
@@ -235,10 +243,10 @@ export default function Login({ onNavigateToRegister }: LoginProps) {
                   {/* Divider */}
                   <div className="relative my-4">
                     <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-pierre-gray-200" />
+                      <div className="w-full border-t border-white/10" />
                     </div>
                     <div className="relative flex justify-center text-sm">
-                      <span className="px-2 bg-white text-pierre-gray-500">or continue with</span>
+                      <span className="px-2 bg-pierre-slate text-zinc-500">or continue with</span>
                     </div>
                   </div>
 
@@ -247,10 +255,10 @@ export default function Login({ onNavigateToRegister }: LoginProps) {
                     type="button"
                     onClick={handleGoogleSignIn}
                     disabled={isGoogleLoading}
-                    className="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-pierre-gray-300 rounded-lg bg-white hover:bg-pierre-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-white/10 rounded-lg bg-white/5 hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isGoogleLoading ? (
-                      <div className="pierre-spinner w-5 h-5 border-pierre-gray-500 border-t-transparent"></div>
+                      <div className="pierre-spinner w-5 h-5 border-zinc-400 border-t-transparent"></div>
                     ) : (
                       <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -259,7 +267,7 @@ export default function Login({ onNavigateToRegister }: LoginProps) {
                         <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                       </svg>
                     )}
-                    <span className="text-pierre-gray-700 font-medium">
+                    <span className="text-zinc-300 font-medium">
                       {isGoogleLoading ? 'Signing in...' : 'Continue with Google'}
                     </span>
                   </button>
@@ -272,7 +280,7 @@ export default function Login({ onNavigateToRegister }: LoginProps) {
                   <button
                     type="button"
                     onClick={onNavigateToRegister}
-                    className="text-sm text-pierre-violet hover:text-pierre-violet/80 font-medium"
+                    className="text-sm text-pierre-violet hover:text-pierre-violet/80 font-medium transition-colors"
                   >
                     Don&apos;t have an account? Create one
                   </button>

@@ -161,8 +161,8 @@ test.describe('Dashboard Navigation', () => {
     await setupFullDashboardMocks(page, { isAdmin: false });
     await loginAndGoToDashboard(page);
 
-    // Non-admin users see chat-first layout with header (no sidebar nav)
-    await page.waitForSelector('header', { timeout: 10000 });
+    // Non-admin users see chat-first layout (no sidebar nav)
+    await page.waitForSelector('main', { timeout: 10000 });
 
     // Non-admin should not see Users tab (they don't have a sidebar at all)
     await expect(page.locator('button').filter({ has: page.locator('span:has-text("Users")') })).not.toBeVisible();
@@ -292,13 +292,14 @@ test.describe('Dashboard User Profile', () => {
   });
 
   test('displays user badge for non-admin users', async ({ page }) => {
-    // Non-admin users see chat-first layout; verify branding is visible
+    // Non-admin users see chat-first layout; verify chat interface is visible
     await setupFullDashboardMocks(page, { isAdmin: false });
     await loginAndGoToDashboard(page);
 
-    // Non-admin layout has header with Pierre branding (no sidebar with user profile)
-    await page.waitForSelector('header', { timeout: 10000 });
-    await expect(page.getByText('Pierre Fitness Intelligence')).toBeVisible();
+    // Non-admin layout (no sidebar with user profile)
+    await page.waitForSelector('main', { timeout: 10000 });
+    // Non-admin users see the ChatTab interface with settings button
+    await expect(page.locator('button[title="Open settings"]')).toBeVisible();
   });
 
   test('shows user display name in header', async ({ page }) => {

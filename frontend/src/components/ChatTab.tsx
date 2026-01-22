@@ -449,7 +449,7 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [queryClient]);
+  }, [queryClient, createConversation]);
 
   // Handle sending a pending prompt when conversation is ready
   useEffect(() => {
