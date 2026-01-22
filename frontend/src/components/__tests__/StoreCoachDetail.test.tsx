@@ -2,7 +2,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 //
 // ABOUTME: Unit tests for StoreCoachDetail component
-// ABOUTME: Tests coach detail display, install/uninstall actions, and navigation
+// ABOUTME: Tests coach detail display, add/remove actions, and navigation
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -184,39 +184,39 @@ describe('StoreCoachDetail', () => {
     });
   });
 
-  describe('install functionality', () => {
-    it('should show Install button when not installed', async () => {
+  describe('add functionality', () => {
+    it('should show Add button when not added', async () => {
       renderStoreCoachDetail();
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Install Coach' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Add Coach' })).toBeInTheDocument();
       });
     });
 
-    it('should call installStoreCoach when Install button is clicked', async () => {
+    it('should call installStoreCoach when Add button is clicked', async () => {
       const user = userEvent.setup();
       renderStoreCoachDetail();
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Install Coach' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Add Coach' })).toBeInTheDocument();
       });
 
-      await user.click(screen.getByRole('button', { name: 'Install Coach' }));
+      await user.click(screen.getByRole('button', { name: 'Add Coach' }));
 
       await waitFor(() => {
         expect(apiService.installStoreCoach).toHaveBeenCalledWith('coach-1');
       });
     });
 
-    it('should show success message after install', async () => {
+    it('should show success message after adding', async () => {
       const user = userEvent.setup();
       renderStoreCoachDetail();
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Install Coach' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Add Coach' })).toBeInTheDocument();
       });
 
-      await user.click(screen.getByRole('button', { name: 'Install Coach' }));
+      await user.click(screen.getByRole('button', { name: 'Add Coach' }));
 
       await waitFor(() => {
         expect(
@@ -226,7 +226,7 @@ describe('StoreCoachDetail', () => {
     });
   });
 
-  describe('uninstall functionality', () => {
+  describe('remove functionality', () => {
     beforeEach(() => {
       // Mock as installed
       vi.mocked(apiService.getStoreInstallations).mockResolvedValue({
@@ -235,26 +235,26 @@ describe('StoreCoachDetail', () => {
       });
     });
 
-    it('should show Uninstall button when installed', async () => {
+    it('should show Remove button when installed', async () => {
       renderStoreCoachDetail();
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Uninstall' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument();
       });
     });
 
-    it('should show confirmation dialog when Uninstall is clicked', async () => {
+    it('should show confirmation dialog when Remove is clicked', async () => {
       const user = userEvent.setup();
       renderStoreCoachDetail();
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Uninstall' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument();
       });
 
-      await user.click(screen.getByRole('button', { name: 'Uninstall' }));
+      await user.click(screen.getByRole('button', { name: 'Remove' }));
 
       await waitFor(() => {
-        expect(screen.getByText('Uninstall Coach?')).toBeInTheDocument();
+        expect(screen.getByText('Remove Coach?')).toBeInTheDocument();
       });
     });
 
@@ -263,13 +263,13 @@ describe('StoreCoachDetail', () => {
       renderStoreCoachDetail();
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Uninstall' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument();
       });
 
-      await user.click(screen.getByRole('button', { name: 'Uninstall' }));
+      await user.click(screen.getByRole('button', { name: 'Remove' }));
 
       await waitFor(() => {
-        expect(screen.getByText('Uninstall Coach?')).toBeInTheDocument();
+        expect(screen.getByText('Remove Coach?')).toBeInTheDocument();
       });
 
       // Click confirm button in the dialog (button text is "Confirm")
@@ -298,15 +298,15 @@ describe('StoreCoachDetail', () => {
       expect(mockOnBack).toHaveBeenCalled();
     });
 
-    it('should show View My Coaches link after install', async () => {
+    it('should show View My Coaches link after adding', async () => {
       const user = userEvent.setup();
       renderStoreCoachDetail();
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Install Coach' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Add Coach' })).toBeInTheDocument();
       });
 
-      await user.click(screen.getByRole('button', { name: 'Install Coach' }));
+      await user.click(screen.getByRole('button', { name: 'Add Coach' }));
 
       await waitFor(() => {
         expect(screen.getByText('View My Coaches →')).toBeInTheDocument();
@@ -318,10 +318,10 @@ describe('StoreCoachDetail', () => {
       renderStoreCoachDetail();
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Install Coach' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Add Coach' })).toBeInTheDocument();
       });
 
-      await user.click(screen.getByRole('button', { name: 'Install Coach' }));
+      await user.click(screen.getByRole('button', { name: 'Add Coach' }));
 
       await waitFor(() => {
         expect(screen.getByText('View My Coaches →')).toBeInTheDocument();
@@ -376,10 +376,10 @@ describe('StoreCoachDetail', () => {
       renderStoreCoachDetail();
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Install Coach' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Add Coach' })).toBeInTheDocument();
       });
 
-      await user.click(screen.getByRole('button', { name: 'Install Coach' }));
+      await user.click(screen.getByRole('button', { name: 'Add Coach' }));
 
       await waitFor(() => {
         expect(
