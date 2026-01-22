@@ -123,7 +123,7 @@ export default function StoreScreen({ onSelectCoach, onBack }: StoreScreenProps)
         </button>
         <div>
           <h1 className="text-xl font-semibold text-pierre-gray-900">Coach Store</h1>
-          <p className="text-sm text-pierre-gray-500">Discover and install AI coaching assistants</p>
+          <p className="text-sm text-pierre-gray-500">Discover AI coaching assistants</p>
         </div>
       </div>
 
@@ -261,7 +261,7 @@ function CoachCard({ coach, onClick }: CoachCardProps) {
           {coach.category}
         </span>
         <span className="text-xs text-pierre-gray-500">
-          {coach.install_count} {coach.install_count === 1 ? 'install' : 'installs'}
+          {coach.install_count} {coach.install_count === 1 ? 'user' : 'users'}
         </span>
       </div>
 

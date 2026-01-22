@@ -66,7 +66,7 @@ export default function StoreCoachDetail({ coachId, onBack, onNavigateToLibrary 
       queryClient.invalidateQueries({ queryKey: ['store-coach', coachId] });
       queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
       setShowUninstallConfirm(false);
-      setSuccessMessage('Coach has been removed from your library.');
+      setSuccessMessage('Coach has been removed from My Coaches.');
     },
   });
 
@@ -166,7 +166,7 @@ export default function StoreCoachDetail({ coachId, onBack, onNavigateToLibrary 
             {coach.category}
           </span>
           <span className="text-sm text-pierre-gray-500">
-            {coach.install_count} {coach.install_count === 1 ? 'install' : 'installs'}
+            {coach.install_count} {coach.install_count === 1 ? 'user' : 'users'}
           </span>
         </div>
 
@@ -230,7 +230,7 @@ export default function StoreCoachDetail({ coachId, onBack, onNavigateToLibrary 
         </div>
 
         {/* Details */}
-        <div className="mb-24">
+        <div className="mb-6">
           <h3 className="text-sm font-semibold text-pierre-gray-500 uppercase tracking-wide mb-2">Details</h3>
           <div className="bg-pierre-gray-50 border border-pierre-gray-200 rounded-lg overflow-hidden">
             <div className="flex justify-between items-center px-4 py-3 border-b border-pierre-gray-200">
@@ -247,35 +247,35 @@ export default function StoreCoachDetail({ coachId, onBack, onNavigateToLibrary 
             )}
           </div>
         </div>
-      </div>
 
-      {/* Action Bar */}
-      <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-pierre-gray-200 p-4">
-        {isInstalled ? (
-          <button
-            onClick={() => setShowUninstallConfirm(true)}
-            disabled={uninstallMutation.isPending}
-            className="w-full py-3 bg-pierre-gray-100 text-pierre-gray-700 rounded-lg font-medium hover:bg-pierre-gray-200 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {uninstallMutation.isPending ? (
-              <div className="w-5 h-5 border-2 border-pierre-gray-600 border-t-transparent rounded-full animate-spin" />
-            ) : (
-              'Uninstall'
-            )}
-          </button>
-        ) : (
-          <button
-            onClick={handleInstall}
-            disabled={installMutation.isPending}
-            className="w-full py-3 bg-pierre-violet text-white rounded-lg font-medium hover:bg-pierre-violet/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {installMutation.isPending ? (
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              'Install Coach'
-            )}
-          </button>
-        )}
+        {/* Install/Uninstall Button */}
+        <div className="mb-6">
+          {isInstalled ? (
+            <button
+              onClick={() => setShowUninstallConfirm(true)}
+              disabled={uninstallMutation.isPending}
+              className="px-6 py-2.5 bg-pierre-gray-100 text-pierre-gray-700 rounded-lg font-medium hover:bg-pierre-gray-200 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {uninstallMutation.isPending ? (
+                <div className="w-5 h-5 border-2 border-pierre-gray-600 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                'Remove'
+              )}
+            </button>
+          ) : (
+            <button
+              onClick={handleInstall}
+              disabled={installMutation.isPending}
+              className="px-6 py-2.5 bg-pierre-violet text-white rounded-lg font-medium hover:bg-pierre-violet/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {installMutation.isPending ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                'Add Coach'
+              )}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Uninstall Confirmation Dialog */}
@@ -283,9 +283,9 @@ export default function StoreCoachDetail({ coachId, onBack, onNavigateToLibrary 
         isOpen={showUninstallConfirm}
         onClose={() => setShowUninstallConfirm(false)}
         onConfirm={handleUninstall}
-        title="Uninstall Coach?"
-        message={`Remove "${coach.title}" from your coaches? You can always reinstall it later.`}
-        confirmText="Uninstall"
+        title="Remove Coach?"
+        message={`Remove "${coach.title}" from your coaches? You can always add it again later.`}
+        confirmText="Remove"
         confirmVariant="danger"
         isLoading={uninstallMutation.isPending}
       />
