@@ -1,161 +1,206 @@
 <!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
 <!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
 
-# Development
+# Development Guide
 
-Development workflow, tools, and dashboard setup for Pierre Fitness Platform.
+Development workflow, tools, and best practices for Pierre Fitness Platform.
+
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [Port Allocation](#port-allocation)
+- [Server Management](#server-management)
+- [Claude Code Sessions](#claude-code-sessions)
+- [Validation Workflow](#validation-workflow)
+- [Testing](#testing)
+- [Mobile Development](#mobile-development)
+- [Frontend Development](#frontend-development)
+- [Admin Tools](#admin-tools)
+- [Database](#database)
+- [Scripts Reference](#scripts-reference)
+
+---
+
+## Quick Start
+
+```bash
+# 1. Start the Pierre server
+./bin/start-server.sh
+
+# 2. Verify health
+curl http://localhost:8081/health
+
+# 3. Run setup workflow (creates admin, user, tenant)
+./scripts/complete-user-workflow.sh
+
+# 4. Load credentials
+source .workflow_test_env
+echo "JWT Token: ${JWT_TOKEN:0:50}..."
+```
+
+---
+
+## Port Allocation
+
+**CRITICAL: Port 8081 is RESERVED for the Pierre MCP Server.**
+
+| Service | Port | Notes |
+|---------|------|-------|
+| Pierre MCP Server | 8081 | Backend API, health checks, OAuth callbacks |
+| Expo/Metro Bundler | 8082 | Mobile dev server (configured in metro.config.js) |
+| Web Frontend | 5173 | Vite dev server |
+
+### Mobile Development Warning
+
+When working on `frontend-mobile/`:
+- **NEVER run `expo start` without specifying port** - it defaults to 8081
+- **ALWAYS use `bun start`** which is configured for port 8082
+
+---
 
 ## Server Management
 
 ### Startup Scripts
 
 ```bash
-./bin/start-server.sh     # start backend (loads .envrc, port 8081)
-./bin/stop-server.sh      # stop backend (graceful shutdown)
-./bin/start-frontend.sh   # start dashboard (port 5173)
+./bin/start-server.sh     # Start backend (loads .envrc, port 8081)
+./bin/stop-server.sh      # Stop backend (graceful shutdown)
+./bin/start-frontend.sh   # Start web dashboard (port 5173)
+./bin/start-tunnel.sh     # Start Cloudflare tunnel for mobile testing
 ```
 
 ### Manual Startup
 
 ```bash
-# backend
+# Backend
 cargo run --bin pierre-mcp-server
 
-# frontend (separate terminal)
+# Frontend (separate terminal)
 cd frontend && npm run dev
+
+# Mobile (separate terminal)
+cd frontend-mobile && bun start
 ```
 
-## Development Workflow
-
-### Fresh Start
+### Health Check
 
 ```bash
-# clean database and start fresh
-./scripts/fresh-start.sh
-./bin/start-server.sh &
-
-# run complete setup (admin + user + tenant + MCP test)
-./scripts/complete-user-workflow.sh
-
-# load saved credentials
-source .workflow_test_env
-echo "JWT Token: ${JWT_TOKEN:0:50}..."
+curl http://localhost:8081/health
 ```
 
-### Automated Setup Script
+---
 
-`./scripts/complete-user-workflow.sh` creates:
-- Admin user: `$ADMIN_EMAIL` (default: `admin@pierre.mcp`)
-- Regular user: `$OAUTH_DEFAULT_EMAIL` (default: `user@example.com`)
-- Default tenant: `User Organization`
-- JWT token (saved in `.workflow_test_env`)
+## Claude Code Sessions
 
-## Management Dashboard
+### Session Setup (MANDATORY)
 
-React + Vite web dashboard for monitoring and administration.
-
-### Quick Start
+**Run this at the START OF EVERY Claude Code session:**
 
 ```bash
-# terminal 1: backend
-./bin/start-server.sh
-
-# terminal 2: frontend
-./bin/start-frontend.sh
+./bin/claude-session-setup.sh
 ```
 
-Access at `http://localhost:5173`
+This script automatically:
+1. Checks if Pierre server is running (starts it if not)
+2. Validates current JWT token in `PIERRE_JWT_TOKEN`
+3. Generates fresh 7-day token if expired
+4. Updates `.envrc` with new token
+5. Verifies MCP endpoint is responding
 
-### Features
+### Why Required
 
-- **Role-Based Access**: super_admin, admin, user roles with permission hierarchy
-- **User Registration**: Self-registration with admin approval workflow
-- **User Management**: Registration approval, tenant management
-- **API Keys**: Generate API keys for Claude Desktop, AI assistants, and programmatic access
-- **Usage Analytics**: Request patterns, tool usage charts (282 E2E tests)
-- **Real-time Updates**: WebSocket-based live data
-- **OAuth Status**: Provider connection monitoring
-- **Super Admin Impersonation**: View dashboard as any user for support
+- JWT tokens expire (24 hours default, 7 days from script)
+- `.mcp.json` uses `${PIERRE_JWT_TOKEN}` environment variable
+- Expired tokens cause "JWT token signature is invalid" errors
 
-### Manual Setup
+### Manual Token Refresh
 
 ```bash
-cd frontend
-npm install
-npm run dev
+# Generate new 7-day token
+cargo run --bin admin-setup -- generate-token --service claude_code --expires-days 7
+
+# Update .envrc
+export PIERRE_JWT_TOKEN="<paste_token_here>"
+
+# Reload environment
+direnv allow
 ```
 
-### Environment
+### Linear Session Tracking
 
-Add to `.envrc` for custom backend URL:
-```bash
-export VITE_BACKEND_URL="http://localhost:8081"
-```
-
-See [frontend/README.md](../frontend/README.md) for detailed frontend documentation.
-
-## Admin Tools
-
-### admin-setup Binary
-
-Manage admin users and API tokens:
+Sessions are tracked via Linear issues:
 
 ```bash
-# create admin user for frontend login
-cargo run --bin admin-setup -- create-admin-user \
-  --email admin@example.com \
-  --password SecurePassword123
+# Automatic - runs via SessionStart hook
+./scripts/linear-session-init.sh
 
-# generate API token for a service
-cargo run --bin admin-setup -- generate-token \
-  --service my_service \
-  --expires-days 30
-
-# generate super admin token (no expiry, all permissions)
-cargo run --bin admin-setup -- generate-token \
-  --service admin_console \
-  --super-admin
-
-# list all admin tokens
-cargo run --bin admin-setup -- list-tokens --detailed
-
-# revoke a token
-cargo run --bin admin-setup -- revoke-token <token_id>
+# Manual session commands (via /session skill)
+/session              # Show current session status
+/session update       # Add work log entry
+/session decision     # Document a key decision
+/session end          # Add end-of-session summary
 ```
 
-### curl-based Setup
+---
+
+## Validation Workflow
+
+### Pre-Push Validation (Marker-Based)
+
+The pre-push hook uses marker-based validation to avoid SSH timeouts:
 
 ```bash
-# create admin (first run only)
-curl -X POST http://localhost:8081/admin/setup \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "admin@example.com",
-    "password": "SecurePass123!",
-    "display_name": "Admin"
-  }'
+# 1. Run validation (creates marker valid for 15 minutes)
+./scripts/pre-push-validate.sh
 
-# register user (requires admin token)
-curl -X POST http://localhost:8081/api/auth/register \
-  -H "Authorization: Bearer {admin_token}" \
-  -H "Content-Type: application/json" \
-  -d "{
-    \"email\": \"$OAUTH_DEFAULT_EMAIL\",
-    \"password\": \"$OAUTH_DEFAULT_PASSWORD\",
-    \"display_name\": \"User\"
-  }"
-
-# approve user (requires admin token)
-curl -X POST http://localhost:8081/admin/approve-user/{user_id} \
-  -H "Authorization: Bearer {admin_token}" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "reason": "Approved",
-    "create_default_tenant": true,
-    "tenant_name": "User Org",
-    "tenant_slug": "user-org"
-  }'
+# 2. Push (hook checks marker)
+git push
 ```
+
+### Tiered Validation Approach
+
+#### Tier 1: Quick Iteration (during development)
+
+```bash
+cargo fmt
+cargo check --quiet
+cargo test <test_name_pattern> -- --nocapture
+```
+
+#### Tier 2: Pre-Commit (before committing)
+
+```bash
+cargo fmt
+./scripts/architectural-validation.sh
+cargo clippy --all-targets -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
+cargo test <module_pattern> -- --nocapture
+```
+
+**CRITICAL:** Always use `--all-targets` with clippy to catch errors in tests.
+
+#### Tier 3: Full Validation (before PR/merge)
+
+```bash
+./scripts/lint-and-test.sh
+```
+
+### Test Targeting Patterns
+
+```bash
+# By test name
+cargo test test_training_load
+
+# By test file
+cargo test --test intelligence_test
+
+# By module path
+cargo test intelligence::
+
+# With output
+cargo test <pattern> -- --nocapture
+```
+
+---
 
 ## Testing
 
@@ -170,61 +215,240 @@ curl -X POST http://localhost:8081/admin/approve-user/{user_id} \
 ### Full Test Suite
 
 ```bash
-cargo test                        # all tests (~13 min)
-./scripts/lint-and-test.sh        # full CI suite
+cargo test                        # All tests (~13 min, 647 tests)
+./scripts/lint-and-test.sh        # Full CI suite
 ```
 
-### Targeted Testing
+### Finding Related Tests
 
 ```bash
-cargo test test_training_load     # by test name
-cargo test --test intelligence_test  # by test file
-cargo test intelligence::         # by module path
-cargo test <pattern> -- --nocapture  # with output
+# Find test files mentioning your module
+rg "mod_name" tests/ --files-with-matches
+
+# List tests in a specific test file
+cargo test --test <test_file> -- --list
 ```
 
 See [testing.md](testing.md) for comprehensive testing documentation.
 
-## Validation
+---
 
-### Pre-commit Checklist
+## Mobile Development
 
-```bash
-cargo fmt                              # format code
-./scripts/architectural-validation.sh  # architectural patterns
-cargo clippy -- -D warnings            # linting
-cargo test <relevant_tests>            # targeted tests
-```
-
-### CI Validation
+### Setup
 
 ```bash
-./scripts/lint-and-test.sh        # runs everything CI runs
+cd frontend-mobile
+bun install
 ```
+
+### Running
+
+```bash
+# Start Metro bundler on port 8082
+bun start
+
+# iOS Simulator
+bun run ios
+
+# Android Emulator
+bun run android
+```
+
+### Validation
+
+```bash
+# TypeScript
+bun run typecheck
+
+# ESLint
+bun run lint
+
+# Unit tests
+bun test
+
+# All tiers
+../scripts/pre-push-mobile-tests.sh
+
+# E2E tests (requires iOS Simulator)
+bun run e2e:build && bun run e2e:test
+```
+
+### Testing on Physical Device (Cloudflare Tunnel)
+
+```bash
+# From frontend-mobile directory
+bun run tunnel           # Start tunnel only
+bun run start:tunnel     # Start tunnel AND Expo
+bun run tunnel:stop      # Stop tunnel
+
+# After starting tunnel:
+# 1. Run `direnv allow` in backend directory
+# 2. Restart Pierre server: ./bin/stop-server.sh && ./bin/start-server.sh
+# 3. Mobile app connects via tunnel URL
+```
+
+---
+
+## Frontend Development
+
+### Setup
+
+```bash
+cd frontend
+npm install
+```
+
+### Running
+
+```bash
+npm run dev              # Start Vite dev server (port 5173)
+```
+
+### Validation
+
+```bash
+# TypeScript
+npm run type-check
+
+# ESLint
+npm run lint
+
+# Unit tests
+npm test -- --run
+
+# All tiers
+../scripts/pre-push-frontend-tests.sh
+
+# E2E tests
+npm run test:e2e
+```
+
+### Environment
+
+```bash
+# Add to .envrc for custom backend URL
+export VITE_BACKEND_URL="http://localhost:8081"
+```
+
+---
+
+## Admin Tools
+
+### admin-setup Binary
+
+```bash
+# Create admin user for frontend login
+cargo run --bin admin-setup -- create-admin-user \
+  --email admin@example.com \
+  --password SecurePassword123
+
+# Generate API token for a service
+cargo run --bin admin-setup -- generate-token \
+  --service my_service \
+  --expires-days 30
+
+# Generate super admin token (no expiry, all permissions)
+cargo run --bin admin-setup -- generate-token \
+  --service admin_console \
+  --super-admin
+
+# List all admin tokens
+cargo run --bin admin-setup -- list-tokens --detailed
+
+# Revoke a token
+cargo run --bin admin-setup -- revoke-token <token_id>
+```
+
+### Complete User Workflow
+
+```bash
+# Creates admin, user, tenant, and saves JWT token
+./scripts/complete-user-workflow.sh
+
+# Load saved credentials
+source .workflow_test_env
+```
+
+---
+
+## Database
+
+### SQLite (Development)
+
+```bash
+# Location
+./data/users.db
+
+# Reset
+./scripts/fresh-start.sh
+```
+
+### PostgreSQL (Production)
+
+```bash
+# Test PostgreSQL integration
+./scripts/test-postgres.sh
+```
+
+See [configuration.md](configuration.md) for database configuration.
+
+---
 
 ## Scripts Reference
 
-30+ scripts in `scripts/` directory:
+### Server Scripts (`bin/`)
 
-| Category | Scripts |
-|----------|---------|
-| **Development** | `dev-start.sh`, `fresh-start.sh` |
-| **Testing** | `smoke-test.sh`, `fast-tests.sh`, `safe-test-runner.sh` |
-| **Validation** | `architectural-validation.sh`, `lint-and-test.sh` |
-| **Deployment** | `deploy.sh` |
-| **SDK** | `generate-sdk-types.js`, `run_bridge_tests.sh` |
+| Script | Description |
+|--------|-------------|
+| `start-server.sh` | Start Pierre backend on port 8081 |
+| `stop-server.sh` | Stop Pierre backend |
+| `start-frontend.sh` | Start web dashboard |
+| `start-tunnel.sh` | Start Cloudflare tunnel for mobile |
+| `claude-session-setup.sh` | **MANDATORY** session setup |
+| `setup-and-start.sh` | Combined setup and start |
 
-See [scripts/README.md](../scripts/README.md) for complete documentation.
+### Development Scripts (`scripts/`)
+
+| Script | Description |
+|--------|-------------|
+| `fresh-start.sh` | Clean database and start fresh |
+| `complete-user-workflow.sh` | Create admin, user, tenant |
+| `dev-start.sh` | Development startup |
+| `linear-session-init.sh` | Initialize Linear session tracking |
+
+### Validation Scripts
+
+| Script | Description |
+|--------|-------------|
+| `pre-push-validate.sh` | Marker-based pre-push validation |
+| `architectural-validation.sh` | Check architectural patterns |
+| `lint-and-test.sh` | Full CI validation suite |
+| `pre-push-frontend-tests.sh` | Frontend-specific validation |
+| `pre-push-mobile-tests.sh` | Mobile-specific validation |
+
+### Testing Scripts
+
+| Script | Description |
+|--------|-------------|
+| `smoke-test.sh` | Quick smoke tests (~3 min) |
+| `fast-tests.sh` | Fast test subset (~5 min) |
+| `pre-push-tests.sh` | Pre-push tests (~10 min) |
+| `safe-test-runner.sh` | Isolated test runner |
+
+See `scripts/README.md` for complete documentation.
+
+---
 
 ## Debugging
 
 ### Server Logs
 
 ```bash
-# real-time logs
+# Real-time debug logs
 RUST_LOG=debug cargo run --bin pierre-mcp-server
 
-# log to file
+# Log to file
 ./bin/start-server.sh  # logs to server.log
 ```
 
@@ -233,30 +457,3 @@ RUST_LOG=debug cargo run --bin pierre-mcp-server
 ```bash
 npx pierre-mcp-client@next --server http://localhost:8081 --verbose
 ```
-
-### Health Check
-
-```bash
-curl http://localhost:8081/health
-```
-
-## Database
-
-### SQLite (Development)
-
-```bash
-# location
-./data/users.db
-
-# reset
-./scripts/fresh-start.sh
-```
-
-### PostgreSQL (Production)
-
-```bash
-# test postgresql integration
-./scripts/test-postgres.sh
-```
-
-See [configuration.md](configuration.md) for database configuration.
