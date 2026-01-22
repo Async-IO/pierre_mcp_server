@@ -17,6 +17,23 @@ This comprehensive guide explains the scientific methods, algorithms, and data i
 
 **target audience**: developers, nutritionists, coaches, and users seeking deep understanding of pierre's nutrition intelligence.
 
+## Table of Contents
+
+- [Tool-to-Algorithm Mapping](#tool-to-algorithm-mapping)
+- [Architecture Overview](#architecture-overview)
+- [1. Basal Metabolic Rate (BMR) Calculation](#1-basal-metabolic-rate-bmr-calculation)
+- [2. Total Daily Energy Expenditure (TDEE)](#2-total-daily-energy-expenditure-tdee)
+- [3. Macronutrient Recommendations](#3-macronutrient-recommendations)
+- [4. Nutrient Timing](#4-nutrient-timing)
+- [5. USDA FoodData Central Integration](#5-usda-fooddata-central-integration)
+- [6. MCP Tool Integration](#6-mcp-tool-integration)
+- [7. Testing and Verification](#7-testing-and-verification)
+- [8. Configuration and Customization](#8-configuration-and-customization)
+- [9. Scientific References](#9-scientific-references)
+- [10. Implementation Roadmap](#10-implementation-roadmap)
+- [11. Limitations and Considerations](#11-limitations-and-considerations)
+- [12. Usage Examples](#12-usage-examples)
+
 ---
 
 ## ⚠️ Implementation Status: Production-Ready
@@ -103,6 +120,57 @@ Pierre's nutrition system uses a **foundation modules** approach integrated with
 - **nutrient** structure with name, amount, unit
 - **search results** with pagination metadata
 - **type-safe** deserialization from usda json responses
+
+---
+
+## Tool-to-Algorithm Mapping
+
+This section provides a comprehensive mapping between MCP tools and their underlying algorithms, implementation files, and test coverage.
+
+### Nutrition Tools (5 tools)
+
+| Tool Name | Algorithm/Intelligence | Implementation | Test File |
+|-----------|----------------------|----------------|-----------|
+| `calculate_daily_nutrition` | Mifflin-St Jeor BMR + TDEE activity factors + macro calculations | `src/tools/implementations/nutrition.rs:107-274` | `tests/nutrition_comprehensive_test.rs` |
+| `get_nutrient_timing` | Kerksick et al. pre/post-workout timing + protein distribution | `src/tools/implementations/nutrition.rs:280-385` | `tests/nutrition_comprehensive_test.rs` |
+| `search_food` | USDA FoodData Central API search | `src/tools/implementations/nutrition.rs:391-472` | `tests/nutrition_tools_integration_test.rs` |
+| `get_food_details` | USDA FoodData Central nutrient retrieval | `src/tools/implementations/nutrition.rs:478-549` | `tests/nutrition_tools_integration_test.rs` |
+| `analyze_meal_nutrition` | USDA nutrient summation + macro percentage calculation | `src/tools/implementations/nutrition.rs:555-676` | `tests/nutrition_tools_integration_test.rs` |
+
+### Recipe Tools (7 tools)
+
+| Tool Name | Algorithm/Intelligence | Implementation | Test File |
+|-----------|----------------------|----------------|-----------|
+| `get_recipe_constraints` | TDEE-based calorie proportions + meal timing macro distribution | `src/tools/implementations/recipes.rs:132-292` | `tests/recipe_tools_integration_test.rs` |
+| `validate_recipe` | USDA FoodData Central validation + unit conversion | `src/tools/implementations/recipes.rs:298-520` | `tests/recipe_tools_integration_test.rs` |
+| `save_recipe` | Recipe persistence + ingredient parsing | `src/tools/implementations/recipes.rs:526-661` | `tests/recipes_test.rs` |
+| `list_recipes` | Database query with meal timing filter | `src/tools/implementations/recipes.rs:667-768` | `tests/recipes_test.rs` |
+| `get_recipe` | Recipe retrieval with nutrition data | `src/tools/implementations/recipes.rs:774-855` | `tests/recipes_test.rs` |
+| `delete_recipe` | Recipe deletion with tenant isolation | `src/tools/implementations/recipes.rs:861-916` | `tests/recipes_test.rs` |
+| `search_recipes` | Full-text search on name/tags/description | `src/tools/implementations/recipes.rs:922-1023` | `tests/recipes_test.rs` |
+
+### Intelligence Module Dependencies
+
+| Module | Algorithm | Source File |
+|--------|-----------|-------------|
+| `NutritionCalculator` | Mifflin-St Jeor BMR, TDEE, macro calculations | `src/intelligence/nutrition_calculator.rs` |
+| `RecipeConstraints` | Meal timing macro distribution (ISSN research) | `src/intelligence/recipes/models.rs` |
+| `MealTdeeProportions` | TDEE-based calorie allocation by meal timing | `src/config/intelligence/nutrition.rs` |
+| `UsdaClient` | FoodData Central API integration | `src/external/usda_client.rs` |
+| `RecipeManager` | Recipe CRUD operations | `src/database/recipes.rs` |
+
+### Algorithm Reference Summary
+
+| Algorithm | Scientific Basis | Key Parameters |
+|-----------|-----------------|----------------|
+| **Mifflin-St Jeor BMR** | Mifflin et al. (1990) | Weight×10 + Height×6.25 - Age×5 ± gender constant |
+| **TDEE Activity Factors** | McArdle Exercise Physiology (2010) | 1.2 (sedentary) to 1.9 (extra active) |
+| **Protein Needs** | Phillips & Van Loon (2011) | 0.8-2.2 g/kg based on activity/goal |
+| **Carbohydrate Needs** | Burke et al. (2011) | 3-10 g/kg based on activity/goal |
+| **Fat Calculation** | DRI Guidelines | 20-35% of TDEE |
+| **Pre-workout Timing** | Kerksick et al. (2017) | 0.5-1.0 g/kg carbs 1-3 hours before |
+| **Post-workout Timing** | Jäger et al. (2017) | 20-40g protein + 0.8-1.2 g/kg carbs within 2 hours |
+| **Meal Macro Distribution** | ISSN Position Stand | Pre: 20/55/25, Post: 30/45/25, Rest: 30/35/35 |
 
 ---
 
