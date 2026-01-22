@@ -714,7 +714,10 @@ async fn test_analyze_meal_nutrition_invalid_food_entry() -> Result<()> {
 // USDA API Integration Tests (only run if API key available)
 // ============================================================================
 
+/// This test makes real external API calls to USDA FoodData Central.
+/// Run explicitly with: cargo test test_search_food_with_api_key -- --ignored
 #[tokio::test]
+#[ignore = "External API test - run manually with --ignored"]
 async fn test_search_food_with_api_key() -> Result<()> {
     if !usda_api_key_available() {
         println!("Skipping test_search_food_with_api_key - no USDA_API_KEY");
@@ -746,7 +749,10 @@ async fn test_search_food_with_api_key() -> Result<()> {
     Ok(())
 }
 
+/// This test makes real external API calls to USDA FoodData Central.
+/// Run explicitly with: cargo test test_get_food_details_with_api_key -- --ignored
 #[tokio::test]
+#[ignore = "External API test - run manually with --ignored"]
 async fn test_get_food_details_with_api_key() -> Result<()> {
     if !usda_api_key_available() {
         println!("Skipping test_get_food_details_with_api_key - no USDA_API_KEY");
@@ -778,7 +784,10 @@ async fn test_get_food_details_with_api_key() -> Result<()> {
     Ok(())
 }
 
+/// This test makes real external API calls to USDA FoodData Central.
+/// Run explicitly with: cargo test test_analyze_meal_nutrition_with_api_key -- --ignored
 #[tokio::test]
+#[ignore = "External API test - run manually with --ignored"]
 async fn test_analyze_meal_nutrition_with_api_key() -> Result<()> {
     if !usda_api_key_available() {
         println!("Skipping test_analyze_meal_nutrition_with_api_key - no USDA_API_KEY");
