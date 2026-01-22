@@ -36,34 +36,6 @@ This comprehensive guide explains the scientific methods, algorithms, and data i
 
 ---
 
-## ⚠️ Implementation Status: Production-Ready
-
-**as of 2025-10-31**, pierre's nutrition system has been built from scratch using peer-reviewed sports nutrition science and usda fooddata central integration:
-
-### What Was Implemented ✅
-- **mifflin-st jeor bmr**: most accurate resting energy expenditure formula (±10% error vs indirect calorimetry)
-- **tdee calculation**: activity-based multipliers from mcardle exercise physiology textbook
-- **protein recommendations**: sport-specific ranges from phillips & van loon sports nutrition research
-- **carbohydrate targeting**: burke et al. endurance athlete guidelines (3-12 g/kg based on activity)
-- **fat calculations**: dri guidelines enforcement (20-35% of tdee)
-- **nutrient timing**: kerksick et al. position stand on pre/post-workout nutrition
-- **usda integration**: real food lookup via fooddata central api with mock support for testing
-- **meal analysis**: multi-food calculations with accurate macro summations
-- **input validation**: age (10-120), weight (0-300kg), height (0-300cm) bounds checking
-
-### Verification ✅
-- **39 algorithm tests**: bmr (4), tdee (5), protein (5), carbs (4), fat (3), complete nutrition (3), timing (3), edge cases (13)
-- **formula accuracy**: mifflin-st jeor within 1 kcal of hand calculations
-- **macro summing**: percentages always sum to 100% ±0.1%
-- **usda integration**: tested with mock client (banana, chicken breast, oatmeal, salmon)
-- **edge case handling**: negative inputs rejected, extreme values bounded, missing data handled
-- **zero warnings**: strict clippy (pedantic + nursery) passes clean
-- **1,188 total tests** passing including nutrition suite
-
-**result**: pierre nutrition system is production-ready with scientifically-validated algorithms and usda fooddata integration.
-
----
-
 ## Architecture Overview
 
 Pierre's nutrition system uses a **foundation modules** approach integrated with usda fooddata central:

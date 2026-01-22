@@ -19,6 +19,8 @@
 
 - [Intelligence Methodology](intelligence-methodology.md)
 - [Nutrition Methodology](nutrition-methodology.md)
+- [Mobility Methodology](mobility-methodology.md)
+- [Sleep & Recovery Methodology](sleep-recovery-methodology.md)
 
 # API Reference
 
