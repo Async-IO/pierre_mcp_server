@@ -285,8 +285,8 @@ export default function StoreCoachDetail({ coachId, onBack, onNavigateToLibrary 
         onConfirm={handleUninstall}
         title="Remove Coach?"
         message={`Remove "${coach.title}" from your coaches? You can always add it again later.`}
-        confirmText="Remove"
-        confirmVariant="danger"
+        confirmLabel="Remove"
+        variant="danger"
         isLoading={uninstallMutation.isPending}
       />
     </div>

@@ -272,9 +272,10 @@ describe('StoreCoachDetail', () => {
         expect(screen.getByText('Remove Coach?')).toBeInTheDocument();
       });
 
-      // Click confirm button in the dialog (button text is "Confirm")
-      const confirmButton = screen.getByRole('button', { name: 'Confirm' });
-      await user.click(confirmButton);
+      // Click confirm button in the dialog - there are now two Remove buttons
+      // (one on the page, one in the dialog), so we get all and click the second (dialog button)
+      const removeButtons = screen.getAllByRole('button', { name: 'Remove' });
+      await user.click(removeButtons[1]);
 
       await waitFor(() => {
         expect(apiService.uninstallStoreCoach).toHaveBeenCalledWith('coach-1');

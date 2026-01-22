@@ -229,7 +229,7 @@ test.describe('Coach Store Access', () => {
 
     // Should see store header (use heading role to avoid ambiguity with button)
     await expect(page.getByRole('heading', { name: 'Coach Store' })).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText('Discover and install AI coaching assistants')).toBeVisible();
+    await expect(page.getByText('Discover AI coaching assistants')).toBeVisible();
   });
 });
 
@@ -501,7 +501,7 @@ test.describe('Coach Store Detail View', () => {
     await page.getByTitle('Back to Store').click();
 
     // Should return to browse view
-    await expect(page.getByText('Discover and install AI coaching assistants')).toBeVisible({
+    await expect(page.getByText('Discover AI coaching assistants')).toBeVisible({
       timeout: 5000,
     });
   });
@@ -675,7 +675,7 @@ test.describe('Coach Store Navigation', () => {
     await page.getByTitle('Back to Chat').click();
 
     // Should return to chat (Coach Store header should not be visible)
-    await expect(page.getByText('Discover and install AI coaching assistants')).not.toBeVisible({
+    await expect(page.getByText('Discover AI coaching assistants')).not.toBeVisible({
       timeout: 5000,
     });
   });
