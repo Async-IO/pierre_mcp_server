@@ -13,6 +13,8 @@ import { apiService } from '../services/api';
 import Markdown from 'react-markdown';
 import PromptSuggestions from './PromptSuggestions';
 import ProviderConnectionCards from './ProviderConnectionCards';
+import StoreScreen from './StoreScreen';
+import StoreCoachDetail from './StoreCoachDetail';
 import { useAuth } from '../hooks/useAuth';
 
 // Convert plain URLs to markdown links with friendly display names
@@ -137,6 +139,8 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
   // Coach CRUD state
   const [showCoachModal, setShowCoachModal] = useState(false);
   const [showMyCoachesPanel, setShowMyCoachesPanel] = useState(false);
+  const [showStorePanel, setShowStorePanel] = useState(false);
+  const [selectedStoreCoach, setSelectedStoreCoach] = useState<string | null>(null);
   const [coachesCategoryFilter, setCoachesCategoryFilter] = useState<string | null>(null);
   const [showHiddenCoaches, setShowHiddenCoaches] = useState(false);
   const [editingCoachId, setEditingCoachId] = useState<string | null>(null);
@@ -858,11 +862,13 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
           <button
             onClick={() => {
               setShowMyCoachesPanel(false);
+              setShowStorePanel(false);
+              setSelectedStoreCoach(null);
               // Show all conversations (deselect current)
             }}
             className={clsx(
               'w-full px-3 py-2.5 flex items-center gap-3 rounded-lg transition-colors',
-              !showMyCoachesPanel && !selectedConversation
+              !showMyCoachesPanel && !showStorePanel && !selectedConversation
                 ? 'bg-pierre-violet/10'
                 : 'hover:bg-pierre-gray-100'
             )}
@@ -879,18 +885,43 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
             onClick={() => {
               setSelectedConversation(null);
               setShowMyCoachesPanel(true);
+              setShowStorePanel(false);
             }}
             title="My Coaches"
             aria-label="My Coaches"
             className={clsx(
               'w-full px-3 py-2.5 flex items-center gap-3 rounded-lg transition-colors',
-              showMyCoachesPanel
+              showMyCoachesPanel && !showStorePanel
                 ? 'bg-pierre-violet/10'
                 : 'hover:bg-pierre-gray-100'
             )}
           >
             <span className="text-lg">🎯</span>
             <span className="flex-1 text-left text-sm font-medium text-pierre-gray-800">My Coaches</span>
+            <svg className="w-4 h-4 text-pierre-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+
+          {/* Coach Store Row */}
+          <button
+            onClick={() => {
+              setSelectedConversation(null);
+              setShowMyCoachesPanel(false);
+              setShowStorePanel(true);
+              setSelectedStoreCoach(null);
+            }}
+            title="Coach Store"
+            aria-label="Coach Store"
+            className={clsx(
+              'w-full px-3 py-2.5 flex items-center gap-3 rounded-lg transition-colors',
+              showStorePanel
+                ? 'bg-pierre-violet/10'
+                : 'hover:bg-pierre-gray-100'
+            )}
+          >
+            <span className="text-lg">🏪</span>
+            <span className="flex-1 text-left text-sm font-medium text-pierre-gray-800">Coach Store</span>
             <svg className="w-4 h-4 text-pierre-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
@@ -1050,8 +1081,28 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
 
       {/* Main Chat Area */}
       <Panel defaultSize="82%" className="flex flex-col bg-white">
-        {/* My Coaches View - shown when My Coaches button is clicked */}
-        {showMyCoachesPanel && !selectedConversation ? (
+        {/* Coach Store View - shown when Coach Store button is clicked */}
+        {showStorePanel && !selectedConversation ? (
+          selectedStoreCoach ? (
+            <StoreCoachDetail
+              coachId={selectedStoreCoach}
+              onBack={() => setSelectedStoreCoach(null)}
+              onNavigateToLibrary={() => {
+                setShowStorePanel(false);
+                setSelectedStoreCoach(null);
+                setShowMyCoachesPanel(true);
+              }}
+            />
+          ) : (
+            <StoreScreen
+              onSelectCoach={(coachId) => setSelectedStoreCoach(coachId)}
+              onBack={() => {
+                setShowStorePanel(false);
+                setSelectedStoreCoach(null);
+              }}
+            />
+          )
+        ) : showMyCoachesPanel && !selectedConversation ? (
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Header */}
             <div className="p-6 border-b border-pierre-gray-200 flex items-center justify-between flex-shrink-0">
