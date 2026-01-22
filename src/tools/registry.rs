@@ -340,6 +340,10 @@ impl ToolRegistry {
         #[cfg(feature = "tools-mobility")]
         self.register_mobility_tools();
 
+        // Store tools
+        #[cfg(feature = "tools-store")]
+        self.register_store_tools();
+
         // Always register default tools (no feature flag required)
         self.register_default_tools();
 
@@ -604,6 +608,27 @@ impl ToolRegistry {
 
         info!(
             "Registered mobility tools (registry now has {} tools)",
+            self.tools.len()
+        );
+    }
+
+    /// Register store tools (browse, search, install coaches)
+    #[cfg(feature = "tools-store")]
+    fn register_store_tools(&mut self) {
+        use super::implementations::store::create_store_tools;
+
+        debug!(
+            "Registering store tools (registry has {} tools)",
+            self.tools.len()
+        );
+
+        // Register all store tools with the "store" category
+        for tool in create_store_tools() {
+            self.register_with_category(Arc::from(tool), "store");
+        }
+
+        info!(
+            "Registered store tools (registry now has {} tools)",
             self.tools.len()
         );
     }

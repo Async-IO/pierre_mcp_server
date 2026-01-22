@@ -21,6 +21,13 @@ import type {
   UpdateCoachRequest,
   ListCoachesResponse,
   ForkCoachResponse,
+  BrowseCoachesResponse,
+  SearchCoachesResponse,
+  CategoriesResponse,
+  StoreCoachDetail,
+  InstallCoachResponse,
+  UninstallCoachResponse,
+  InstallationsResponse,
 } from '../types';
 
 // Configuration - should be set via environment or config
@@ -569,6 +576,84 @@ class ApiService {
     const response = await axios.get(
       `/api/coaches/${coachId}/versions/${fromVersion}/diff/${toVersion}`
     );
+    return response.data;
+  }
+
+  // ==========================================
+  // Store API endpoints (Coach Store)
+  // ==========================================
+
+  /**
+   * Browse published coaches in the Store
+   */
+  async browseStoreCoaches(options?: {
+    category?: string;
+    sort_by?: 'newest' | 'popular' | 'title';
+    limit?: number;
+    offset?: number;
+  }): Promise<BrowseCoachesResponse> {
+    const params = new URLSearchParams();
+    if (options?.category) params.append('category', options.category);
+    if (options?.sort_by) params.append('sort_by', options.sort_by);
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.offset) params.append('offset', options.offset.toString());
+    const url = params.toString()
+      ? `/api/store/coaches?${params}`
+      : '/api/store/coaches';
+    const response = await axios.get(url);
+    return response.data;
+  }
+
+  /**
+   * Search published coaches in the Store
+   */
+  async searchStoreCoaches(
+    query: string,
+    limit?: number
+  ): Promise<SearchCoachesResponse> {
+    const params = new URLSearchParams({ q: query });
+    if (limit) params.append('limit', limit.toString());
+    const response = await axios.get(`/api/store/search?${params}`);
+    return response.data;
+  }
+
+  /**
+   * Get Store categories with coach counts
+   */
+  async getStoreCategories(): Promise<CategoriesResponse> {
+    const response = await axios.get('/api/store/categories');
+    return response.data;
+  }
+
+  /**
+   * Get details of a Store coach by ID
+   */
+  async getStoreCoach(coachId: string): Promise<StoreCoachDetail> {
+    const response = await axios.get(`/api/store/coaches/${coachId}`);
+    return response.data;
+  }
+
+  /**
+   * Install a coach from the Store (creates user's copy)
+   */
+  async installStoreCoach(coachId: string): Promise<InstallCoachResponse> {
+    const response = await axios.post(`/api/store/coaches/${coachId}/install`);
+    return response.data;
+  }
+
+  /**
+   * Uninstall a coach (delete user's installed copy)
+   */
+  async uninstallStoreCoach(coachId: string): Promise<UninstallCoachResponse> {
+    const response = await axios.delete(`/api/store/coaches/${coachId}/install`);
+    return response.data;
+  }
+
+  /**
+   * Get user's installed coaches from the Store
+   */
+  async getInstalledCoaches(): Promise<InstallationsResponse> {
+    const response = await axios.get('/api/store/installations');
     return response.data;
   }
 

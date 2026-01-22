@@ -71,3 +71,7 @@ pub mod configuration;
 // Mobility tools: stretching exercises, yoga poses, mobility recommendations
 #[cfg(feature = "tools-mobility")]
 pub mod mobility;
+
+// Store tools: browse_store, search_store, install_coach, uninstall_coach
+#[cfg(feature = "tools-store")]
+pub mod store;

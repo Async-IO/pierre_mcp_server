@@ -231,6 +231,18 @@ impl FeatureConfig {
         cfg!(feature = "client-mcp-tokens")
     }
 
+    /// Check if store client is enabled (Coach Store REST API)
+    #[must_use]
+    pub const fn client_store() -> bool {
+        cfg!(feature = "client-store")
+    }
+
+    /// Check if store tools are enabled (Coach Store MCP tools)
+    #[must_use]
+    pub const fn tools_store() -> bool {
+        cfg!(feature = "tools-store")
+    }
+
     /// Check if any client feature is enabled
     #[must_use]
     pub const fn has_any_client() -> bool {
@@ -248,6 +260,7 @@ impl FeatureConfig {
             || Self::client_tool_selection()
             || Self::client_mobile()
             || Self::client_mcp_tokens()
+            || Self::client_store()
     }
 
     // ==========================================================================
@@ -361,6 +374,7 @@ impl FeatureConfig {
             (Self::client_tool_selection(), "tool-selection"),
             (Self::client_mobile(), "mobile"),
             (Self::client_mcp_tokens(), "mcp-tokens"),
+            (Self::client_store(), "store"),
         ]);
         log_feature_category("Clients", &clients, false);
     }

@@ -43,6 +43,7 @@ use crate::{
         tiers,
         time_constants::{SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MONTH, SECONDS_PER_WEEK},
     },
+    database::CoachesManager,
     database_plugins::{factory::Database, DatabaseProvider},
     errors::{AppError, AppResult},
     mcp::ToolSelectionService,
@@ -118,6 +119,31 @@ pub struct SuspendUserRequest {
 pub struct DeleteUserRequest {
     /// Optional reason for deletion (for audit trail)
     pub reason: Option<String>,
+}
+
+/// Coach rejection request
+#[derive(Debug, Deserialize)]
+pub struct RejectCoachRequest {
+    /// Reason for rejection (required to help author improve)
+    pub reason: String,
+}
+
+/// Query parameters for listing pending coaches
+#[derive(Debug, Deserialize)]
+pub struct ListPendingCoachesQuery {
+    /// Tenant ID to filter by (required for tenant-scoped operations)
+    pub tenant_id: String,
+    /// Maximum number of results (default: 50, max: 100)
+    pub limit: Option<u32>,
+    /// Offset for pagination
+    pub offset: Option<u32>,
+}
+
+/// Query parameters for coach review operations
+#[derive(Debug, Deserialize)]
+pub struct CoachReviewQuery {
+    /// Tenant ID (required for tenant-scoped operations)
+    pub tenant_id: String,
 }
 
 /// Query parameters for listing API keys
@@ -686,6 +712,11 @@ impl AdminRoutes {
 
         // Tool selection routes for per-tenant MCP tool configuration
         let tool_selection_routes = ToolSelectionRoutes::routes(tool_selection_context).layer(
+            middleware::from_fn_with_state(auth_service.clone(), admin_auth_middleware),
+        );
+
+        // Store review routes for admin coach review queue
+        let store_review_routes = Self::store_review_routes(context.clone()).layer(
             middleware::from_fn_with_state(auth_service, admin_auth_middleware),
         );
 
@@ -698,6 +729,7 @@ impl AdminRoutes {
             .merge(settings_routes)
             .merge(admin_token_routes)
             .merge(tool_selection_routes)
+            .merge(store_review_routes)
             .merge(setup_routes)
     }
 
@@ -776,6 +808,24 @@ impl AdminRoutes {
             .route(
                 "/admin/tokens/:token_id/rotate",
                 post(Self::handle_rotate_admin_token),
+            )
+            .with_state(context)
+    }
+
+    /// Store review queue routes for admin coach approval (Axum)
+    fn store_review_routes(context: Arc<AdminApiContext>) -> Router {
+        Router::new()
+            .route(
+                "/admin/store/pending",
+                get(Self::handle_list_pending_coaches),
+            )
+            .route(
+                "/admin/store/coaches/:coach_id/approve",
+                post(Self::handle_approve_coach),
+            )
+            .route(
+                "/admin/store/coaches/:coach_id/reject",
+                post(Self::handle_reject_coach),
             )
             .with_state(context)
     }
@@ -2513,5 +2563,150 @@ impl AdminRoutes {
             .map_err(|e| AppError::database(format!("Failed to create tenant: {e}")))?;
 
         Ok(tenant_data)
+    }
+
+    // ==========================================
+    // Store Review Handlers
+    // ==========================================
+
+    /// List coaches pending admin review
+    async fn handle_list_pending_coaches(
+        State(context): State<Arc<AdminApiContext>>,
+        Extension(admin_token): Extension<ValidatedAdminToken>,
+        Query(query): Query<ListPendingCoachesQuery>,
+    ) -> AppResult<impl IntoResponse> {
+        // Check permission - super admin or ManageUsers permission required
+        if !admin_token.is_super_admin
+            && !admin_token
+                .permissions
+                .has_permission(&AdminPermission::ManageUsers)
+        {
+            return Ok(json_response(
+                json!({"error": "Insufficient permissions to view review queue"}),
+                StatusCode::FORBIDDEN,
+            ));
+        }
+
+        let pool = context.database.sqlite_pool().ok_or_else(|| {
+            AppError::internal("SQLite database required for coach store operations")
+        })?;
+        let coaches_manager = CoachesManager::new(pool.clone());
+
+        let coaches = coaches_manager
+            .get_pending_review_coaches(&query.tenant_id, query.limit, query.offset)
+            .await?;
+
+        info!(
+            "Admin {} listed {} pending coaches for review in tenant {}",
+            admin_token.service_name,
+            coaches.len(),
+            query.tenant_id
+        );
+
+        Ok(json_response(
+            json!({
+                "coaches": coaches,
+                "count": coaches.len()
+            }),
+            StatusCode::OK,
+        ))
+    }
+
+    /// Approve a coach for publishing to the Store
+    async fn handle_approve_coach(
+        State(context): State<Arc<AdminApiContext>>,
+        Extension(admin_token): Extension<ValidatedAdminToken>,
+        Path(coach_id): Path<String>,
+        Query(query): Query<CoachReviewQuery>,
+    ) -> AppResult<impl IntoResponse> {
+        // Check permission - super admin or ManageUsers permission required
+        if !admin_token.is_super_admin
+            && !admin_token
+                .permissions
+                .has_permission(&AdminPermission::ManageUsers)
+        {
+            return Ok(json_response(
+                json!({"error": "Insufficient permissions to approve coaches"}),
+                StatusCode::FORBIDDEN,
+            ));
+        }
+
+        let pool = context.database.sqlite_pool().ok_or_else(|| {
+            AppError::internal("SQLite database required for coach store operations")
+        })?;
+        let coaches_manager = CoachesManager::new(pool.clone());
+
+        // Generate a UUID for admin tracking (service-based admin tokens don't have user IDs)
+        let admin_user_id = Uuid::new_v4();
+
+        let coach = coaches_manager
+            .approve_coach(&coach_id, &query.tenant_id, admin_user_id)
+            .await?;
+
+        info!(
+            "Admin {} approved coach {} for Store in tenant {}",
+            admin_token.service_name, coach_id, query.tenant_id
+        );
+
+        Ok(json_response(
+            json!({
+                "message": "Coach approved and published to Store",
+                "coach": coach
+            }),
+            StatusCode::OK,
+        ))
+    }
+
+    /// Reject a coach with a reason
+    async fn handle_reject_coach(
+        State(context): State<Arc<AdminApiContext>>,
+        Extension(admin_token): Extension<ValidatedAdminToken>,
+        Path(coach_id): Path<String>,
+        Query(query): Query<CoachReviewQuery>,
+        Json(request): Json<RejectCoachRequest>,
+    ) -> AppResult<impl IntoResponse> {
+        // Check permission - super admin or ManageUsers permission required
+        if !admin_token.is_super_admin
+            && !admin_token
+                .permissions
+                .has_permission(&AdminPermission::ManageUsers)
+        {
+            return Ok(json_response(
+                json!({"error": "Insufficient permissions to reject coaches"}),
+                StatusCode::FORBIDDEN,
+            ));
+        }
+
+        if request.reason.trim().is_empty() {
+            return Ok(json_response(
+                json!({"error": "Rejection reason is required"}),
+                StatusCode::BAD_REQUEST,
+            ));
+        }
+
+        let pool = context.database.sqlite_pool().ok_or_else(|| {
+            AppError::internal("SQLite database required for coach store operations")
+        })?;
+        let coaches_manager = CoachesManager::new(pool.clone());
+
+        // Generate a UUID for admin tracking (service-based admin tokens don't have user IDs)
+        let admin_user_id = Uuid::new_v4();
+
+        let coach = coaches_manager
+            .reject_coach(&coach_id, &query.tenant_id, admin_user_id, &request.reason)
+            .await?;
+
+        info!(
+            "Admin {} rejected coach {} in tenant {} with reason: {}",
+            admin_token.service_name, coach_id, query.tenant_id, request.reason
+        );
+
+        Ok(json_response(
+            json!({
+                "message": "Coach rejected",
+                "coach": coach
+            }),
+            StatusCode::OK,
+        ))
     }
 }

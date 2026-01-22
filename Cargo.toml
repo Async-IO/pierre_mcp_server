@@ -99,6 +99,7 @@ tools-recipes = []         # validate_recipe, save_recipe, list_recipes
 tools-coaches = []         # coach CRUD, activate, favorites
 tools-admin = ["tools-coaches"]  # admin tools depend on coach tools
 tools-mobility = []        # stretching exercises, yoga poses, mobility recommendations
+tools-store = []           # store MCP tools (browse, search, install coaches)
 
 # Convenience bundles for common deployments
 tools-fitness-core = ["tools-connection", "tools-data", "tools-analytics"]
@@ -133,7 +134,9 @@ client-chat = ["protocol-rest"]          # chat.rs
 client-coaches = ["protocol-rest", "tools-coaches"]  # coaches.rs
 client-oauth-apps = ["protocol-rest", "oauth"]       # user_oauth_apps.rs
 
-client-web = ["client-dashboard", "client-settings", "client-chat", "client-coaches", "client-oauth-apps"]
+client-store = ["protocol-rest", "tools-store"]  # Store REST API routes + MCP tools
+
+client-web = ["client-dashboard", "client-settings", "client-chat", "client-coaches", "client-oauth-apps", "client-store"]
 
 # ═══════════════════════════════════════════════════════════════
 # GRANULAR CLIENT-ADMIN FEATURES
@@ -167,7 +170,7 @@ oauth = []
 server-full = ["protocol-all", "transport-all", "client-all", "oauth", "all-providers", "tools-all"]
 server-mcp-stdio = ["protocol-mcp", "transport-stdio", "oauth", "all-providers", "tools-all"]
 server-mcp-bridge = ["protocol-mcp", "protocol-a2a", "transport-web", "oauth", "all-providers", "tools-all"]
-server-mobile-backend = ["protocol-rest", "protocol-mcp", "client-mobile", "client-settings", "oauth", "all-providers", "tools-all"]
+server-mobile-backend = ["protocol-rest", "protocol-mcp", "client-mobile", "client-settings", "client-store", "oauth", "all-providers", "tools-all"]
 server-saas-full = ["protocol-rest", "protocol-mcp", "transport-web", "client-web", "client-admin", "oauth", "all-providers", "tools-all"]
 
 # OpenAPI documentation (SwaggerUI) - excluded from production by default

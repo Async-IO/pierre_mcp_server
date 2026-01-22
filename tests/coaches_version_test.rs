@@ -93,6 +93,15 @@ async fn create_test_db() -> SqlitePool {
             source_file TEXT,
             content_hash TEXT,
             forked_from TEXT,
+            publish_status TEXT DEFAULT 'draft',
+            published_at TEXT,
+            review_submitted_at TEXT,
+            review_decision_at TEXT,
+            review_decision_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+            rejection_reason TEXT,
+            install_count INTEGER DEFAULT 0,
+            icon_url TEXT,
+            author_id TEXT,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
         ",

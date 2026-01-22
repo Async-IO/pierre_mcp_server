@@ -80,6 +80,10 @@ pub mod coaches;
 #[cfg(feature = "client-oauth-apps")]
 pub mod user_oauth_apps;
 
+/// Coach Store routes (browse, search, install coaches)
+#[cfg(feature = "client-store")]
+pub mod store;
+
 // ═══════════════════════════════════════════════════════════════
 // CLIENT-ADMIN FEATURES
 // ═══════════════════════════════════════════════════════════════
@@ -180,6 +184,9 @@ pub use coaches::CoachesRoutes;
 
 #[cfg(feature = "client-oauth-apps")]
 pub use user_oauth_apps::UserOAuthAppRoutes;
+
+#[cfg(feature = "client-store")]
+pub use store::StoreRoutes;
 
 // Client-admin re-exports
 #[cfg(feature = "client-admin-api")]

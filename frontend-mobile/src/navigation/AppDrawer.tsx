@@ -29,6 +29,8 @@ import { ConversationsScreen } from '../screens/conversations/ConversationsScree
 import { CoachLibraryScreen } from '../screens/coaches/CoachLibraryScreen';
 import { CoachEditorScreen } from '../screens/coaches/CoachEditorScreen';
 import { CoachWizardScreen } from '../screens/coaches/CoachWizardScreen';
+import { StoreScreen } from '../screens/store/StoreScreen';
+import { StoreCoachDetailScreen } from '../screens/store/StoreCoachDetailScreen';
 import { useAuth } from '../contexts/AuthContext';
 import { apiService } from '../services/api';
 import { colors, spacing, fontSize, borderRadius } from '../constants/theme';
@@ -43,6 +45,8 @@ export type AppDrawerParamList = {
   CoachLibrary: undefined;
   CoachEditor: { coachId?: string } | undefined;
   CoachWizard: { coachId?: string } | undefined;
+  Store: undefined;
+  StoreCoachDetail: { coachId: string };
 };
 
 const Drawer = createDrawerNavigator<AppDrawerParamList>();
@@ -257,6 +261,16 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
         <Text style={styles.discussionsChevron}>›</Text>
       </TouchableOpacity>
 
+      {/* Coach Store Button */}
+      <TouchableOpacity
+        style={styles.discussionsButton}
+        onPress={() => navigation.navigate('Store')}
+      >
+        <Text style={styles.discussionsIcon}>🏪</Text>
+        <Text style={styles.discussionsText}>Coach Store</Text>
+        <Text style={styles.discussionsChevron}>›</Text>
+      </TouchableOpacity>
+
       {/* Conversations List */}
       <ScrollView style={styles.conversationsContainer} contentContainerStyle={styles.conversationsContent}>
         {conversations.length > 0 && (
@@ -458,6 +472,8 @@ export function AppDrawer() {
       <Drawer.Screen name="CoachLibrary" component={CoachLibraryScreen} />
       <Drawer.Screen name="CoachEditor" component={CoachEditorScreen} />
       <Drawer.Screen name="CoachWizard" component={CoachWizardScreen} />
+      <Drawer.Screen name="Store" component={StoreScreen} />
+      <Drawer.Screen name="StoreCoachDetail" component={StoreCoachDetailScreen} />
     </Drawer.Navigator>
   );
 }

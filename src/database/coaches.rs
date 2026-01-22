@@ -27,6 +27,51 @@ pub enum CoachVisibility {
     Global,
 }
 
+/// Coach publish status for Store workflow
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum PublishStatus {
+    /// Not submitted for review (default)
+    #[default]
+    Draft,
+    /// Submitted and waiting for admin approval
+    PendingReview,
+    /// Approved and visible in Store
+    Published,
+    /// Rejected by admin (reason provided)
+    Rejected,
+}
+
+impl PublishStatus {
+    /// Convert to database string representation
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::Draft => "draft",
+            Self::PendingReview => "pending_review",
+            Self::Published => "published",
+            Self::Rejected => "rejected",
+        }
+    }
+
+    /// Parse from database string representation
+    #[must_use]
+    pub fn parse(s: &str) -> Self {
+        match s {
+            "pending_review" => Self::PendingReview,
+            "published" => Self::Published,
+            "rejected" => Self::Rejected,
+            _ => Self::Draft,
+        }
+    }
+
+    /// Check if coach is visible in the Store
+    #[must_use]
+    pub const fn is_published(&self) -> bool {
+        matches!(self, Self::Published)
+    }
+}
+
 impl CoachVisibility {
     /// Convert to database string representation
     #[must_use]
@@ -98,6 +143,20 @@ impl CoachCategory {
             _ => Self::Custom,
         }
     }
+
+    /// Human-readable display name for UI
+    #[must_use]
+    pub const fn display_name(&self) -> &'static str {
+        match self {
+            Self::Training => "Training",
+            Self::Nutrition => "Nutrition",
+            Self::Recovery => "Recovery",
+            Self::Recipes => "Recipes",
+            Self::Mobility => "Mobility",
+            Self::Analysis => "Analysis",
+            Self::Custom => "Custom",
+        }
+    }
 }
 
 /// A Coach is a custom AI persona with a system prompt
@@ -148,6 +207,33 @@ pub struct Coach {
     /// ID of the coach this was forked from (None for original coaches)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub forked_from: Option<String>,
+    /// Publishing status for Store workflow
+    #[serde(default)]
+    pub publish_status: PublishStatus,
+    /// When the coach was published to the store
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub published_at: Option<DateTime<Utc>>,
+    /// When the coach was submitted for review
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub review_submitted_at: Option<DateTime<Utc>>,
+    /// When admin made the review decision
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub review_decision_at: Option<DateTime<Utc>>,
+    /// Admin user who made the review decision
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub review_decision_by: Option<String>,
+    /// Reason for rejection (if rejected)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rejection_reason: Option<String>,
+    /// Number of Store installs (denormalized for performance)
+    #[serde(default)]
+    pub install_count: u32,
+    /// URL to coach icon/avatar for Store display
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon_url: Option<String>,
+    /// Author profile ID (for published coaches)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub author_id: Option<String>,
 }
 
 /// Coach with computed context-dependent fields for list responses
@@ -271,8 +357,10 @@ impl CoachesManager {
             INSERT INTO coaches (
                 id, user_id, tenant_id, title, description, system_prompt,
                 category, tags, sample_prompts, token_count, is_favorite, use_count,
-                last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $16, $17, $18)
+                last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                publish_status, published_at, review_submitted_at, review_decision_at,
+                review_decision_by, rejection_reason, install_count, icon_url, author_id
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
             ",
         )
         .bind(id.to_string())
@@ -293,6 +381,15 @@ impl CoachesManager {
         .bind(CoachVisibility::Private.as_str()) // visibility
         .bind(Option::<String>::None) // prerequisites (user-created coaches don't have prerequisites)
         .bind(Option::<String>::None) // forked_from (not a fork)
+        .bind(PublishStatus::Draft.as_str()) // publish_status (default to draft)
+        .bind(Option::<String>::None) // published_at
+        .bind(Option::<String>::None) // review_submitted_at
+        .bind(Option::<String>::None) // review_decision_at
+        .bind(Option::<String>::None) // review_decision_by
+        .bind(Option::<String>::None) // rejection_reason
+        .bind(0i64) // install_count
+        .bind(Option::<String>::None) // icon_url
+        .bind(Option::<String>::None) // author_id
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to create coach: {e}")))?;
@@ -318,6 +415,15 @@ impl CoachesManager {
             visibility: CoachVisibility::Private,
             prerequisites: CoachPrerequisites::default(),
             forked_from: None,
+            publish_status: PublishStatus::Draft,
+            published_at: None,
+            review_submitted_at: None,
+            review_decision_at: None,
+            review_decision_by: None,
+            rejection_reason: None,
+            install_count: 0,
+            icon_url: None,
+            author_id: None,
         })
     }
 
@@ -336,7 +442,9 @@ impl CoachesManager {
             r"
             SELECT id, user_id, tenant_id, title, description, system_prompt,
                    category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
-                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from
+                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                publish_status, published_at, review_submitted_at, review_decision_at,
+                review_decision_by, rejection_reason, install_count, icon_url, author_id
             FROM coaches
             WHERE id = $1 AND user_id = $2 AND tenant_id = $3
             ",
@@ -587,8 +695,10 @@ impl CoachesManager {
             INSERT INTO coaches (
                 id, user_id, tenant_id, title, description, system_prompt,
                 category, tags, sample_prompts, token_count, is_favorite, use_count,
-                last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $16, $17, $18)
+                last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                publish_status, published_at, review_submitted_at, review_decision_at,
+                review_decision_by, rejection_reason, install_count, icon_url, author_id
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
             ",
         )
         .bind(id.to_string())
@@ -609,6 +719,15 @@ impl CoachesManager {
         .bind(CoachVisibility::Private.as_str()) // visibility = private
         .bind(&prerequisites_json) // prerequisites
         .bind(source_coach_id) // forked_from
+        .bind(PublishStatus::Draft.as_str()) // publish_status (forked coaches start as draft)
+        .bind(Option::<String>::None) // published_at
+        .bind(Option::<String>::None) // review_submitted_at
+        .bind(Option::<String>::None) // review_decision_at
+        .bind(Option::<String>::None) // review_decision_by
+        .bind(Option::<String>::None) // rejection_reason
+        .bind(0i64) // install_count
+        .bind(Option::<String>::None) // icon_url
+        .bind(Option::<String>::None) // author_id
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to fork coach: {e}")))?;
@@ -634,6 +753,15 @@ impl CoachesManager {
             visibility: CoachVisibility::Private,
             prerequisites: source.prerequisites,
             forked_from: Some(source_coach_id.to_owned()),
+            publish_status: PublishStatus::Draft,
+            published_at: None,
+            review_submitted_at: None,
+            review_decision_at: None,
+            review_decision_by: None,
+            rejection_reason: None,
+            install_count: 0,
+            icon_url: None,
+            author_id: None,
         })
     }
 
@@ -762,7 +890,9 @@ impl CoachesManager {
             r"
             SELECT id, user_id, tenant_id, title, description, system_prompt,
                    category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
-                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from
+                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                publish_status, published_at, review_submitted_at, review_decision_at,
+                review_decision_by, rejection_reason, install_count, icon_url, author_id
             FROM coaches
             WHERE user_id = $1 AND tenant_id = $2 AND (
                 title LIKE $3 OR description LIKE $3 OR tags LIKE $3
@@ -873,7 +1003,9 @@ impl CoachesManager {
             r"
             SELECT id, user_id, tenant_id, title, description, system_prompt,
                    category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
-                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from
+                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                publish_status, published_at, review_submitted_at, review_decision_at,
+                review_decision_by, rejection_reason, install_count, icon_url, author_id
             FROM coaches
             WHERE user_id = $1 AND tenant_id = $2 AND is_active = 1
             ",
@@ -913,8 +1045,10 @@ impl CoachesManager {
             INSERT INTO coaches (
                 id, user_id, tenant_id, title, description, system_prompt,
                 category, tags, sample_prompts, token_count, is_favorite, use_count,
-                last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $16, $17, $18)
+                last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                publish_status, published_at, review_submitted_at, review_decision_at,
+                review_decision_by, rejection_reason, install_count, icon_url, author_id
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
             ",
         )
         .bind(id.to_string())
@@ -935,6 +1069,15 @@ impl CoachesManager {
         .bind(request.visibility.as_str())
         .bind(Option::<String>::None) // prerequisites (system coaches may have this set later)
         .bind(Option::<String>::None) // forked_from (system coaches are originals)
+        .bind(PublishStatus::Draft.as_str()) // publish_status (system coaches start as draft)
+        .bind(Option::<String>::None) // published_at
+        .bind(Option::<String>::None) // review_submitted_at
+        .bind(Option::<String>::None) // review_decision_at
+        .bind(Option::<String>::None) // review_decision_by
+        .bind(Option::<String>::None) // rejection_reason
+        .bind(0i64) // install_count
+        .bind(Option::<String>::None) // icon_url
+        .bind(Option::<String>::None) // author_id
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to create system coach: {e}")))?;
@@ -960,6 +1103,15 @@ impl CoachesManager {
             visibility: request.visibility,
             prerequisites: CoachPrerequisites::default(),
             forked_from: None,
+            publish_status: PublishStatus::Draft,
+            published_at: None,
+            review_submitted_at: None,
+            review_decision_at: None,
+            review_decision_by: None,
+            rejection_reason: None,
+            install_count: 0,
+            icon_url: None,
+            author_id: None,
         })
     }
 
@@ -973,7 +1125,9 @@ impl CoachesManager {
             r"
             SELECT id, user_id, tenant_id, title, description, system_prompt,
                    category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
-                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from
+                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                publish_status, published_at, review_submitted_at, review_decision_at,
+                review_decision_by, rejection_reason, install_count, icon_url, author_id
             FROM coaches
             WHERE tenant_id = $1 AND is_system = 1
             ORDER BY created_at DESC
@@ -1001,7 +1155,9 @@ impl CoachesManager {
             r"
             SELECT id, user_id, tenant_id, title, description, system_prompt,
                    category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
-                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from
+                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                publish_status, published_at, review_submitted_at, review_decision_at,
+                review_decision_by, rejection_reason, install_count, icon_url, author_id
             FROM coaches
             WHERE id = $1 AND tenant_id = $2 AND is_system = 1
             ",
@@ -1371,7 +1527,9 @@ impl CoachesManager {
             r"
             SELECT id, user_id, tenant_id, title, description, system_prompt,
                    category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
-                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from
+                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                publish_status, published_at, review_submitted_at, review_decision_at,
+                review_decision_by, rejection_reason, install_count, icon_url, author_id
             FROM coaches WHERE id = $1
             ",
         )
@@ -1633,7 +1791,9 @@ impl CoachesManager {
             r"
             SELECT id, user_id, tenant_id, title, description, system_prompt,
                    category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
-                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from
+                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                publish_status, published_at, review_submitted_at, review_decision_at,
+                review_decision_by, rejection_reason, install_count, icon_url, author_id
             FROM coaches WHERE id = $1 AND tenant_id = $2
             ",
         )
@@ -1667,6 +1827,590 @@ impl CoachesManager {
         .map_err(|e| AppError::database(format!("Failed to get current version: {e}")))?;
 
         Ok(row.get("current_version"))
+    }
+
+    // ============================================
+    // Store Methods (Publishing and Discovery)
+    // ============================================
+
+    /// Submit a coach for admin review
+    ///
+    /// Changes `publish_status` from `draft` to `pending_review`.
+    /// Only the coach owner can submit their coach.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Coach not found or user doesn't own it
+    /// - Coach is not in draft status
+    /// - Database operation fails
+    pub async fn submit_for_review(
+        &self,
+        coach_id: &str,
+        user_id: Uuid,
+        tenant_id: &str,
+    ) -> AppResult<Coach> {
+        let now = Utc::now();
+
+        let result = sqlx::query(
+            r"
+            UPDATE coaches SET
+                publish_status = $1,
+                review_submitted_at = $2,
+                updated_at = $2
+            WHERE id = $3 AND user_id = $4 AND tenant_id = $5 AND publish_status = 'draft'
+            ",
+        )
+        .bind(PublishStatus::PendingReview.as_str())
+        .bind(now.to_rfc3339())
+        .bind(coach_id)
+        .bind(user_id.to_string())
+        .bind(tenant_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to submit coach for review: {e}")))?;
+
+        if result.rows_affected() == 0 {
+            return Err(AppError::invalid_input(
+                "Coach not found, not owned by you, or not in draft status",
+            ));
+        }
+
+        self.get(coach_id, user_id, tenant_id)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("Coach {coach_id}")))
+    }
+
+    /// Get coaches pending admin review
+    ///
+    /// Returns coaches with `publish_status = 'pending_review'` ordered by submission time.
+    /// This is an admin-only operation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn get_pending_review_coaches(
+        &self,
+        tenant_id: &str,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> AppResult<Vec<Coach>> {
+        let limit_val = i64::from(limit.unwrap_or(50).min(100));
+        let offset_val = i64::from(offset.unwrap_or(0));
+
+        let rows = sqlx::query(
+            r"
+            SELECT id, user_id, tenant_id, title, description, system_prompt,
+                   category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
+                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                publish_status, published_at, review_submitted_at, review_decision_at,
+                review_decision_by, rejection_reason, install_count, icon_url, author_id
+            FROM coaches
+            WHERE tenant_id = $1 AND publish_status = 'pending_review'
+            ORDER BY review_submitted_at ASC
+            LIMIT $2 OFFSET $3
+            ",
+        )
+        .bind(tenant_id)
+        .bind(limit_val)
+        .bind(offset_val)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get pending review coaches: {e}")))?;
+
+        rows.iter().map(row_to_coach).collect()
+    }
+
+    /// Approve a coach and publish to the Store
+    ///
+    /// Changes `publish_status` from `pending_review` to `published`.
+    /// This is an admin-only operation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Coach not found or not pending review
+    /// - Database operation fails
+    pub async fn approve_coach(
+        &self,
+        coach_id: &str,
+        tenant_id: &str,
+        admin_user_id: Uuid,
+    ) -> AppResult<Coach> {
+        let now = Utc::now();
+
+        let result = sqlx::query(
+            r"
+            UPDATE coaches SET
+                publish_status = $1,
+                published_at = $2,
+                review_decision_at = $2,
+                review_decision_by = $3,
+                rejection_reason = NULL,
+                updated_at = $2
+            WHERE id = $4 AND tenant_id = $5 AND publish_status = 'pending_review'
+            ",
+        )
+        .bind(PublishStatus::Published.as_str())
+        .bind(now.to_rfc3339())
+        .bind(admin_user_id.to_string())
+        .bind(coach_id)
+        .bind(tenant_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to approve coach: {e}")))?;
+
+        if result.rows_affected() == 0 {
+            return Err(AppError::invalid_input(
+                "Coach not found or not pending review",
+            ));
+        }
+
+        let row = sqlx::query(
+            r"
+            SELECT id, user_id, tenant_id, title, description, system_prompt,
+                   category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
+                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                publish_status, published_at, review_submitted_at, review_decision_at,
+                review_decision_by, rejection_reason, install_count, icon_url, author_id
+            FROM coaches WHERE id = $1 AND tenant_id = $2
+            ",
+        )
+        .bind(coach_id)
+        .bind(tenant_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get approved coach: {e}")))?;
+
+        row_to_coach(&row)
+    }
+
+    /// Reject a coach with a reason
+    ///
+    /// Changes `publish_status` from `pending_review` to `rejected`.
+    /// This is an admin-only operation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Coach not found or not pending review
+    /// - Database operation fails
+    pub async fn reject_coach(
+        &self,
+        coach_id: &str,
+        tenant_id: &str,
+        admin_user_id: Uuid,
+        reason: &str,
+    ) -> AppResult<Coach> {
+        let now = Utc::now();
+
+        let result = sqlx::query(
+            r"
+            UPDATE coaches SET
+                publish_status = $1,
+                review_decision_at = $2,
+                review_decision_by = $3,
+                rejection_reason = $4,
+                updated_at = $2
+            WHERE id = $5 AND tenant_id = $6 AND publish_status = 'pending_review'
+            ",
+        )
+        .bind(PublishStatus::Rejected.as_str())
+        .bind(now.to_rfc3339())
+        .bind(admin_user_id.to_string())
+        .bind(reason)
+        .bind(coach_id)
+        .bind(tenant_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to reject coach: {e}")))?;
+
+        if result.rows_affected() == 0 {
+            return Err(AppError::invalid_input(
+                "Coach not found or not pending review",
+            ));
+        }
+
+        let row = sqlx::query(
+            r"
+            SELECT id, user_id, tenant_id, title, description, system_prompt,
+                   category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
+                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                publish_status, published_at, review_submitted_at, review_decision_at,
+                review_decision_by, rejection_reason, install_count, icon_url, author_id
+            FROM coaches WHERE id = $1 AND tenant_id = $2
+            ",
+        )
+        .bind(coach_id)
+        .bind(tenant_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get rejected coach: {e}")))?;
+
+        row_to_coach(&row)
+    }
+
+    /// Get published coaches for Store browsing
+    ///
+    /// Returns coaches with `publish_status = 'published'` sorted by various criteria.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn get_published_coaches(
+        &self,
+        tenant_id: &str,
+        category: Option<CoachCategory>,
+        sort_by: Option<&str>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> AppResult<Vec<Coach>> {
+        let limit_val = i64::from(limit.unwrap_or(50).min(100));
+        let offset_val = i64::from(offset.unwrap_or(0));
+
+        let order_clause = match sort_by {
+            Some("popular") => "install_count DESC, published_at DESC",
+            Some("title") => "title ASC",
+            // "newest" is the default, so handle all other cases the same way
+            _ => "published_at DESC",
+        };
+
+        let category_filter = category.map_or_else(String::new, |cat| {
+            format!("AND category = '{}'", cat.as_str())
+        });
+
+        let query = format!(
+            r"
+            SELECT id, user_id, tenant_id, title, description, system_prompt,
+                   category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
+                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                publish_status, published_at, review_submitted_at, review_decision_at,
+                review_decision_by, rejection_reason, install_count, icon_url, author_id
+            FROM coaches
+            WHERE tenant_id = $1 AND publish_status = 'published' {category_filter}
+            ORDER BY {order_clause}
+            LIMIT $2 OFFSET $3
+            "
+        );
+
+        let rows = sqlx::query(&query)
+            .bind(tenant_id)
+            .bind(limit_val)
+            .bind(offset_val)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get published coaches: {e}")))?;
+
+        rows.iter().map(row_to_coach).collect()
+    }
+
+    /// Search published coaches in the Store
+    ///
+    /// Searches title, description, and tags of published coaches.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn search_published_coaches(
+        &self,
+        tenant_id: &str,
+        query: &str,
+        limit: Option<u32>,
+    ) -> AppResult<Vec<Coach>> {
+        let limit_val = i64::from(limit.unwrap_or(20).min(100));
+        let search_pattern = format!("%{query}%");
+
+        let rows = sqlx::query(
+            r"
+            SELECT id, user_id, tenant_id, title, description, system_prompt,
+                   category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
+                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                publish_status, published_at, review_submitted_at, review_decision_at,
+                review_decision_by, rejection_reason, install_count, icon_url, author_id
+            FROM coaches
+            WHERE tenant_id = $1 AND publish_status = 'published'
+                AND (title LIKE $2 OR description LIKE $2 OR tags LIKE $2)
+            ORDER BY install_count DESC, published_at DESC
+            LIMIT $3
+            ",
+        )
+        .bind(tenant_id)
+        .bind(&search_pattern)
+        .bind(limit_val)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to search published coaches: {e}")))?;
+
+        rows.iter().map(row_to_coach).collect()
+    }
+
+    /// Get a published coach by ID (for Store viewing)
+    ///
+    /// Returns a published coach regardless of ownership. Used for Store detail page.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn get_published_coach(
+        &self,
+        coach_id: &str,
+        tenant_id: &str,
+    ) -> AppResult<Option<Coach>> {
+        let row = sqlx::query(
+            r"
+            SELECT id, user_id, tenant_id, title, description, system_prompt,
+                   category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
+                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                publish_status, published_at, review_submitted_at, review_decision_at,
+                review_decision_by, rejection_reason, install_count, icon_url, author_id
+            FROM coaches
+            WHERE id = $1 AND tenant_id = $2 AND publish_status = 'published'
+            ",
+        )
+        .bind(coach_id)
+        .bind(tenant_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get published coach: {e}")))?;
+
+        row.map(|r| row_to_coach(&r)).transpose()
+    }
+
+    /// Increment install count for a coach
+    ///
+    /// Called when a user installs a coach from the Store.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn increment_install_count(&self, coach_id: &str) -> AppResult<()> {
+        sqlx::query(
+            r"
+            UPDATE coaches SET install_count = install_count + 1
+            WHERE id = $1 AND publish_status = 'published'
+            ",
+        )
+        .bind(coach_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to increment install count: {e}")))?;
+
+        Ok(())
+    }
+
+    /// Decrement install count for a coach
+    ///
+    /// Called when a user uninstalls a coach.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn decrement_install_count(&self, coach_id: &str) -> AppResult<()> {
+        sqlx::query(
+            r"
+            UPDATE coaches SET install_count = MAX(0, install_count - 1)
+            WHERE id = $1
+            ",
+        )
+        .bind(coach_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to decrement install count: {e}")))?;
+
+        Ok(())
+    }
+
+    /// Install a coach from the Store
+    ///
+    /// Creates a personal copy of a published coach for the user.
+    /// Increments the source coach's install count.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Source coach is not found or not published
+    /// - User has already installed this coach
+    /// - Database operation fails
+    pub async fn install_from_store(
+        &self,
+        source_coach_id: &str,
+        user_id: Uuid,
+        tenant_id: &str,
+    ) -> AppResult<Coach> {
+        // Get the source coach (must be published)
+        let source = self
+            .get_published_coach(source_coach_id, tenant_id)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("Published coach {source_coach_id}")))?;
+
+        // Check if user already has this coach installed
+        self.check_not_already_installed(user_id, tenant_id, source_coach_id, &source.title)
+            .await?;
+
+        // Create the user's copy
+        let id = self
+            .create_installed_copy(&source, user_id, tenant_id, source_coach_id)
+            .await?;
+
+        // Increment install count on the source coach
+        self.increment_install_count(source_coach_id).await?;
+
+        // Fetch and return the created coach
+        self.get(&id.to_string(), user_id, tenant_id)
+            .await?
+            .ok_or_else(|| AppError::internal("Failed to fetch installed coach"))
+    }
+
+    /// Check if user has already installed a coach
+    async fn check_not_already_installed(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        source_coach_id: &str,
+        title: &str,
+    ) -> AppResult<()> {
+        let existing = sqlx::query(
+            "SELECT id FROM coaches WHERE user_id = $1 AND tenant_id = $2 AND forked_from = $3",
+        )
+        .bind(user_id.to_string())
+        .bind(tenant_id)
+        .bind(source_coach_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to check existing installation: {e}")))?;
+
+        if existing.is_some() {
+            return Err(AppError::invalid_input(format!(
+                "Coach {title} is already installed"
+            )));
+        }
+        Ok(())
+    }
+
+    /// Create a copy of a coach for the user (store installation)
+    async fn create_installed_copy(
+        &self,
+        source: &Coach,
+        user_id: Uuid,
+        tenant_id: &str,
+        source_coach_id: &str,
+    ) -> AppResult<Uuid> {
+        let now = Utc::now();
+        let id = Uuid::new_v4();
+        let tags_json = serde_json::to_string(&source.tags)?;
+        let sample_prompts_json = serde_json::to_string(&source.sample_prompts)?;
+        let prerequisites_json = serde_json::to_string(&source.prerequisites)?;
+
+        sqlx::query(
+            r"
+            INSERT INTO coaches (
+                id, user_id, tenant_id, title, description, system_prompt, category, tags,
+                sample_prompts, token_count, is_favorite, use_count, last_used_at,
+                created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                publish_status, icon_url
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 0, 0, NULL, $11, $11, 0, $12, $13, $14, $15, $16)
+            ",
+        )
+        .bind(id.to_string())
+        .bind(user_id.to_string())
+        .bind(tenant_id)
+        .bind(&source.title)
+        .bind(&source.description)
+        .bind(&source.system_prompt)
+        .bind(source.category.as_str())
+        .bind(&tags_json)
+        .bind(&sample_prompts_json)
+        .bind(i64::from(source.token_count))
+        .bind(now.to_rfc3339())
+        .bind(CoachVisibility::Private.as_str())
+        .bind(&prerequisites_json)
+        .bind(source_coach_id)
+        .bind(PublishStatus::Draft.as_str())
+        .bind(&source.icon_url)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to install coach: {e}")))?;
+
+        Ok(id)
+    }
+
+    /// Get user's installed coaches from the Store
+    ///
+    /// Returns coaches where `forked_from` points to a published coach.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn get_installed_coaches(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+    ) -> AppResult<Vec<Coach>> {
+        let rows = sqlx::query(
+            r"
+            SELECT id, user_id, tenant_id, title, description, system_prompt,
+                   category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
+                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                publish_status, published_at, review_submitted_at, review_decision_at,
+                review_decision_by, rejection_reason, install_count, icon_url, author_id
+            FROM coaches
+            WHERE user_id = $1 AND tenant_id = $2 AND forked_from IS NOT NULL
+            ORDER BY created_at DESC
+            ",
+        )
+        .bind(user_id.to_string())
+        .bind(tenant_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get installed coaches: {e}")))?;
+
+        rows.iter().map(row_to_coach).collect()
+    }
+
+    /// Uninstall a coach (delete user's installed copy)
+    ///
+    /// Also decrements the source coach's install count.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Coach is not found
+    /// - Coach was not installed from Store (no `forked_from`)
+    /// - Database operation fails
+    pub async fn uninstall_coach(
+        &self,
+        coach_id: &str,
+        user_id: Uuid,
+        tenant_id: &str,
+    ) -> AppResult<String> {
+        // Get the coach to verify ownership and get forked_from
+        let coach = self
+            .get(coach_id, user_id, tenant_id)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("Coach {coach_id}")))?;
+
+        let source_id = coach.forked_from.ok_or_else(|| {
+            AppError::invalid_input("This coach was not installed from the Store")
+        })?;
+
+        // Delete the user's copy
+        sqlx::query(
+            r"
+            DELETE FROM coaches
+            WHERE id = $1 AND user_id = $2 AND tenant_id = $3
+            ",
+        )
+        .bind(coach_id)
+        .bind(user_id.to_string())
+        .bind(tenant_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to uninstall coach: {e}")))?;
+
+        // Decrement install count on the source coach
+        self.decrement_install_count(&source_id).await?;
+
+        Ok(source_id)
     }
 }
 
@@ -1799,6 +2543,19 @@ fn row_to_coach(row: &SqliteRow) -> AppResult<Coach> {
     let prerequisites: CoachPrerequisites =
         serde_json::from_str(&prerequisites_json).unwrap_or_default();
 
+    // Store-related fields with defaults for backward compatibility
+    let publish_status_str: String = row
+        .try_get("publish_status")
+        .unwrap_or_else(|_| "draft".to_owned());
+    let published_at_str: Option<String> = row.try_get("published_at").ok().flatten();
+    let review_submitted_at_str: Option<String> = row.try_get("review_submitted_at").ok().flatten();
+    let review_decision_at_str: Option<String> = row.try_get("review_decision_at").ok().flatten();
+    let review_decision_by: Option<String> = row.try_get("review_decision_by").ok().flatten();
+    let rejection_reason: Option<String> = row.try_get("rejection_reason").ok().flatten();
+    let install_count: i64 = row.try_get("install_count").unwrap_or(0);
+    let icon_url: Option<String> = row.try_get("icon_url").ok().flatten();
+    let author_id: Option<String> = row.try_get("author_id").ok().flatten();
+
     Ok(Coach {
         id: Uuid::parse_str(&id_str)
             .map_err(|e| AppError::internal(format!("Invalid UUID: {e}")))?,
@@ -1830,6 +2587,22 @@ fn row_to_coach(row: &SqliteRow) -> AppResult<Coach> {
         visibility: CoachVisibility::parse(&visibility_str),
         prerequisites,
         forked_from,
+        publish_status: PublishStatus::parse(&publish_status_str),
+        published_at: published_at_str
+            .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+            .map(|dt| dt.with_timezone(&Utc)),
+        review_submitted_at: review_submitted_at_str
+            .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+            .map(|dt| dt.with_timezone(&Utc)),
+        review_decision_at: review_decision_at_str
+            .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+            .map(|dt| dt.with_timezone(&Utc)),
+        review_decision_by,
+        rejection_reason,
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        install_count: install_count as u32,
+        icon_url,
+        author_id,
     })
 }
 

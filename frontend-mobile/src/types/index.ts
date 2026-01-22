@@ -168,3 +168,69 @@ export interface ListCoachesResponse {
     api_version: string;
   };
 }
+
+// Store types for Coach Store (browse, search, install coaches)
+export interface StoreCoach {
+  id: string;
+  title: string;
+  description: string | null;
+  category: CoachCategory;
+  tags: string[];
+  sample_prompts: string[];
+  token_count: number;
+  install_count: number;
+  icon_url: string | null;
+  published_at: string | null;
+  author_id: string | null;
+}
+
+export interface StoreCoachDetail extends StoreCoach {
+  system_prompt: string;
+  created_at: string;
+  publish_status: 'draft' | 'pending_review' | 'published' | 'rejected';
+}
+
+export interface StoreMetadata {
+  timestamp: string;
+  api_version: string;
+}
+
+export interface BrowseCoachesResponse {
+  coaches: StoreCoach[];
+  total: number;
+  metadata: StoreMetadata;
+}
+
+export interface SearchCoachesResponse {
+  coaches: StoreCoach[];
+  query: string;
+  metadata: StoreMetadata;
+}
+
+export interface CategoryCount {
+  category: CoachCategory;
+  name: string;
+  count: number;
+}
+
+export interface CategoriesResponse {
+  categories: CategoryCount[];
+  metadata: StoreMetadata;
+}
+
+export interface InstallCoachResponse {
+  message: string;
+  coach: StoreCoach;
+  metadata: StoreMetadata;
+}
+
+export interface UninstallCoachResponse {
+  message: string;
+  source_coach_id: string;
+  metadata: StoreMetadata;
+}
+
+export interface InstallationsResponse {
+  coaches: StoreCoach[];
+  metadata: StoreMetadata;
+}

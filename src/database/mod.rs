@@ -14,6 +14,8 @@ pub mod analytics;
 pub mod api_keys;
 /// Chat conversation and message storage
 pub mod chat;
+/// Coach authors (creator profiles for Store)
+pub mod coach_authors;
 /// Coaches (custom AI personas) storage and management
 pub mod coaches;
 /// Database error types
@@ -46,8 +48,12 @@ pub mod test_utils;
 
 pub use a2a::{A2AUsage, A2AUsageStats};
 pub use chat::{ChatManager, ConversationRecord, ConversationSummary, MessageRecord};
+pub use coach_authors::{
+    CoachAuthor, CoachAuthorsManager, CreateAuthorRequest, UpdateAuthorRequest,
+};
 pub use coaches::{
-    Coach, CoachCategory, CoachesManager, CreateCoachRequest, ListCoachesFilter, UpdateCoachRequest,
+    Coach, CoachCategory, CoachesManager, CreateCoachRequest, ListCoachesFilter, PublishStatus,
+    UpdateCoachRequest,
 };
 pub use errors::{DatabaseError, DatabaseResult};
 pub use mobility::{
