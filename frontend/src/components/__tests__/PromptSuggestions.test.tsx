@@ -173,19 +173,40 @@ describe('PromptSuggestions Component', () => {
       expect(editButtons.length).toBeGreaterThan(0);
     });
 
-    it('should show hidden count when coaches are hidden', async () => {
-      // This test checks that the "X hidden" indicator appears
-      // when there are hidden coaches
+    it('should have correct aria-label on hide button for accessibility', async () => {
       await act(async () => {
         renderPromptSuggestions();
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Training Coach')).toBeInTheDocument();
+        expect(screen.getByText('System Coach')).toBeInTheDocument();
       });
 
-      // Note: The hidden count only shows when showHidden is toggled
-      // and hiddenCoaches are fetched
+      const hideButtons = screen.getAllByTitle('Hide coach');
+      expect(hideButtons[0]).toHaveAttribute('title', 'Hide coach');
+      expect(hideButtons[0]).toHaveAttribute('aria-label', 'Hide coach');
+    });
+
+    it('should call hideCoach API when hide button is clicked', async () => {
+      const { apiService } = await import('../../services/api');
+      const user = userEvent.setup();
+
+      await act(async () => {
+        renderPromptSuggestions();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('System Coach')).toBeInTheDocument();
+      });
+
+      // Click the hide button on the system coach
+      const hideButtons = screen.getAllByTitle('Hide coach');
+      await user.click(hideButtons[0]);
+
+      // hideCoach should be called with the coach ID
+      await waitFor(() => {
+        expect(apiService.hideCoach).toHaveBeenCalledWith('coach-2');
+      });
     });
   });
 
