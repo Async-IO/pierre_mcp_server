@@ -63,6 +63,9 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(true);
 
   const loadCoaches = useCallback(async (isRefresh = false) => {
     if (!isAuthenticated) return;
@@ -77,9 +80,11 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
       const response = await apiService.browseStoreCoaches({
         category: selectedCategory === 'all' ? undefined : selectedCategory,
         sort_by: selectedSort,
-        limit: 50,
+        limit: 20,
       });
       setCoaches(response.coaches);
+      setNextCursor(response.next_cursor);
+      setHasMore(response.has_more);
     } catch (error) {
       console.error('Failed to load store coaches:', error);
     } finally {
@@ -87,6 +92,27 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
       setIsRefreshing(false);
     }
   }, [isAuthenticated, selectedCategory, selectedSort]);
+
+  const loadMoreCoaches = useCallback(async () => {
+    if (!isAuthenticated || !hasMore || isLoadingMore || !nextCursor) return;
+
+    try {
+      setIsLoadingMore(true);
+      const response = await apiService.browseStoreCoaches({
+        category: selectedCategory === 'all' ? undefined : selectedCategory,
+        sort_by: selectedSort,
+        limit: 20,
+        cursor: nextCursor,
+      });
+      setCoaches(prev => [...prev, ...response.coaches]);
+      setNextCursor(response.next_cursor);
+      setHasMore(response.has_more);
+    } catch (error) {
+      console.error('Failed to load more coaches:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [isAuthenticated, hasMore, isLoadingMore, nextCursor, selectedCategory, selectedSort]);
 
   const searchCoaches = useCallback(async (query: string) => {
     if (!isAuthenticated || !query.trim()) {
@@ -98,6 +124,8 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
       setIsSearching(true);
       const response = await apiService.searchStoreCoaches(query.trim(), 50);
       setCoaches(response.coaches);
+      setNextCursor(null);
+      setHasMore(false);
     } catch (error) {
       console.error('Failed to search coaches:', error);
     } finally {
@@ -298,7 +326,7 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
         {SORT_OPTIONS.map((option) => renderSortChip(option))}
       </View>
 
-      {/* Coach List */}
+      {/* Coach List with Virtualization and Infinite Scroll */}
       <FlatList
         testID="coach-list"
         data={coaches}
@@ -306,6 +334,20 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
         renderItem={({ item, index }) => renderCoachCard({ item, index })}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={renderEmptyState}
+        onEndReached={loadMoreCoaches}
+        onEndReachedThreshold={0.5}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        removeClippedSubviews={true}
+        ListFooterComponent={
+          isLoadingMore ? (
+            <View style={styles.loadMoreContainer}>
+              <ActivityIndicator size="small" color={colors.primary[500]} />
+              <Text style={styles.loadMoreText}>Loading more coaches...</Text>
+            </View>
+          ) : null
+        }
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -526,5 +568,16 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     color: colors.text.secondary,
     textAlign: 'center',
+  },
+  loadMoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.lg,
+    gap: spacing.sm,
+  },
+  loadMoreText: {
+    fontSize: fontSize.sm,
+    color: colors.text.secondary,
   },
 });

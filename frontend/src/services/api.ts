@@ -1469,7 +1469,7 @@ class ApiService {
     category?: string;
     sort_by?: 'newest' | 'popular' | 'title';
     limit?: number;
-    offset?: number;
+    cursor?: string;
   }): Promise<{
     coaches: Array<{
       id: string;
@@ -1484,14 +1484,15 @@ class ApiService {
       published_at: string | null;
       author_id: string | null;
     }>;
-    total: number;
+    next_cursor: string | null;
+    has_more: boolean;
     metadata: { timestamp: string; api_version: string };
   }> {
     const params = new URLSearchParams();
     if (options?.category) params.append('category', options.category);
     if (options?.sort_by) params.append('sort_by', options.sort_by);
     if (options?.limit) params.append('limit', options.limit.toString());
-    if (options?.offset) params.append('offset', options.offset.toString());
+    if (options?.cursor) params.append('cursor', options.cursor);
     const queryString = params.toString();
     const url = queryString ? `/api/store/coaches?${queryString}` : '/api/store/coaches';
     const response = await axios.get(url);

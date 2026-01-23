@@ -4,8 +4,8 @@
 // ABOUTME: Coach Store browse screen for discovering and installing coaches
 // ABOUTME: Lists published coaches with category filters, search, and navigation to detail
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import { Compass } from 'lucide-react';
 import { apiService } from '../services/api';
@@ -66,6 +66,7 @@ export default function StoreScreen({ onSelectCoach }: StoreScreenProps) {
   const [selectedSort, setSelectedSort] = useState<SortOption>('popular');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   // Debounce search query
   useEffect(() => {
@@ -75,15 +76,24 @@ export default function StoreScreen({ onSelectCoach }: StoreScreenProps) {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Fetch coaches based on filters or search
-  const { data: browseData, isLoading: isBrowsing } = useQuery({
+  // Infinite query for cursor-based pagination
+  const {
+    data: browseData,
+    isLoading: isBrowsing,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ['store-coaches', selectedCategory, selectedSort],
-    queryFn: () =>
+    queryFn: ({ pageParam }) =>
       apiService.browseStoreCoaches({
         category: selectedCategory === 'all' ? undefined : selectedCategory,
         sort_by: selectedSort,
-        limit: 50,
+        limit: 20,
+        cursor: pageParam,
       }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.has_more ? lastPage.next_cursor ?? undefined : undefined,
     enabled: !debouncedSearch,
     staleTime: 30_000,
   });
@@ -95,14 +105,35 @@ export default function StoreScreen({ onSelectCoach }: StoreScreenProps) {
     staleTime: 30_000,
   });
 
+  // Flatten pages for rendering
   const coaches = useMemo(() => {
     if (debouncedSearch && searchData) {
       return searchData.coaches;
     }
-    return browseData?.coaches ?? [];
+    return browseData?.pages.flatMap(page => page.coaches) ?? [];
   }, [debouncedSearch, searchData, browseData]);
 
   const isLoading = debouncedSearch ? isSearching : isBrowsing;
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    if (debouncedSearch) return; // Don't infinite scroll for search results
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, debouncedSearch]);
 
   const handleClearSearch = useCallback(() => {
     setSearchQuery('');
@@ -228,11 +259,29 @@ export default function StoreScreen({ onSelectCoach }: StoreScreenProps) {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {coaches.map((coach) => (
-              <CoachCard key={coach.id} coach={coach} onClick={() => onSelectCoach(coach.id)} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {coaches.map((coach) => (
+                <CoachCard key={coach.id} coach={coach} onClick={() => onSelectCoach(coach.id)} />
+              ))}
+            </div>
+
+            {/* Infinite scroll trigger */}
+            {!debouncedSearch && (
+              <div ref={loadMoreRef} className="py-8 flex justify-center">
+                {isFetchingNextPage ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 border-2 border-pierre-violet border-t-transparent rounded-full animate-spin" />
+                    <span className="text-sm text-gray-500">Loading more...</span>
+                  </div>
+                ) : hasNextPage ? (
+                  <span className="text-sm text-gray-500">Scroll for more</span>
+                ) : coaches.length > 0 ? (
+                  <span className="text-sm text-gray-500">You've seen all coaches</span>
+                ) : null}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

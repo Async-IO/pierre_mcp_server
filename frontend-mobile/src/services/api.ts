@@ -596,19 +596,19 @@ class ApiService {
   // ==========================================
 
   /**
-   * Browse published coaches in the Store
+   * Browse published coaches in the Store with cursor-based pagination
    */
   async browseStoreCoaches(options?: {
     category?: string;
     sort_by?: 'newest' | 'popular' | 'title';
     limit?: number;
-    offset?: number;
+    cursor?: string;
   }): Promise<BrowseCoachesResponse> {
     const params = new URLSearchParams();
     if (options?.category) params.append('category', options.category);
     if (options?.sort_by) params.append('sort_by', options.sort_by);
     if (options?.limit) params.append('limit', options.limit.toString());
-    if (options?.offset) params.append('offset', options.offset.toString());
+    if (options?.cursor) params.append('cursor', options.cursor);
     const url = params.toString()
       ? `/api/store/coaches?${params}`
       : '/api/store/coaches';

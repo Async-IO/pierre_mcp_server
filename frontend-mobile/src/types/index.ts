@@ -197,7 +197,8 @@ export interface StoreMetadata {
 
 export interface BrowseCoachesResponse {
   coaches: StoreCoach[];
-  total: number;
+  next_cursor: string | null;
+  has_more: boolean;
   metadata: StoreMetadata;
 }
 

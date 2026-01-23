@@ -102,8 +102,9 @@ async fn test_browse_store_empty() {
     assert_eq!(response.status_code(), StatusCode::OK);
 
     let result: BrowseCoachesResponse = response.json();
-    assert_eq!(result.total, 0);
     assert!(result.coaches.is_empty());
+    assert!(!result.has_more);
+    assert!(result.next_cursor.is_none());
     assert!(!result.metadata.timestamp.is_empty());
     assert_eq!(result.metadata.api_version, "1.0");
 }
@@ -156,8 +157,9 @@ async fn test_browse_store_with_published_coaches() {
     assert_eq!(response.status_code(), StatusCode::OK);
 
     let result: BrowseCoachesResponse = response.json();
-    assert_eq!(result.total, 2);
     assert_eq!(result.coaches.len(), 2);
+    assert!(!result.has_more);
+    assert!(result.next_cursor.is_none());
 }
 
 #[tokio::test]
@@ -207,12 +209,13 @@ async fn test_browse_store_with_category_filter() {
     assert_eq!(response.status_code(), StatusCode::OK);
 
     let result: BrowseCoachesResponse = response.json();
-    assert_eq!(result.total, 1);
+    assert_eq!(result.coaches.len(), 1);
     assert_eq!(result.coaches[0].category, CoachCategory::Training);
+    assert!(!result.has_more);
 }
 
 #[tokio::test]
-async fn test_browse_store_with_pagination() {
+async fn test_browse_store_with_cursor_pagination() {
     let resources = create_test_server_resources().await.unwrap();
     let (user_id, user) = create_test_user(&resources.database).await.unwrap();
 
@@ -246,7 +249,7 @@ async fn test_browse_store_with_pagination() {
     let router = StoreRoutes::router(&resources);
 
     // Get first page
-    let response = AxumTestRequest::get("/api/store/coaches?limit=2&offset=0")
+    let response = AxumTestRequest::get("/api/store/coaches?limit=2")
         .header("authorization", &auth_token)
         .send(router.clone())
         .await;
@@ -254,16 +257,247 @@ async fn test_browse_store_with_pagination() {
     assert_eq!(response.status_code(), StatusCode::OK);
     let page1: BrowseCoachesResponse = response.json();
     assert_eq!(page1.coaches.len(), 2);
+    assert!(page1.has_more);
+    assert!(page1.next_cursor.is_some());
 
-    // Get second page
-    let response = AxumTestRequest::get("/api/store/coaches?limit=2&offset=2")
+    // Get second page using cursor
+    let cursor = page1.next_cursor.unwrap();
+    let response = AxumTestRequest::get(&format!("/api/store/coaches?limit=2&cursor={cursor}"))
         .header("authorization", &auth_token)
-        .send(router)
+        .send(router.clone())
         .await;
 
     assert_eq!(response.status_code(), StatusCode::OK);
     let page2: BrowseCoachesResponse = response.json();
     assert_eq!(page2.coaches.len(), 2);
+    assert!(page2.has_more);
+
+    // Ensure no duplicate coaches between pages
+    let page1_ids: Vec<_> = page1.coaches.iter().map(|c| &c.id).collect();
+    let page2_ids: Vec<_> = page2.coaches.iter().map(|c| &c.id).collect();
+    for id in &page2_ids {
+        assert!(
+            !page1_ids.contains(id),
+            "Cursor pagination returned duplicate coach"
+        );
+    }
+
+    // Get third page (should have only 1 coach)
+    let cursor = page2.next_cursor.unwrap();
+    let response = AxumTestRequest::get(&format!("/api/store/coaches?limit=2&cursor={cursor}"))
+        .header("authorization", &auth_token)
+        .send(router)
+        .await;
+
+    assert_eq!(response.status_code(), StatusCode::OK);
+    let page3: BrowseCoachesResponse = response.json();
+    assert_eq!(page3.coaches.len(), 1);
+    assert!(!page3.has_more);
+    assert!(page3.next_cursor.is_none());
+}
+
+#[tokio::test]
+async fn test_cursor_pagination_with_popular_sort() {
+    let resources = create_test_server_resources().await.unwrap();
+    let (user_id, user) = create_test_user(&resources.database).await.unwrap();
+
+    let tenants = resources
+        .database
+        .list_tenants_for_user(user_id)
+        .await
+        .unwrap();
+    let tenant_id = tenants
+        .first()
+        .map_or_else(|| user_id.to_string(), |t| t.id.to_string());
+    let tenant_id = tenant_id.as_str();
+
+    // Create coaches with different install counts
+    let sqlite_pool = resources.database.sqlite_pool().unwrap().clone();
+    let coaches_manager = CoachesManager::new(sqlite_pool);
+
+    for i in 1..=5 {
+        let coach = create_published_coach(
+            &resources,
+            user_id,
+            tenant_id,
+            &format!("Popular Coach {i}"),
+            CoachCategory::Training,
+        )
+        .await;
+
+        // Give each coach a different install count
+        for _ in 0..(6 - i) {
+            coaches_manager
+                .increment_install_count(&coach.id.to_string())
+                .await
+                .unwrap();
+        }
+    }
+
+    let token = resources
+        .auth_manager
+        .generate_token(&user, &resources.jwks_manager)
+        .unwrap();
+    let auth_token = format!("Bearer {token}");
+    let router = StoreRoutes::router(&resources);
+
+    // Get first page sorted by popular
+    let response = AxumTestRequest::get("/api/store/coaches?limit=2&sort_by=popular")
+        .header("authorization", &auth_token)
+        .send(router.clone())
+        .await;
+
+    assert_eq!(response.status_code(), StatusCode::OK);
+    let page1: BrowseCoachesResponse = response.json();
+    assert_eq!(page1.coaches.len(), 2);
+    assert!(page1.has_more);
+
+    // Most popular should be first (highest install count)
+    assert!(
+        page1.coaches[0].install_count >= page1.coaches[1].install_count,
+        "Coaches should be sorted by popularity"
+    );
+
+    // Get second page using cursor
+    let cursor = page1.next_cursor.unwrap();
+    let response = AxumTestRequest::get(&format!(
+        "/api/store/coaches?limit=2&sort_by=popular&cursor={cursor}"
+    ))
+    .header("authorization", &auth_token)
+    .send(router)
+    .await;
+
+    assert_eq!(response.status_code(), StatusCode::OK);
+    let page2: BrowseCoachesResponse = response.json();
+    assert_eq!(page2.coaches.len(), 2);
+
+    // Second page coaches should have lower install counts than first page
+    assert!(
+        page1.coaches[1].install_count >= page2.coaches[0].install_count,
+        "Second page should have lower popularity than first page"
+    );
+}
+
+#[tokio::test]
+async fn test_cursor_pagination_with_title_sort() {
+    let resources = create_test_server_resources().await.unwrap();
+    let (user_id, user) = create_test_user(&resources.database).await.unwrap();
+
+    let tenants = resources
+        .database
+        .list_tenants_for_user(user_id)
+        .await
+        .unwrap();
+    let tenant_id = tenants
+        .first()
+        .map_or_else(|| user_id.to_string(), |t| t.id.to_string());
+    let tenant_id = tenant_id.as_str();
+
+    // Create coaches with alphabetically ordered names
+    let titles = ["Alpha Coach", "Beta Coach", "Gamma Coach", "Delta Coach"];
+    for title in titles {
+        create_published_coach(
+            &resources,
+            user_id,
+            tenant_id,
+            title,
+            CoachCategory::Training,
+        )
+        .await;
+    }
+
+    let token = resources
+        .auth_manager
+        .generate_token(&user, &resources.jwks_manager)
+        .unwrap();
+    let auth_token = format!("Bearer {token}");
+    let router = StoreRoutes::router(&resources);
+
+    // Get first page sorted by title
+    let response = AxumTestRequest::get("/api/store/coaches?limit=2&sort_by=title")
+        .header("authorization", &auth_token)
+        .send(router.clone())
+        .await;
+
+    assert_eq!(response.status_code(), StatusCode::OK);
+    let page1: BrowseCoachesResponse = response.json();
+    assert_eq!(page1.coaches.len(), 2);
+    assert!(page1.has_more);
+
+    // First coach should be alphabetically first
+    assert_eq!(page1.coaches[0].title, "Alpha Coach");
+    assert_eq!(page1.coaches[1].title, "Beta Coach");
+
+    // Get second page using cursor
+    let cursor = page1.next_cursor.unwrap();
+    let response = AxumTestRequest::get(&format!(
+        "/api/store/coaches?limit=2&sort_by=title&cursor={cursor}"
+    ))
+    .header("authorization", &auth_token)
+    .send(router)
+    .await;
+
+    assert_eq!(response.status_code(), StatusCode::OK);
+    let page2: BrowseCoachesResponse = response.json();
+    assert_eq!(page2.coaches.len(), 2);
+
+    // Second page should continue alphabetically (Delta, Gamma)
+    assert_eq!(page2.coaches[0].title, "Delta Coach");
+    assert_eq!(page2.coaches[1].title, "Gamma Coach");
+}
+
+#[tokio::test]
+async fn test_cursor_invalid_for_different_sort_order() {
+    let resources = create_test_server_resources().await.unwrap();
+    let (user_id, user) = create_test_user(&resources.database).await.unwrap();
+
+    let tenants = resources
+        .database
+        .list_tenants_for_user(user_id)
+        .await
+        .unwrap();
+    let tenant_id = tenants
+        .first()
+        .map_or_else(|| user_id.to_string(), |t| t.id.to_string());
+    let tenant_id = tenant_id.as_str();
+
+    for i in 1..=3 {
+        create_published_coach(
+            &resources,
+            user_id,
+            tenant_id,
+            &format!("Coach {i}"),
+            CoachCategory::Training,
+        )
+        .await;
+    }
+
+    let token = resources
+        .auth_manager
+        .generate_token(&user, &resources.jwks_manager)
+        .unwrap();
+    let auth_token = format!("Bearer {token}");
+    let router = StoreRoutes::router(&resources);
+
+    // Get cursor from newest sort
+    let response = AxumTestRequest::get("/api/store/coaches?limit=1&sort_by=newest")
+        .header("authorization", &auth_token)
+        .send(router.clone())
+        .await;
+
+    let page: BrowseCoachesResponse = response.json();
+    let newest_cursor = page.next_cursor.unwrap();
+
+    // Try to use newest cursor with popular sort - should fail
+    let response = AxumTestRequest::get(&format!(
+        "/api/store/coaches?limit=1&sort_by=popular&cursor={newest_cursor}"
+    ))
+    .header("authorization", &auth_token)
+    .send(router)
+    .await;
+
+    // Should return a bad request error due to cursor mismatch
+    assert_eq!(response.status_code(), StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]
@@ -1018,7 +1252,7 @@ async fn test_published_coaches_visible_cross_tenant() {
     assert_eq!(response.status_code(), StatusCode::OK);
 
     let result: BrowseCoachesResponse = response.json();
-    assert_eq!(result.total, 1);
+    assert_eq!(result.coaches.len(), 1);
     assert_eq!(result.coaches[0].id, coach.id);
 }
 

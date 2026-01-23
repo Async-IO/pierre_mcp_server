@@ -6,9 +6,11 @@
 
 use crate::coaches::CoachPrerequisites;
 use crate::errors::{AppError, AppResult};
+use crate::pagination::{Cursor, CursorPage, StoreCursor, StoreSortOrder};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{sqlite::SqliteRow, Row, SqlitePool};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 /// Token estimation constant: average characters per token for system prompts
@@ -95,7 +97,7 @@ impl CoachVisibility {
 }
 
 /// Coach category for organization
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum CoachCategory {
     /// Training and workout focused coaches
@@ -2106,6 +2108,319 @@ impl CoachesManager {
             .map_err(|e| AppError::database(format!("Failed to get published coaches: {e}")))?;
 
         rows.iter().map(row_to_coach).collect()
+    }
+
+    /// Get published coaches with cursor-based pagination for Store browsing
+    ///
+    /// Returns coaches with `publish_status = 'published'` using cursor-based
+    /// pagination for efficient infinite scrolling. Supports multiple sort orders.
+    ///
+    /// # Arguments
+    ///
+    /// * `category` - Optional category filter
+    /// * `sort_by` - Sort order (newest, popular, title)
+    /// * `limit` - Maximum number of items to return (default 20, max 100)
+    /// * `cursor` - Optional cursor from previous page
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails or cursor is invalid
+    pub async fn get_published_coaches_cursor(
+        &self,
+        category: Option<CoachCategory>,
+        sort_by: StoreSortOrder,
+        limit: u32,
+        cursor: Option<&str>,
+    ) -> AppResult<CursorPage<Coach>> {
+        let limit_val = limit.min(100);
+        // Fetch one extra to determine if there are more pages
+        let fetch_limit = i64::from(limit_val) + 1;
+
+        // Decode cursor if provided
+        let decoded_cursor = if let Some(cursor_str) = cursor {
+            let cursor_obj = Cursor::from_string(cursor_str.to_owned());
+            let decoded = StoreCursor::decode(&cursor_obj, sort_by)
+                .ok_or_else(|| AppError::invalid_input("Invalid cursor for current sort order"))?;
+            Some(decoded)
+        } else {
+            None
+        };
+
+        let category_filter = category.map_or_else(String::new, |cat| {
+            format!("AND category = '{}'", cat.as_str())
+        });
+
+        // Build query based on sort order and cursor presence
+        let rows = match sort_by {
+            StoreSortOrder::Newest => {
+                self.query_newest_sort(&category_filter, decoded_cursor.as_ref(), fetch_limit)
+                    .await?
+            }
+            StoreSortOrder::Popular => {
+                self.query_popular_sort(&category_filter, decoded_cursor.as_ref(), fetch_limit)
+                    .await?
+            }
+            StoreSortOrder::Title => {
+                self.query_title_sort(&category_filter, decoded_cursor.as_ref(), fetch_limit)
+                    .await?
+            }
+        };
+
+        // Convert rows to coaches
+        let mut all_coaches: Vec<Coach> = Vec::new();
+        for row in rows {
+            all_coaches.push(row_to_coach(&row)?);
+        }
+
+        // Check if we fetched more than requested (indicates more pages)
+        let has_more = all_coaches.len() > limit_val as usize;
+
+        // Trim to requested limit
+        let coaches: Vec<Coach> = all_coaches.into_iter().take(limit_val as usize).collect();
+
+        // Generate next cursor from last item
+        let next_cursor = if has_more {
+            coaches.last().map(|coach| {
+                let store_cursor = match sort_by {
+                    StoreSortOrder::Newest => {
+                        StoreCursor::newest(coach.id.to_string(), coach.published_at)
+                    }
+                    StoreSortOrder::Popular => StoreCursor::popular(
+                        coach.id.to_string(),
+                        coach.install_count,
+                        coach.published_at,
+                    ),
+                    StoreSortOrder::Title => {
+                        StoreCursor::title(coach.id.to_string(), coach.title.clone())
+                    }
+                };
+                store_cursor.encode()
+            })
+        } else {
+            None
+        };
+
+        Ok(CursorPage::new(coaches, next_cursor, None, has_more))
+    }
+
+    /// Query for newest sort order (`published_at` DESC, id DESC)
+    async fn query_newest_sort(
+        &self,
+        category_filter: &str,
+        cursor: Option<&StoreCursor>,
+        fetch_limit: i64,
+    ) -> AppResult<Vec<SqliteRow>> {
+        if let Some(c) = cursor {
+            let ts = c.published_at.map_or(0, |dt| dt.timestamp_millis());
+            let query = format!(
+                r"
+                SELECT id, user_id, tenant_id, title, description, system_prompt,
+                       category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
+                       last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                       publish_status, published_at, review_submitted_at, review_decision_at,
+                       review_decision_by, rejection_reason, install_count, icon_url, author_id
+                FROM coaches
+                WHERE publish_status = 'published' {category_filter}
+                  AND (
+                    (CAST(strftime('%s', published_at) AS INTEGER) * 1000 +
+                     CAST(strftime('%f', published_at) * 1000 AS INTEGER) % 1000) < $1
+                    OR (
+                      (CAST(strftime('%s', published_at) AS INTEGER) * 1000 +
+                       CAST(strftime('%f', published_at) * 1000 AS INTEGER) % 1000) = $1
+                      AND id < $2
+                    )
+                  )
+                ORDER BY published_at DESC, id DESC
+                LIMIT $3
+                "
+            );
+            sqlx::query(&query)
+                .bind(ts)
+                .bind(&c.id)
+                .bind(fetch_limit)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| AppError::database(format!("Failed to query coaches (newest): {e}")))
+        } else {
+            let query = format!(
+                r"
+                SELECT id, user_id, tenant_id, title, description, system_prompt,
+                       category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
+                       last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                       publish_status, published_at, review_submitted_at, review_decision_at,
+                       review_decision_by, rejection_reason, install_count, icon_url, author_id
+                FROM coaches
+                WHERE publish_status = 'published' {category_filter}
+                ORDER BY published_at DESC, id DESC
+                LIMIT $1
+                "
+            );
+            sqlx::query(&query)
+                .bind(fetch_limit)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| {
+                    AppError::database(format!("Failed to query coaches (newest first): {e}"))
+                })
+        }
+    }
+
+    /// Query for popular sort order (`install_count` DESC, `published_at` DESC, id DESC)
+    async fn query_popular_sort(
+        &self,
+        category_filter: &str,
+        cursor: Option<&StoreCursor>,
+        fetch_limit: i64,
+    ) -> AppResult<Vec<SqliteRow>> {
+        if let Some(c) = cursor {
+            let count = c.install_count.unwrap_or(0);
+            let ts = c.published_at.map_or(0, |dt| dt.timestamp_millis());
+            let query = format!(
+                r"
+                SELECT id, user_id, tenant_id, title, description, system_prompt,
+                       category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
+                       last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                       publish_status, published_at, review_submitted_at, review_decision_at,
+                       review_decision_by, rejection_reason, install_count, icon_url, author_id
+                FROM coaches
+                WHERE publish_status = 'published' {category_filter}
+                  AND (
+                    install_count < $1
+                    OR (
+                      install_count = $1
+                      AND (CAST(strftime('%s', published_at) AS INTEGER) * 1000 +
+                           CAST(strftime('%f', published_at) * 1000 AS INTEGER) % 1000) < $2
+                    )
+                    OR (
+                      install_count = $1
+                      AND (CAST(strftime('%s', published_at) AS INTEGER) * 1000 +
+                           CAST(strftime('%f', published_at) * 1000 AS INTEGER) % 1000) = $2
+                      AND id < $3
+                    )
+                  )
+                ORDER BY install_count DESC, published_at DESC, id DESC
+                LIMIT $4
+                "
+            );
+            sqlx::query(&query)
+                .bind(count)
+                .bind(ts)
+                .bind(&c.id)
+                .bind(fetch_limit)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| AppError::database(format!("Failed to query coaches (popular): {e}")))
+        } else {
+            let query = format!(
+                r"
+                SELECT id, user_id, tenant_id, title, description, system_prompt,
+                       category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
+                       last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                       publish_status, published_at, review_submitted_at, review_decision_at,
+                       review_decision_by, rejection_reason, install_count, icon_url, author_id
+                FROM coaches
+                WHERE publish_status = 'published' {category_filter}
+                ORDER BY install_count DESC, published_at DESC, id DESC
+                LIMIT $1
+                "
+            );
+            sqlx::query(&query)
+                .bind(fetch_limit)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| {
+                    AppError::database(format!("Failed to query coaches (popular first): {e}"))
+                })
+        }
+    }
+
+    /// Query for title sort order (title ASC, id ASC)
+    async fn query_title_sort(
+        &self,
+        category_filter: &str,
+        cursor: Option<&StoreCursor>,
+        fetch_limit: i64,
+    ) -> AppResult<Vec<SqliteRow>> {
+        if let Some(c) = cursor {
+            let title = c.title.as_deref().unwrap_or("");
+            let query = format!(
+                r"
+                SELECT id, user_id, tenant_id, title, description, system_prompt,
+                       category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
+                       last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                       publish_status, published_at, review_submitted_at, review_decision_at,
+                       review_decision_by, rejection_reason, install_count, icon_url, author_id
+                FROM coaches
+                WHERE publish_status = 'published' {category_filter}
+                  AND (
+                    title > $1
+                    OR (title = $1 AND id > $2)
+                  )
+                ORDER BY title ASC, id ASC
+                LIMIT $3
+                "
+            );
+            sqlx::query(&query)
+                .bind(title)
+                .bind(&c.id)
+                .bind(fetch_limit)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| AppError::database(format!("Failed to query coaches (title): {e}")))
+        } else {
+            let query = format!(
+                r"
+                SELECT id, user_id, tenant_id, title, description, system_prompt,
+                       category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
+                       last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                       publish_status, published_at, review_submitted_at, review_decision_at,
+                       review_decision_by, rejection_reason, install_count, icon_url, author_id
+                FROM coaches
+                WHERE publish_status = 'published' {category_filter}
+                ORDER BY title ASC, id ASC
+                LIMIT $1
+                "
+            );
+            sqlx::query(&query)
+                .bind(fetch_limit)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| {
+                    AppError::database(format!("Failed to query coaches (title first): {e}"))
+                })
+        }
+    }
+
+    /// Get category counts in a single efficient query
+    ///
+    /// Returns a map of category to count for published coaches.
+    /// This replaces 7 separate queries with 1 GROUP BY query.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn get_category_counts(&self) -> AppResult<HashMap<CoachCategory, i64>> {
+        let rows = sqlx::query(
+            r"
+            SELECT category, COUNT(*) as count
+            FROM coaches
+            WHERE publish_status = 'published'
+            GROUP BY category
+            ",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get category counts: {e}")))?;
+
+        let mut counts = HashMap::new();
+        for row in rows {
+            let category_str: String = row.get("category");
+            let count: i64 = row.get("count");
+            let category = CoachCategory::parse(&category_str);
+            counts.insert(category, count);
+        }
+
+        Ok(counts)
     }
 
     /// Search published coaches in the Store (cross-tenant)

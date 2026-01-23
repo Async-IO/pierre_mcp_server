@@ -200,7 +200,8 @@ async function setupStoreMocks(page: Page, options: { emptyStore?: boolean; inst
       contentType: 'application/json',
       body: JSON.stringify({
         coaches,
-        total: coaches.length,
+        next_cursor: null,
+        has_more: false,
         metadata: { timestamp: new Date().toISOString(), api_version: '1.0' },
       }),
     });
@@ -307,6 +308,111 @@ test.describe('Coach Store Browse', () => {
 
     // Should show empty state
     await expect(page.getByText('Store is empty')).toBeVisible({ timeout: 10000 });
+  });
+});
+
+test.describe('Coach Store Pagination', () => {
+  test('loads more coaches on scroll with cursor pagination', async ({ page }) => {
+    // Mock coaches for pagination - first page and second page
+    const page1Coaches = mockStoreCoaches.slice(0, 2);
+    const page2Coach = mockStoreCoaches[2];
+
+    // Set up base dashboard mocks
+    await setupDashboardMocks(page, { role: 'user' });
+
+    // Mock user coaches endpoint
+    await page.route('**/api/coaches', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ coaches: [], total: 0 }),
+      });
+    });
+
+    // Mock store installations endpoint
+    await page.route('**/api/store/installations', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          coaches: [],
+          metadata: { timestamp: new Date().toISOString(), api_version: '1.0' },
+        }),
+      });
+    });
+
+    // Mock store categories endpoint
+    await page.route('**/api/store/categories', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          categories: ['training', 'nutrition', 'recovery'],
+          metadata: { timestamp: new Date().toISOString(), api_version: '1.0' },
+        }),
+      });
+    });
+
+    // Track requests to verify cursor is sent
+    let requestCount = 0;
+
+    // Mock store browse endpoint with cursor pagination
+    await page.route(/\/api\/store\/coaches(\?.*)?$/, async (route) => {
+      const url = new URL(route.request().url());
+      const cursor = url.searchParams.get('cursor');
+      requestCount++;
+
+      if (!cursor) {
+        // First page - return first 2 coaches with cursor
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            coaches: page1Coaches,
+            next_cursor: 'test-cursor-page-2',
+            has_more: true,
+            metadata: { timestamp: new Date().toISOString(), api_version: '1.0' },
+          }),
+        });
+      } else {
+        // Second page - return last coach with no more
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            coaches: [page2Coach],
+            next_cursor: null,
+            has_more: false,
+            metadata: { timestamp: new Date().toISOString(), api_version: '1.0' },
+          }),
+        });
+      }
+    });
+
+    await loginToDashboard(page);
+
+    await page.waitForSelector('main', { timeout: 10000 });
+    await page.getByRole('button', { name: 'Discover Coaches' }).click();
+
+    await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible({ timeout: 5000 });
+
+    // Should display first page coaches
+    await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Nutrition Expert')).toBeVisible();
+
+    // Scroll to bottom to trigger infinite scroll
+    await page.evaluate(() => {
+      window.scrollTo(0, document.body.scrollHeight);
+    });
+
+    // Wait for second page to load
+    await page.waitForTimeout(1000);
+
+    // Should now also display the third coach from page 2
+    await expect(page.getByText('Recovery Coach')).toBeVisible({ timeout: 5000 });
+
+    // Verify multiple requests were made (initial + pagination)
+    expect(requestCount).toBeGreaterThanOrEqual(2);
   });
 });
 

@@ -29,6 +29,7 @@ use crate::{
     database_plugins::DatabaseProvider,
     errors::AppError,
     mcp::resources::ServerResources,
+    pagination::StoreSortOrder,
     security::cookies::get_cookie_value,
 };
 
@@ -41,8 +42,8 @@ pub struct BrowseCoachesQuery {
     pub sort_by: Option<String>,
     /// Maximum number of results (default 20, max 100)
     pub limit: Option<u32>,
-    /// Offset for pagination
-    pub offset: Option<u32>,
+    /// Encoded cursor for pagination (replaces offset)
+    pub cursor: Option<String>,
 }
 
 /// Query parameters for searching coaches
@@ -135,13 +136,15 @@ pub struct CategoryCount {
     pub count: usize,
 }
 
-/// Response for browse endpoint
+/// Response for browse endpoint with cursor-based pagination
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BrowseCoachesResponse {
     /// List of coaches
     pub coaches: Vec<StoreCoach>,
-    /// Total count for pagination
-    pub total: usize,
+    /// Cursor for fetching the next page (null if no more pages)
+    pub next_cursor: Option<String>,
+    /// Whether there are more items after this page
+    pub has_more: bool,
     /// Response metadata
     pub metadata: StoreMetadata,
 }
@@ -267,7 +270,7 @@ impl StoreRoutes {
         }
     }
 
-    /// Handle GET /api/store/coaches - Browse published coaches
+    /// Handle GET /api/store/coaches - Browse published coaches with cursor pagination
     async fn handle_browse(
         State(resources): State<Arc<ServerResources>>,
         headers: HeaderMap,
@@ -278,30 +281,32 @@ impl StoreRoutes {
         let manager = Self::get_coaches_manager(&resources)?;
 
         let category = query.category.as_ref().map(|c| CoachCategory::parse(c));
-        // Published coaches are visible cross-tenant (global Store)
-        let coaches = manager
-            .get_published_coaches(
-                category,
-                query.sort_by.as_deref(),
-                query.limit,
-                query.offset,
-            )
+        let sort_by = query
+            .sort_by
+            .as_deref()
+            .map_or(StoreSortOrder::Newest, StoreSortOrder::parse);
+        let limit = query.limit.unwrap_or(20);
+
+        // Use cursor-based pagination for efficient infinite scrolling
+        let page = manager
+            .get_published_coaches_cursor(category, sort_by, limit, query.cursor.as_deref())
             .await?;
 
-        let total = coaches.len();
-        let store_coaches: Vec<StoreCoach> = coaches.into_iter().map(StoreCoach::from).collect();
+        let store_coaches: Vec<StoreCoach> = page.items.into_iter().map(StoreCoach::from).collect();
 
         info!(
-            "User {} browsed store: {} coaches (category={:?}, sort={:?})",
+            "User {} browsed store: {} coaches (category={:?}, sort={:?}, has_more={})",
             auth.user_id,
             store_coaches.len(),
             query.category,
-            query.sort_by
+            query.sort_by,
+            page.has_more
         );
 
         let response = BrowseCoachesResponse {
             coaches: store_coaches,
-            total,
+            next_cursor: page.next_cursor.map(|c| c.to_string()),
+            has_more: page.has_more,
             metadata: Self::build_metadata(),
         };
 
@@ -346,7 +351,10 @@ impl StoreRoutes {
 
         let manager = Self::get_coaches_manager(&resources)?;
 
-        // Get counts for each category (cross-tenant)
+        // Use optimized single-query category count (replaces 7 queries with 1)
+        let counts = manager.get_category_counts().await?;
+
+        // Build response with all categories that have coaches
         let all_categories = [
             CoachCategory::Training,
             CoachCategory::Nutrition,
@@ -357,21 +365,25 @@ impl StoreRoutes {
             CoachCategory::Custom,
         ];
 
-        let mut categories = Vec::new();
-        for cat in all_categories {
-            // Get coaches in this category (up to 100 for counting)
-            let coaches = manager
-                .get_published_coaches(Some(cat), None, Some(100), None)
-                .await?;
-
-            if !coaches.is_empty() {
-                categories.push(CategoryCount {
-                    category: cat,
-                    name: cat.display_name().to_owned(),
-                    count: coaches.len(),
-                });
-            }
-        }
+        let categories: Vec<CategoryCount> = all_categories
+            .iter()
+            .filter_map(|cat| {
+                counts.get(cat).and_then(|&count| {
+                    if count > 0 {
+                        // Count from SQL COUNT is always non-negative and fits in usize
+                        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                        let count_usize = count as usize;
+                        Some(CategoryCount {
+                            category: *cat,
+                            name: cat.display_name().to_owned(),
+                            count: count_usize,
+                        })
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect();
 
         info!(
             "User {} fetched {} store categories",

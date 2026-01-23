@@ -6,6 +6,38 @@ import '@testing-library/jest-dom'
 // Mock fetch for API calls
 global.fetch = vi.fn()
 
+// Mock IntersectionObserver (not available in jsdom)
+class MockIntersectionObserver implements IntersectionObserver {
+  root: Element | Document | null = null
+  rootMargin: string = ''
+  thresholds: ReadonlyArray<number> = []
+
+  constructor(private callback: IntersectionObserverCallback) {
+    // Store callback for potential manual triggering in tests
+    void this.callback
+  }
+
+  observe(target: Element): void {
+    // No-op in test environment - parameter intentionally unused
+    void target
+  }
+
+  unobserve(target: Element): void {
+    // No-op in test environment - parameter intentionally unused
+    void target
+  }
+
+  disconnect(): void {
+    // No-op in test environment
+  }
+
+  takeRecords(): IntersectionObserverEntry[] {
+    return []
+  }
+}
+
+global.IntersectionObserver = MockIntersectionObserver
+
 // Mock WebSocket
 class MockWebSocket {
   url: string
