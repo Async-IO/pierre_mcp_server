@@ -29,6 +29,7 @@ import { ConversationsScreen } from '../screens/conversations/ConversationsScree
 import { CoachLibraryScreen } from '../screens/coaches/CoachLibraryScreen';
 import { CoachEditorScreen } from '../screens/coaches/CoachEditorScreen';
 import { CoachWizardScreen } from '../screens/coaches/CoachWizardScreen';
+import { CoachDetailScreen } from '../screens/coaches/CoachDetailScreen';
 import { StoreScreen } from '../screens/store/StoreScreen';
 import { StoreCoachDetailScreen } from '../screens/store/StoreCoachDetailScreen';
 import { useAuth } from '../contexts/AuthContext';
@@ -46,6 +47,7 @@ export type AppDrawerParamList = {
   CoachLibrary: undefined;
   CoachEditor: { coachId?: string } | undefined;
   CoachWizard: { coachId?: string } | undefined;
+  CoachDetail: { coachId: string };
   Store: undefined;
   StoreCoachDetail: { coachId: string };
 };
@@ -473,6 +475,7 @@ export function AppDrawer() {
       <Drawer.Screen name="CoachLibrary" component={CoachLibraryScreen} />
       <Drawer.Screen name="CoachEditor" component={CoachEditorScreen} />
       <Drawer.Screen name="CoachWizard" component={CoachWizardScreen} />
+      <Drawer.Screen name="CoachDetail" component={CoachDetailScreen} />
       <Drawer.Screen name="Store" component={StoreScreen} />
       <Drawer.Screen name="StoreCoachDetail" component={StoreCoachDetailScreen} />
     </Drawer.Navigator>

@@ -477,7 +477,7 @@ describe('CoachLibraryScreen', () => {
 
       fireEvent.press(getByText('Test Coach'));
 
-      expect(mockNavigation.navigate).toHaveBeenCalledWith('CoachWizard', {
+      expect(mockNavigation.navigate).toHaveBeenCalledWith('CoachDetail', {
         coachId: 'coach-1',
       });
     });

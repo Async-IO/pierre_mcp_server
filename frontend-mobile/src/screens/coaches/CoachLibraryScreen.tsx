@@ -178,7 +178,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
   };
 
   const handleCoachPress = (coach: Coach) => {
-    navigation.navigate('CoachWizard', { coachId: coach.id });
+    navigation.navigate('CoachDetail', { coachId: coach.id });
   };
 
   const handleCoachLongPress = (coach: Coach) => {
