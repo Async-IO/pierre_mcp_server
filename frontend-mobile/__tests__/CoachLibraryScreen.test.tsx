@@ -245,14 +245,15 @@ describe('CoachLibraryScreen', () => {
       ];
       mockListCoaches.mockResolvedValue({ coaches });
 
-      const { getAllByText } = render(
+      const { getByTestId, queryByTestId } = render(
         <CoachLibraryScreen navigation={mockNavigation as never} />
       );
 
       await waitFor(() => {
-        // System coach should have hide button (🙈 icon)
-        const hideIcons = getAllByText('🙈');
-        expect(hideIcons.length).toBe(1);
+        // System coach should have hide button
+        expect(getByTestId('hide-button-2')).toBeTruthy();
+        // User coach should not have hide button
+        expect(queryByTestId('hide-button-1')).toBeNull();
       });
     });
 

@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { DrawerNavigationProp } from '@react-navigation/drawer';
+import { Feather } from '@expo/vector-icons';
 import { colors, spacing, fontSize, borderRadius, glassCard } from '../../constants/theme';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -81,11 +82,24 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
       } else {
         setIsLoading(true);
       }
-      const response = await apiService.listCoaches({
-        include_hidden: showHidden,
-      });
+
+      // Load coaches and hidden coaches list in parallel
+      const [coachesResponse, hiddenResponse] = await Promise.all([
+        apiService.listCoaches({ include_hidden: showHidden }),
+        showHidden ? apiService.getHiddenCoaches() : Promise.resolve({ coaches: [] }),
+      ]);
+
+      // Create a set of hidden coach IDs for quick lookup
+      const hiddenIds = new Set((hiddenResponse.coaches || []).map((c) => c.id));
+
+      // Mark coaches as hidden if they're in the hidden list
+      const coachesWithHiddenFlag = coachesResponse.coaches.map((coach) => ({
+        ...coach,
+        is_hidden: hiddenIds.has(coach.id),
+      }));
+
       // Sort: favorites first, then by use_count descending
-      const sorted = [...response.coaches].sort((a, b) => {
+      const sorted = [...coachesWithHiddenFlag].sort((a, b) => {
         if (a.is_favorite !== b.is_favorite) {
           return a.is_favorite ? -1 : 1;
         }
@@ -105,7 +119,12 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
     if (!isAuthenticated) return;
     try {
       const response = await apiService.getHiddenCoaches();
-      setHiddenCoaches(response.coaches || []);
+      // Ensure is_hidden is set to true for coaches from the hidden endpoint
+      const coachesWithHiddenFlag = (response.coaches || []).map((coach) => ({
+        ...coach,
+        is_hidden: true,
+      }));
+      setHiddenCoaches(coachesWithHiddenFlag);
     } catch (error) {
       console.error('Failed to load hidden coaches:', error);
     }
@@ -147,6 +166,12 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
       loadHiddenCoaches();
     }, [loadCoaches, loadHiddenCoaches])
   );
+
+  // Reload coaches when showHidden toggle changes
+  React.useEffect(() => {
+    loadCoaches();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showHidden]);
 
   const handleRefresh = () => {
     loadCoaches(true);
@@ -254,8 +279,13 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
       } else {
         setCoaches((prev) => prev.filter((c) => c.id !== targetCoach.id));
       }
-      // Add to hidden coaches list for the filter count
-      setHiddenCoaches((prev) => [...prev, { ...targetCoach, is_hidden: true }]);
+      // Add to hidden coaches list for the filter count (avoid duplicate if already present)
+      setHiddenCoaches((prev) => {
+        if (prev.some((c) => c.id === targetCoach.id)) {
+          return prev;
+        }
+        return [...prev, { ...targetCoach, is_hidden: true }];
+      });
     } catch (error) {
       console.error('Failed to hide coach:', error);
       Alert.alert('Error', 'Failed to hide coach');
@@ -269,10 +299,15 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
 
     try {
       await apiService.showCoach(targetCoach.id);
-      // Update main coaches list
-      setCoaches((prev) =>
-        prev.map((c) => (c.id === targetCoach.id ? { ...c, is_hidden: false } : c))
-      );
+      // Update main coaches list - add if not present, update if present
+      setCoaches((prev) => {
+        const exists = prev.some((c) => c.id === targetCoach.id);
+        if (exists) {
+          return prev.map((c) => (c.id === targetCoach.id ? { ...c, is_hidden: false } : c));
+        }
+        // Coach was only in hiddenCoaches, add it to main list
+        return [...prev, { ...targetCoach, is_hidden: false }];
+      });
       // Remove from hidden coaches list and update count
       setHiddenCoaches((prev) => prev.filter((c) => c.id !== targetCoach.id));
     } catch (error) {
@@ -343,7 +378,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
               </View>
             )}
             {isHidden && (
-              <Text style={styles.hiddenIcon}>👁️‍🗨️</Text>
+              <Feather name="eye-off" size={14} color={colors.text.tertiary} style={styles.hiddenIcon} />
             )}
           </View>
           <View style={styles.coachActions}>
@@ -355,7 +390,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 testID={`fork-button-${item.id}`}
               >
-                <Text style={styles.forkIcon}>🔀</Text>
+                <Feather name="copy" size={16} color={colors.text.tertiary} />
               </TouchableOpacity>
             )}
             {/* Hide/Show button for system coaches */}
@@ -372,7 +407,11 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 testID={`hide-button-${item.id}`}
               >
-                <Text style={styles.hideIcon}>{isHidden ? '👁️' : '🙈'}</Text>
+                <Feather
+                  name={isHidden ? 'eye' : 'eye-off'}
+                  size={16}
+                  color={isHidden ? colors.primary[400] : colors.text.tertiary}
+                />
               </TouchableOpacity>
             )}
             <TouchableOpacity
@@ -381,9 +420,12 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               testID={`favorite-button-${item.id}`}
             >
-              <Text style={[styles.favoriteIcon, item.is_favorite && styles.favoriteIconActive]}>
-                {item.is_favorite ? '★' : '☆'}
-              </Text>
+              <Feather
+                name="star"
+                size={18}
+                color={item.is_favorite ? '#F59E0B' : colors.text.tertiary}
+                fill={item.is_favorite ? '#F59E0B' : 'none'}
+              />
             </TouchableOpacity>
           </View>
         </View>
@@ -501,9 +543,11 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             testID="favorites-toggle"
           >
-            <Text style={[styles.headerActionIcon, showFavoritesOnly && styles.headerActionIconFavorite]}>
-              ★
-            </Text>
+            <Feather
+              name="star"
+              size={20}
+              color={showFavoritesOnly ? '#F59E0B' : colors.text.tertiary}
+            />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.headerActionButton, showHidden && styles.headerActionButtonActive]}
@@ -511,9 +555,11 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             testID="show-hidden-toggle"
           >
-            <Text style={[styles.headerActionIcon, showHidden && styles.headerActionIconActive]}>
-              {showHidden ? '👁️' : '👁️‍🗨️'}
-            </Text>
+            <Feather
+              name={showHidden ? 'eye' : 'eye-off'}
+              size={20}
+              color={showHidden ? colors.primary[400] : colors.text.tertiary}
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -585,9 +631,13 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
         >
           <View style={styles.actionMenuContainer}>
             <TouchableOpacity style={styles.actionMenuItem} onPress={() => handleToggleFavorite()}>
-              <Text style={styles.actionMenuIcon}>
-                {selectedCoach?.is_favorite ? '☆' : '★'}
-              </Text>
+              <View style={styles.actionMenuIconContainer}>
+                <Feather
+                  name="star"
+                  size={18}
+                  color={selectedCoach?.is_favorite ? '#F59E0B' : colors.text.primary}
+                />
+              </View>
               <Text style={styles.actionMenuText}>
                 {selectedCoach?.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
               </Text>
@@ -599,9 +649,13 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
                 style={styles.actionMenuItem}
                 onPress={() => (selectedCoach?.is_hidden ? handleShowCoach() : handleHideCoach())}
               >
-                <Text style={styles.actionMenuIcon}>
-                  {selectedCoach?.is_hidden ? '👁️' : '🙈'}
-                </Text>
+                <View style={styles.actionMenuIconContainer}>
+                  <Feather
+                    name={selectedCoach?.is_hidden ? 'eye' : 'eye-off'}
+                    size={18}
+                    color={colors.text.primary}
+                  />
+                </View>
                 <Text style={styles.actionMenuText}>
                   {selectedCoach?.is_hidden ? 'Show coach' : 'Hide coach'}
                 </Text>
@@ -614,7 +668,9 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
                 style={styles.actionMenuItem}
                 onPress={() => handleForkCoach()}
               >
-                <Text style={styles.actionMenuIcon}>🔀</Text>
+                <View style={styles.actionMenuIconContainer}>
+                  <Feather name="copy" size={18} color={colors.text.primary} />
+                </View>
                 <Text style={styles.actionMenuText}>Fork (create my copy)</Text>
               </TouchableOpacity>
             )}
@@ -622,7 +678,9 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
             {/* Rename only for user-created coaches */}
             {!selectedCoach?.is_system && (
               <TouchableOpacity style={styles.actionMenuItem} onPress={handleRename}>
-                <Text style={styles.actionMenuIcon}>✎</Text>
+                <View style={styles.actionMenuIconContainer}>
+                  <Feather name="edit-2" size={18} color={colors.text.primary} />
+                </View>
                 <Text style={styles.actionMenuText}>Rename</Text>
               </TouchableOpacity>
             )}
@@ -630,7 +688,9 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
             {/* Delete only for user-created coaches */}
             {!selectedCoach?.is_system && (
               <TouchableOpacity style={styles.actionMenuItem} onPress={handleDelete}>
-                <Text style={styles.actionMenuIconDanger}>🗑</Text>
+                <View style={styles.actionMenuIconContainer}>
+                  <Feather name="trash-2" size={18} color={colors.error} />
+                </View>
                 <Text style={styles.actionMenuTextDanger}>Delete</Text>
               </TouchableOpacity>
             )}
@@ -788,13 +848,6 @@ const styles = StyleSheet.create({
   favoriteButton: {
     padding: spacing.xs,
   },
-  favoriteIcon: {
-    fontSize: 20,
-    color: colors.text.tertiary,
-  },
-  favoriteIconActive: {
-    color: '#F59E0B',
-  },
   coachTokens: {
     fontSize: fontSize.sm,
     color: colors.text.secondary,
@@ -879,15 +932,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
-  actionMenuIcon: {
-    fontSize: 18,
-    marginRight: spacing.sm,
+  actionMenuIconContainer: {
     width: 24,
-  },
-  actionMenuIconDanger: {
-    fontSize: 18,
     marginRight: spacing.sm,
-    width: 24,
+    alignItems: 'center',
   },
   actionMenuText: {
     fontSize: fontSize.md,
@@ -912,17 +960,6 @@ const styles = StyleSheet.create({
   },
   headerActionButtonActive: {
     backgroundColor: colors.primary[500] + '20',
-  },
-  headerActionIcon: {
-    fontSize: 18,
-    opacity: 0.5,
-  },
-  headerActionIconActive: {
-    opacity: 1,
-  },
-  headerActionIconFavorite: {
-    opacity: 1,
-    color: '#F59E0B',
   },
   // Coach card title container with badges
   coachTitleContainer: {
@@ -961,21 +998,15 @@ const styles = StyleSheet.create({
     color: colors.text.tertiary,
   },
   hiddenIcon: {
-    fontSize: 14,
+    marginLeft: spacing.xs,
   },
   // Fork button on coach card
   forkButton: {
     padding: spacing.xs,
   },
-  forkIcon: {
-    fontSize: 16,
-  },
   // Hide button on coach card
   hideButton: {
     padding: spacing.xs,
-  },
-  hideIcon: {
-    fontSize: 16,
   },
   // Hidden filter chip styles
   hiddenFilterChip: {
