@@ -147,9 +147,13 @@ if [[ "$HAS_RUST_CHANGES" == "true" ]]; then
                 src/config/*) add_tests simple_integration_test ;;
                 migrations/*) add_tests database_test ;;
                 tests/*.rs)
-                    test_name=$(basename "$file" .rs)
-                    if [[ "$test_name" != "common" && "$test_name" != "helpers" && "$test_name" != "fixtures" ]]; then
-                        add_tests "$test_name"
+                    # Only process files directly in tests/, not subdirectories
+                    # (case pattern * matches / in bash, so we need explicit check)
+                    if [[ "$file" =~ ^tests/[^/]+\.rs$ ]]; then
+                        test_name=$(basename "$file" .rs)
+                        if [[ "$test_name" != "common" && "$test_name" != "helpers" && "$test_name" != "fixtures" ]]; then
+                            add_tests "$test_name"
+                        fi
                     fi
                     ;;
                 src/lib.rs|src/main.rs) add_tests simple_integration_test routes_health_http_test ;;
