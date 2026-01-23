@@ -416,7 +416,7 @@ describe('StoreCoachDetailScreen', () => {
       // Find and press back button (back arrow text)
       fireEvent.press(getByText('←'));
 
-      expect(mockNavigation.goBack).toHaveBeenCalled();
+      expect(mockNavigation.navigate).toHaveBeenCalledWith('Store');
     });
 
     it('should navigate to CoachLibrary after successful install', async () => {

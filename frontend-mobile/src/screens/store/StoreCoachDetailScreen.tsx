@@ -139,7 +139,7 @@ export function StoreCoachDetailScreen({ navigation, route }: StoreCoachDetailSc
           <Text style={styles.errorText}>Coach not found</Text>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => navigation.goBack()}
+            onPress={() => navigation.navigate('Store')}
           >
             <Text style={styles.backButtonText}>Go Back</Text>
           </TouchableOpacity>
@@ -157,7 +157,7 @@ export function StoreCoachDetailScreen({ navigation, route }: StoreCoachDetailSc
         <TouchableOpacity
           testID="back-button"
           style={styles.backArrow}
-          onPress={() => navigation.goBack()}
+          onPress={() => navigation.navigate('Store')}
         >
           <Text style={styles.backArrowText}>←</Text>
         </TouchableOpacity>
