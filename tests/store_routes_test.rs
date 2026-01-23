@@ -229,7 +229,8 @@ async fn test_browse_store_with_cursor_pagination() {
         .map_or_else(|| user_id.to_string(), |t| t.id.to_string());
     let tenant_id = tenant_id.as_str();
 
-    // Create 5 coaches
+    // Create 5 coaches with small delays to ensure unique published_at timestamps
+    // This is necessary because cursor pagination uses timestamp as primary sort key
     for i in 1..=5 {
         create_published_coach(
             &resources,
@@ -239,6 +240,8 @@ async fn test_browse_store_with_cursor_pagination() {
             CoachCategory::Training,
         )
         .await;
+        // Small delay ensures distinct timestamps for reliable cursor ordering
+        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
     }
 
     let token = resources

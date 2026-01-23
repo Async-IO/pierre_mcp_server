@@ -24,6 +24,9 @@ export interface ChartOptions {
     legend?: {
       display?: boolean;
       position?: 'top' | 'bottom' | 'left' | 'right';
+      labels?: {
+        color?: string;
+      };
     };
     title?: {
       display?: boolean;
@@ -37,6 +40,12 @@ export interface ChartOptions {
         display?: boolean;
         text?: string;
       };
+      ticks?: {
+        color?: string;
+      };
+      grid?: {
+        color?: string;
+      };
     };
     y?: {
       display?: boolean;
@@ -44,6 +53,12 @@ export interface ChartOptions {
       title?: {
         display?: boolean;
         text?: string;
+      };
+      ticks?: {
+        color?: string;
+      };
+      grid?: {
+        color?: string;
       };
     };
   };
