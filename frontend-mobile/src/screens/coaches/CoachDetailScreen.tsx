@@ -42,15 +42,25 @@ export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps)
   const [coach, setCoach] = useState<Coach | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isHidden, setIsHidden] = useState(false);
+  const [isTogglingHidden, setIsTogglingHidden] = useState(false);
 
   const loadCoachDetail = useCallback(async () => {
     if (!isAuthenticated || !coachId) return;
 
     try {
       setIsLoading(true);
-      const response = await apiService.listCoaches({ include_hidden: true });
-      const foundCoach = response.coaches.find((c) => c.id === coachId);
+      // Load coaches and hidden coaches list in parallel
+      const [coachesResponse, hiddenResponse] = await Promise.all([
+        apiService.listCoaches({ include_hidden: true }),
+        apiService.getHiddenCoaches(),
+      ]);
+      const foundCoach = coachesResponse.coaches.find((c) => c.id === coachId);
       setCoach(foundCoach || null);
+
+      // Check if this coach is in the hidden list
+      const hiddenIds = new Set((hiddenResponse.coaches || []).map((c) => c.id));
+      setIsHidden(hiddenIds.has(coachId));
     } catch (error) {
       console.error('Failed to load coach detail:', error);
       Alert.alert('Error', 'Failed to load coach details');
@@ -101,6 +111,26 @@ export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps)
     if (!coach) return;
     // Navigate to chat with this coach selected
     navigation.navigate('Chat');
+  };
+
+  const handleToggleHidden = async () => {
+    if (!coach) return;
+
+    try {
+      setIsTogglingHidden(true);
+      if (isHidden) {
+        await apiService.showCoach(coach.id);
+        setIsHidden(false);
+      } else {
+        await apiService.hideCoach(coach.id);
+        setIsHidden(true);
+      }
+    } catch (error) {
+      console.error('Failed to toggle coach visibility:', error);
+      Alert.alert('Error', 'Failed to update coach visibility');
+    } finally {
+      setIsTogglingHidden(false);
+    }
   };
 
   if (isLoading) {
@@ -266,6 +296,30 @@ export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps)
           <Feather name="message-circle" size={18} color={colors.text.primary} />
           <Text style={styles.useButtonText}>Use in Chat</Text>
         </TouchableOpacity>
+
+        {coach.is_system && (
+          <TouchableOpacity
+            style={[styles.actionButton, styles.hideButton]}
+            onPress={handleToggleHidden}
+            disabled={isTogglingHidden}
+            testID="hide-button"
+          >
+            {isTogglingHidden ? (
+              <ActivityIndicator size="small" color={colors.text.secondary} />
+            ) : (
+              <>
+                <Feather
+                  name={isHidden ? 'eye' : 'eye-off'}
+                  size={18}
+                  color={isHidden ? colors.primary[400] : colors.text.secondary}
+                />
+                <Text style={[styles.hideButtonText, isHidden && styles.hideButtonTextActive]}>
+                  {isHidden ? 'Show' : 'Hide'}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
 
         {!coach.is_system && (
           <TouchableOpacity
@@ -526,5 +580,18 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     fontSize: fontSize.md,
     fontWeight: '500',
+  },
+  hideButton: {
+    backgroundColor: colors.background.secondary,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  hideButtonText: {
+    color: colors.text.secondary,
+    fontSize: fontSize.md,
+    fontWeight: '500',
+  },
+  hideButtonTextActive: {
+    color: colors.primary[400],
   },
 });
