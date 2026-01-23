@@ -357,10 +357,10 @@ cargo fmt
 # 2. Compile check only (fast - no linting)
 cargo check --quiet
 
-# 3. Run ONLY tests related to your changes
-cargo test <test_name_pattern> -- --nocapture
-# Example: cargo test test_training_load -- --nocapture
-# Example: cargo test --test intelligence_test -- --nocapture
+# 3. Run ONLY tests related to your changes (ALWAYS use --test to avoid compiling all files)
+cargo test --test <test_file> <test_name_pattern> -- --nocapture
+# Example: cargo test --test intelligence_test test_training_load -- --nocapture
+# Example: cargo test --test store_routes_test test_browse_store -- --nocapture
 ```
 
 #### Tier 2: Pre-Commit (before committing)
@@ -375,8 +375,8 @@ cargo fmt
 # 3. Clippy WITH --all-targets (REQUIRED - catches test file import errors)
 cargo clippy --all-targets -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
 
-# 4. Run TARGETED tests for changed modules
-cargo test <module_pattern> -- --nocapture
+# 4. Run TARGETED tests for changed modules (ALWAYS use --test)
+cargo test --test <test_file> <test_pattern> -- --nocapture
 ```
 
 **CRITICAL: Always use `--all-targets` with clippy.** Without it, clippy only checks `src/` code and misses lint errors in `tests/`, `benches/`, and binary crates. CI uses `--all-targets`, so local validation must match.
@@ -393,36 +393,42 @@ cargo test
 ```
 
 ### Test Targeting Patterns
-Use these patterns to run only relevant tests:
+
+**CRITICAL: Always use `--test <file>` to avoid compiling all 163 test files!**
 
 ```bash
-# By test name (partial match)
-cargo test test_training_load
-cargo test test_oauth
+# ❌ SLOW - Compiles ALL 163 test files looking for a match
+cargo test test_browse_store_with_cursor_pagination
 
-# By test file
-cargo test --test intelligence_test
-cargo test --test oauth_test
-
-# Multiple patterns
-cargo test training_load fitness_score
-
-# By module path
-cargo test intelligence::
-cargo test database::
-
-# Show output during test
-cargo test <pattern> -- --nocapture
+# ✅ FAST - Only compiles the specific test file
+cargo test --test store_routes_test test_browse_store_with_cursor_pagination
 ```
 
-### Finding Related Tests
-When you modify a file, find related tests:
+**Always specify the test file:**
 ```bash
-# Find test files mentioning your module
+# Format: cargo test --test <test_file_name> <test_name_pattern> -- --nocapture
+cargo test --test intelligence_test test_training_load -- --nocapture
+cargo test --test oauth_test test_oauth_flow -- --nocapture
+cargo test --test store_routes_test test_browse -- --nocapture
+
+# Run all tests in a specific file
+cargo test --test intelligence_test -- --nocapture
+
+# List tests in a specific test file (to find test names)
+cargo test --test <test_file> -- --list
+```
+
+### Finding the Right Test File
+When you need to run a test, first find which file contains it:
+```bash
+# Find test files mentioning your test or module
+rg "test_name" tests/ --files-with-matches
 rg "mod_name" tests/ --files-with-matches
 
-# List tests in a specific test file
-cargo test --test <test_file> -- --list
+# Example: find where test_browse_store lives
+rg "test_browse_store" tests/ --files-with-matches
+# Output: tests/store_routes_test.rs
+# Then run: cargo test --test store_routes_test test_browse_store
 ```
 
 ## Error Handling Requirements
@@ -627,7 +633,7 @@ The codebase clone usage falls into these **approved categories**:
    cargo fmt
    ./scripts/architectural-validation.sh
    cargo clippy --all-targets -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
-   cargo test <relevant_pattern> -- --nocapture
+   cargo test --test <test_file> <test_pattern> -- --nocapture
    ```
 
 2. **Manual Pattern Audit:**
