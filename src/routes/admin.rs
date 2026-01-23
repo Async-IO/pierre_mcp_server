@@ -2636,11 +2636,10 @@ impl AdminRoutes {
         })?;
         let coaches_manager = CoachesManager::new(pool.clone());
 
-        // Generate a UUID for admin tracking (service-based admin tokens don't have user IDs)
-        let admin_user_id = Uuid::new_v4();
-
+        // Service-based admin tokens don't have user IDs, so pass None
+        // The review_decision_by field will be NULL for admin-initiated approvals
         let coach = coaches_manager
-            .approve_coach(&coach_id, &query.tenant_id, admin_user_id)
+            .approve_coach(&coach_id, &query.tenant_id, None::<Uuid>)
             .await?;
 
         info!(
@@ -2689,11 +2688,10 @@ impl AdminRoutes {
         })?;
         let coaches_manager = CoachesManager::new(pool.clone());
 
-        // Generate a UUID for admin tracking (service-based admin tokens don't have user IDs)
-        let admin_user_id = Uuid::new_v4();
-
+        // Service-based admin tokens don't have user IDs, so pass None
+        // The review_decision_by field will be NULL for admin-initiated rejections
         let coach = coaches_manager
-            .reject_coach(&coach_id, &query.tenant_id, admin_user_id, &request.reason)
+            .reject_coach(&coach_id, &query.tenant_id, None::<Uuid>, &request.reason)
             .await?;
 
         info!(

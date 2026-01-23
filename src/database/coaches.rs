@@ -1935,8 +1935,9 @@ impl CoachesManager {
         &self,
         coach_id: &str,
         tenant_id: &str,
-        admin_user_id: Uuid,
+        admin_user_id: impl Into<Option<Uuid>>,
     ) -> AppResult<Coach> {
+        let admin_user_id = admin_user_id.into();
         let now = Utc::now();
 
         let result = sqlx::query(
@@ -1953,7 +1954,7 @@ impl CoachesManager {
         )
         .bind(PublishStatus::Published.as_str())
         .bind(now.to_rfc3339())
-        .bind(admin_user_id.to_string())
+        .bind(admin_user_id.map(|id| id.to_string()))
         .bind(coach_id)
         .bind(tenant_id)
         .execute(&self.pool)
@@ -1999,9 +2000,10 @@ impl CoachesManager {
         &self,
         coach_id: &str,
         tenant_id: &str,
-        admin_user_id: Uuid,
+        admin_user_id: impl Into<Option<Uuid>>,
         reason: &str,
     ) -> AppResult<Coach> {
+        let admin_user_id = admin_user_id.into();
         let now = Utc::now();
 
         let result = sqlx::query(
@@ -2017,7 +2019,7 @@ impl CoachesManager {
         )
         .bind(PublishStatus::Rejected.as_str())
         .bind(now.to_rfc3339())
-        .bind(admin_user_id.to_string())
+        .bind(admin_user_id.map(|id| id.to_string()))
         .bind(reason)
         .bind(coach_id)
         .bind(tenant_id)

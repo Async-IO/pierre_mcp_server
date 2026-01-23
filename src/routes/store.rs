@@ -55,7 +55,7 @@ pub struct SearchCoachesQuery {
 }
 
 /// A published coach for the Store API (subset of full Coach)
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StoreCoach {
     /// Unique coach identifier
     pub id: Uuid,
@@ -100,7 +100,7 @@ impl From<Coach> for StoreCoach {
 }
 
 /// Full coach details for the Store (includes system prompt)
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StoreCoachDetail {
     /// Basic store coach info
     #[serde(flatten)]
@@ -125,7 +125,7 @@ impl From<Coach> for StoreCoachDetail {
 }
 
 /// Category with coach count
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CategoryCount {
     /// Category identifier
     pub category: CoachCategory,
@@ -136,7 +136,7 @@ pub struct CategoryCount {
 }
 
 /// Response for browse endpoint
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct BrowseCoachesResponse {
     /// List of coaches
     pub coaches: Vec<StoreCoach>,
@@ -147,7 +147,7 @@ pub struct BrowseCoachesResponse {
 }
 
 /// Response for search endpoint
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SearchCoachesResponse {
     /// Search results
     pub coaches: Vec<StoreCoach>,
@@ -158,7 +158,7 @@ pub struct SearchCoachesResponse {
 }
 
 /// Response for categories endpoint
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CategoriesResponse {
     /// Categories with counts
     pub categories: Vec<CategoryCount>,
@@ -167,7 +167,7 @@ pub struct CategoriesResponse {
 }
 
 /// Response metadata
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct StoreMetadata {
     /// Response timestamp
     pub timestamp: String,
@@ -523,7 +523,7 @@ impl StoreRoutes {
 }
 
 /// Response for install endpoint
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct InstallCoachResponse {
     /// Success message
     pub message: String,
@@ -534,7 +534,7 @@ pub struct InstallCoachResponse {
 }
 
 /// Response for uninstall endpoint
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct UninstallCoachResponse {
     /// Success message
     pub message: String,
@@ -545,7 +545,7 @@ pub struct UninstallCoachResponse {
 }
 
 /// Response for installations list endpoint
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct InstallationsResponse {
     /// User's installed coaches
     pub coaches: Vec<StoreCoach>,
