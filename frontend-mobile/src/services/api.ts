@@ -162,12 +162,16 @@ class ApiService {
   }
 
   async storeAuth(token: string, csrfToken: string, user: User) {
+    // Validate token before storing - prevents cryptic AsyncStorage errors
+    if (!token) {
+      throw new Error('Authentication failed: Server did not return an access token. Please check that the Pierre server is running on the correct port.');
+    }
     this.jwtToken = token;
     this.csrfToken = csrfToken;
     this.userId = user.user_id;
     await Promise.all([
       AsyncStorage.setItem(STORAGE_KEYS.JWT_TOKEN, token),
-      AsyncStorage.setItem(STORAGE_KEYS.CSRF_TOKEN, csrfToken),
+      AsyncStorage.setItem(STORAGE_KEYS.CSRF_TOKEN, csrfToken || ''),
       AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user)),
     ]);
   }
