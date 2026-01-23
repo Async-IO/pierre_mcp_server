@@ -237,14 +237,15 @@ impl StoreRoutes {
         resources: &Arc<ServerResources>,
         user_id: Uuid,
     ) -> Result<String, AppError> {
-        let user = resources
+        let tenants = resources
             .database
-            .get_user(user_id)
+            .list_tenants_for_user(user_id)
             .await
-            .map_err(|e| AppError::database(format!("Failed to get user {user_id}: {e}")))?
-            .ok_or_else(|| AppError::not_found(format!("User {user_id}")))?;
+            .map_err(|e| {
+                AppError::database(format!("Failed to get tenants for user {user_id}: {e}"))
+            })?;
 
-        user.tenant_id.ok_or_else(|| {
+        tenants.first().map(|t| t.id.to_string()).ok_or_else(|| {
             AppError::invalid_input(format!("User {user_id} has no tenant assigned"))
         })
     }

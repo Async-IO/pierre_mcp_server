@@ -163,12 +163,8 @@ impl LlmSettingsRoutes {
         user_id: Uuid,
         resources: &Arc<ServerResources>,
     ) -> Result<Uuid, AppError> {
-        let user = resources.database.get_user(user_id).await?;
-        let tenant_str = user
-            .and_then(|u| u.tenant_id)
-            .unwrap_or_else(|| user_id.to_string());
-        Uuid::parse_str(&tenant_str)
-            .map_err(|e| AppError::internal(format!("Invalid tenant ID: {e}")))
+        let tenants = resources.database.list_tenants_for_user(user_id).await?;
+        Ok(tenants.first().map_or(user_id, |t| t.id))
     }
 
     /// Get current LLM settings for the authenticated user

@@ -64,7 +64,6 @@ async fn create_test_user(db: &Database) -> Uuid {
         last_active: Utc::now(),
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_owned()),
         firebase_uid: None,
         auth_provider: String::new(),
     };
@@ -328,7 +327,6 @@ async fn test_database_trait_abstraction() {
                 approved_at: Some(chrono::Utc::now()),
                 strava_token: None,
                 fitbit_token: None,
-                tenant_id: Some("test-tenant".to_owned()),
                 firebase_uid: None,
                 auth_provider: String::new(),
             };
@@ -377,7 +375,6 @@ async fn test_system_stats() {
             approved_at: Some(chrono::Utc::now()),
             strava_token: None,
             fitbit_token: None,
-            tenant_id: Some("test-tenant".to_owned()),
             firebase_uid: None,
             auth_provider: String::new(),
         };

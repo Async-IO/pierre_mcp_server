@@ -569,7 +569,7 @@ impl AuthService {
             .as_deref()
             .unwrap_or_else(|| email.split('@').next().unwrap_or("user"));
 
-        // Step 1: Create user first (without tenant_id) - required for tenant FK constraint
+        // Step 1: Create user first - tenant membership managed via tenant_users table
         let now = Utc::now();
         let new_user = User {
             id: user_id,
@@ -577,7 +577,6 @@ impl AuthService {
             display_name: claims.name.clone(),
             password_hash: "!firebase-auth-only!".to_owned(),
             tier: UserTier::Starter,
-            tenant_id: None,
             strava_token: None,
             fitbit_token: None,
             created_at: now,
@@ -594,23 +593,12 @@ impl AuthService {
 
         self.data.database().create_user(&new_user).await?;
 
-        // Step 2: Create personal tenant (owner_user_id FK now satisfied)
-        let tenant_id = self
-            .create_personal_tenant(user_id, display_name, tiers::STARTER)
+        // Step 2: Create personal tenant (adds user to tenant_users as owner)
+        self.create_personal_tenant(user_id, display_name, tiers::STARTER)
             .await?;
-
-        // Step 3: Link user to tenant
-        self.data
-            .database()
-            .update_user_tenant_id(user_id, &tenant_id.to_string())
-            .await?;
-
-        // Return user with updated tenant_id
-        let mut user_with_tenant = new_user;
-        user_with_tenant.tenant_id = Some(tenant_id.to_string());
 
         info!(firebase_uid = %claims.sub, user_id = %user_id, "Firebase user registered");
-        Ok(user_with_tenant)
+        Ok(new_user)
     }
 
     /// Validate that user is allowed to login
@@ -931,6 +919,8 @@ impl OAuthService {
     }
 
     /// Get user and tenant from database
+    ///
+    /// Tenant is determined from the `tenant_users` junction table.
     async fn get_user_and_tenant(
         &self,
         user_id: uuid::Uuid,
@@ -949,17 +939,19 @@ impl OAuthService {
                 AppError::not_found("User")
             })?;
 
-        let tenant_id = user
-            .tenant_id
-            .as_ref()
-            .ok_or_else(|| {
-                error!(
-                    "OAuth callback failed: Missing tenant - user_id: {}, email: {}, provider: {}",
-                    user.id, user.email, provider
-                );
-                AppError::invalid_input("User has no tenant")
-            })?
-            .clone(); // Safe: Uuid ownership for return value
+        // Get tenant from tenant_users table (user's default/first tenant)
+        let tenants = database
+            .list_tenants_for_user(user_id)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user tenants: {e}")))?;
+
+        let tenant_id = tenants.first().map(|t| t.id.to_string()).ok_or_else(|| {
+            error!(
+                "OAuth callback failed: Missing tenant - user_id: {}, email: {}, provider: {}",
+                user.id, user.email, provider
+            );
+            AppError::invalid_input("User has no tenant")
+        })?;
 
         Ok((user, tenant_id))
     }
@@ -1255,20 +1247,22 @@ impl OAuthService {
         // Validate provider is supported
         self.validate_provider(provider)?;
 
-        // Get user to find tenant_id
-        let user = self
+        // Get user's default tenant from tenant_users table
+        let tenants = self
             .data
             .database()
-            .get_user(user_id)
+            .list_tenants_for_user(user_id)
             .await
-            .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
-            .ok_or_else(|| AppError::not_found("User"))?;
-        let tenant_id = user.tenant_id.as_deref().unwrap_or("default");
+            .map_err(|e| AppError::database(format!("Failed to get user tenants: {e}")))?;
+
+        let tenant_id = tenants
+            .first()
+            .map_or_else(|| "default".to_owned(), |t| t.id.to_string());
 
         // Delete OAuth tokens from database
         self.data
             .database()
-            .delete_user_oauth_token(user_id, tenant_id, provider)
+            .delete_user_oauth_token(user_id, &tenant_id, provider)
             .await
             .map_err(|e| AppError::database(format!("Failed to delete OAuth token: {e}")))?;
 
@@ -2237,22 +2231,26 @@ impl AuthRoutes {
         }
     }
 
-    /// Extract tenant ID from user, falling back to `user_id` if no tenant
-    fn extract_tenant_id(user: &User, user_id: uuid::Uuid) -> Result<uuid::Uuid, AppError> {
-        let Some(tid) = &user.tenant_id else {
-            debug!(user_id = %user_id, "User has no tenant_id - using user_id as tenant");
-            return Ok(user_id);
-        };
+    /// Extract tenant ID from user's tenant memberships, falling back to `user_id` if no tenant
+    ///
+    /// NOTE: This is a helper that requires tenant info to be pre-fetched from `tenant_users` table.
+    /// For async contexts, use the database method `list_tenants_for_user` directly.
+    async fn extract_tenant_id_from_database(
+        database: &Database,
+        user_id: uuid::Uuid,
+    ) -> Result<uuid::Uuid, AppError> {
+        let tenants = database
+            .list_tenants_for_user(user_id)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user tenants: {e}")))?;
 
-        uuid::Uuid::parse_str(tid.as_str()).map_err(|e| {
-            error!(
-                user_id = %user_id,
-                tenant_id_str = %tid,
-                error = ?e,
-                "Invalid tenant_id format in database - tenant isolation compromised"
-            );
-            AppError::internal("User tenant configuration is invalid - please contact support")
-        })
+        tenants.first().map_or_else(
+            || {
+                debug!(user_id = %user_id, "User has no tenants - using user_id as tenant");
+                Ok(user_id)
+            },
+            |tenant| Ok(tenant.id),
+        )
     }
 
     /// Handle OAuth authorization initiation (Axum)
@@ -2275,8 +2273,9 @@ impl AuthRoutes {
         );
 
         let user_id = Self::parse_user_id(&user_id_str)?;
-        let user = Self::get_user_for_oauth(&resources.database, user_id).await?;
-        let tenant_id = Self::extract_tenant_id(&user, user_id)?;
+        // Verify user exists
+        Self::get_user_for_oauth(&resources.database, user_id).await?;
+        let tenant_id = Self::extract_tenant_id_from_database(&resources.database, user_id).await?;
 
         let server_context = ServerContext::from(resources.as_ref());
         let oauth_service = OAuthService::new(
@@ -2356,8 +2355,9 @@ impl AuthRoutes {
             }
         }
 
-        let user = Self::get_user_for_oauth(&resources.database, user_id).await?;
-        let tenant_id = Self::extract_tenant_id(&user, user_id)?;
+        // Verify user exists
+        Self::get_user_for_oauth(&resources.database, user_id).await?;
+        let tenant_id = Self::extract_tenant_id_from_database(&resources.database, user_id).await?;
 
         // Build OAuth state with optional redirect URL
         let state = redirect_url.map_or_else(

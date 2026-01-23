@@ -71,7 +71,6 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthService, OAuthSe
         display_name: Some("Admin".to_owned()),
         password_hash: "hash".to_owned(),
         tier: UserTier::Starter,
-        tenant_id: None,
         strava_token: None,
         fitbit_token: None,
         created_at: chrono::Utc::now(),

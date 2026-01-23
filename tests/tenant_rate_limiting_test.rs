@@ -65,7 +65,6 @@ fn create_test_user(tier: UserTier) -> User {
         tier,
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_owned()),
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,

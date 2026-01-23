@@ -800,7 +800,6 @@ async fn test_login_with_correct_credentials() {
         display_name: Some("Test Admin".to_owned()),
         password_hash: "$2b$10$hashedpassword".to_owned(),
         tier: UserTier::Enterprise,
-        tenant_id: Some("test-tenant".to_owned()),
         strava_token: None,
         fitbit_token: None,
         is_active: true,

@@ -53,7 +53,6 @@ async fn test_mcp_request_processing_flow() -> Result<()> {
         approved_at: Some(chrono::Utc::now()),
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_owned()),
         firebase_uid: None,
         auth_provider: String::new(),
     };
@@ -104,7 +103,6 @@ async fn test_model_serialization_coverage() -> Result<()> {
             scope: "read,activity:read_all".to_owned(),
         }),
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_owned()),
         firebase_uid: None,
         auth_provider: String::new(),
     };
@@ -149,7 +147,6 @@ async fn test_admin_auth_flow() -> Result<()> {
         approved_at: Some(chrono::Utc::now()),
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_owned()),
         firebase_uid: None,
         auth_provider: String::new(),
     };
@@ -198,7 +195,6 @@ async fn test_mcp_multitenant_request_routing() -> Result<()> {
             approved_at: Some(chrono::Utc::now()),
             strava_token: None,
             fitbit_token: None,
-            tenant_id: Some("test-tenant".to_owned()),
             firebase_uid: None,
             auth_provider: String::new(),
         };
@@ -244,7 +240,6 @@ async fn test_production_database_scenarios() -> Result<()> {
         approved_at: Some(chrono::Utc::now()),
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_owned()),
         firebase_uid: None,
         auth_provider: String::new(),
     };
@@ -269,7 +264,6 @@ async fn test_production_database_scenarios() -> Result<()> {
         approved_at: Some(chrono::Utc::now()),
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_owned()),
         firebase_uid: None,
         auth_provider: String::new(),
     };
@@ -303,7 +297,6 @@ async fn test_production_rate_limiting() -> Result<()> {
         approved_at: Some(chrono::Utc::now()),
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_owned()),
         firebase_uid: None,
         auth_provider: String::new(),
     };

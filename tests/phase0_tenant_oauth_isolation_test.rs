@@ -59,7 +59,6 @@ async fn create_test_user(database: &Database, email: &str, tenant_id: Uuid) -> 
         tier: UserTier::Professional,
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some(tenant_id.to_string()),
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
@@ -72,6 +71,10 @@ async fn create_test_user(database: &Database, email: &str, tenant_id: Uuid) -> 
         auth_provider: String::new(),
     };
     database.create_user(&user).await?;
+    // Associate user with tenant via tenant_users junction table
+    database
+        .update_user_tenant_id(user_id, &tenant_id.to_string())
+        .await?;
     Ok(user_id)
 }
 

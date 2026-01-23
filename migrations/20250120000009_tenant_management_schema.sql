@@ -1,5 +1,9 @@
 -- ABOUTME: Tenant management schema migration for SQLite and PostgreSQL
 -- ABOUTME: Creates tables for multi-tenant architecture including tenants, OAuth credentials, OAuth apps, key versions, audit events, tenant users, and user configurations
+--
+-- FOLLOW-UP REQUIRED (ASY-176): The legacy `users.tenant_id` column should be dropped
+-- in a future migration. The `tenant_users` junction table is now the source of truth
+-- for user-tenant relationships. See tenant_users table below for the new model.
 
 -- Tenants Table
 CREATE TABLE IF NOT EXISTS tenants (

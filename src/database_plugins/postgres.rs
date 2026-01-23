@@ -310,7 +310,7 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(&user.display_name)
         .bind(&user.password_hash)
         .bind(shared::enums::user_tier_to_str(&user.tier))
-        .bind(&user.tenant_id)
+        .bind(None::<Option<String>>) // tenant_id is now managed via tenant_users table
         .bind(user.is_active)
         .bind(user.is_admin)
         .bind(shared::enums::user_role_to_str(&user.role))
@@ -359,7 +359,6 @@ impl DatabaseProvider for PostgresDatabase {
                             _ => UserTier::Starter,
                         }
                     },
-                    tenant_id: row.get("tenant_id"),
                     strava_token: None, // Tokens are loaded separately
                     fitbit_token: None, // Tokens are loaded separately
                     is_active: row.get("is_active"),
@@ -416,7 +415,6 @@ impl DatabaseProvider for PostgresDatabase {
                             _ => UserTier::Starter,
                         }
                     },
-                    tenant_id: row.get("tenant_id"),
                     strava_token: None, // Tokens are loaded separately
                     fitbit_token: None, // Tokens are loaded separately
                     is_active: row.get("is_active"),
@@ -480,7 +478,6 @@ impl DatabaseProvider for PostgresDatabase {
                             _ => UserTier::Starter,
                         }
                     },
-                    tenant_id: row.get("tenant_id"),
                     strava_token: None,
                     fitbit_token: None,
                     is_active: row.get("is_active"),
@@ -537,7 +534,6 @@ impl DatabaseProvider for PostgresDatabase {
                             _ => UserTier::Starter,
                         }
                     },
-                    tenant_id: row.get("tenant_id"),
                     strava_token: None, // Tokens are loaded separately
                     fitbit_token: None, // Tokens are loaded separately
                     is_active: row.get("is_active"),
@@ -638,7 +634,6 @@ impl DatabaseProvider for PostgresDatabase {
                         _ => UserTier::Starter,
                     }
                 },
-                tenant_id: row.get("tenant_id"),
                 strava_token: None,
                 fitbit_token: None,
                 is_active: row.get("is_active"),
@@ -3243,7 +3238,7 @@ impl DatabaseProvider for PostgresDatabase {
             JOIN tenant_users tu ON t.id = tu.tenant_id
             JOIN tenant_users owner ON t.id = owner.tenant_id AND owner.role = 'owner'
             WHERE tu.user_id = $1 AND t.is_active = true
-            ORDER BY t.created_at DESC
+            ORDER BY tu.joined_at ASC
             ",
         )
         .bind(user_id)

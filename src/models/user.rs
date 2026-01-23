@@ -134,6 +134,10 @@ impl Display for UserStatus {
 ///
 /// Users are authenticated through `OAuth` providers and have encrypted tokens
 /// stored securely for accessing their fitness data.
+///
+/// Multi-tenant membership is managed via the `tenant_users` junction table,
+/// allowing users to belong to multiple tenants (like Slack workspaces).
+/// The active tenant context is determined per-session via JWT claims.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
     /// Unique user identifier
@@ -146,8 +150,6 @@ pub struct User {
     pub password_hash: String,
     /// User tier for rate limiting
     pub tier: UserTier,
-    /// Tenant this user belongs to for multi-tenant architecture
-    pub tenant_id: Option<String>,
     /// Encrypted Strava tokens
     pub strava_token: Option<EncryptedToken>,
     /// Encrypted Fitbit tokens
@@ -176,6 +178,8 @@ pub struct User {
 
 impl User {
     /// Create a new user with the given email and password hash
+    ///
+    /// Tenant membership is managed separately via the `tenant_users` table.
     #[must_use]
     pub fn new(email: String, password_hash: String, display_name: Option<String>) -> Self {
         let now = Utc::now();
@@ -185,7 +189,6 @@ impl User {
             display_name,
             password_hash,
             tier: UserTier::Starter, // Default to starter tier
-            tenant_id: None,         // No tenant assigned until approval
             strava_token: None,
             fitbit_token: None,
             created_at: now,

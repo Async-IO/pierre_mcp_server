@@ -795,13 +795,13 @@ async fn update_existing_admin_user(
         UserRole::Admin
     };
 
+    // NOTE: tenant_id is managed via tenant_users junction table, not on User struct
     let updated_user = User {
         id: existing_user.id,
         email: email.to_owned(),
         display_name: Some(name.to_owned()),
         password_hash: hash(password, DEFAULT_COST)?,
         tier: UserTier::Enterprise,
-        tenant_id: existing_user.tenant_id,
         strava_token: existing_user.strava_token,
         fitbit_token: existing_user.fitbit_token,
         is_active: true,
@@ -904,13 +904,13 @@ fn build_admin_user(
     name: &str,
     role: UserRole,
 ) -> User {
+    // NOTE: tenant_id is managed via tenant_users junction table, not on User struct
     User {
         id: user_id,
         email: email.to_owned(),
         display_name: Some(name.to_owned()),
         password_hash,
         tier: UserTier::Enterprise,
-        tenant_id: None,
         strava_token: None,
         fitbit_token: None,
         is_active: true,

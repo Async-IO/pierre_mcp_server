@@ -34,17 +34,17 @@ impl Database {
                 ));
             }
             // Update existing user (tokens are stored in user_oauth_tokens table)
+            // NOTE: tenant_id is no longer stored on User - use tenant_users junction table
             sqlx::query(
                 r"
                 UPDATE users SET
                     display_name = $2,
                     password_hash = $3,
                     tier = $4,
-                    tenant_id = $5,
-                    is_active = $6,
-                    user_status = $7,
-                    approved_by = $8,
-                    approved_at = $9,
+                    is_active = $5,
+                    user_status = $6,
+                    approved_by = $7,
+                    approved_at = $8,
                     last_active = CURRENT_TIMESTAMP
                 WHERE id = $1
                 ",
@@ -53,7 +53,6 @@ impl Database {
             .bind(&user.display_name)
             .bind(&user.password_hash)
             .bind(user.tier.as_str())
-            .bind(&user.tenant_id)
             .bind(user.is_active)
             .bind(shared::enums::user_status_to_str(&user.user_status))
             .bind(user.approved_by.map(|id| id.to_string()))
@@ -63,13 +62,14 @@ impl Database {
             .map_err(|e| AppError::database(format!("Failed to update user: {e}")))?;
         } else {
             // Insert new user (tokens are stored in user_oauth_tokens table)
+            // NOTE: tenant_id is no longer stored on User - use tenant_users junction table
             sqlx::query(
                 r"
                 INSERT INTO users (
-                    id, email, display_name, password_hash, tier, tenant_id,
+                    id, email, display_name, password_hash, tier,
                     is_active, user_status, is_admin, approved_by, approved_at,
                     created_at, last_active, firebase_uid, auth_provider
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
                 ",
             )
             .bind(user.id.to_string())
@@ -77,7 +77,6 @@ impl Database {
             .bind(&user.display_name)
             .bind(&user.password_hash)
             .bind(user.tier.as_str())
-            .bind(&user.tenant_id)
             .bind(user.is_active)
             .bind(shared::enums::user_status_to_str(&user.user_status))
             .bind(user.is_admin)
@@ -138,9 +137,10 @@ impl Database {
 
     /// Internal implementation for getting a user
     async fn get_user_by_field(&self, field: &str, value: &str) -> AppResult<Option<User>> {
+        // NOTE: tenant_id is no longer stored on User - use tenant_users junction table
         let query = format!(
             r"
-            SELECT id, email, display_name, password_hash, tier, tenant_id,
+            SELECT id, email, display_name, password_hash, tier,
                    is_active, user_status, is_admin, approved_by, approved_at,
                    created_at, last_active, firebase_uid, auth_provider
             FROM users WHERE {field} = $1
@@ -163,13 +163,13 @@ impl Database {
 
     /// Convert a database row to a User struct
     /// OAuth tokens are loaded separately via `user_oauth_tokens` table
+    /// Tenant membership is loaded separately via `tenant_users` table
     fn row_to_user(row: &SqliteRow) -> AppResult<User> {
         let id: String = row.get("id");
         let email: String = row.get("email");
         let display_name: Option<String> = row.get("display_name");
         let password_hash: String = row.get("password_hash");
         let tier: String = row.get("tier");
-        let tenant_id: Option<String> = row.get("tenant_id");
         let is_active: bool = row.get("is_active");
         let user_status_str: String = row.get("user_status");
         let user_status = shared::enums::str_to_user_status(&user_status_str);
@@ -207,7 +207,6 @@ impl Database {
             tier: tier
                 .parse()
                 .map_err(|e| AppError::internal(format!("Failed to parse tier: {e}")))?,
-            tenant_id,
             strava_token: None, // Loaded separately via user_oauth_tokens
             fitbit_token: None, // Loaded separately via user_oauth_tokens
             is_active,

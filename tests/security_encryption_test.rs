@@ -365,7 +365,7 @@ fn test_audit_security_headers_empty() {
 fn test_encryption_metadata_serialization() {
     let metadata = EncryptionMetadata {
         key_version: 3,
-        tenant_id: Some(Uuid::new_v4()),
+        tenant_id: None,
         algorithm: "AES-256-GCM".to_owned(),
         encrypted_at: chrono::Utc::now(),
     };
@@ -412,7 +412,7 @@ fn test_decrypt_invalid_base64_data() {
         data: "not-valid-base64!!!".to_owned(),
         metadata: EncryptionMetadata {
             key_version: 1,
-            tenant_id: Some(tenant_id),
+            tenant_id: None,
             algorithm: "AES-256-GCM".to_owned(),
             encrypted_at: chrono::Utc::now(),
         },
@@ -433,7 +433,7 @@ fn test_decrypt_truncated_data() {
         data: "AQIDBA==".to_owned(), // Only 4 bytes
         metadata: EncryptionMetadata {
             key_version: 1,
-            tenant_id: Some(tenant_id),
+            tenant_id: None,
             algorithm: "AES-256-GCM".to_owned(),
             encrypted_at: chrono::Utc::now(),
         },

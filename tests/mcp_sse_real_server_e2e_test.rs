@@ -181,7 +181,6 @@ impl TestServer {
             display_name: Some("Test User".to_owned()),
             password_hash,
             tier: UserTier::Starter,
-            tenant_id: None,
             strava_token: None,
             fitbit_token: None,
             is_active: true,

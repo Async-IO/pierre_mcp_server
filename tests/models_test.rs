@@ -287,7 +287,6 @@ fn test_user_creation_with_required_fields() {
         display_name: Some("Test User".to_owned()),
         password_hash: "hashed_password".to_owned(),
         tier: UserTier::Professional,
-        tenant_id: Some("test-tenant".to_owned()),
         strava_token: None,
         fitbit_token: None,
         is_active: true,
@@ -320,7 +319,6 @@ fn test_user_serialization_roundtrip() {
         display_name: Some("Test User".to_owned()),
         password_hash: "hashed_password".to_owned(),
         tier: UserTier::Enterprise,
-        tenant_id: Some("test-tenant".to_owned()),
         strava_token: Some(EncryptedToken {
             access_token: "encrypted_access_token".to_owned(),
             refresh_token: "encrypted_refresh_token".to_owned(),
@@ -487,7 +485,6 @@ fn test_user_with_encrypted_tokens() {
         display_name: Some("Token User".to_owned()),
         password_hash: "secure_hash".to_owned(),
         tier: UserTier::Professional,
-        tenant_id: Some("tenant-123".to_owned()),
         strava_token: Some(EncryptedToken {
             access_token: "strava_encrypted_access".to_owned(),
             refresh_token: "strava_encrypted_refresh".to_owned(),

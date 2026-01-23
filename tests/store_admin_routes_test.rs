@@ -72,8 +72,10 @@ impl StoreAdminTestSetup {
 
         // Create test user
         let (user_id, _user) = common::create_test_user(&database).await?;
-        let stored_user = database.get_user(user_id).await?.unwrap();
-        let tenant_id = stored_user.tenant_id.clone().unwrap();
+        let tenants = database.list_tenants_for_user(user_id).await?;
+        let tenant_id = tenants
+            .first()
+            .map_or_else(|| user_id.to_string(), |t| t.id.to_string());
 
         // Create JWT manager
         let jwt_manager = AdminJwtManager::new();

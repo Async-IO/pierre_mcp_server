@@ -197,17 +197,22 @@ impl McpTool for ConnectProviderTool {
         }
 
         // Get user and build tenant context
-        let user = database.get_user(context.user_id).await?.ok_or_else(|| {
+        // Verify user exists
+        database.get_user(context.user_id).await?.ok_or_else(|| {
             AppError::new(
                 ErrorCode::ResourceNotFound,
                 format!("User {} not found", context.user_id),
             )
         })?;
 
+        // Get user's tenant from tenant_users junction table
+        let tenants = database.list_tenants_for_user(context.user_id).await.ok();
+        let user_tenant_id = tenants.and_then(|t| t.first().map(|tenant| tenant.id.to_string()));
+
         let tenant_context = build_tenant_context(
             database,
             context.user_id,
-            user.tenant_id.as_deref(),
+            user_tenant_id.as_deref(),
             context.tenant_id,
         )
         .await;

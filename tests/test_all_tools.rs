@@ -317,7 +317,6 @@ async fn create_test_user(executor: &UniversalToolExecutor) -> Result<(User, Ten
         display_name: Some("Test User".to_owned()),
         password_hash: "fake_hash_for_ci".to_owned(),
         tier: UserTier::Starter,
-        tenant_id: Some(tenant_id.to_string()),
         strava_token: None,
         fitbit_token: None,
         created_at: chrono::Utc::now(),

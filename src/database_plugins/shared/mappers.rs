@@ -69,6 +69,7 @@ where
         .map(|role_str| super::enums::str_to_user_role(&role_str))
         .unwrap_or(UserRole::User);
 
+    // NOTE: tenant_id is no longer stored on User - use tenant_users junction table
     Ok(User {
         id: row
             .try_get("id")
@@ -83,9 +84,6 @@ where
             AppError::database(format!("Failed to get column 'password_hash': {e}"))
         })?,
         tier,
-        tenant_id: row
-            .try_get("tenant_id")
-            .map_err(|e| AppError::database(format!("Failed to get column 'tenant_id': {e}")))?,
         strava_token: None, // Loaded separately via user_oauth_tokens
         fitbit_token: None,
         is_active: row

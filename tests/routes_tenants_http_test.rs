@@ -24,7 +24,7 @@ use pierre_mcp_server::{
     },
     database_plugins::DatabaseProvider,
     mcp::resources::ServerResources,
-    models::Tenant,
+    models::{Tenant, User},
     routes::tenants::TenantRoutes,
 };
 use serde_json::json;
@@ -442,4 +442,251 @@ async fn test_tenant_ownership() {
     let body: serde_json::Value = response.json();
     let tenants = body["tenants"].as_array().unwrap();
     assert!(tenants.iter().any(|t| t["slug"] == "owned-tenant"));
+}
+
+// ============================================================================
+// POST /tenants/switch - Tenant Switching Tests (ASY-176)
+// ============================================================================
+
+#[tokio::test]
+async fn test_switch_tenant_success() {
+    let setup = TenantTestSetup::new().await.expect("Setup failed");
+
+    // Create a tenant and add user as member
+    let tenant = Tenant {
+        id: uuid::Uuid::new_v4(),
+        name: "Switch Target Tenant".to_owned(),
+        slug: "switch-target".to_owned(),
+        domain: None,
+        plan: "starter".to_owned(),
+        owner_user_id: setup.user_id,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+
+    setup
+        .resources
+        .database
+        .create_tenant(&tenant)
+        .await
+        .expect("Failed to create tenant");
+
+    let routes = setup.routes();
+
+    // Switch to the tenant
+    let request_body = json!({
+        "tenant_id": tenant.id.to_string()
+    });
+
+    let response = AxumTestRequest::post("/tenants/switch")
+        .header("authorization", &setup.auth_header())
+        .json(&request_body)
+        .send(routes)
+        .await;
+
+    assert_eq!(response.status(), 200);
+
+    let body: serde_json::Value = response.json();
+    assert!(body["token"].is_string());
+    assert_eq!(body["active_tenant_id"], tenant.id.to_string());
+    assert_eq!(body["tenant_name"], "Switch Target Tenant");
+    assert!(body["role"].is_string());
+    assert!(body["expires_in"].is_number());
+}
+
+#[tokio::test]
+async fn test_switch_tenant_no_auth() {
+    let setup = TenantTestSetup::new().await.expect("Setup failed");
+    let routes = setup.routes();
+
+    let request_body = json!({
+        "tenant_id": uuid::Uuid::new_v4().to_string()
+    });
+
+    let response = AxumTestRequest::post("/tenants/switch")
+        .json(&request_body)
+        .send(routes)
+        .await;
+
+    assert_eq!(response.status(), 401);
+}
+
+#[tokio::test]
+async fn test_switch_tenant_invalid_auth() {
+    let setup = TenantTestSetup::new().await.expect("Setup failed");
+    let routes = setup.routes();
+
+    let request_body = json!({
+        "tenant_id": uuid::Uuid::new_v4().to_string()
+    });
+
+    let response = AxumTestRequest::post("/tenants/switch")
+        .header("authorization", "Bearer invalid_token_here")
+        .json(&request_body)
+        .send(routes)
+        .await;
+
+    assert_eq!(response.status(), 401);
+}
+
+#[tokio::test]
+async fn test_switch_tenant_invalid_tenant_id_format() {
+    let setup = TenantTestSetup::new().await.expect("Setup failed");
+    let routes = setup.routes();
+
+    let request_body = json!({
+        "tenant_id": "not-a-valid-uuid"
+    });
+
+    let response = AxumTestRequest::post("/tenants/switch")
+        .header("authorization", &setup.auth_header())
+        .json(&request_body)
+        .send(routes)
+        .await;
+
+    // Should return 400 for invalid input
+    assert_eq!(response.status(), 400);
+}
+
+#[tokio::test]
+async fn test_switch_tenant_non_member() {
+    let setup = TenantTestSetup::new().await.expect("Setup failed");
+    let routes = setup.routes();
+
+    // Create another user first (to satisfy foreign key constraint)
+    let other_user = User::new(
+        "other@example.com".to_owned(),
+        "password_hash".to_owned(),
+        Some("Other User".to_owned()),
+    );
+    setup
+        .resources
+        .database
+        .create_user(&other_user)
+        .await
+        .expect("Failed to create other user");
+
+    // Create a tenant owned by the other user
+    // create_tenant() auto-adds owner_user_id to tenant_users as owner
+    // Our test user is NOT added to tenant_users
+    let tenant = Tenant {
+        id: uuid::Uuid::new_v4(),
+        name: "Other User Tenant".to_owned(),
+        slug: "other-user-tenant".to_owned(),
+        domain: None,
+        plan: "starter".to_owned(),
+        owner_user_id: other_user.id,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+
+    setup
+        .resources
+        .database
+        .create_tenant(&tenant)
+        .await
+        .expect("Failed to create tenant");
+
+    // Try to switch to tenant that test user doesn't belong to
+    let request_body = json!({
+        "tenant_id": tenant.id.to_string()
+    });
+
+    let response = AxumTestRequest::post("/tenants/switch")
+        .header("authorization", &setup.auth_header())
+        .json(&request_body)
+        .send(routes)
+        .await;
+
+    // Should return 401 (auth invalid - not a member)
+    assert_eq!(response.status(), 401);
+}
+
+#[tokio::test]
+async fn test_switch_tenant_nonexistent() {
+    let setup = TenantTestSetup::new().await.expect("Setup failed");
+    let routes = setup.routes();
+
+    // Try to switch to a tenant that doesn't exist
+    let request_body = json!({
+        "tenant_id": uuid::Uuid::new_v4().to_string()
+    });
+
+    let response = AxumTestRequest::post("/tenants/switch")
+        .header("authorization", &setup.auth_header())
+        .json(&request_body)
+        .send(routes)
+        .await;
+
+    // Should return 401 (user not a member of non-existent tenant)
+    assert_eq!(response.status(), 401);
+}
+
+#[tokio::test]
+async fn test_switch_between_multiple_tenants() {
+    let setup = TenantTestSetup::new().await.expect("Setup failed");
+
+    // Create two tenants owned by test user
+    let tenant1 = Tenant {
+        id: uuid::Uuid::new_v4(),
+        name: "Tenant One".to_owned(),
+        slug: "tenant-one".to_owned(),
+        domain: None,
+        plan: "starter".to_owned(),
+        owner_user_id: setup.user_id,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+
+    let tenant2 = Tenant {
+        id: uuid::Uuid::new_v4(),
+        name: "Tenant Two".to_owned(),
+        slug: "tenant-two".to_owned(),
+        domain: None,
+        plan: "professional".to_owned(),
+        owner_user_id: setup.user_id,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+
+    setup
+        .resources
+        .database
+        .create_tenant(&tenant1)
+        .await
+        .expect("Failed to create tenant1");
+
+    setup
+        .resources
+        .database
+        .create_tenant(&tenant2)
+        .await
+        .expect("Failed to create tenant2");
+
+    let routes = setup.routes();
+
+    // Switch to tenant1
+    let request1 = json!({ "tenant_id": tenant1.id.to_string() });
+    let response1 = AxumTestRequest::post("/tenants/switch")
+        .header("authorization", &setup.auth_header())
+        .json(&request1)
+        .send(routes.clone())
+        .await;
+
+    assert_eq!(response1.status(), 200);
+    let body1: serde_json::Value = response1.json();
+    assert_eq!(body1["active_tenant_id"], tenant1.id.to_string());
+
+    // Switch to tenant2
+    let request2 = json!({ "tenant_id": tenant2.id.to_string() });
+    let response2 = AxumTestRequest::post("/tenants/switch")
+        .header("authorization", &setup.auth_header())
+        .json(&request2)
+        .send(routes)
+        .await;
+
+    assert_eq!(response2.status(), 200);
+    let body2: serde_json::Value = response2.json();
+    assert_eq!(body2["active_tenant_id"], tenant2.id.to_string());
+    assert_eq!(body2["tenant_name"], "Tenant Two");
 }

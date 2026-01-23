@@ -208,6 +208,14 @@ impl ImpersonationRoutes {
                 AppError::internal(format!("Failed to create impersonation session: {e}"))
             })?;
 
+        // Get target user's default tenant for impersonation session
+        let active_tenant_id = resources
+            .database
+            .list_tenants_for_user(target_user.id)
+            .await
+            .ok()
+            .and_then(|tenants| tenants.first().map(|t| t.id.to_string()));
+
         // Generate impersonation token (JWT with impersonation claims)
         let impersonation_token = resources
             .auth_manager
@@ -216,6 +224,7 @@ impl ImpersonationRoutes {
                 auth.user_id,
                 &session.id,
                 &resources.jwks_manager,
+                active_tenant_id,
             )
             .map_err(|e| {
                 AppError::internal(format!("Failed to generate impersonation token: {e}"))

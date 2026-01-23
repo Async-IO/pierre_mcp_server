@@ -23,14 +23,18 @@ pub enum TenantRole {
 }
 
 impl TenantRole {
-    /// Convert from database string
+    /// Convert from database string (case-insensitive)
+    ///
+    /// Handles role strings from the database with case-insensitive matching.
+    /// Maps "viewer" to `Member` for backward compatibility.
+    /// Unknown roles default to `Member` for security (least privilege).
     #[must_use]
     pub fn from_db_string(s: &str) -> Self {
-        match s {
+        match s.to_lowercase().as_str() {
             "owner" => Self::Owner,
             "admin" => Self::Admin,
             "billing" => Self::Billing,
-            "member" => Self::Member,
+            "member" | "viewer" => Self::Member,
             _ => {
                 // Log unknown role but fallback to member for security
                 warn!(

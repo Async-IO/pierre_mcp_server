@@ -40,7 +40,6 @@ fn generate_test_user() -> User {
         password_hash: "benchmark_hash_value".to_owned(),
         display_name: Some(format!("Bench User {counter}")),
         tier: UserTier::Starter,
-        tenant_id: None,
         strava_token: None,
         fitbit_token: None,
         created_at: chrono::Utc::now(),

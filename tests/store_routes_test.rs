@@ -113,8 +113,15 @@ async fn test_browse_store_with_published_coaches() {
     let resources = create_test_server_resources().await.unwrap();
     let (user_id, user) = create_test_user(&resources.database).await.unwrap();
 
-    let stored_user = resources.database.get_user(user_id).await.unwrap().unwrap();
-    let tenant_id = stored_user.tenant_id.as_deref().unwrap();
+    let tenants = resources
+        .database
+        .list_tenants_for_user(user_id)
+        .await
+        .unwrap();
+    let tenant_id = tenants
+        .first()
+        .map_or_else(|| user_id.to_string(), |t| t.id.to_string());
+    let tenant_id = tenant_id.as_str();
 
     // Create published coaches
     create_published_coach(
@@ -158,8 +165,15 @@ async fn test_browse_store_with_category_filter() {
     let resources = create_test_server_resources().await.unwrap();
     let (user_id, user) = create_test_user(&resources.database).await.unwrap();
 
-    let stored_user = resources.database.get_user(user_id).await.unwrap().unwrap();
-    let tenant_id = stored_user.tenant_id.as_deref().unwrap();
+    let tenants = resources
+        .database
+        .list_tenants_for_user(user_id)
+        .await
+        .unwrap();
+    let tenant_id = tenants
+        .first()
+        .map_or_else(|| user_id.to_string(), |t| t.id.to_string());
+    let tenant_id = tenant_id.as_str();
 
     create_published_coach(
         &resources,
@@ -202,8 +216,15 @@ async fn test_browse_store_with_pagination() {
     let resources = create_test_server_resources().await.unwrap();
     let (user_id, user) = create_test_user(&resources.database).await.unwrap();
 
-    let stored_user = resources.database.get_user(user_id).await.unwrap().unwrap();
-    let tenant_id = stored_user.tenant_id.as_deref().unwrap();
+    let tenants = resources
+        .database
+        .list_tenants_for_user(user_id)
+        .await
+        .unwrap();
+    let tenant_id = tenants
+        .first()
+        .map_or_else(|| user_id.to_string(), |t| t.id.to_string());
+    let tenant_id = tenant_id.as_str();
 
     // Create 5 coaches
     for i in 1..=5 {
@@ -250,8 +271,15 @@ async fn test_browse_store_sort_by_popular() {
     let resources = create_test_server_resources().await.unwrap();
     let (user_id, user) = create_test_user(&resources.database).await.unwrap();
 
-    let stored_user = resources.database.get_user(user_id).await.unwrap().unwrap();
-    let tenant_id = stored_user.tenant_id.as_deref().unwrap();
+    let tenants = resources
+        .database
+        .list_tenants_for_user(user_id)
+        .await
+        .unwrap();
+    let tenant_id = tenants
+        .first()
+        .map_or_else(|| user_id.to_string(), |t| t.id.to_string());
+    let tenant_id = tenant_id.as_str();
 
     let _coach1 = create_published_coach(
         &resources,
@@ -319,8 +347,15 @@ async fn test_get_coach_detail() {
     let resources = create_test_server_resources().await.unwrap();
     let (user_id, user) = create_test_user(&resources.database).await.unwrap();
 
-    let stored_user = resources.database.get_user(user_id).await.unwrap().unwrap();
-    let tenant_id = stored_user.tenant_id.as_deref().unwrap();
+    let tenants = resources
+        .database
+        .list_tenants_for_user(user_id)
+        .await
+        .unwrap();
+    let tenant_id = tenants
+        .first()
+        .map_or_else(|| user_id.to_string(), |t| t.id.to_string());
+    let tenant_id = tenant_id.as_str();
 
     let coach = create_published_coach(
         &resources,
@@ -385,8 +420,15 @@ async fn test_search_coaches() {
     let resources = create_test_server_resources().await.unwrap();
     let (user_id, user) = create_test_user(&resources.database).await.unwrap();
 
-    let stored_user = resources.database.get_user(user_id).await.unwrap().unwrap();
-    let tenant_id = stored_user.tenant_id.as_deref().unwrap();
+    let tenants = resources
+        .database
+        .list_tenants_for_user(user_id)
+        .await
+        .unwrap();
+    let tenant_id = tenants
+        .first()
+        .map_or_else(|| user_id.to_string(), |t| t.id.to_string());
+    let tenant_id = tenant_id.as_str();
 
     create_published_coach(
         &resources,
@@ -461,8 +503,15 @@ async fn test_list_categories() {
     let resources = create_test_server_resources().await.unwrap();
     let (user_id, user) = create_test_user(&resources.database).await.unwrap();
 
-    let stored_user = resources.database.get_user(user_id).await.unwrap().unwrap();
-    let tenant_id = stored_user.tenant_id.as_deref().unwrap();
+    let tenants = resources
+        .database
+        .list_tenants_for_user(user_id)
+        .await
+        .unwrap();
+    let tenant_id = tenants
+        .first()
+        .map_or_else(|| user_id.to_string(), |t| t.id.to_string());
+    let tenant_id = tenant_id.as_str();
 
     create_published_coach(
         &resources,
@@ -547,8 +596,15 @@ async fn test_install_coach() {
     let resources = create_test_server_resources().await.unwrap();
     let (user_id, _user) = create_test_user(&resources.database).await.unwrap();
 
-    let stored_user = resources.database.get_user(user_id).await.unwrap().unwrap();
-    let tenant_id = stored_user.tenant_id.as_deref().unwrap();
+    let tenants = resources
+        .database
+        .list_tenants_for_user(user_id)
+        .await
+        .unwrap();
+    let tenant_id = tenants
+        .first()
+        .map_or_else(|| user_id.to_string(), |t| t.id.to_string());
+    let tenant_id = tenant_id.as_str();
 
     let coach = create_published_coach(
         &resources,
@@ -587,8 +643,15 @@ async fn test_install_coach_already_installed() {
     let resources = create_test_server_resources().await.unwrap();
     let (user_id, _user) = create_test_user(&resources.database).await.unwrap();
 
-    let stored_user = resources.database.get_user(user_id).await.unwrap().unwrap();
-    let tenant_id = stored_user.tenant_id.as_deref().unwrap();
+    let tenants = resources
+        .database
+        .list_tenants_for_user(user_id)
+        .await
+        .unwrap();
+    let tenant_id = tenants
+        .first()
+        .map_or_else(|| user_id.to_string(), |t| t.id.to_string());
+    let tenant_id = tenant_id.as_str();
 
     let coach = create_published_coach(
         &resources,
@@ -643,8 +706,15 @@ async fn test_install_increments_install_count() {
     let resources = create_test_server_resources().await.unwrap();
     let (user_id, _user) = create_test_user(&resources.database).await.unwrap();
 
-    let stored_user = resources.database.get_user(user_id).await.unwrap().unwrap();
-    let tenant_id = stored_user.tenant_id.as_deref().unwrap();
+    let tenants = resources
+        .database
+        .list_tenants_for_user(user_id)
+        .await
+        .unwrap();
+    let tenant_id = tenants
+        .first()
+        .map_or_else(|| user_id.to_string(), |t| t.id.to_string());
+    let tenant_id = tenant_id.as_str();
 
     let coach = create_published_coach(
         &resources,
@@ -691,8 +761,15 @@ async fn test_uninstall_coach() {
     let resources = create_test_server_resources().await.unwrap();
     let (user_id, _user) = create_test_user(&resources.database).await.unwrap();
 
-    let stored_user = resources.database.get_user(user_id).await.unwrap().unwrap();
-    let tenant_id = stored_user.tenant_id.as_deref().unwrap();
+    let tenants = resources
+        .database
+        .list_tenants_for_user(user_id)
+        .await
+        .unwrap();
+    let tenant_id = tenants
+        .first()
+        .map_or_else(|| user_id.to_string(), |t| t.id.to_string());
+    let tenant_id = tenant_id.as_str();
 
     let source_coach = create_published_coach(
         &resources,
@@ -742,8 +819,15 @@ async fn test_uninstall_coach_not_from_store() {
     let resources = create_test_server_resources().await.unwrap();
     let (user_id, user) = create_test_user(&resources.database).await.unwrap();
 
-    let stored_user = resources.database.get_user(user_id).await.unwrap().unwrap();
-    let tenant_id = stored_user.tenant_id.as_deref().unwrap();
+    let tenants = resources
+        .database
+        .list_tenants_for_user(user_id)
+        .await
+        .unwrap();
+    let tenant_id = tenants
+        .first()
+        .map_or_else(|| user_id.to_string(), |t| t.id.to_string());
+    let tenant_id = tenant_id.as_str();
 
     // Create a regular coach (not from Store - no forked_from)
     let sqlite_pool = resources.database.sqlite_pool().unwrap().clone();
@@ -824,8 +908,15 @@ async fn test_list_installations() {
     let resources = create_test_server_resources().await.unwrap();
     let (user_id, _user) = create_test_user(&resources.database).await.unwrap();
 
-    let stored_user = resources.database.get_user(user_id).await.unwrap().unwrap();
-    let tenant_id = stored_user.tenant_id.as_deref().unwrap();
+    let tenants = resources
+        .database
+        .list_tenants_for_user(user_id)
+        .await
+        .unwrap();
+    let tenant_id = tenants
+        .first()
+        .map_or_else(|| user_id.to_string(), |t| t.id.to_string());
+    let tenant_id = tenant_id.as_str();
 
     let coach1 = create_published_coach(
         &resources,
@@ -889,13 +980,15 @@ async fn test_published_coaches_visible_cross_tenant() {
     let (user1_id, _user1) = create_test_user_with_email(&resources.database, "user1@example.com")
         .await
         .unwrap();
-    let stored_user1 = resources
+    let tenants1 = resources
         .database
-        .get_user(user1_id)
+        .list_tenants_for_user(user1_id)
         .await
-        .unwrap()
         .unwrap();
-    let tenant1_id = stored_user1.tenant_id.as_deref().unwrap();
+    let tenant1_id = tenants1
+        .first()
+        .map_or_else(|| user1_id.to_string(), |t| t.id.to_string());
+    let tenant1_id = tenant1_id.as_str();
 
     let coach = create_published_coach(
         &resources,
@@ -937,13 +1030,15 @@ async fn test_installations_isolated_per_user() {
     let (user1_id, _user1) = create_test_user_with_email(&resources.database, "user1@example.com")
         .await
         .unwrap();
-    let stored_user1 = resources
+    let tenants1 = resources
         .database
-        .get_user(user1_id)
+        .list_tenants_for_user(user1_id)
         .await
-        .unwrap()
         .unwrap();
-    let tenant1_id = stored_user1.tenant_id.as_deref().unwrap();
+    let tenant1_id = tenants1
+        .first()
+        .map_or_else(|| user1_id.to_string(), |t| t.id.to_string());
+    let tenant1_id = tenant1_id.as_str();
 
     let coach = create_published_coach(
         &resources,

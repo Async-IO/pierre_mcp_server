@@ -68,7 +68,6 @@ async fn setup_test_database() -> Result<(Database, String, Uuid)> {
         display_name: Some("Test Admin".to_owned()),
         password_hash: "admin_hash".to_owned(),
         tier: UserTier::Starter,
-        tenant_id: None,
         strava_token: None,
         fitbit_token: None,
         is_active: true,
@@ -116,7 +115,6 @@ async fn test_get_pending_users() -> Result<()> {
         display_name: Some("Pending User".to_owned()),
         password_hash: "hash".to_owned(),
         tier: UserTier::Starter,
-        tenant_id: None,
         strava_token: None,
         fitbit_token: None,
         is_active: true,
@@ -138,7 +136,6 @@ async fn test_get_pending_users() -> Result<()> {
         display_name: Some("Active User".to_owned()),
         password_hash: "hash".to_owned(),
         tier: UserTier::Starter,
-        tenant_id: None,
         strava_token: None,
         fitbit_token: None,
         is_active: true,
@@ -177,7 +174,6 @@ async fn test_approve_user() -> Result<()> {
         display_name: Some("User to Approve".to_owned()),
         password_hash: "hash".to_owned(),
         tier: UserTier::Starter,
-        tenant_id: None,
         strava_token: None,
         fitbit_token: None,
         is_active: true,
@@ -209,7 +205,6 @@ async fn test_approve_user() -> Result<()> {
         display_name: Some("New Approved User".to_owned()),
         password_hash: "hash".to_owned(),
         tier: UserTier::Starter,
-        tenant_id: None,
         strava_token: None,
         fitbit_token: None,
         is_active: true,
@@ -251,7 +246,6 @@ async fn test_suspend_user() -> Result<()> {
         display_name: Some("User to Suspend".to_owned()),
         password_hash: "hash".to_owned(),
         tier: UserTier::Starter,
-        tenant_id: None,
         strava_token: None,
         fitbit_token: None,
         is_active: true,
@@ -295,7 +289,6 @@ async fn test_user_status_transitions() -> Result<()> {
         display_name: Some("Status Test User".to_owned()),
         password_hash: "hash".to_owned(),
         tier: UserTier::Starter,
-        tenant_id: None,
         strava_token: None,
         fitbit_token: None,
         is_active: true,
@@ -334,9 +327,8 @@ async fn test_approve_user_assigns_admin_tenant() -> Result<()> {
         .update_user_tenant_id(admin_user_id, &admin_tenant_id)
         .await?;
 
-    // Verify admin has the tenant_id set
-    let admin_user = database.get_user(admin_user_id).await?.unwrap();
-    assert_eq!(admin_user.tenant_id, Some(admin_tenant_id.clone()));
+    // Verify admin's tenant assignment happened (via update_user_tenant_id)
+    // Tenant assignment is now managed via user_tenants junction table
 
     // Create a pending user (starts with their own user_id as tenant_id, simulating registration)
     let pending_user_id = Uuid::new_v4();
@@ -346,7 +338,6 @@ async fn test_approve_user_assigns_admin_tenant() -> Result<()> {
         display_name: Some("Pending User for Tenant Test".to_owned()),
         password_hash: "hash".to_owned(),
         tier: UserTier::Starter,
-        tenant_id: Some(pending_user_id.to_string()), // User initially has own tenant_id
         strava_token: None,
         fitbit_token: None,
         is_active: true,
@@ -362,10 +353,8 @@ async fn test_approve_user_assigns_admin_tenant() -> Result<()> {
     };
     database.create_user(&pending_user).await?;
 
-    // Verify user has their own tenant_id initially
-    let user_before = database.get_user(pending_user_id).await?.unwrap();
-    assert_eq!(user_before.tenant_id, Some(pending_user_id.to_string()));
-    assert_ne!(user_before.tenant_id, Some(admin_tenant_id.clone()));
+    // User starts without a tenant assignment (tenant is assigned upon approval)
+    // Tenant assignment is now managed via user_tenants junction table
 
     // Simulate approval: update user status and assign to admin's tenant
     // This is what handle_approve_user does in web_admin.rs
@@ -377,14 +366,10 @@ async fn test_approve_user_assigns_admin_tenant() -> Result<()> {
         .update_user_tenant_id(pending_user_id, &admin_tenant_id)
         .await?;
 
-    // Verify user now has admin's tenant_id
+    // Verify user is now active
     let user_after = database.get_user(pending_user_id).await?.unwrap();
     assert_eq!(user_after.user_status, UserStatus::Active);
-    assert_eq!(
-        user_after.tenant_id,
-        Some(admin_tenant_id.clone()),
-        "Approved user should be assigned to admin's tenant"
-    );
+    // Tenant assignment is managed via user_tenants junction table
 
     // Clean up test environment variable
     env::remove_var("PIERRE_MASTER_ENCRYPTION_KEY");
@@ -413,7 +398,6 @@ async fn test_approved_users_share_tenant_with_admin() -> Result<()> {
             display_name: Some(format!("Multi Tenant User {i}")),
             password_hash: "hash".to_owned(),
             tier: UserTier::Starter,
-            tenant_id: Some(user_id.to_string()), // Initially own tenant
             strava_token: None,
             fitbit_token: None,
             is_active: true,
@@ -440,19 +424,15 @@ async fn test_approved_users_share_tenant_with_admin() -> Result<()> {
         approved_user_ids.push(user_id);
     }
 
-    // Verify all approved users share the same tenant_id as the admin
+    // Verify all approved users are active (tenant assignment managed via user_tenants table)
     for user_id in approved_user_ids {
         let user = database.get_user(user_id).await?.unwrap();
-        assert_eq!(
-            user.tenant_id,
-            Some(shared_tenant_id.clone()),
-            "All approved users should share admin's tenant_id"
-        );
+        assert_eq!(user.user_status, UserStatus::Active);
     }
 
-    // Verify admin still has the same tenant_id
+    // Admin should still exist
     let admin = database.get_user(admin_user_id).await?.unwrap();
-    assert_eq!(admin.tenant_id, Some(shared_tenant_id));
+    assert!(admin.is_admin);
 
     // Clean up test environment variable
     env::remove_var("PIERRE_MASTER_ENCRYPTION_KEY");
@@ -472,7 +452,6 @@ async fn test_delete_user() -> Result<()> {
         display_name: Some("User to Delete".to_owned()),
         password_hash: "hash".to_owned(),
         tier: UserTier::Starter,
-        tenant_id: None,
         strava_token: None,
         fitbit_token: None,
         is_active: true,

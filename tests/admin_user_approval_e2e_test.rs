@@ -110,7 +110,6 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
         display_name: Some("Test User".to_owned()),
         password_hash: "hashed_password".to_owned(),
         tier: UserTier::Starter,
-        tenant_id: Some("test_tenant".to_owned()),
         strava_token: None,
         fitbit_token: None,
         is_active: true,
@@ -496,7 +495,6 @@ async fn create_test_pending_user(database: &Database) -> Result<uuid::Uuid> {
         display_name: Some("Test User".to_owned()),
         password_hash: "dummy_hash".to_owned(),
         tier: UserTier::Starter,
-        tenant_id: None,
         strava_token: None,
         fitbit_token: None,
         created_at: chrono::Utc::now(),
@@ -528,8 +526,10 @@ async fn verify_tenant_user_linkage(
     assert_eq!(created_tenant.plan, "starter");
     assert_eq!(created_tenant.owner_user_id, test_user_id);
 
-    let updated_user = database.get_user(test_user_id).await?.unwrap();
-    assert_eq!(updated_user.tenant_id, Some(tenant_id.to_string()));
+    // Tenant assignment is now managed via tenant_users junction table
+    // Verify the tenant exists and has correct owner
+    let created_tenant = database.get_tenant_by_id(tenant_id).await?;
+    assert_eq!(created_tenant.owner_user_id, test_user_id);
     Ok(())
 }
 

@@ -208,10 +208,23 @@ async fn assign_user_to_admin_tenant(
             AppError::internal("Admin user not found")
         })?;
 
-    if let Some(admin_tenant_id) = &admin_user.tenant_id {
+    // Get admin's tenant from tenant_users junction table
+    let admin_tenants = resources
+        .database
+        .list_tenants_for_user(admin_user.id)
+        .await
+        .map_err(|e| {
+            error!(error = %e, "Failed to get admin's tenants");
+            AppError::internal(format!("Failed to get admin tenants: {e}"))
+        })?;
+
+    if let Some(admin_tenant) = admin_tenants.first() {
+        // Legacy: Update user's tenant_id in users table for backward compatibility
+        // The tenant_users junction table is the source of truth, but we update both
+        // during the migration period
         resources
             .database
-            .update_user_tenant_id(target_user_id, admin_tenant_id)
+            .update_user_tenant_id(target_user_id, &admin_tenant.id.to_string())
             .await
             .map_err(|e| {
                 error!(error = %e, "Failed to assign user to admin's tenant");
@@ -219,7 +232,7 @@ async fn assign_user_to_admin_tenant(
             })?;
         info!(
             user_id = %target_user_id,
-            tenant_id = %admin_tenant_id,
+            tenant_id = %admin_tenant.id,
             "Assigned approved user to admin's tenant"
         );
     }

@@ -799,7 +799,7 @@ impl Database {
             JOIN tenant_users tu ON t.id = tu.tenant_id
             JOIN tenant_users owner ON t.id = owner.tenant_id AND owner.role = 'owner'
             WHERE tu.user_id = ? AND t.is_active = 1
-            ORDER BY t.created_at DESC
+            ORDER BY tu.joined_at ASC
             ",
         )
         .bind(user_id.to_string())

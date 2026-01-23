@@ -22,6 +22,7 @@
 #![allow(missing_docs)]
 
 use anyhow::Result;
+use pierre_mcp_server::database_plugins::DatabaseProvider;
 use pierre_mcp_server::protocols::universal::{UniversalRequest, UniversalToolExecutor};
 use serde_json::json;
 use std::sync::Arc;
@@ -46,10 +47,15 @@ async fn create_coach_test_executor() -> Result<Arc<UniversalToolExecutor>> {
 /// Uses common helper that properly creates both user and tenant with foreign key relationship
 async fn create_test_user_for_coaches(executor: &UniversalToolExecutor) -> Result<(Uuid, String)> {
     let email = format!("coach_test_{}@example.com", Uuid::new_v4());
-    let (user_id, user) =
+    let (user_id, _user) =
         common::create_test_user_with_email(&executor.resources.database, &email).await?;
-    let tenant_id = user.tenant_id.expect("User should have tenant_id set");
-    Ok((user_id, tenant_id))
+    // Get tenant_id from the tenant where user is owner
+    let all_tenants = executor.resources.database.get_all_tenants().await?;
+    let user_tenant = all_tenants
+        .iter()
+        .find(|t| t.owner_user_id == user_id)
+        .ok_or_else(|| anyhow::anyhow!("User should have a tenant"))?;
+    Ok((user_id, user_tenant.id.to_string()))
 }
 
 /// Create a test request with user ID and tenant ID

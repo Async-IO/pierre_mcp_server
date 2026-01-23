@@ -60,8 +60,7 @@ async fn create_authenticated_user(
     };
     database.create_tenant(&tenant).await?;
 
-    // Finally, update the user to associate with the tenant
-    user.tenant_id = Some(tenant_uuid.to_string());
+    // Finally, update the user to associate with the tenant via the database
     database
         .update_user_tenant_id(user_id, &tenant_uuid.to_string())
         .await?;
@@ -102,8 +101,7 @@ async fn create_authenticated_user_with_different_tenant(
     };
     database.create_tenant(&tenant).await?;
 
-    // Finally, update the user to associate with the tenant
-    user.tenant_id = Some(tenant_uuid.to_string());
+    // Finally, update the user to associate with the tenant via the database
     database
         .update_user_tenant_id(user_id, &tenant_uuid.to_string())
         .await?;

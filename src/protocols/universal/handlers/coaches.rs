@@ -987,7 +987,7 @@ pub fn handle_list_hidden_coaches(
 
 /// Verify admin access for a user
 ///
-/// Returns the user's `tenant_id` if authorized, error if not Admin/SuperAdmin
+/// Returns the user's default `tenant_id` if authorized, error if not Admin/SuperAdmin
 async fn verify_admin_access(
     executor: &UniversalToolExecutor,
     user_uuid: Uuid,
@@ -1007,8 +1007,15 @@ async fn verify_admin_access(
         ));
     }
 
-    // Return tenant_id for tenant-scoped operations
-    user.tenant_id.ok_or_else(|| {
+    // Get tenant_id from tenant_users junction table
+    let tenants = executor
+        .resources
+        .database
+        .list_tenants_for_user(user_uuid)
+        .await
+        .map_err(|e| ProtocolError::InternalError(format!("Failed to get user tenants: {e}")))?;
+
+    tenants.first().map(|t| t.id.to_string()).ok_or_else(|| {
         ProtocolError::InvalidRequest("User not associated with a tenant".to_owned())
     })
 }

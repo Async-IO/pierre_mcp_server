@@ -604,9 +604,14 @@ async fn test_system_coaches_visible_in_list() {
     let resources = create_test_server_resources().await.unwrap();
     let (user_id, user) = create_test_user(&resources.database).await.unwrap();
 
-    // Get the user's tenant_id (assigned during user creation)
-    let stored_user = resources.database.get_user(user_id).await.unwrap().unwrap();
-    let tenant_id = stored_user.tenant_id.as_deref().unwrap_or("default");
+    // Get the user's tenant from the tenant where they are the owner
+    let all_tenants = resources.database.get_all_tenants().await.unwrap();
+    let user_tenant = all_tenants
+        .iter()
+        .find(|t| t.owner_user_id == user_id)
+        .unwrap();
+    let tenant_id = user_tenant.id.to_string();
+    let tenant_id = tenant_id.as_str();
 
     // Create a system coach directly in the database
     let sqlite_pool = resources.database.sqlite_pool().unwrap().clone();
@@ -667,9 +672,14 @@ async fn test_get_system_coach_by_id() {
     let resources = create_test_server_resources().await.unwrap();
     let (user_id, user) = create_test_user(&resources.database).await.unwrap();
 
-    // Get the user's tenant_id
-    let stored_user = resources.database.get_user(user_id).await.unwrap().unwrap();
-    let tenant_id = stored_user.tenant_id.as_deref().unwrap_or("default");
+    // Get the user's tenant from the tenant where they are the owner
+    let all_tenants = resources.database.get_all_tenants().await.unwrap();
+    let user_tenant = all_tenants
+        .iter()
+        .find(|t| t.owner_user_id == user_id)
+        .unwrap();
+    let tenant_id = user_tenant.id.to_string();
+    let tenant_id = tenant_id.as_str();
 
     // Create a system coach
     let sqlite_pool = resources.database.sqlite_pool().unwrap().clone();
@@ -721,9 +731,14 @@ async fn test_hide_system_coach_via_api() {
     let resources = create_test_server_resources().await.unwrap();
     let (user_id, user) = create_test_user(&resources.database).await.unwrap();
 
-    // Get the user's tenant_id
-    let stored_user = resources.database.get_user(user_id).await.unwrap().unwrap();
-    let tenant_id = stored_user.tenant_id.as_deref().unwrap_or("default");
+    // Get the user's tenant from the tenant where they are the owner
+    let all_tenants = resources.database.get_all_tenants().await.unwrap();
+    let user_tenant = all_tenants
+        .iter()
+        .find(|t| t.owner_user_id == user_id)
+        .unwrap();
+    let tenant_id = user_tenant.id.to_string();
+    let tenant_id = tenant_id.as_str();
 
     // Create a system coach
     let sqlite_pool = resources.database.sqlite_pool().unwrap().clone();
@@ -782,9 +797,14 @@ async fn test_show_hidden_coach_via_api() {
     let resources = create_test_server_resources().await.unwrap();
     let (user_id, user) = create_test_user(&resources.database).await.unwrap();
 
-    // Get the user's tenant_id
-    let stored_user = resources.database.get_user(user_id).await.unwrap().unwrap();
-    let tenant_id = stored_user.tenant_id.as_deref().unwrap_or("default");
+    // Get the user's tenant from the tenant where they are the owner
+    let all_tenants = resources.database.get_all_tenants().await.unwrap();
+    let user_tenant = all_tenants
+        .iter()
+        .find(|t| t.owner_user_id == user_id)
+        .unwrap();
+    let tenant_id = user_tenant.id.to_string();
+    let tenant_id = tenant_id.as_str();
 
     // Create a system coach
     let sqlite_pool = resources.database.sqlite_pool().unwrap().clone();
@@ -849,9 +869,14 @@ async fn test_list_with_include_hidden() {
     let resources = create_test_server_resources().await.unwrap();
     let (user_id, user) = create_test_user(&resources.database).await.unwrap();
 
-    // Get the user's tenant_id
-    let stored_user = resources.database.get_user(user_id).await.unwrap().unwrap();
-    let tenant_id = stored_user.tenant_id.as_deref().unwrap_or("default");
+    // Get the user's tenant from the tenant where they are the owner
+    let all_tenants = resources.database.get_all_tenants().await.unwrap();
+    let user_tenant = all_tenants
+        .iter()
+        .find(|t| t.owner_user_id == user_id)
+        .unwrap();
+    let tenant_id = user_tenant.id.to_string();
+    let tenant_id = tenant_id.as_str();
 
     // Create a system coach
     let sqlite_pool = resources.database.sqlite_pool().unwrap().clone();

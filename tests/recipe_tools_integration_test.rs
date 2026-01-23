@@ -66,7 +66,7 @@ fn create_test_request(
         parameters,
         user_id: user_id.to_string(),
         protocol: "test".to_owned(),
-        tenant_id: Some(user_id.to_string()),
+        tenant_id: None,
         progress_token: None,
         cancellation_token: None,
         progress_reporter: None,

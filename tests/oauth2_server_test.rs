@@ -500,7 +500,7 @@ fn test_oauth2_state_creation() {
         state: "random_state_value".to_owned(),
         client_id: "client_123".to_owned(),
         user_id: Some(user_id),
-        tenant_id: Some("tenant_456".to_owned()),
+        tenant_id: None,
         redirect_uri: "https://app.com/callback".to_owned(),
         scope: Some("read".to_owned()),
         code_challenge: Some("challenge".to_owned()),

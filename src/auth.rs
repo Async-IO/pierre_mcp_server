@@ -135,7 +135,11 @@ impl Display for JwtValidationError {
 impl Error for JwtValidationError {}
 
 /// `JWT` claims for user authentication
-#[derive(Debug, Serialize, Deserialize)]
+///
+/// The `active_tenant_id` field represents the currently active tenant context
+/// for this session. Users can belong to multiple tenants (via `tenant_users` table)
+/// and switch between them by obtaining a new token with a different `active_tenant_id`.
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Claims {
     /// User `ID`
     pub sub: String,
@@ -153,15 +157,31 @@ pub struct Claims {
     pub providers: Vec<String>,
     /// Audience (who the token is intended for)
     pub aud: String,
-    /// Tenant `ID` (optional for backward compatibility with existing tokens)
+    /// Active tenant `ID` for this session (user can belong to multiple tenants)
+    /// This is the tenant context for all operations in this session.
+    /// Use POST /api/tenants/switch to change the active tenant.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub tenant_id: Option<String>,
+    pub active_tenant_id: Option<String>,
+    /// Legacy `tenant_id` field for backward compatibility with existing tokens
+    /// New tokens use `active_tenant_id` instead. This will be removed in future versions.
+    #[serde(skip_serializing_if = "Option::is_none", alias = "tenant_id")]
+    tenant_id: Option<String>,
     /// Original user ID when impersonating (the super admin)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub impersonator_id: Option<String>,
     /// Impersonation session ID for audit trail
     #[serde(skip_serializing_if = "Option::is_none")]
     pub impersonation_session_id: Option<String>,
+}
+
+impl Claims {
+    /// Get the effective tenant ID, preferring `active_tenant_id` over legacy `tenant_id`
+    #[must_use]
+    pub fn effective_tenant_id(&self) -> Option<&str> {
+        self.active_tenant_id
+            .as_deref()
+            .or(self.tenant_id.as_deref())
+    }
 }
 
 /// Authentication result with user context and rate limiting info
@@ -239,6 +259,11 @@ impl AuthManager {
 
     /// Generate a `JWT` token for a user with RS256 asymmetric signing
     ///
+    /// # Arguments
+    /// * `user` - The user to generate a token for
+    /// * `jwks_manager` - JWKS manager for signing
+    /// * `active_tenant_id` - Optional active tenant ID for this session
+    ///
     /// # Errors
     ///
     /// Returns an error if:
@@ -246,6 +271,28 @@ impl AuthManager {
     /// - System time is unavailable for timestamp generation
     /// - JWKS manager has no active key
     pub fn generate_token(&self, user: &User, jwks_manager: &JwksManager) -> AppResult<String> {
+        self.generate_token_with_tenant(user, jwks_manager, None)
+    }
+
+    /// Generate a `JWT` token for a user with a specific active tenant
+    ///
+    /// # Arguments
+    /// * `user` - The user to generate a token for
+    /// * `jwks_manager` - JWKS manager for signing
+    /// * `active_tenant_id` - The tenant ID to set as active for this session
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - JWT encoding fails due to invalid claims
+    /// - System time is unavailable for timestamp generation
+    /// - JWKS manager has no active key
+    pub fn generate_token_with_tenant(
+        &self,
+        user: &User,
+        jwks_manager: &JwksManager,
+        active_tenant_id: Option<String>,
+    ) -> AppResult<String> {
         let now = Utc::now();
         let expiry = now + Duration::hours(self.token_expiry_hours);
 
@@ -258,7 +305,8 @@ impl AuthManager {
             jti: Uuid::new_v4().to_string(),
             providers: user.available_providers(),
             aud: MCP.to_owned(),
-            tenant_id: user.tenant_id.clone(),
+            active_tenant_id,
+            tenant_id: None, // Legacy field, no longer used
             impersonator_id: None,
             impersonation_session_id: None,
         };
@@ -291,6 +339,7 @@ impl AuthManager {
         impersonator_id: Uuid,
         session_id: &str,
         jwks_manager: &JwksManager,
+        active_tenant_id: Option<String>,
     ) -> AppResult<String> {
         let now = Utc::now();
         // Impersonation tokens have shorter expiry (1 hour)
@@ -305,7 +354,8 @@ impl AuthManager {
             jti: Uuid::new_v4().to_string(),
             providers: target_user.available_providers(),
             aud: MCP.to_owned(),
-            tenant_id: target_user.tenant_id.clone(),
+            active_tenant_id,
+            tenant_id: None, // Legacy field, no longer used
             impersonator_id: Some(impersonator_id.to_string()),
             impersonation_session_id: Some(session_id.to_owned()),
         };
@@ -663,7 +713,7 @@ impl AuthManager {
         jwks_manager: &JwksManager,
         user_id: &Uuid,
         scopes: &[String],
-        tenant_id: Option<String>,
+        active_tenant_id: Option<String>,
     ) -> AppResult<String> {
         let now = Utc::now();
         let expiry = now + Duration::hours(OAUTH_ACCESS_TOKEN_EXPIRY_HOURS);
@@ -677,7 +727,8 @@ impl AuthManager {
             jti: Uuid::new_v4().to_string(),
             providers: scopes.to_vec(),
             aud: MCP.to_owned(),
-            tenant_id,
+            active_tenant_id,
+            tenant_id: None, // Legacy field, no longer used
             impersonator_id: None,
             impersonation_session_id: None,
         };
@@ -712,7 +763,7 @@ impl AuthManager {
         jwks_manager: &JwksManager,
         client_id: &str,
         scopes: &[String],
-        tenant_id: Option<String>,
+        active_tenant_id: Option<String>,
     ) -> AppResult<String> {
         let now = Utc::now();
         let expiry = now + Duration::hours(1); // 1 hour for client credentials
@@ -726,7 +777,8 @@ impl AuthManager {
             jti: Uuid::new_v4().to_string(),
             providers: scopes.to_vec(),
             aud: MCP.to_owned(),
-            tenant_id,
+            active_tenant_id,
+            tenant_id: None, // Legacy field, no longer used
             impersonator_id: None,
             impersonation_session_id: None,
         };

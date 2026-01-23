@@ -372,7 +372,6 @@ async fn test_connect_strava_tool() -> Result<()> {
         Some("Test User".to_owned()),
     );
     user.id = user_id;
-    user.tenant_id = Some("test-tenant".to_owned());
     executor.resources.database.create_user(&user).await?;
 
     // Create tenant with user as owner
@@ -783,7 +782,6 @@ async fn test_compare_activities_tool() -> Result<()> {
         Some("Test User".to_owned()),
     );
     user.id = user_id;
-    user.tenant_id = Some("test-tenant".to_owned());
     executor.resources.database.create_user(&user).await?;
 
     // Create tenant with user as owner
@@ -1411,7 +1409,6 @@ async fn test_get_activities_async_no_token() -> Result<()> {
         Some("Test User".to_owned()),
     );
     user.id = user_id;
-    user.tenant_id = Some("test-tenant".to_owned());
     executor.resources.database.create_user(&user).await?;
 
     // Create tenant with user as owner
@@ -1463,7 +1460,6 @@ async fn test_get_athlete_async_no_token() -> Result<()> {
         Some("Test User".to_owned()),
     );
     user.id = user_id;
-    user.tenant_id = Some("test-tenant".to_owned());
     executor.resources.database.create_user(&user).await?;
 
     // Create tenant with user as owner
@@ -1516,7 +1512,6 @@ async fn test_get_stats_async_no_token() -> Result<()> {
         Some("Test User".to_owned()),
     );
     user.id = user_id;
-    user.tenant_id = Some("test-tenant".to_owned());
     executor.resources.database.create_user(&user).await?;
 
     // Create tenant with user as owner

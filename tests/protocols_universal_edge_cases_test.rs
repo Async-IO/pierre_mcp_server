@@ -255,7 +255,6 @@ async fn test_oauth_configuration_errors() -> Result<()> {
     let mut user = create_test_user("test@example.com", Some("Test User".to_owned()));
     user.id = user_id;
     user.password_hash = bcrypt::hash("password", bcrypt::DEFAULT_COST)?;
-    user.tenant_id = Some("test-tenant".to_owned()); // Link user to tenant
     executor.resources.database.create_user(&user).await?;
 
     // Create tenant with user as owner

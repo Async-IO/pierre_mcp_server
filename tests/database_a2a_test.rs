@@ -34,7 +34,6 @@ async fn create_test_client(db: &Database) -> (A2AClient, Uuid) {
         tier: UserTier::Professional,
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_owned()),
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,

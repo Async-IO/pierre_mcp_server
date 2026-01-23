@@ -621,7 +621,7 @@ async fn test_concurrent_requests() -> Result<()> {
     let mut user_tokens = vec![];
     for i in 0..2 {
         // Reduce to 2 to avoid pool exhaustion
-        let mut user = User::new(
+        let user = User::new(
             format!("concurrent_user_{i}@example.com"),
             "password".to_owned(),
             Some(format!("Concurrent User {i}")),
@@ -639,12 +639,11 @@ async fn test_concurrent_requests() -> Result<()> {
         );
         resources.database.create_tenant(&tenant).await?;
 
-        // Link user to tenant
+        // Link user to tenant via user_tenants table
         resources
             .database
             .update_user_tenant_id(user.id, &tenant_slug)
             .await?;
-        user.tenant_id = Some(tenant_slug);
 
         let token = resources
             .auth_manager

@@ -566,19 +566,20 @@ fn test_auth_method_details() {
 
 #[test]
 fn test_claims_serialization() {
-    let claims = Claims {
-        sub: Uuid::new_v4().to_string(),
-        email: "test@example.com".to_owned(),
-        iat: Utc::now().timestamp(),
-        exp: (Utc::now() + Duration::hours(1)).timestamp(),
-        iss: "pierre-mcp-server".to_owned(),
-        jti: Uuid::new_v4().to_string(),
-        providers: vec!["strava".to_owned(), "fitbit".to_owned()],
-        aud: "mcp".to_owned(),
-        tenant_id: None,
-        impersonator_id: None,
-        impersonation_session_id: None,
-    };
+    // Build claims via JSON since some fields are private for backward compatibility
+    let json_input = r#"{
+        "sub": "123e4567-e89b-12d3-a456-426614174000",
+        "email": "test@example.com",
+        "iat": 1700000000,
+        "exp": 1700003600,
+        "iss": "pierre-mcp-server",
+        "jti": "123e4567-e89b-12d3-a456-426614174001",
+        "providers": ["strava", "fitbit"],
+        "aud": "mcp",
+        "active_tenant_id": null
+    }"#;
+
+    let claims: Claims = serde_json::from_str(json_input).unwrap();
 
     let json = serde_json::to_string(&claims).unwrap();
     let deserialized: Claims = serde_json::from_str(&json).unwrap();

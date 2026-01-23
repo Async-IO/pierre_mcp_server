@@ -565,7 +565,6 @@ async fn test_get_activities_with_expired_token() {
         last_active: chrono::Utc::now(),
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_owned()),
         firebase_uid: None,
         auth_provider: String::new(),
     };
@@ -655,7 +654,6 @@ async fn test_connection_status_with_oauth_manager() {
         last_active: chrono::Utc::now(),
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_owned()),
         firebase_uid: None,
         auth_provider: String::new(),
     };
@@ -731,7 +729,6 @@ async fn test_analyze_activity_token_refresh() {
         last_active: chrono::Utc::now(),
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_owned()),
         firebase_uid: None,
         auth_provider: String::new(),
     };
@@ -825,7 +822,6 @@ async fn test_concurrent_token_operations() {
         last_active: chrono::Utc::now(),
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_owned()),
         firebase_uid: None,
         auth_provider: String::new(),
     };
@@ -908,7 +904,6 @@ async fn test_oauth_provider_init_failure() {
         last_active: chrono::Utc::now(),
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_owned()),
         firebase_uid: None,
         auth_provider: String::new(),
     };

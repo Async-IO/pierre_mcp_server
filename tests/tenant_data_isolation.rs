@@ -161,7 +161,6 @@ async fn create_test_tenant_user(database: &Database, email: &str, tier: UserTie
         tier,
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_owned()),
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,

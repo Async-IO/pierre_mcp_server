@@ -165,7 +165,6 @@ impl IntegrationTestServer {
             display_name: Some("Integration Test User".to_owned()),
             password_hash,
             tier: UserTier::Professional,
-            tenant_id: None,
             strava_token: None,
             fitbit_token: None,
             is_active: true,

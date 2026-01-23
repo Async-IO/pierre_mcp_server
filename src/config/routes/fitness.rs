@@ -115,23 +115,26 @@ impl FitnessConfigurationRoutes {
     /// - User is not found in database
     /// - User has no tenant assigned
     async fn get_user_tenant(&self, user_id: Uuid) -> AppResult<Uuid> {
-        let user = self
-            .resources
+        // Verify user exists
+        self.resources
             .database
             .get_user(user_id)
             .await
             .map_err(|e| AppError::database(format!("Failed to get user {user_id}: {e}")))?
             .ok_or_else(|| AppError::not_found(format!("User {user_id}")))?;
 
-        let tenant_id = user
-            .tenant_id
-            .as_ref()
-            .and_then(|id| Uuid::parse_str(id).ok())
-            .ok_or_else(|| {
-                AppError::invalid_input(format!("User has no valid tenant: {user_id}"))
-            })?;
+        // Get tenant from tenant_users junction table
+        let tenants = self
+            .resources
+            .database
+            .list_tenants_for_user(user_id)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get tenants for user: {e}")))?;
 
-        Ok(tenant_id)
+        tenants
+            .first()
+            .map(|t| t.id)
+            .ok_or_else(|| AppError::invalid_input(format!("User has no valid tenant: {user_id}")))
     }
 
     /// Create response metadata

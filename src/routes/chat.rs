@@ -312,10 +312,10 @@ impl ChatRoutes {
         user_id: Uuid,
         resources: &Arc<ServerResources>,
     ) -> Result<String, AppError> {
-        let user = resources.database.get_user(user_id).await?;
-        Ok(user
-            .and_then(|u| u.tenant_id)
-            .unwrap_or_else(|| user_id.to_string()))
+        let tenants = resources.database.list_tenants_for_user(user_id).await?;
+        Ok(tenants
+            .first()
+            .map_or_else(|| user_id.to_string(), |t| t.id.to_string()))
     }
 
     /// Create a `ChatManager` from server resources

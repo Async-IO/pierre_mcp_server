@@ -219,7 +219,6 @@ impl MultiTenantMcpClient {
             display_name: Some(display_name.to_owned()),
             password_hash,
             tier: UserTier::Starter,
-            tenant_id: Some(tenant_uuid.to_string()), // Associate with the tenant that has OAuth credentials
             strava_token: None,
             fitbit_token: None,
             is_active: true,

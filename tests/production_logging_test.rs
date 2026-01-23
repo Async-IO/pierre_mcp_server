@@ -234,7 +234,6 @@ async fn test_database_operation_instrumentation() -> Result<(), Box<dyn Error>>
         display_name: Some("Test User".to_owned()),
         password_hash: "hash".to_owned(),
         tier: UserTier::Starter,
-        tenant_id: None,
         strava_token: None,
         fitbit_token: None,
         is_active: true,

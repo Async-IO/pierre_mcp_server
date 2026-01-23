@@ -140,29 +140,28 @@ impl ProviderManager {
         user_id: Uuid,
         provider_type: ProviderType,
     ) -> Result<ProviderInfo, AppError> {
-        // Get user's tenant_id from database
-        let user = self
+        // Get user's default tenant from tenant_users junction table
+        let tenants = self
             .database
-            .get_user(user_id)
+            .list_tenants_for_user(user_id)
             .await
-            .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
-            .ok_or_else(|| AppError::not_found(format!("User {user_id}")))?;
-        let tenant_id = user
-            .tenant_id
-            .as_deref()
-            .ok_or_else(|| AppError::invalid_input("User has no tenant_id"))?;
+            .map_err(|e| AppError::database(format!("Failed to get user tenants: {e}")))?;
+        let tenant_id = tenants
+            .first()
+            .map(|t| t.id.to_string())
+            .ok_or_else(|| AppError::invalid_input("User has no tenant"))?;
 
         let token = match provider_type {
             ProviderType::Strava => self
                 .database
-                .get_user_oauth_token(user_id, tenant_id, STRAVA)
+                .get_user_oauth_token(user_id, &tenant_id, STRAVA)
                 .await
                 .map_err(|e| {
                     AppError::database(format!("Failed to get Strava OAuth token: {e}"))
                 })?,
             ProviderType::Fitbit => self
                 .database
-                .get_user_oauth_token(user_id, tenant_id, FITBIT)
+                .get_user_oauth_token(user_id, &tenant_id, FITBIT)
                 .await
                 .map_err(|e| {
                     AppError::database(format!("Failed to get Fitbit OAuth token: {e}"))
@@ -221,23 +220,22 @@ impl ProviderManager {
         user_id: Uuid,
         provider_type: ProviderType,
     ) -> Result<(), AppError> {
-        // Get user's tenant_id from database
-        let user = self
+        // Get user's default tenant from tenant_users junction table
+        let tenants = self
             .database
-            .get_user(user_id)
+            .list_tenants_for_user(user_id)
             .await
-            .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
-            .ok_or_else(|| AppError::not_found(format!("User {user_id}")))?;
-        let tenant_id = user
-            .tenant_id
-            .as_deref()
-            .ok_or_else(|| AppError::invalid_input("User has no tenant_id"))?;
+            .map_err(|e| AppError::database(format!("Failed to get user tenants: {e}")))?;
+        let tenant_id = tenants
+            .first()
+            .map(|t| t.id.to_string())
+            .ok_or_else(|| AppError::invalid_input("User has no tenant"))?;
 
         // Remove from database
         match provider_type {
             ProviderType::Strava => {
                 self.database
-                    .delete_user_oauth_token(user_id, tenant_id, STRAVA)
+                    .delete_user_oauth_token(user_id, &tenant_id, STRAVA)
                     .await
                     .map_err(|e| {
                         AppError::database(format!("Failed to delete Strava OAuth token: {e}"))
@@ -245,7 +243,7 @@ impl ProviderManager {
             }
             ProviderType::Fitbit => {
                 self.database
-                    .delete_user_oauth_token(user_id, tenant_id, FITBIT)
+                    .delete_user_oauth_token(user_id, &tenant_id, FITBIT)
                     .await
                     .map_err(|e| {
                         AppError::database(format!("Failed to delete Fitbit OAuth token: {e}"))
