@@ -62,8 +62,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
   const { isAuthenticated } = useAuth();
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [filteredCoaches, setFilteredCoaches] = useState<Coach[]>([]);
-  const [hiddenCoaches, setHiddenCoaches] = useState<Coach[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<CoachCategory | 'all' | '__hidden__'>('all');
+  const [selectedCategory, setSelectedCategory] = useState<CoachCategory | 'all'>('all');
   const [selectedSource, setSelectedSource] = useState<CoachSource>('all');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
@@ -83,10 +82,11 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
         setIsLoading(true);
       }
 
-      // Load coaches and hidden coaches list in parallel
+      // Always load all coaches (including hidden) and hidden list in parallel
+      // We filter locally based on showHidden state to preserve local changes
       const [coachesResponse, hiddenResponse] = await Promise.all([
-        apiService.listCoaches({ include_hidden: showHidden }),
-        showHidden ? apiService.getHiddenCoaches() : Promise.resolve({ coaches: [] }),
+        apiService.listCoaches({ include_hidden: true }),
+        apiService.getHiddenCoaches(),
       ]);
 
       // Create a set of hidden coach IDs for quick lookup
@@ -112,33 +112,16 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [isAuthenticated, showHidden]);
-
-  // Load hidden coaches count for the filter chip
-  const loadHiddenCoaches = useCallback(async () => {
-    if (!isAuthenticated) return;
-    try {
-      const response = await apiService.getHiddenCoaches();
-      // Ensure is_hidden is set to true for coaches from the hidden endpoint
-      const coachesWithHiddenFlag = (response.coaches || []).map((coach) => ({
-        ...coach,
-        is_hidden: true,
-      }));
-      setHiddenCoaches(coachesWithHiddenFlag);
-    } catch (error) {
-      console.error('Failed to load hidden coaches:', error);
-    }
   }, [isAuthenticated]);
 
-  // Apply filters whenever coaches, category, source, or favorites filter changes
+  // Apply filters whenever coaches, category, source, favorites, or showHidden changes
   React.useEffect(() => {
-    // Special case: show hidden coaches when __hidden__ filter is selected
-    if (selectedCategory === '__hidden__') {
-      setFilteredCoaches(hiddenCoaches);
-      return;
-    }
-
     let filtered = [...coaches];
+
+    // Filter out hidden coaches unless showHidden is enabled
+    if (!showHidden) {
+      filtered = filtered.filter((coach) => !coach.is_hidden);
+    }
 
     // Filter by category
     if (selectedCategory !== 'all') {
@@ -158,20 +141,13 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
     }
 
     setFilteredCoaches(filtered);
-  }, [coaches, hiddenCoaches, selectedCategory, selectedSource, showFavoritesOnly]);
+  }, [coaches, selectedCategory, selectedSource, showFavoritesOnly, showHidden]);
 
   useFocusEffect(
     useCallback(() => {
       loadCoaches();
-      loadHiddenCoaches();
-    }, [loadCoaches, loadHiddenCoaches])
+    }, [loadCoaches])
   );
-
-  // Reload coaches when showHidden toggle changes
-  React.useEffect(() => {
-    loadCoaches();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showHidden]);
 
   const handleRefresh = () => {
     loadCoaches(true);
@@ -279,13 +255,6 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
       } else {
         setCoaches((prev) => prev.filter((c) => c.id !== targetCoach.id));
       }
-      // Add to hidden coaches list for the filter count (avoid duplicate if already present)
-      setHiddenCoaches((prev) => {
-        if (prev.some((c) => c.id === targetCoach.id)) {
-          return prev;
-        }
-        return [...prev, { ...targetCoach, is_hidden: true }];
-      });
     } catch (error) {
       console.error('Failed to hide coach:', error);
       Alert.alert('Error', 'Failed to hide coach');
@@ -305,11 +274,9 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
         if (exists) {
           return prev.map((c) => (c.id === targetCoach.id ? { ...c, is_hidden: false } : c));
         }
-        // Coach was only in hiddenCoaches, add it to main list
+        // Coach was only loaded via include_hidden, add it to main list
         return [...prev, { ...targetCoach, is_hidden: false }];
       });
-      // Remove from hidden coaches list and update count
-      setHiddenCoaches((prev) => prev.filter((c) => c.id !== targetCoach.id));
     } catch (error) {
       console.error('Failed to show coach:', error);
       Alert.alert('Error', 'Failed to show coach');
@@ -473,28 +440,6 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
             </Text>
           </TouchableOpacity>
         ))}
-        {/* Hidden coaches filter - only show when there are hidden coaches */}
-        {hiddenCoaches.length > 0 && (
-          <TouchableOpacity
-            style={[
-              styles.filterChip,
-              styles.hiddenFilterChip,
-              selectedCategory === '__hidden__' && styles.hiddenFilterChipActive,
-            ]}
-            onPress={() => setSelectedCategory(selectedCategory === '__hidden__' ? 'all' : '__hidden__')}
-            testID="category-filter-hidden"
-          >
-            <Text
-              style={[
-                styles.filterChipText,
-                styles.hiddenFilterChipText,
-                selectedCategory === '__hidden__' && styles.hiddenFilterChipTextActive,
-              ]}
-            >
-              Hidden ({hiddenCoaches.length})
-            </Text>
-          </TouchableOpacity>
-        )}
       </ScrollView>
     </View>
   );
@@ -1007,23 +952,5 @@ const styles = StyleSheet.create({
   // Hide button on coach card
   hideButton: {
     padding: spacing.xs,
-  },
-  // Hidden filter chip styles
-  hiddenFilterChip: {
-    borderStyle: 'dashed',
-    borderColor: colors.text.tertiary,
-    backgroundColor: 'transparent',
-  },
-  hiddenFilterChipActive: {
-    backgroundColor: colors.text.tertiary,
-    borderColor: colors.text.tertiary,
-    borderStyle: 'solid',
-  },
-  hiddenFilterChipText: {
-    color: colors.text.tertiary,
-  },
-  hiddenFilterChipTextActive: {
-    color: colors.text.primary,
-    fontWeight: '600',
   },
 });

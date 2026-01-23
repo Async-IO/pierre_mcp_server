@@ -226,14 +226,14 @@ describe('CoachLibraryScreen', () => {
   });
 
   describe('hide/show functionality', () => {
-    it('should load coaches without hidden when showHidden is false', async () => {
+    it('should always load all coaches including hidden', async () => {
       mockListCoaches.mockResolvedValue({ coaches: [] });
 
       render(<CoachLibraryScreen navigation={mockNavigation as never} />);
 
       await waitFor(() => {
         expect(mockListCoaches).toHaveBeenCalledWith({
-          include_hidden: false,
+          include_hidden: true,
         });
       });
     });
@@ -308,41 +308,11 @@ describe('CoachLibraryScreen', () => {
     });
   });
 
-  describe('hidden filter chip', () => {
-    it('should not show hidden filter chip when no hidden coaches', async () => {
-      mockListCoaches.mockResolvedValue({ coaches: [] });
-      mockGetHiddenCoaches.mockResolvedValue({ coaches: [] });
-
-      const { queryByTestId } = render(
-        <CoachLibraryScreen navigation={mockNavigation as never} />
-      );
-
-      await waitFor(() => {
-        expect(queryByTestId('category-filter-hidden')).toBeNull();
-      });
-    });
-
-    it('should show hidden filter chip with count when hidden coaches exist', async () => {
-      const hiddenCoaches = [
-        createMockCoach({ id: 'hidden-1', title: 'Hidden Coach 1', is_system: true, is_hidden: true }),
-        createMockCoach({ id: 'hidden-2', title: 'Hidden Coach 2', is_system: true, is_hidden: true }),
-      ];
-      mockListCoaches.mockResolvedValue({ coaches: [] });
-      mockGetHiddenCoaches.mockResolvedValue({ coaches: hiddenCoaches });
-
-      const { getByTestId, getByText } = render(
-        <CoachLibraryScreen navigation={mockNavigation as never} />
-      );
-
-      await waitFor(() => {
-        expect(getByTestId('category-filter-hidden')).toBeTruthy();
-        expect(getByText('Hidden (2)')).toBeTruthy();
-      });
-    });
-
-    it('should filter to show only hidden coaches when hidden filter selected', async () => {
+  describe('show hidden toggle', () => {
+    it('should show hidden coaches when show-hidden toggle is enabled', async () => {
       const visibleCoaches = [
         createMockCoach({ id: 'visible-1', title: 'Visible Coach', is_system: true }),
+        createMockCoach({ id: 'hidden-1', title: 'Hidden Coach', is_system: true, is_hidden: true }),
       ];
       const hiddenCoaches = [
         createMockCoach({ id: 'hidden-1', title: 'Hidden Coach', is_system: true, is_hidden: true }),
@@ -354,56 +324,73 @@ describe('CoachLibraryScreen', () => {
         <CoachLibraryScreen navigation={mockNavigation as never} />
       );
 
-      // Initially shows visible coaches
+      // Initially hidden coach should not be visible (showHidden is false by default)
       await waitFor(() => {
         expect(getByText('Visible Coach')).toBeTruthy();
+        expect(queryByText('Hidden Coach')).toBeNull();
       });
 
-      // Click hidden filter
-      fireEvent.press(getByTestId('category-filter-hidden'));
+      // Enable show hidden toggle
+      fireEvent.press(getByTestId('show-hidden-toggle'));
 
-      // Should show only hidden coaches
+      // Hidden coach should now be visible
       await waitFor(() => {
         expect(getByText('Hidden Coach')).toBeTruthy();
-        expect(queryByText('Visible Coach')).toBeNull();
+        expect(getByText('Visible Coach')).toBeTruthy();
       });
     });
 
-    it('should update hidden count when coach is hidden', async () => {
-      const coaches = [
-        createMockCoach({ id: 'system-1', title: 'System Coach', is_system: true }),
+    it('should keep unhidden coach visible after toggle off', async () => {
+      const allCoaches = [
+        createMockCoach({ id: 'visible-1', title: 'Visible Coach', is_system: true }),
+        createMockCoach({ id: 'hidden-1', title: 'Hidden Coach', is_system: true, is_hidden: true }),
       ];
-      mockListCoaches.mockResolvedValue({ coaches });
-      mockGetHiddenCoaches.mockResolvedValue({ coaches: [] });
-      mockHideCoach.mockResolvedValue({ success: true, is_hidden: true });
-
-      const { getByTestId, getByText, queryByTestId } = render(
-        <CoachLibraryScreen navigation={mockNavigation as never} />
-      );
-
-      // Wait for coach to render first
-      await waitFor(() => {
-        expect(getByText('System Coach')).toBeTruthy();
-      });
-
-      // Initially no hidden filter chip
-      expect(queryByTestId('category-filter-hidden')).toBeNull();
-
-      // Hide the coach
-      fireEvent.press(getByTestId('hide-button-system-1'));
-
-      // Hidden filter chip should appear with count 1
-      await waitFor(() => {
-        expect(getByTestId('category-filter-hidden')).toBeTruthy();
-        expect(getByText('Hidden (1)')).toBeTruthy();
-      });
-    });
-
-    it('should call showCoach API when unhide button pressed on hidden coach', async () => {
       const hiddenCoaches = [
         createMockCoach({ id: 'hidden-1', title: 'Hidden Coach', is_system: true, is_hidden: true }),
       ];
-      mockListCoaches.mockResolvedValue({ coaches: [] });
+      mockListCoaches.mockResolvedValue({ coaches: allCoaches });
+      mockGetHiddenCoaches.mockResolvedValue({ coaches: hiddenCoaches });
+      mockShowCoach.mockResolvedValue({ success: true, is_hidden: false });
+
+      const { getByTestId, getByText, queryByText } = render(
+        <CoachLibraryScreen navigation={mockNavigation as never} />
+      );
+
+      // Enable show hidden toggle to see hidden coach
+      await waitFor(() => {
+        expect(getByTestId('show-hidden-toggle')).toBeTruthy();
+      });
+      fireEvent.press(getByTestId('show-hidden-toggle'));
+
+      await waitFor(() => {
+        expect(getByText('Hidden Coach')).toBeTruthy();
+      });
+
+      // Unhide the coach
+      fireEvent.press(getByTestId('hide-button-hidden-1'));
+
+      await waitFor(() => {
+        expect(mockShowCoach).toHaveBeenCalledWith('hidden-1');
+      });
+
+      // Toggle off show hidden
+      fireEvent.press(getByTestId('show-hidden-toggle'));
+
+      // The previously hidden coach should still be visible since it was unhidden
+      await waitFor(() => {
+        expect(getByText('Visible Coach')).toBeTruthy();
+        expect(getByText('Hidden Coach')).toBeTruthy();
+      });
+    });
+
+    it('should call showCoach API when unhide button pressed', async () => {
+      const allCoaches = [
+        createMockCoach({ id: 'hidden-1', title: 'Hidden Coach', is_system: true, is_hidden: true }),
+      ];
+      const hiddenCoaches = [
+        createMockCoach({ id: 'hidden-1', title: 'Hidden Coach', is_system: true, is_hidden: true }),
+      ];
+      mockListCoaches.mockResolvedValue({ coaches: allCoaches });
       mockGetHiddenCoaches.mockResolvedValue({ coaches: hiddenCoaches });
       mockShowCoach.mockResolvedValue({ success: true, is_hidden: false });
 
@@ -411,11 +398,11 @@ describe('CoachLibraryScreen', () => {
         <CoachLibraryScreen navigation={mockNavigation as never} />
       );
 
-      // Select hidden filter to see hidden coaches
+      // Enable show hidden toggle
       await waitFor(() => {
-        expect(getByTestId('category-filter-hidden')).toBeTruthy();
+        expect(getByTestId('show-hidden-toggle')).toBeTruthy();
       });
-      fireEvent.press(getByTestId('category-filter-hidden'));
+      fireEvent.press(getByTestId('show-hidden-toggle'));
 
       // Press unhide button
       await waitFor(() => {
@@ -425,39 +412,6 @@ describe('CoachLibraryScreen', () => {
 
       await waitFor(() => {
         expect(mockShowCoach).toHaveBeenCalledWith('hidden-1');
-      });
-    });
-
-    it('should toggle hidden filter off when pressed again', async () => {
-      const visibleCoaches = [
-        createMockCoach({ id: 'visible-1', title: 'Visible Coach', is_system: true }),
-      ];
-      const hiddenCoaches = [
-        createMockCoach({ id: 'hidden-1', title: 'Hidden Coach', is_system: true, is_hidden: true }),
-      ];
-      mockListCoaches.mockResolvedValue({ coaches: visibleCoaches });
-      mockGetHiddenCoaches.mockResolvedValue({ coaches: hiddenCoaches });
-
-      const { getByTestId, getByText, queryByText } = render(
-        <CoachLibraryScreen navigation={mockNavigation as never} />
-      );
-
-      await waitFor(() => {
-        expect(getByTestId('category-filter-hidden')).toBeTruthy();
-      });
-
-      // Click hidden filter to show hidden coaches
-      fireEvent.press(getByTestId('category-filter-hidden'));
-      await waitFor(() => {
-        expect(getByText('Hidden Coach')).toBeTruthy();
-        expect(queryByText('Visible Coach')).toBeNull();
-      });
-
-      // Click hidden filter again to go back to all
-      fireEvent.press(getByTestId('category-filter-hidden'));
-      await waitFor(() => {
-        expect(getByText('Visible Coach')).toBeTruthy();
-        expect(queryByText('Hidden Coach')).toBeNull();
       });
     });
   });
