@@ -61,7 +61,8 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
   const { isAuthenticated } = useAuth();
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [filteredCoaches, setFilteredCoaches] = useState<Coach[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<CoachCategory | 'all'>('all');
+  const [hiddenCoaches, setHiddenCoaches] = useState<Coach[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<CoachCategory | 'all' | '__hidden__'>('all');
   const [selectedSource, setSelectedSource] = useState<CoachSource>('all');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
@@ -99,8 +100,25 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
     }
   }, [isAuthenticated, showHidden]);
 
+  // Load hidden coaches count for the filter chip
+  const loadHiddenCoaches = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      const response = await apiService.getHiddenCoaches();
+      setHiddenCoaches(response.coaches || []);
+    } catch (error) {
+      console.error('Failed to load hidden coaches:', error);
+    }
+  }, [isAuthenticated]);
+
   // Apply filters whenever coaches, category, source, or favorites filter changes
   React.useEffect(() => {
+    // Special case: show hidden coaches when __hidden__ filter is selected
+    if (selectedCategory === '__hidden__') {
+      setFilteredCoaches(hiddenCoaches);
+      return;
+    }
+
     let filtered = [...coaches];
 
     // Filter by category
@@ -121,12 +139,13 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
     }
 
     setFilteredCoaches(filtered);
-  }, [coaches, selectedCategory, selectedSource, showFavoritesOnly]);
+  }, [coaches, hiddenCoaches, selectedCategory, selectedSource, showFavoritesOnly]);
 
   useFocusEffect(
     useCallback(() => {
       loadCoaches();
-    }, [loadCoaches])
+      loadHiddenCoaches();
+    }, [loadCoaches, loadHiddenCoaches])
   );
 
   const handleRefresh = () => {
@@ -235,6 +254,8 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
       } else {
         setCoaches((prev) => prev.filter((c) => c.id !== targetCoach.id));
       }
+      // Add to hidden coaches list for the filter count
+      setHiddenCoaches((prev) => [...prev, { ...targetCoach, is_hidden: true }]);
     } catch (error) {
       console.error('Failed to hide coach:', error);
       Alert.alert('Error', 'Failed to hide coach');
@@ -248,9 +269,12 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
 
     try {
       await apiService.showCoach(targetCoach.id);
+      // Update main coaches list
       setCoaches((prev) =>
         prev.map((c) => (c.id === targetCoach.id ? { ...c, is_hidden: false } : c))
       );
+      // Remove from hidden coaches list and update count
+      setHiddenCoaches((prev) => prev.filter((c) => c.id !== targetCoach.id));
     } catch (error) {
       console.error('Failed to show coach:', error);
       Alert.alert('Error', 'Failed to show coach');
@@ -395,6 +419,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
               selectedCategory === filter.key && styles.filterChipActive,
             ]}
             onPress={() => setSelectedCategory(filter.key)}
+            testID={`category-filter-${filter.key}`}
           >
             <Text
               style={[
@@ -406,6 +431,28 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
             </Text>
           </TouchableOpacity>
         ))}
+        {/* Hidden coaches filter - only show when there are hidden coaches */}
+        {hiddenCoaches.length > 0 && (
+          <TouchableOpacity
+            style={[
+              styles.filterChip,
+              styles.hiddenFilterChip,
+              selectedCategory === '__hidden__' && styles.hiddenFilterChipActive,
+            ]}
+            onPress={() => setSelectedCategory(selectedCategory === '__hidden__' ? 'all' : '__hidden__')}
+            testID="category-filter-hidden"
+          >
+            <Text
+              style={[
+                styles.filterChipText,
+                styles.hiddenFilterChipText,
+                selectedCategory === '__hidden__' && styles.hiddenFilterChipTextActive,
+              ]}
+            >
+              Hidden ({hiddenCoaches.length})
+            </Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </View>
   );
@@ -929,5 +976,23 @@ const styles = StyleSheet.create({
   },
   hideIcon: {
     fontSize: 16,
+  },
+  // Hidden filter chip styles
+  hiddenFilterChip: {
+    borderStyle: 'dashed',
+    borderColor: colors.text.tertiary,
+    backgroundColor: 'transparent',
+  },
+  hiddenFilterChipActive: {
+    backgroundColor: colors.text.tertiary,
+    borderColor: colors.text.tertiary,
+    borderStyle: 'solid',
+  },
+  hiddenFilterChipText: {
+    color: colors.text.tertiary,
+  },
+  hiddenFilterChipTextActive: {
+    color: colors.text.primary,
+    fontWeight: '600',
   },
 });

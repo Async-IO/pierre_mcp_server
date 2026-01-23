@@ -483,10 +483,18 @@ class ApiService {
   }
 
   /**
-   * List hidden coaches for the user
+   * List hidden coaches for the user (includes all coaches with hidden ones)
    */
   async listHiddenCoaches(): Promise<ListCoachesResponse> {
     const response = await axios.get('/api/coaches?include_hidden=true');
+    return response.data;
+  }
+
+  /**
+   * Get only the hidden coaches (for hidden coaches count/filter)
+   */
+  async getHiddenCoaches(): Promise<ListCoachesResponse> {
+    const response = await axios.get('/api/coaches/hidden');
     return response.data;
   }
 
