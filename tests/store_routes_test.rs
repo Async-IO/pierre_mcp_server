@@ -25,6 +25,7 @@ use pierre_mcp_server::routes::store::{
 use uuid::Uuid;
 
 use axum::http::StatusCode;
+use tokio::time::{sleep, Duration};
 
 // ============================================================================
 // Test Helpers
@@ -241,7 +242,7 @@ async fn test_browse_store_with_cursor_pagination() {
         )
         .await;
         // Small delay ensures distinct timestamps for reliable cursor ordering
-        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        sleep(Duration::from_millis(10)).await;
     }
 
     let token = resources
