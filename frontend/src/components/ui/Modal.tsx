@@ -74,7 +74,7 @@ export const Modal: React.FC<ModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
       onClick={handleOverlayClick}
       role="dialog"
       aria-modal="true"
@@ -83,16 +83,16 @@ export const Modal: React.FC<ModalProps> = ({
       <div
         ref={modalRef}
         tabIndex={-1}
-        className={`${sizeClasses[size]} w-full bg-white rounded-xl shadow-xl overflow-hidden animate-scale-in`}
+        className={`${sizeClasses[size]} w-full bg-pierre-slate border border-white/10 rounded-xl shadow-xl overflow-hidden animate-scale-in`}
       >
         {/* Gradient accent bar */}
         <div className="h-1 w-full bg-gradient-pierre-horizontal" />
 
         {/* Header */}
         {(title || showCloseButton) && (
-          <div className="flex items-center justify-between px-6 py-4 border-b border-pierre-gray-200">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
             {title && (
-              <h2 id="modal-title" className="text-lg font-semibold text-pierre-gray-900">
+              <h2 id="modal-title" className="text-lg font-semibold text-white">
                 {title}
               </h2>
             )}
@@ -100,7 +100,7 @@ export const Modal: React.FC<ModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="p-2 text-pierre-gray-400 hover:text-pierre-gray-600 hover:bg-pierre-gray-100 rounded-lg transition-colors"
+                className="p-2 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
                 aria-label="Close modal"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -112,11 +112,11 @@ export const Modal: React.FC<ModalProps> = ({
         )}
 
         {/* Content */}
-        <div className="px-6 py-4">{children}</div>
+        <div className="px-6 py-4 text-zinc-300">{children}</div>
 
         {/* Footer */}
         {footer && (
-          <div className="px-6 py-4 bg-pierre-gray-50 border-t border-pierre-gray-200">{footer}</div>
+          <div className="px-6 py-4 bg-pierre-dark/50 border-t border-white/10">{footer}</div>
         )}
       </div>
     </div>

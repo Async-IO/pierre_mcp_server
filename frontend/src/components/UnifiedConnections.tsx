@@ -36,26 +36,26 @@ const TokenSuccessModal: React.FC<TokenSuccessModalProps> = ({ isOpen, onClose, 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl mx-4 w-full p-6">
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+      <div className="bg-pierre-slate rounded-lg shadow-xl max-w-2xl mx-4 w-full p-6 border border-white/10">
         <div className="mb-6">
-          <h3 className="text-lg font-semibold text-pierre-gray-900">
-            🎉 API Token Generated Successfully
+          <h3 className="text-lg font-semibold text-white">
+            API Token Generated Successfully
           </h3>
-          <p className="text-pierre-gray-600 mt-1">
+          <p className="text-zinc-400 mt-1">
             Your new API token is ready for use
           </p>
         </div>
-        
+
         <div className="space-y-6">
-          <div className="bg-pierre-yellow-50 border border-pierre-yellow-200 rounded-lg p-4">
+          <div className="bg-pierre-nutrition/15 border border-pierre-nutrition/30 rounded-lg p-4">
             <div className="flex items-start gap-3">
-              <svg className="w-6 h-6 text-pierre-yellow-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-6 h-6 text-pierre-nutrition mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
               </svg>
               <div>
-                <h4 className="font-medium text-pierre-yellow-800">Important Security Notice</h4>
-                <p className="text-sm text-pierre-yellow-700 mt-1">
+                <h4 className="font-medium text-pierre-nutrition">Important Security Notice</h4>
+                <p className="text-sm text-zinc-300 mt-1">
                   This is the only time the full token will be displayed. Please copy it now and store it securely.
                 </p>
               </div>
@@ -63,12 +63,12 @@ const TokenSuccessModal: React.FC<TokenSuccessModalProps> = ({ isOpen, onClose, 
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-pierre-gray-700 mb-2">
+            <label className="block text-sm font-medium text-zinc-300 mb-2">
               JWT Token
             </label>
             <div className="relative">
               <textarea
-                className="w-full px-4 py-3 border border-pierre-gray-300 rounded-md font-mono text-xs resize-none"
+                className="input-dark font-mono text-xs resize-none"
                 value={response.jwt_token}
                 readOnly
                 rows={8}
@@ -87,16 +87,16 @@ const TokenSuccessModal: React.FC<TokenSuccessModalProps> = ({ isOpen, onClose, 
 
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <span className="text-pierre-gray-500">Service:</span>
-              <span className="ml-2 font-medium">{response.admin_token.service_name}</span>
+              <span className="text-zinc-500">Service:</span>
+              <span className="ml-2 font-medium text-white">{response.admin_token.service_name}</span>
             </div>
             <div>
-              <span className="text-pierre-gray-500">Prefix:</span>
-              <span className="ml-2 font-mono">{response.admin_token.token_prefix}...</span>
+              <span className="text-zinc-500">Prefix:</span>
+              <span className="ml-2 font-mono text-white">{response.admin_token.token_prefix}...</span>
             </div>
           </div>
 
-          <div className="flex gap-3 pt-4 border-t border-pierre-gray-200">
+          <div className="flex gap-3 pt-4 border-t border-white/10">
             <Button onClick={onClose} className="flex-1">
               I've Saved the Token Securely
             </Button>
@@ -129,11 +129,11 @@ export default function UnifiedConnections() {
   };
 
   const renderTabs = () => (
-    <div className="border-b border-pierre-gray-200 mb-6">
+    <div className="border-b border-white/10 mb-6">
       <nav className="-mb-px flex space-x-8">
         {user?.is_admin && (
           <button
-            className={`tab ${activeConnectionType === 'api-keys' ? 'tab-active' : ''}`}
+            className={`tab-dark ${activeConnectionType === 'api-keys' ? 'tab-dark-active' : ''}`}
             onClick={() => {
               setActiveConnectionType('api-keys');
               setActiveView('overview');
@@ -146,7 +146,7 @@ export default function UnifiedConnections() {
           </button>
         )}
         <button
-          className={`tab ${activeConnectionType === 'oauth-apps' ? 'tab-active' : ''}`}
+          className={`tab-dark ${activeConnectionType === 'oauth-apps' ? 'tab-dark-active' : ''}`}
           onClick={() => {
             setActiveConnectionType('oauth-apps');
             setActiveView('overview');
@@ -158,7 +158,7 @@ export default function UnifiedConnections() {
           <span>Connected Apps</span>
         </button>
       </nav>
-      <p className="text-sm text-pierre-gray-500 mt-3 mb-2">{getTabDescription()}</p>
+      <p className="text-sm text-zinc-400 mt-3 mb-2">{getTabDescription()}</p>
     </div>
   );
 
@@ -271,18 +271,18 @@ export default function UnifiedConnections() {
         />
       )}
       {errorMessage && (
-        <div className="mb-6 bg-pierre-red-50 border border-pierre-red-200 rounded-lg p-4">
+        <div className="mb-6 bg-pierre-red-500/15 border border-pierre-red-500/30 rounded-lg p-4">
           <div className="flex items-start gap-3">
-            <svg className="w-6 h-6 text-pierre-red-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-6 h-6 text-pierre-red-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <div className="flex-1">
-              <h4 className="font-medium text-pierre-red-800">Error</h4>
-              <p className="text-sm text-pierre-red-700 mt-1">{errorMessage}</p>
+              <h4 className="font-medium text-pierre-red-400">Error</h4>
+              <p className="text-sm text-zinc-300 mt-1">{errorMessage}</p>
             </div>
             <button
               onClick={() => setErrorMessage(null)}
-              className="text-pierre-red-500 hover:text-pierre-red-700"
+              className="text-pierre-red-400 hover:text-pierre-red-300"
               aria-label="Dismiss error"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

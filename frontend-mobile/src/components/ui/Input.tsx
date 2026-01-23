@@ -1,5 +1,5 @@
-// ABOUTME: Reusable text input component with dark theme styling
-// ABOUTME: Supports labels, error states, and password visibility toggle
+// ABOUTME: Reusable text input component with dark theme and glass styling per Stitch design
+// ABOUTME: Supports labels, error states, password visibility toggle, and glass variant
 
 import React, { useState } from 'react';
 import {
@@ -18,6 +18,7 @@ interface InputProps extends Omit<TextInputProps, 'style'> {
   error?: string;
   containerStyle?: ViewStyle;
   showPasswordToggle?: boolean;
+  variant?: 'default' | 'glass';
   testID?: string;
 }
 
@@ -26,6 +27,7 @@ export function Input({
   error,
   containerStyle,
   showPasswordToggle = false,
+  variant = 'default',
   secureTextEntry,
   testID,
   ...props
@@ -40,7 +42,7 @@ export function Input({
       <View style={styles.inputContainer}>
         <TextInput
           style={[
-            styles.input,
+            variant === 'glass' ? styles.inputGlass : styles.input,
             error && styles.inputError,
             showPasswordToggle && styles.inputWithToggle,
           ]}
@@ -87,6 +89,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border.default,
     borderRadius: borderRadius.lg,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    color: colors.text.primary,
+    fontSize: fontSize.md,
+  },
+  // Glass input style per Stitch design system
+  inputGlass: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: borderRadius.xl,
     paddingVertical: spacing.sm + 2,
     paddingHorizontal: spacing.md,
     color: colors.text.primary,

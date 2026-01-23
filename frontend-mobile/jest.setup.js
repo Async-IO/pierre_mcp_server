@@ -97,3 +97,13 @@ jest.mock('react-native-safe-area-context', () => {
   };
 });
 
+// Mock expo-linear-gradient
+jest.mock('expo-linear-gradient', () => {
+  const React = require('react');
+  const View = require('react-native').View;
+  return {
+    LinearGradient: ({ children, colors, testID, ...props }) =>
+      React.createElement(View, { testID: testID || 'linear-gradient', ...props }, children),
+  };
+});
+

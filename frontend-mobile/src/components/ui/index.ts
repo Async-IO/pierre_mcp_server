@@ -6,3 +6,4 @@ export { Input } from './Input';
 export { Card } from './Card';
 export { VoiceButton } from './VoiceButton';
 export { PromptDialog } from './PromptDialog';
+export { ScrollFadeContainer } from './ScrollFadeContainer';

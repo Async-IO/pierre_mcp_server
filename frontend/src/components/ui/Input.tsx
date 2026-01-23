@@ -13,7 +13,7 @@ export interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElem
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
   size?: 'sm' | 'md' | 'lg';
-  variant?: 'light' | 'dark';
+  variant?: 'light' | 'dark' | 'glass';
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
@@ -35,6 +35,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         bg-[#151520] text-white placeholder-zinc-500
         disabled:bg-zinc-900 disabled:text-zinc-600
       `,
+      glass: `
+        input-glass
+      `,
     };
 
     const baseInputClasses = `
@@ -46,18 +49,18 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
 
     const errorClasses = error
       ? 'border-red-500/50 focus:ring-red-500 focus:ring-opacity-20 focus:border-red-500'
-      : variant === 'dark'
+      : variant === 'dark' || variant === 'glass'
         ? 'border-white/10'
         : 'border-pierre-gray-300';
 
     const iconPaddingLeft = leftIcon ? 'pl-10' : '';
     const iconPaddingRight = rightIcon ? 'pr-10' : '';
 
-    const labelClasses = variant === 'dark'
+    const labelClasses = variant === 'dark' || variant === 'glass'
       ? 'block text-sm font-medium text-zinc-300 mb-1.5'
       : 'block text-sm font-medium text-pierre-gray-700 mb-1.5';
 
-    const iconClasses = variant === 'dark' ? 'text-zinc-500' : 'text-pierre-gray-400';
+    const iconClasses = variant === 'dark' || variant === 'glass' ? 'text-zinc-500' : 'text-pierre-gray-400';
 
     return (
       <div className="w-full">
@@ -85,10 +88,10 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           )}
         </div>
         {error && (
-          <p className={`mt-1.5 text-sm ${variant === 'dark' ? 'text-red-400' : 'text-pierre-red-500'}`}>{error}</p>
+          <p className={`mt-1.5 text-sm ${variant === 'dark' || variant === 'glass' ? 'text-red-400' : 'text-pierre-red-500'}`}>{error}</p>
         )}
         {helpText && !error && (
-          <p className={`mt-1.5 text-sm ${variant === 'dark' ? 'text-zinc-500' : 'text-pierre-gray-500'}`}>{helpText}</p>
+          <p className={`mt-1.5 text-sm ${variant === 'dark' || variant === 'glass' ? 'text-zinc-500' : 'text-pierre-gray-500'}`}>{helpText}</p>
         )}
       </div>
     );

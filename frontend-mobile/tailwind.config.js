@@ -15,10 +15,10 @@ module.exports = {
         pierre: {
           violet: '#7C3AED',
           cyan: '#06B6D4',
-          // Three Pillars
+          // Three Pillars (dark-mode optimized)
           activity: '#10B981',
-          nutrition: '#F59E0B',
-          recovery: '#6366F1',
+          nutrition: '#FBBF24',  // Brightened for dark mode contrast
+          recovery: '#818CF8',   // Brightened for dark mode contrast
           // Dark theme
           dark: '#0F0F1A',
           slate: '#1E1E2E',
@@ -108,8 +108,18 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ['System', 'sans-serif'],
-        mono: ['Menlo', 'monospace'],
+        // For React Native, use custom fonts loaded via expo-font
+        // Plus Jakarta Sans or Satoshi recommended for premium feel
+        sans: ['PlusJakartaSans', 'System', 'sans-serif'],
+        mono: ['JetBrainsMono', 'Menlo', 'monospace'],
+      },
+      boxShadow: {
+        // Glow effects for premium interactions
+        'glow-violet': '0 0 20px rgba(124, 58, 237, 0.3)',
+        'glow-cyan': '0 0 20px rgba(6, 182, 212, 0.3)',
+        'glow-activity': '0 0 20px rgba(16, 185, 129, 0.3)',
+        'glow-nutrition': '0 0 20px rgba(251, 191, 36, 0.3)',
+        'glow-recovery': '0 0 20px rgba(129, 140, 248, 0.3)',
       },
     },
   },

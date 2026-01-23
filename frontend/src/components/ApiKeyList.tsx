@@ -116,14 +116,14 @@ export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
 
   if (error) {
     return (
-      <div className="bg-pierre-red-50 border border-pierre-red-200 rounded-lg p-6">
+      <div className="bg-pierre-red-500/15 border border-pierre-red-500/30 rounded-lg p-6">
         <div className="flex items-center gap-3">
-          <svg className="w-6 h-6 text-pierre-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-6 h-6 text-pierre-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <div>
-            <h3 className="text-lg font-medium text-pierre-red-900">Failed to load API tokens</h3>
-            <p className="text-pierre-red-700 mt-1">
+            <h3 className="text-lg font-medium text-pierre-red-400">Failed to load API tokens</h3>
+            <p className="text-zinc-300 mt-1">
               {error instanceof Error ? error.message : 'An unknown error occurred'}
             </p>
           </div>
@@ -135,7 +135,7 @@ export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
   return (
     <div className="space-y-6">
       {/* Main Card */}
-      <Card>
+      <Card variant="dark">
         <CardHeader
           title="Your API Tokens"
           subtitle={`${allTokens.length} total tokens`}
@@ -154,14 +154,14 @@ export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
 
             {selectedTokens.size > 0 && (
               <div className="flex items-center gap-2">
-                <span className="text-sm text-pierre-gray-600">
+                <span className="text-sm text-zinc-400">
                   {selectedTokens.size} selected
                 </span>
                 <Button
                   onClick={handleBulkRevoke}
                   disabled={revokeTokenMutation.isPending}
                   variant="secondary"
-                  className="text-pierre-red-600 hover:bg-pierre-red-50"
+                  className="text-pierre-red-400 hover:bg-pierre-red-500/10"
                   size="sm"
                 >
                   Revoke Selected
@@ -173,54 +173,54 @@ export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
 
         {/* Token List */}
         {tokens.length === 0 ? (
-          <div className="text-center py-8 text-pierre-gray-500 px-6 pb-6">
+          <div className="text-center py-8 text-zinc-500 px-6 pb-6">
             <div className="text-4xl mb-4">🔐</div>
-            <p className="text-lg mb-2">No API tokens yet</p>
+            <p className="text-lg mb-2 text-white">No API tokens yet</p>
             <p>Create your first API token to enable programmatic access</p>
           </div>
         ) : (
           <div className="space-y-4 px-6 pb-6">
             {/* Select All Header */}
-            <div className="flex items-center gap-3 p-4 bg-pierre-gray-50 rounded-lg">
+            <div className="flex items-center gap-3 p-4 bg-white/5 rounded-lg border border-white/10">
               <input
                 type="checkbox"
                 checked={selectedTokens.size === tokens.length && tokens.length > 0}
                 onChange={handleSelectAll}
-                className="rounded border-pierre-gray-300 text-pierre-blue-600 focus:ring-pierre-blue-500"
+                className="rounded border-white/20 bg-white/10 text-pierre-violet focus:ring-pierre-violet"
               />
-              <span className="text-sm font-medium text-pierre-gray-700">
+              <span className="text-sm font-medium text-zinc-300">
                 Select All ({tokens.length})
               </span>
             </div>
 
             {/* Token Cards */}
             {tokens.map((token: AdminToken) => (
-            <Card key={token.id} className="hover:shadow-md transition-shadow p-4">
+            <Card key={token.id} variant="dark" className="hover:border-white/20 transition-all p-4">
               <div className="flex items-start gap-4">
                   <input
                     type="checkbox"
                     checked={selectedTokens.has(token.id)}
                     onChange={() => handleSelectToken(token.id)}
-                    className="mt-1 rounded border-pierre-gray-300 text-pierre-blue-600 focus:ring-pierre-blue-500"
+                    className="mt-1 rounded border-white/20 bg-white/10 text-pierre-violet focus:ring-pierre-violet"
                   />
-                  
+
                   <div className="flex-1">
                     <div className="flex items-start justify-between">
                       <div>
-                        <h3 className="text-lg font-medium text-pierre-gray-900">
+                        <h3 className="text-lg font-medium text-white">
                           {token.service_name}
                         </h3>
                         {/* GitHub-style token prefix display */}
                         {token.token_prefix && (
-                          <code className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-pierre-gray-100 text-pierre-gray-700 text-xs font-mono rounded border border-pierre-gray-200">
-                            <svg className="w-3 h-3 text-pierre-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <code className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-white/10 text-zinc-300 text-xs font-mono rounded border border-white/10">
+                            <svg className="w-3 h-3 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                             </svg>
                             {token.token_prefix}...
                           </code>
                         )}
                         {token.service_description && (
-                          <p className="text-sm text-pierre-gray-600 mt-1">
+                          <p className="text-sm text-zinc-400 mt-1">
                             {token.service_description}
                           </p>
                         )}
@@ -233,11 +233,12 @@ export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
                           )}
                         </div>
                       </div>
-                      
+
                       <div className="flex items-center gap-2">
                         <Button
                           onClick={() => onViewDetails(token)}
-                          className="btn-secondary text-sm"
+                          variant="secondary"
+                          size="sm"
                         >
                           View Details
                         </Button>
@@ -246,40 +247,41 @@ export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
                             onClick={() => handleSingleRevoke(token)}
                             disabled={revokeTokenMutation.isPending}
                             variant="secondary"
-                            className="text-pierre-red-600 hover:bg-pierre-red-50 text-sm"
+                            className="text-pierre-red-400 hover:bg-pierre-red-500/10"
+                            size="sm"
                           >
                             Revoke
                           </Button>
                         )}
                       </div>
                     </div>
-                    
+
                     <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
-                        <span className="text-pierre-gray-500">Created:</span>
-                        <p className="font-medium">{format(new Date(token.created_at), 'MMM d, yyyy')}</p>
+                        <span className="text-zinc-500">Created:</span>
+                        <p className="font-medium text-white">{format(new Date(token.created_at), 'MMM d, yyyy')}</p>
                       </div>
                       <div>
-                        <span className="text-pierre-gray-500">Expires:</span>
-                        <p className="font-medium">
+                        <span className="text-zinc-500">Expires:</span>
+                        <p className="font-medium text-white">
                           {token.expires_at ? format(new Date(token.expires_at), 'MMM d, yyyy') : 'Never'}
                         </p>
                       </div>
                       <div>
-                        <span className="text-pierre-gray-500">Usage:</span>
-                        <p className="font-medium">{token.usage_count} requests</p>
+                        <span className="text-zinc-500">Usage:</span>
+                        <p className="font-medium text-white">{token.usage_count} requests</p>
                       </div>
                       <div>
-                        <span className="text-pierre-gray-500">Last Used:</span>
-                        <p className="font-medium">
+                        <span className="text-zinc-500">Last Used:</span>
+                        <p className="font-medium text-white">
                           {token.last_used_at ? format(new Date(token.last_used_at), 'MMM d, yyyy') : 'Never'}
                         </p>
                       </div>
                     </div>
-                    
+
                     {token.permissions && token.permissions.length > 0 && (
                       <div className="mt-3">
-                        <span className="text-sm text-pierre-gray-500">Permissions:</span>
+                        <span className="text-sm text-zinc-500">Permissions:</span>
                         <div className="flex flex-wrap gap-1 mt-1">
                           {token.permissions.map((permission) => (
                             <Badge key={permission} variant="info" className="text-xs">

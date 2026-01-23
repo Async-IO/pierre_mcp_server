@@ -16,10 +16,10 @@ module.exports = {
           violet: '#7C3AED',  // Intelligence, AI, sophistication
           cyan: '#06B6D4',    // Data flow, connectivity, freshness
 
-          // Three Pillars - Semantic accent colors
+          // Three Pillars - Semantic accent colors (dark-mode optimized)
           activity: '#10B981',   // Emerald - Movement, fitness, energy
-          nutrition: '#F59E0B',  // Amber - Food, fuel, nourishment
-          recovery: '#6366F1',   // Indigo - Rest, sleep, restoration
+          nutrition: '#FBBF24',  // Amber - Food, fuel, nourishment (brightened for dark mode)
+          recovery: '#818CF8',   // Indigo - Rest, sleep, restoration (brightened for dark mode)
           mobility: '#EC4899',   // Pink - Flexibility, stretching, movement quality
 
           // Dark theme backgrounds
@@ -142,7 +142,8 @@ module.exports = {
         'api-yellow': '#ca8a04',
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+        // Plus Jakarta Sans for premium tech aesthetic, Inter as fallback
+        sans: ['Plus Jakarta Sans', 'Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
         mono: ['JetBrains Mono', 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'monospace'],
       },
       fontSize: {
@@ -180,10 +181,20 @@ module.exports = {
         'md': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
         'lg': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
         'xl': '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-        'glow': '0 0 15px rgba(124, 59, 237, 0.3)',
-        'glow-sm': '0 0 8px rgba(124, 59, 237, 0.2)',
-        'glow-lg': '0 0 20px rgba(124, 59, 237, 0.5)',
-        'glow-cyan': '0 0 15px rgba(6, 182, 212, 0.3)',
+        // Glow effects for premium interactions
+        'glow': '0 0 15px rgba(124, 58, 237, 0.3)',
+        'glow-sm': '0 0 8px rgba(124, 58, 237, 0.2)',
+        'glow-lg': '0 0 20px rgba(124, 58, 237, 0.5)',
+        'glow-violet': '0 0 20px rgba(124, 58, 237, 0.3)',
+        'glow-cyan': '0 0 20px rgba(6, 182, 212, 0.3)',
+        'glow-activity': '0 0 20px rgba(16, 185, 129, 0.3)',
+        'glow-nutrition': '0 0 20px rgba(251, 191, 36, 0.3)',
+        'glow-recovery': '0 0 20px rgba(129, 140, 248, 0.3)',
+        // Glassmorphism inner border effect
+        'glass': 'inset 0 0 0 1px rgba(255, 255, 255, 0.1)',
+      },
+      backdropBlur: {
+        xs: '2px',
       },
       transitionDuration: {
         'fast': '150ms',
@@ -203,6 +214,7 @@ module.exports = {
         'fade-in': 'fadeIn 0.15s ease-out',
         'scale-in': 'scaleIn 0.2s ease-out',
         'shimmer': 'shimmer 2s infinite linear',
+        'pulse-glow': 'pulseGlow 2s infinite',
       },
       keyframes: {
         slideUp: {
@@ -220,6 +232,10 @@ module.exports = {
         shimmer: {
           '0%': { backgroundPosition: '-200% 0' },
           '100%': { backgroundPosition: '200% 0' },
+        },
+        pulseGlow: {
+          '0%, 100%': { boxShadow: '0 0 0 0 rgba(124, 58, 237, 0.4)' },
+          '50%': { boxShadow: '0 0 0 8px rgba(124, 58, 237, 0)' },
         },
       },
     },

@@ -1,19 +1,20 @@
-/* Use system fonts for better performance - fallback to web fonts if needed */
+/* Pierre Design System - Plus Jakarta Sans as primary font */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   html {
-    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   }
-  
+
+  /* Admin UI uses always-dark theme */
   body {
-    @apply bg-pierre-gray-50 text-pierre-gray-700;
+    @apply bg-pierre-dark text-white;
   }
-  
+
   h1, h2, h3, h4, h5, h6 {
-    @apply text-pierre-gray-900 font-semibold;
+    @apply text-white font-semibold;
   }
 }
 
@@ -28,7 +29,12 @@
   }
 
   .btn-gradient {
-    @apply btn-base bg-gradient-to-r from-pierre-violet to-pierre-cyan text-white shadow-md hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none;
+    @apply btn-base bg-gradient-to-r from-pierre-violet to-pierre-cyan text-white shadow-lg hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none;
+    box-shadow: 0 4px 14px rgba(124, 58, 237, 0.25);
+  }
+
+  .btn-gradient:hover {
+    box-shadow: 0 6px 20px rgba(124, 58, 237, 0.4);
   }
   
   .btn-secondary {
@@ -45,6 +51,44 @@
 
   .btn-outline {
     @apply btn-base bg-transparent text-pierre-gray-700 border border-pierre-gray-300 hover:bg-pierre-gray-50 hover:border-pierre-gray-400;
+  }
+
+  /* Pill-shaped button with gradient glow - per Stitch design system */
+  .btn-pill {
+    @apply btn-base rounded-full bg-gradient-to-r from-pierre-violet to-pierre-cyan text-white hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none;
+    box-shadow: 0 4px 14px rgba(124, 58, 237, 0.25);
+  }
+
+  .btn-pill:hover {
+    box-shadow: 0 6px 20px rgba(124, 58, 237, 0.4);
+  }
+
+  /* Three Pillar Button Variants - per Stitch design system */
+  .btn-activity {
+    @apply btn-base bg-pierre-activity text-white hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none;
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.25);
+  }
+
+  .btn-activity:hover {
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+  }
+
+  .btn-nutrition {
+    @apply btn-base bg-pierre-nutrition text-white hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none;
+    box-shadow: 0 4px 14px rgba(251, 191, 36, 0.25);
+  }
+
+  .btn-nutrition:hover {
+    box-shadow: 0 6px 20px rgba(251, 191, 36, 0.4);
+  }
+
+  .btn-recovery {
+    @apply btn-base bg-pierre-recovery text-white hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none;
+    box-shadow: 0 4px 14px rgba(129, 140, 248, 0.25);
+  }
+
+  .btn-recovery:hover {
+    box-shadow: 0 6px 20px rgba(129, 140, 248, 0.4);
   }
 
   .btn-sm {
@@ -77,7 +121,30 @@
   .input-field {
     @apply w-full px-4 py-3 border border-pierre-gray-300 rounded-md text-sm font-sans transition-all duration-base focus:outline-none focus:border-pierre-violet focus:ring-2 focus:ring-pierre-violet focus:ring-opacity-20;
   }
-  
+
+  /* Glass Input Style - per Stitch design system */
+  .input-glass {
+    @apply w-full px-4 py-3 rounded-xl text-sm font-sans transition-all duration-base focus:outline-none;
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: white;
+  }
+
+  .input-glass::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  .input-glass:focus {
+    border-color: rgba(124, 58, 237, 0.5);
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+  }
+
+  .input-glass:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   .label {
     @apply block text-sm font-medium text-pierre-gray-700 mb-2;
   }
@@ -179,16 +246,244 @@
     @apply focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-opacity-50 focus:ring-offset-2;
   }
 
-  /* Pierre Dark Theme Card */
+  /* Pierre Dark Theme Card - Glassmorphism 2.0 */
   .card-dark {
-    @apply rounded-lg border border-white/10 p-6 transition-all duration-base;
-    background: rgba(30, 30, 46, 0.5);
-    backdrop-filter: blur(8px);
+    @apply rounded-2xl border border-white/10 p-6 transition-all duration-base;
+    background: rgba(30, 30, 46, 0.6);
+    backdrop-filter: blur(16px);
   }
 
   .card-dark:hover {
     @apply border-pierre-violet/30;
-    box-shadow: 0 0 15px rgba(124, 59, 237, 0.1);
+    box-shadow: 0 0 20px rgba(124, 58, 237, 0.15);
+  }
+
+  /* Glassmorphism card with glow (for featured items) */
+  .card-glow {
+    @apply rounded-2xl p-6 transition-all duration-base;
+    background: rgba(30, 30, 46, 0.8);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(124, 58, 237, 0.3);
+    box-shadow: 0 0 20px rgba(124, 58, 237, 0.15);
+  }
+
+  /* Light theme glassmorphism card */
+  .card-glass-light {
+    @apply rounded-2xl border border-black/5 p-6 transition-all duration-base;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(12px);
+  }
+
+  /* Three Pillar cards */
+  .card-activity {
+    @apply card-dark;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.05) 100%);
+    border-color: rgba(16, 185, 129, 0.2);
+  }
+
+  .card-nutrition {
+    @apply card-dark;
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(217, 119, 6, 0.05) 100%);
+    border-color: rgba(251, 191, 36, 0.2);
+  }
+
+  .card-recovery {
+    @apply card-dark;
+    background: linear-gradient(135deg, rgba(129, 140, 248, 0.1) 0%, rgba(79, 70, 229, 0.05) 100%);
+    border-color: rgba(129, 140, 248, 0.2);
+  }
+
+  /* Micro-interaction: Hover lift with glow */
+  .hover-lift {
+    @apply transition-all duration-200;
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
+  }
+
+  /* Pulse glow animation for active states */
+  .pulse-glow {
+    animation: pulse-glow 2s infinite;
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(124, 58, 237, 0); }
+  }
+
+  /* Chat Bubble Styles - per Stitch design system */
+  .chat-bubble-ai {
+    @apply rounded-2xl p-4 max-w-[85%];
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .chat-bubble-user {
+    @apply rounded-2xl p-4 max-w-[85%] ml-auto;
+    background: rgba(124, 58, 237, 0.9);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  /* ============================================
+     AI Intelligence Glow Effects
+     Reinforces Pierre's AI-first brand identity
+     ============================================ */
+
+  /* AI Ambient Glow - subtle constant presence for AI elements */
+  .ai-glow {
+    box-shadow: 0 0 20px rgba(124, 58, 237, 0.15);
+  }
+
+  .ai-glow-strong {
+    box-shadow: 0 0 30px rgba(124, 58, 237, 0.25), 0 0 60px rgba(124, 58, 237, 0.1);
+  }
+
+  /* AI Avatar/Icon Glow - for Pierre AI avatar */
+  .ai-avatar-glow {
+    @apply relative;
+    box-shadow: 0 0 20px rgba(124, 58, 237, 0.4);
+  }
+
+  .ai-avatar-glow::after {
+    content: '';
+    @apply absolute inset-0 rounded-full;
+    background: radial-gradient(circle, rgba(124, 58, 237, 0.2) 0%, transparent 70%);
+    animation: ai-breathe 3s ease-in-out infinite;
+  }
+
+  /* AI Thinking/Processing Indicator - animated glow while AI processes */
+  .ai-thinking {
+    animation: ai-thinking-glow 1.5s ease-in-out infinite;
+  }
+
+  @keyframes ai-thinking-glow {
+    0%, 100% {
+      box-shadow: 0 0 10px rgba(124, 58, 237, 0.3);
+      border-color: rgba(124, 58, 237, 0.3);
+    }
+    50% {
+      box-shadow: 0 0 25px rgba(124, 58, 237, 0.5), 0 0 50px rgba(124, 58, 237, 0.2);
+      border-color: rgba(124, 58, 237, 0.6);
+    }
+  }
+
+  /* AI Breathing Glow - subtle ambient animation for AI presence */
+  .ai-breathe {
+    animation: ai-breathe 4s ease-in-out infinite;
+  }
+
+  @keyframes ai-breathe {
+    0%, 100% {
+      box-shadow: 0 0 15px rgba(124, 58, 237, 0.2);
+    }
+    50% {
+      box-shadow: 0 0 25px rgba(124, 58, 237, 0.35);
+    }
+  }
+
+  /* AI Response Glow - appears when AI sends a new message */
+  .ai-response-glow {
+    animation: ai-response 0.6s ease-out;
+  }
+
+  @keyframes ai-response {
+    0% {
+      box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.6);
+      transform: scale(0.98);
+    }
+    50% {
+      box-shadow: 0 0 30px rgba(124, 58, 237, 0.4);
+    }
+    100% {
+      box-shadow: 0 0 15px rgba(124, 58, 237, 0.15);
+      transform: scale(1);
+    }
+  }
+
+  /* AI Input Focus - enhanced focus state for chat input */
+  .ai-input-focus:focus {
+    border-color: rgba(124, 58, 237, 0.6);
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15), 0 0 20px rgba(124, 58, 237, 0.2);
+  }
+
+  /* AI Card - glassmorphism card with AI-specific styling */
+  .card-ai {
+    @apply rounded-2xl p-6 transition-all duration-300;
+    background: linear-gradient(135deg, rgba(124, 58, 237, 0.08) 0%, rgba(30, 30, 46, 0.6) 100%);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(124, 58, 237, 0.2);
+    box-shadow: 0 0 20px rgba(124, 58, 237, 0.1);
+  }
+
+  .card-ai:hover {
+    border-color: rgba(124, 58, 237, 0.4);
+    box-shadow: 0 0 30px rgba(124, 58, 237, 0.2);
+  }
+
+  /* AI Typing Dots - animated dots for AI typing indicator */
+  .ai-typing-dot {
+    @apply w-2 h-2 rounded-full bg-pierre-violet;
+    animation: ai-typing 1.4s infinite ease-in-out both;
+  }
+
+  .ai-typing-dot:nth-child(1) { animation-delay: -0.32s; }
+  .ai-typing-dot:nth-child(2) { animation-delay: -0.16s; }
+  .ai-typing-dot:nth-child(3) { animation-delay: 0s; }
+
+  @keyframes ai-typing {
+    0%, 80%, 100% {
+      transform: scale(0.6);
+      opacity: 0.5;
+    }
+    40% {
+      transform: scale(1);
+      opacity: 1;
+      box-shadow: 0 0 8px rgba(124, 58, 237, 0.6);
+    }
+  }
+
+  /* AI Gradient Border - animated gradient border for premium AI elements */
+  .ai-gradient-border {
+    @apply relative rounded-2xl;
+    background: linear-gradient(135deg, rgba(124, 58, 237, 0.1), rgba(6, 182, 212, 0.1));
+  }
+
+  .ai-gradient-border::before {
+    content: '';
+    @apply absolute inset-0 rounded-2xl;
+    padding: 1px;
+    background: linear-gradient(135deg, #7C3AED, #06B6D4);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0.5;
+    transition: opacity 0.3s ease;
+  }
+
+  .ai-gradient-border:hover::before {
+    opacity: 1;
+  }
+
+  /* AI Shimmer Effect - loading shimmer with violet tint */
+  .ai-shimmer {
+    @apply relative overflow-hidden;
+    background: linear-gradient(90deg,
+      rgba(124, 58, 237, 0.05) 0%,
+      rgba(124, 58, 237, 0.15) 50%,
+      rgba(124, 58, 237, 0.05) 100%
+    );
+    background-size: 200% 100%;
+    animation: ai-shimmer 1.5s infinite;
+  }
+
+  @keyframes ai-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
   }
 
   /* Dark Theme Sidebar Scrollbar */
@@ -207,5 +502,157 @@
 
   .sidebar-scroll::-webkit-scrollbar-thumb:hover {
     background-color: #555;
+  }
+
+  /* ================================== */
+  /* Admin Dark Theme Components        */
+  /* ================================== */
+
+  /* Dark Admin Card with Glassmorphism */
+  .card-admin {
+    @apply rounded-xl border border-white/10 p-6 transition-all duration-base;
+    background: rgba(30, 30, 46, 0.6);
+    backdrop-filter: blur(12px);
+  }
+
+  .card-admin:hover {
+    @apply border-white/20;
+  }
+
+  /* Dark Stat Card */
+  .stat-card-dark {
+    @apply rounded-xl border border-white/10 p-6 text-center transition-all duration-base relative overflow-hidden;
+    background: rgba(30, 30, 46, 0.6);
+    backdrop-filter: blur(12px);
+  }
+
+  .stat-card-dark::before {
+    @apply absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-pierre-violet via-pierre-cyan to-pierre-activity;
+    content: '';
+  }
+
+  .stat-card-dark:hover {
+    @apply -translate-y-0.5 border-white/20;
+    box-shadow: 0 4px 20px rgba(124, 59, 237, 0.15);
+  }
+
+  /* Dark Form Input */
+  .input-dark {
+    @apply w-full px-4 py-3 rounded-lg text-sm font-sans transition-all duration-base;
+    @apply bg-white/5 border border-white/10 text-white placeholder-zinc-500;
+    @apply focus:outline-none focus:border-pierre-violet focus:ring-2 focus:ring-pierre-violet/20;
+  }
+
+  .input-dark:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  /* Dark Select */
+  .select-dark {
+    @apply w-full px-4 py-3 rounded-lg text-sm font-sans transition-all duration-base appearance-none;
+    @apply bg-white/5 border border-white/10 text-white;
+    @apply focus:outline-none focus:border-pierre-violet focus:ring-2 focus:ring-pierre-violet/20;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 0.5rem center;
+    background-repeat: no-repeat;
+    background-size: 1.5em 1.5em;
+    padding-right: 2.5rem;
+  }
+
+  /* Dark Tabs */
+  .tab-dark {
+    @apply py-3 px-4 border-b-2 border-transparent text-zinc-400 font-medium transition-all duration-base flex items-center gap-2;
+  }
+
+  .tab-dark:hover {
+    @apply text-zinc-200 border-zinc-600;
+  }
+
+  .tab-dark-active {
+    @apply text-pierre-violet border-pierre-violet;
+  }
+
+  /* Dark Badge Variants */
+  .badge-dark {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium;
+    @apply bg-white/10 text-zinc-300;
+  }
+
+  .badge-dark-success {
+    @apply badge bg-pierre-green-500/20 text-pierre-green-400 border border-pierre-green-500/30;
+  }
+
+  .badge-dark-warning {
+    @apply badge bg-pierre-yellow-500/20 text-pierre-yellow-400 border border-pierre-yellow-500/30;
+  }
+
+  .badge-dark-error {
+    @apply badge bg-pierre-red-500/20 text-pierre-red-400 border border-pierre-red-500/30;
+  }
+
+  .badge-dark-info {
+    @apply badge bg-pierre-blue-500/20 text-pierre-blue-400 border border-pierre-blue-500/30;
+  }
+
+  .badge-dark-violet {
+    @apply badge bg-pierre-violet/20 text-pierre-violet-light border border-pierre-violet/30;
+  }
+
+  .badge-dark-cyan {
+    @apply badge bg-pierre-cyan/20 text-pierre-cyan border border-pierre-cyan/30;
+  }
+
+  /* Dark Button Variants for Admin */
+  .btn-dark-secondary {
+    @apply btn-base bg-white/5 text-zinc-300 border border-white/10 hover:bg-white/10 hover:text-white;
+  }
+
+  .btn-dark-outline {
+    @apply btn-base bg-transparent text-zinc-300 border border-white/20 hover:bg-white/5 hover:border-white/30;
+  }
+
+  /* Dark Table Styles */
+  .table-dark {
+    @apply w-full text-sm;
+  }
+
+  .table-dark thead {
+    @apply border-b border-white/10;
+  }
+
+  .table-dark th {
+    @apply px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider;
+  }
+
+  .table-dark tbody tr {
+    @apply border-b border-white/5 transition-colors;
+  }
+
+  .table-dark tbody tr:hover {
+    @apply bg-white/5;
+  }
+
+  .table-dark td {
+    @apply px-4 py-3 text-zinc-300;
+  }
+
+  /* Dark Scrollbar for content areas */
+  .scrollbar-dark::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-dark::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+  }
+
+  .scrollbar-dark::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+  }
+
+  .scrollbar-dark::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.25);
   }
 }

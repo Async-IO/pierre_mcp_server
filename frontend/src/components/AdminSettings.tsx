@@ -33,37 +33,37 @@ export default function AdminSettings() {
   return (
     <div className="space-y-6 max-w-3xl">
       {/* User Registration Settings */}
-      <Card>
-        <h2 className="text-lg font-semibold text-pierre-gray-900 mb-4">User Registration</h2>
+      <Card variant="dark">
+        <h2 className="text-lg font-semibold text-white mb-4">User Registration</h2>
 
         <div className="space-y-4">
           {/* Auto-Approval Toggle */}
-          <div className="flex items-start justify-between p-4 bg-pierre-gray-50 rounded-lg">
+          <div className="flex items-start justify-between p-4 bg-white/5 rounded-lg border border-white/10">
             <div className="flex-1 mr-4">
-              <h3 className="font-medium text-pierre-gray-900">Auto-Approve Registrations</h3>
-              <p className="text-sm text-pierre-gray-600 mt-1">
+              <h3 className="font-medium text-white">Auto-Approve Registrations</h3>
+              <p className="text-sm text-zinc-400 mt-1">
                 When enabled, new user registrations are automatically approved without requiring admin review.
                 This is useful for public platforms but may pose security risks.
               </p>
               {autoApprovalData?.description && (
-                <p className="text-xs text-pierre-gray-400 mt-2">
+                <p className="text-xs text-zinc-500 mt-2">
                   {autoApprovalData.description}
                 </p>
               )}
             </div>
             <div className="flex-shrink-0">
               {isLoading ? (
-                <div className="w-11 h-6 bg-pierre-gray-200 rounded-full animate-pulse" />
+                <div className="w-11 h-6 bg-white/10 rounded-full animate-pulse" />
               ) : error ? (
-                <span className="text-xs text-pierre-red-500">Error loading</span>
+                <span className="text-xs text-pierre-red-400">Error loading</span>
               ) : (
                 <button
                   onClick={handleToggleAutoApproval}
                   disabled={updateAutoApprovalMutation.isPending}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-offset-2 ${
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-offset-2 focus:ring-offset-pierre-slate ${
                     autoApprovalData?.enabled
                       ? 'bg-pierre-activity'
-                      : 'bg-pierre-gray-300'
+                      : 'bg-zinc-600'
                   } ${updateAutoApprovalMutation.isPending ? 'opacity-50 cursor-not-allowed' : ''}`}
                   role="switch"
                   aria-checked={autoApprovalData?.enabled}
@@ -82,8 +82,8 @@ export default function AdminSettings() {
           {autoApprovalData && (
             <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
               autoApprovalData.enabled
-                ? 'bg-pierre-activity-light/20 text-pierre-activity'
-                : 'bg-pierre-gray-100 text-pierre-gray-600'
+                ? 'bg-pierre-activity/15 text-pierre-activity border border-pierre-activity/30'
+                : 'bg-white/5 text-zinc-400 border border-white/10'
             }`}>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 {autoApprovalData.enabled ? (
@@ -102,12 +102,12 @@ export default function AdminSettings() {
 
           {/* Mutation status */}
           {updateAutoApprovalMutation.isSuccess && (
-            <div className="p-3 rounded-lg bg-pierre-activity-light/30 text-pierre-activity text-sm">
+            <div className="p-3 rounded-lg bg-pierre-activity/15 text-pierre-activity text-sm border border-pierre-activity/30">
               Setting updated successfully.
             </div>
           )}
           {updateAutoApprovalMutation.isError && (
-            <div className="p-3 rounded-lg bg-pierre-red-50 text-pierre-red-600 text-sm">
+            <div className="p-3 rounded-lg bg-pierre-red-500/15 text-pierre-red-400 text-sm border border-pierre-red-500/30">
               Failed to update setting. Please try again.
             </div>
           )}
@@ -115,21 +115,21 @@ export default function AdminSettings() {
       </Card>
 
       {/* System Information */}
-      <Card>
-        <h2 className="text-lg font-semibold text-pierre-gray-900 mb-4">System Information</h2>
+      <Card variant="dark">
+        <h2 className="text-lg font-semibold text-white mb-4">System Information</h2>
 
         <div className="space-y-3">
-          <div className="flex justify-between items-center py-2 border-b border-pierre-gray-100">
-            <span className="text-pierre-gray-600">Application</span>
-            <span className="text-pierre-gray-900">Pierre Fitness Intelligence</span>
+          <div className="flex justify-between items-center py-2 border-b border-white/10">
+            <span className="text-zinc-400">Application</span>
+            <span className="text-white">Pierre Fitness Intelligence</span>
           </div>
-          <div className="flex justify-between items-center py-2 border-b border-pierre-gray-100">
-            <span className="text-pierre-gray-600">Version</span>
-            <span className="text-pierre-gray-900">0.2.0</span>
+          <div className="flex justify-between items-center py-2 border-b border-white/10">
+            <span className="text-zinc-400">Version</span>
+            <span className="text-white">0.2.0</span>
           </div>
           <div className="flex justify-between items-center py-2">
-            <span className="text-pierre-gray-600">Environment</span>
-            <span className="px-2 py-1 bg-pierre-activity-light/20 text-pierre-activity rounded-full text-xs font-medium">
+            <span className="text-zinc-400">Environment</span>
+            <span className="px-2 py-1 bg-pierre-activity/20 text-pierre-activity rounded-full text-xs font-medium border border-pierre-activity/30">
               {import.meta.env.MODE}
             </span>
           </div>
@@ -137,16 +137,16 @@ export default function AdminSettings() {
       </Card>
 
       {/* Security Recommendations */}
-      <Card className="border-pierre-nutrition-light">
+      <Card variant="dark" className="border-pierre-nutrition/30">
         <div className="flex items-start gap-3">
-          <div className="flex-shrink-0 p-2 bg-pierre-nutrition-light/20 rounded-lg">
+          <div className="flex-shrink-0 p-2 bg-pierre-nutrition/20 rounded-lg">
             <svg className="w-5 h-5 text-pierre-nutrition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
           </div>
           <div>
-            <h3 className="font-medium text-pierre-gray-900">Security Recommendations</h3>
-            <ul className="mt-2 space-y-1 text-sm text-pierre-gray-600">
+            <h3 className="font-medium text-white">Security Recommendations</h3>
+            <ul className="mt-2 space-y-1 text-sm text-zinc-400">
               <li>Keep auto-approval disabled for production environments.</li>
               <li>Regularly review pending user registrations.</li>
               <li>Monitor the Users tab for suspicious registrations.</li>

@@ -30,26 +30,26 @@ export default function ToolUsageBreakdownComponent({
 
   if (!toolUsage || toolUsage.length === 0) {
     return (
-      <div className="card">
-        <div className="text-center py-8 text-pierre-gray-500">
+      <div className="card-dark">
+        <div className="text-center py-8 text-zinc-400">
           <div className="text-4xl mb-4">🔧</div>
-          <p className="text-lg mb-2">No tool usage data</p>
+          <p className="text-lg mb-2 text-white">No tool usage data</p>
           <p>Start making API calls to see tool usage breakdown</p>
         </div>
       </div>
     );
   }
 
-  // Prepare chart data
+  // Prepare chart data - Pierre brand colors
   const colors = [
-    '#2563EB', // Blue
-    '#10B981', // Green
-    '#F59E0B', // Yellow
-    '#EF4444', // Red
-    '#8B5CF6', // Purple
-    '#06B6D4', // Cyan
-    '#F97316', // Orange
-    '#84CC16', // Lime
+    '#8B5CF6', // pierre-violet
+    '#22D3EE', // pierre-cyan
+    '#4ADE80', // pierre-activity
+    '#F59E0B', // pierre-nutrition
+    '#FF6B6B', // pierre-red
+    '#06B6D4', // cyan
+    '#FB923C', // orange
+    '#A78BFA', // light violet
   ];
 
   const doughnutData = {
@@ -70,8 +70,8 @@ export default function ToolUsageBreakdownComponent({
       {
         label: 'Avg Response Time (ms)',
         data: toolUsage.map(tool => tool.average_response_time),
-        backgroundColor: 'rgba(37, 99, 235, 0.6)',
-        borderColor: 'rgb(37, 99, 235)',
+        backgroundColor: 'rgba(139, 92, 246, 0.6)',
+        borderColor: 'rgb(139, 92, 246)',
         borderWidth: 1,
       },
     ],
@@ -83,6 +83,9 @@ export default function ToolUsageBreakdownComponent({
     plugins: {
       legend: {
         position: 'bottom' as const,
+        labels: {
+          color: '#a1a1aa', // zinc-400
+        },
       },
       tooltip: {
         callbacks: {
@@ -110,13 +113,24 @@ export default function ToolUsageBreakdownComponent({
         beginAtZero: true,
         title: {
           display: true,
-          text: 'Response Time (ms)'
-        }
+          text: 'Response Time (ms)',
+          color: '#a1a1aa', // zinc-400
+        },
+        ticks: {
+          color: '#a1a1aa', // zinc-400
+        },
+        grid: {
+          color: 'rgba(255, 255, 255, 0.1)',
+        },
       },
       x: {
         ticks: {
           maxRotation: 45,
-        }
+          color: '#a1a1aa', // zinc-400
+        },
+        grid: {
+          color: 'rgba(255, 255, 255, 0.1)',
+        },
       }
     },
   };
@@ -129,15 +143,15 @@ export default function ToolUsageBreakdownComponent({
     <div className="space-y-6">
       {/* Tool Usage Distribution */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="card">
-          <h3 className="text-lg font-medium mb-4">Request Distribution</h3>
+        <div className="card-dark">
+          <h3 className="text-lg font-medium mb-4 text-white">Request Distribution</h3>
           <div style={{ height: '300px' }}>
             <Doughnut data={doughnutData} options={doughnutOptions} />
           </div>
         </div>
 
-        <div className="card">
-          <h3 className="text-lg font-medium mb-4">Average Response Time</h3>
+        <div className="card-dark">
+          <h3 className="text-lg font-medium mb-4 text-white">Average Response Time</h3>
           <div style={{ height: '300px' }}>
             <Bar data={barData} options={barOptions} />
           </div>
@@ -145,66 +159,66 @@ export default function ToolUsageBreakdownComponent({
       </div>
 
       {/* Detailed Breakdown Table */}
-      <div className="card">
-        <h3 className="text-lg font-medium mb-4">Tool Usage Details</h3>
+      <div className="card-dark">
+        <h3 className="text-lg font-medium mb-4 text-white">Tool Usage Details</h3>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-pierre-gray-200">
-            <thead className="bg-pierre-gray-50">
+          <table className="min-w-full divide-y divide-white/10">
+            <thead className="bg-white/5">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-pierre-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
                   Tool Name
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-pierre-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
                   Requests
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-pierre-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
                   Success Rate
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-pierre-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
                   Avg Response Time
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-pierre-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
                   Errors
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-pierre-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
                   Share
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-pierre-gray-200">
+            <tbody className="divide-y divide-white/10">
               {toolUsage.map((tool, index) => (
-                <tr key={tool.tool_name} className="hover:bg-pierre-gray-50">
+                <tr key={tool.tool_name} className="hover:bg-white/5">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div
                         className="w-3 h-3 rounded-full mr-3"
                         style={{ backgroundColor: colors[index % colors.length] }}
                       />
-                      <div className="text-sm font-medium text-pierre-gray-900">
+                      <div className="text-sm font-medium text-white">
                         {formatToolName(tool.tool_name)}
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-pierre-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
                     {tool.request_count.toLocaleString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <div className="text-sm text-pierre-gray-900">
+                      <div className="text-sm text-white">
                         {tool.success_rate.toFixed(1)}%
                       </div>
-                      <div className="ml-2 w-16 bg-pierre-gray-200 rounded-full h-2">
+                      <div className="ml-2 w-16 bg-white/10 rounded-full h-2">
                         <div
                           className={`h-2 rounded-full ${
-                            tool.success_rate >= 95 ? 'bg-pierre-green-500' :
-                            tool.success_rate >= 90 ? 'bg-pierre-yellow-500' : 'bg-pierre-red-500'
+                            tool.success_rate >= 95 ? 'bg-pierre-activity' :
+                            tool.success_rate >= 90 ? 'bg-pierre-nutrition' : 'bg-pierre-red-400'
                           }`}
                           style={{ width: `${tool.success_rate}%` }}
                         />
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-pierre-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
                     {tool.average_response_time.toFixed(0)}ms
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -213,17 +227,17 @@ export default function ToolUsageBreakdownComponent({
                       return (
                         <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
                           errorCount === 0
-                            ? 'bg-pierre-green-100 text-pierre-green-800'
+                            ? 'bg-pierre-activity/20 text-pierre-activity border border-pierre-activity/30'
                             : errorCount < 10
-                            ? 'bg-pierre-yellow-100 text-pierre-yellow-800'
-                            : 'bg-pierre-red-100 text-pierre-red-800'
+                            ? 'bg-pierre-nutrition/20 text-pierre-nutrition border border-pierre-nutrition/30'
+                            : 'bg-pierre-red-500/20 text-pierre-red-400 border border-pierre-red-500/30'
                         }`}>
                           {errorCount}
                         </span>
                       );
                     })()}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-pierre-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
                     {(() => {
                       const totalRequests = toolUsage?.reduce((sum, t) => sum + t.request_count, 0) || 1;
                       const percentage = (tool.request_count / totalRequests) * 100;
@@ -239,31 +253,31 @@ export default function ToolUsageBreakdownComponent({
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="stat-card">
-          <div className="text-2xl font-bold text-api-blue">
+        <div className="stat-card-dark">
+          <div className="text-2xl font-bold text-pierre-violet">
             {toolUsage.length}
           </div>
-          <div className="text-sm text-pierre-gray-600">Tools Used</div>
+          <div className="text-sm text-zinc-400">Tools Used</div>
         </div>
-        <div className="stat-card">
-          <div className="text-2xl font-bold text-api-green">
+        <div className="stat-card-dark">
+          <div className="text-2xl font-bold text-pierre-cyan">
             {toolUsage.reduce((sum, tool) => sum + tool.request_count, 0).toLocaleString()}
           </div>
-          <div className="text-sm text-pierre-gray-600">Total Requests</div>
+          <div className="text-sm text-zinc-400">Total Requests</div>
         </div>
-        <div className="stat-card">
-          <div className="text-2xl font-bold text-api-yellow">
+        <div className="stat-card-dark">
+          <div className="text-2xl font-bold text-pierre-activity">
             {(toolUsage.reduce((sum, tool) => sum + tool.success_rate * tool.request_count, 0) /
              toolUsage.reduce((sum, tool) => sum + tool.request_count, 0)).toFixed(1)}%
           </div>
-          <div className="text-sm text-pierre-gray-600">Overall Success Rate</div>
+          <div className="text-sm text-zinc-400">Overall Success Rate</div>
         </div>
-        <div className="stat-card">
-          <div className="text-2xl font-bold text-pierre-gray-700">
+        <div className="stat-card-dark">
+          <div className="text-2xl font-bold text-white">
             {(toolUsage.reduce((sum, tool) => sum + tool.average_response_time * tool.request_count, 0) /
              toolUsage.reduce((sum, tool) => sum + tool.request_count, 0)).toFixed(0)}ms
           </div>
-          <div className="text-sm text-pierre-gray-600">Avg Response Time</div>
+          <div className="text-sm text-zinc-400">Avg Response Time</div>
         </div>
       </div>
     </div>

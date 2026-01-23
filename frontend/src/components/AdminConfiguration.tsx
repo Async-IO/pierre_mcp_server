@@ -276,8 +276,8 @@ export default function AdminConfiguration() {
           <button
             onClick={() => handleValueChange(param.key, !effectiveValue, param.current_value)}
             disabled={!param.is_runtime_configurable}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-offset-2 ${
-              effectiveValue ? 'bg-pierre-activity' : 'bg-pierre-gray-300'
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-offset-2 focus:ring-offset-pierre-slate ${
+              effectiveValue ? 'bg-pierre-activity' : 'bg-zinc-600'
             } ${!param.is_runtime_configurable ? 'opacity-50 cursor-not-allowed' : ''}`}
             role="switch"
             aria-checked={Boolean(effectiveValue)}
@@ -312,7 +312,7 @@ export default function AdminConfiguration() {
               className={`w-32 ${isModified ? 'border-pierre-violet ring-1 ring-pierre-violet' : ''}`}
             />
             {param.units && (
-              <span className="text-sm text-pierre-gray-500">{param.units}</span>
+              <span className="text-sm text-zinc-400">{param.units}</span>
             )}
           </div>
         );
@@ -323,7 +323,7 @@ export default function AdminConfiguration() {
             value={String(effectiveValue)}
             onChange={(e) => handleValueChange(param.key, e.target.value, param.current_value)}
             disabled={!param.is_runtime_configurable}
-            className={`px-3 py-2 border border-pierre-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-pierre-violet ${
+            className={`select-dark ${
               isModified ? 'border-pierre-violet ring-1 ring-pierre-violet' : ''
             } ${!param.is_runtime_configurable ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
@@ -367,13 +367,13 @@ export default function AdminConfiguration() {
 
   if (error) {
     return (
-      <Card className="border-pierre-red-200">
+      <Card variant="dark" className="border-pierre-red-500/30">
         <div className="text-center py-8">
           <svg className="w-12 h-12 text-pierre-red-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
-          <p className="text-pierre-red-600">Failed to load configuration catalog.</p>
-          <p className="text-sm text-pierre-gray-500 mt-2">Please check your permissions and try again.</p>
+          <p className="text-pierre-red-400">Failed to load configuration catalog.</p>
+          <p className="text-sm text-zinc-500 mt-2">Please check your permissions and try again.</p>
         </div>
       </Card>
     );
@@ -384,8 +384,8 @@ export default function AdminConfiguration() {
       {/* Header with stats */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-pierre-gray-900">Configuration Management</h1>
-          <p className="text-sm text-pierre-gray-500 mt-1">
+          <h1 className="text-2xl font-bold text-white">Configuration Management</h1>
+          <p className="text-sm text-zinc-500 mt-1">
             {filteredCategories.reduce((sum, cat) => sum + cat.parameters.length, 0)} parameters &bull;{' '}
             {filteredCategories.length} categories
           </p>
@@ -437,7 +437,7 @@ export default function AdminConfiguration() {
               <button
                 aria-label="Clear search"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-pierre-gray-400 hover:text-pierre-gray-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -447,17 +447,17 @@ export default function AdminConfiguration() {
           </div>
 
           {filteredCategories.length === 0 ? (
-            <Card className="text-center py-8">
-              <p className="text-pierre-gray-500">No parameters found</p>
+            <Card variant="dark" className="text-center py-8">
+              <p className="text-zinc-500">No parameters found</p>
             </Card>
           ) : (
           <div className="grid grid-cols-12 gap-6">
             {/* Category sidebar */}
             <div className="col-span-3">
-              <Card className="sticky top-4">
+              <Card variant="dark" className="sticky top-4">
                 {/* Config group selector */}
                 <div className="mb-4">
-                  <div className="flex rounded-lg bg-pierre-gray-100 p-1">
+                  <div className="flex rounded-lg bg-white/10 p-1">
                     <button
                       onClick={() => {
                         setConfigGroup('server');
@@ -465,8 +465,8 @@ export default function AdminConfiguration() {
                       }}
                       className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                         configGroup === 'server'
-                          ? 'bg-white text-pierre-violet shadow-sm'
-                          : 'text-pierre-gray-600 hover:text-pierre-gray-900'
+                          ? 'bg-pierre-violet text-white shadow-sm'
+                          : 'text-zinc-400 hover:text-white'
                       }`}
                     >
                       <div className="flex items-center justify-center gap-1.5">
@@ -483,8 +483,8 @@ export default function AdminConfiguration() {
                       }}
                       className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                         configGroup === 'intelligence'
-                          ? 'bg-white text-pierre-violet shadow-sm'
-                          : 'text-pierre-gray-600 hover:text-pierre-gray-900'
+                          ? 'bg-pierre-violet text-white shadow-sm'
+                          : 'text-zinc-400 hover:text-white'
                       }`}
                     >
                       <div className="flex items-center justify-center gap-1.5">
@@ -496,7 +496,7 @@ export default function AdminConfiguration() {
                     </button>
                   </div>
                 </div>
-                <h3 className="font-semibold text-pierre-gray-900 mb-3">Categories</h3>
+                <h3 className="font-semibold text-white mb-3">Categories</h3>
                 <nav className="space-y-1">
                   {filteredCategories.map((cat: ConfigCategory) => (
                     <button
@@ -505,11 +505,11 @@ export default function AdminConfiguration() {
                       className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
                         (currentCategory?.name === cat.name)
                           ? 'bg-pierre-violet text-white'
-                          : 'text-pierre-gray-600 hover:bg-pierre-gray-100'
+                          : 'text-zinc-400 hover:bg-white/10'
                       }`}
                     >
                       <div className="font-medium">{cat.display_name}</div>
-                      <div className={`text-xs ${currentCategory?.name === cat.name ? 'text-pierre-gray-200' : 'text-pierre-gray-400'}`}>
+                      <div className={`text-xs ${currentCategory?.name === cat.name ? 'text-zinc-300' : 'text-zinc-500'}`}>
                         {cat.parameters.length} parameters
                       </div>
                     </button>
@@ -522,13 +522,13 @@ export default function AdminConfiguration() {
           <div className="col-span-9 space-y-4">
             {currentCategory && (
               <>
-                <Card>
+                <Card variant="dark">
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <h2 className="text-lg font-semibold text-pierre-gray-900">
+                      <h2 className="text-lg font-semibold text-white">
                         {currentCategory.display_name}
                       </h2>
-                      <p className="text-sm text-pierre-gray-500">{currentCategory.description}</p>
+                      <p className="text-sm text-zinc-400">{currentCategory.description}</p>
                     </div>
                     <Button
                       variant="outline"
@@ -539,12 +539,12 @@ export default function AdminConfiguration() {
                     </Button>
                   </div>
 
-                  <div className="divide-y divide-pierre-gray-100">
+                  <div className="divide-y divide-white/10">
                     {currentCategory.parameters.map((param: ConfigParameter) => {
                       const hasPendingChange = param.key in pendingChanges;
                       const isModifiedFromDefault = param.is_modified || hasPendingChange;
                       return (
-                      <div key={param.key} className={`py-4 ${hasPendingChange ? 'bg-pierre-violet/5 -mx-4 px-4 rounded-lg' : ''}`}>
+                      <div key={param.key} className={`py-4 ${hasPendingChange ? 'bg-pierre-violet/10 -mx-4 px-4 rounded-lg' : ''}`}>
                         <div className="flex items-start justify-between">
                           <div className="flex-1 mr-4">
                             <div className="flex items-center gap-2">
@@ -552,7 +552,7 @@ export default function AdminConfiguration() {
                               {hasPendingChange && (
                                 <span className="w-2 h-2 rounded-full bg-pierre-violet animate-pulse" title="Pending change" />
                               )}
-                              <h4 className="font-medium text-pierre-gray-900">
+                              <h4 className="font-medium text-white">
                                 {param.display_name}
                               </h4>
                               {param.is_modified && !hasPendingChange && (
@@ -568,30 +568,30 @@ export default function AdminConfiguration() {
                                 <Badge variant="secondary">Static</Badge>
                               )}
                             </div>
-                            <p className="text-sm text-pierre-gray-600 mt-1">
+                            <p className="text-sm text-zinc-400 mt-1">
                               {param.description}
                             </p>
-                            <div className="flex items-center gap-4 mt-2 text-xs text-pierre-gray-400">
-                              <span>Key: <code className="bg-pierre-gray-100 px-1 rounded">{param.key}</code></span>
-                              <span>Default: <code className="bg-pierre-gray-100 px-1 rounded">{formatValue(param.default_value)}</code></span>
+                            <div className="flex items-center gap-4 mt-2 text-xs text-zinc-500">
+                              <span>Key: <code className="bg-white/10 px-1 rounded">{param.key}</code></span>
+                              <span>Default: <code className="bg-white/10 px-1 rounded">{formatValue(param.default_value)}</code></span>
                               {param.valid_range && (
                                 <span>Range: {param.valid_range.min} - {param.valid_range.max}</span>
                               )}
                               {param.env_variable && (
                                 <span className="flex items-center gap-1">
                                   Env:{' '}
-                                  <code className="bg-pierre-gray-100 px-1 rounded">{param.env_variable}</code>
+                                  <code className="bg-white/10 px-1 rounded">{param.env_variable}</code>
                                   <button
                                     onClick={() => handleCopyEnvVar(param.env_variable!)}
-                                    className="p-0.5 hover:bg-pierre-gray-200 rounded transition-colors"
+                                    className="p-0.5 hover:bg-white/10 rounded transition-colors"
                                     title="Copy to clipboard"
                                   >
                                     {copiedEnvVar === param.env_variable ? (
-                                      <svg className="w-3.5 h-3.5 text-pierre-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <svg className="w-3.5 h-3.5 text-pierre-activity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                       </svg>
                                     ) : (
-                                      <svg className="w-3.5 h-3.5 text-pierre-gray-400 hover:text-pierre-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <svg className="w-3.5 h-3.5 text-zinc-500 hover:text-zinc-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                                       </svg>
                                     )}
@@ -600,7 +600,7 @@ export default function AdminConfiguration() {
                               )}
                             </div>
                             {param.scientific_basis && (
-                              <p className="text-xs text-pierre-gray-400 mt-1 italic">
+                              <p className="text-xs text-zinc-500 mt-1 italic">
                                 Basis: {param.scientific_basis}
                               </p>
                             )}
@@ -614,7 +614,7 @@ export default function AdminConfiguration() {
                                   ? handleValueChange(param.key, param.default_value, param.current_value)
                                   : handleReset(undefined, param.key)
                                 }
-                                className="p-1 text-pierre-gray-400 hover:text-pierre-gray-600 transition-colors"
+                                className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors"
                                 title={hasPendingChange ? "Revert pending change" : "Reset to default"}
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -647,42 +647,42 @@ export default function AdminConfiguration() {
         </Suspense>
       ) : (
         /* History tab */
-        <Card>
-          <h2 className="text-lg font-semibold text-pierre-gray-900 mb-4">Change History</h2>
+        <Card variant="dark">
+          <h2 className="text-lg font-semibold text-white mb-4">Change History</h2>
           {auditLoading ? (
             <div className="flex justify-center py-8">
               <div className="pierre-spinner w-6 h-6"></div>
             </div>
           ) : auditData?.data?.entries?.length === 0 ? (
-            <p className="text-center text-pierre-gray-500 py-8">No configuration changes recorded yet.</p>
+            <p className="text-center text-zinc-500 py-8">No configuration changes recorded yet.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-pierre-gray-200">
-                    <th className="text-left py-2 px-3 font-medium text-pierre-gray-600">Timestamp</th>
-                    <th className="text-left py-2 px-3 font-medium text-pierre-gray-600">Admin</th>
-                    <th className="text-left py-2 px-3 font-medium text-pierre-gray-600">Parameter</th>
-                    <th className="text-left py-2 px-3 font-medium text-pierre-gray-600">Old Value</th>
-                    <th className="text-left py-2 px-3 font-medium text-pierre-gray-600">New Value</th>
-                    <th className="text-left py-2 px-3 font-medium text-pierre-gray-600">Reason</th>
+                  <tr className="border-b border-white/10">
+                    <th className="text-left py-2 px-3 font-medium text-zinc-400">Timestamp</th>
+                    <th className="text-left py-2 px-3 font-medium text-zinc-400">Admin</th>
+                    <th className="text-left py-2 px-3 font-medium text-zinc-400">Parameter</th>
+                    <th className="text-left py-2 px-3 font-medium text-zinc-400">Old Value</th>
+                    <th className="text-left py-2 px-3 font-medium text-zinc-400">New Value</th>
+                    <th className="text-left py-2 px-3 font-medium text-zinc-400">Reason</th>
                   </tr>
                 </thead>
                 <tbody>
                   {auditData?.data?.entries?.map((entry: AuditEntry) => (
-                    <tr key={entry.id} className="border-b border-pierre-gray-100 hover:bg-pierre-gray-50">
-                      <td className="py-2 px-3 text-pierre-gray-500">
+                    <tr key={entry.id} className="border-b border-white/5 hover:bg-white/5">
+                      <td className="py-2 px-3 text-zinc-500">
                         {new Date(entry.timestamp).toLocaleString()}
                       </td>
-                      <td className="py-2 px-3">{entry.admin_email}</td>
+                      <td className="py-2 px-3 text-zinc-300">{entry.admin_email}</td>
                       <td className="py-2 px-3">
-                        <code className="bg-pierre-gray-100 px-1 rounded text-xs">{entry.config_key}</code>
+                        <code className="bg-white/10 px-1 rounded text-xs text-zinc-300">{entry.config_key}</code>
                       </td>
-                      <td className="py-2 px-3 text-pierre-gray-500">
+                      <td className="py-2 px-3 text-zinc-500">
                         {entry.old_value !== undefined ? formatValue(entry.old_value) : '-'}
                       </td>
-                      <td className="py-2 px-3 font-medium">{formatValue(entry.new_value)}</td>
-                      <td className="py-2 px-3 text-pierre-gray-500">{entry.reason || '-'}</td>
+                      <td className="py-2 px-3 font-medium text-white">{formatValue(entry.new_value)}</td>
+                      <td className="py-2 px-3 text-zinc-500">{entry.reason || '-'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -699,25 +699,25 @@ export default function AdminConfiguration() {
         title="Confirm Configuration Changes"
       >
         <div className="space-y-4">
-          <p className="text-pierre-gray-600">
+          <p className="text-zinc-400">
             You are about to update {Object.keys(pendingChanges).length} configuration parameter(s).
           </p>
 
-          <div className="bg-pierre-gray-50 rounded-lg p-3 max-h-64 overflow-y-auto">
+          <div className="bg-white/5 rounded-lg p-3 max-h-64 overflow-y-auto border border-white/10">
             <div className="space-y-3">
               {Object.entries(pendingChanges).map(([key, newValue]) => {
                 const oldValue = getOriginalValue(key);
                 return (
-                  <div key={key} className="text-sm border-b border-pierre-gray-200 pb-2 last:border-b-0 last:pb-0">
-                    <div className="font-medium text-pierre-gray-700 mb-1">{key}</div>
+                  <div key={key} className="text-sm border-b border-white/10 pb-2 last:border-b-0 last:pb-0">
+                    <div className="font-medium text-zinc-300 mb-1">{key}</div>
                     <div className="flex items-center gap-2">
-                      <span className="text-pierre-gray-500 bg-pierre-gray-100 px-2 py-0.5 rounded line-through">
+                      <span className="text-zinc-500 bg-white/10 px-2 py-0.5 rounded line-through">
                         {formatValue(oldValue)}
                       </span>
-                      <svg className="w-4 h-4 text-pierre-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                       </svg>
-                      <span className="font-medium text-pierre-violet bg-pierre-violet/10 px-2 py-0.5 rounded">
+                      <span className="font-medium text-pierre-violet-light bg-pierre-violet/20 px-2 py-0.5 rounded">
                         {formatValue(newValue)}
                       </span>
                     </div>
@@ -728,6 +728,7 @@ export default function AdminConfiguration() {
           </div>
 
           <Input
+            variant="dark"
             label="Reason for changes (optional)"
             value={changeReason}
             onChange={(e) => setChangeReason(e.target.value)}
@@ -735,13 +736,13 @@ export default function AdminConfiguration() {
           />
 
           {updateMutation.data?.data?.requires_restart && (
-            <div className="p-3 bg-pierre-nutrition-light/20 text-pierre-nutrition rounded-lg text-sm">
+            <div className="p-3 bg-pierre-nutrition/15 text-pierre-nutrition rounded-lg text-sm border border-pierre-nutrition/30">
               Some changes require a server restart to take effect.
             </div>
           )}
 
           {updateMutation.isError && (
-            <div className="p-3 bg-pierre-red-50 text-pierre-red-600 rounded-lg text-sm">
+            <div className="p-3 bg-pierre-red-500/15 text-pierre-red-400 rounded-lg text-sm border border-pierre-red-500/30">
               Failed to update configuration. Please try again.
             </div>
           )}
@@ -768,7 +769,7 @@ export default function AdminConfiguration() {
         title="Reset to Defaults"
       >
         <div className="space-y-4">
-          <p className="text-pierre-gray-600">
+          <p className="text-zinc-400">
             {resetTarget?.key
               ? `Are you sure you want to reset "${resetTarget.key}" to its default value?`
               : resetTarget?.category
@@ -777,7 +778,7 @@ export default function AdminConfiguration() {
           </p>
 
           {resetMutation.isError && (
-            <div className="p-3 bg-pierre-red-50 text-pierre-red-600 rounded-lg text-sm">
+            <div className="p-3 bg-pierre-red-500/15 text-pierre-red-400 rounded-lg text-sm border border-pierre-red-500/30">
               Failed to reset configuration. Please try again.
             </div>
           )}

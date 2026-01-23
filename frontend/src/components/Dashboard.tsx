@@ -217,13 +217,13 @@ export default function Dashboard() {
     );
   }
 
-  // Admin user view: Full sidebar with tabs
+  // Admin user view: Full sidebar with tabs - Dark Theme
   return (
-    <div className="min-h-screen bg-pierre-gray-50 flex">
-      {/* Vertical Sidebar */}
+    <div className="min-h-screen bg-pierre-dark flex">
+      {/* Vertical Sidebar - Dark */}
       <aside
         className={clsx(
-          'fixed left-0 top-0 h-screen bg-white border-r border-pierre-gray-200 flex flex-col z-40 transition-all duration-300 ease-in-out overflow-hidden',
+          'fixed left-0 top-0 h-screen bg-pierre-slate border-r border-white/10 flex flex-col z-40 transition-all duration-300 ease-in-out overflow-hidden',
           sidebarCollapsed ? 'w-[72px]' : 'w-[260px]'
         )}
       >
@@ -232,7 +232,7 @@ export default function Dashboard() {
 
         {/* Logo Section */}
         <div className={clsx(
-          'flex items-center border-b border-pierre-gray-100 transition-all duration-300',
+          'flex items-center border-b border-white/10 transition-all duration-300',
           sidebarCollapsed ? 'px-3 py-4 justify-center' : 'px-5 py-5 gap-3'
         )}>
           <PierreLogo />
@@ -241,7 +241,7 @@ export default function Dashboard() {
               <span className="text-lg font-semibold bg-gradient-to-r from-pierre-violet to-pierre-cyan bg-clip-text text-transparent">
                 Pierre
               </span>
-              <span className="text-[10px] text-pierre-gray-500 tracking-wide uppercase">
+              <span className="text-[10px] text-zinc-500 tracking-wide uppercase">
                 Fitness Intelligence
               </span>
             </div>
@@ -258,8 +258,8 @@ export default function Dashboard() {
                   className={clsx(
                     'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group relative',
                     {
-                      'bg-gradient-to-r from-pierre-violet/10 to-pierre-cyan/5 text-pierre-violet shadow-sm': activeTab === tab.id,
-                      'text-pierre-gray-600 hover:bg-pierre-gray-50 hover:text-pierre-violet': activeTab !== tab.id,
+                      'bg-gradient-to-r from-pierre-violet/20 to-pierre-cyan/10 text-pierre-violet-light shadow-sm': activeTab === tab.id,
+                      'text-zinc-400 hover:bg-white/5 hover:text-white': activeTab !== tab.id,
                     },
                     sidebarCollapsed && 'justify-center'
                   )}
@@ -283,7 +283,7 @@ export default function Dashboard() {
                   {!sidebarCollapsed && <span>{tab.name}</span>}
                   {/* Tooltip for collapsed state */}
                   {sidebarCollapsed && (
-                    <div className="absolute left-full ml-2 px-2 py-1 bg-pierre-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity z-50">
+                    <div className="absolute left-full ml-2 px-2 py-1 bg-white/10 backdrop-blur-sm text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity z-50">
                       {tab.name}
                     </div>
                   )}
@@ -295,7 +295,7 @@ export default function Dashboard() {
 
         {/* User Profile Section - Bottom of sidebar */}
         <div className={clsx(
-          'border-t border-pierre-gray-100',
+          'border-t border-white/10',
           sidebarCollapsed ? 'p-1.5' : 'px-2 py-1.5'
         )}>
           <div className={clsx(
@@ -310,15 +310,15 @@ export default function Dashboard() {
                 </span>
               </div>
               {/* Online status dot */}
-              <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-pierre-green-500 rounded-full border border-white" />
+              <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-pierre-green-500 rounded-full border border-pierre-slate" />
             </div>
 
             {!sidebarCollapsed && (
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-medium text-pierre-gray-900 truncate leading-none">
+                <p className="text-[10px] font-medium text-white truncate leading-none">
                   {user?.display_name || user?.email}
                 </p>
-                <span className="text-[8px] text-pierre-gray-500 uppercase">
+                <span className="text-[8px] text-zinc-500 uppercase">
                   {user?.role === 'super_admin' ? 'Super Admin' : user?.role === 'admin' ? 'Admin' : 'User'}
                 </span>
               </div>
@@ -327,7 +327,7 @@ export default function Dashboard() {
             {!sidebarCollapsed && (
               <button
                 onClick={logout}
-                className="text-pierre-gray-400 hover:text-pierre-violet transition-colors flex-shrink-0"
+                className="text-zinc-500 hover:text-pierre-violet transition-colors flex-shrink-0"
                 title="Sign out"
               >
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -339,7 +339,7 @@ export default function Dashboard() {
             {sidebarCollapsed && (
               <button
                 onClick={logout}
-                className="text-pierre-gray-500 hover:text-pierre-violet transition-colors"
+                className="text-zinc-500 hover:text-pierre-violet transition-colors"
                 title="Sign out"
               >
                 <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -353,12 +353,12 @@ export default function Dashboard() {
         {/* Collapse Toggle Button */}
         <button
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className="absolute -right-3 top-20 w-6 h-6 bg-white border border-pierre-gray-200 rounded-full flex items-center justify-center shadow-sm hover:bg-pierre-gray-50 hover:border-pierre-violet transition-all duration-200 z-50"
+          className="absolute -right-3 top-20 w-6 h-6 bg-pierre-slate border border-white/20 rounded-full flex items-center justify-center shadow-sm hover:bg-white/10 hover:border-pierre-violet transition-all duration-200 z-50"
           title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           <svg
             className={clsx(
-              'w-3 h-3 text-pierre-gray-500 transition-transform duration-300',
+              'w-3 h-3 text-zinc-400 transition-transform duration-300',
               sidebarCollapsed && 'rotate-180'
             )}
             fill="none"
@@ -377,11 +377,11 @@ export default function Dashboard() {
           sidebarCollapsed ? 'ml-[72px]' : 'ml-[260px]'
         )}
       >
-        {/* Top Header Bar */}
-        <header className="bg-white shadow-sm border-b border-pierre-gray-200 sticky top-0 z-30">
+        {/* Top Header Bar - Dark with glassmorphism */}
+        <header className="bg-pierre-slate/80 backdrop-blur-lg shadow-sm border-b border-white/10 sticky top-0 z-30">
           <div className="px-6 py-4 flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-medium text-pierre-gray-800">
+              <h1 className="text-xl font-medium text-white">
                 {tabs.find(t => t.id === activeTab)?.name}
               </h1>
             </div>
@@ -418,9 +418,9 @@ export default function Dashboard() {
         )}
         {activeTab === 'monitor' && (
           <div className="space-y-6">
-            <Card>
-              <h2 className="text-xl font-semibold mb-4">Real-time Request Monitor</h2>
-              <p className="text-pierre-gray-600 mb-4">
+            <Card variant="dark">
+              <h2 className="text-xl font-semibold mb-4 text-white">Real-time Request Monitor</h2>
+              <p className="text-zinc-400 mb-4">
                 Monitor API requests in real-time across all your connections. See request status, response times, and error details as they happen.
               </p>
             </Card>
@@ -431,9 +431,9 @@ export default function Dashboard() {
         )}
         {activeTab === 'tools' && (
           <div className="space-y-6">
-            <Card>
-              <h2 className="text-xl font-semibold mb-4">Tool Usage Analysis</h2>
-              <p className="text-pierre-gray-600 mb-4">
+            <Card variant="dark">
+              <h2 className="text-xl font-semibold mb-4 text-white">Tool Usage Analysis</h2>
+              <p className="text-zinc-400 mb-4">
                 Analyze which fitness tools are being used most frequently, their performance metrics, and success rates.
               </p>
             </Card>
@@ -444,9 +444,9 @@ export default function Dashboard() {
         )}
         {activeTab === 'users' && (
           <div className="space-y-6">
-            <Card>
-              <h2 className="text-xl font-semibold mb-4">User Management</h2>
-              <p className="text-pierre-gray-600 mb-4">
+            <Card variant="dark">
+              <h2 className="text-xl font-semibold mb-4 text-white">User Management</h2>
+              <p className="text-zinc-400 mb-4">
                 Manage user registrations, approve pending users, and monitor user activity across the platform.
               </p>
             </Card>
@@ -457,9 +457,9 @@ export default function Dashboard() {
         )}
         {activeTab === 'admin-settings' && (
           <div className="space-y-6">
-            <Card>
-              <h2 className="text-xl font-semibold mb-4">System Settings</h2>
-              <p className="text-pierre-gray-600 mb-4">
+            <Card variant="dark">
+              <h2 className="text-xl font-semibold mb-4 text-white">System Settings</h2>
+              <p className="text-zinc-400 mb-4">
                 Configure system-wide settings for user registration, security, and platform behavior.
               </p>
             </Card>
@@ -490,9 +490,9 @@ export default function Dashboard() {
               </Suspense>
             ) : (
               <>
-                <Card>
-                  <h2 className="text-xl font-semibold mb-4">API Key Management</h2>
-                  <p className="text-pierre-gray-600 mb-4">
+                <Card variant="dark">
+                  <h2 className="text-xl font-semibold mb-4 text-white">API Key Management</h2>
+                  <p className="text-zinc-400 mb-4">
                     Manage API keys for MCP clients and programmatic access. Only super admins can create, rotate, and revoke API keys.
                   </p>
                 </Card>

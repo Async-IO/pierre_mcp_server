@@ -1,5 +1,5 @@
-// ABOUTME: Reusable button component with variants
-// ABOUTME: Supports primary, secondary, ghost, and danger styles
+// ABOUTME: Reusable button component with variants following Pierre/Stitch design system
+// ABOUTME: Supports primary, secondary, ghost, danger, gradient, pill, and pillar variants
 
 import React from 'react';
 import {
@@ -10,9 +10,9 @@ import {
   type ViewStyle,
   type TextStyle,
 } from 'react-native';
-import { colors, borderRadius, fontSize, spacing } from '../../constants/theme';
+import { colors, borderRadius, fontSize, spacing, buttonGlow } from '../../constants/theme';
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'gradient' | 'pill' | 'activity' | 'nutrition' | 'recovery';
 type ButtonSize = 'sm' | 'md' | 'lg';
 
 interface ButtonProps {
@@ -69,7 +69,7 @@ export function Button({
     >
       {loading ? (
         <ActivityIndicator
-          color={variant === 'primary' ? colors.text.primary : colors.primary[500]}
+          color={['primary', 'gradient', 'pill', 'danger', 'activity', 'nutrition', 'recovery'].includes(variant) ? colors.text.primary : colors.primary[500]}
           size="small"
         />
       ) : (
@@ -101,6 +101,42 @@ const styles = StyleSheet.create({
   },
   variant_danger: {
     backgroundColor: colors.error,
+  },
+  // Gradient variant with glow effect - per Stitch design system
+  variant_gradient: {
+    backgroundColor: colors.pierre.violet,
+    ...buttonGlow,
+  },
+  // Pill-shaped variant with full border radius and glow
+  variant_pill: {
+    backgroundColor: colors.pierre.violet,
+    borderRadius: borderRadius.full,
+    ...buttonGlow,
+  },
+  // Three Pillar Button Variants - per Stitch design system
+  variant_activity: {
+    backgroundColor: colors.pierre.activity,
+    shadowColor: colors.pierre.activity,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  variant_nutrition: {
+    backgroundColor: colors.pierre.nutrition,
+    shadowColor: colors.pierre.nutrition,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  variant_recovery: {
+    backgroundColor: colors.pierre.recovery,
+    shadowColor: colors.pierre.recovery,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 14,
+    elevation: 8,
   },
 
   // Sizes
@@ -142,6 +178,21 @@ const styles = StyleSheet.create({
     color: colors.primary[500],
   },
   text_danger: {
+    color: colors.text.primary,
+  },
+  text_gradient: {
+    color: colors.text.primary,
+  },
+  text_pill: {
+    color: colors.text.primary,
+  },
+  text_activity: {
+    color: colors.text.primary,
+  },
+  text_nutrition: {
+    color: colors.text.primary,
+  },
+  text_recovery: {
     color: colors.text.primary,
   },
 

@@ -6,10 +6,10 @@ export const colors = {
   pierre: {
     violet: '#7C3AED',
     cyan: '#06B6D4',
-    // Three Pillars - Semantic accent colors
+    // Three Pillars - Semantic accent colors (brightened for dark mode per Stitch)
     activity: '#10B981',   // Emerald - Movement, fitness, energy
-    nutrition: '#F59E0B',  // Amber - Food, fuel, nourishment
-    recovery: '#6366F1',   // Indigo - Rest, sleep, restoration
+    nutrition: '#FBBF24',  // Amber - Brightened for dark mode contrast
+    recovery: '#818CF8',   // Indigo - Brightened for dark mode contrast
     // Dark theme
     dark: '#0F0F1A',
     slate: '#1E1E2E',
@@ -135,4 +135,59 @@ export const gradients = {
   violetIndigo: ['rgba(124, 59, 237, 0.15)', 'rgba(79, 70, 229, 0.05)'],
   violetCyan: ['#7C3AED', '#06B6D4'],
   darkOverlay: ['rgba(15, 15, 26, 0)', 'rgba(15, 15, 26, 0.8)'],
+  aiGradient: ['rgba(124, 58, 237, 0.08)', 'rgba(30, 30, 46, 0.6)'],
+} as const;
+
+// AI Intelligence Glow Effects - Reinforces Pierre's AI-first brand identity
+// Use with Animated API or react-native-reanimated for animated effects
+export const aiGlow = {
+  // Subtle ambient glow for AI elements
+  ambient: {
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 6,
+  },
+  // Strong glow for prominent AI elements
+  strong: {
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.25,
+    shadowRadius: 30,
+    elevation: 10,
+  },
+  // Avatar/icon glow
+  avatar: {
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  // Thinking/processing state glow
+  thinking: {
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 25,
+    elevation: 12,
+  },
+  // Response glow for new AI messages
+  response: {
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 15,
+    elevation: 8,
+  },
+} as const;
+
+// AI card style with gradient background and glow
+export const aiCard = {
+  backgroundColor: 'rgba(124, 58, 237, 0.08)',
+  borderColor: 'rgba(124, 58, 237, 0.2)',
+  borderWidth: 1,
+  borderRadius: borderRadius.xl,
+  ...aiGlow.ambient,
 } as const;

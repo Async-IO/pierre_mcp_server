@@ -137,11 +137,18 @@ export default function UsageAnalytics() {
     plugins: {
       legend: {
         position: 'top',
+        labels: { color: '#a1a1aa' },
       },
     },
     scales: {
+      x: {
+        ticks: { color: '#71717a' },
+        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+      },
       y: {
         beginAtZero: true,
+        ticks: { color: '#71717a' },
+        grid: { color: 'rgba(255, 255, 255, 0.05)' },
       },
     },
   };
@@ -156,13 +163,13 @@ export default function UsageAnalytics() {
 
   return (
     <div className="space-y-6">
-      <div className="card">
+      <div className="card-admin">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold">Usage Analytics</h2>
+          <h2 className="text-xl font-semibold text-white">Usage Analytics</h2>
           <select
             value={timeRange}
             onChange={(e) => setTimeRange(Number(e.target.value))}
-            className="input-field w-auto"
+            className="select-dark w-auto"
           >
             <option value={7}>Last 7 days</option>
             <option value={30}>Last 30 days</option>
@@ -171,34 +178,34 @@ export default function UsageAnalytics() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="stat-card">
-            <div className="text-2xl font-bold text-pierre-violet">
+          <div className="stat-card-dark">
+            <div className="text-2xl font-bold text-pierre-violet-light">
               {analytics?.time_series?.reduce((sum: number, point: TimeSeriesPoint) => sum + point.request_count, 0) || 0}
             </div>
-            <div className="text-sm text-pierre-gray-600">Total Requests</div>
+            <div className="text-sm text-zinc-400">Total Requests</div>
           </div>
-          <div className="stat-card">
+          <div className="stat-card-dark">
             <div className="text-2xl font-bold text-pierre-red-500">
               {analytics?.error_rate?.toFixed(1) || 0}%
             </div>
-            <div className="text-sm text-pierre-gray-600">Error Rate</div>
+            <div className="text-sm text-zinc-400">Error Rate</div>
           </div>
-          <div className="stat-card">
+          <div className="stat-card-dark">
             <div className="text-2xl font-bold text-pierre-activity">
               {analytics?.average_response_time?.toFixed(0) || 0}ms
             </div>
-            <div className="text-sm text-pierre-gray-600">Avg Response Time</div>
+            <div className="text-sm text-zinc-400">Avg Response Time</div>
           </div>
         </div>
 
         {/* Time Series Chart */}
         <div className="mb-8">
-          <h3 className="text-lg font-medium mb-4">Request Volume Over Time</h3>
-          <div className="bg-white rounded-lg p-4 border border-pierre-gray-200">
+          <h3 className="text-lg font-medium mb-4 text-white">Request Volume Over Time</h3>
+          <div className="bg-white/5 rounded-lg p-4 border border-white/10">
             {analytics?.time_series && analytics.time_series.length > 0 ? (
               <Line data={timeSeriesData} options={chartOptions} />
             ) : (
-              <div className="bg-pierre-gray-100 rounded-lg p-8 text-center text-pierre-gray-500">
+              <div className="bg-white/5 rounded-lg p-8 text-center text-zinc-500">
                 No time series data available yet
                 <br />
                 <small>Make some API calls to see request patterns</small>
@@ -211,8 +218,8 @@ export default function UsageAnalytics() {
         {analytics?.top_tools && analytics.top_tools.length > 0 && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
             <div>
-              <h3 className="text-lg font-medium mb-4">Tool Usage Distribution</h3>
-              <div className="bg-white rounded-lg p-4 border border-pierre-gray-200">
+              <h3 className="text-lg font-medium mb-4 text-white">Tool Usage Distribution</h3>
+              <div className="bg-white/5 rounded-lg p-4 border border-white/10">
                 <Doughnut
                   data={toolUsageData}
                   options={{
@@ -220,6 +227,7 @@ export default function UsageAnalytics() {
                     plugins: {
                       legend: {
                         position: 'bottom' as const,
+                        labels: { color: '#a1a1aa' },
                       },
                     },
                   }}
@@ -227,8 +235,8 @@ export default function UsageAnalytics() {
               </div>
             </div>
             <div>
-              <h3 className="text-lg font-medium mb-4">Response Time by Tool</h3>
-              <div className="bg-white rounded-lg p-4 border border-pierre-gray-200">
+              <h3 className="text-lg font-medium mb-4 text-white">Response Time by Tool</h3>
+              <div className="bg-white/5 rounded-lg p-4 border border-white/10">
                 <Bar data={responseTimeData} options={chartOptions} />
               </div>
             </div>
@@ -238,19 +246,19 @@ export default function UsageAnalytics() {
         {/* Top Tools Table */}
         {analytics?.top_tools && analytics.top_tools.length > 0 && (
           <div>
-            <h3 className="text-lg font-medium mb-4">Most Used Tools</h3>
+            <h3 className="text-lg font-medium mb-4 text-white">Most Used Tools</h3>
             <div className="space-y-3">
               {analytics.top_tools.map((tool: TopTool) => (
-                <div key={tool.tool_name} className="flex justify-between items-center p-3 bg-pierre-gray-50 rounded hover:bg-pierre-gray-100 transition-colors">
+                <div key={tool.tool_name} className="flex justify-between items-center p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors border border-white/5">
                   <div>
-                    <span className="font-medium text-pierre-gray-900">{tool.tool_name}</span>
-                    <span className="text-pierre-gray-500 ml-2">
+                    <span className="font-medium text-white">{tool.tool_name}</span>
+                    <span className="text-zinc-500 ml-2">
                       {(tool.success_rate || 0).toFixed(1)}% success rate
                     </span>
                   </div>
                   <div className="text-right">
-                    <div className="font-bold text-pierre-violet">{tool.request_count.toLocaleString()}</div>
-                    <div className="text-sm text-pierre-gray-500">
+                    <div className="font-bold text-pierre-violet-light">{tool.request_count.toLocaleString()}</div>
+                    <div className="text-sm text-zinc-500">
                       {(tool.average_response_time || 0).toFixed(0)}ms avg
                     </div>
                   </div>
@@ -261,7 +269,7 @@ export default function UsageAnalytics() {
         )}
 
         {(!analytics?.time_series?.length && !analytics?.top_tools?.length) && (
-          <div className="text-center py-8 text-pierre-gray-500">
+          <div className="text-center py-8 text-zinc-500">
             <p className="text-lg mb-2">No usage data yet</p>
             <p>Start making API calls to see analytics here</p>
           </div>

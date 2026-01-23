@@ -13,7 +13,6 @@ import {
   Alert,
   Modal,
   RefreshControl,
-  ScrollView,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { DrawerNavigationProp } from '@react-navigation/drawer';
@@ -21,7 +20,7 @@ import { Feather } from '@expo/vector-icons';
 import { colors, spacing, fontSize, borderRadius, glassCard } from '../../constants/theme';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { PromptDialog } from '../../components/ui';
+import { PromptDialog, ScrollFadeContainer } from '../../components/ui';
 import type { Coach, CoachCategory } from '../../types';
 import type { AppDrawerParamList } from '../../navigation/AppDrawer';
 
@@ -415,10 +414,11 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
 
   const renderCategoryFilter = () => (
     <View style={styles.filterContainer}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
+      <ScrollFadeContainer
+        backgroundColor={colors.background.primary}
+        fadeWidth={40}
         contentContainerStyle={styles.filterScrollContent}
+        testID="category-filter-scroll"
       >
         {CATEGORY_FILTERS.map((filter) => (
           <TouchableOpacity
@@ -440,7 +440,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
             </Text>
           </TouchableOpacity>
         ))}
-      </ScrollView>
+      </ScrollFadeContainer>
     </View>
   );
 

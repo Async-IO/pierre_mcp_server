@@ -134,21 +134,21 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
 
   if (showCredentials && credentials) {
     return (
-      <Card>
+      <Card variant="dark">
         <div className="text-center">
           <div className="text-6xl mb-4">🎉</div>
-          <h2 className="text-2xl font-bold text-pierre-gray-900 mb-2">A2A Client Created!</h2>
-          <p className="text-pierre-gray-600 mb-6">
+          <h2 className="text-2xl font-bold text-white mb-2">A2A Client Created!</h2>
+          <p className="text-zinc-400 mb-6">
             Your A2A client has been successfully registered. Save these credentials securely - they won't be shown again.
           </p>
         </div>
 
-        <div className="bg-pierre-yellow-50 border border-pierre-yellow-200 rounded-lg p-4 mb-6">
+        <div className="bg-pierre-nutrition/15 border border-pierre-nutrition/30 rounded-lg p-4 mb-6">
           <div className="flex items-center mb-2">
-            <span className="text-pierre-yellow-600 mr-2">⚠️</span>
-            <h3 className="text-sm font-medium text-pierre-yellow-800">Important Security Notice</h3>
+            <span className="text-pierre-nutrition mr-2">⚠️</span>
+            <h3 className="text-sm font-medium text-pierre-nutrition">Important Security Notice</h3>
           </div>
-          <p className="text-sm text-pierre-yellow-700">
+          <p className="text-sm text-zinc-300">
             Store these credentials securely. The client secret and API key will not be displayed again for security reasons.
           </p>
         </div>
@@ -156,11 +156,11 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
         <div className="space-y-4">
           {/* Client ID */}
           <div>
-            <label className="block text-sm font-medium text-pierre-gray-700 mb-2">
+            <label className="block text-sm font-medium text-zinc-300 mb-2">
               Client ID
             </label>
             <div className="flex items-center gap-2">
-              <code className="flex-1 bg-pierre-gray-100 p-3 rounded font-mono text-sm break-all">
+              <code className="flex-1 bg-white/10 p-3 rounded font-mono text-sm break-all text-zinc-300 border border-white/10">
                 {credentials.client_id}
               </code>
               <Button
@@ -175,11 +175,11 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
 
           {/* Client Secret */}
           <div>
-            <label className="block text-sm font-medium text-pierre-gray-700 mb-2">
+            <label className="block text-sm font-medium text-zinc-300 mb-2">
               Client Secret
             </label>
             <div className="flex items-center gap-2">
-              <code className="flex-1 bg-pierre-gray-100 p-3 rounded font-mono text-sm break-all">
+              <code className="flex-1 bg-white/10 p-3 rounded font-mono text-sm break-all text-zinc-300 border border-white/10">
                 {credentials.client_secret}
               </code>
               <Button
@@ -194,11 +194,11 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
 
           {/* API Key */}
           <div>
-            <label className="block text-sm font-medium text-pierre-gray-700 mb-2">
+            <label className="block text-sm font-medium text-zinc-300 mb-2">
               API Key
             </label>
             <div className="flex items-center gap-2">
-              <code className="flex-1 bg-pierre-gray-100 p-3 rounded font-mono text-sm break-all">
+              <code className="flex-1 bg-white/10 p-3 rounded font-mono text-sm break-all text-zinc-300 border border-white/10">
                 {credentials.api_key}
               </code>
               <Button
@@ -222,11 +222,11 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
   }
 
   return (
-    <Card>
+    <Card variant="dark">
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
-          <h2 className="text-xl font-semibold text-pierre-gray-900 mb-2">Register A2A Client</h2>
-          <p className="text-pierre-gray-600">
+          <h2 className="text-xl font-semibold text-white mb-2">Register A2A Client</h2>
+          <p className="text-zinc-400">
             Create a new Agent-to-Agent protocol client for AI agent communication.
           </p>
         </div>
@@ -234,7 +234,7 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
         {/* Basic Information */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-pierre-gray-700 mb-2">
+            <label htmlFor="name" className="block text-sm font-medium text-zinc-300 mb-2">
               Client Name *
             </label>
             <input
@@ -242,14 +242,14 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
               id="name"
               value={formData.name}
               onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-              className="w-full p-3 border border-pierre-gray-300 rounded-lg focus:ring-2 focus:ring-pierre-blue-500 focus:border-transparent"
+              className="input-dark"
               placeholder="My AI Agent"
               required
             />
           </div>
 
           <div>
-            <label htmlFor="contact_email" className="block text-sm font-medium text-pierre-gray-700 mb-2">
+            <label htmlFor="contact_email" className="block text-sm font-medium text-zinc-300 mb-2">
               Contact Email *
             </label>
             <input
@@ -257,7 +257,7 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
               id="contact_email"
               value={formData.contact_email}
               onChange={(e) => setFormData(prev => ({ ...prev, contact_email: e.target.value }))}
-              className="w-full p-3 border border-pierre-gray-300 rounded-lg focus:ring-2 focus:ring-pierre-blue-500 focus:border-transparent"
+              className="input-dark"
               placeholder="contact@example.com"
               required
             />
@@ -265,7 +265,7 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
         </div>
 
         <div>
-          <label htmlFor="description" className="block text-sm font-medium text-pierre-gray-700 mb-2">
+          <label htmlFor="description" className="block text-sm font-medium text-zinc-300 mb-2">
             Description *
           </label>
           <textarea
@@ -273,7 +273,7 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
             value={formData.description}
             onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
             rows={3}
-            className="w-full p-3 border border-pierre-gray-300 rounded-lg focus:ring-2 focus:ring-pierre-blue-500 focus:border-transparent"
+            className="input-dark"
             placeholder="Describe what your AI agent does..."
             required
           />
@@ -282,7 +282,7 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
         {/* Optional Fields */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="agent_version" className="block text-sm font-medium text-pierre-gray-700 mb-2">
+            <label htmlFor="agent_version" className="block text-sm font-medium text-zinc-300 mb-2">
               Agent Version
             </label>
             <input
@@ -290,13 +290,13 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
               id="agent_version"
               value={formData.agent_version}
               onChange={(e) => setFormData(prev => ({ ...prev, agent_version: e.target.value }))}
-              className="w-full p-3 border border-pierre-gray-300 rounded-lg focus:ring-2 focus:ring-pierre-blue-500 focus:border-transparent"
+              className="input-dark"
               placeholder="1.0.0"
             />
           </div>
 
           <div>
-            <label htmlFor="documentation_url" className="block text-sm font-medium text-pierre-gray-700 mb-2">
+            <label htmlFor="documentation_url" className="block text-sm font-medium text-zinc-300 mb-2">
               Documentation URL
             </label>
             <input
@@ -304,7 +304,7 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
               id="documentation_url"
               value={formData.documentation_url}
               onChange={(e) => setFormData(prev => ({ ...prev, documentation_url: e.target.value }))}
-              className="w-full p-3 border border-pierre-gray-300 rounded-lg focus:ring-2 focus:ring-pierre-blue-500 focus:border-transparent"
+              className="input-dark"
               placeholder="https://docs.example.com"
             />
           </div>
@@ -312,7 +312,7 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
 
         {/* Capabilities */}
         <div>
-          <label className="block text-sm font-medium text-pierre-gray-700 mb-2">
+          <label className="block text-sm font-medium text-zinc-300 mb-2">
             Capabilities * (Select at least one)
           </label>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -321,8 +321,8 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
                 key={capability.id}
                 className={`border rounded-lg p-3 cursor-pointer transition-colors ${
                   formData.capabilities.includes(capability.id)
-                    ? 'border-pierre-blue-500 bg-pierre-blue-50'
-                    : 'border-pierre-gray-200 hover:border-pierre-gray-300'
+                    ? 'border-pierre-violet bg-pierre-violet/10'
+                    : 'border-white/10 hover:border-white/20'
                 }`}
                 onClick={() => handleCapabilityToggle(capability.id)}
               >
@@ -331,12 +331,12 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
                     type="checkbox"
                     checked={formData.capabilities.includes(capability.id)}
                     onChange={() => handleCapabilityToggle(capability.id)}
-                    className="mr-3"
+                    className="mr-3 rounded border-white/20 bg-white/10 text-pierre-violet focus:ring-pierre-violet"
                     onClick={(e) => e.stopPropagation()}
                   />
                   <div>
-                    <h4 className="font-medium text-pierre-gray-900">{capability.name}</h4>
-                    <p className="text-sm text-pierre-gray-600">{capability.description}</p>
+                    <h4 className="font-medium text-white">{capability.name}</h4>
+                    <p className="text-sm text-zinc-400">{capability.description}</p>
                   </div>
                 </div>
               </div>
@@ -346,7 +346,7 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
 
         {/* Redirect URIs */}
         <div>
-          <label className="block text-sm font-medium text-pierre-gray-700 mb-2">
+          <label className="block text-sm font-medium text-zinc-300 mb-2">
             Redirect URIs (Optional)
           </label>
           <div className="space-y-2">
@@ -355,7 +355,7 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
                 type="url"
                 value={redirectUri}
                 onChange={(e) => setRedirectUri(e.target.value)}
-                className="flex-1 p-3 border border-pierre-gray-300 rounded-lg focus:ring-2 focus:ring-pierre-blue-500 focus:border-transparent"
+                className="input-dark flex-1"
                 placeholder="https://example.com/callback"
               />
               <Button
@@ -370,8 +370,8 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
             {formData.redirect_uris && formData.redirect_uris.length > 0 && (
               <div className="space-y-1">
                 {formData.redirect_uris.map((uri) => (
-                  <div key={uri} className="flex items-center justify-between bg-pierre-gray-50 p-2 rounded">
-                    <code className="text-sm">{uri}</code>
+                  <div key={uri} className="flex items-center justify-between bg-white/5 p-2 rounded border border-white/10">
+                    <code className="text-sm text-zinc-300">{uri}</code>
                     <Button
                       type="button"
                       variant="danger"
@@ -389,12 +389,12 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
 
         {/* Error Display */}
         {createMutation.error && (
-          <div className="bg-pierre-red-50 border border-pierre-red-200 rounded-lg p-4">
+          <div className="bg-pierre-red-500/15 border border-pierre-red-500/30 rounded-lg p-4">
             <div className="flex items-center">
-              <span className="text-pierre-red-500 mr-2">❌</span>
+              <span className="text-pierre-red-400 mr-2">❌</span>
               <div>
-                <h3 className="text-sm font-medium text-pierre-red-800">Registration Failed</h3>
-                <p className="text-sm text-pierre-red-700 mt-1">
+                <h3 className="text-sm font-medium text-pierre-red-400">Registration Failed</h3>
+                <p className="text-sm text-zinc-300 mt-1">
                   {createMutation.error instanceof Error
                     ? createMutation.error.message
                     : 'An error occurred while registering the A2A client.'}
@@ -406,7 +406,7 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
 
         {/* Validation Error */}
         {validationError && (
-          <div className="bg-pierre-red-50 border border-pierre-red-200 text-pierre-red-600 px-4 py-3 rounded">
+          <div className="bg-pierre-red-500/15 border border-pierre-red-500/30 text-pierre-red-400 px-4 py-3 rounded">
             {validationError}
           </div>
         )}
