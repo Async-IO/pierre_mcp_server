@@ -1019,6 +1019,20 @@ impl CoachesRoutes {
                 "/coaches/:id/assignments",
                 get(Self::handle_admin_list_assignments),
             )
+            // Store management routes (ASY-228)
+            .route("/store/stats", get(Self::handle_admin_store_stats))
+            .route("/store/review-queue", get(Self::handle_admin_review_queue))
+            .route("/store/published", get(Self::handle_admin_published))
+            .route("/store/rejected", get(Self::handle_admin_rejected))
+            .route(
+                "/store/coaches/:id/approve",
+                post(Self::handle_admin_approve),
+            )
+            .route("/store/coaches/:id/reject", post(Self::handle_admin_reject))
+            .route(
+                "/store/coaches/:id/unpublish",
+                post(Self::handle_admin_unpublish),
+            )
             .with_state(resources)
     }
 
@@ -1228,6 +1242,215 @@ impl CoachesRoutes {
             assignments,
         };
         Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    // ============================================
+    // Admin Store Management Routes (ASY-228)
+    // ============================================
+
+    /// Handle GET /admin/store/stats - Get store statistics
+    async fn handle_admin_store_stats(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        Self::require_admin(&resources, auth.user_id).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        let manager = Self::get_coaches_manager(&resources)?;
+        let stats = manager.get_store_admin_stats(&tenant_id).await?;
+
+        let response = StoreAdminStatsResponse {
+            pending_count: stats.pending_count,
+            published_count: stats.published_count,
+            rejected_count: stats.rejected_count,
+            total_installs: stats.total_installs,
+            rejection_rate: stats.rejection_rate,
+        };
+
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Handle GET /admin/store/review-queue - Get pending review coaches
+    async fn handle_admin_review_queue(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Query(params): Query<StoreListParams>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        Self::require_admin(&resources, auth.user_id).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        let manager = Self::get_coaches_manager(&resources)?;
+        let coaches = manager
+            .get_pending_review_coaches(&tenant_id, params.limit, params.offset)
+            .await?;
+
+        let coaches_with_email = Self::enrich_coaches_with_email(&manager, coaches).await?;
+        // Paginated results with limits - count never exceeds u32
+        #[allow(clippy::cast_possible_truncation)]
+        let total = coaches_with_email.len() as u32;
+
+        let response = StoreCoachesResponse {
+            coaches: coaches_with_email,
+            total,
+            metadata: Self::build_metadata(),
+        };
+
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Handle GET /admin/store/published - Get published coaches
+    async fn handle_admin_published(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Query(params): Query<StoreListParams>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        Self::require_admin(&resources, auth.user_id).await?;
+
+        let manager = Self::get_coaches_manager(&resources)?;
+        let sort_by = params.sort_by.as_deref();
+        let coaches = manager
+            .get_published_coaches(None, sort_by, params.limit, params.offset)
+            .await?;
+
+        let coaches_with_email = Self::enrich_coaches_with_email(&manager, coaches).await?;
+        // Paginated results with limits - count never exceeds u32
+        #[allow(clippy::cast_possible_truncation)]
+        let total = coaches_with_email.len() as u32;
+
+        let response = StoreCoachesResponse {
+            coaches: coaches_with_email,
+            total,
+            metadata: Self::build_metadata(),
+        };
+
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Handle GET /admin/store/rejected - Get rejected coaches
+    async fn handle_admin_rejected(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Query(params): Query<StoreListParams>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        Self::require_admin(&resources, auth.user_id).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        let manager = Self::get_coaches_manager(&resources)?;
+        let coaches = manager
+            .get_rejected_coaches(&tenant_id, params.limit, params.offset)
+            .await?;
+
+        let coaches_with_email = Self::enrich_coaches_with_email(&manager, coaches).await?;
+        // Paginated results with limits - count never exceeds u32
+        #[allow(clippy::cast_possible_truncation)]
+        let total = coaches_with_email.len() as u32;
+
+        let response = StoreCoachesResponse {
+            coaches: coaches_with_email,
+            total,
+            metadata: Self::build_metadata(),
+        };
+
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Handle POST /admin/store/coaches/:id/approve - Approve a coach
+    async fn handle_admin_approve(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Path(id): Path<String>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        Self::require_admin(&resources, auth.user_id).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        let manager = Self::get_coaches_manager(&resources)?;
+        manager.approve_coach(&id, &tenant_id, auth.user_id).await?;
+
+        let response = StoreActionResponse {
+            success: true,
+            message: "Coach approved and published".to_owned(),
+            coach_id: id,
+        };
+
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Handle POST /admin/store/coaches/:id/reject - Reject a coach
+    async fn handle_admin_reject(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Path(id): Path<String>,
+        Json(body): Json<RejectCoachBody>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        Self::require_admin(&resources, auth.user_id).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        // Combine reason with optional notes
+        let rejection_reason = if let Some(notes) = &body.notes {
+            if notes.trim().is_empty() {
+                body.reason.clone()
+            } else {
+                format!("{}: {}", body.reason, notes.trim())
+            }
+        } else {
+            body.reason.clone()
+        };
+
+        let manager = Self::get_coaches_manager(&resources)?;
+        manager
+            .reject_coach(&id, &tenant_id, auth.user_id, &rejection_reason)
+            .await?;
+
+        let response = StoreActionResponse {
+            success: true,
+            message: "Coach rejected".to_owned(),
+            coach_id: id,
+        };
+
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Handle POST /admin/store/coaches/:id/unpublish - Unpublish a coach
+    async fn handle_admin_unpublish(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Path(id): Path<String>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        Self::require_admin(&resources, auth.user_id).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        let manager = Self::get_coaches_manager(&resources)?;
+        manager.unpublish_coach(&id, &tenant_id).await?;
+
+        let response = StoreActionResponse {
+            success: true,
+            message: "Coach unpublished".to_owned(),
+            coach_id: id,
+        };
+
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Enrich coaches with author email information
+    async fn enrich_coaches_with_email(
+        manager: &CoachesManager,
+        coaches: Vec<Coach>,
+    ) -> Result<Vec<StoreCoachResponse>, AppError> {
+        let mut result = Vec::with_capacity(coaches.len());
+
+        for coach in coaches {
+            let author_email = manager.get_author_email(coach.user_id).await?;
+            result.push(StoreCoachResponse::from_coach(coach, author_email));
+        }
+
+        Ok(result)
     }
 
     /// Check if user has admin role
@@ -1502,4 +1725,151 @@ fn compute_diff(from: &serde_json::Value, to: &serde_json::Value) -> Vec<FieldCh
     }
 
     changes
+}
+
+// ============================================
+// Store Admin Request/Response Types (ASY-228)
+// ============================================
+
+/// Query parameters for store listing endpoints
+#[derive(Debug, Deserialize)]
+pub struct StoreListParams {
+    /// Maximum number of results
+    pub limit: Option<u32>,
+    /// Offset for pagination
+    pub offset: Option<u32>,
+    /// Sort by: "newest" or `most_installed`
+    pub sort_by: Option<String>,
+}
+
+/// Store admin statistics response
+#[derive(Debug, Serialize)]
+pub struct StoreAdminStatsResponse {
+    /// Number of coaches pending review
+    pub pending_count: u32,
+    /// Number of published coaches
+    pub published_count: u32,
+    /// Number of rejected coaches
+    pub rejected_count: u32,
+    /// Total installs across all published coaches
+    pub total_installs: u32,
+    /// Rejection rate as percentage
+    pub rejection_rate: f64,
+}
+
+/// Store coach response with author email
+#[derive(Debug, Serialize)]
+pub struct StoreCoachResponse {
+    /// Coach ID
+    pub id: String,
+    /// Display title
+    pub title: String,
+    /// Optional description
+    pub description: Option<String>,
+    /// System prompt
+    pub system_prompt: String,
+    /// Category
+    pub category: String,
+    /// Tags
+    pub tags: Vec<String>,
+    /// Sample prompts
+    pub sample_prompts: Vec<String>,
+    /// Token count
+    pub token_count: u32,
+    /// Install count
+    pub install_count: u32,
+    /// Icon URL
+    pub icon_url: Option<String>,
+    /// Published timestamp
+    pub published_at: Option<String>,
+    /// When submitted for review
+    pub submitted_at: Option<String>,
+    /// When review decision was made
+    pub rejected_at: Option<String>,
+    /// Author user ID
+    pub author_id: Option<String>,
+    /// Author email (joined from users table)
+    pub author_email: Option<String>,
+    /// Rejection reason (if rejected)
+    pub rejection_reason: Option<String>,
+    /// Rejection notes (parsed from `rejection_reason`)
+    pub rejection_notes: Option<String>,
+    /// Creation timestamp
+    pub created_at: String,
+    /// Publish status
+    pub publish_status: String,
+}
+
+impl StoreCoachResponse {
+    /// Create from Coach with author email
+    fn from_coach(coach: Coach, author_email: Option<String>) -> Self {
+        // Parse rejection reason into reason code and notes
+        let (rejection_reason, rejection_notes) =
+            coach
+                .rejection_reason
+                .as_ref()
+                .map_or((None, None), |reason| {
+                    reason.find(": ").map_or_else(
+                        || (Some(reason.clone()), None),
+                        |colon_pos| {
+                            let code = reason[..colon_pos].to_owned();
+                            let notes = reason[colon_pos + 2..].to_owned();
+                            (Some(code), Some(notes))
+                        },
+                    )
+                });
+
+        Self {
+            id: coach.id.to_string(),
+            title: coach.title,
+            description: coach.description,
+            system_prompt: coach.system_prompt,
+            category: coach.category.as_str().to_owned(),
+            tags: coach.tags,
+            sample_prompts: coach.sample_prompts,
+            token_count: coach.token_count,
+            install_count: coach.install_count,
+            icon_url: coach.icon_url,
+            published_at: coach.published_at.map(|dt| dt.to_rfc3339()),
+            submitted_at: coach.review_submitted_at.map(|dt| dt.to_rfc3339()),
+            rejected_at: coach.review_decision_at.map(|dt| dt.to_rfc3339()),
+            author_id: Some(coach.user_id.to_string()),
+            author_email,
+            rejection_reason,
+            rejection_notes,
+            created_at: coach.created_at.to_rfc3339(),
+            publish_status: coach.publish_status.as_str().to_owned(),
+        }
+    }
+}
+
+/// Response for store coach listing
+#[derive(Debug, Serialize)]
+pub struct StoreCoachesResponse {
+    /// List of coaches
+    pub coaches: Vec<StoreCoachResponse>,
+    /// Total count
+    pub total: u32,
+    /// Response metadata
+    pub metadata: CoachesMetadata,
+}
+
+/// Store action response (approve/reject/unpublish)
+#[derive(Debug, Serialize)]
+pub struct StoreActionResponse {
+    /// Whether the action was successful
+    pub success: bool,
+    /// Message describing the action
+    pub message: String,
+    /// Coach ID that was acted upon
+    pub coach_id: String,
+}
+
+/// Request body for rejecting a coach
+#[derive(Debug, Deserialize)]
+pub struct RejectCoachBody {
+    /// Rejection reason code
+    pub reason: String,
+    /// Optional additional notes
+    pub notes: Option<String>,
 }

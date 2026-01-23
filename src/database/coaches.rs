@@ -2054,6 +2054,168 @@ impl CoachesManager {
         row_to_coach(&row)
     }
 
+    /// Get coaches that have been rejected with reason
+    ///
+    /// Returns coaches with `publish_status = 'rejected'` for admin review history.
+    /// This is an admin-only operation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn get_rejected_coaches(
+        &self,
+        tenant_id: &str,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> AppResult<Vec<Coach>> {
+        let limit_val = i64::from(limit.unwrap_or(50).min(100));
+        let offset_val = i64::from(offset.unwrap_or(0));
+
+        let rows = sqlx::query(
+            r"
+            SELECT id, user_id, tenant_id, title, description, system_prompt,
+                   category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
+                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                publish_status, published_at, review_submitted_at, review_decision_at,
+                review_decision_by, rejection_reason, install_count, icon_url, author_id
+            FROM coaches
+            WHERE tenant_id = $1 AND publish_status = 'rejected'
+            ORDER BY review_decision_at DESC
+            LIMIT $2 OFFSET $3
+            ",
+        )
+        .bind(tenant_id)
+        .bind(limit_val)
+        .bind(offset_val)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get rejected coaches: {e}")))?;
+
+        rows.iter().map(row_to_coach).collect()
+    }
+
+    /// Unpublish a coach (revert from published to draft)
+    ///
+    /// Changes `publish_status` from `published` to `draft` and clears publish date.
+    /// This is an admin-only operation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Coach not found or not published
+    /// - Database operation fails
+    pub async fn unpublish_coach(&self, coach_id: &str, tenant_id: &str) -> AppResult<Coach> {
+        let now = Utc::now();
+
+        let result = sqlx::query(
+            r"
+            UPDATE coaches SET
+                publish_status = $1,
+                published_at = NULL,
+                updated_at = $2
+            WHERE id = $3 AND tenant_id = $4 AND publish_status = 'published'
+            ",
+        )
+        .bind(PublishStatus::Draft.as_str())
+        .bind(now.to_rfc3339())
+        .bind(coach_id)
+        .bind(tenant_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to unpublish coach: {e}")))?;
+
+        if result.rows_affected() == 0 {
+            return Err(AppError::invalid_input("Coach not found or not published"));
+        }
+
+        let row = sqlx::query(
+            r"
+            SELECT id, user_id, tenant_id, title, description, system_prompt,
+                   category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
+                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                publish_status, published_at, review_submitted_at, review_decision_at,
+                review_decision_by, rejection_reason, install_count, icon_url, author_id
+            FROM coaches WHERE id = $1 AND tenant_id = $2
+            ",
+        )
+        .bind(coach_id)
+        .bind(tenant_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get unpublished coach: {e}")))?;
+
+        row_to_coach(&row)
+    }
+
+    /// Get store admin statistics
+    ///
+    /// Returns counts for pending, published, rejected coaches and total installs.
+    /// This is an admin-only operation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn get_store_admin_stats(&self, tenant_id: &str) -> AppResult<StoreAdminStats> {
+        let row = sqlx::query(
+            r"
+            SELECT
+                COUNT(CASE WHEN publish_status = 'pending_review' THEN 1 END) as pending_count,
+                COUNT(CASE WHEN publish_status = 'published' THEN 1 END) as published_count,
+                COUNT(CASE WHEN publish_status = 'rejected' THEN 1 END) as rejected_count,
+                COALESCE(SUM(CASE WHEN publish_status = 'published' THEN install_count ELSE 0 END), 0) as total_installs
+            FROM coaches
+            WHERE tenant_id = $1
+            ",
+        )
+        .bind(tenant_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get store stats: {e}")))?;
+
+        let pending_count: i64 = row.get("pending_count");
+        let published_count: i64 = row.get("published_count");
+        let rejected_count: i64 = row.get("rejected_count");
+        let total_installs: i64 = row.get("total_installs");
+
+        // Calculate rejection rate
+        // Values are always non-negative counts from DB, precision loss acceptable for percentage
+        let total_decided = published_count + rejected_count;
+        #[allow(clippy::cast_precision_loss)]
+        let rejection_rate = if total_decided > 0 {
+            (rejected_count as f64 / total_decided as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        Ok(StoreAdminStats {
+            pending_count: pending_count as u32,
+            published_count: published_count as u32,
+            rejected_count: rejected_count as u32,
+            total_installs: total_installs as u32,
+            rejection_rate,
+        })
+    }
+
+    /// Get author email for a coach by looking up the user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn get_author_email(&self, user_id: Uuid) -> AppResult<Option<String>> {
+        let row = sqlx::query(
+            r"
+            SELECT email FROM users WHERE id = $1
+            ",
+        )
+        .bind(user_id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get author email: {e}")))?;
+
+        Ok(row.map(|r| r.get("email")))
+    }
+
     /// Get published coaches for Store browsing
     ///
     /// Returns coaches with `publish_status = 'published'` sorted by various criteria.
@@ -2784,6 +2946,21 @@ pub struct CoachAssignment {
     pub assigned_at: String,
     /// Who assigned
     pub assigned_by: Option<String>,
+}
+
+/// Store admin statistics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StoreAdminStats {
+    /// Number of coaches pending review
+    pub pending_count: u32,
+    /// Number of published coaches
+    pub published_count: u32,
+    /// Number of rejected coaches
+    pub rejected_count: u32,
+    /// Total installs across all published coaches
+    pub total_installs: u32,
+    /// Rejection rate as percentage
+    pub rejection_rate: f64,
 }
 
 /// Request to create a system coach

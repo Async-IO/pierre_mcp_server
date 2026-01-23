@@ -8,7 +8,8 @@
 set -e
 
 PROJECT_ROOT="$(git rev-parse --show-toplevel)"
-MARKER_FILE="$PROJECT_ROOT/.git/validation-passed"
+GIT_DIR="$(git rev-parse --git-dir)"
+MARKER_FILE="$GIT_DIR/validation-passed"
 VALIDATION_TTL_MINUTES=15
 
 echo ""

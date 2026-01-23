@@ -1604,6 +1604,143 @@ class ApiService {
     const response = await axios.get('/api/store/installations');
     return response.data;
   }
+
+  // Admin Store Management endpoints
+  async getStoreReviewQueue(): Promise<{
+    coaches: Array<{
+      id: string;
+      title: string;
+      description: string | null;
+      category: string;
+      tags: string[];
+      sample_prompts: string[];
+      token_count: number;
+      install_count: number;
+      icon_url: string | null;
+      published_at: string | null;
+      author_id: string | null;
+      author_email?: string;
+      system_prompt: string;
+      created_at: string;
+      submitted_at: string;
+      publish_status: string;
+    }>;
+    total: number;
+    metadata: { timestamp: string; api_version: string };
+  }> {
+    const response = await axios.get('/api/admin/store/coaches?status=pending_review');
+    return response.data;
+  }
+
+  async getPublishedStoreCoaches(options?: {
+    sort_by?: 'newest' | 'most_installed';
+    limit?: number;
+    offset?: number;
+  }): Promise<{
+    coaches: Array<{
+      id: string;
+      title: string;
+      description: string | null;
+      category: string;
+      tags: string[];
+      sample_prompts: string[];
+      token_count: number;
+      install_count: number;
+      icon_url: string | null;
+      published_at: string | null;
+      author_id: string | null;
+      author_email?: string;
+      system_prompt: string;
+      created_at: string;
+      publish_status: string;
+    }>;
+    total: number;
+    metadata: { timestamp: string; api_version: string };
+  }> {
+    const params = new URLSearchParams();
+    params.append('status', 'published');
+    if (options?.sort_by) params.append('sort_by', options.sort_by);
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.offset) params.append('offset', options.offset.toString());
+    const response = await axios.get(`/api/admin/store/coaches?${params}`);
+    return response.data;
+  }
+
+  async getRejectedStoreCoaches(options?: {
+    limit?: number;
+    offset?: number;
+  }): Promise<{
+    coaches: Array<{
+      id: string;
+      title: string;
+      description: string | null;
+      category: string;
+      tags: string[];
+      sample_prompts: string[];
+      token_count: number;
+      install_count: number;
+      icon_url: string | null;
+      published_at: string | null;
+      author_id: string | null;
+      author_email?: string;
+      system_prompt: string;
+      created_at: string;
+      rejected_at: string;
+      rejection_reason: string;
+      rejection_notes?: string;
+      publish_status: string;
+    }>;
+    total: number;
+    metadata: { timestamp: string; api_version: string };
+  }> {
+    const params = new URLSearchParams();
+    params.append('status', 'rejected');
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.offset) params.append('offset', options.offset.toString());
+    const response = await axios.get(`/api/admin/store/coaches?${params}`);
+    return response.data;
+  }
+
+  async getStoreStats(): Promise<{
+    pending_count: number;
+    published_count: number;
+    rejected_count: number;
+    total_installs: number;
+    rejection_rate: number;
+  }> {
+    const response = await axios.get('/api/admin/store/stats');
+    return response.data;
+  }
+
+  async approveStoreCoach(coachId: string): Promise<{
+    success: boolean;
+    message: string;
+    coach_id: string;
+  }> {
+    const response = await axios.post(`/api/admin/store/coaches/${coachId}/approve`);
+    return response.data;
+  }
+
+  async rejectStoreCoach(coachId: string, reason: string, notes?: string): Promise<{
+    success: boolean;
+    message: string;
+    coach_id: string;
+  }> {
+    const response = await axios.post(`/api/admin/store/coaches/${coachId}/reject`, {
+      reason,
+      notes,
+    });
+    return response.data;
+  }
+
+  async unpublishStoreCoach(coachId: string): Promise<{
+    success: boolean;
+    message: string;
+    coach_id: string;
+  }> {
+    const response = await axios.post(`/api/admin/store/coaches/${coachId}/unpublish`);
+    return response.data;
+  }
 }
 
 export const apiService = new ApiService();
