@@ -235,11 +235,11 @@ test.describe('Admin Store Stats Dashboard', () => {
 
     await expect(page.getByText('Coach Store Management')).toBeVisible({ timeout: 5000 });
 
-    // Should display stats cards
-    await expect(page.getByText('Pending Reviews')).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText('Published Coaches')).toBeVisible();
-    await expect(page.getByText('Total Installs')).toBeVisible();
-    await expect(page.getByText('Rejection Rate')).toBeVisible();
+    // Should display stats cards (use specific selectors to avoid matching description text)
+    await expect(page.locator('.text-sm.text-zinc-400').filter({ hasText: 'Pending Reviews' })).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.text-sm.text-zinc-400').filter({ hasText: 'Published Coaches' })).toBeVisible();
+    await expect(page.locator('.text-sm.text-zinc-400').filter({ hasText: 'Total Installs' })).toBeVisible();
+    await expect(page.locator('.text-sm.text-zinc-400').filter({ hasText: 'Rejection Rate' })).toBeVisible();
   });
 
   test('displays correct stats values', async ({ page }) => {
@@ -317,7 +317,7 @@ test.describe('Admin Review Queue', () => {
     await page.getByText('Marathon Training Coach').click();
 
     // Should see review drawer
-    await expect(page.getByText('Review Coach')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('heading', { name: 'Review Coach' })).toBeVisible({ timeout: 5000 });
   });
 
   test('displays approve and reject buttons in drawer', async ({ page }) => {
@@ -333,11 +333,11 @@ test.describe('Admin Review Queue', () => {
     // Click on the coach
     await page.getByText('Marathon Training Coach').click();
 
-    await expect(page.getByText('Review Coach')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('heading', { name: 'Review Coach' })).toBeVisible({ timeout: 5000 });
 
     // Should see approve and reject buttons
     await expect(page.getByRole('button', { name: /Approve/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Reject/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Reject', exact: true })).toBeVisible();
   });
 
   test('shows empty state when no pending coaches', async ({ page }) => {
@@ -419,7 +419,7 @@ test.describe('Admin Coach Approval', () => {
     // Click on the coach to open drawer
     await page.getByText('Marathon Training Coach').click();
 
-    await expect(page.getByText('Review Coach')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('heading', { name: 'Review Coach' })).toBeVisible({ timeout: 5000 });
 
     // Click Approve
     await page.getByRole('button', { name: /Approve/i }).click();
@@ -443,10 +443,10 @@ test.describe('Admin Coach Rejection', () => {
     // Click on the coach to open drawer
     await page.getByText('Marathon Training Coach').click();
 
-    await expect(page.getByText('Review Coach')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('heading', { name: 'Review Coach' })).toBeVisible({ timeout: 5000 });
 
     // Click Reject
-    await page.getByRole('button', { name: /Reject/i }).click();
+    await page.getByRole('button', { name: 'Reject', exact: true }).click();
 
     // Should see rejection modal
     await expect(page.getByRole('heading', { name: 'Reject Coach' })).toBeVisible({ timeout: 5000 });
@@ -462,14 +462,16 @@ test.describe('Admin Coach Rejection', () => {
     await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 10000 });
     await page.getByText('Marathon Training Coach').click();
 
-    await expect(page.getByText('Review Coach')).toBeVisible({ timeout: 5000 });
-    await page.getByRole('button', { name: /Reject/i }).click();
+    await expect(page.getByRole('heading', { name: 'Review Coach' })).toBeVisible({ timeout: 5000 });
+    await page.getByRole('button', { name: 'Reject', exact: true }).click();
 
     await expect(page.getByRole('heading', { name: 'Reject Coach' })).toBeVisible({ timeout: 5000 });
 
-    // Should see reason dropdown
-    await expect(page.getByRole('combobox')).toBeVisible();
-    await expect(page.getByText('Select a reason...')).toBeVisible();
+    // Should see reason dropdown with placeholder
+    const combobox = page.getByRole('combobox');
+    await expect(combobox).toBeVisible();
+    // Verify the select has the placeholder option (value will be empty string)
+    await expect(combobox).toHaveValue('');
   });
 
   test('rejects coach when reason selected and confirmed', async ({ page }) => {
@@ -497,8 +499,8 @@ test.describe('Admin Coach Rejection', () => {
     await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 10000 });
     await page.getByText('Marathon Training Coach').click();
 
-    await expect(page.getByText('Review Coach')).toBeVisible({ timeout: 5000 });
-    await page.getByRole('button', { name: /Reject/i }).click();
+    await expect(page.getByRole('heading', { name: 'Review Coach' })).toBeVisible({ timeout: 5000 });
+    await page.getByRole('button', { name: 'Reject', exact: true }).click();
 
     await expect(page.getByRole('heading', { name: 'Reject Coach' })).toBeVisible({ timeout: 5000 });
 
