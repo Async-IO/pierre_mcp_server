@@ -52,6 +52,8 @@ pub mod usage_repository;
 pub mod user_repository;
 /// Mobility (stretching/yoga) repository implementation
 pub mod mobility_repository;
+/// Social features (friend connections, shared insights) repository implementation
+pub mod social_repository;
 
 // Re-export implementations
 pub use a2a_repository::A2ARepositoryImpl;
@@ -71,6 +73,7 @@ pub use tool_selection_repository::ToolSelectionRepositoryImpl;
 pub use usage_repository::UsageRepositoryImpl;
 pub use user_repository::UserRepositoryImpl;
 pub use mobility_repository::MobilityRepositoryImpl;
+pub use social_repository::SocialRepositoryImpl;
 
 // ================================
 // Repository Trait Definitions
@@ -1135,4 +1138,179 @@ pub trait MobilityRepository: Send + Sync {
     async fn list_activity_muscle_mappings(
         &self,
     ) -> Result<Vec<crate::database::mobility::ActivityMuscleMapping>, DatabaseError>;
+}
+
+/// Social features repository for friend connections and shared insights
+#[async_trait]
+pub trait SocialRepository: Send + Sync {
+    /// Create a new friend connection request
+    async fn create_friend_connection(
+        &self,
+        connection: &crate::models::FriendConnection,
+    ) -> Result<Uuid, DatabaseError>;
+
+    /// Get a friend connection by ID
+    async fn get_friend_connection(
+        &self,
+        id: Uuid,
+    ) -> Result<Option<crate::models::FriendConnection>, DatabaseError>;
+
+    /// Get friend connection between two users
+    async fn get_friend_connection_between(
+        &self,
+        user_a: Uuid,
+        user_b: Uuid,
+    ) -> Result<Option<crate::models::FriendConnection>, DatabaseError>;
+
+    /// Update friend connection status
+    async fn update_friend_connection_status(
+        &self,
+        id: Uuid,
+        status: crate::models::FriendStatus,
+    ) -> Result<(), DatabaseError>;
+
+    /// Get all friends for a user (accepted connections)
+    async fn get_friends(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<crate::models::FriendConnection>, DatabaseError>;
+
+    /// Get pending friend requests received by a user
+    async fn get_pending_friend_requests(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<crate::models::FriendConnection>, DatabaseError>;
+
+    /// Get pending friend requests sent by a user
+    async fn get_sent_friend_requests(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<crate::models::FriendConnection>, DatabaseError>;
+
+    /// Check if two users are friends
+    async fn are_friends(&self, user_a: Uuid, user_b: Uuid) -> Result<bool, DatabaseError>;
+
+    /// Delete a friend connection
+    async fn delete_friend_connection(&self, id: Uuid) -> Result<bool, DatabaseError>;
+
+    /// Get or create social settings for a user
+    async fn get_or_create_social_settings(
+        &self,
+        user_id: Uuid,
+    ) -> Result<crate::models::UserSocialSettings, DatabaseError>;
+
+    /// Get social settings for a user
+    async fn get_social_settings(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Option<crate::models::UserSocialSettings>, DatabaseError>;
+
+    /// Update social settings
+    async fn upsert_social_settings(
+        &self,
+        settings: &crate::models::UserSocialSettings,
+    ) -> Result<(), DatabaseError>;
+
+    /// Create a shared insight
+    async fn create_shared_insight(
+        &self,
+        insight: &crate::models::SharedInsight,
+    ) -> Result<Uuid, DatabaseError>;
+
+    /// Get a shared insight by ID
+    async fn get_shared_insight(
+        &self,
+        id: Uuid,
+    ) -> Result<Option<crate::models::SharedInsight>, DatabaseError>;
+
+    /// Get friends' shared insights for feed
+    async fn get_friends_feed(
+        &self,
+        user_id: Uuid,
+        limit: u32,
+        offset: u32,
+    ) -> Result<Vec<crate::models::SharedInsight>, DatabaseError>;
+
+    /// Get user's own shared insights
+    async fn get_user_shared_insights(
+        &self,
+        user_id: Uuid,
+        limit: u32,
+        offset: u32,
+    ) -> Result<Vec<crate::models::SharedInsight>, DatabaseError>;
+
+    /// Delete a shared insight
+    async fn delete_shared_insight(&self, id: Uuid, user_id: Uuid) -> Result<bool, DatabaseError>;
+
+    /// Create or update a reaction
+    async fn upsert_insight_reaction(
+        &self,
+        reaction: &crate::models::InsightReaction,
+    ) -> Result<(), DatabaseError>;
+
+    /// Get user's reaction to an insight
+    async fn get_insight_reaction(
+        &self,
+        insight_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<Option<crate::models::InsightReaction>, DatabaseError>;
+
+    /// Delete a reaction
+    async fn delete_insight_reaction(
+        &self,
+        insight_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<bool, DatabaseError>;
+
+    /// Get all reactions for an insight
+    async fn get_insight_reactions(
+        &self,
+        insight_id: Uuid,
+    ) -> Result<Vec<crate::models::InsightReaction>, DatabaseError>;
+
+    /// Create an adapted insight
+    async fn create_adapted_insight(
+        &self,
+        insight: &crate::models::AdaptedInsight,
+    ) -> Result<Uuid, DatabaseError>;
+
+    /// Get an adapted insight by ID
+    async fn get_adapted_insight(
+        &self,
+        id: Uuid,
+    ) -> Result<Option<crate::models::AdaptedInsight>, DatabaseError>;
+
+    /// Get user's adaptation of a specific source insight
+    async fn get_user_adaptation(
+        &self,
+        source_insight_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<Option<crate::models::AdaptedInsight>, DatabaseError>;
+
+    /// Get user's adapted insights
+    async fn get_user_adapted_insights(
+        &self,
+        user_id: Uuid,
+        limit: u32,
+        offset: u32,
+    ) -> Result<Vec<crate::models::AdaptedInsight>, DatabaseError>;
+
+    /// Update was_helpful for an adapted insight
+    async fn update_adapted_insight_helpful(
+        &self,
+        id: Uuid,
+        user_id: Uuid,
+        was_helpful: bool,
+    ) -> Result<bool, DatabaseError>;
+
+    /// Search for discoverable users
+    async fn search_discoverable_users(
+        &self,
+        query: &str,
+        exclude_user_id: Uuid,
+        limit: u32,
+    ) -> Result<Vec<(Uuid, String, Option<String>)>, DatabaseError>;
+
+    /// Get friend count for a user
+    async fn get_friend_count(&self, user_id: Uuid) -> Result<i64, DatabaseError>;
 }

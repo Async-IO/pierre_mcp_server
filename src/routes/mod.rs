@@ -84,6 +84,10 @@ pub mod user_oauth_apps;
 #[cfg(feature = "client-store")]
 pub mod store;
 
+/// Social features routes (friends, insights, feed)
+#[cfg(feature = "client-social")]
+pub mod social;
+
 // ═══════════════════════════════════════════════════════════════
 // CLIENT-ADMIN FEATURES
 // ═══════════════════════════════════════════════════════════════
@@ -187,6 +191,9 @@ pub use user_oauth_apps::UserOAuthAppRoutes;
 
 #[cfg(feature = "client-store")]
 pub use store::StoreRoutes;
+
+#[cfg(feature = "client-social")]
+pub use social::SocialRoutes;
 
 // Client-admin re-exports
 #[cfg(feature = "client-admin-api")]

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ABOUTME: Pre-push validation script - runs all checks before pushing
-# ABOUTME: Creates .git/validation-passed marker on success for pre-push hook
+# ABOUTME: Creates validation-passed marker in git dir (supports worktrees)
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # Copyright (c) 2025 Pierre Fitness Intelligence

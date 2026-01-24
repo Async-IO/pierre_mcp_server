@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
+
 # Sleep & Recovery Methodology
 
 This document describes the scientific methodology and implementation of Pierre's sleep analysis and recovery intelligence system.

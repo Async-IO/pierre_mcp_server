@@ -43,6 +43,11 @@ name = "seed-mobility"
 path = "src/bin/seed_mobility.rs"
 bench = false
 
+[[bin]]
+name = "seed-social"
+path = "src/bin/seed_social.rs"
+bench = false
+
 # [[bin]]
 # name = "serve-docs"
 # path = "src/bin/serve_docs.rs"
@@ -135,8 +140,9 @@ client-coaches = ["protocol-rest", "tools-coaches"]  # coaches.rs
 client-oauth-apps = ["protocol-rest", "oauth"]       # user_oauth_apps.rs
 
 client-store = ["protocol-rest", "tools-store"]  # Store REST API routes + MCP tools
+client-social = ["protocol-rest"]               # social.rs - coach-mediated social features
 
-client-web = ["client-dashboard", "client-settings", "client-chat", "client-coaches", "client-oauth-apps", "client-store"]
+client-web = ["client-dashboard", "client-settings", "client-chat", "client-coaches", "client-oauth-apps", "client-store", "client-social"]
 
 # ═══════════════════════════════════════════════════════════════
 # GRANULAR CLIENT-ADMIN FEATURES

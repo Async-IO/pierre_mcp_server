@@ -1741,6 +1741,358 @@ class ApiService {
     const response = await axios.post(`/api/admin/store/coaches/${coachId}/unpublish`);
     return response.data;
   }
+
+  // ========== SOCIAL API METHODS ==========
+
+  async listFriends(cursor?: string, limit?: number): Promise<{
+    friends: Array<{
+      id: string;
+      initiator_id: string;
+      receiver_id: string;
+      status: string;
+      created_at: string;
+      updated_at: string;
+      accepted_at: string | null;
+      friend_display_name: string | null;
+      friend_email: string;
+      friend_user_id: string;
+    }>;
+    total: number;
+    metadata: { timestamp: string; api_version: string };
+  }> {
+    const params = new URLSearchParams();
+    if (cursor) params.append('cursor', cursor);
+    if (limit) params.append('limit', limit.toString());
+    const query = params.toString();
+    const response = await axios.get(`/api/social/friends${query ? `?${query}` : ''}`);
+    return response.data;
+  }
+
+  async searchUsers(query: string): Promise<{
+    users: Array<{
+      user_id: string;
+      display_name: string | null;
+      email: string;
+      mutual_friends_count: number;
+      is_friend: boolean;
+      pending_request: boolean;
+    }>;
+    query: string;
+    metadata: { timestamp: string; api_version: string };
+  }> {
+    const response = await axios.get(`/api/social/users/search?q=${encodeURIComponent(query)}`);
+    return response.data;
+  }
+
+  async getPendingFriendRequests(): Promise<{
+    sent: Array<{
+      id: string;
+      initiator_id: string;
+      receiver_id: string;
+      status: string;
+      created_at: string;
+      updated_at: string;
+      accepted_at: string | null;
+    }>;
+    received: Array<{
+      id: string;
+      initiator_id: string;
+      receiver_id: string;
+      status: string;
+      created_at: string;
+      updated_at: string;
+      accepted_at: string | null;
+    }>;
+    metadata: { timestamp: string; api_version: string };
+  }> {
+    const response = await axios.get('/api/social/friends/requests');
+    return response.data;
+  }
+
+  async sendFriendRequest(userId: string): Promise<{
+    id: string;
+    initiator_id: string;
+    receiver_id: string;
+    status: string;
+    created_at: string;
+    updated_at: string;
+    accepted_at: string | null;
+  }> {
+    const response = await axios.post(`/api/social/friends/requests/${userId}`);
+    return response.data;
+  }
+
+  async acceptFriendRequest(connectionId: string): Promise<{
+    id: string;
+    initiator_id: string;
+    receiver_id: string;
+    status: string;
+    created_at: string;
+    updated_at: string;
+    accepted_at: string | null;
+  }> {
+    const response = await axios.post(`/api/social/friends/requests/${connectionId}/accept`);
+    return response.data;
+  }
+
+  async rejectFriendRequest(connectionId: string): Promise<void> {
+    await axios.post(`/api/social/friends/requests/${connectionId}/reject`);
+  }
+
+  async removeFriend(userId: string): Promise<void> {
+    await axios.delete(`/api/social/friends/${userId}`);
+  }
+
+  async blockUser(userId: string): Promise<void> {
+    await axios.post(`/api/social/friends/${userId}/block`);
+  }
+
+  async getSocialFeed(cursor?: string, limit?: number): Promise<{
+    items: Array<{
+      insight: {
+        id: string;
+        user_id: string;
+        visibility: string;
+        insight_type: string;
+        sport_type: string | null;
+        content: string;
+        title: string | null;
+        training_phase: string | null;
+        reaction_count: number;
+        adapt_count: number;
+        created_at: string;
+        updated_at: string;
+        expires_at: string | null;
+      };
+      author: {
+        user_id: string;
+        display_name: string | null;
+        email: string;
+      };
+      reactions: {
+        like: number;
+        celebrate: number;
+        inspire: number;
+        support: number;
+        total: number;
+      };
+      user_reaction: string | null;
+      user_has_adapted: boolean;
+    }>;
+    next_cursor: string | null;
+    has_more: boolean;
+    metadata: { timestamp: string; api_version: string };
+  }> {
+    const params = new URLSearchParams();
+    if (cursor) params.append('cursor', cursor);
+    if (limit) params.append('limit', limit.toString());
+    const query = params.toString();
+    const response = await axios.get(`/api/social/feed${query ? `?${query}` : ''}`);
+    // Transform backend response (insights array) to frontend format (items array)
+    const data = response.data;
+    return {
+      items: (data.insights || []).map((insight: Record<string, unknown>) => ({
+        insight,
+        author: {
+          user_id: insight.user_id as string,
+          display_name: null,
+          email: 'user@example.com', // Placeholder - backend should include author info
+        },
+        reactions: {
+          like: 0,
+          celebrate: 0,
+          inspire: 0,
+          support: 0,
+          total: (insight.reaction_count as number) || 0,
+        },
+        user_reaction: null,
+        user_has_adapted: false,
+      })),
+      next_cursor: null,
+      has_more: false,
+      metadata: data.metadata,
+    };
+  }
+
+  async shareInsight(request: {
+    insight_type: string;
+    content: string;
+    title?: string;
+    visibility?: string;
+    sport_type?: string;
+    training_phase?: string;
+  }): Promise<{
+    insight: {
+      id: string;
+      user_id: string;
+      visibility: string;
+      insight_type: string;
+      sport_type: string | null;
+      content: string;
+      title: string | null;
+      training_phase: string | null;
+      reaction_count: number;
+      adapt_count: number;
+      created_at: string;
+      updated_at: string;
+      expires_at: string | null;
+    };
+    metadata: { timestamp: string; api_version: string };
+  }> {
+    const response = await axios.post('/api/social/share', request);
+    return response.data;
+  }
+
+  async deleteSharedInsight(insightId: string): Promise<void> {
+    await axios.delete(`/api/social/share/${insightId}`);
+  }
+
+  async addReaction(insightId: string, reactionType: string): Promise<{
+    reaction: {
+      id: string;
+      insight_id: string;
+      user_id: string;
+      reaction_type: string;
+      created_at: string;
+    };
+    updated_counts: {
+      like: number;
+      celebrate: number;
+      inspire: number;
+      support: number;
+      total: number;
+    };
+    metadata: { timestamp: string; api_version: string };
+  }> {
+    const response = await axios.post(`/api/social/insights/${insightId}/reactions`, {
+      reaction_type: reactionType,
+    });
+    return response.data;
+  }
+
+  async removeReaction(insightId: string): Promise<void> {
+    await axios.delete(`/api/social/insights/${insightId}/reactions`);
+  }
+
+  async adaptInsight(insightId: string): Promise<{
+    adapted: {
+      id: string;
+      user_id: string;
+      source_insight_id: string;
+      adapted_content: string;
+      adaptation_context: string | null;
+      created_at: string;
+    };
+    source_insight: {
+      id: string;
+      user_id: string;
+      visibility: string;
+      insight_type: string;
+      sport_type: string | null;
+      content: string;
+      title: string | null;
+      training_phase: string | null;
+      reaction_count: number;
+      adapt_count: number;
+      created_at: string;
+      updated_at: string;
+      expires_at: string | null;
+    };
+    metadata: { timestamp: string; api_version: string };
+  }> {
+    const response = await axios.post(`/api/social/adapt/${insightId}`);
+    return response.data;
+  }
+
+  async getAdaptedInsights(cursor?: string, limit?: number): Promise<{
+    insights: Array<{
+      id: string;
+      user_id: string;
+      source_insight_id: string;
+      adapted_content: string;
+      adaptation_context: string | null;
+      created_at: string;
+    }>;
+    next_cursor: string | null;
+    has_more: boolean;
+    metadata: { timestamp: string; api_version: string };
+  }> {
+    const params = new URLSearchParams();
+    if (cursor) params.append('cursor', cursor);
+    if (limit) params.append('limit', limit.toString());
+    const query = params.toString();
+    const response = await axios.get(`/api/social/adapted${query ? `?${query}` : ''}`);
+    return response.data;
+  }
+
+  async getSocialSettings(): Promise<{
+    settings: {
+      user_id: string;
+      discoverable: boolean;
+      default_visibility: string;
+      share_activity_types: string[];
+      notifications: {
+        friend_requests: boolean;
+        insight_reactions: boolean;
+        adapted_insights: boolean;
+      };
+      created_at: string;
+      updated_at: string;
+    };
+    metadata: { timestamp: string; api_version: string };
+  }> {
+    const response = await axios.get('/api/social/settings');
+    // Backend returns settings directly without wrapper, transform to expected format
+    const data = response.data;
+    return {
+      settings: {
+        user_id: data.user_id || '',
+        discoverable: data.discoverable ?? true,
+        default_visibility: data.default_visibility || 'friends',
+        share_activity_types: data.share_activity_types || [],
+        notifications: data.notifications || {
+          friend_requests: true,
+          insight_reactions: true,
+          adapted_insights: true,
+        },
+        created_at: data.created_at || new Date().toISOString(),
+        updated_at: data.updated_at || new Date().toISOString(),
+      },
+      metadata: {
+        timestamp: new Date().toISOString(),
+        api_version: '1.0',
+      },
+    };
+  }
+
+  async updateSocialSettings(request: {
+    discoverable?: boolean;
+    default_visibility?: string;
+    share_activity_types?: string[];
+    notifications?: {
+      friend_requests?: boolean;
+      insight_reactions?: boolean;
+      adapted_insights?: boolean;
+    };
+  }): Promise<{
+    settings: {
+      user_id: string;
+      discoverable: boolean;
+      default_visibility: string;
+      share_activity_types: string[];
+      notifications: {
+        friend_requests: boolean;
+        insight_reactions: boolean;
+        adapted_insights: boolean;
+      };
+      created_at: string;
+      updated_at: string;
+    };
+    metadata: { timestamp: string; api_version: string };
+  }> {
+    const response = await axios.put('/api/social/settings', request);
+    return response.data;
+  }
 }
 
 export const apiService = new ApiService();

@@ -1209,6 +1209,12 @@ impl MultiTenantMcpServer {
         #[cfg(feature = "client-oauth-apps")]
         let app = app.merge(UserOAuthAppRoutes::routes(Arc::clone(resources)));
 
+        #[cfg(feature = "client-social")]
+        let app = {
+            use crate::routes::SocialRoutes;
+            app.merge(SocialRoutes::routes(Arc::clone(resources)))
+        };
+
         // ═══════════════════════════════════════════════════════════════
         // CLIENT-ADMIN ROUTES
         // ═══════════════════════════════════════════════════════════════

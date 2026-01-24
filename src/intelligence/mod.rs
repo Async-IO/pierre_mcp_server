@@ -81,6 +81,15 @@ pub mod nutrition_calculator;
 /// Recipe management with training-aware suggestions
 pub mod recipes;
 
+// Social intelligence modules (Coach-mediated sharing)
+
+/// In-memory cache for friend activity summaries
+pub mod friend_activity_cache;
+/// Adapts shared insights to user's training context
+pub mod insight_adapter;
+/// Generates shareable, privacy-preserving insights
+pub mod social_insights;
+
 // Algorithm selection and pluggable implementations
 
 /// Pluggable algorithms for FTP, LTHR, VO2max, etc.
@@ -298,6 +307,46 @@ pub use recipes::RecipeIngredient;
 pub use recipes::SkillLevel;
 /// USDA-validated nutrition data
 pub use recipes::ValidatedNutrition;
+
+// Re-export social intelligence types
+
+/// Create shared cache
+pub use friend_activity_cache::create_shared_cache;
+/// Configuration for friend activity cache
+pub use friend_activity_cache::CacheConfig;
+/// Cache statistics
+pub use friend_activity_cache::CacheStats;
+/// Duration category for activities
+pub use friend_activity_cache::DurationCategory;
+/// Effort level classification
+pub use friend_activity_cache::EffortLevel;
+/// Thread-safe friend activity cache
+pub use friend_activity_cache::FriendActivityCache;
+/// Privacy-safe friend activity summary
+pub use friend_activity_cache::FriendActivitySummary;
+/// Shared cache handle type
+pub use friend_activity_cache::SharedFriendActivityCache;
+/// Adaptation result for insights
+pub use insight_adapter::AdaptationResult;
+/// Fitness level for insight adaptation
+pub use insight_adapter::FitnessLevel as AdaptationFitnessLevel;
+/// Insight adapter for personalizing friend insights
+pub use insight_adapter::InsightAdapter;
+/// User training context for adaptation
+pub use insight_adapter::UserTrainingContext;
+/// Builds context for insight generation
+pub use social_insights::InsightContextBuilder;
+/// Context for generating insights
+pub use social_insights::InsightGenerationContext;
+/// Suggested insight for sharing
+pub use social_insights::InsightSuggestion;
+/// Personal record for sharing
+pub use social_insights::PersonalRecord as SocialPersonalRecord;
+/// Generates shareable insights
+pub use social_insights::SharedInsightGenerator;
+// Helper functions
+pub use insight_adapter::truncate_string;
+pub use social_insights::{calculate_milestone_relevance, capitalize_first};
 
 // Re-export visitor pattern types
 

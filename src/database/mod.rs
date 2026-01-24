@@ -32,6 +32,8 @@ pub mod oauth_notifications;
 pub mod recipes;
 /// System coaches seeding for server startup
 pub mod seed_coaches;
+/// Social features (friend connections, shared insights)
+pub mod social;
 /// System settings for admin-configurable options
 pub mod system_settings;
 /// Tool selection and per-tenant MCP tool configuration

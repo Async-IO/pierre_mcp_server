@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
+
 # Mobility Methodology
 
 This document describes the scientific methodology and implementation of Pierre's mobility intelligence system, covering stretching exercises and yoga poses for athlete recovery and flexibility.

@@ -32,12 +32,20 @@ import { CoachWizardScreen } from '../screens/coaches/CoachWizardScreen';
 import { CoachDetailScreen } from '../screens/coaches/CoachDetailScreen';
 import { StoreScreen } from '../screens/store/StoreScreen';
 import { StoreCoachDetailScreen } from '../screens/store/StoreCoachDetailScreen';
+import { FriendsScreen } from '../screens/social/FriendsScreen';
+import { SearchFriendsScreen } from '../screens/social/SearchFriendsScreen';
+import { FriendRequestsScreen } from '../screens/social/FriendRequestsScreen';
+import { SocialFeedScreen } from '../screens/social/SocialFeedScreen';
+import { ShareInsightScreen } from '../screens/social/ShareInsightScreen';
+import { AdaptedInsightScreen } from '../screens/social/AdaptedInsightScreen';
+import { AdaptedInsightsScreen } from '../screens/social/AdaptedInsightsScreen';
+import { SocialSettingsScreen } from '../screens/social/SocialSettingsScreen';
 import { useAuth } from '../contexts/AuthContext';
 import { apiService } from '../services/api';
 import { colors, spacing, fontSize, borderRadius } from '../constants/theme';
 import { Feather } from '@expo/vector-icons';
 import { PromptDialog } from '../components/ui';
-import type { Conversation, ProviderStatus } from '../types';
+import type { Conversation, ProviderStatus, AdaptedInsight } from '../types';
 
 export type AppDrawerParamList = {
   Chat: { conversationId?: string } | undefined;
@@ -50,6 +58,15 @@ export type AppDrawerParamList = {
   CoachDetail: { coachId: string };
   Store: undefined;
   StoreCoachDetail: { coachId: string };
+  // Social screens
+  Friends: undefined;
+  SearchFriends: undefined;
+  FriendRequests: undefined;
+  SocialFeed: undefined;
+  ShareInsight: undefined;
+  AdaptedInsight: { adaptedInsight: AdaptedInsight };
+  AdaptedInsights: undefined;
+  SocialSettings: undefined;
 };
 
 const Drawer = createDrawerNavigator<AppDrawerParamList>();
@@ -274,6 +291,27 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
         <Feather name="chevron-right" size={18} color={colors.text.tertiary} />
       </TouchableOpacity>
 
+      {/* Social Section */}
+      <View style={styles.socialSection}>
+        <Text style={styles.sectionHeader}>Social</Text>
+        <TouchableOpacity
+          style={styles.discussionsButton}
+          onPress={() => navigation.navigate('SocialFeed')}
+        >
+          <Feather name="activity" size={20} color={colors.text.secondary} style={styles.discussionsIcon} />
+          <Text style={styles.discussionsText}>Feed</Text>
+          <Feather name="chevron-right" size={18} color={colors.text.tertiary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.discussionsButton}
+          onPress={() => navigation.navigate('Friends')}
+        >
+          <Feather name="users" size={20} color={colors.text.secondary} style={styles.discussionsIcon} />
+          <Text style={styles.discussionsText}>Friends</Text>
+          <Feather name="chevron-right" size={18} color={colors.text.tertiary} />
+        </TouchableOpacity>
+      </View>
+
       {/* Conversations List */}
       <ScrollView style={styles.conversationsContainer} contentContainerStyle={styles.conversationsContent}>
         {conversations.length > 0 && (
@@ -478,6 +516,15 @@ export function AppDrawer() {
       <Drawer.Screen name="CoachDetail" component={CoachDetailScreen} />
       <Drawer.Screen name="Store" component={StoreScreen} />
       <Drawer.Screen name="StoreCoachDetail" component={StoreCoachDetailScreen} />
+      {/* Social screens */}
+      <Drawer.Screen name="Friends" component={FriendsScreen} />
+      <Drawer.Screen name="SearchFriends" component={SearchFriendsScreen} />
+      <Drawer.Screen name="FriendRequests" component={FriendRequestsScreen} />
+      <Drawer.Screen name="SocialFeed" component={SocialFeedScreen} />
+      <Drawer.Screen name="ShareInsight" component={ShareInsightScreen} />
+      <Drawer.Screen name="AdaptedInsight" component={AdaptedInsightScreen} />
+      <Drawer.Screen name="AdaptedInsights" component={AdaptedInsightsScreen} />
+      <Drawer.Screen name="SocialSettings" component={SocialSettingsScreen} />
     </Drawer.Navigator>
   );
 }
@@ -513,6 +560,12 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     fontWeight: '500',
     color: colors.text.primary,
+  },
+  socialSection: {
+    marginTop: spacing.md,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.subtle,
   },
   discussionsChevron: {
     fontSize: 20,

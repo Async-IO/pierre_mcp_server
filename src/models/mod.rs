@@ -36,6 +36,7 @@ mod health;
 mod nutrition;
 mod oauth;
 mod sleep;
+mod social;
 mod sport;
 mod tenant;
 mod tool_selection;
@@ -78,4 +79,12 @@ pub use tenant::{AuthorizationCode, OAuthApp, OAuthAppParams, Tenant};
 pub use tool_selection::{
     CategorySummary, EffectiveTool, SetToolOverrideRequest, TenantPlan, TenantToolOverride,
     ToolAvailabilitySummary, ToolCatalogEntry, ToolCategory, ToolEnablementSource,
+};
+
+// Social domain
+pub use social::{
+    AdaptInsightRequest, AdaptedInsight, FeedItem, FriendConnection, FriendInfo, FriendStatus,
+    InsightReaction, InsightType, NotificationPreferences, ReactToInsightRequest, ReactionSummary,
+    ReactionType, RespondFriendRequestRequest, SendFriendRequestRequest, ShareInsightRequest,
+    ShareVisibility, SharedInsight, TrainingPhase, UpdateSocialSettingsRequest, UserSocialSettings,
 };

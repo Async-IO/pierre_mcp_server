@@ -235,3 +235,6 @@ export interface InstallationsResponse {
   coaches: StoreCoach[];
   metadata: StoreMetadata;
 }
+
+// Re-export social types
+export * from './social';

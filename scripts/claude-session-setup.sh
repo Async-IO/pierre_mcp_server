@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2025 Pierre Fitness Intelligence
 # ABOUTME: Automated setup script for Claude Code sessions with Pierre MCP Server
 # ABOUTME: Validates/refreshes JWT token, starts server if needed, updates .envrc
 
