@@ -260,8 +260,8 @@ test.describe('Monitor Tab - Request Log', () => {
     await setupMonitorMocks(page);
     await loginAndNavigateToMonitor(page);
 
-    // Timestamps should be visible (date format)
-    const datePattern = await page.locator('[class*="text-pierre-gray-500"]').filter({ hasText: /\d{1,2}\/\d{1,2}\/\d{4}/ }).first();
+    // Timestamps should be visible (date format) - uses text-zinc-500 class
+    const datePattern = await page.locator('.text-zinc-500').filter({ hasText: /\d{1,2}\/\d{1,2}\/\d{4}/ }).first();
     await expect(datePattern).toBeVisible();
   });
 

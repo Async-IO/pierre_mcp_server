@@ -193,6 +193,21 @@ export async function setupDashboardMocks(page: Page, userOptions: UserOptions =
     });
   });
 
+  // Mock admin store stats endpoint (used by Coach Store tab badge)
+  await page.route('**/api/admin/store/stats', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        pending_count: 0,
+        published_count: 0,
+        rejected_count: 0,
+        total_installs: 0,
+        rejection_rate: 0,
+      }),
+    });
+  });
+
   // Mock prompts suggestions endpoint (public API for chat prompts)
   await page.route('**/api/prompts/suggestions', async (route) => {
     await route.fulfill({

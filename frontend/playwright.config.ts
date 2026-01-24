@@ -10,8 +10,8 @@ export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  retries: 0, // Disable retries to prevent CI timeout - failing tests should be fixed not retried
+  workers: process.env.CI ? 2 : undefined, // Use 2 workers in CI for reasonable speed
   reporter: process.env.CI ? 'github' : 'html',
   timeout: 30000,
   expect: {

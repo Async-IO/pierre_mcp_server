@@ -270,12 +270,12 @@ test.describe('Connections Tab - API Tokens', () => {
 
   test('displays API Tokens tab for admin users', async ({ page }) => {
     // API Tokens tab should be visible for admin
-    await expect(page.locator('.tab').getByText('API Tokens')).toBeVisible();
+    await expect(page.locator('.tab-dark').getByText('API Tokens')).toBeVisible();
   });
 
   test('shows list of API tokens with details', async ({ page }) => {
     // Click on API Tokens tab first
-    await page.locator('.tab').getByText('API Tokens').click();
+    await page.locator('.tab-dark').getByText('API Tokens').click();
     await page.waitForTimeout(300);
     // Check for service names (from AdminToken.service_name) - use heading role to avoid matching descriptions
     await expect(page.getByRole('heading', { name: 'Production Service' })).toBeVisible();
@@ -290,7 +290,7 @@ test.describe('Connections Tab - API Tokens', () => {
 
   test('can filter API tokens by status', async ({ page }) => {
     // Click on API Tokens tab first
-    await page.locator('.tab').getByText('API Tokens').click();
+    await page.locator('.tab-dark').getByText('API Tokens').click();
     await page.waitForTimeout(300);
     // Initially showing active tokens - use heading role to avoid matching descriptions
     await expect(page.getByRole('heading', { name: 'Production Service' })).toBeVisible();
@@ -320,14 +320,14 @@ test.describe('Connections Tab - API Tokens', () => {
 
   test('shows Create Token button', async ({ page }) => {
     // Click on API Tokens tab first
-    await page.locator('.tab').getByText('API Tokens').click();
+    await page.locator('.tab-dark').getByText('API Tokens').click();
     await page.waitForTimeout(300);
     await expect(page.getByRole('button', { name: /Create.*Token/i })).toBeVisible();
   });
 
   test('navigates to create token form', async ({ page }) => {
     // Click on API Tokens tab first
-    await page.locator('.tab').getByText('API Tokens').click();
+    await page.locator('.tab-dark').getByText('API Tokens').click();
     await page.waitForTimeout(300);
     await page.getByRole('button', { name: /Create.*Token/i }).click();
     await page.waitForTimeout(300);
@@ -338,7 +338,7 @@ test.describe('Connections Tab - API Tokens', () => {
 
   test('shows View Details button for each token', async ({ page }) => {
     // Click on API Tokens tab first
-    await page.locator('.tab').getByText('API Tokens').click();
+    await page.locator('.tab-dark').getByText('API Tokens').click();
     await page.waitForTimeout(300);
     const viewDetailsButtons = page.getByRole('button', { name: /View Details/i });
     await expect(viewDetailsButtons.first()).toBeVisible();
@@ -346,7 +346,7 @@ test.describe('Connections Tab - API Tokens', () => {
 
   test('shows Revoke button for active tokens', async ({ page }) => {
     // Click on API Tokens tab first
-    await page.locator('.tab').getByText('API Tokens').click();
+    await page.locator('.tab-dark').getByText('API Tokens').click();
     await page.waitForTimeout(300);
     const revokeButton = page.getByRole('button', { name: /Revoke/i }).first();
     await expect(revokeButton).toBeVisible();
@@ -354,7 +354,7 @@ test.describe('Connections Tab - API Tokens', () => {
 
   test('shows confirmation dialog when revoking', async ({ page }) => {
     // Click on API Tokens tab first
-    await page.locator('.tab').getByText('API Tokens').click();
+    await page.locator('.tab-dark').getByText('API Tokens').click();
     await page.waitForTimeout(300);
     await page.getByRole('button', { name: /Revoke/i }).first().click();
     await page.waitForTimeout(300);
@@ -367,7 +367,7 @@ test.describe('Connections Tab - API Tokens', () => {
 
   test('can cancel revocation', async ({ page }) => {
     // Click on API Tokens tab first
-    await page.locator('.tab').getByText('API Tokens').click();
+    await page.locator('.tab-dark').getByText('API Tokens').click();
     await page.waitForTimeout(300);
     await page.getByRole('button', { name: /Revoke/i }).first().click();
     await page.waitForTimeout(300);
@@ -381,7 +381,7 @@ test.describe('Connections Tab - API Tokens', () => {
 
   test('displays usage information', async ({ page }) => {
     // Click on API Tokens tab first
-    await page.locator('.tab').getByText('API Tokens').click();
+    await page.locator('.tab-dark').getByText('API Tokens').click();
     await page.waitForTimeout(300);
     // Check for usage count display (component shows "X requests")
     await expect(page.getByText(/requests/).first()).toBeVisible();
@@ -394,12 +394,12 @@ test.describe('Connections Tab - Connected Apps (A2A)', () => {
     await setupConnectionsMocks(page, { isAdmin: true });
     await loginAndNavigateToConnections(page);
     // Switch to Connected Apps tab
-    await page.locator('.tab').getByText('Connected Apps').click();
+    await page.locator('.tab-dark').getByText('Connected Apps').click();
     await page.waitForTimeout(500);
   });
 
   test('displays Connected Apps tab', async ({ page }) => {
-    await expect(page.locator('.tab-active').getByText('Connected Apps')).toBeVisible();
+    await expect(page.locator('.tab-dark-active').getByText('Connected Apps')).toBeVisible();
     await expect(page.getByText('Your Connected Apps')).toBeVisible();
   });
 
@@ -475,7 +475,7 @@ test.describe('Connections Tab - API Tokens (Admin Only)', () => {
   });
 
   test('shows API Tokens tab for admin users', async ({ page }) => {
-    await expect(page.locator('.tab').getByText('API Tokens')).toBeVisible();
+    await expect(page.locator('.tab-dark').getByText('API Tokens')).toBeVisible();
   });
 
   test('can switch to API Tokens tab', async ({ page }) => {
@@ -515,19 +515,19 @@ test.describe('Connections Tab - Tab Navigation', () => {
 
   test('highlights active tab correctly', async ({ page }) => {
     // Click API Tokens tab
-    await page.locator('.tab').getByText('API Tokens').click();
+    await page.locator('.tab-dark').getByText('API Tokens').click();
     await page.waitForTimeout(300);
-    await expect(page.locator('.tab-active').getByText('API Tokens')).toBeVisible();
+    await expect(page.locator('.tab-dark-active').getByText('API Tokens')).toBeVisible();
 
     // Click Connected Apps tab
-    await page.locator('.tab').getByText('Connected Apps').click();
+    await page.locator('.tab-dark').getByText('Connected Apps').click();
     await page.waitForTimeout(300);
-    await expect(page.locator('.tab-active').getByText('Connected Apps')).toBeVisible();
+    await expect(page.locator('.tab-dark-active').getByText('Connected Apps')).toBeVisible();
   });
 
   test('resets view when switching tabs', async ({ page }) => {
     // Go to API Tokens and click Create
-    await page.locator('.tab').getByText('API Tokens').click();
+    await page.locator('.tab-dark').getByText('API Tokens').click();
     await page.waitForTimeout(300);
     await page.getByRole('button', { name: /Create.*Token/i }).click();
     await page.waitForTimeout(300);
@@ -536,7 +536,7 @@ test.describe('Connections Tab - Tab Navigation', () => {
     await expect(page.getByRole('button', { name: /Back/i })).toBeVisible();
 
     // Switch to Connected Apps
-    await page.locator('.tab').getByText('Connected Apps').click();
+    await page.locator('.tab-dark').getByText('Connected Apps').click();
     await page.waitForTimeout(300);
 
     // Should be back to overview view
@@ -564,7 +564,7 @@ test.describe('Connections Tab - Empty States', () => {
     await page.waitForTimeout(500);
 
     // Click on API Tokens tab
-    await page.locator('.tab').getByText('API Tokens').click();
+    await page.locator('.tab-dark').getByText('API Tokens').click();
     await page.waitForTimeout(500);
 
     // Should show empty state or "No tokens" message
@@ -619,7 +619,7 @@ test.describe('Connections Tab - Error Handling', () => {
     await page.waitForTimeout(500);
 
     // Page should still render without crashing
-    await expect(page.locator('.tab').getByText('API Tokens')).toBeVisible();
+    await expect(page.locator('.tab-dark').getByText('API Tokens')).toBeVisible();
   });
 
   test('handles API error gracefully for A2A clients', async ({ page }) => {
@@ -663,7 +663,7 @@ test.describe('Connections Tab - API Token Usage Modal', () => {
     await page.waitForTimeout(500);
 
     // Click on API Tokens tab
-    await page.locator('.tab').getByText('API Tokens').click();
+    await page.locator('.tab-dark').getByText('API Tokens').click();
     await page.waitForTimeout(500);
 
     // Click View Usage button (using View Details since the UI may use different button text)
@@ -685,7 +685,7 @@ test.describe('Connections Tab - API Token Usage Modal', () => {
     await page.waitForTimeout(500);
 
     // Click on API Tokens tab
-    await page.locator('.tab').getByText('API Tokens').click();
+    await page.locator('.tab-dark').getByText('API Tokens').click();
     await page.waitForTimeout(500);
 
     // Click View Details button
@@ -701,7 +701,7 @@ test.describe('Connections Tab - API Token Usage Modal', () => {
         await page.waitForTimeout(500);
 
         // Should be back to overview
-        await expect(page.locator('.tab').getByText('API Tokens')).toBeVisible();
+        await expect(page.locator('.tab-dark').getByText('API Tokens')).toBeVisible();
       }
     }
   });
@@ -716,7 +716,7 @@ test.describe('Connections Tab - A2A Client Expansion', () => {
     await page.waitForTimeout(500);
 
     // Navigate to Connected Apps tab
-    await page.locator('.tab').getByText('Connected Apps').click();
+    await page.locator('.tab-dark').getByText('Connected Apps').click();
     await page.waitForTimeout(500);
 
     // Click on a client card to select it (triggers usage/rate-limit queries)
@@ -734,7 +734,7 @@ test.describe('Connections Tab - A2A Client Expansion', () => {
     await navigateToTab(page, 'Connections');
     await page.waitForTimeout(500);
 
-    await page.locator('.tab').getByText('Connected Apps').click();
+    await page.locator('.tab-dark').getByText('Connected Apps').click();
     await page.waitForTimeout(500);
 
     await page.getByText('Fitness Assistant Bot').click();
@@ -754,7 +754,7 @@ test.describe('Connections Tab - A2A Client Expansion', () => {
     await navigateToTab(page, 'Connections');
     await page.waitForTimeout(500);
 
-    await page.locator('.tab').getByText('Connected Apps').click();
+    await page.locator('.tab-dark').getByText('Connected Apps').click();
     await page.waitForTimeout(500);
 
     await page.getByText('Fitness Assistant Bot').click();
@@ -772,7 +772,7 @@ test.describe('Connections Tab - A2A Client Expansion', () => {
     await navigateToTab(page, 'Connections');
     await page.waitForTimeout(500);
 
-    await page.locator('.tab').getByText('Connected Apps').click();
+    await page.locator('.tab-dark').getByText('Connected Apps').click();
     await page.waitForTimeout(500);
 
     await page.getByText('Fitness Assistant Bot').click();
@@ -791,7 +791,7 @@ test.describe('Connections Tab - API Tokens Tab Visibility', () => {
     await page.waitForTimeout(500);
 
     // API Tokens tab should be visible for admin
-    await expect(page.locator('.tab').getByText('API Tokens')).toBeVisible();
+    await expect(page.locator('.tab-dark').getByText('API Tokens')).toBeVisible();
   });
 
   test('does not show Connections tab for non-admin users', async ({ page }) => {
