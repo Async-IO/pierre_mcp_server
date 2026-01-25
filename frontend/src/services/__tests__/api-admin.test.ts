@@ -3,12 +3,16 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import axios, { AxiosError } from 'axios';
-import { apiService } from '../api';
+import { apiService } from '../api/index';
 
-// Mock axios
+// Mock axios - must be complete for apiClient initialization
 vi.mock('axios', () => ({
   default: {
-    defaults: { headers: { common: {} } },
+    defaults: {
+      baseURL: '',
+      withCredentials: true,
+      headers: { common: {} }
+    },
     interceptors: {
       request: { use: vi.fn() },
       response: { use: vi.fn() }

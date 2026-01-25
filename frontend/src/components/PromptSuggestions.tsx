@@ -4,8 +4,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { X, Users, Eye, EyeOff, Pencil, Trash2 } from 'lucide-react';
 import { apiService } from '../services/api';
 import { Card } from './ui';
 
@@ -188,9 +189,7 @@ function HelpTooltip({ isVisible, onClose }: { isVisible: boolean; onClose: () =
             className="text-zinc-500 hover:text-white flex-shrink-0 transition-colors"
             aria-label="Close help"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -237,9 +236,7 @@ function CoachesSection({
           role="img"
           aria-label="Coaches"
         >
-          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-          </svg>
+          <Users className="w-4 h-4 text-white" />
         </div>
         <h3 className="font-medium text-white">Coaches</h3>
         <button
@@ -264,13 +261,11 @@ function CoachesSection({
             }`}
             title={showHidden ? 'Hide hidden coaches' : 'Show hidden coaches'}
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              {showHidden ? (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-              )}
-            </svg>
+            {showHidden ? (
+              <Eye className="w-3.5 h-3.5" />
+            ) : (
+              <EyeOff className="w-3.5 h-3.5" />
+            )}
             <span>{hiddenCoaches.length} hidden</span>
           </button>
         )}
@@ -328,9 +323,7 @@ function CoachesSection({
       {showHidden && hiddenCoaches.length > 0 && (
         <div className="mt-4 pt-4 border-t border-white/10">
           <h4 className="text-sm font-medium text-zinc-400 mb-3 flex items-center gap-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-            </svg>
+            <EyeOff className="w-4 h-4" />
             Hidden Coaches
           </h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -349,22 +342,24 @@ function CoachesSection({
   );
 }
 
-// Individual coach card component
-function CoachCard({
-  coach,
-  onSelectPrompt,
-  onEditCoach,
-  onDeleteCoach,
-  onHideCoach,
-  isHiding,
-}: {
+// Individual coach card component - memoized to prevent unnecessary re-renders
+interface CoachCardProps {
   coach: Coach;
   onSelectPrompt: (prompt: string, coachId?: string, systemPrompt?: string) => void;
   onEditCoach?: (coach: Coach) => void;
   onDeleteCoach?: (coach: Coach) => void;
   onHideCoach: (coach: Coach) => void;
   isHiding: boolean;
-}) {
+}
+
+const CoachCard = memo(function CoachCard({
+  coach,
+  onSelectPrompt,
+  onEditCoach,
+  onDeleteCoach,
+  onHideCoach,
+  isHiding,
+}: CoachCardProps) {
   return (
     <div
       className="relative text-left text-sm rounded-xl border border-white/10 bg-white/5 hover:border-pierre-violet/50 hover:bg-pierre-violet/10 px-4 py-3 transition-all focus-within:outline-none focus-within:ring-2 focus-within:ring-pierre-violet focus-within:ring-opacity-50 group hover:shadow-glow-sm"
@@ -383,9 +378,7 @@ function CoachCard({
             title="Edit coach"
             aria-label="Edit coach"
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-            </svg>
+            <Pencil className="w-3.5 h-3.5" />
           </button>
         )}
         {!coach.is_system && onDeleteCoach && (
@@ -399,9 +392,7 @@ function CoachCard({
             title="Delete coach"
             aria-label="Delete coach"
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
         )}
         {/* Hide button for system coaches */}
@@ -417,9 +408,7 @@ function CoachCard({
             title="Hide coach"
             aria-label="Hide coach"
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-            </svg>
+            <EyeOff className="w-3.5 h-3.5" />
           </button>
         )}
       </div>
@@ -468,18 +457,20 @@ function CoachCard({
       </button>
     </div>
   );
-}
+});
 
-// Hidden coach card component (dimmed, with show button)
-function HiddenCoachCard({
-  coach,
-  onShowCoach,
-  isShowing,
-}: {
+// Hidden coach card component (dimmed, with show button) - memoized to prevent unnecessary re-renders
+interface HiddenCoachCardProps {
   coach: Coach;
   onShowCoach: (coach: Coach) => void;
   isShowing: boolean;
-}) {
+}
+
+const HiddenCoachCard = memo(function HiddenCoachCard({
+  coach,
+  onShowCoach,
+  isShowing,
+}: HiddenCoachCardProps) {
   return (
     <div
       className="relative text-left text-sm rounded-xl border border-white/5 px-4 py-3 opacity-50 hover:opacity-100 transition-all group bg-white/5"
@@ -497,9 +488,7 @@ function HiddenCoachCard({
           title="Show coach"
           aria-label="Show coach"
         >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-          </svg>
+          <Eye className="w-3.5 h-3.5" />
         </button>
       </div>
       <div className="flex items-center justify-between">
@@ -526,7 +515,7 @@ function HiddenCoachCard({
       </div>
     </div>
   );
-}
+});
 
 // Helper functions for category styling (dark theme)
 function getCategoryBadgeClass(category: string): string {

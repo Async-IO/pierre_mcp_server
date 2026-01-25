@@ -4,7 +4,7 @@
 // ABOUTME: Coach Store browse screen for discovering and installing coaches
 // ABOUTME: Lists published coaches with category filters, search, and navigation to detail
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import { Compass } from 'lucide-react';
@@ -288,12 +288,13 @@ export default function StoreScreen({ onSelectCoach }: StoreScreenProps) {
   );
 }
 
+// Store coach card - memoized to prevent unnecessary re-renders during scrolling
 interface CoachCardProps {
   coach: StoreCoach;
   onClick: () => void;
 }
 
-function CoachCard({ coach, onClick }: CoachCardProps) {
+const CoachCard = memo(function CoachCard({ coach, onClick }: CoachCardProps) {
   const categoryColors = COACH_CATEGORY_COLORS[coach.category] ?? 'bg-gray-500/20 text-gray-400';
 
   return (
@@ -339,4 +340,4 @@ function CoachCard({ coach, onClick }: CoachCardProps) {
       )}
     </button>
   );
-}
+});

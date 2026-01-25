@@ -10,6 +10,7 @@ import Dashboard from './components/Dashboard';
 import ImpersonationBanner from './components/ImpersonationBanner';
 import ConnectionBanner from './components/ConnectionBanner';
 import OAuthCallback from './components/OAuthCallback';
+import ErrorBoundary from './components/ErrorBoundary';
 import { AuthProvider } from './contexts/AuthContext';
 import { WebSocketProvider } from './contexts/WebSocketProvider';
 import { useAuth } from './hooks/useAuth';
@@ -166,13 +167,22 @@ function AppContent() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <WebSocketProvider>
-          <AppContent />
-        </WebSocketProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <ErrorBoundary
+      onError={(error, errorInfo) => {
+        // Log errors to console in development
+        // In production, this could send to an error tracking service
+        console.error('Application error:', error);
+        console.error('Component stack:', errorInfo.componentStack);
+      }}
+    >
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <WebSocketProvider>
+            <AppContent />
+          </WebSocketProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 
