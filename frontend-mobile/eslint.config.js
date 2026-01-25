@@ -147,6 +147,7 @@ export default [
       'tailwind.config.js',
       '.detoxrc.js',
       'e2e/',
+      'integration/',
       'eslint.config.js',
       'plugins/',
     ],

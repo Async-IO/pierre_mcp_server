@@ -12,7 +12,7 @@ module.exports = {
   ],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx'],
   testMatch: ['**/__tests__/**/*.(ts|tsx|js)', '**/?(*.)+(spec|test).(ts|tsx|js)'],
-  testPathIgnorePatterns: ['/node_modules/', '/e2e/'],
+  testPathIgnorePatterns: ['/node_modules/', '/e2e/', '/integration/'],
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
     '!src/**/*.d.ts',
