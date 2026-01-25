@@ -47,14 +47,12 @@
             "minSdkVersion": 24,
             "compileSdkVersion": 35,
             "targetSdkVersion": 35
+          },
+          "ios": {
+            "useFrameworks": "static"
           }
         }
-      ],
-      "@react-native-voice/voice",
-      "./plugins/withAndroidManifestFix.js",
-      "./plugins/withAndroidDependencyFix.js",
-      "./plugins/withAndroidPackagingFix.js",
-      "./plugins/withAndroidTestMinSdk.js"
+      ]
     ]
   }
 }

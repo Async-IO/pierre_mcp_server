@@ -5,7 +5,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   Modal,
   TouchableOpacity,
   ScrollView,
@@ -13,7 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, spacing, fontSize, borderRadius } from '../constants/theme';
+import { colors, spacing } from '../constants/theme';
 import { apiService } from '../services/api';
 
 interface VersionItem {
@@ -127,9 +126,11 @@ export function CoachVersionHistoryModal({
       typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
 
     return (
-      <View key={key} style={styles.snapshotField}>
-        <Text style={styles.snapshotLabel}>{key.replace(/_/g, ' ')}</Text>
-        <Text style={styles.snapshotValue}>{displayValue}</Text>
+      <View key={key} className="py-1 border-b border-border-default">
+        <Text className="text-xs font-medium text-text-secondary capitalize mb-0.5">
+          {key.replace(/_/g, ' ')}
+        </Text>
+        <Text className="text-sm text-text-primary">{displayValue}</Text>
       </View>
     );
   };
@@ -141,86 +142,92 @@ export function CoachVersionHistoryModal({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View className="flex-1 bg-background-primary" style={{ paddingTop: insets.top }}>
         {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <Text style={styles.closeButtonText}>Close</Text>
+        <View className="flex-row items-center justify-between px-3 py-2 border-b border-border-default">
+          <TouchableOpacity onPress={onClose} className="p-2">
+            <Text className="text-base text-primary-500">Close</Text>
           </TouchableOpacity>
-          <Text style={styles.title} numberOfLines={1}>
+          <Text className="flex-1 text-lg font-semibold text-text-primary text-center" numberOfLines={1}>
             History: {coachTitle}
           </Text>
-          <View style={styles.headerSpacer} />
+          <View className="w-[60px]" />
         </View>
 
         {/* Stats bar */}
-        <View style={styles.statsBar}>
-          <Text style={styles.statsText}>
+        <View className="flex-row justify-between items-center px-3 py-2 bg-background-tertiary">
+          <Text className="text-sm text-text-secondary">
             {versions.length} version{versions.length !== 1 ? 's' : ''} saved
           </Text>
-          <Text style={styles.statsTextBold}>Current: v{currentVersion}</Text>
+          <Text className="text-sm font-semibold text-text-primary">Current: v{currentVersion}</Text>
         </View>
 
         {/* Content */}
         {isLoading ? (
-          <View style={styles.loadingContainer}>
+          <View className="flex-1 justify-center items-center">
             <ActivityIndicator size="large" color={colors.primary[500]} />
-            <Text style={styles.loadingText}>Loading versions...</Text>
+            <Text className="mt-3 text-base text-text-secondary">Loading versions...</Text>
           </View>
         ) : versions.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No version history yet.</Text>
-            <Text style={styles.emptySubtext}>
+          <View className="flex-1 justify-center items-center px-6">
+            <Text className="text-lg font-semibold text-text-primary mb-2">No version history yet.</Text>
+            <Text className="text-base text-text-secondary text-center">
               Versions are created automatically when you update the coach.
             </Text>
           </View>
         ) : (
-          <ScrollView style={styles.versionList} contentContainerStyle={styles.versionListContent}>
+          <ScrollView className="flex-1" contentContainerStyle={{ padding: spacing.md }}>
             {versions.map((version) => (
-              <View key={version.version} style={styles.versionItem}>
+              <View
+                key={version.version}
+                className="mb-2 rounded-lg border border-border-default bg-background-secondary overflow-hidden"
+              >
                 {/* Version header */}
                 <TouchableOpacity
                   onPress={() => handleVersionPress(version)}
-                  style={[
-                    styles.versionHeader,
-                    selectedVersion?.version === version.version && styles.versionHeaderSelected,
-                  ]}
+                  className={`flex-row items-center p-3 ${
+                    selectedVersion?.version === version.version ? 'bg-background-tertiary' : ''
+                  }`}
                 >
-                  <View style={styles.versionBadge}>
-                    <Text style={styles.versionBadgeText}>v{version.version}</Text>
+                  <View className="w-9 h-9 rounded-full bg-background-tertiary justify-center items-center mr-3">
+                    <Text className="text-sm font-semibold text-text-primary">v{version.version}</Text>
                   </View>
-                  <View style={styles.versionInfo}>
-                    <Text style={styles.versionSummary} numberOfLines={1}>
+                  <View className="flex-1">
+                    <Text className="text-base font-medium text-text-primary mb-0.5" numberOfLines={1}>
                       {version.change_summary || 'Update'}
                     </Text>
-                    <Text style={styles.versionDate}>
+                    <Text className="text-sm text-text-secondary">
                       {formatDate(version.created_at)}
                       {version.created_by_name && ` by ${version.created_by_name}`}
                     </Text>
                   </View>
-                  <Text style={styles.expandIcon}>
+                  <Text className="text-sm text-text-secondary ml-2">
                     {selectedVersion?.version === version.version ? '▼' : '▶'}
                   </Text>
                 </TouchableOpacity>
 
                 {/* Expanded content */}
                 {selectedVersion?.version === version.version && (
-                  <View style={styles.versionContent}>
-                    <Text style={styles.snapshotTitle}>Snapshot Content</Text>
-                    <View style={styles.snapshotContainer}>
+                  <View className="p-3 border-t border-border-default bg-background-tertiary">
+                    <Text className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2">
+                      Snapshot Content
+                    </Text>
+                    <View className="bg-background-secondary rounded p-2 mb-3">
                       {Object.entries(version.content_snapshot).map(([key, value]) =>
                         renderSnapshotField(key, value)
                       )}
                     </View>
                     <TouchableOpacity
                       onPress={handleRevert}
-                      style={[styles.revertButton, isReverting && styles.revertButtonDisabled]}
+                      className={`bg-primary-500 py-2 px-3 rounded items-center self-end ${
+                        isReverting ? 'opacity-60' : ''
+                      }`}
                       disabled={isReverting}
                     >
                       {isReverting ? (
                         <ActivityIndicator size="small" color={colors.text.primary} />
                       ) : (
-                        <Text style={styles.revertButtonText}>
+                        <Text className="text-text-primary text-sm font-semibold">
                           Revert to v{version.version}
                         </Text>
                       )}
@@ -235,188 +242,5 @@ export function CoachVersionHistoryModal({
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
-  },
-  closeButton: {
-    padding: spacing.sm,
-  },
-  closeButtonText: {
-    color: colors.primary[500],
-    fontSize: fontSize.md,
-  },
-  title: {
-    flex: 1,
-    fontSize: fontSize.lg,
-    fontWeight: '600',
-    color: colors.text.primary,
-    textAlign: 'center',
-  },
-  headerSpacer: {
-    width: 60,
-  },
-  statsBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    backgroundColor: colors.background.tertiary,
-  },
-  statsText: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-  },
-  statsTextBold: {
-    fontSize: fontSize.sm,
-    fontWeight: '600',
-    color: colors.text.primary,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: spacing.md,
-    fontSize: fontSize.md,
-    color: colors.text.secondary,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: spacing.xl,
-  },
-  emptyText: {
-    fontSize: fontSize.lg,
-    fontWeight: '600',
-    color: colors.text.primary,
-    marginBottom: spacing.sm,
-  },
-  emptySubtext: {
-    fontSize: fontSize.md,
-    color: colors.text.secondary,
-    textAlign: 'center',
-  },
-  versionList: {
-    flex: 1,
-  },
-  versionListContent: {
-    padding: spacing.md,
-  },
-  versionItem: {
-    marginBottom: spacing.sm,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    backgroundColor: colors.background.secondary,
-    overflow: 'hidden',
-  },
-  versionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.md,
-  },
-  versionHeaderSelected: {
-    backgroundColor: colors.background.tertiary,
-  },
-  versionBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.background.tertiary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: spacing.md,
-  },
-  versionBadgeText: {
-    fontSize: fontSize.sm,
-    fontWeight: '600',
-    color: colors.text.primary,
-  },
-  versionInfo: {
-    flex: 1,
-  },
-  versionSummary: {
-    fontSize: fontSize.md,
-    fontWeight: '500',
-    color: colors.text.primary,
-    marginBottom: 2,
-  },
-  versionDate: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-  },
-  expandIcon: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-    marginLeft: spacing.sm,
-  },
-  versionContent: {
-    padding: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border.default,
-    backgroundColor: colors.background.tertiary,
-  },
-  snapshotTitle: {
-    fontSize: fontSize.xs,
-    fontWeight: '600',
-    color: colors.text.secondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: spacing.sm,
-  },
-  snapshotContainer: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.sm,
-    padding: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  snapshotField: {
-    paddingVertical: spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
-  },
-  snapshotLabel: {
-    fontSize: fontSize.xs,
-    fontWeight: '500',
-    color: colors.text.secondary,
-    textTransform: 'capitalize',
-    marginBottom: 2,
-  },
-  snapshotValue: {
-    fontSize: fontSize.sm,
-    color: colors.text.primary,
-  },
-  revertButton: {
-    backgroundColor: colors.primary[500],
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.sm,
-    alignItems: 'center',
-    alignSelf: 'flex-end',
-  },
-  revertButtonDisabled: {
-    opacity: 0.6,
-  },
-  revertButtonText: {
-    color: colors.text.primary,
-    fontSize: fontSize.sm,
-    fontWeight: '600',
-  },
-});
 
 export default CoachVersionHistoryModal;

@@ -5,23 +5,32 @@ import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   SafeAreaView,
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  type ViewStyle,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import type { DrawerNavigationProp } from '@react-navigation/drawer';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
-import { colors, spacing, fontSize, borderRadius, glassCard } from '../../constants/theme';
+import { colors, spacing, glassCard } from '../../constants/theme';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { AdaptedInsight } from '../../types';
-import type { AppDrawerParamList } from '../../navigation/AppDrawer';
+import type { SocialStackParamList } from '../../navigation/MainTabs';
 
-type NavigationProp = DrawerNavigationProp<AppDrawerParamList>;
+type NavigationProp = NativeStackNavigationProp<SocialStackParamList>;
+
+// Glass card style with shadow (React Native shadows cannot use className)
+const cardStyle: ViewStyle = {
+  marginHorizontal: spacing.md,
+  marginVertical: spacing.sm,
+  padding: spacing.md,
+  borderRadius: 12,
+  ...glassCard,
+};
 
 // Format relative time
 const formatRelativeTime = (dateStr: string): string => {
@@ -51,16 +60,19 @@ function AdaptedInsightCard({ insight, onPress }: AdaptedInsightCardProps) {
     : insight.adapted_content;
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress}>
-      <View style={styles.cardHeader}>
-        <View style={styles.iconContainer}>
+    <TouchableOpacity style={cardStyle} onPress={onPress}>
+      <View className="flex-row items-center mb-4">
+        <View
+          className="w-8 h-8 rounded-full justify-center items-center mr-2"
+          style={{ backgroundColor: colors.pierre.violet + '20' }}
+        >
           <Feather name="refresh-cw" size={18} color={colors.pierre.violet} />
         </View>
-        <Text style={styles.timestamp}>{formatRelativeTime(insight.created_at)}</Text>
+        <Text className="flex-1 text-text-tertiary text-sm">{formatRelativeTime(insight.created_at)}</Text>
       </View>
-      <Text style={styles.contentPreview}>{previewContent}</Text>
-      <View style={styles.cardFooter}>
-        <Text style={styles.tapToView}>Tap to view full insight</Text>
+      <Text className="text-text-primary text-base leading-6">{previewContent}</Text>
+      <View className="flex-row items-center justify-between mt-4 pt-4 border-t border-border-subtle">
+        <Text className="text-text-tertiary text-sm">Tap to view full insight</Text>
         <Feather name="chevron-right" size={16} color={colors.text.tertiary} />
       </View>
     </TouchableOpacity>
@@ -136,19 +148,20 @@ export function AdaptedInsightsScreen() {
   );
 
   const renderEmptyState = () => (
-    <View style={styles.emptyState}>
+    <View className="flex-1 justify-center items-center p-6">
       <Feather name="refresh-cw" size={64} color={colors.text.tertiary} />
-      <Text style={styles.emptyTitle}>No Adapted Insights</Text>
-      <Text style={styles.emptyText}>
+      <Text className="text-text-primary text-xl font-bold mt-5">No Adapted Insights</Text>
+      <Text className="text-text-secondary text-base text-center mt-2 mb-6">
         When you tap "Adapt to My Training" on friends' insights, your personalized
         versions will appear here
       </Text>
       <TouchableOpacity
-        style={styles.feedButton}
-        onPress={() => navigation.navigate('SocialFeed')}
+        className="flex-row items-center px-5 py-4 rounded-lg gap-2"
+        style={{ backgroundColor: colors.pierre.violet }}
+        onPress={() => navigation.navigate('SocialMain')}
       >
         <Feather name="activity" size={18} color={colors.text.primary} />
-        <Text style={styles.feedButtonText}>Browse Feed</Text>
+        <Text className="text-text-primary text-base font-semibold">Browse Feed</Text>
       </TouchableOpacity>
     </View>
   );
@@ -156,7 +169,7 @@ export function AdaptedInsightsScreen() {
   const renderFooter = () => {
     if (!isLoadingMore) return null;
     return (
-      <View style={styles.loadingMore}>
+      <View className="py-5 items-center">
         <ActivityIndicator size="small" color={colors.pierre.violet} />
       </View>
     );
@@ -164,27 +177,27 @@ export function AdaptedInsightsScreen() {
 
   if (isLoading && insights.length === 0) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
+      <SafeAreaView className="flex-1 bg-background-primary">
+        <View className="flex-1 justify-center items-center">
           <ActivityIndicator size="large" color={colors.pierre.violet} />
-          <Text style={styles.loadingText}>Loading insights...</Text>
+          <Text className="text-text-secondary mt-4">Loading insights...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView className="flex-1 bg-background-primary">
       {/* Header */}
-      <View style={styles.header}>
+      <View className="flex-row items-center px-4 py-4 border-b border-border-subtle">
         <TouchableOpacity
-          style={styles.backButton}
+          className="p-2"
           onPress={() => navigation.goBack()}
         >
           <Feather name="arrow-left" size={24} color={colors.text.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Adapted Insights</Text>
-        <View style={styles.headerSpacer} />
+        <Text className="flex-1 text-lg font-bold text-text-primary text-center">Adapted Insights</Text>
+        <View className="w-10" />
       </View>
 
       {/* Insights List */}
@@ -194,9 +207,7 @@ export function AdaptedInsightsScreen() {
         renderItem={renderInsight}
         ListEmptyComponent={renderEmptyState}
         ListFooterComponent={renderFooter}
-        contentContainerStyle={
-          insights.length === 0 ? styles.emptyContainer : styles.listContent
-        }
+        contentContainerStyle={insights.length === 0 ? { flexGrow: 1 } : { paddingVertical: spacing.sm }}
         onEndReached={loadMore}
         onEndReachedThreshold={0.3}
         refreshControl={
@@ -210,127 +221,3 @@ export function AdaptedInsightsScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    color: colors.text.secondary,
-    marginTop: spacing.md,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-  },
-  backButton: {
-    padding: spacing.sm,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: fontSize.lg,
-    fontWeight: '700',
-    color: colors.text.primary,
-    textAlign: 'center',
-  },
-  headerSpacer: {
-    width: 40,
-  },
-  listContent: {
-    paddingVertical: spacing.sm,
-  },
-  emptyContainer: {
-    flexGrow: 1,
-  },
-  card: {
-    marginHorizontal: spacing.md,
-    marginVertical: spacing.sm,
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    ...glassCard,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  iconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.pierre.violet + '20',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: spacing.sm,
-  },
-  timestamp: {
-    flex: 1,
-    color: colors.text.tertiary,
-    fontSize: fontSize.sm,
-  },
-  contentPreview: {
-    color: colors.text.primary,
-    fontSize: fontSize.md,
-    lineHeight: 22,
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: spacing.md,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border.subtle,
-  },
-  tapToView: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.sm,
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.xl,
-  },
-  emptyTitle: {
-    color: colors.text.primary,
-    fontSize: fontSize.xl,
-    fontWeight: '700',
-    marginTop: spacing.lg,
-  },
-  emptyText: {
-    color: colors.text.secondary,
-    fontSize: fontSize.md,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-    marginBottom: spacing.xl,
-  },
-  feedButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.lg,
-    backgroundColor: colors.pierre.violet,
-    gap: spacing.sm,
-  },
-  feedButtonText: {
-    color: colors.text.primary,
-    fontSize: fontSize.md,
-    fontWeight: '600',
-  },
-  loadingMore: {
-    paddingVertical: spacing.lg,
-    alignItems: 'center',
-  },
-});

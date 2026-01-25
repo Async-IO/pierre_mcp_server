@@ -5,7 +5,6 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   SafeAreaView,
   ScrollView,
   TouchableOpacity,
@@ -13,16 +12,18 @@ import {
   Modal,
   ActivityIndicator,
 } from 'react-native';
-import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
+import { colors, spacing, borderRadius } from '../../constants/theme';
 import { Card, Button, Input } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiService } from '../../services/api';
 import type { McpToken } from '../../types';
-import type { DrawerNavigationProp } from '@react-navigation/drawer';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { SettingsStackParamList } from '../../navigation/MainTabs';
 import { OAuthCredentialsSection } from '../../components/OAuthCredentialsSection';
+import { Feather } from '@expo/vector-icons';
 
 interface SettingsScreenProps {
-  navigation: DrawerNavigationProp<Record<string, undefined>>;
+  navigation: NativeStackNavigationProp<SettingsStackParamList>;
 }
 
 export function SettingsScreen({ navigation }: SettingsScreenProps) {
@@ -162,76 +163,94 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView className="flex-1 bg-background-primary">
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.menuButton}
-          onPress={() => navigation.openDrawer()}
-        >
-          <Text style={styles.menuIcon}>{'☰'}</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Settings</Text>
-        <View style={styles.headerSpacer} />
+      <View className="flex-row items-center px-3 py-2 border-b border-border-subtle">
+        <View className="w-10" />
+        <Text className="flex-1 text-lg font-semibold text-text-primary text-center">Settings</Text>
+        <View className="w-10" />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={{ padding: spacing.lg }}>
         {/* Profile Section */}
-        <Text style={styles.sectionTitle}>Profile</Text>
-        <Card style={styles.profileCard}>
-          <View style={styles.profileHeader}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
+        <Text className="text-lg font-semibold text-text-primary mb-2">Profile</Text>
+        <Card className="mb-5">
+          <View className="flex-row items-center">
+            <View className="w-14 h-14 rounded-full bg-primary-600 items-center justify-center mr-3">
+              <Text className="text-2xl font-bold text-text-primary">
                 {user?.display_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
               </Text>
             </View>
-            <View style={styles.profileInfo}>
-              <Text style={styles.displayName}>
+            <View className="flex-1">
+              <Text className="text-lg font-semibold text-text-primary">
                 {user?.display_name || 'User'}
               </Text>
-              <Text style={styles.email}>{user?.email}</Text>
+              <Text className="text-sm text-text-secondary">{user?.email}</Text>
             </View>
           </View>
         </Card>
 
         {/* Security Section */}
-        <Text style={styles.sectionTitle}>Security</Text>
-        <Card style={styles.section}>
+        <Text className="text-lg font-semibold text-text-primary mb-2">Security</Text>
+        <Card className="mb-5">
           <TouchableOpacity
-            style={styles.menuItem}
+            className="flex-row justify-between items-center py-2"
             onPress={() => setShowChangePassword(true)}
           >
-            <Text style={styles.menuItemText}>Change Password</Text>
-            <Text style={styles.chevron}>{'>'}</Text>
+            <Text className="text-base text-text-primary">Change Password</Text>
+            <Text className="text-lg text-text-tertiary">{'>'}</Text>
+          </TouchableOpacity>
+        </Card>
+
+        {/* Connected Services Section */}
+        <Text className="text-lg font-semibold text-text-primary mb-2">Connected Services</Text>
+        <Card className="mb-5">
+          <TouchableOpacity
+            className="flex-row justify-between items-center py-2"
+            onPress={() => navigation.navigate('Connections')}
+            testID="connect-providers-button"
+          >
+            <View className="flex-row items-center">
+              <Feather name="link" size={20} color={colors.text.secondary} style={{ marginRight: 12 }} />
+              <View>
+                <Text className="text-base text-text-primary">Connect Providers</Text>
+                <Text className="text-sm text-text-secondary">Link Strava, Garmin, and more</Text>
+              </View>
+            </View>
+            <Text className="text-lg text-text-tertiary">{'>'}</Text>
           </TouchableOpacity>
         </Card>
 
         {/* MCP Tokens Section */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>MCP Tokens</Text>
+        <View className="flex-row justify-between items-center mb-2">
+          <Text className="text-lg font-semibold text-text-primary">MCP Tokens</Text>
           <TouchableOpacity
-            style={styles.addButton}
+            className="px-2 py-1"
             onPress={() => setShowCreateToken(true)}
           >
-            <Text style={styles.addButtonText}>+ New</Text>
+            <Text className="text-sm font-semibold text-primary-500">+ New</Text>
           </TouchableOpacity>
         </View>
-        <Card style={styles.section}>
+        <Card className="mb-5">
           {isLoadingTokens ? (
             <ActivityIndicator size="small" color={colors.primary[500]} />
           ) : tokens.length === 0 ? (
-            <Text style={styles.emptyText}>No MCP tokens created yet</Text>
+            <Text className="text-sm text-text-secondary text-center py-3">
+              No MCP tokens created yet
+            </Text>
           ) : (
             tokens.map((token, index) => (
               <View
                 key={`${token.id}-${index}`}
-                style={[styles.tokenItem, index > 0 && styles.tokenBorder]}
+                className={`flex-row justify-between items-center py-2 ${
+                  index > 0 ? 'border-t border-border-subtle' : ''
+                }`}
               >
-                <View style={styles.tokenInfo}>
-                  <Text style={styles.tokenName}>{token.name}</Text>
-                  <Text style={styles.tokenPrefix}>{token.token_prefix}...</Text>
+                <View className="flex-1">
+                  <Text className="text-base font-medium text-text-primary">{token.name}</Text>
+                  <Text className="text-sm text-text-tertiary font-mono">{token.token_prefix}...</Text>
                   {token.last_used_at && (
-                    <Text style={styles.tokenUsage}>
+                    <Text className="text-xs text-text-tertiary mt-0.5">
                       Last used: {new Date(token.last_used_at).toLocaleDateString()}
                     </Text>
                   )}
@@ -239,7 +258,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
                 <TouchableOpacity
                   onPress={() => handleRevokeToken(token.id, token.name)}
                 >
-                  <Text style={styles.revokeText}>Revoke</Text>
+                  <Text className="text-sm font-medium text-error">Revoke</Text>
                 </TouchableOpacity>
               </View>
             ))
@@ -248,11 +267,11 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
 
         {/* Developer Settings Section */}
         <TouchableOpacity
-          style={styles.developerToggle}
+          className="flex-row justify-between items-center py-3 mt-3 border-t border-border-subtle"
           onPress={() => setShowDeveloperSettings(!showDeveloperSettings)}
         >
-          <Text style={styles.sectionTitle}>Developer Settings</Text>
-          <Text style={styles.chevron}>{showDeveloperSettings ? '▼' : '>'}</Text>
+          <Text className="text-lg font-semibold text-text-primary">Developer Settings</Text>
+          <Text className="text-lg text-text-tertiary">{showDeveloperSettings ? '▼' : '>'}</Text>
         </TouchableOpacity>
 
         {showDeveloperSettings && (
@@ -265,7 +284,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
           onPress={handleLogout}
           variant="danger"
           fullWidth
-          style={styles.logoutButton}
+          style={{ marginTop: spacing.lg }}
         />
       </ScrollView>
 
@@ -276,19 +295,25 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
         transparent
         onRequestClose={() => setShowCreateToken(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
+        <View
+          className="flex-1 bg-black/70 justify-center"
+          style={{ paddingHorizontal: spacing.lg }}
+        >
+          <View
+            className="bg-background-secondary p-5"
+            style={{ borderRadius: borderRadius.xl }}
+          >
+            <Text className="text-xl font-semibold text-text-primary mb-5 text-center">
               {newToken ? 'Token Created' : 'Create MCP Token'}
             </Text>
 
             {newToken ? (
               <>
-                <Text style={styles.tokenWarning}>
+                <Text className="text-sm text-warning text-center mb-3">
                   Copy this token now. You won't be able to see it again!
                 </Text>
-                <View style={styles.tokenDisplay}>
-                  <Text style={styles.tokenValue} selectable>
+                <View className="bg-background-tertiary rounded-lg p-3 mb-5">
+                  <Text className="text-sm text-text-primary font-mono" selectable>
                     {newToken}
                   </Text>
                 </View>
@@ -309,18 +334,18 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
                   value={newTokenName}
                   onChangeText={setNewTokenName}
                 />
-                <View style={styles.modalActions}>
+                <View className="flex-row gap-3 mt-3">
                   <Button
                     title="Cancel"
                     onPress={() => setShowCreateToken(false)}
                     variant="secondary"
-                    style={styles.modalButton}
+                    style={{ flex: 1 }}
                   />
                   <Button
                     title="Create"
                     onPress={handleCreateToken}
                     loading={isCreatingToken}
-                    style={styles.modalButton}
+                    style={{ flex: 1 }}
                   />
                 </View>
               </>
@@ -336,9 +361,17 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
         transparent
         onRequestClose={() => setShowChangePassword(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Change Password</Text>
+        <View
+          className="flex-1 bg-black/70 justify-center"
+          style={{ paddingHorizontal: spacing.lg }}
+        >
+          <View
+            className="bg-background-secondary p-5"
+            style={{ borderRadius: borderRadius.xl }}
+          >
+            <Text className="text-xl font-semibold text-text-primary mb-5 text-center">
+              Change Password
+            </Text>
 
             <Input
               label="Current Password"
@@ -362,18 +395,18 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
               showPasswordToggle
             />
 
-            <View style={styles.modalActions}>
+            <View className="flex-row gap-3 mt-3">
               <Button
                 title="Cancel"
                 onPress={() => setShowChangePassword(false)}
                 variant="secondary"
-                style={styles.modalButton}
+                style={{ flex: 1 }}
               />
               <Button
                 title="Change"
                 onPress={handleChangePassword}
                 loading={isChangingPassword}
-                style={styles.modalButton}
+                style={{ flex: 1 }}
               />
             </View>
           </View>
@@ -382,206 +415,3 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-  },
-  menuButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  menuIcon: {
-    fontSize: 20,
-    color: colors.text.primary,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: fontSize.lg,
-    fontWeight: '600',
-    color: colors.text.primary,
-    textAlign: 'center',
-  },
-  headerSpacer: {
-    width: 40,
-  },
-  scrollContent: {
-    padding: spacing.lg,
-  },
-  sectionTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: '600',
-    color: colors.text.primary,
-    marginBottom: spacing.sm,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  addButton: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  addButtonText: {
-    color: colors.primary[500],
-    fontSize: fontSize.sm,
-    fontWeight: '600',
-  },
-  section: {
-    marginBottom: spacing.lg,
-  },
-  profileCard: {
-    marginBottom: spacing.lg,
-  },
-  profileHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.primary[600],
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
-  },
-  avatarText: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.text.primary,
-  },
-  profileInfo: {
-    flex: 1,
-  },
-  displayName: {
-    fontSize: fontSize.lg,
-    fontWeight: '600',
-    color: colors.text.primary,
-  },
-  email: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-  },
-  menuItemText: {
-    fontSize: fontSize.md,
-    color: colors.text.primary,
-  },
-  chevron: {
-    fontSize: fontSize.lg,
-    color: colors.text.tertiary,
-  },
-  emptyText: {
-    color: colors.text.secondary,
-    fontSize: fontSize.sm,
-    textAlign: 'center',
-    paddingVertical: spacing.md,
-  },
-  tokenItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-  },
-  tokenBorder: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border.subtle,
-  },
-  tokenInfo: {
-    flex: 1,
-  },
-  tokenName: {
-    fontSize: fontSize.md,
-    fontWeight: '500',
-    color: colors.text.primary,
-  },
-  tokenPrefix: {
-    fontSize: fontSize.sm,
-    color: colors.text.tertiary,
-    fontFamily: 'monospace',
-  },
-  tokenUsage: {
-    fontSize: fontSize.xs,
-    color: colors.text.tertiary,
-    marginTop: 2,
-  },
-  revokeText: {
-    fontSize: fontSize.sm,
-    color: colors.error,
-    fontWeight: '500',
-  },
-  logoutButton: {
-    marginTop: spacing.lg,
-  },
-  developerToggle: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-    marginTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border.subtle,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.lg,
-  },
-  modalContent: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.xl,
-    padding: spacing.lg,
-  },
-  modalTitle: {
-    fontSize: fontSize.xl,
-    fontWeight: '600',
-    color: colors.text.primary,
-    marginBottom: spacing.lg,
-    textAlign: 'center',
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    marginTop: spacing.md,
-  },
-  modalButton: {
-    flex: 1,
-  },
-  tokenWarning: {
-    fontSize: fontSize.sm,
-    color: colors.warning,
-    textAlign: 'center',
-    marginBottom: spacing.md,
-  },
-  tokenDisplay: {
-    backgroundColor: colors.background.tertiary,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  tokenValue: {
-    fontSize: fontSize.sm,
-    color: colors.text.primary,
-    fontFamily: 'monospace',
-  },
-});

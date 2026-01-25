@@ -5,7 +5,6 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
@@ -14,10 +13,11 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  type ImageStyle,
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button, Input } from '../../components/ui';
-import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
+import { colors, spacing } from '../../constants/theme';
 import {
   isFirebaseEnabled,
   useGoogleAuth,
@@ -145,32 +145,37 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
     }
   };
 
+  // Logo style (pixel-specific dimensions)
+  const logoStyle: ImageStyle = { width: 160, height: 160, marginBottom: spacing.lg };
+
   return (
-    <SafeAreaView style={styles.container} testID="login-screen">
+    <SafeAreaView className="flex-1 bg-background-primary" testID="login-screen">
       <KeyboardAvoidingView
-        style={styles.keyboardView}
+        className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.xl }}
           keyboardShouldPersistTaps="handled"
           testID="login-scroll-view"
         >
           {/* Logo and Header */}
-          <View style={styles.header}>
+          <View className="items-center mb-6">
             <Image
               source={require('../../../assets/pierre-logo.png')}
-              style={styles.logo}
+              style={logoStyle}
               resizeMode="contain"
             />
-            <Text style={styles.title}>Welcome to Pierre</Text>
-            <Text style={styles.subtitle}>
+            <Text className="text-2xl font-bold text-text-primary mb-1">
+              Welcome to Pierre
+            </Text>
+            <Text className="text-base text-text-secondary text-center leading-[22px]">
               Your AI-powered fitness intelligence companion
             </Text>
           </View>
 
           {/* Login Form */}
-          <View style={styles.form}>
+          <View className="mb-6">
             <Input
               label="Email"
               placeholder="you@example.com"
@@ -199,21 +204,21 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
               onPress={handleLogin}
               loading={isLoading}
               fullWidth
-              style={styles.loginButton}
+              style={{ marginTop: spacing.md }}
               testID="login-button"
             />
 
             {/* Google Sign-In - only show when Firebase is configured */}
             {isFirebaseEnabled() && (
               <>
-                <View style={styles.dividerContainer}>
-                  <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>or continue with</Text>
-                  <View style={styles.dividerLine} />
+                <View className="flex-row items-center my-5">
+                  <View className="flex-1 h-px bg-border-default" />
+                  <Text className="text-sm text-text-secondary px-3">or continue with</Text>
+                  <View className="flex-1 h-px bg-border-default" />
                 </View>
 
                 <TouchableOpacity
-                  style={styles.googleButton}
+                  className="flex-row items-center justify-center bg-background-secondary border border-border-default rounded-lg py-3 px-5 gap-2"
                   onPress={handleGoogleSignIn}
                   disabled={isGoogleLoading}
                   testID="google-signin-button"
@@ -224,7 +229,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
                   ) : (
                     <AntDesign name="google" size={20} color={colors.google} />
                   )}
-                  <Text style={styles.googleButtonText}>
+                  <Text className="text-base font-medium text-text-primary">
                     {isGoogleLoading ? 'Signing in...' : 'Continue with Google'}
                   </Text>
                 </TouchableOpacity>
@@ -233,10 +238,10 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
           </View>
 
           {/* Register Link */}
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>Don't have an account?</Text>
+          <View className="flex-row justify-center items-center gap-1">
+            <Text className="text-sm text-text-secondary">Don't have an account?</Text>
             <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-              <Text style={styles.linkText}>Create one</Text>
+              <Text className="text-sm font-semibold text-primary-500">Create one</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -244,93 +249,3 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xl,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: spacing.xl,
-  },
-  logo: {
-    width: 160,
-    height: 160,
-    marginBottom: spacing.lg,
-  },
-  title: {
-    fontSize: fontSize.xxl,
-    fontWeight: '700',
-    color: colors.text.primary,
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
-    fontSize: fontSize.md,
-    color: colors.text.secondary,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  form: {
-    marginBottom: spacing.xl,
-  },
-  loginButton: {
-    marginTop: spacing.md,
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  footerText: {
-    color: colors.text.secondary,
-    fontSize: fontSize.sm,
-  },
-  linkText: {
-    color: colors.primary[500],
-    fontSize: fontSize.sm,
-    fontWeight: '600',
-  },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: spacing.lg,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.border.default,
-  },
-  dividerText: {
-    color: colors.text.secondary,
-    fontSize: fontSize.sm,
-    paddingHorizontal: spacing.md,
-  },
-  googleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background.secondary,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    borderRadius: borderRadius.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    gap: spacing.sm,
-  },
-  googleButtonText: {
-    color: colors.text.primary,
-    fontSize: fontSize.md,
-    fontWeight: '500',
-  },
-});

@@ -4,10 +4,10 @@
 import React, { useEffect, useRef } from 'react';
 import {
   TouchableOpacity,
-  StyleSheet,
   Animated,
   View,
   ActivityIndicator,
+  type ViewStyle,
 } from 'react-native';
 import { colors, borderRadius } from '../../constants/theme';
 
@@ -75,14 +75,45 @@ export function VoiceButton({
 
   const isDisabled = disabled || !isAvailable;
 
+  // Dynamic button style (size-based, cannot use className)
+  const buttonStyle: ViewStyle = {
+    width: buttonSize,
+    height: buttonSize,
+    borderRadius: buttonSize / 2,
+    backgroundColor: isListening ? colors.error : colors.background.tertiary,
+  };
+
+  // Microphone icon styles (pixel-specific, need style objects)
+  const micHeadStyle: ViewStyle = {
+    width: 12,
+    height: 16,
+    backgroundColor: colors.text.primary,
+    borderTopLeftRadius: borderRadius.md,
+    borderTopRightRadius: borderRadius.md,
+  };
+
+  const micBodyStyle: ViewStyle = {
+    width: 18,
+    height: 6,
+    borderBottomLeftRadius: 9,
+    borderBottomRightRadius: 9,
+    borderWidth: 2,
+    borderColor: colors.text.primary,
+    borderTopWidth: 0,
+    marginTop: -2,
+  };
+
+  const micStandStyle: ViewStyle = {
+    width: 2,
+    height: 5,
+    backgroundColor: colors.text.primary,
+    marginTop: 1,
+  };
+
   return (
     <TouchableOpacity
-      style={[
-        styles.button,
-        { width: buttonSize, height: buttonSize, borderRadius: buttonSize / 2 },
-        isListening && styles.buttonActive,
-        isDisabled && styles.buttonDisabled,
-      ]}
+      className={`items-center justify-center ${isDisabled ? 'opacity-50' : ''}`}
+      style={buttonStyle}
       onPress={onPress}
       disabled={isDisabled}
       activeOpacity={0.7}
@@ -92,65 +123,22 @@ export function VoiceButton({
       accessibilityState={{ disabled: isDisabled }}
     >
       <Animated.View
-        style={[
-          styles.iconContainer,
-          { transform: [{ scale: isListening ? pulseAnim : 1 }] },
-        ]}
+        className="items-center justify-center"
+        style={{ transform: [{ scale: isListening ? pulseAnim : 1 }] }}
       >
         {isListening ? (
           <ActivityIndicator size="small" color={colors.text.primary} />
         ) : (
-          <View style={[styles.microphoneIcon, { transform: [{ scale: iconScale }] }]}>
-            <View style={styles.micHead} />
-            <View style={styles.micBody} />
-            <View style={styles.micStand} />
+          <View
+            className="items-center"
+            style={{ transform: [{ scale: iconScale }] }}
+          >
+            <View style={micHeadStyle} />
+            <View style={micBodyStyle} />
+            <View style={micStandStyle} />
           </View>
         )}
       </Animated.View>
     </TouchableOpacity>
   );
 }
-
-const styles = StyleSheet.create({
-  button: {
-    backgroundColor: colors.background.tertiary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonActive: {
-    backgroundColor: colors.error,
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  iconContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  microphoneIcon: {
-    alignItems: 'center',
-  },
-  micHead: {
-    width: 12,
-    height: 16,
-    backgroundColor: colors.text.primary,
-    borderTopLeftRadius: borderRadius.md,
-    borderTopRightRadius: borderRadius.md,
-  },
-  micBody: {
-    width: 18,
-    height: 6,
-    borderBottomLeftRadius: 9,
-    borderBottomRightRadius: 9,
-    borderWidth: 2,
-    borderColor: colors.text.primary,
-    borderTopWidth: 0,
-    marginTop: -2,
-  },
-  micStand: {
-    width: 2,
-    height: 5,
-    backgroundColor: colors.text.primary,
-    marginTop: 1,
-  },
-});

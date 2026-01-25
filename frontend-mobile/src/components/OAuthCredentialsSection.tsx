@@ -5,14 +5,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   Alert,
   Modal,
   ActivityIndicator,
   FlatList,
 } from 'react-native';
 import { TouchableOpacity, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { colors, spacing, fontSize, borderRadius } from '../constants/theme';
+import { colors } from '../constants/theme';
 import { Card, Button, Input } from './ui';
 import { apiService } from '../services/api';
 import type { OAuthApp, OAuthProvider } from '../types';
@@ -151,60 +150,65 @@ export function OAuthCredentialsSection() {
   const availableProviders = getAvailableProviders();
 
   return (
-    <View style={styles.container}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>OAuth Credentials</Text>
+    <View className="mt-3">
+      <View className="flex-row justify-between items-center mb-1">
+        <Text className="text-lg font-semibold text-text-primary">OAuth Credentials</Text>
         {availableProviders.length > 0 && (
           <TouchableOpacity
-            style={styles.addButton}
+            className="px-3 py-2 min-h-[44px] justify-center"
             onPress={() => setShowAddModal(true)}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             activeOpacity={0.7}
           >
-            <Text style={styles.addButtonText}>+ Add</Text>
+            <Text className="text-sm font-semibold text-primary-500">+ Add</Text>
           </TouchableOpacity>
         )}
       </View>
 
-      <Text style={styles.description}>
+      <Text className="text-sm text-text-secondary mb-3">
         Configure custom OAuth app credentials to use your own developer applications instead of the server defaults.
       </Text>
 
-      <Card style={styles.section}>
+      <Card className="mb-3">
         {isLoading ? (
           <ActivityIndicator size="small" color={colors.primary[500]} />
         ) : oauthApps.length === 0 ? (
-          <Text style={styles.emptyText}>No custom OAuth credentials configured</Text>
+          <Text className="text-sm text-text-secondary text-center py-3">
+            No custom OAuth credentials configured
+          </Text>
         ) : (
           oauthApps.map((app, index) => {
             const providerInfo = getProviderInfo(app.provider);
             return (
               <View
                 key={app.provider}
-                style={[styles.credentialItem, index > 0 && styles.itemBorder]}
+                className={`py-2 ${index > 0 ? 'border-t border-border-subtle' : ''}`}
               >
-                <View style={styles.credentialRow}>
-                  <View style={[styles.providerIcon, { backgroundColor: providerInfo.color }]}>
-                    <Text style={styles.providerInitial}>
+                <View className="flex-row items-center mb-1">
+                  <View
+                    className="w-10 h-10 rounded-lg items-center justify-center mr-3"
+                    style={{ backgroundColor: providerInfo.color }}
+                  >
+                    <Text className="text-lg font-bold text-text-primary">
                       {providerInfo.name.charAt(0).toUpperCase()}
                     </Text>
                   </View>
-                  <View style={styles.credentialInfo}>
-                    <View style={styles.providerNameRow}>
-                      <Text style={styles.providerName}>{providerInfo.name}</Text>
-                      <View style={styles.configuredBadge}>
-                        <Text style={styles.configuredText}>Configured</Text>
+                  <View className="flex-1">
+                    <View className="flex-row items-center mb-0.5">
+                      <Text className="text-base font-semibold text-text-primary mr-2">
+                        {providerInfo.name}
+                      </Text>
+                      <View className="bg-success/20 px-1 py-0.5 rounded">
+                        <Text className="text-xs text-success font-medium">Configured</Text>
                       </View>
                     </View>
-                    <Text style={styles.clientIdText}>
+                    <Text className="text-sm text-text-tertiary font-mono">
                       Client ID: {maskClientId(app.client_id)}
                     </Text>
                   </View>
                 </View>
-                <TouchableOpacity
-                  onPress={() => handleDelete(app.provider, providerInfo.name)}
-                >
-                  <Text style={styles.removeText}>Remove</Text>
+                <TouchableOpacity onPress={() => handleDelete(app.provider, providerInfo.name)}>
+                  <Text className="text-sm text-error font-medium">Remove</Text>
                 </TouchableOpacity>
               </View>
             );
@@ -219,33 +223,38 @@ export function OAuthCredentialsSection() {
         transparent
         onRequestClose={handleCloseModal}
       >
-        <GestureHandlerRootView style={styles.gestureContainer}>
-          <View style={styles.modalOverlay}>
+        <GestureHandlerRootView className="flex-1">
+          <View className="flex-1 bg-black/70 justify-center px-4">
             {modalView === 'form' ? (
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Add OAuth Credentials</Text>
+              <View className="bg-background-secondary rounded-xl p-4 max-h-[80%]">
+                <Text className="text-xl font-semibold text-text-primary mb-4 text-center">
+                  Add OAuth Credentials
+                </Text>
 
                 {/* Provider Picker */}
-                <Text style={styles.inputLabel}>Provider</Text>
+                <Text className="text-sm font-medium text-text-secondary mb-1">Provider</Text>
                 <TouchableOpacity
-                  style={styles.pickerButton}
+                  className="flex-row items-center justify-between bg-background-tertiary rounded-lg p-3 mb-3 border border-border-subtle"
                   onPress={() => setModalView('providerPicker')}
                   hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
                   activeOpacity={0.7}
                 >
                   {selectedProvider ? (
-                    <View style={styles.selectedProviderRow}>
-                      <View style={[styles.providerIconSmall, { backgroundColor: selectedProvider.color }]}>
-                        <Text style={styles.providerInitialSmall}>
+                    <View className="flex-row items-center">
+                      <View
+                        className="w-6 h-6 rounded items-center justify-center mr-2"
+                        style={{ backgroundColor: selectedProvider.color }}
+                      >
+                        <Text className="text-sm font-bold text-text-primary">
                           {selectedProvider.name.charAt(0)}
                         </Text>
                       </View>
-                      <Text style={styles.pickerButtonText}>{selectedProvider.name}</Text>
+                      <Text className="text-base text-text-primary">{selectedProvider.name}</Text>
                     </View>
                   ) : (
-                    <Text style={styles.pickerPlaceholder}>Select a provider...</Text>
+                    <Text className="text-base text-text-tertiary">Select a provider...</Text>
                   )}
-                  <Text style={styles.pickerChevron}>{'>'}</Text>
+                  <Text className="text-lg text-text-tertiary">{'>'}</Text>
                 </TouchableOpacity>
 
                 <Input
@@ -269,56 +278,63 @@ export function OAuthCredentialsSection() {
                 />
 
                 {/* Redirect URI - read-only, shown for user to configure in OAuth app */}
-                <Text style={styles.inputLabel}>Redirect URI (use this in your OAuth app)</Text>
-                <View style={styles.redirectUriDisplay}>
-                  <Text style={styles.redirectUriText} selectable>
+                <Text className="text-sm font-medium text-text-secondary mb-1">
+                  Redirect URI (use this in your OAuth app)
+                </Text>
+                <View className="bg-background-tertiary rounded-lg p-3 mb-3 border border-border-subtle">
+                  <Text className="text-sm text-text-secondary font-mono" selectable>
                     {selectedProvider ? `${DEFAULT_REDIRECT_URI}/${selectedProvider.id}` : DEFAULT_REDIRECT_URI}
                   </Text>
                 </View>
 
-                <View style={styles.modalActions}>
+                <View className="flex-row gap-3 mt-3">
                   <Button
                     title="Cancel"
                     onPress={handleCloseModal}
                     variant="secondary"
-                    style={styles.modalButton}
+                    style={{ flex: 1 }}
                   />
                   <Button
                     title="Save"
                     onPress={handleSave}
                     loading={isSaving}
-                    style={styles.modalButton}
+                    style={{ flex: 1 }}
                   />
                 </View>
               </View>
             ) : (
-              <View style={styles.pickerModalContent}>
-                <Text style={styles.modalTitle}>Select Provider</Text>
+              <View className="bg-background-secondary rounded-xl p-4 max-h-[60%]">
+                <Text className="text-xl font-semibold text-text-primary mb-4 text-center">
+                  Select Provider
+                </Text>
                 <FlatList
                   data={availableProviders}
                   keyExtractor={(item) => item.id}
                   renderItem={({ item }) => (
                     <TouchableOpacity
-                      style={styles.providerOption}
+                      className="flex-row items-center py-3"
                       onPress={() => handleSelectProvider(item)}
                     >
-                      <View style={[styles.providerIcon, { backgroundColor: item.color }]}>
-                        <Text style={styles.providerInitial}>{item.name.charAt(0)}</Text>
+                      <View
+                        className="w-10 h-10 rounded-lg items-center justify-center mr-3"
+                        style={{ backgroundColor: item.color }}
+                      >
+                        <Text className="text-lg font-bold text-text-primary">{item.name.charAt(0)}</Text>
                       </View>
-                      <Text style={styles.providerOptionText}>{item.name}</Text>
+                      <Text className="flex-1 text-base text-text-primary ml-2">{item.name}</Text>
                       {selectedProvider?.id === item.id && (
-                        <Text style={styles.checkmark}>{'✓'}</Text>
+                        <Text className="text-lg text-primary-500">{'✓'}</Text>
                       )}
                     </TouchableOpacity>
                   )}
-                  ItemSeparatorComponent={() => <View style={styles.separator} />}
+                  ItemSeparatorComponent={() => <View className="h-px bg-border-subtle" />}
                 />
                 <Button
                   title="Back"
                   onPress={() => setModalView('form')}
                   variant="secondary"
                   fullWidth
-                  style={styles.pickerCancelButton}
+                  style={{ marginTop: 12 }}
                 />
               </View>
             )}
@@ -328,222 +344,3 @@ export function OAuthCredentialsSection() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    marginTop: spacing.md,
-  },
-  gestureContainer: {
-    flex: 1,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
-  },
-  sectionTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: '600',
-    color: colors.text.primary,
-  },
-  addButton: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  addButtonText: {
-    color: colors.primary[500],
-    fontSize: fontSize.sm,
-    fontWeight: '600',
-  },
-  description: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-    marginBottom: spacing.md,
-  },
-  section: {
-    marginBottom: spacing.md,
-  },
-  emptyText: {
-    color: colors.text.secondary,
-    fontSize: fontSize.sm,
-    textAlign: 'center',
-    paddingVertical: spacing.md,
-  },
-  credentialItem: {
-    paddingVertical: spacing.sm,
-  },
-  itemBorder: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border.subtle,
-  },
-  credentialRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
-  },
-  providerIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
-  },
-  providerIconSmall: {
-    width: 24,
-    height: 24,
-    borderRadius: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.sm,
-  },
-  providerInitial: {
-    fontSize: fontSize.lg,
-    fontWeight: '700',
-    color: colors.text.primary,
-  },
-  providerInitialSmall: {
-    fontSize: fontSize.sm,
-    fontWeight: '700',
-    color: colors.text.primary,
-  },
-  credentialInfo: {
-    flex: 1,
-  },
-  providerNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 2,
-  },
-  providerName: {
-    fontSize: fontSize.md,
-    fontWeight: '600',
-    color: colors.text.primary,
-    marginRight: spacing.sm,
-  },
-  configuredBadge: {
-    backgroundColor: colors.success + '20',
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 2,
-    borderRadius: borderRadius.sm,
-  },
-  configuredText: {
-    fontSize: fontSize.xs,
-    color: colors.success,
-    fontWeight: '500',
-  },
-  clientIdText: {
-    fontSize: fontSize.sm,
-    color: colors.text.tertiary,
-    fontFamily: 'monospace',
-  },
-  removeText: {
-    fontSize: fontSize.sm,
-    color: colors.error,
-    fontWeight: '500',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.lg,
-  },
-  modalContent: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.xl,
-    padding: spacing.lg,
-    maxHeight: '80%',
-  },
-  pickerModalContent: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.xl,
-    padding: spacing.lg,
-    maxHeight: '60%',
-  },
-  modalTitle: {
-    fontSize: fontSize.xl,
-    fontWeight: '600',
-    color: colors.text.primary,
-    marginBottom: spacing.lg,
-    textAlign: 'center',
-  },
-  inputLabel: {
-    fontSize: fontSize.sm,
-    fontWeight: '500',
-    color: colors.text.secondary,
-    marginBottom: spacing.xs,
-  },
-  redirectUriDisplay: {
-    backgroundColor: colors.background.tertiary,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-  },
-  redirectUriText: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-    fontFamily: 'monospace',
-  },
-  pickerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.background.tertiary,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-  },
-  selectedProviderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  pickerButtonText: {
-    fontSize: fontSize.md,
-    color: colors.text.primary,
-  },
-  pickerPlaceholder: {
-    fontSize: fontSize.md,
-    color: colors.text.tertiary,
-  },
-  pickerChevron: {
-    fontSize: fontSize.lg,
-    color: colors.text.tertiary,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    marginTop: spacing.md,
-  },
-  modalButton: {
-    flex: 1,
-  },
-  providerOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-  },
-  providerOptionText: {
-    flex: 1,
-    fontSize: fontSize.md,
-    color: colors.text.primary,
-    marginLeft: spacing.sm,
-  },
-  checkmark: {
-    fontSize: fontSize.lg,
-    color: colors.primary[500],
-  },
-  separator: {
-    height: 1,
-    backgroundColor: colors.border.subtle,
-  },
-  pickerCancelButton: {
-    marginTop: spacing.md,
-  },
-});

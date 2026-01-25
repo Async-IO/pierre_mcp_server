@@ -5,12 +5,11 @@ import React from 'react';
 import {
   TouchableOpacity,
   Text,
-  StyleSheet,
   ActivityIndicator,
   type ViewStyle,
   type TextStyle,
 } from 'react-native';
-import { colors, borderRadius, fontSize, spacing, buttonGlow } from '../../constants/theme';
+import { colors } from '../../constants/theme';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'gradient' | 'pill' | 'activity' | 'nutrition' | 'recovery';
 type ButtonSize = 'sm' | 'md' | 'lg';
@@ -28,6 +27,89 @@ interface ButtonProps {
   testID?: string;
 }
 
+// Variant-specific styles (shadows require style objects in RN)
+const variantShadowStyles: Partial<Record<ButtonVariant, ViewStyle>> = {
+  gradient: {
+    shadowColor: colors.pierre.violet,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  pill: {
+    shadowColor: colors.pierre.violet,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  activity: {
+    shadowColor: colors.pierre.activity,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  nutrition: {
+    shadowColor: colors.pierre.nutrition,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  recovery: {
+    shadowColor: colors.pierre.recovery,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+};
+
+// Base classes for all buttons
+const baseClasses = 'flex-row items-center justify-center rounded-xl';
+
+// Variant classes
+const variantClasses: Record<ButtonVariant, string> = {
+  primary: 'bg-pierre-violet',
+  secondary: 'bg-transparent border border-border-strong',
+  ghost: 'bg-transparent',
+  danger: 'bg-error',
+  gradient: 'bg-pierre-violet',
+  pill: 'bg-pierre-violet rounded-full',
+  activity: 'bg-pierre-activity',
+  nutrition: 'bg-pierre-nutrition',
+  recovery: 'bg-pierre-recovery',
+};
+
+// Size classes
+const sizeClasses: Record<ButtonSize, string> = {
+  sm: 'py-1 px-4 min-h-[36px]',
+  md: 'py-2 px-6 min-h-[44px]',
+  lg: 'py-4 px-8 min-h-[52px]',
+};
+
+// Text classes
+const textBaseClasses = 'font-semibold';
+
+const textVariantClasses: Record<ButtonVariant, string> = {
+  primary: 'text-text-primary',
+  secondary: 'text-text-primary',
+  ghost: 'text-primary-500',
+  danger: 'text-text-primary',
+  gradient: 'text-text-primary',
+  pill: 'text-text-primary',
+  activity: 'text-text-primary',
+  nutrition: 'text-text-primary',
+  recovery: 'text-text-primary',
+};
+
+const textSizeClasses: Record<ButtonSize, string> = {
+  sm: 'text-sm',
+  md: 'text-base',
+  lg: 'text-lg',
+};
+
 export function Button({
   title,
   onPress,
@@ -42,26 +124,31 @@ export function Button({
 }: ButtonProps) {
   const isDisabled = disabled || loading;
 
-  const buttonStyles = [
-    styles.base,
-    styles[`variant_${variant}`],
-    styles[`size_${size}`],
-    fullWidth && styles.fullWidth,
-    isDisabled && styles.disabled,
-    style,
-  ];
+  const buttonClassName = [
+    baseClasses,
+    variantClasses[variant],
+    sizeClasses[size],
+    fullWidth ? 'w-full' : '',
+    isDisabled ? 'opacity-50' : '',
+  ].filter(Boolean).join(' ');
 
-  const textStyles = [
-    styles.text,
-    styles[`text_${variant}`],
-    styles[`textSize_${size}`],
-    isDisabled && styles.textDisabled,
-    textStyle,
-  ];
+  const textClassName = [
+    textBaseClasses,
+    textVariantClasses[variant],
+    textSizeClasses[size],
+    isDisabled ? 'opacity-70' : '',
+  ].filter(Boolean).join(' ');
+
+  // Combine className styles with shadow styles (shadows need style prop in RN)
+  const combinedStyle: ViewStyle = {
+    ...variantShadowStyles[variant],
+    ...style,
+  };
 
   return (
     <TouchableOpacity
-      style={buttonStyles}
+      className={buttonClassName}
+      style={combinedStyle}
       onPress={onPress}
       disabled={isDisabled}
       activeOpacity={0.7}
@@ -73,140 +160,8 @@ export function Button({
           size="small"
         />
       ) : (
-        <Text style={textStyles}>{title}</Text>
+        <Text className={textClassName} style={textStyle}>{title}</Text>
       )}
     </TouchableOpacity>
   );
 }
-
-const styles = StyleSheet.create({
-  base: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: borderRadius.lg,
-  },
-
-  // Variants
-  variant_primary: {
-    backgroundColor: colors.pierre.violet,
-  },
-  variant_secondary: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: colors.border.strong,
-  },
-  variant_ghost: {
-    backgroundColor: 'transparent',
-  },
-  variant_danger: {
-    backgroundColor: colors.error,
-  },
-  // Gradient variant with glow effect - per Stitch design system
-  variant_gradient: {
-    backgroundColor: colors.pierre.violet,
-    ...buttonGlow,
-  },
-  // Pill-shaped variant with full border radius and glow
-  variant_pill: {
-    backgroundColor: colors.pierre.violet,
-    borderRadius: borderRadius.full,
-    ...buttonGlow,
-  },
-  // Three Pillar Button Variants - per Stitch design system
-  variant_activity: {
-    backgroundColor: colors.pierre.activity,
-    shadowColor: colors.pierre.activity,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 14,
-    elevation: 8,
-  },
-  variant_nutrition: {
-    backgroundColor: colors.pierre.nutrition,
-    shadowColor: colors.pierre.nutrition,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 14,
-    elevation: 8,
-  },
-  variant_recovery: {
-    backgroundColor: colors.pierre.recovery,
-    shadowColor: colors.pierre.recovery,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 14,
-    elevation: 8,
-  },
-
-  // Sizes
-  size_sm: {
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md,
-    minHeight: 36,
-  },
-  size_md: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    minHeight: 44,
-  },
-  size_lg: {
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
-    minHeight: 52,
-  },
-
-  fullWidth: {
-    width: '100%',
-  },
-
-  disabled: {
-    opacity: 0.5,
-  },
-
-  // Text styles
-  text: {
-    fontWeight: '600',
-  },
-  text_primary: {
-    color: colors.text.primary,
-  },
-  text_secondary: {
-    color: colors.text.primary,
-  },
-  text_ghost: {
-    color: colors.primary[500],
-  },
-  text_danger: {
-    color: colors.text.primary,
-  },
-  text_gradient: {
-    color: colors.text.primary,
-  },
-  text_pill: {
-    color: colors.text.primary,
-  },
-  text_activity: {
-    color: colors.text.primary,
-  },
-  text_nutrition: {
-    color: colors.text.primary,
-  },
-  text_recovery: {
-    color: colors.text.primary,
-  },
-
-  textSize_sm: {
-    fontSize: fontSize.sm,
-  },
-  textSize_md: {
-    fontSize: fontSize.md,
-  },
-  textSize_lg: {
-    fontSize: fontSize.lg,
-  },
-
-  textDisabled: {
-    opacity: 0.7,
-  },
-});

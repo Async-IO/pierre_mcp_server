@@ -28,7 +28,31 @@ Use these shell scripts to manage the Pierre MCP Server:
 
 # Check server health
 curl http://localhost:8081/health
+
+# Reset development database (fixes migration checksum mismatches)
+./bin/reset-dev-db.sh
 ```
+
+### Database Reset (Development Only)
+If you encounter migration checksum mismatch errors like:
+```
+migration 20250120000009 was previously applied but has been modified
+```
+
+Use the reset script to fix this:
+```bash
+./bin/reset-dev-db.sh
+```
+
+This script:
+1. **Safety check**: Refuses to run against non-SQLite databases
+2. **Backs up** the current database to `data/backups/`
+3. **Deletes and recreates** the database with fresh migrations
+4. **Runs all seeders** (admin user, coaches, demo data, social, mobility)
+
+Default credentials after reset:
+- Email: `admin@example.com`
+- Password: `AdminPassword123`
 
 ### Admin User and Token Management
 The `admin-setup` binary manages admin users and API tokens:

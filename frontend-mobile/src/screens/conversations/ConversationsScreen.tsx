@@ -5,7 +5,6 @@ import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   SafeAreaView,
   FlatList,
   TouchableOpacity,
@@ -13,19 +12,46 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  type ViewStyle,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import type { DrawerNavigationProp } from '@react-navigation/drawer';
-import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Feather } from '@expo/vector-icons';
+import { colors, spacing } from '../../constants/theme';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { PromptDialog } from '../../components/ui';
 import type { Conversation } from '../../types';
-import type { AppDrawerParamList } from '../../navigation/AppDrawer';
+import type { ChatStackParamList } from '../../navigation/MainTabs';
 
 interface ConversationsScreenProps {
-  navigation: DrawerNavigationProp<AppDrawerParamList>;
+  navigation: NativeStackNavigationProp<ChatStackParamList>;
 }
+
+// Shadow styles (React Native shadows cannot use className)
+const searchContainerShadow: ViewStyle = {
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.25,
+  shadowRadius: 4,
+  elevation: 4,
+};
+
+const fabShadow: ViewStyle = {
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.25,
+  shadowRadius: 4,
+  elevation: 4,
+};
+
+const menuShadow: ViewStyle = {
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.3,
+  shadowRadius: 8,
+  elevation: 8,
+};
 
 export function ConversationsScreen({ navigation }: ConversationsScreenProps) {
   const { isAuthenticated } = useAuth();
@@ -105,7 +131,7 @@ export function ConversationsScreen({ navigation }: ConversationsScreenProps) {
   };
 
   const handleConversationPress = (conversationId: string) => {
-    navigation.navigate('Chat', { conversationId });
+    navigation.navigate('ChatMain', { conversationId });
   };
 
   const handleConversationLongPress = (conversation: Conversation) => {
@@ -114,7 +140,7 @@ export function ConversationsScreen({ navigation }: ConversationsScreenProps) {
   };
 
   const handleNewChat = () => {
-    navigation.navigate('Chat', { conversationId: undefined });
+    navigation.navigate('ChatMain', { conversationId: undefined });
   };
 
   const handleRename = () => {
@@ -178,38 +204,39 @@ export function ConversationsScreen({ navigation }: ConversationsScreenProps) {
 
   const renderConversation = ({ item }: { item: Conversation }) => (
     <TouchableOpacity
-      style={styles.conversationItem}
+      className="flex-row items-center px-4 py-3 border-b border-border-subtle"
       onPress={() => handleConversationPress(item.id)}
       onLongPress={() => handleConversationLongPress(item)}
       delayLongPress={300}
     >
-      <View style={styles.conversationContent}>
-        <Text style={styles.conversationTitle} numberOfLines={1}>
+      <View className="flex-1">
+        <Text className="text-base font-medium text-text-primary mb-0.5" numberOfLines={1}>
           {item.title || 'Untitled'}
         </Text>
-        <Text style={styles.conversationDate}>{formatRelativeDate(item.updated_at)}</Text>
+        <Text className="text-sm text-text-tertiary">{formatRelativeDate(item.updated_at)}</Text>
       </View>
-      <Text style={styles.chevron}>›</Text>
+      <Text className="text-xl text-text-tertiary ml-2">›</Text>
     </TouchableOpacity>
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView className="flex-1 bg-background-primary">
       {/* Header */}
-      <View style={styles.header}>
+      <View className="flex-row items-center px-3 py-2 border-b border-border-subtle">
         <TouchableOpacity
-          style={styles.menuButton}
-          onPress={() => navigation.openDrawer()}
+          className="w-10 h-10 items-center justify-center"
+          onPress={() => navigation.goBack()}
+          testID="back-button"
         >
-          <Text style={styles.menuIcon}>☰</Text>
+          <Feather name="arrow-left" size={24} color={colors.text.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Conversations</Text>
-        <View style={styles.headerSpacer} />
+        <Text className="flex-1 text-lg font-semibold text-text-primary text-center">Conversations</Text>
+        <View className="w-10" />
       </View>
 
       {/* Conversations List */}
       {isLoading ? (
-        <View style={styles.loadingContainer}>
+        <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color={colors.primary[500]} />
         </View>
       ) : (
@@ -217,11 +244,11 @@ export function ConversationsScreen({ navigation }: ConversationsScreenProps) {
           data={filteredConversations}
           renderItem={renderConversation}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: 80 }}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>
+            <View className="flex-1 items-center justify-center pt-16">
+              <Text className="text-base text-text-tertiary">
                 {searchQuery ? 'No conversations found' : 'No conversations yet'}
               </Text>
             </View>
@@ -230,19 +257,29 @@ export function ConversationsScreen({ navigation }: ConversationsScreenProps) {
       )}
 
       {/* Floating Bottom Bar with Search and New Chat */}
-      <View style={styles.floatingBottomBar}>
-        <View style={styles.searchContainer}>
-          <Text style={styles.searchIcon}>🔍</Text>
+      <View
+        className="absolute left-3 right-3 flex-row items-center gap-2"
+        style={{ bottom: spacing.lg }}
+      >
+        <View
+          className="flex-1 flex-row items-center bg-background-secondary rounded-full px-3 py-1"
+          style={[{ height: 44 }, searchContainerShadow]}
+        >
+          <Text className="text-base mr-2">🔍</Text>
           <TextInput
-            style={styles.searchInput}
+            className="flex-1 text-base text-text-primary"
             placeholder="Search"
             placeholderTextColor={colors.text.tertiary}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
         </View>
-        <TouchableOpacity style={styles.newChatFab} onPress={handleNewChat}>
-          <Text style={styles.newChatIcon}>+</Text>
+        <TouchableOpacity
+          className="w-11 h-11 rounded-full bg-primary-500 items-center justify-center"
+          style={fabShadow}
+          onPress={handleNewChat}
+        >
+          <Text className="text-3xl text-text-primary" style={{ marginTop: -2 }}>+</Text>
         </TouchableOpacity>
       </View>
 
@@ -254,27 +291,30 @@ export function ConversationsScreen({ navigation }: ConversationsScreenProps) {
         onRequestClose={closeActionMenu}
       >
         <TouchableOpacity
-          style={styles.modalOverlay}
+          className="flex-1 bg-black/30 justify-center items-center"
           activeOpacity={1}
           onPress={closeActionMenu}
         >
-          <View style={styles.actionMenuContainer}>
+          <View
+            className="bg-background-primary rounded-lg py-1 min-w-[200px]"
+            style={menuShadow}
+          >
             <TouchableOpacity
-              style={[styles.actionMenuItem, styles.actionMenuItemDisabled]}
+              className="flex-row items-center px-3 py-2 opacity-40"
               disabled
             >
-              <Text style={styles.actionMenuIcon}>☆</Text>
-              <Text style={styles.actionMenuTextDisabled}>Add to favorites</Text>
+              <Text className="text-lg mr-2 w-6">☆</Text>
+              <Text className="text-base text-text-tertiary">Add to favorites</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.actionMenuItem} onPress={handleRename}>
-              <Text style={styles.actionMenuIcon}>✎</Text>
-              <Text style={styles.actionMenuText}>Rename</Text>
+            <TouchableOpacity className="flex-row items-center px-3 py-2" onPress={handleRename}>
+              <Text className="text-lg mr-2 w-6">✎</Text>
+              <Text className="text-base text-text-primary">Rename</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.actionMenuItem} onPress={handleDelete}>
-              <Text style={styles.actionMenuIconDanger}>🗑</Text>
-              <Text style={styles.actionMenuTextDanger}>Delete</Text>
+            <TouchableOpacity className="flex-row items-center px-3 py-2" onPress={handleDelete}>
+              <Text className="text-lg mr-2 w-6">🗑</Text>
+              <Text className="text-base text-error">Delete</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -295,182 +335,3 @@ export function ConversationsScreen({ navigation }: ConversationsScreenProps) {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-  },
-  menuButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  menuIcon: {
-    fontSize: 20,
-    color: colors.text.primary,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: fontSize.lg,
-    fontWeight: '600',
-    color: colors.text.primary,
-    textAlign: 'center',
-  },
-  headerSpacer: {
-    width: 40,
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  listContent: {
-    flexGrow: 1,
-    paddingBottom: 80, // Space for floating bottom bar
-  },
-  conversationItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-  },
-  conversationContent: {
-    flex: 1,
-  },
-  conversationTitle: {
-    fontSize: fontSize.md,
-    fontWeight: '500',
-    color: colors.text.primary,
-    marginBottom: 2,
-  },
-  conversationDate: {
-    fontSize: fontSize.sm,
-    color: colors.text.tertiary,
-  },
-  chevron: {
-    fontSize: 20,
-    color: colors.text.tertiary,
-    marginLeft: spacing.sm,
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: spacing.xxl,
-  },
-  emptyText: {
-    fontSize: fontSize.md,
-    color: colors.text.tertiary,
-  },
-  floatingBottomBar: {
-    position: 'absolute',
-    bottom: spacing.lg,
-    left: spacing.md,
-    right: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  searchContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    height: 44,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  searchIcon: {
-    fontSize: 16,
-    marginRight: spacing.sm,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: fontSize.md,
-    color: colors.text.primary,
-  },
-  newChatFab: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.primary[500],
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  newChatIcon: {
-    fontSize: 28,
-    color: colors.text.primary,
-    marginTop: -2,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  actionMenuContainer: {
-    backgroundColor: colors.background.primary,
-    borderRadius: borderRadius.lg,
-    paddingVertical: spacing.xs,
-    minWidth: 200,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  actionMenuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  actionMenuItemDisabled: {
-    opacity: 0.4,
-  },
-  actionMenuIcon: {
-    fontSize: 18,
-    marginRight: spacing.sm,
-    width: 24,
-  },
-  actionMenuIconDanger: {
-    fontSize: 18,
-    marginRight: spacing.sm,
-    width: 24,
-  },
-  actionMenuText: {
-    fontSize: fontSize.md,
-    color: colors.text.primary,
-  },
-  actionMenuTextDisabled: {
-    fontSize: fontSize.md,
-    color: colors.text.tertiary,
-  },
-  actionMenuTextDanger: {
-    fontSize: fontSize.md,
-    color: colors.error,
-  },
-});

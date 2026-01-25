@@ -5,7 +5,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   FlatList,
   TextInput,
   TouchableOpacity,
@@ -18,6 +17,7 @@ import {
   Share,
   AppState,
   Image,
+  type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
@@ -30,14 +30,43 @@ import Markdown from 'react-native-markdown-display';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, type RouteProp } from '@react-navigation/native';
 import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
+
+// ViewStyle objects for styles that require React Native shadow properties
+const popoverContainerStyle: ViewStyle = {
+  position: 'absolute',
+  top: 68,
+  left: 60,
+  right: 60,
+  backgroundColor: colors.background.secondary,
+  borderRadius: 12,
+  paddingVertical: spacing.xs,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 8 },
+  shadowOpacity: 0.4,
+  shadowRadius: 16,
+  elevation: 12,
+};
+
+const providerModalContainerStyle: ViewStyle = {
+  backgroundColor: colors.background.primary,
+  borderRadius: borderRadius.lg,
+  padding: spacing.lg,
+  minWidth: 280,
+  maxWidth: 320,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.3,
+  shadowRadius: 8,
+  elevation: 8,
+};
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useVoiceInput } from '../../hooks/useVoiceInput';
 import type { VoiceError } from '../../hooks/useVoiceInput';
 import { VoiceButton, PromptDialog } from '../../components/ui';
 import type { Conversation, Message, ProviderStatus, Coach, CoachCategory } from '../../types';
-import type { DrawerNavigationProp } from '@react-navigation/drawer';
-import type { AppDrawerParamList } from '../../navigation/AppDrawer';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { ChatStackParamList } from '../../navigation/MainTabs';
 
 // Coach category badge background colors (lighter versions)
 const COACH_CATEGORY_BADGE_BG: Record<CoachCategory, string> = {
@@ -60,13 +89,13 @@ const COACH_CATEGORY_ICONS: Record<CoachCategory, string> = {
 };
 
 interface ChatScreenProps {
-  navigation: DrawerNavigationProp<AppDrawerParamList>;
+  navigation: NativeStackNavigationProp<ChatStackParamList>;
 }
 
 export function ChatScreen({ navigation }: ChatScreenProps) {
   const { isAuthenticated } = useAuth();
   const insets = useSafeAreaInsets();
-  const route = useRoute<RouteProp<AppDrawerParamList, 'Chat'>>();
+  const route = useRoute<RouteProp<ChatStackParamList, 'ChatMain'>>();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -906,7 +935,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     // For user messages, render plain text
     if (isUser) {
       return (
-        <Text style={[styles.messageText, styles.userMessageText]}>
+        <Text className="text-base text-text-primary leading-6">
           {content}
         </Text>
       );
@@ -934,16 +963,17 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       });
 
       return (
-        <View style={styles.richTextContainer}>
+        <View className="flex-row flex-wrap items-center">
           {oauthUrls.map((url, index) => {
             const { provider } = isOAuthUrl(url);
             return (
               <TouchableOpacity
                 key={`oauth-${index}`}
-                style={styles.oauthButton}
+                className="px-4 py-2 rounded-lg my-1 self-start"
+                style={{ backgroundColor: colors.providers.strava }}
                 onPress={() => handleOpenUrl(url)}
               >
-                <Text style={styles.oauthButtonText}>
+                <Text className="text-base font-semibold text-text-primary">
                   Connect to {provider}
                 </Text>
               </TouchableOpacity>
@@ -974,57 +1004,63 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     const isError = item.isError === true;
 
     return (
-      <View style={[styles.messageContainer, isUser && styles.userMessageContainer]}>
-        <View style={[
-          styles.messageBubble,
-          isUser ? styles.userBubble : styles.assistantBubble,
-          isError && styles.errorBubble,
-        ]}>
+      <View className={`mb-4 ${isUser ? 'items-end' : ''}`}>
+        <View
+          className={`flex-row max-w-[85%] rounded-xl p-4 ${
+            isUser
+              ? 'rounded-br-[4px]'
+              : 'rounded-bl-[4px] bg-background-secondary'
+          } ${isError ? 'border border-error' : ''}`}
+          style={[
+            isUser ? { backgroundColor: colors.primary[600] } : undefined,
+            isError ? { backgroundColor: 'rgba(239, 68, 68, 0.15)' } : undefined,
+          ]}
+        >
           {!isUser && (
-            <View style={styles.assistantAvatarContainer}>
+            <View className="w-8 h-8 rounded-full mr-2 overflow-hidden">
               <Image
                 source={require('../../../assets/pierre-logo.png')}
-                style={styles.assistantAvatarImage}
+                className="w-8 h-8"
                 resizeMode="cover"
               />
             </View>
           )}
-          <View style={styles.messageContent}>
+          <View className="flex-1">
             {renderMessageContent(item.content, isUser)}
           </View>
         </View>
         {/* Action icons and metadata for assistant messages */}
         {!isUser && (
-          <View style={styles.messageActions}>
+          <View className="flex-row mt-1 gap-4">
             {isError ? (
               /* For error messages, show only Retry button */
               <TouchableOpacity
-                style={styles.retryButton}
+                className="flex-row items-center bg-background-tertiary px-2 py-1 rounded gap-1"
                 onPress={() => handleRetryMessage(item.id)}
               >
                 <Ionicons name="refresh-outline" size={14} color={colors.text.primary} />
-                <Text style={styles.retryButtonText}>Retry</Text>
+                <Text className="text-xs text-text-primary font-medium">Retry</Text>
               </TouchableOpacity>
             ) : (
               /* Normal assistant message actions */
               <>
                 {/* Copy */}
                 <TouchableOpacity
-                  style={styles.messageActionButton}
+                  className="p-0.5"
                   onPress={() => handleCopyMessage(item.content)}
                 >
                   <Ionicons name="copy-outline" size={14} color={colors.text.tertiary} />
                 </TouchableOpacity>
                 {/* Share */}
                 <TouchableOpacity
-                  style={styles.messageActionButton}
+                  className="p-0.5"
                   onPress={() => handleShareMessage(item.content)}
                 >
                   <Ionicons name="arrow-redo-outline" size={14} color={colors.text.tertiary} />
                 </TouchableOpacity>
                 {/* Thumbs Up */}
                 <TouchableOpacity
-                  style={styles.messageActionButton}
+                  className="p-0.5"
                   onPress={() => handleThumbsUp(item.id)}
                 >
                   <Ionicons
@@ -1035,7 +1071,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
                 </TouchableOpacity>
                 {/* Thumbs Down */}
                 <TouchableOpacity
-                  style={styles.messageActionButton}
+                  className="p-0.5"
                   onPress={() => handleThumbsDown(item.id)}
                 >
                   <Ionicons
@@ -1046,14 +1082,14 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
                 </TouchableOpacity>
                 {/* Retry */}
                 <TouchableOpacity
-                  style={styles.messageActionButton}
+                  className="p-0.5"
                   onPress={() => handleRetryMessage(item.id)}
                 >
                   <Ionicons name="refresh-outline" size={14} color={colors.text.tertiary} />
                 </TouchableOpacity>
                 {/* Model and response time - to the right of icons */}
                 {item.model && (
-                  <Text style={styles.messageMetadata}>
+                  <Text className="text-xs text-text-tertiary ml-2">
                     {item.model}{item.execution_time_ms ? ` · ${(item.execution_time_ms / 1000).toFixed(1)}s` : ''}
                   </Text>
                 )}
@@ -1066,18 +1102,18 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   };
 
   const renderThinkingIndicator = () => (
-    <View style={styles.messageContainer}>
-      <View style={[styles.messageBubble, styles.assistantBubble]}>
-        <View style={styles.assistantAvatarContainer}>
+    <View className="mb-4">
+      <View className="flex-row max-w-[85%] rounded-xl rounded-bl-[4px] p-4 bg-background-secondary">
+        <View className="w-8 h-8 rounded-full mr-2 overflow-hidden">
           <Image
             source={require('../../../assets/pierre-logo.png')}
-            style={styles.assistantAvatarImage}
+            className="w-8 h-8"
             resizeMode="cover"
           />
         </View>
-        <View style={styles.thinkingContent}>
-          <ActivityIndicator size="small" color={colors.primary[500]} style={styles.thinkingSpinner} />
-          <Text style={styles.thinkingText}>Pierre is thinking...</Text>
+        <View className="flex-row items-center">
+          <ActivityIndicator size="small" color={colors.primary[500]} style={{ marginRight: spacing.sm }} />
+          <Text className="text-base text-text-secondary italic">Pierre is thinking...</Text>
         </View>
       </View>
     </View>
@@ -1090,45 +1126,45 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   const renderCoachGridCard = (coach: Coach) => (
     <TouchableOpacity
       key={coach.id}
-      style={styles.coachGridCard}
+      className="bg-background-secondary rounded-xl p-4 w-[48%] border border-border-subtle mb-2"
       onPress={() => handleCoachSelect(coach)}
       activeOpacity={0.7}
     >
       {/* Header row: Title (full width, wraps to 2 lines) + Category icon */}
-      <View style={styles.coachCardHeader}>
-        <Text style={styles.coachTitle} numberOfLines={2}>
+      <View className="flex-row justify-between items-start mb-1 gap-2">
+        <Text className="flex-1 text-sm font-semibold text-text-primary leading-[18px]" numberOfLines={2}>
           {coach.title}
         </Text>
-        <View style={[
-          styles.coachCategoryBadge,
-          { backgroundColor: COACH_CATEGORY_BADGE_BG[coach.category] },
-        ]}>
-          <Text style={styles.coachCategoryIcon}>
+        <View
+          className="w-7 h-7 rounded items-center justify-center"
+          style={{ backgroundColor: COACH_CATEGORY_BADGE_BG[coach.category] }}
+        >
+          <Text className="text-sm">
             {COACH_CATEGORY_ICONS[coach.category]}
           </Text>
         </View>
       </View>
       {/* Description */}
       {coach.description && (
-        <Text style={styles.coachDescription} numberOfLines={2}>
+        <Text className="text-xs text-text-secondary leading-4 mb-1" numberOfLines={2}>
           {coach.description}
         </Text>
       )}
       {/* Footer: Badges + Use count */}
-      <View style={styles.coachCardFooter}>
+      <View className="flex-row items-center gap-2 mt-1">
         {coach.is_system && (
-          <View style={styles.systemBadge}>
-            <Text style={styles.systemBadgeText}>System</Text>
+          <View className="px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(124, 58, 237, 0.15)' }}>
+            <Text className="text-xs font-medium" style={{ color: '#7C3AED' }}>System</Text>
           </View>
         )}
         {coach.is_favorite && (
-          <View style={styles.favoriteBadge}>
-            <Text style={styles.favoriteBadgeIcon}>★</Text>
+          <View className="px-1 py-0.5 rounded" style={{ backgroundColor: 'rgba(245, 158, 11, 0.15)' }}>
+            <Text className="text-xs" style={{ color: '#F59E0B' }}>★</Text>
           </View>
         )}
-        <View style={styles.footerSpacer} />
+        <View className="flex-1" />
         {coach.use_count > 0 && (
-          <Text style={styles.coachUseCount}>{coach.use_count}×</Text>
+          <Text className="text-xs text-text-tertiary">{coach.use_count}×</Text>
         )}
       </View>
     </TouchableOpacity>
@@ -1136,16 +1172,16 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
 
   const renderEmptyChat = () => (
     <ScrollView
-      style={styles.emptyScrollView}
-      contentContainerStyle={styles.emptyContainer}
+      className="flex-1"
+      contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: spacing.xs, paddingVertical: spacing.md, paddingBottom: 100 }}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
     >
       {/* Coach Grid - only show when NOT in a coach conversation */}
       {!isCoachConversation && coaches.length > 0 && (
-        <View style={styles.coachGridContainer}>
-          <Text style={styles.coachGridTitle}>🎯 Your Coaches</Text>
-          <View style={styles.coachGrid}>
+        <View className="w-full px-1">
+          <Text className="text-lg font-semibold text-text-primary mb-4">🎯 Your Coaches</Text>
+          <View className="flex-row flex-wrap justify-between gap-2">
             {coaches.map((coach) => renderCoachGridCard(coach))}
           </View>
         </View>
@@ -1153,9 +1189,9 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
 
       {/* Empty state when no coaches */}
       {!isCoachConversation && coaches.length === 0 && (
-        <View style={styles.noCoachesContainer}>
-          <Text style={styles.noCoachesTitle}>No coaches yet</Text>
-          <Text style={styles.noCoachesSubtitle}>
+        <View className="flex-1 items-center justify-center px-8 py-12">
+          <Text className="text-lg font-semibold text-text-primary mb-2">No coaches yet</Text>
+          <Text className="text-base text-text-tertiary text-center">
             Create your first coach to customize how Pierre helps you.
           </Text>
         </View>
@@ -1163,30 +1199,30 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
 
       {/* Coach conversation starter */}
       {isCoachConversation && (
-        <View style={styles.coachStarterContainer}>
-          <Text style={styles.coachStarterText}>
+        <View className="w-full items-center px-4 mb-6">
+          <Text className="text-base text-text-secondary text-center mb-6 leading-6">
             Your coach is ready. Start the conversation by typing a message or try one of these:
           </Text>
           <TouchableOpacity
-            style={styles.suggestionButton}
+            className="bg-background-secondary rounded-lg p-2 mb-1 border border-border-subtle w-full max-w-[400px]"
             onPress={() => handlePromptSelect("Let's get started!")}
             activeOpacity={0.6}
           >
-            <Text style={styles.suggestionText}>Let's get started!</Text>
+            <Text className="text-sm text-text-primary leading-5">Let's get started!</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.suggestionButton}
+            className="bg-background-secondary rounded-lg p-2 mb-1 border border-border-subtle w-full max-w-[400px]"
             onPress={() => handlePromptSelect("What can you help me with?")}
             activeOpacity={0.6}
           >
-            <Text style={styles.suggestionText}>What can you help me with?</Text>
+            <Text className="text-sm text-text-primary leading-5">What can you help me with?</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.suggestionButton}
+            className="bg-background-secondary rounded-lg p-2 mb-1 border border-border-subtle w-full max-w-[400px]"
             onPress={() => handlePromptSelect("Give me today's plan")}
             activeOpacity={0.6}
           >
-            <Text style={styles.suggestionText}>Give me today's plan</Text>
+            <Text className="text-sm text-text-primary leading-5">Give me today's plan</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -1195,42 +1231,49 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   );
 
   return (
-    <View style={styles.container} testID="chat-screen">
+    <View className="flex-1 bg-background-primary" testID="chat-screen">
       <KeyboardAvoidingView
-        style={styles.keyboardView}
+        className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         {/* Header with safe area inset for status bar */}
-        <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
+        <View
+          className="flex-row items-center px-4 py-2 border-b border-border-subtle"
+          style={{ paddingTop: insets.top + spacing.sm }}
+        >
           <TouchableOpacity
-            style={styles.menuButton}
-            onPress={() => navigation.openDrawer()}
-            testID="menu-button"
+            className="w-10 h-10 items-center justify-center"
+            onPress={() => navigation.navigate('Conversations')}
+            testID="history-button"
           >
-            <Text style={styles.menuIcon}>{'☰'}</Text>
+            <Ionicons name="time-outline" size={24} color={colors.text.primary} />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.headerTitleContainer, actionMenuVisible && styles.headerTitleHidden]}
+            className={`flex-1 flex-row items-center justify-center mx-2 ${actionMenuVisible ? 'opacity-0' : ''}`}
             onPress={showTitleActionMenu}
             disabled={!currentConversation}
             testID="chat-title-button"
           >
-            <Text style={styles.headerTitle} numberOfLines={1} testID="chat-title">
+            <Text className="text-lg font-semibold text-text-primary text-center" numberOfLines={1} testID="chat-title">
               {currentConversation?.title || 'New Chat'}
             </Text>
             {currentConversation && (
-              <Text style={styles.chevronIcon}>▼</Text>
+              <Text className="text-[10px] ml-1 text-text-tertiary">▼</Text>
             )}
           </TouchableOpacity>
-          <TouchableOpacity style={styles.newChatButton} onPress={handleNewChat} testID="new-chat-button">
-            <Text style={styles.newChatIcon}>+</Text>
+          <TouchableOpacity
+            className="w-10 h-10 items-center justify-center bg-background-tertiary rounded-lg"
+            onPress={handleNewChat}
+            testID="new-chat-button"
+          >
+            <Text className="text-2xl text-text-primary font-light">+</Text>
           </TouchableOpacity>
         </View>
 
         {/* Messages or Empty State */}
         {isLoading ? (
-          <View style={styles.loadingContainer}>
+          <View className="flex-1 items-center justify-center">
             <ActivityIndicator size="large" color={colors.primary[500]} />
           </View>
         ) : ((messages?.length ?? 0) === 0 && !isSending) ? (
@@ -1241,7 +1284,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
             data={messages ?? []}
             renderItem={renderMessage}
             keyExtractor={(item, index) => item?.id ? `${item.id}-${index}` : `fallback-${index}`}
-            contentContainerStyle={styles.messagesList}
+            contentContainerStyle={{ paddingHorizontal: spacing.md, paddingVertical: spacing.md, paddingBottom: 80 }}
             showsVerticalScrollIndicator={false}
             onContentSizeChange={scrollToBottom}
             ListFooterComponent={isSending ? renderThinkingIndicator : null}
@@ -1249,11 +1292,11 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
         )}
 
         {/* Input Area */}
-        <View style={styles.inputContainer}>
-          <View style={styles.inputWrapper}>
+        <View className="absolute bottom-0 left-0 right-0 px-4 py-2 bg-background-primary">
+          <View className="flex-row items-end bg-background-secondary rounded-2xl border border-border-default px-4 py-1 min-h-[48px] max-h-[120px]">
             <TextInput
               ref={inputRef}
-              style={styles.input}
+              className="flex-1 text-base text-text-primary py-2 max-h-[100px]"
               placeholder={isListening ? 'Listening...' : 'Message Pierre...'}
               placeholderTextColor={isListening ? colors.error : colors.text.tertiary}
               value={isListening ? partialTranscript : inputText}
@@ -1273,10 +1316,10 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
               testID="voice-input-button"
             />
             <TouchableOpacity
-              style={[
-                styles.sendButton,
-                (!inputText.trim() || isSending || isListening) && styles.sendButtonDisabled,
-              ]}
+              className={`w-9 h-9 rounded-full items-center justify-center ml-2 ${
+                !inputText.trim() || isSending || isListening ? 'bg-background-tertiary' : ''
+              }`}
+              style={inputText.trim() && !isSending && !isListening ? { backgroundColor: colors.primary[600] } : undefined}
               onPress={handleSendMessage}
               disabled={!inputText.trim() || isSending || isListening}
               testID="send-button"
@@ -1284,13 +1327,13 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
               {isSending ? (
                 <ActivityIndicator size="small" color={colors.text.primary} />
               ) : (
-                <Text style={styles.sendIcon}>{'>'}</Text>
+                <Text className="text-lg text-text-primary font-bold">{'>'}</Text>
               )}
             </TouchableOpacity>
           </View>
           {isListening && (
-            <View style={styles.listeningIndicator}>
-              <Text style={styles.listeningText}>Tap mic to stop recording</Text>
+            <View className="pt-1 items-center">
+              <Text className="text-xs text-error">Tap mic to stop recording</Text>
             </View>
           )}
         </View>
@@ -1303,33 +1346,33 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
           onRequestClose={closeActionMenu}
         >
           <TouchableOpacity
-            style={styles.popoverOverlay}
+            className="flex-1 bg-black/30"
             activeOpacity={1}
             onPress={closeActionMenu}
           >
-            <View style={styles.popoverContainer}>
+            <View style={popoverContainerStyle}>
               <TouchableOpacity
-                style={[styles.popoverItem, styles.popoverItemDisabled]}
+                className="flex-row items-center px-4 py-3 opacity-40"
                 disabled
               >
-                <Ionicons name="star-outline" size={20} color={colors.text.tertiary} style={styles.popoverIcon} />
-                <Text style={styles.popoverTextDisabled}>Add to favorites</Text>
+                <Ionicons name="star-outline" size={20} color={colors.text.tertiary} style={{ marginRight: spacing.md, width: 24 }} />
+                <Text className="text-base text-text-tertiary">Add to favorites</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.popoverItem}
+                className="flex-row items-center px-4 py-3"
                 onPress={handleMenuRename}
               >
-                <Ionicons name="pencil-outline" size={20} color={colors.text.primary} style={styles.popoverIcon} />
-                <Text style={styles.popoverText}>Rename</Text>
+                <Ionicons name="pencil-outline" size={20} color={colors.text.primary} style={{ marginRight: spacing.md, width: 24 }} />
+                <Text className="text-base text-text-primary">Rename</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.popoverItem}
+                className="flex-row items-center px-4 py-3"
                 onPress={handleMenuDelete}
               >
-                <Ionicons name="trash-outline" size={20} color={colors.error} style={styles.popoverIcon} />
-                <Text style={styles.popoverTextDanger}>Delete</Text>
+                <Ionicons name="trash-outline" size={20} color={colors.error} style={{ marginRight: spacing.md, width: 24 }} />
+                <Text className="text-base text-error">Delete</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -1346,76 +1389,76 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
           }}
         >
           <TouchableOpacity
-            style={styles.modalOverlay}
+            className="flex-1 bg-black/50 justify-center items-center"
             activeOpacity={1}
             onPress={() => {
               setProviderModalVisible(false);
               setPendingPrompt(null);
             }}
           >
-            <View style={styles.providerModalContainer}>
-              <Text style={styles.providerModalTitle}>Connect a Provider</Text>
-              <Text style={styles.providerModalSubtitle}>
+            <View style={providerModalContainerStyle}>
+              <Text className="text-lg font-semibold text-text-primary text-center mb-1">Connect a Provider</Text>
+              <Text className="text-sm text-text-secondary text-center mb-6">
                 To analyze your fitness data, please connect a provider first.
               </Text>
 
               <TouchableOpacity
-                style={styles.providerButton}
+                className="flex-row items-center bg-background-secondary rounded-lg p-4 mb-2 border border-border-default"
                 onPress={() => handleConnectProvider('strava')}
               >
-                <Text style={styles.providerButtonIcon}>🚴</Text>
-                <Text style={styles.providerButtonText}>Connect Strava</Text>
+                <Text className="text-2xl mr-4">🚴</Text>
+                <Text className="text-base text-text-primary font-medium">Connect Strava</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.providerButton}
+                className="flex-row items-center bg-background-secondary rounded-lg p-4 mb-2 border border-border-default"
                 onPress={() => handleConnectProvider('fitbit')}
               >
-                <Text style={styles.providerButtonIcon}>⌚</Text>
-                <Text style={styles.providerButtonText}>Connect Fitbit</Text>
+                <Text className="text-2xl mr-4">⌚</Text>
+                <Text className="text-base text-text-primary font-medium">Connect Fitbit</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.providerButton}
+                className="flex-row items-center bg-background-secondary rounded-lg p-4 mb-2 border border-border-default"
                 onPress={() => handleConnectProvider('garmin')}
               >
-                <Text style={styles.providerButtonIcon}>⌚</Text>
-                <Text style={styles.providerButtonText}>Connect Garmin</Text>
+                <Text className="text-2xl mr-4">⌚</Text>
+                <Text className="text-base text-text-primary font-medium">Connect Garmin</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.providerButton}
+                className="flex-row items-center bg-background-secondary rounded-lg p-4 mb-2 border border-border-default"
                 onPress={() => handleConnectProvider('whoop')}
               >
-                <Text style={styles.providerButtonIcon}>💪</Text>
-                <Text style={styles.providerButtonText}>Connect WHOOP</Text>
+                <Text className="text-2xl mr-4">💪</Text>
+                <Text className="text-base text-text-primary font-medium">Connect WHOOP</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.providerButton}
+                className="flex-row items-center bg-background-secondary rounded-lg p-4 mb-2 border border-border-default"
                 onPress={() => handleConnectProvider('coros')}
               >
-                <Text style={styles.providerButtonIcon}>🏃</Text>
-                <Text style={styles.providerButtonText}>Connect COROS</Text>
+                <Text className="text-2xl mr-4">🏃</Text>
+                <Text className="text-base text-text-primary font-medium">Connect COROS</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.providerButton}
+                className="flex-row items-center bg-background-secondary rounded-lg p-4 mb-2 border border-border-default"
                 onPress={() => handleConnectProvider('terra')}
               >
-                <Text style={styles.providerButtonIcon}>🌍</Text>
-                <Text style={styles.providerButtonText}>Connect Terra</Text>
+                <Text className="text-2xl mr-4">🌍</Text>
+                <Text className="text-base text-text-primary font-medium">Connect Terra</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.providerCancelButton}
+                className="items-center p-4 mt-1"
                 onPress={() => {
                   setProviderModalVisible(false);
                   setPendingPrompt(null);
                   setPendingCoachAction(null);
                 }}
               >
-                <Text style={styles.providerCancelText}>Cancel</Text>
+                <Text className="text-base text-text-tertiary">Cancel</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -1437,527 +1480,3 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-  },
-  menuButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  menuIcon: {
-    fontSize: 20,
-    color: colors.text.primary,
-  },
-  headerTitleContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: spacing.sm,
-  },
-  headerTitleHidden: {
-    opacity: 0,
-  },
-  headerTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: '600',
-    color: colors.text.primary,
-    textAlign: 'center',
-  },
-  chevronIcon: {
-    fontSize: 10,
-    marginLeft: spacing.xs,
-    color: colors.text.tertiary,
-  },
-  newChatButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background.tertiary,
-    borderRadius: borderRadius.md,
-  },
-  newChatIcon: {
-    fontSize: 24,
-    color: colors.text.primary,
-    fontWeight: '300',
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  messagesList: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    paddingBottom: 80, // Space for floating input overlay
-  },
-  messageContainer: {
-    marginBottom: spacing.md,
-  },
-  userMessageContainer: {
-    alignItems: 'flex-end',
-  },
-  messageBubble: {
-    flexDirection: 'row',
-    maxWidth: '85%',
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-  },
-  userBubble: {
-    backgroundColor: colors.primary[600],
-    borderBottomRightRadius: 4,
-  },
-  assistantBubble: {
-    backgroundColor: colors.background.secondary,
-    borderBottomLeftRadius: 4,
-  },
-  errorBubble: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    borderColor: colors.error,
-    borderWidth: 1,
-  },
-  assistantAvatarContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    marginRight: spacing.sm,
-    overflow: 'hidden',
-  },
-  assistantAvatarImage: {
-    width: 32,
-    height: 32,
-  },
-  messageContent: {
-    flex: 1,
-  },
-  messageText: {
-    fontSize: fontSize.md,
-    color: colors.text.primary,
-    lineHeight: 22,
-  },
-  userMessageText: {
-    color: colors.text.primary,
-  },
-  richTextContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-  },
-  linkText: {
-    fontSize: fontSize.md,
-    color: colors.primary[400],
-    textDecorationLine: 'underline',
-    lineHeight: 22,
-  },
-  oauthButton: {
-    backgroundColor: colors.providers.strava,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    marginVertical: spacing.xs,
-    alignSelf: 'flex-start',
-  },
-  oauthButtonText: {
-    color: colors.text.primary,
-    fontSize: fontSize.md,
-    fontWeight: '600',
-  },
-  emptyScrollView: {
-    flex: 1,
-  },
-  emptyContainer: {
-    flexGrow: 1,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingHorizontal: spacing.xs,
-    paddingVertical: spacing.md,
-    paddingBottom: 100, // Space for floating input overlay
-  },
-  welcomeLogo: {
-    width: 120,
-    height: 120,
-    marginBottom: spacing.md,
-  },
-  welcomeTitle: {
-    fontSize: fontSize.xxl,
-    fontWeight: '700',
-    color: colors.text.primary,
-    marginBottom: spacing.xs,
-  },
-  welcomeSubtitle: {
-    fontSize: fontSize.md,
-    color: colors.text.secondary,
-    textAlign: 'center',
-    marginBottom: spacing.lg,
-    lineHeight: 22,
-  },
-  welcomePromptContainer: {
-    width: '100%',
-    maxWidth: 400,
-    marginBottom: spacing.md,
-  },
-  suggestionsContainer: {
-    width: '100%',
-    maxWidth: 400,
-  },
-  categoryContainer: {
-    marginBottom: spacing.md,
-  },
-  categoryTitle: {
-    fontSize: fontSize.sm,
-    fontWeight: '600',
-    color: colors.text.secondary,
-    marginBottom: spacing.xs,
-  },
-  suggestionButton: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.md,
-    padding: spacing.sm,
-    marginBottom: spacing.xs,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-  },
-  suggestionText: {
-    fontSize: fontSize.sm,
-    color: colors.text.primary,
-    lineHeight: 20,
-  },
-  // Coach Carousel Styles
-  coachGridContainer: {
-    width: '100%',
-    paddingHorizontal: spacing.xs,
-  },
-  coachGridTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: '600',
-    color: colors.text.primary,
-    marginBottom: spacing.md,
-  },
-  coachGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-  },
-  coachGridCard: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    width: '48%',
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-    marginBottom: spacing.sm,
-  },
-  coachCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: spacing.xs,
-    gap: spacing.sm,
-  },
-  coachCategoryBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: borderRadius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  coachCategoryIcon: {
-    fontSize: 14,
-  },
-  coachCardFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginTop: spacing.xs,
-  },
-  systemBadge: {
-    backgroundColor: 'rgba(124, 58, 237, 0.15)',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: borderRadius.sm,
-  },
-  systemBadgeText: {
-    fontSize: fontSize.xs,
-    fontWeight: '500',
-    color: '#7C3AED',
-  },
-  favoriteBadge: {
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 2,
-    borderRadius: borderRadius.sm,
-  },
-  favoriteBadgeIcon: {
-    fontSize: fontSize.xs,
-    color: '#F59E0B',
-  },
-  footerSpacer: {
-    flex: 1,
-  },
-  coachUseCount: {
-    fontSize: fontSize.xs,
-    color: colors.text.tertiary,
-  },
-  noCoachesContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.xxl,
-  },
-  noCoachesTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: '600',
-    color: colors.text.primary,
-    marginBottom: spacing.sm,
-  },
-  noCoachesSubtitle: {
-    fontSize: fontSize.md,
-    color: colors.text.tertiary,
-    textAlign: 'center',
-  },
-  coachTitle: {
-    flex: 1,
-    fontSize: fontSize.sm,
-    fontWeight: '600',
-    color: colors.text.primary,
-    lineHeight: 18,
-  },
-  coachDescription: {
-    fontSize: fontSize.xs,
-    color: colors.text.secondary,
-    lineHeight: 16,
-    marginBottom: spacing.xs,
-  },
-  coachStarterContainer: {
-    width: '100%',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  coachStarterText: {
-    fontSize: fontSize.md,
-    color: colors.text.secondary,
-    textAlign: 'center',
-    marginBottom: spacing.lg,
-    lineHeight: 22,
-  },
-  inputContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    backgroundColor: colors.background.primary,
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    minHeight: 48,
-    maxHeight: 120,
-  },
-  input: {
-    flex: 1,
-    fontSize: fontSize.md,
-    color: colors.text.primary,
-    paddingVertical: spacing.sm,
-    maxHeight: 100,
-  },
-  sendButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.primary[600],
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: spacing.sm,
-  },
-  sendButtonDisabled: {
-    backgroundColor: colors.background.tertiary,
-  },
-  sendIcon: {
-    fontSize: 18,
-    color: colors.text.primary,
-    fontWeight: '700',
-  },
-  listeningIndicator: {
-    paddingTop: spacing.xs,
-    alignItems: 'center',
-  },
-  listeningText: {
-    fontSize: fontSize.xs,
-    color: colors.error,
-  },
-  thinkingContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  thinkingSpinner: {
-    marginRight: spacing.sm,
-  },
-  thinkingText: {
-    fontSize: fontSize.md,
-    color: colors.text.secondary,
-    fontStyle: 'italic',
-  },
-  messageActions: {
-    flexDirection: 'row',
-    marginTop: spacing.xs,
-    marginLeft: 0, // Far left, no padding
-    gap: spacing.md,
-  },
-  messageActionButton: {
-    padding: 2,
-  },
-  retryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.background.tertiary,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.sm,
-    gap: spacing.xs,
-  },
-  retryButtonText: {
-    fontSize: fontSize.xs,
-    color: colors.text.primary,
-    fontWeight: '500',
-  },
-  messageMetadata: {
-    fontSize: fontSize.xs,
-    color: colors.text.tertiary,
-    marginLeft: spacing.sm,
-  },
-  // Centered modal overlay (for provider selection)
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  // Claude-style popover dropdown (dark theme)
-  popoverOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-  },
-  popoverContainer: {
-    position: 'absolute',
-    top: 68, // Align with + button background top
-    left: 60, // Equal margins to center
-    right: 60, // Equal margins to center
-    backgroundColor: colors.background.secondary,
-    borderRadius: 12,
-    paddingVertical: spacing.xs,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 12,
-  },
-  popoverItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: 12,
-  },
-  popoverItemDisabled: {
-    opacity: 0.4,
-  },
-  popoverIcon: {
-    marginRight: spacing.md,
-    width: 24,
-  },
-  popoverText: {
-    fontSize: fontSize.md,
-    color: colors.text.primary,
-    fontWeight: '400',
-  },
-  popoverTextDisabled: {
-    fontSize: fontSize.md,
-    color: colors.text.tertiary,
-    fontWeight: '400',
-  },
-  popoverTextDanger: {
-    fontSize: fontSize.md,
-    color: colors.error,
-    fontWeight: '400',
-  },
-  providerModalContainer: {
-    backgroundColor: colors.background.primary,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    minWidth: 280,
-    maxWidth: 320,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  providerModalTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: '600',
-    color: colors.text.primary,
-    textAlign: 'center',
-    marginBottom: spacing.xs,
-  },
-  providerModalSubtitle: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-    textAlign: 'center',
-    marginBottom: spacing.lg,
-  },
-  providerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  providerButtonIcon: {
-    fontSize: 24,
-    marginRight: spacing.md,
-  },
-  providerButtonText: {
-    fontSize: fontSize.md,
-    color: colors.text.primary,
-    fontWeight: '500',
-  },
-  providerCancelButton: {
-    alignItems: 'center',
-    padding: spacing.md,
-    marginTop: spacing.xs,
-  },
-  providerCancelText: {
-    fontSize: fontSize.md,
-    color: colors.text.tertiary,
-  },
-});

@@ -5,7 +5,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   SafeAreaView,
   ScrollView,
   TouchableOpacity,
@@ -15,15 +14,17 @@ import {
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { getOAuthCallbackUrl } from '../../utils/oauth';
-import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
+import { colors, spacing } from '../../constants/theme';
 import { Card } from '../../components/ui';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { ProviderStatus } from '../../types';
-import type { DrawerNavigationProp } from '@react-navigation/drawer';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Feather } from '@expo/vector-icons';
+import type { SettingsStackParamList } from '../../navigation/MainTabs';
 
 interface ConnectionsScreenProps {
-  navigation: DrawerNavigationProp<Record<string, undefined>>;
+  navigation: NativeStackNavigationProp<SettingsStackParamList>;
 }
 
 interface ProviderConfig {
@@ -175,45 +176,49 @@ export function ConnectionsScreen({ navigation }: ConnectionsScreenProps) {
     const isConnecting = connectingProvider === provider.id;
 
     return (
-      <Card key={provider.id} style={styles.providerCard}>
-        <View style={styles.providerContent}>
-          <View style={[styles.providerIcon, { backgroundColor: provider.color }]}>
-            <Text style={styles.iconText}>{provider.icon}</Text>
+      <Card key={provider.id} className="mb-3">
+        <View className="flex-row items-start mb-3">
+          <View
+            className="w-12 h-12 rounded-lg items-center justify-center mr-3"
+            style={{ backgroundColor: provider.color }}
+          >
+            <Text className="text-2xl font-bold text-text-primary">{provider.icon}</Text>
           </View>
-          <View style={styles.providerInfo}>
-            <Text style={styles.providerName}>{provider.name}</Text>
-            <Text style={styles.providerDescription}>{provider.description}</Text>
+          <View className="flex-1">
+            <Text className="text-lg font-semibold text-text-primary mb-0.5">{provider.name}</Text>
+            <Text className="text-sm text-text-secondary leading-5">{provider.description}</Text>
             {isConnected && status?.last_sync && (
-              <Text style={styles.lastSync}>
+              <Text className="text-xs text-text-tertiary mt-1">
                 Last synced: {new Date(status.last_sync).toLocaleDateString()}
               </Text>
             )}
           </View>
         </View>
 
-        <View style={styles.providerActions}>
+        <View className="flex-row items-center justify-between">
           {isConnected ? (
             <>
-              <View style={styles.connectedBadge}>
-                <Text style={styles.connectedText}>Connected</Text>
+              <View className="bg-success/20 px-2 py-1 rounded">
+                <Text className="text-sm text-success font-medium">Connected</Text>
               </View>
               <TouchableOpacity
-                style={styles.disconnectButton}
+                className="px-3 py-2"
                 onPress={() => handleDisconnect(provider.id, provider.name)}
               >
-                <Text style={styles.disconnectText}>Disconnect</Text>
+                <Text className="text-sm text-error font-medium">Disconnect</Text>
               </TouchableOpacity>
             </>
           ) : (
             <TouchableOpacity
-              style={[styles.connectButton, { backgroundColor: provider.color }]}
+              className="flex-1 py-2 rounded-lg items-center"
+              style={{ backgroundColor: provider.color }}
               onPress={() => handleConnect(provider.id, provider.name)}
               disabled={isConnecting}
             >
               {isConnecting ? (
                 <ActivityIndicator size="small" color={colors.text.primary} />
               ) : (
-                <Text style={styles.connectText}>Connect</Text>
+                <Text className="text-base font-semibold text-text-primary">Connect</Text>
               )}
             </TouchableOpacity>
           )}
@@ -223,42 +228,43 @@ export function ConnectionsScreen({ navigation }: ConnectionsScreenProps) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView className="flex-1 bg-background-primary">
       {/* Header */}
-      <View style={styles.header}>
+      <View className="flex-row items-center px-3 py-2 border-b border-border-subtle">
         <TouchableOpacity
-          style={styles.menuButton}
-          onPress={() => navigation.openDrawer()}
+          className="w-10 h-10 items-center justify-center"
+          onPress={() => navigation.goBack()}
+          testID="back-button"
         >
-          <Text style={styles.menuIcon}>{'☰'}</Text>
+          <Feather name="arrow-left" size={24} color={colors.text.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Connections</Text>
-        <View style={styles.headerSpacer} />
+        <Text className="flex-1 text-lg font-semibold text-text-primary text-center">Connections</Text>
+        <View className="w-10" />
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={{ padding: spacing.lg }}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.sectionTitle}>Fitness Providers</Text>
-        <Text style={styles.sectionDescription}>
+        <Text className="text-xl font-bold text-text-primary mb-1">Fitness Providers</Text>
+        <Text className="text-base text-text-secondary mb-4 leading-[22px]">
           Connect your fitness accounts to sync activities, health metrics, and more.
         </Text>
 
         {isLoading ? (
-          <View style={styles.loadingContainer}>
+          <View className="items-center py-12">
             <ActivityIndicator size="large" color={colors.primary[500]} />
-            <Text style={styles.loadingText}>Loading connections...</Text>
+            <Text className="mt-3 text-text-secondary text-base">Loading connections...</Text>
           </View>
         ) : (
-          <View style={styles.providersContainer}>
+          <View className="gap-3">
             {PROVIDERS.map(renderProvider)}
           </View>
         )}
 
-        <View style={styles.infoBox}>
-          <Text style={styles.infoTitle}>Privacy Note</Text>
-          <Text style={styles.infoText}>
+        <View className="bg-background-secondary rounded-lg p-3 mt-6 border border-border-subtle">
+          <Text className="text-sm font-semibold text-text-primary mb-1">Privacy Note</Text>
+          <Text className="text-sm text-text-secondary leading-5">
             Pierre only accesses the data you authorize. We never share your
             fitness data with third parties. You can disconnect any provider at
             any time.
@@ -268,160 +274,3 @@ export function ConnectionsScreen({ navigation }: ConnectionsScreenProps) {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-  },
-  menuButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  menuIcon: {
-    fontSize: 20,
-    color: colors.text.primary,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: fontSize.lg,
-    fontWeight: '600',
-    color: colors.text.primary,
-    textAlign: 'center',
-  },
-  headerSpacer: {
-    width: 40,
-  },
-  scrollContent: {
-    padding: spacing.lg,
-  },
-  sectionTitle: {
-    fontSize: fontSize.xl,
-    fontWeight: '700',
-    color: colors.text.primary,
-    marginBottom: spacing.xs,
-  },
-  sectionDescription: {
-    fontSize: fontSize.md,
-    color: colors.text.secondary,
-    marginBottom: spacing.lg,
-    lineHeight: 22,
-  },
-  loadingContainer: {
-    alignItems: 'center',
-    paddingVertical: spacing.xxl,
-  },
-  loadingText: {
-    marginTop: spacing.md,
-    color: colors.text.secondary,
-    fontSize: fontSize.md,
-  },
-  providersContainer: {
-    gap: spacing.md,
-  },
-  providerCard: {
-    marginBottom: spacing.md,
-  },
-  providerContent: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: spacing.md,
-  },
-  providerIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: borderRadius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
-  },
-  iconText: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.text.primary,
-  },
-  providerInfo: {
-    flex: 1,
-  },
-  providerName: {
-    fontSize: fontSize.lg,
-    fontWeight: '600',
-    color: colors.text.primary,
-    marginBottom: 2,
-  },
-  providerDescription: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-    lineHeight: 20,
-  },
-  lastSync: {
-    fontSize: fontSize.xs,
-    color: colors.text.tertiary,
-    marginTop: spacing.xs,
-  },
-  providerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  connectedBadge: {
-    backgroundColor: colors.success + '20',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.sm,
-  },
-  connectedText: {
-    fontSize: fontSize.sm,
-    color: colors.success,
-    fontWeight: '500',
-  },
-  disconnectButton: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  disconnectText: {
-    fontSize: fontSize.sm,
-    color: colors.error,
-    fontWeight: '500',
-  },
-  connectButton: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-  },
-  connectText: {
-    fontSize: fontSize.md,
-    fontWeight: '600',
-    color: colors.text.primary,
-  },
-  infoBox: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    marginTop: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-  },
-  infoTitle: {
-    fontSize: fontSize.sm,
-    fontWeight: '600',
-    color: colors.text.primary,
-    marginBottom: spacing.xs,
-  },
-  infoText: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-    lineHeight: 20,
-  },
-});

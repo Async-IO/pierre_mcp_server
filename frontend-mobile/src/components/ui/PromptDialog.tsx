@@ -8,13 +8,13 @@ import {
   TextInput,
   Modal,
   TouchableOpacity,
-  StyleSheet,
   KeyboardAvoidingView,
   Platform,
   TouchableWithoutFeedback,
   Keyboard,
+  type ViewStyle,
 } from 'react-native';
-import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
+import { colors } from '../../constants/theme';
 
 interface PromptDialogProps {
   visible: boolean;
@@ -28,6 +28,15 @@ interface PromptDialogProps {
   onCancel: () => void;
   testID?: string;
 }
+
+// Shadow styles need style objects in React Native
+const containerShadow: ViewStyle = {
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 8 },
+  shadowOpacity: 0.4,
+  shadowRadius: 16,
+  elevation: 12,
+};
 
 export function PromptDialog({
   visible,
@@ -73,6 +82,8 @@ export function PromptDialog({
     Keyboard.dismiss();
   };
 
+  const isSubmitDisabled = !inputValue.trim();
+
   return (
     <Modal
       visible={visible}
@@ -82,18 +93,27 @@ export function PromptDialog({
       testID={testID}
     >
       <TouchableWithoutFeedback onPress={dismissKeyboard}>
-        <View style={styles.overlay}>
+        <View className="flex-1 bg-black/50 justify-center items-center">
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={styles.keyboardView}
+            className="w-full items-center px-6"
           >
-            <View style={styles.container}>
-              <Text style={styles.title}>{title}</Text>
-              {message && <Text style={styles.message}>{message}</Text>}
+            <View
+              className="bg-background-secondary rounded-2xl p-6 w-full max-w-[320px]"
+              style={containerShadow}
+            >
+              <Text className="text-lg font-semibold text-text-primary text-center mb-1">
+                {title}
+              </Text>
+              {message && (
+                <Text className="text-sm text-text-secondary text-center mb-4">
+                  {message}
+                </Text>
+              )}
 
               <TextInput
                 ref={inputRef}
-                style={styles.input}
+                className="bg-background-tertiary border border-border-default rounded-lg py-2.5 px-4 text-text-primary text-base mb-6"
                 value={inputValue}
                 onChangeText={setInputValue}
                 placeholder={placeholder}
@@ -106,30 +126,29 @@ export function PromptDialog({
                 testID={testID ? `${testID}-input` : undefined}
               />
 
-              <View style={styles.buttonContainer}>
+              <View className="flex-row gap-2">
                 <TouchableOpacity
-                  style={[styles.button, styles.cancelButton]}
+                  className="flex-1 py-2.5 rounded-lg items-center justify-center bg-background-tertiary"
                   onPress={handleCancel}
                   testID={testID ? `${testID}-cancel` : undefined}
                 >
-                  <Text style={styles.cancelButtonText}>{cancelText}</Text>
+                  <Text className="text-base font-medium text-text-secondary">
+                    {cancelText}
+                  </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[
-                    styles.button,
-                    styles.submitButton,
-                    !inputValue.trim() && styles.submitButtonDisabled,
-                  ]}
+                  className={`flex-1 py-2.5 rounded-lg items-center justify-center ${
+                    isSubmitDisabled ? 'bg-background-tertiary' : 'bg-primary-600'
+                  }`}
                   onPress={handleSubmit}
-                  disabled={!inputValue.trim()}
+                  disabled={isSubmitDisabled}
                   testID={testID ? `${testID}-submit` : undefined}
                 >
                   <Text
-                    style={[
-                      styles.submitButtonText,
-                      !inputValue.trim() && styles.submitButtonTextDisabled,
-                    ]}
+                    className={`text-base font-semibold ${
+                      isSubmitDisabled ? 'text-text-tertiary' : 'text-text-primary'
+                    }`}
                   >
                     {submitText}
                   </Text>
@@ -142,86 +161,3 @@ export function PromptDialog({
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  keyboardView: {
-    width: '100%',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-  },
-  container: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.xl,
-    padding: spacing.lg,
-    width: '100%',
-    maxWidth: 320,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 12,
-  },
-  title: {
-    fontSize: fontSize.lg,
-    fontWeight: '600',
-    color: colors.text.primary,
-    textAlign: 'center',
-    marginBottom: spacing.xs,
-  },
-  message: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-    textAlign: 'center',
-    marginBottom: spacing.md,
-  },
-  input: {
-    backgroundColor: colors.background.tertiary,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    borderRadius: borderRadius.md,
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md,
-    color: colors.text.primary,
-    fontSize: fontSize.md,
-    marginBottom: spacing.lg,
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  button: {
-    flex: 1,
-    paddingVertical: spacing.sm + 2,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelButton: {
-    backgroundColor: colors.background.tertiary,
-  },
-  cancelButtonText: {
-    fontSize: fontSize.md,
-    fontWeight: '500',
-    color: colors.text.secondary,
-  },
-  submitButton: {
-    backgroundColor: colors.primary[600],
-  },
-  submitButtonDisabled: {
-    backgroundColor: colors.background.tertiary,
-  },
-  submitButtonText: {
-    fontSize: fontSize.md,
-    fontWeight: '600',
-    color: colors.text.primary,
-  },
-  submitButtonTextDisabled: {
-    color: colors.text.tertiary,
-  },
-});

@@ -5,7 +5,6 @@ import React, { useState, useCallback, type ReactNode } from 'react';
 import {
   View,
   ScrollView,
-  StyleSheet,
   type ViewStyle,
   type NativeSyntheticEvent,
   type NativeScrollEvent,
@@ -98,7 +97,8 @@ export function ScrollFadeContainer({
 
   return (
     <View
-      style={[styles.container, containerStyle]}
+      className="relative overflow-hidden"
+      style={containerStyle}
       onLayout={handleContainerLayout}
       testID={testID}
     >
@@ -117,7 +117,8 @@ export function ScrollFadeContainer({
       {/* Left fade gradient - shows when scrolled right */}
       {isScrollable && showLeftFade && (
         <View
-          style={[styles.fadeOverlay, styles.leftFade, { width: fadeWidth }]}
+          className="absolute top-0 bottom-0 left-0 z-10"
+          style={{ width: fadeWidth }}
           pointerEvents="none"
           testID={testID ? `${testID}-left-fade` : undefined}
         >
@@ -125,7 +126,7 @@ export function ScrollFadeContainer({
             colors={leftGradientColors}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            style={styles.gradient}
+            className="flex-1"
           />
         </View>
       )}
@@ -133,7 +134,8 @@ export function ScrollFadeContainer({
       {/* Right fade gradient - shows when more content available */}
       {isScrollable && showRightFade && (
         <View
-          style={[styles.fadeOverlay, styles.rightFade, { width: fadeWidth }]}
+          className="absolute top-0 bottom-0 right-0 z-10"
+          style={{ width: fadeWidth }}
           pointerEvents="none"
           testID={testID ? `${testID}-right-fade` : undefined}
         >
@@ -141,32 +143,10 @@ export function ScrollFadeContainer({
             colors={rightGradientColors}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            style={styles.gradient}
+            className="flex-1"
           />
         </View>
       )}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  fadeOverlay: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    zIndex: 1,
-  },
-  leftFade: {
-    left: 0,
-  },
-  rightFade: {
-    right: 0,
-  },
-  gradient: {
-    flex: 1,
-  },
-});

@@ -5,7 +5,6 @@ import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   SafeAreaView,
   FlatList,
   TouchableOpacity,
@@ -13,19 +12,20 @@ import {
   Alert,
   Modal,
   RefreshControl,
+  type ViewStyle,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import type { DrawerNavigationProp } from '@react-navigation/drawer';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
-import { colors, spacing, fontSize, borderRadius, glassCard } from '../../constants/theme';
+import { colors, spacing, glassCard } from '../../constants/theme';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { PromptDialog, ScrollFadeContainer } from '../../components/ui';
 import type { Coach, CoachCategory } from '../../types';
-import type { AppDrawerParamList } from '../../navigation/AppDrawer';
+import type { CoachesStackParamList } from '../../navigation/MainTabs';
 
 interface CoachLibraryScreenProps {
-  navigation: DrawerNavigationProp<AppDrawerParamList>;
+  navigation: NativeStackNavigationProp<CoachesStackParamList>;
 }
 
 // Category filter options
@@ -55,6 +55,43 @@ const COACH_CATEGORY_COLORS: Record<CoachCategory, string> = {
   recipes: '#F97316',   // Amber
   mobility: '#EC4899',  // Pink - for stretching/yoga
   custom: '#7C3AED',    // Purple
+};
+
+// Glass card style with shadow (React Native shadows cannot use className)
+const coachCardStyle: ViewStyle = {
+  ...glassCard,
+  borderLeftWidth: 4,
+};
+
+// FAB shadow style
+const fabStyle: ViewStyle = {
+  position: 'absolute',
+  bottom: spacing.xl,
+  right: spacing.lg,
+  width: 56,
+  height: 56,
+  borderRadius: 28,
+  backgroundColor: colors.primary[500],
+  alignItems: 'center',
+  justifyContent: 'center',
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.3,
+  shadowRadius: 6,
+  elevation: 6,
+};
+
+// Action menu shadow style
+const actionMenuStyle: ViewStyle = {
+  backgroundColor: colors.background.primary,
+  borderRadius: 12,
+  paddingVertical: spacing.xs,
+  minWidth: 220,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.3,
+  shadowRadius: 8,
+  elevation: 8,
 };
 
 export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
@@ -323,35 +360,36 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
     return (
       <TouchableOpacity
         style={[
-          styles.coachCard,
+          coachCardStyle,
           { borderLeftColor: COACH_CATEGORY_COLORS[item.category] },
-          isHidden && styles.coachCardHidden,
+          isHidden && { opacity: 0.6, borderStyle: 'dashed' },
         ]}
+        className="rounded-lg p-3"
         onPress={() => handleCoachPress(item)}
         onLongPress={() => handleCoachLongPress(item)}
         delayLongPress={300}
         activeOpacity={0.7}
         testID={`coach-card-${item.id}`}
       >
-        <View style={styles.coachHeader}>
-          <View style={styles.coachTitleContainer}>
-            <Text style={[styles.coachTitle, isHidden && styles.coachTitleHidden]} numberOfLines={1}>
+        <View className="flex-row items-center justify-between mb-1">
+          <View className="flex-1 flex-row items-center gap-1 mr-2">
+            <Text className={`flex-shrink text-base font-semibold ${isHidden ? 'text-text-tertiary' : 'text-text-primary'}`} numberOfLines={1}>
               {item.title}
             </Text>
             {isSystemCoach && (
-              <View style={styles.systemBadge}>
-                <Text style={styles.systemBadgeText}>System</Text>
+              <View className="px-1 py-0.5 rounded" style={{ backgroundColor: colors.primary[500] + '30' }}>
+                <Text className="text-xs font-semibold text-primary-500">System</Text>
               </View>
             )}
             {isHidden && (
-              <Feather name="eye-off" size={14} color={colors.text.tertiary} style={styles.hiddenIcon} />
+              <Feather name="eye-off" size={14} color={colors.text.tertiary} style={{ marginLeft: spacing.xs }} />
             )}
           </View>
-          <View style={styles.coachActions}>
+          <View className="flex-row items-center gap-1">
             {/* Fork button for system coaches */}
             {isSystemCoach && (
               <TouchableOpacity
-                style={styles.forkButton}
+                className="p-1"
                 onPress={() => handleForkCoach(item)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 testID={`fork-button-${item.id}`}
@@ -362,7 +400,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
             {/* Hide/Show button for system coaches */}
             {isSystemCoach && (
               <TouchableOpacity
-                style={styles.hideButton}
+                className="p-1"
                 onPress={() => {
                   if (isHidden) {
                     handleShowCoach(item);
@@ -381,7 +419,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
               </TouchableOpacity>
             )}
             <TouchableOpacity
-              style={styles.favoriteButton}
+              className="p-1"
               onPress={() => handleToggleFavorite(item)}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               testID={`favorite-button-${item.id}`}
@@ -395,16 +433,16 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
             </TouchableOpacity>
           </View>
         </View>
-        <Text style={[styles.coachTokens, isHidden && styles.coachTextHidden]}>
+        <Text className={`text-sm mb-1 ${isHidden ? 'text-text-tertiary' : 'text-text-secondary'}`}>
           ~{Math.ceil(item.token_count / 4)} tokens ({((item.token_count / 128000) * 100).toFixed(1)}% context)
         </Text>
         {item.description && (
-          <Text style={[styles.coachDescription, isHidden && styles.coachTextHidden]} numberOfLines={2}>
+          <Text className={`text-sm leading-5 mb-2 ${isHidden ? 'text-text-tertiary' : 'text-text-secondary'}`} numberOfLines={2}>
             {item.description}
           </Text>
         )}
-        <View style={styles.coachFooter}>
-          <Text style={[styles.coachUsage, isHidden && styles.coachTextHidden]}>
+        <View className="border-t border-border-subtle pt-2 mt-1">
+          <Text className={`text-sm ${isHidden ? 'text-text-tertiary' : 'text-text-tertiary'}`}>
             Used {item.use_count} times
           </Text>
         </View>
@@ -413,28 +451,30 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
   };
 
   const renderCategoryFilter = () => (
-    <View style={styles.filterContainer}>
+    <View className="flex-row items-center py-2 border-b border-border-subtle">
       <ScrollFadeContainer
         backgroundColor={colors.background.primary}
         fadeWidth={40}
-        contentContainerStyle={styles.filterScrollContent}
+        contentContainerStyle={{ paddingHorizontal: spacing.md, gap: spacing.xs }}
         testID="category-filter-scroll"
       >
         {CATEGORY_FILTERS.map((filter) => (
           <TouchableOpacity
             key={filter.key}
-            style={[
-              styles.filterChip,
-              selectedCategory === filter.key && styles.filterChipActive,
-            ]}
+            className={`px-3 py-1 rounded-full border ${
+              selectedCategory === filter.key
+                ? 'bg-primary-500 border-primary-500'
+                : 'bg-background-secondary border-border-subtle'
+            }`}
             onPress={() => setSelectedCategory(filter.key)}
             testID={`category-filter-${filter.key}`}
           >
             <Text
-              style={[
-                styles.filterChipText,
-                selectedCategory === filter.key && styles.filterChipTextActive,
-              ]}
+              className={`text-sm ${
+                selectedCategory === filter.key
+                  ? 'text-text-primary font-semibold'
+                  : 'text-text-secondary'
+              }`}
             >
               {filter.label}
             </Text>
@@ -445,22 +485,24 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
   );
 
   const renderSourceFilter = () => (
-    <View style={styles.sourceFilterContainer}>
+    <View className="flex-row justify-center items-center py-1 px-3 gap-2 border-b border-border-subtle">
       {SOURCE_FILTERS.map((filter) => (
         <TouchableOpacity
           key={filter.key}
-          style={[
-            styles.sourceFilterChip,
-            selectedSource === filter.key && styles.sourceFilterChipActive,
-          ]}
+          className={`px-3 py-1 rounded-full border ${
+            selectedSource === filter.key
+              ? 'bg-primary-600 border-primary-600'
+              : 'bg-background-tertiary border-border-subtle'
+          }`}
           onPress={() => setSelectedSource(filter.key)}
           testID={`source-filter-${filter.key}`}
         >
           <Text
-            style={[
-              styles.sourceFilterChipText,
-              selectedSource === filter.key && styles.sourceFilterChipTextActive,
-            ]}
+            className={`text-xs ${
+              selectedSource === filter.key
+                ? 'text-text-primary font-semibold'
+                : 'text-text-secondary'
+            }`}
           >
             {filter.label}
           </Text>
@@ -470,20 +512,14 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
   );
 
   return (
-    <SafeAreaView style={styles.container} testID="coach-library-screen">
+    <SafeAreaView className="flex-1 bg-background-primary" testID="coach-library-screen">
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.menuButton}
-          onPress={() => navigation.openDrawer()}
-          testID="menu-button"
-        >
-          <Text style={styles.menuIcon}>☰</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Coaches</Text>
-        <View style={styles.headerActions}>
+      <View className="flex-row items-center px-3 py-2 border-b border-border-subtle">
+        <View className="w-10" />
+        <Text className="flex-1 text-lg font-semibold text-text-primary text-center">My Coaches</Text>
+        <View className="flex-row items-center gap-1">
           <TouchableOpacity
-            style={[styles.headerActionButton, showFavoritesOnly && styles.headerActionButtonActive]}
+            className={`w-9 h-9 items-center justify-center rounded-full ${showFavoritesOnly ? 'bg-primary-500/20' : ''}`}
             onPress={() => setShowFavoritesOnly(!showFavoritesOnly)}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             testID="favorites-toggle"
@@ -495,7 +531,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
             />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.headerActionButton, showHidden && styles.headerActionButtonActive]}
+            className={`w-9 h-9 items-center justify-center rounded-full ${showHidden ? 'bg-primary-500/20' : ''}`}
             onPress={() => setShowHidden(!showHidden)}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             testID="show-hidden-toggle"
@@ -517,7 +553,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
 
       {/* Coaches List */}
       {isLoading ? (
-        <View style={styles.loadingContainer}>
+        <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color={colors.primary[500]} />
         </View>
       ) : (
@@ -525,7 +561,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
           data={filteredCoaches}
           renderItem={renderCoachCard}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={{ flexGrow: 1, padding: spacing.md, paddingBottom: 100, gap: spacing.md }}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -535,8 +571,8 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
             />
           }
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyTitle}>
+            <View className="flex-1 items-center justify-center pt-12 px-5">
+              <Text className="text-lg font-semibold text-text-primary mb-2 text-center">
                 {showFavoritesOnly
                   ? 'No favorite coaches'
                   : selectedSource === 'user'
@@ -547,7 +583,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
                   ? `No ${selectedCategory} coaches`
                   : 'No coaches yet'}
               </Text>
-              <Text style={styles.emptySubtitle}>
+              <Text className="text-base text-text-tertiary text-center">
                 {coaches.length === 0
                   ? 'Create your first coach to customize how Pierre helps you.'
                   : 'Try adjusting your filters.'}
@@ -558,8 +594,8 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
       )}
 
       {/* Floating Action Button */}
-      <TouchableOpacity style={styles.fab} onPress={handleCreateCoach} testID="create-coach-button">
-        <Text style={styles.fabIcon}>+</Text>
+      <TouchableOpacity style={fabStyle} onPress={handleCreateCoach} testID="create-coach-button">
+        <Text className="text-3xl text-text-primary -mt-0.5">+</Text>
       </TouchableOpacity>
 
       {/* Action Menu Modal */}
@@ -570,20 +606,20 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
         onRequestClose={closeActionMenu}
       >
         <TouchableOpacity
-          style={styles.modalOverlay}
+          className="flex-1 bg-black/30 justify-center items-center"
           activeOpacity={1}
           onPress={closeActionMenu}
         >
-          <View style={styles.actionMenuContainer}>
-            <TouchableOpacity style={styles.actionMenuItem} onPress={() => handleToggleFavorite()}>
-              <View style={styles.actionMenuIconContainer}>
+          <View style={actionMenuStyle}>
+            <TouchableOpacity className="flex-row items-center px-3 py-2" onPress={() => handleToggleFavorite()}>
+              <View className="w-6 mr-2 items-center">
                 <Feather
                   name="star"
                   size={18}
                   color={selectedCoach?.is_favorite ? '#F59E0B' : colors.text.primary}
                 />
               </View>
-              <Text style={styles.actionMenuText}>
+              <Text className="text-base text-text-primary">
                 {selectedCoach?.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
               </Text>
             </TouchableOpacity>
@@ -591,17 +627,17 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
             {/* Hide/Show option for system or assigned coaches */}
             {(selectedCoach?.is_system || selectedCoach?.is_assigned) && (
               <TouchableOpacity
-                style={styles.actionMenuItem}
+                className="flex-row items-center px-3 py-2"
                 onPress={() => (selectedCoach?.is_hidden ? handleShowCoach() : handleHideCoach())}
               >
-                <View style={styles.actionMenuIconContainer}>
+                <View className="w-6 mr-2 items-center">
                   <Feather
                     name={selectedCoach?.is_hidden ? 'eye' : 'eye-off'}
                     size={18}
                     color={colors.text.primary}
                   />
                 </View>
-                <Text style={styles.actionMenuText}>
+                <Text className="text-base text-text-primary">
                   {selectedCoach?.is_hidden ? 'Show coach' : 'Hide coach'}
                 </Text>
               </TouchableOpacity>
@@ -610,33 +646,33 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
             {/* Fork option for system coaches */}
             {selectedCoach?.is_system && (
               <TouchableOpacity
-                style={styles.actionMenuItem}
+                className="flex-row items-center px-3 py-2"
                 onPress={() => handleForkCoach()}
               >
-                <View style={styles.actionMenuIconContainer}>
+                <View className="w-6 mr-2 items-center">
                   <Feather name="copy" size={18} color={colors.text.primary} />
                 </View>
-                <Text style={styles.actionMenuText}>Fork (create my copy)</Text>
+                <Text className="text-base text-text-primary">Fork (create my copy)</Text>
               </TouchableOpacity>
             )}
 
             {/* Rename only for user-created coaches */}
             {!selectedCoach?.is_system && (
-              <TouchableOpacity style={styles.actionMenuItem} onPress={handleRename}>
-                <View style={styles.actionMenuIconContainer}>
+              <TouchableOpacity className="flex-row items-center px-3 py-2" onPress={handleRename}>
+                <View className="w-6 mr-2 items-center">
                   <Feather name="edit-2" size={18} color={colors.text.primary} />
                 </View>
-                <Text style={styles.actionMenuText}>Rename</Text>
+                <Text className="text-base text-text-primary">Rename</Text>
               </TouchableOpacity>
             )}
 
             {/* Delete only for user-created coaches */}
             {!selectedCoach?.is_system && (
-              <TouchableOpacity style={styles.actionMenuItem} onPress={handleDelete}>
-                <View style={styles.actionMenuIconContainer}>
+              <TouchableOpacity className="flex-row items-center px-3 py-2" onPress={handleDelete}>
+                <View className="w-6 mr-2 items-center">
                   <Feather name="trash-2" size={18} color={colors.error} />
                 </View>
-                <Text style={styles.actionMenuTextDanger}>Delete</Text>
+                <Text className="text-base text-error">Delete</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -658,299 +694,3 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-  },
-  menuButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  menuIcon: {
-    fontSize: 20,
-    color: colors.text.primary,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: fontSize.lg,
-    fontWeight: '600',
-    color: colors.text.primary,
-    textAlign: 'center',
-  },
-  headerSpacer: {
-    width: 40,
-  },
-  filterContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-  },
-  filterScrollContent: {
-    paddingHorizontal: spacing.md,
-    gap: spacing.xs,
-  },
-  filterChip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.background.secondary,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-  },
-  filterChipActive: {
-    backgroundColor: colors.primary[500],
-    borderColor: colors.primary[500],
-  },
-  filterChipText: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-  },
-  filterChipTextActive: {
-    color: colors.text.primary,
-    fontWeight: '600',
-  },
-  sourceFilterContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md,
-    gap: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-  },
-  sourceFilterChip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.background.tertiary,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-  },
-  sourceFilterChipActive: {
-    backgroundColor: colors.primary[600],
-    borderColor: colors.primary[600],
-  },
-  sourceFilterChipText: {
-    fontSize: fontSize.xs,
-    color: colors.text.secondary,
-  },
-  sourceFilterChipTextActive: {
-    color: colors.text.primary,
-    fontWeight: '600',
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  listContent: {
-    flexGrow: 1,
-    padding: spacing.md,
-    paddingBottom: 100, // Space for FAB
-    gap: spacing.md,
-  },
-  coachCard: {
-    backgroundColor: glassCard.background,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    borderLeftWidth: 4,
-    borderWidth: glassCard.borderWidth,
-    borderColor: glassCard.borderColor,
-    // Glassmorphism shadow
-    shadowColor: glassCard.shadowColor,
-    shadowOffset: glassCard.shadowOffset,
-    shadowOpacity: glassCard.shadowOpacity,
-    shadowRadius: glassCard.shadowRadius,
-    elevation: glassCard.elevation,
-  },
-  coachHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.xs,
-  },
-  coachTitle: {
-    flexShrink: 1,
-    fontSize: fontSize.md,
-    fontWeight: '600',
-    color: colors.text.primary,
-  },
-  favoriteButton: {
-    padding: spacing.xs,
-  },
-  coachTokens: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-    marginBottom: spacing.xs,
-  },
-  coachDescription: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-    marginBottom: spacing.sm,
-    lineHeight: 20,
-  },
-  coachFooter: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border.subtle,
-    paddingTop: spacing.sm,
-    marginTop: spacing.xs,
-  },
-  coachUsage: {
-    fontSize: fontSize.sm,
-    color: colors.text.tertiary,
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: spacing.xxl,
-    paddingHorizontal: spacing.lg,
-  },
-  emptyTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: '600',
-    color: colors.text.primary,
-    marginBottom: spacing.sm,
-    textAlign: 'center',
-  },
-  emptySubtitle: {
-    fontSize: fontSize.md,
-    color: colors.text.tertiary,
-    textAlign: 'center',
-  },
-  fab: {
-    position: 'absolute',
-    bottom: spacing.xl,
-    right: spacing.lg,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.primary[500],
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 6,
-  },
-  fabIcon: {
-    fontSize: 32,
-    color: colors.text.primary,
-    marginTop: -2,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  actionMenuContainer: {
-    backgroundColor: colors.background.primary,
-    borderRadius: borderRadius.lg,
-    paddingVertical: spacing.xs,
-    minWidth: 220,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  actionMenuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  actionMenuIconContainer: {
-    width: 24,
-    marginRight: spacing.sm,
-    alignItems: 'center',
-  },
-  actionMenuText: {
-    fontSize: fontSize.md,
-    color: colors.text.primary,
-  },
-  actionMenuTextDanger: {
-    fontSize: fontSize.md,
-    color: colors.error,
-  },
-  // Header action buttons container
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  headerActionButton: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: borderRadius.full,
-  },
-  headerActionButtonActive: {
-    backgroundColor: colors.primary[500] + '20',
-  },
-  // Coach card title container with badges
-  coachTitleContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    marginRight: spacing.sm,
-  },
-  coachActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  // System coach badge
-  systemBadge: {
-    backgroundColor: colors.primary[500] + '30',
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 2,
-    borderRadius: borderRadius.sm,
-  },
-  systemBadgeText: {
-    fontSize: fontSize.xs,
-    color: colors.primary[500],
-    fontWeight: '600',
-  },
-  // Hidden coach styles
-  coachCardHidden: {
-    opacity: 0.6,
-    borderStyle: 'dashed',
-  },
-  coachTitleHidden: {
-    color: colors.text.tertiary,
-  },
-  coachTextHidden: {
-    color: colors.text.tertiary,
-  },
-  hiddenIcon: {
-    marginLeft: spacing.xs,
-  },
-  // Fork button on coach card
-  forkButton: {
-    padding: spacing.xs,
-  },
-  // Hide button on coach card
-  hideButton: {
-    padding: spacing.xs,
-  },
-});

@@ -7,8 +7,8 @@ import { render, fireEvent, waitFor } from '@testing-library/react-native';
 // Mock navigation
 const mockNavigation = {
   navigate: jest.fn(),
-  openDrawer: jest.fn(),
   goBack: jest.fn(),
+  canGoBack: jest.fn().mockReturnValue(true),
 };
 
 // Mock useFocusEffect - needs to be before imports that use it
@@ -20,6 +20,10 @@ jest.mock('@react-navigation/native', () => {
         return callback();
       }, [callback]);
     },
+    useNavigation: () => ({
+      goBack: jest.fn(),
+      canGoBack: jest.fn().mockReturnValue(true),
+    }),
   };
 });
 
@@ -333,21 +337,6 @@ describe('StoreScreen', () => {
       });
     });
 
-    it('should open drawer when menu button is pressed', async () => {
-      mockBrowseStoreCoaches.mockResolvedValue({ coaches: [], total: 0 });
-
-      const { getByTestId } = render(
-        <StoreScreen navigation={mockNavigation as never} />
-      );
-
-      await waitFor(() => {
-        expect(getByTestId('menu-button')).toBeTruthy();
-      });
-
-      fireEvent.press(getByTestId('menu-button'));
-
-      expect(mockNavigation.openDrawer).toHaveBeenCalled();
-    });
   });
 
   describe('loading states', () => {

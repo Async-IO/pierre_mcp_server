@@ -452,7 +452,7 @@ describe('StoreCoachDetailScreen', () => {
       fireEvent.press(getByText('Install Coach'));
 
       await waitFor(() => {
-        expect(mockNavigation.navigate).toHaveBeenCalledWith('CoachLibrary');
+        expect(mockNavigation.navigate).toHaveBeenCalledWith('CoachesMain');
       });
     });
   });

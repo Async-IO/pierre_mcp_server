@@ -5,7 +5,6 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
@@ -15,7 +14,7 @@ import {
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button, Input } from '../../components/ui';
-import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
+import { spacing } from '../../constants/theme';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 type AuthStackParamList = {
@@ -88,28 +87,28 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView className="flex-1 bg-background-primary">
       <KeyboardAvoidingView
-        style={styles.keyboardView}
+        className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.xl }}
           keyboardShouldPersistTaps="handled"
         >
           {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.logoContainer}>
-              <Text style={styles.logoText}>P</Text>
+          <View className="items-center mb-6">
+            <View className="w-16 h-16 rounded-lg bg-primary-600 items-center justify-center mb-3">
+              <Text className="text-[32px] font-bold text-text-primary">P</Text>
             </View>
-            <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>
+            <Text className="text-2xl font-bold text-text-primary mb-1">Create Account</Text>
+            <Text className="text-base text-text-secondary text-center leading-[22px]">
               Join Pierre to unlock AI-powered fitness insights
             </Text>
           </View>
 
           {/* Registration Form */}
-          <View style={styles.form}>
+          <View className="mb-6">
             <Input
               label="Display Name"
               placeholder="How should we call you?"
@@ -155,15 +154,15 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
               onPress={handleRegister}
               loading={isLoading}
               fullWidth
-              style={styles.registerButton}
+              style={{ marginTop: spacing.md }}
             />
           </View>
 
           {/* Login Link */}
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>Already have an account?</Text>
+          <View className="flex-row justify-center items-center gap-1">
+            <Text className="text-sm text-text-secondary">Already have an account?</Text>
             <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-              <Text style={styles.linkText}>Sign in</Text>
+              <Text className="text-sm font-semibold text-primary-500">Sign in</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -171,70 +170,3 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xl,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: spacing.xl,
-  },
-  logoContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: borderRadius.lg,
-    backgroundColor: colors.primary[600],
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.md,
-  },
-  logoText: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: colors.text.primary,
-  },
-  title: {
-    fontSize: fontSize.xxl,
-    fontWeight: '700',
-    color: colors.text.primary,
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
-    fontSize: fontSize.md,
-    color: colors.text.secondary,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  form: {
-    marginBottom: spacing.xl,
-  },
-  registerButton: {
-    marginTop: spacing.md,
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  footerText: {
-    color: colors.text.secondary,
-    fontSize: fontSize.sm,
-  },
-  linkText: {
-    color: colors.primary[500],
-    fontSize: fontSize.sm,
-    fontWeight: '600',
-  },
-});

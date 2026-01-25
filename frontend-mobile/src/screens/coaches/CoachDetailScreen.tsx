@@ -5,25 +5,24 @@ import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   SafeAreaView,
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import type { DrawerNavigationProp } from '@react-navigation/drawer';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
-import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
+import { colors, spacing } from '../../constants/theme';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Coach, CoachCategory } from '../../types';
-import type { AppDrawerParamList } from '../../navigation/AppDrawer';
+import type { CoachesStackParamList } from '../../navigation/MainTabs';
 
 interface CoachDetailScreenProps {
-  navigation: DrawerNavigationProp<AppDrawerParamList>;
-  route: RouteProp<AppDrawerParamList, 'CoachDetail'>;
+  navigation: NativeStackNavigationProp<CoachesStackParamList>;
+  route: RouteProp<CoachesStackParamList, 'CoachDetail'>;
 }
 
 // Coach category colors
@@ -94,7 +93,7 @@ export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps)
               setIsDeleting(true);
               await apiService.deleteCoach(coach.id);
               Alert.alert('Deleted', 'Coach has been deleted.');
-              navigation.navigate('CoachLibrary');
+              navigation.goBack();
             } catch (error) {
               console.error('Failed to delete coach:', error);
               Alert.alert('Error', 'Failed to delete coach. Please try again.');
@@ -109,8 +108,11 @@ export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps)
 
   const handleUseInChat = () => {
     if (!coach) return;
-    // Navigate to chat with this coach selected
-    navigation.navigate('Chat');
+    // Navigate to chat tab using parent tab navigator
+    const parent = navigation.getParent();
+    if (parent) {
+      parent.navigate('ChatTab');
+    }
   };
 
   const handleToggleHidden = async () => {
@@ -135,10 +137,10 @@ export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps)
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
+      <SafeAreaView className="flex-1 bg-background-primary">
+        <View className="flex-1 justify-center items-center">
           <ActivityIndicator size="large" color={colors.primary[500]} />
-          <Text style={styles.loadingText}>Loading coach details...</Text>
+          <Text className="mt-3 text-text-secondary text-base">Loading coach details...</Text>
         </View>
       </SafeAreaView>
     );
@@ -146,14 +148,14 @@ export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps)
 
   if (!coach) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Coach not found</Text>
+      <SafeAreaView className="flex-1 bg-background-primary">
+        <View className="flex-1 justify-center items-center px-6">
+          <Text className="text-lg text-text-secondary mb-3">Coach not found</Text>
           <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.navigate('CoachLibrary')}
+            className="px-5 py-2 bg-primary-500 rounded-md"
+            onPress={() => navigation.goBack()}
           >
-            <Text style={styles.backButtonText}>Go Back</Text>
+            <Text className="text-text-primary text-base font-medium">Go Back</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -163,76 +165,74 @@ export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps)
   const categoryColor = COACH_CATEGORY_COLORS[coach.category];
 
   return (
-    <SafeAreaView style={styles.container} testID="coach-detail-screen">
+    <SafeAreaView className="flex-1 bg-background-primary" testID="coach-detail-screen">
       {/* Header */}
-      <View style={styles.header}>
+      <View className="flex-row items-center px-3 py-2 border-b border-border-default">
         <TouchableOpacity
           testID="back-button"
-          style={styles.backArrow}
-          onPress={() => navigation.navigate('CoachLibrary')}
+          className="p-2"
+          onPress={() => navigation.goBack()}
         >
-          <Text style={styles.backArrowText}>←</Text>
+          <Text className="text-2xl text-text-primary">←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
+        <Text className="flex-1 text-lg font-semibold text-text-primary text-center mx-2" numberOfLines={1}>
           {coach.title}
         </Text>
         {!coach.is_system && (
           <TouchableOpacity
             testID="edit-button"
-            style={styles.editButton}
+            className="p-2"
             onPress={handleEdit}
           >
             <Feather name="edit-2" size={20} color={colors.primary[500]} />
           </TouchableOpacity>
         )}
-        {coach.is_system && <View style={styles.headerSpacer} />}
+        {coach.is_system && <View className="w-10" />}
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Category & Stats */}
-        <View style={styles.metaSection}>
-          <View style={styles.badgeRow}>
+        <View className="flex-row justify-between items-center px-5 pt-5 pb-2">
+          <View className="flex-row items-center gap-2">
             <View
               testID="category-badge"
-              style={[
-                styles.categoryBadge,
-                { backgroundColor: categoryColor + '20' },
-              ]}
+              className="px-3 py-1 rounded-full"
+              style={{ backgroundColor: categoryColor + '20' }}
             >
-              <Text style={[styles.categoryBadgeText, { color: categoryColor }]}>
+              <Text className="text-sm font-semibold capitalize" style={{ color: categoryColor }}>
                 {coach.category}
               </Text>
             </View>
             {coach.is_system && (
-              <View style={styles.systemBadge}>
-                <Text style={styles.systemBadgeText}>System</Text>
+              <View className="px-2 py-1 rounded" style={{ backgroundColor: colors.primary[500] + '30' }}>
+                <Text className="text-xs font-semibold text-primary-500">System</Text>
               </View>
             )}
             {coach.is_favorite && (
-              <Feather name="star" size={16} color="#F59E0B" style={styles.starIcon} />
+              <Feather name="star" size={16} color="#F59E0B" style={{ marginLeft: spacing.xs }} />
             )}
           </View>
-          <Text testID="use-count" style={styles.useCount}>
+          <Text testID="use-count" className="text-sm text-text-secondary">
             Used {coach.use_count} {coach.use_count === 1 ? 'time' : 'times'}
           </Text>
         </View>
 
         {/* Title */}
-        <Text testID="coach-title" style={styles.title}>{coach.title}</Text>
+        <Text testID="coach-title" className="text-2xl font-bold text-text-primary px-5 mb-2">{coach.title}</Text>
 
         {/* Description */}
         {coach.description && (
-          <Text style={styles.description}>{coach.description}</Text>
+          <Text className="text-base text-text-secondary px-5 leading-[22px] mb-3">{coach.description}</Text>
         )}
 
         {/* Tags */}
         {coach.tags.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Tags</Text>
-            <View style={styles.tagsContainer}>
+          <View className="px-5 py-3">
+            <Text className="text-sm font-semibold text-text-secondary uppercase tracking-wide mb-2">Tags</Text>
+            <View className="flex-row flex-wrap">
               {coach.tags.map((tag, index) => (
-                <View key={index} style={styles.tag}>
-                  <Text style={styles.tagText}>{tag}</Text>
+                <View key={index} className="bg-background-secondary px-3 py-1 rounded-full mr-2 mb-2 border border-border-default">
+                  <Text className="text-sm text-text-primary">{tag}</Text>
                 </View>
               ))}
             </View>
@@ -240,41 +240,41 @@ export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps)
         )}
 
         {/* System Prompt */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>System Prompt</Text>
-          <View style={styles.systemPromptCard}>
-            <Text style={styles.systemPromptText}>
+        <View className="px-5 py-3">
+          <Text className="text-sm font-semibold text-text-secondary uppercase tracking-wide mb-2">System Prompt</Text>
+          <View className="bg-background-secondary p-3 rounded-md border border-border-default">
+            <Text className="text-sm text-text-secondary leading-5 font-mono">
               {coach.system_prompt}
             </Text>
           </View>
         </View>
 
         {/* Metadata */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Details</Text>
-          <View style={styles.detailsCard}>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Token Count</Text>
-              <Text style={styles.detailValue}>{coach.token_count}</Text>
+        <View className="px-5 py-3">
+          <Text className="text-sm font-semibold text-text-secondary uppercase tracking-wide mb-2">Details</Text>
+          <View className="bg-background-secondary rounded-md border border-border-default overflow-hidden">
+            <View className="flex-row justify-between items-center px-3 py-2 border-b border-border-default">
+              <Text className="text-sm text-text-secondary">Token Count</Text>
+              <Text className="text-sm text-text-primary font-medium">{coach.token_count}</Text>
             </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Context Usage</Text>
-              <Text style={styles.detailValue}>
+            <View className="flex-row justify-between items-center px-3 py-2 border-b border-border-default">
+              <Text className="text-sm text-text-secondary">Context Usage</Text>
+              <Text className="text-sm text-text-primary font-medium">
                 {((coach.token_count / 128000) * 100).toFixed(1)}%
               </Text>
             </View>
             {coach.created_at && (
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Created</Text>
-                <Text style={styles.detailValue}>
+              <View className="flex-row justify-between items-center px-3 py-2 border-b border-border-default">
+                <Text className="text-sm text-text-secondary">Created</Text>
+                <Text className="text-sm text-text-primary font-medium">
                   {new Date(coach.created_at).toLocaleDateString()}
                 </Text>
               </View>
             )}
             {coach.last_used_at && (
-              <View style={[styles.detailRow, styles.detailRowLast]}>
-                <Text style={styles.detailLabel}>Last Used</Text>
-                <Text style={styles.detailValue}>
+              <View className="flex-row justify-between items-center px-3 py-2">
+                <Text className="text-sm text-text-secondary">Last Used</Text>
+                <Text className="text-sm text-text-primary font-medium">
                   {new Date(coach.last_used_at).toLocaleDateString()}
                 </Text>
               </View>
@@ -283,23 +283,23 @@ export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps)
         </View>
 
         {/* Bottom Spacer for Action Buttons */}
-        <View style={styles.bottomSpacer} />
+        <View className="h-[120px]" />
       </ScrollView>
 
       {/* Action Bar - Fixed at bottom */}
-      <View style={styles.actionBar}>
+      <View className="absolute bottom-0 left-0 right-0 flex-row bg-background-primary border-t border-border-default p-3 pb-5 gap-2">
         <TouchableOpacity
-          style={[styles.actionButton, styles.useButton]}
+          className="flex-1 flex-row items-center justify-center py-3 rounded-md gap-1 bg-primary-500"
           onPress={handleUseInChat}
           testID="use-in-chat-button"
         >
           <Feather name="message-circle" size={18} color={colors.text.primary} />
-          <Text style={styles.useButtonText}>Use in Chat</Text>
+          <Text className="text-text-primary text-base font-semibold">Use in Chat</Text>
         </TouchableOpacity>
 
         {coach.is_system && (
           <TouchableOpacity
-            style={[styles.actionButton, styles.hideButton]}
+            className="flex-1 flex-row items-center justify-center py-3 rounded-md gap-1 bg-background-secondary border border-border-default"
             onPress={handleToggleHidden}
             disabled={isTogglingHidden}
             testID="hide-button"
@@ -313,7 +313,7 @@ export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps)
                   size={18}
                   color={isHidden ? colors.primary[400] : colors.text.secondary}
                 />
-                <Text style={[styles.hideButtonText, isHidden && styles.hideButtonTextActive]}>
+                <Text className={`text-base font-medium ${isHidden ? 'text-primary-400' : 'text-text-secondary'}`}>
                   {isHidden ? 'Show' : 'Hide'}
                 </Text>
               </>
@@ -323,7 +323,7 @@ export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps)
 
         {!coach.is_system && (
           <TouchableOpacity
-            style={[styles.actionButton, styles.deleteButton]}
+            className="flex-1 flex-row items-center justify-center py-3 rounded-md gap-1 bg-background-secondary border border-error"
             onPress={handleDelete}
             disabled={isDeleting}
             testID="delete-button"
@@ -333,7 +333,7 @@ export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps)
             ) : (
               <>
                 <Feather name="trash-2" size={18} color="#EF4444" />
-                <Text style={styles.deleteButtonText}>Delete</Text>
+                <Text className="text-error text-base font-medium">Delete</Text>
               </>
             )}
           </TouchableOpacity>
@@ -342,256 +342,3 @@ export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps)
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: spacing.md,
-    color: colors.text.secondary,
-    fontSize: fontSize.md,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.xl,
-  },
-  errorText: {
-    fontSize: fontSize.lg,
-    color: colors.text.secondary,
-    marginBottom: spacing.md,
-  },
-  backButton: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    backgroundColor: colors.primary[500],
-    borderRadius: borderRadius.md,
-  },
-  backButtonText: {
-    color: colors.text.primary,
-    fontSize: fontSize.md,
-    fontWeight: '500',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
-  },
-  backArrow: {
-    padding: spacing.sm,
-  },
-  backArrowText: {
-    fontSize: 24,
-    color: colors.text.primary,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: fontSize.lg,
-    fontWeight: '600',
-    color: colors.text.primary,
-    textAlign: 'center',
-    marginHorizontal: spacing.sm,
-  },
-  headerSpacer: {
-    width: 40,
-  },
-  editButton: {
-    padding: spacing.sm,
-  },
-  content: {
-    flex: 1,
-  },
-  metaSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.sm,
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  categoryBadge: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-  },
-  categoryBadgeText: {
-    fontSize: fontSize.sm,
-    fontWeight: '600',
-    textTransform: 'capitalize',
-  },
-  systemBadge: {
-    backgroundColor: colors.primary[500] + '30',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.sm,
-  },
-  systemBadgeText: {
-    fontSize: fontSize.xs,
-    color: colors.primary[500],
-    fontWeight: '600',
-  },
-  starIcon: {
-    marginLeft: spacing.xs,
-  },
-  useCount: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-  },
-  title: {
-    fontSize: fontSize.xxl,
-    fontWeight: '700',
-    color: colors.text.primary,
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.sm,
-  },
-  description: {
-    fontSize: fontSize.md,
-    color: colors.text.secondary,
-    paddingHorizontal: spacing.lg,
-    lineHeight: 22,
-    marginBottom: spacing.md,
-  },
-  section: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  sectionTitle: {
-    fontSize: fontSize.sm,
-    fontWeight: '600',
-    color: colors.text.secondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: spacing.sm,
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  tag: {
-    backgroundColor: colors.background.secondary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-    marginRight: spacing.sm,
-    marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  tagText: {
-    fontSize: fontSize.sm,
-    color: colors.text.primary,
-  },
-  systemPromptCard: {
-    backgroundColor: colors.background.secondary,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  systemPromptText: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-    lineHeight: 20,
-    fontFamily: 'monospace',
-  },
-  detailsCard: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    overflow: 'hidden',
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
-  },
-  detailRowLast: {
-    borderBottomWidth: 0,
-  },
-  detailLabel: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-  },
-  detailValue: {
-    fontSize: fontSize.sm,
-    color: colors.text.primary,
-    fontWeight: '500',
-  },
-  bottomSpacer: {
-    height: 120,
-  },
-  actionBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    backgroundColor: colors.background.primary,
-    borderTopWidth: 1,
-    borderTopColor: colors.border.default,
-    padding: spacing.md,
-    paddingBottom: spacing.lg,
-    gap: spacing.sm,
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-    gap: spacing.xs,
-  },
-  useButton: {
-    backgroundColor: colors.primary[500],
-  },
-  useButtonText: {
-    color: colors.text.primary,
-    fontSize: fontSize.md,
-    fontWeight: '600',
-  },
-  deleteButton: {
-    backgroundColor: colors.background.secondary,
-    borderWidth: 1,
-    borderColor: '#EF4444',
-  },
-  deleteButtonText: {
-    color: '#EF4444',
-    fontSize: fontSize.md,
-    fontWeight: '500',
-  },
-  hideButton: {
-    backgroundColor: colors.background.secondary,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  hideButtonText: {
-    color: colors.text.secondary,
-    fontSize: fontSize.md,
-    fontWeight: '500',
-  },
-  hideButtonTextActive: {
-    color: colors.primary[400],
-  },
-});

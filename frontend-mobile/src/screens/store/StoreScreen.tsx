@@ -5,24 +5,34 @@ import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   SafeAreaView,
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  TextInput,
+  type ViewStyle,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
-import type { DrawerNavigationProp } from '@react-navigation/drawer';
-import { colors, spacing, fontSize, borderRadius, glassCard } from '../../constants/theme';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Feather } from '@expo/vector-icons';
+import { colors, spacing, glassCard } from '../../constants/theme';
+import { FloatingSearchBar } from '../../components/ui';
+
+// Shadow styles for coach cards (React Native shadows cannot use className)
+const coachCardShadow: ViewStyle = {
+  shadowColor: glassCard.shadowColor,
+  shadowOffset: glassCard.shadowOffset,
+  shadowOpacity: glassCard.shadowOpacity,
+  shadowRadius: glassCard.shadowRadius,
+  elevation: glassCard.elevation,
+};
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { StoreCoach, CoachCategory } from '../../types';
-import type { AppDrawerParamList } from '../../navigation/AppDrawer';
+import type { CoachesStackParamList } from '../../navigation/MainTabs';
 
 interface StoreScreenProps {
-  navigation: DrawerNavigationProp<AppDrawerParamList>;
+  navigation: NativeStackNavigationProp<CoachesStackParamList>;
 }
 
 // Category filter options
@@ -56,6 +66,8 @@ const COACH_CATEGORY_COLORS: Record<CoachCategory, string> = {
 
 export function StoreScreen({ navigation }: StoreScreenProps) {
   const { isAuthenticated } = useAuth();
+  const stackNavigation = useNavigation();
+  const canGoBack = stackNavigation.canGoBack();
   const [coaches, setCoaches] = useState<StoreCoach[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<CoachCategory | 'all'>('all');
   const [selectedSort, setSelectedSort] = useState<SortOption>('popular');
@@ -161,17 +173,19 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
   const renderCategoryChip = ({ key, label }: { key: CoachCategory | 'all'; label: string }) => (
     <TouchableOpacity
       key={key}
-      style={[
-        styles.filterChip,
-        selectedCategory === key && styles.filterChipActive,
-      ]}
+      className={`px-3 py-1 rounded-full mr-1 border ${
+        selectedCategory === key
+          ? 'bg-primary-500 border-primary-500'
+          : 'bg-background-secondary border-border-default'
+      }`}
       onPress={() => setSelectedCategory(key)}
     >
       <Text
-        style={[
-          styles.filterChipText,
-          selectedCategory === key && styles.filterChipTextActive,
-        ]}
+        className={`text-sm ${
+          selectedCategory === key
+            ? 'text-text-primary font-medium'
+            : 'text-text-secondary'
+        }`}
       >
         {label}
       </Text>
@@ -181,17 +195,17 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
   const renderSortChip = ({ key, label }: { key: SortOption; label: string }) => (
     <TouchableOpacity
       key={key}
-      style={[
-        styles.sortChip,
-        selectedSort === key && styles.sortChipActive,
-      ]}
+      className={`px-2 py-1 rounded mr-1 ${
+        selectedSort === key ? 'bg-primary-500/20' : ''
+      }`}
       onPress={() => setSelectedSort(key)}
     >
       <Text
-        style={[
-          styles.sortChipText,
-          selectedSort === key && styles.sortChipTextActive,
-        ]}
+        className={`text-sm ${
+          selectedSort === key
+            ? 'text-primary-500 font-medium'
+            : 'text-text-secondary'
+        }`}
       >
         {label}
       </Text>
@@ -201,49 +215,46 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
   const renderCoachCard = ({ item, index }: { item: StoreCoach; index: number }) => (
     <TouchableOpacity
       testID={`coach-card-${index}`}
-      style={styles.coachCard}
+      className="bg-white/[0.03] rounded-lg p-3 mb-3 border border-white/[0.08]"
+      style={coachCardShadow}
       onPress={() => navigateToCoachDetail(item)}
     >
-      <View style={styles.cardHeader}>
+      <View className="flex-row justify-between items-center mb-1">
         <View
-          style={[
-            styles.categoryBadge,
-            { backgroundColor: COACH_CATEGORY_COLORS[item.category] + '20' },
-          ]}
+          className="px-2 py-0.5 rounded"
+          style={{ backgroundColor: COACH_CATEGORY_COLORS[item.category] + '20' }}
         >
           <Text
-            style={[
-              styles.categoryBadgeText,
-              { color: COACH_CATEGORY_COLORS[item.category] },
-            ]}
+            className="text-xs font-medium capitalize"
+            style={{ color: COACH_CATEGORY_COLORS[item.category] }}
           >
             {item.category}
           </Text>
         </View>
-        <Text style={styles.installCount}>
+        <Text className="text-xs text-text-secondary">
           {item.install_count} {item.install_count === 1 ? 'install' : 'installs'}
         </Text>
       </View>
 
-      <Text style={styles.coachTitle} numberOfLines={1}>
+      <Text className="text-lg font-semibold text-text-primary mb-1" numberOfLines={1}>
         {item.title}
       </Text>
 
       {item.description && (
-        <Text style={styles.coachDescription} numberOfLines={2}>
+        <Text className="text-sm text-text-secondary mb-2 leading-5" numberOfLines={2}>
           {item.description}
         </Text>
       )}
 
       {item.tags.length > 0 && (
-        <View style={styles.tagsContainer}>
-          {item.tags.slice(0, 3).map((tag, index) => (
-            <View key={index} style={styles.tag}>
-              <Text style={styles.tagText}>{tag}</Text>
+        <View className="flex-row flex-wrap items-center">
+          {item.tags.slice(0, 3).map((tag, tagIndex) => (
+            <View key={tagIndex} className="bg-background-primary px-2 py-0.5 rounded mr-1 mb-1">
+              <Text className="text-xs text-text-secondary">{tag}</Text>
             </View>
           ))}
           {item.tags.length > 3 && (
-            <Text style={styles.moreTagsText}>+{item.tags.length - 3}</Text>
+            <Text className="text-xs text-text-secondary ml-1">+{item.tags.length - 3}</Text>
           )}
         </View>
       )}
@@ -251,11 +262,11 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
   );
 
   const renderEmptyState = () => (
-    <View style={styles.emptyState}>
-      <Text style={styles.emptyStateTitle}>
+    <View className="flex-1 justify-center items-center py-16">
+      <Text className="text-lg font-semibold text-text-primary mb-1">
         {searchQuery ? 'No coaches found' : 'No coaches available'}
       </Text>
-      <Text style={styles.emptyStateSubtitle}>
+      <Text className="text-base text-text-secondary text-center">
         {searchQuery
           ? `No coaches match "${searchQuery}"`
           : 'No published coaches available yet'}
@@ -265,64 +276,49 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
 
   if (isLoading && coaches.length === 0) {
     return (
-      <SafeAreaView style={styles.container} testID="store-screen">
-        <View style={styles.loadingContainer} testID="loading-indicator">
+      <SafeAreaView className="flex-1 bg-background-primary" testID="store-screen">
+        <View className="flex-1 justify-center items-center" testID="loading-indicator">
           <ActivityIndicator size="large" color={colors.primary[500]} />
-          <Text style={styles.loadingText}>Loading coaches...</Text>
+          <Text className="mt-3 text-text-secondary text-base">Loading coaches...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} testID="store-screen">
+    <SafeAreaView className="flex-1 bg-background-primary" testID="store-screen">
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.menuButton}
-          onPress={() => navigation.openDrawer()}
-          testID="menu-button"
-        >
-          <Text style={styles.menuIcon}>☰</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Discover</Text>
-        <View style={styles.headerSpacer} />
-      </View>
-
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search coaches..."
-          placeholderTextColor={colors.text.secondary}
-          value={searchQuery}
-          onChangeText={handleSearch}
-          testID="search-input"
-        />
-        {isSearching && (
-          <ActivityIndicator
-            size="small"
-            color={colors.primary[500]}
-            style={styles.searchSpinner}
-          />
+      <View className="flex-row items-center px-3 py-2 border-b border-border-default">
+        {canGoBack ? (
+          <TouchableOpacity
+            className="p-2"
+            onPress={() => stackNavigation.goBack()}
+            testID="back-button"
+          >
+            <Feather name="arrow-left" size={24} color={colors.text.primary} />
+          </TouchableOpacity>
+        ) : (
+          <View className="w-10" />
         )}
+        <Text className="flex-1 text-xl font-semibold text-text-primary text-center">Discover</Text>
+        <View className="w-10" />
       </View>
 
       {/* Category Filters */}
-      <View style={styles.filtersContainer}>
+      <View className="border-b border-border-default">
         <FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
           data={CATEGORY_FILTERS}
           keyExtractor={(item) => item.key}
           renderItem={({ item }) => renderCategoryChip(item)}
-          contentContainerStyle={styles.filtersList}
+          contentContainerStyle={{ paddingHorizontal: spacing.md, paddingVertical: spacing.sm }}
         />
       </View>
 
       {/* Sort Options */}
-      <View style={styles.sortContainer}>
-        <Text style={styles.sortLabel}>Sort by:</Text>
+      <View className="flex-row items-center px-3 py-1 bg-background-secondary">
+        <Text className="text-sm text-text-secondary mr-2">Sort by:</Text>
         {SORT_OPTIONS.map((option) => renderSortChip(option))}
       </View>
 
@@ -332,7 +328,7 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
         data={coaches}
         keyExtractor={(item) => item.id}
         renderItem={({ item, index }) => renderCoachCard({ item, index })}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={{ padding: spacing.md, paddingBottom: 100 }}
         ListEmptyComponent={renderEmptyState}
         onEndReached={loadMoreCoaches}
         onEndReachedThreshold={0.5}
@@ -342,9 +338,9 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
         removeClippedSubviews={true}
         ListFooterComponent={
           isLoadingMore ? (
-            <View style={styles.loadMoreContainer}>
+            <View className="flex-row items-center justify-center py-4 gap-2">
               <ActivityIndicator size="small" color={colors.primary[500]} />
-              <Text style={styles.loadMoreText}>Loading more coaches...</Text>
+              <Text className="text-sm text-text-secondary">Loading more coaches...</Text>
             </View>
           ) : null
         }
@@ -356,228 +352,17 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
           />
         }
       />
+
+      {/* Floating Search Bar */}
+      <FloatingSearchBar
+        value={searchQuery}
+        onChangeText={handleSearch}
+        onSubmit={() => searchCoaches(searchQuery)}
+        placeholder="Search coaches..."
+        isSearching={isSearching}
+        testID="search-input"
+      />
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: spacing.md,
-    color: colors.text.secondary,
-    fontSize: fontSize.md,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
-  },
-  menuButton: {
-    padding: spacing.sm,
-  },
-  menuIcon: {
-    fontSize: 24,
-    color: colors.text.primary,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: fontSize.xl,
-    fontWeight: '600',
-    color: colors.text.primary,
-    textAlign: 'center',
-  },
-  headerSpacer: {
-    width: 40,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  searchInput: {
-    flex: 1,
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    fontSize: fontSize.md,
-    color: colors.text.primary,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  searchSpinner: {
-    position: 'absolute',
-    right: spacing.lg,
-  },
-  filtersContainer: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
-  },
-  filtersList: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    gap: spacing.xs,
-  },
-  filterChip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.background.secondary,
-    marginRight: spacing.xs,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  filterChipActive: {
-    backgroundColor: colors.primary[500],
-    borderColor: colors.primary[500],
-  },
-  filterChipText: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-  },
-  filterChipTextActive: {
-    color: colors.text.primary,
-    fontWeight: '500',
-  },
-  sortContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    backgroundColor: colors.background.secondary,
-  },
-  sortLabel: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-    marginRight: spacing.sm,
-  },
-  sortChip: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.sm,
-    marginRight: spacing.xs,
-  },
-  sortChipActive: {
-    backgroundColor: colors.primary[500] + '20',
-  },
-  sortChipText: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-  },
-  sortChipTextActive: {
-    color: colors.primary[500],
-    fontWeight: '500',
-  },
-  listContent: {
-    padding: spacing.md,
-    paddingBottom: spacing.xl,
-  },
-  coachCard: {
-    backgroundColor: glassCard.background,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    borderWidth: glassCard.borderWidth,
-    borderColor: glassCard.borderColor,
-    // Glassmorphism shadow
-    shadowColor: glassCard.shadowColor,
-    shadowOffset: glassCard.shadowOffset,
-    shadowOpacity: glassCard.shadowOpacity,
-    shadowRadius: glassCard.shadowRadius,
-    elevation: glassCard.elevation,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
-  },
-  categoryBadge: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: borderRadius.sm,
-  },
-  categoryBadgeText: {
-    fontSize: fontSize.xs,
-    fontWeight: '500',
-    textTransform: 'capitalize',
-  },
-  installCount: {
-    fontSize: fontSize.xs,
-    color: colors.text.secondary,
-  },
-  coachTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: '600',
-    color: colors.text.primary,
-    marginBottom: spacing.xs,
-  },
-  coachDescription: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-    marginBottom: spacing.sm,
-    lineHeight: 20,
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-  },
-  tag: {
-    backgroundColor: colors.background.primary,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: borderRadius.sm,
-    marginRight: spacing.xs,
-    marginBottom: spacing.xs,
-  },
-  tagText: {
-    fontSize: fontSize.xs,
-    color: colors.text.secondary,
-  },
-  moreTagsText: {
-    fontSize: fontSize.xs,
-    color: colors.text.secondary,
-    marginLeft: spacing.xs,
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: spacing.xl * 2,
-  },
-  emptyStateTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: '600',
-    color: colors.text.primary,
-    marginBottom: spacing.xs,
-  },
-  emptyStateSubtitle: {
-    fontSize: fontSize.md,
-    color: colors.text.secondary,
-    textAlign: 'center',
-  },
-  loadMoreContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.lg,
-    gap: spacing.sm,
-  },
-  loadMoreText: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-  },
-});

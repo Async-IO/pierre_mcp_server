@@ -6,12 +6,11 @@ import {
   View,
   TextInput,
   Text,
-  StyleSheet,
   TouchableOpacity,
   type TextInputProps,
   type ViewStyle,
 } from 'react-native';
-import { colors, borderRadius, fontSize, spacing } from '../../constants/theme';
+import { colors } from '../../constants/theme';
 
 interface InputProps extends Omit<TextInputProps, 'style'> {
   label?: string;
@@ -36,16 +35,29 @@ export function Input({
 
   const shouldHidePassword = secureTextEntry && !isPasswordVisible;
 
+  const inputBaseClasses = 'flex-1 py-2.5 px-4 text-text-primary text-base';
+  const inputDefaultClasses = 'bg-background-secondary border border-border-default rounded-xl';
+  const inputGlassClasses = 'bg-white/[0.03] border border-white/[0.08] rounded-2xl';
+  const inputErrorClasses = error ? 'border-error' : '';
+  const inputToggleClasses = showPasswordToggle ? 'pr-16' : '';
+
+  const inputClassName = [
+    inputBaseClasses,
+    variant === 'glass' ? inputGlassClasses : inputDefaultClasses,
+    inputErrorClasses,
+    inputToggleClasses,
+  ].filter(Boolean).join(' ');
+
   return (
-    <View style={[styles.container, containerStyle]}>
-      {label && <Text style={styles.label}>{label}</Text>}
-      <View style={styles.inputContainer}>
+    <View className="mb-4" style={containerStyle}>
+      {label && (
+        <Text className="text-text-secondary text-sm mb-1 font-medium">
+          {label}
+        </Text>
+      )}
+      <View className="relative flex-row items-center">
         <TextInput
-          style={[
-            variant === 'glass' ? styles.inputGlass : styles.input,
-            error && styles.inputError,
-            showPasswordToggle && styles.inputWithToggle,
-          ]}
+          className={inputClassName}
           placeholderTextColor={colors.text.tertiary}
           selectionColor={colors.primary[500]}
           secureTextEntry={shouldHidePassword}
@@ -54,77 +66,18 @@ export function Input({
         />
         {showPasswordToggle && secureTextEntry !== undefined && (
           <TouchableOpacity
-            style={styles.toggleButton}
+            className="absolute right-4 py-1"
             onPress={() => setIsPasswordVisible(!isPasswordVisible)}
           >
-            <Text style={styles.toggleText}>
+            <Text className="text-primary-500 text-sm font-medium">
               {isPasswordVisible ? 'Hide' : 'Show'}
             </Text>
           </TouchableOpacity>
         )}
       </View>
-      {error && <Text style={styles.errorText}>{error}</Text>}
+      {error && (
+        <Text className="text-error text-xs mt-1">{error}</Text>
+      )}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    marginBottom: spacing.md,
-  },
-  label: {
-    color: colors.text.secondary,
-    fontSize: fontSize.sm,
-    marginBottom: spacing.xs,
-    fontWeight: '500',
-  },
-  inputContainer: {
-    position: 'relative',
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  input: {
-    flex: 1,
-    backgroundColor: colors.background.secondary,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    borderRadius: borderRadius.lg,
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md,
-    color: colors.text.primary,
-    fontSize: fontSize.md,
-  },
-  // Glass input style per Stitch design system
-  inputGlass: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: borderRadius.xl,
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md,
-    color: colors.text.primary,
-    fontSize: fontSize.md,
-  },
-  inputWithToggle: {
-    paddingRight: 60,
-  },
-  inputError: {
-    borderColor: colors.error,
-  },
-  toggleButton: {
-    position: 'absolute',
-    right: spacing.md,
-    paddingVertical: spacing.xs,
-  },
-  toggleText: {
-    color: colors.primary[500],
-    fontSize: fontSize.sm,
-    fontWeight: '500',
-  },
-  errorText: {
-    color: colors.error,
-    fontSize: fontSize.xs,
-    marginTop: spacing.xs,
-  },
-});

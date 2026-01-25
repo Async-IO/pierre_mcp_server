@@ -5,7 +5,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   SafeAreaView,
   ScrollView,
   TextInput,
@@ -17,14 +16,14 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import { useRoute, type RouteProp } from '@react-navigation/native';
-import type { DrawerNavigationProp } from '@react-navigation/drawer';
-import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { colors, spacing } from '../../constants/theme';
 import { apiService } from '../../services/api';
 import type { CoachCategory, CreateCoachRequest, UpdateCoachRequest } from '../../types';
-import type { AppDrawerParamList } from '../../navigation/AppDrawer';
+import type { CoachesStackParamList } from '../../navigation/MainTabs';
 
 interface CoachEditorScreenProps {
-  navigation: DrawerNavigationProp<AppDrawerParamList>;
+  navigation: NativeStackNavigationProp<CoachesStackParamList>;
 }
 
 // Category options with colors
@@ -44,7 +43,7 @@ const MAX_SYSTEM_PROMPT_LENGTH = 4000;
 const CONTEXT_WINDOW_SIZE = 128000;
 
 export function CoachEditorScreen({ navigation }: CoachEditorScreenProps) {
-  const route = useRoute<RouteProp<AppDrawerParamList, 'CoachEditor'>>();
+  const route = useRoute<RouteProp<CoachesStackParamList, 'CoachEditor'>>();
   const coachId = route.params?.coachId;
   const isEditMode = Boolean(coachId);
 
@@ -183,8 +182,8 @@ export function CoachEditorScreen({ navigation }: CoachEditorScreenProps) {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
+      <SafeAreaView className="flex-1 bg-background-primary">
+        <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color={colors.primary[500]} />
         </View>
       </SafeAreaView>
@@ -192,47 +191,47 @@ export function CoachEditorScreen({ navigation }: CoachEditorScreenProps) {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView className="flex-1 bg-background-primary">
       <KeyboardAvoidingView
-        style={styles.keyboardView}
+        className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         {/* Header */}
-        <View style={styles.header}>
+        <View className="flex-row items-center px-3 py-2 border-b border-border-subtle">
           <TouchableOpacity
-            style={styles.backButton}
+            className="w-10 h-10 items-center justify-center"
             onPress={() => navigation.goBack()}
           >
-            <Text style={styles.backIcon}>←</Text>
+            <Text className="text-2xl text-text-primary">←</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>
+          <Text className="flex-1 text-lg font-semibold text-text-primary text-center">
             {isEditMode ? 'Edit Coach' : 'Create Coach'}
           </Text>
           <TouchableOpacity
-            style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
+            className={`px-3 py-1 bg-primary-500 rounded-md min-w-[60px] items-center ${isSaving ? 'opacity-60' : ''}`}
             onPress={handleSave}
             disabled={isSaving}
           >
             {isSaving ? (
               <ActivityIndicator size="small" color={colors.text.primary} />
             ) : (
-              <Text style={styles.saveText}>Save</Text>
+              <Text className="text-base font-semibold text-text-primary">Save</Text>
             )}
           </TouchableOpacity>
         </View>
 
         <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          className="flex-1"
+          contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xxl }}
           keyboardShouldPersistTaps="handled"
         >
           {/* Title Field */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>
-              Title <Text style={styles.requiredIndicator}>*</Text>
+          <View className="mb-5">
+            <Text className="text-sm font-semibold text-text-secondary mb-1 uppercase tracking-wide">
+              Title <Text className="text-error">*</Text>
             </Text>
             <TextInput
-              style={[styles.textInput, errors.title && styles.textInputError]}
+              className={`bg-background-secondary rounded-md p-3 text-base text-text-primary border ${errors.title ? 'border-error' : 'border-border-subtle'}`}
               value={title}
               onChangeText={setTitle}
               placeholder="Enter coach title"
@@ -240,44 +239,38 @@ export function CoachEditorScreen({ navigation }: CoachEditorScreenProps) {
               maxLength={MAX_TITLE_LENGTH}
             />
             {errors.title && (
-              <Text style={styles.errorText}>{errors.title}</Text>
+              <Text className="text-sm text-error mt-1">{errors.title}</Text>
             )}
-            <Text style={styles.charCount}>
+            <Text className="text-xs text-text-tertiary text-right mt-1">
               {title.length}/{MAX_TITLE_LENGTH}
             </Text>
           </View>
 
           {/* Category Field */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Category</Text>
+          <View className="mb-5">
+            <Text className="text-sm font-semibold text-text-secondary mb-1 uppercase tracking-wide">Category</Text>
             <TouchableOpacity
-              style={styles.categoryPicker}
+              className="flex-row items-center justify-between bg-background-secondary rounded-md p-3 border border-border-subtle"
               onPress={showCategoryPicker}
             >
-              <View style={styles.categoryPickerContent}>
+              <View className="flex-row items-center">
                 <View
-                  style={[
-                    styles.categoryDot,
-                    { backgroundColor: currentCategory?.color || colors.text.tertiary },
-                  ]}
+                  className="w-3 h-3 rounded-full mr-2"
+                  style={{ backgroundColor: currentCategory?.color || colors.text.tertiary }}
                 />
-                <Text style={styles.categoryPickerText}>
+                <Text className="text-base text-text-primary">
                   {currentCategory?.label || 'Select category'}
                 </Text>
               </View>
-              <Text style={styles.categoryPickerArrow}>▼</Text>
+              <Text className="text-sm text-text-tertiary">▼</Text>
             </TouchableOpacity>
           </View>
 
           {/* Description Field */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Description</Text>
+          <View className="mb-5">
+            <Text className="text-sm font-semibold text-text-secondary mb-1 uppercase tracking-wide">Description</Text>
             <TextInput
-              style={[
-                styles.textInput,
-                styles.multilineInput,
-                errors.description && styles.textInputError,
-              ]}
+              className={`bg-background-secondary rounded-md p-3 text-base text-text-primary border min-h-[80px] pt-3 ${errors.description ? 'border-error' : 'border-border-subtle'}`}
               value={description}
               onChangeText={setDescription}
               placeholder="Brief description of what this coach does"
@@ -288,24 +281,20 @@ export function CoachEditorScreen({ navigation }: CoachEditorScreenProps) {
               textAlignVertical="top"
             />
             {errors.description && (
-              <Text style={styles.errorText}>{errors.description}</Text>
+              <Text className="text-sm text-error mt-1">{errors.description}</Text>
             )}
-            <Text style={styles.charCount}>
+            <Text className="text-xs text-text-tertiary text-right mt-1">
               {description.length}/{MAX_DESCRIPTION_LENGTH}
             </Text>
           </View>
 
           {/* System Prompt Field */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>
-              System Prompt <Text style={styles.requiredIndicator}>*</Text>
+          <View className="mb-5">
+            <Text className="text-sm font-semibold text-text-secondary mb-1 uppercase tracking-wide">
+              System Prompt <Text className="text-error">*</Text>
             </Text>
             <TextInput
-              style={[
-                styles.textInput,
-                styles.systemPromptInput,
-                errors.systemPrompt && styles.textInputError,
-              ]}
+              className={`bg-background-secondary rounded-md p-3 text-base text-text-primary border min-h-[200px] pt-3 ${errors.systemPrompt ? 'border-error' : 'border-border-subtle'}`}
               value={systemPrompt}
               onChangeText={setSystemPrompt}
               placeholder="You are Pierre, an expert coach who..."
@@ -316,17 +305,17 @@ export function CoachEditorScreen({ navigation }: CoachEditorScreenProps) {
               textAlignVertical="top"
             />
             {errors.systemPrompt && (
-              <Text style={styles.errorText}>{errors.systemPrompt}</Text>
+              <Text className="text-sm text-error mt-1">{errors.systemPrompt}</Text>
             )}
-            <Text style={styles.charCount}>
+            <Text className="text-xs text-text-tertiary text-right mt-1">
               {systemPrompt.length}/{MAX_SYSTEM_PROMPT_LENGTH}
             </Text>
           </View>
 
           {/* Token Count Display */}
-          <View style={styles.tokenContainer}>
-            <Text style={styles.tokenIcon}>📊</Text>
-            <Text style={styles.tokenText}>
+          <View className="flex-row items-center justify-center py-3 border-t border-border-subtle mt-3">
+            <Text className="text-lg mr-2">📊</Text>
+            <Text className="text-base text-text-secondary">
               ~{tokenCount} tokens ({contextPercentage}% context)
             </Text>
           </View>
@@ -335,156 +324,3 @@ export function CoachEditorScreen({ navigation }: CoachEditorScreenProps) {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backIcon: {
-    fontSize: 24,
-    color: colors.text.primary,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: fontSize.lg,
-    fontWeight: '600',
-    color: colors.text.primary,
-    textAlign: 'center',
-  },
-  saveButton: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    backgroundColor: colors.primary[500],
-    borderRadius: borderRadius.md,
-    minWidth: 60,
-    alignItems: 'center',
-  },
-  saveButtonDisabled: {
-    opacity: 0.6,
-  },
-  saveText: {
-    fontSize: fontSize.md,
-    fontWeight: '600',
-    color: colors.text.primary,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: spacing.lg,
-    paddingBottom: spacing.xxl,
-  },
-  fieldContainer: {
-    marginBottom: spacing.lg,
-  },
-  fieldLabel: {
-    fontSize: fontSize.sm,
-    fontWeight: '600',
-    color: colors.text.secondary,
-    marginBottom: spacing.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  requiredIndicator: {
-    color: colors.error,
-  },
-  textInput: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    fontSize: fontSize.md,
-    color: colors.text.primary,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-  },
-  textInputError: {
-    borderColor: colors.error,
-  },
-  multilineInput: {
-    minHeight: 80,
-    paddingTop: spacing.md,
-  },
-  systemPromptInput: {
-    minHeight: 200,
-    paddingTop: spacing.md,
-  },
-  errorText: {
-    fontSize: fontSize.sm,
-    color: colors.error,
-    marginTop: spacing.xs,
-  },
-  charCount: {
-    fontSize: fontSize.xs,
-    color: colors.text.tertiary,
-    textAlign: 'right',
-    marginTop: spacing.xs,
-  },
-  categoryPicker: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-  },
-  categoryPickerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  categoryDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: spacing.sm,
-  },
-  categoryPickerText: {
-    fontSize: fontSize.md,
-    color: colors.text.primary,
-  },
-  categoryPickerArrow: {
-    fontSize: fontSize.sm,
-    color: colors.text.tertiary,
-  },
-  tokenContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border.subtle,
-    marginTop: spacing.md,
-  },
-  tokenIcon: {
-    fontSize: 18,
-    marginRight: spacing.sm,
-  },
-  tokenText: {
-    fontSize: fontSize.md,
-    color: colors.text.secondary,
-  },
-});

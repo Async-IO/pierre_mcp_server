@@ -5,25 +5,23 @@ import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   SafeAreaView,
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
-  TextInput,
-  Keyboard,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import type { DrawerNavigationProp } from '@react-navigation/drawer';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
-import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
+import { colors, spacing } from '../../constants/theme';
+import { FloatingSearchBar } from '../../components/ui';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { SearchUserCard } from '../../components/social/FriendCard';
 import type { DiscoverableUser } from '../../types';
-import type { AppDrawerParamList } from '../../navigation/AppDrawer';
+import type { SocialStackParamList } from '../../navigation/MainTabs';
 
-type NavigationProp = DrawerNavigationProp<AppDrawerParamList>;
+type NavigationProp = NativeStackNavigationProp<SocialStackParamList>;
 
 export function SearchFriendsScreen() {
   const navigation = useNavigation<NavigationProp>();
@@ -106,10 +104,10 @@ export function SearchFriendsScreen() {
   const renderEmptyState = () => {
     if (!hasSearched) {
       return (
-        <View style={styles.emptyState}>
+        <View className="flex-1 justify-center items-center p-6">
           <Feather name="search" size={64} color={colors.text.tertiary} />
-          <Text style={styles.emptyTitle}>Find Friends</Text>
-          <Text style={styles.emptyText}>
+          <Text className="text-text-primary text-xl font-bold mt-5">Find Friends</Text>
+          <Text className="text-text-secondary text-base text-center mt-2">
             Search by name or email to connect with other athletes
           </Text>
         </View>
@@ -117,10 +115,10 @@ export function SearchFriendsScreen() {
     }
 
     return (
-      <View style={styles.emptyState}>
+      <View className="flex-1 justify-center items-center p-6">
         <Feather name="user-x" size={64} color={colors.text.tertiary} />
-        <Text style={styles.emptyTitle}>No Users Found</Text>
-        <Text style={styles.emptyText}>
+        <Text className="text-text-primary text-xl font-bold mt-5">No Users Found</Text>
+        <Text className="text-text-secondary text-base text-center mt-2">
           Try a different search term or check the spelling
         </Text>
       </View>
@@ -128,49 +126,24 @@ export function SearchFriendsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} testID="search-friends-screen">
+    <SafeAreaView className="flex-1 bg-background-primary" testID="search-friends-screen">
       {/* Header */}
-      <View style={styles.header}>
+      <View className="flex-row items-center px-4 py-4 border-b border-border-subtle">
         <TouchableOpacity
-          style={styles.backButton}
+          className="p-2 mr-2"
           onPress={() => navigation.goBack()}
           testID="back-button"
         >
           <Feather name="arrow-left" size={24} color={colors.text.primary} />
         </TouchableOpacity>
-        <Text style={styles.title}>Find Friends</Text>
-      </View>
-
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <Feather name="search" size={18} color={colors.text.tertiary} />
-        <TextInput
-          testID="user-search-input"
-          style={styles.searchInput}
-          placeholder="Search by name or email..."
-          placeholderTextColor={colors.text.tertiary}
-          value={query}
-          onChangeText={handleSearch}
-          autoCapitalize="none"
-          autoCorrect={false}
-          returnKeyType="search"
-          onSubmitEditing={() => {
-            Keyboard.dismiss();
-            searchUsers(query);
-          }}
-        />
-        {query.length > 0 && (
-          <TouchableOpacity onPress={() => handleSearch('')}>
-            <Feather name="x" size={18} color={colors.text.tertiary} />
-          </TouchableOpacity>
-        )}
+        <Text className="flex-1 text-xl font-bold text-text-primary">Find Friends</Text>
       </View>
 
       {/* Search Results */}
       {isSearching ? (
-        <View style={styles.loadingContainer}>
+        <View className="flex-1 justify-center items-center">
           <ActivityIndicator size="large" color={colors.pierre.violet} />
-          <Text style={styles.loadingText}>Searching...</Text>
+          <Text className="text-text-secondary mt-4">Searching...</Text>
         </View>
       ) : (
         <FlatList
@@ -179,86 +152,21 @@ export function SearchFriendsScreen() {
           keyExtractor={item => item.user_id}
           renderItem={renderUser}
           ListEmptyComponent={renderEmptyState}
-          contentContainerStyle={
-            users.length === 0 ? styles.emptyContainer : styles.listContent
-          }
+          contentContainerStyle={users.length === 0 ? { flexGrow: 1, paddingBottom: 100 } : { paddingVertical: spacing.sm, paddingBottom: 100 }}
           keyboardShouldPersistTaps="handled"
         />
       )}
+
+      {/* Floating Search Bar */}
+      <FloatingSearchBar
+        value={query}
+        onChangeText={handleSearch}
+        onSubmit={() => searchUsers(query)}
+        placeholder="Search by name or email..."
+        isSearching={isSearching}
+        testID="user-search-input"
+        autoFocus
+      />
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-  },
-  backButton: {
-    padding: spacing.sm,
-    marginRight: spacing.sm,
-  },
-  title: {
-    flex: 1,
-    fontSize: fontSize.xl,
-    fontWeight: '700',
-    color: colors.text.primary,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: spacing.md,
-    marginVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.lg,
-    backgroundColor: colors.background.secondary,
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: spacing.sm,
-    color: colors.text.primary,
-    fontSize: fontSize.md,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    color: colors.text.secondary,
-    marginTop: spacing.md,
-  },
-  listContent: {
-    paddingVertical: spacing.sm,
-  },
-  emptyContainer: {
-    flexGrow: 1,
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.xl,
-  },
-  emptyTitle: {
-    color: colors.text.primary,
-    fontSize: fontSize.xl,
-    fontWeight: '700',
-    marginTop: spacing.lg,
-  },
-  emptyText: {
-    color: colors.text.secondary,
-    fontSize: fontSize.md,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-  },
-});

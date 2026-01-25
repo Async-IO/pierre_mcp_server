@@ -2,9 +2,9 @@
 // ABOUTME: Shows avatar, name, status, and action buttons
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, type ViewStyle } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { colors, spacing, fontSize, borderRadius, glassCard } from '../../constants/theme';
+import { colors, glassCard } from '../../constants/theme';
 import type { FriendWithInfo, FriendConnection, DiscoverableUser } from '../../types';
 
 // Generate avatar initials from name or email
@@ -28,6 +28,11 @@ const getAvatarColor = (str: string): string => {
   return `hsl(${hue}, 70%, 50%)`;
 };
 
+// Glass card style with shadow (React Native shadows cannot use className)
+const cardStyle: ViewStyle = {
+  ...glassCard,
+};
+
 interface FriendCardProps {
   friend: FriendWithInfo;
   onRemove?: () => void;
@@ -40,23 +45,29 @@ export function FriendCard({ friend, onRemove, isRemoving }: FriendCardProps) {
   const avatarColor = getAvatarColor(friend.friend_email);
 
   return (
-    <View style={styles.card}>
-      <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
-        <Text style={styles.avatarText}>{initials}</Text>
+    <View
+      className="flex-row items-center p-3 mx-3 my-1 rounded-lg"
+      style={cardStyle}
+    >
+      <View
+        className="w-12 h-12 rounded-full justify-center items-center"
+        style={{ backgroundColor: avatarColor }}
+      >
+        <Text className="text-lg font-semibold text-text-primary">{initials}</Text>
       </View>
-      <View style={styles.info}>
-        <Text style={styles.name} numberOfLines={1}>
+      <View className="flex-1 ml-3">
+        <Text className="text-base font-semibold text-text-primary" numberOfLines={1}>
           {displayName}
         </Text>
         {friend.accepted_at && (
-          <Text style={styles.connectedSince}>
+          <Text className="text-sm text-text-secondary mt-0.5">
             Friends since {new Date(friend.accepted_at).toLocaleDateString()}
           </Text>
         )}
       </View>
       {onRemove && (
         <TouchableOpacity
-          style={styles.removeButton}
+          className="p-2"
           onPress={onRemove}
           disabled={isRemoving}
         >
@@ -98,15 +109,21 @@ export function RequestCard({
   const name = displayName || userEmail;
 
   return (
-    <View style={styles.card}>
-      <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
-        <Text style={styles.avatarText}>{initials}</Text>
+    <View
+      className="flex-row items-center p-3 mx-3 my-1 rounded-lg"
+      style={cardStyle}
+    >
+      <View
+        className="w-12 h-12 rounded-full justify-center items-center"
+        style={{ backgroundColor: avatarColor }}
+      >
+        <Text className="text-lg font-semibold text-text-primary">{initials}</Text>
       </View>
-      <View style={styles.info}>
-        <Text style={styles.name} numberOfLines={1}>
+      <View className="flex-1 ml-3">
+        <Text className="text-base font-semibold text-text-primary" numberOfLines={1}>
           {name}
         </Text>
-        <Text style={styles.requestDate}>
+        <Text className="text-sm text-text-secondary mt-0.5">
           {type === 'incoming' ? 'Wants to be friends' : 'Request sent'} •{' '}
           {new Date(request.created_at).toLocaleDateString()}
         </Text>
@@ -114,23 +131,27 @@ export function RequestCard({
       {isLoading ? (
         <ActivityIndicator size="small" color={colors.pierre.violet} />
       ) : type === 'incoming' ? (
-        <View style={styles.actionButtons}>
+        <View className="flex-row gap-2">
           <TouchableOpacity
-            style={[styles.actionButton, styles.acceptButton]}
+            className="w-9 h-9 rounded-full justify-center items-center"
+            style={{ backgroundColor: colors.pierre.activity }}
             onPress={onAccept}
           >
             <Feather name="check" size={18} color={colors.text.primary} />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.actionButton, styles.declineButton]}
+            className="w-9 h-9 rounded-full justify-center items-center bg-background-tertiary"
             onPress={onDecline}
           >
             <Feather name="x" size={18} color={colors.text.secondary} />
           </TouchableOpacity>
         </View>
       ) : (
-        <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
-          <Text style={styles.cancelText}>Cancel</Text>
+        <TouchableOpacity
+          className="px-3 py-2 rounded-lg bg-background-tertiary"
+          onPress={onCancel}
+        >
+          <Text className="text-sm text-text-secondary">Cancel</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -149,32 +170,39 @@ export function SearchUserCard({ user, onAddFriend, isAdding }: SearchUserCardPr
   const displayName = user.display_name || user.email;
 
   return (
-    <View style={styles.card}>
-      <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
-        <Text style={styles.avatarText}>{initials}</Text>
+    <View
+      className="flex-row items-center p-3 mx-3 my-1 rounded-lg"
+      style={cardStyle}
+    >
+      <View
+        className="w-12 h-12 rounded-full justify-center items-center"
+        style={{ backgroundColor: avatarColor }}
+      >
+        <Text className="text-lg font-semibold text-text-primary">{initials}</Text>
       </View>
-      <View style={styles.info}>
-        <Text style={styles.name} numberOfLines={1}>
+      <View className="flex-1 ml-3">
+        <Text className="text-base font-semibold text-text-primary" numberOfLines={1}>
           {displayName}
         </Text>
         {user.mutual_friends_count > 0 && (
-          <Text style={styles.mutualFriends}>
+          <Text className="text-sm text-text-tertiary mt-0.5">
             {user.mutual_friends_count} mutual friend{user.mutual_friends_count > 1 ? 's' : ''}
           </Text>
         )}
       </View>
       {user.is_friend ? (
-        <View style={styles.friendBadge}>
+        <View className="flex-row items-center px-3 py-2 gap-1">
           <Feather name="check" size={14} color={colors.pierre.activity} />
-          <Text style={styles.friendBadgeText}>Friends</Text>
+          <Text className="text-sm" style={{ color: colors.pierre.activity }}>Friends</Text>
         </View>
       ) : user.pending_request ? (
-        <View style={styles.pendingBadge}>
-          <Text style={styles.pendingText}>Pending</Text>
+        <View className="px-3 py-2 rounded-lg bg-background-tertiary">
+          <Text className="text-sm text-text-tertiary">Pending</Text>
         </View>
       ) : (
         <TouchableOpacity
-          style={styles.addButton}
+          className="flex-row items-center px-3 py-2 rounded-lg gap-1"
+          style={{ backgroundColor: colors.pierre.violet }}
           onPress={onAddFriend}
           disabled={isAdding}
         >
@@ -183,7 +211,7 @@ export function SearchUserCard({ user, onAddFriend, isAdding }: SearchUserCardPr
           ) : (
             <>
               <Feather name="user-plus" size={16} color={colors.text.primary} />
-              <Text style={styles.addButtonText}>Add</Text>
+              <Text className="text-sm font-semibold text-text-primary">Add</Text>
             </>
           )}
         </TouchableOpacity>
@@ -191,116 +219,3 @@ export function SearchUserCard({ user, onAddFriend, isAdding }: SearchUserCardPr
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.md,
-    marginHorizontal: spacing.md,
-    marginVertical: spacing.xs,
-    borderRadius: borderRadius.lg,
-    ...glassCard,
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarText: {
-    color: colors.text.primary,
-    fontSize: fontSize.lg,
-    fontWeight: '600',
-  },
-  info: {
-    flex: 1,
-    marginLeft: spacing.md,
-  },
-  name: {
-    color: colors.text.primary,
-    fontSize: fontSize.md,
-    fontWeight: '600',
-  },
-  connectedSince: {
-    color: colors.text.secondary,
-    fontSize: fontSize.sm,
-    marginTop: 2,
-  },
-  requestDate: {
-    color: colors.text.secondary,
-    fontSize: fontSize.sm,
-    marginTop: 2,
-  },
-  mutualFriends: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.sm,
-    marginTop: 2,
-  },
-  removeButton: {
-    padding: spacing.sm,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  actionButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  acceptButton: {
-    backgroundColor: colors.pierre.activity,
-  },
-  declineButton: {
-    backgroundColor: colors.background.tertiary,
-  },
-  cancelButton: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.background.tertiary,
-  },
-  cancelText: {
-    color: colors.text.secondary,
-    fontSize: fontSize.sm,
-  },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.pierre.violet,
-    gap: spacing.xs,
-  },
-  addButtonText: {
-    color: colors.text.primary,
-    fontSize: fontSize.sm,
-    fontWeight: '600',
-  },
-  friendBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    gap: spacing.xs,
-  },
-  friendBadgeText: {
-    color: colors.pierre.activity,
-    fontSize: fontSize.sm,
-  },
-  pendingBadge: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.background.tertiary,
-  },
-  pendingText: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.sm,
-  },
-});

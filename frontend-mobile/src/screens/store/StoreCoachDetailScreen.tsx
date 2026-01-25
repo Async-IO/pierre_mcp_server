@@ -5,24 +5,23 @@ import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   SafeAreaView,
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import type { DrawerNavigationProp } from '@react-navigation/drawer';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
-import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
+import { colors } from '../../constants/theme';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { StoreCoachDetail, CoachCategory } from '../../types';
-import type { AppDrawerParamList } from '../../navigation/AppDrawer';
+import type { CoachesStackParamList } from '../../navigation/MainTabs';
 
 interface StoreCoachDetailScreenProps {
-  navigation: DrawerNavigationProp<AppDrawerParamList>;
-  route: RouteProp<AppDrawerParamList, 'StoreCoachDetail'>;
+  navigation: NativeStackNavigationProp<CoachesStackParamList>;
+  route: RouteProp<CoachesStackParamList, 'StoreCoachDetail'>;
 }
 
 // Coach category colors
@@ -80,7 +79,7 @@ export function StoreCoachDetailScreen({ navigation, route }: StoreCoachDetailSc
         'Installed!',
         `"${coach.title}" has been added to your coaches.`,
         [
-          { text: 'View My Coaches', onPress: () => navigation.navigate('CoachLibrary') },
+          { text: 'View My Coaches', onPress: () => navigation.navigate('CoachesMain') },
           { text: 'Stay Here', style: 'cancel' },
         ]
       );
@@ -123,10 +122,10 @@ export function StoreCoachDetailScreen({ navigation, route }: StoreCoachDetailSc
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
+      <SafeAreaView className="flex-1 bg-background-primary">
+        <View className="flex-1 justify-center items-center">
           <ActivityIndicator size="large" color={colors.primary[500]} />
-          <Text style={styles.loadingText}>Loading coach details...</Text>
+          <Text className="mt-3 text-text-secondary text-base">Loading coach details...</Text>
         </View>
       </SafeAreaView>
     );
@@ -134,14 +133,14 @@ export function StoreCoachDetailScreen({ navigation, route }: StoreCoachDetailSc
 
   if (!coach) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Coach not found</Text>
+      <SafeAreaView className="flex-1 bg-background-primary">
+        <View className="flex-1 justify-center items-center p-6">
+          <Text className="text-lg text-text-secondary mb-3">Coach not found</Text>
           <TouchableOpacity
-            style={styles.backButton}
+            className="px-5 py-2 bg-primary-500 rounded-lg"
             onPress={() => navigation.navigate('Store')}
           >
-            <Text style={styles.backButtonText}>Go Back</Text>
+            <Text className="text-text-primary text-base font-medium">Go Back</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -151,57 +150,55 @@ export function StoreCoachDetailScreen({ navigation, route }: StoreCoachDetailSc
   const categoryColor = COACH_CATEGORY_COLORS[coach.category];
 
   return (
-    <SafeAreaView style={styles.container} testID="store-coach-detail-screen">
+    <SafeAreaView className="flex-1 bg-background-primary" testID="store-coach-detail-screen">
       {/* Header */}
-      <View style={styles.header}>
+      <View className="flex-row items-center px-3 py-2 border-b border-border-default">
         <TouchableOpacity
           testID="back-button"
-          style={styles.backArrow}
+          className="p-2"
           onPress={() => navigation.navigate('Store')}
         >
-          <Text style={styles.backArrowText}>←</Text>
+          <Text className="text-2xl text-text-primary">←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
+        <Text className="flex-1 text-lg font-semibold text-text-primary text-center mx-2" numberOfLines={1}>
           {coach.title}
         </Text>
-        <View style={styles.headerSpacer} />
+        <View className="w-10" />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Category & Stats */}
-        <View style={styles.metaSection}>
+        <View className="flex-row justify-between items-center px-4 pt-4 pb-2">
           <View
             testID="category-badge"
-            style={[
-              styles.categoryBadge,
-              { backgroundColor: categoryColor + '20' },
-            ]}
+            className="px-3 py-1 rounded-full"
+            style={{ backgroundColor: categoryColor + '20' }}
           >
-            <Text style={[styles.categoryBadgeText, { color: categoryColor }]}>
+            <Text className="text-sm font-semibold capitalize" style={{ color: categoryColor }}>
               {coach.category}
             </Text>
           </View>
-          <Text testID="install-count" style={styles.installCount}>
+          <Text testID="install-count" className="text-sm text-text-secondary">
             {coach.install_count} {coach.install_count === 1 ? 'install' : 'installs'}
           </Text>
         </View>
 
         {/* Title */}
-        <Text testID="coach-title" style={styles.title}>{coach.title}</Text>
+        <Text testID="coach-title" className="text-2xl font-bold text-text-primary px-4 mb-2">{coach.title}</Text>
 
         {/* Description */}
         {coach.description && (
-          <Text style={styles.description}>{coach.description}</Text>
+          <Text className="text-base text-text-secondary px-4 leading-[22px] mb-3">{coach.description}</Text>
         )}
 
         {/* Tags */}
         {coach.tags.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Tags</Text>
-            <View style={styles.tagsContainer}>
-              {coach.tags.map((tag, index) => (
-                <View key={index} style={styles.tag}>
-                  <Text style={styles.tagText}>{tag}</Text>
+          <View className="px-4 py-3">
+            <Text className="text-sm font-semibold text-text-secondary uppercase tracking-wide mb-2">Tags</Text>
+            <View className="flex-row flex-wrap">
+              {coach.tags.map((tag, tagIndex) => (
+                <View key={tagIndex} className="bg-background-secondary px-3 py-1 rounded-full mr-2 mb-2 border border-border-default">
+                  <Text className="text-sm text-text-primary">{tag}</Text>
                 </View>
               ))}
             </View>
@@ -210,25 +207,25 @@ export function StoreCoachDetailScreen({ navigation, route }: StoreCoachDetailSc
 
         {/* Sample Prompts */}
         {coach.sample_prompts.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Sample Prompts</Text>
-            {coach.sample_prompts.map((prompt, index) => (
-              <View key={index} style={styles.promptCard}>
-                <Text style={styles.promptText}>{prompt}</Text>
+          <View className="px-4 py-3">
+            <Text className="text-sm font-semibold text-text-secondary uppercase tracking-wide mb-2">Sample Prompts</Text>
+            {coach.sample_prompts.map((prompt, promptIndex) => (
+              <View key={promptIndex} className="bg-background-secondary p-3 rounded-lg mb-2 border border-border-default">
+                <Text className="text-base text-text-primary leading-5">{prompt}</Text>
               </View>
             ))}
           </View>
         )}
 
         {/* System Prompt Preview */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>System Prompt</Text>
-          <View style={styles.systemPromptCard}>
-            <Text style={styles.systemPromptText} numberOfLines={10}>
+        <View className="px-4 py-3">
+          <Text className="text-sm font-semibold text-text-secondary uppercase tracking-wide mb-2">System Prompt</Text>
+          <View className="bg-background-secondary p-3 rounded-lg border border-border-default">
+            <Text className="text-sm text-text-secondary leading-5 font-mono" numberOfLines={10}>
               {coach.system_prompt}
             </Text>
             {coach.system_prompt.length > 500 && (
-              <Text style={styles.systemPromptMore}>
+              <Text className="text-xs text-text-secondary italic mt-2">
                 ...and more ({coach.token_count} tokens)
               </Text>
             )}
@@ -236,17 +233,17 @@ export function StoreCoachDetailScreen({ navigation, route }: StoreCoachDetailSc
         </View>
 
         {/* Metadata */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Details</Text>
-          <View style={styles.detailsCard}>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Token Count</Text>
-              <Text style={styles.detailValue}>{coach.token_count}</Text>
+        <View className="px-4 py-3">
+          <Text className="text-sm font-semibold text-text-secondary uppercase tracking-wide mb-2">Details</Text>
+          <View className="bg-background-secondary rounded-lg border border-border-default overflow-hidden">
+            <View className="flex-row justify-between items-center px-3 py-2 border-b border-border-default">
+              <Text className="text-sm text-text-secondary">Token Count</Text>
+              <Text className="text-sm text-text-primary font-medium">{coach.token_count}</Text>
             </View>
             {coach.published_at && (
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Published</Text>
-                <Text style={styles.detailValue}>
+              <View className="flex-row justify-between items-center px-3 py-2 border-b border-border-default">
+                <Text className="text-sm text-text-secondary">Published</Text>
+                <Text className="text-sm text-text-primary font-medium">
                   {new Date(coach.published_at).toLocaleDateString()}
                 </Text>
               </View>
@@ -255,33 +252,33 @@ export function StoreCoachDetailScreen({ navigation, route }: StoreCoachDetailSc
         </View>
 
         {/* Bottom Spacer for Install Button */}
-        <View style={styles.bottomSpacer} />
+        <View style={{ height: 100 }} />
       </ScrollView>
 
       {/* Install/Uninstall Button - Fixed at bottom */}
-      <View style={styles.actionBar}>
+      <View className="absolute bottom-0 left-0 right-0 bg-background-primary border-t border-border-default p-3 pb-5">
         {isInstalled ? (
           <TouchableOpacity
-            style={[styles.actionButton, styles.uninstallButton]}
+            className="py-3 rounded-lg items-center justify-center bg-background-secondary border border-border-default"
             onPress={handleUninstall}
             disabled={isInstalling}
           >
             {isInstalling ? (
               <ActivityIndicator size="small" color={colors.text.primary} />
             ) : (
-              <Text style={styles.uninstallButtonText}>Uninstall</Text>
+              <Text className="text-text-primary text-base font-medium">Uninstall</Text>
             )}
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
-            style={[styles.actionButton, styles.installButton]}
+            className="py-3 rounded-lg items-center justify-center bg-primary-500"
             onPress={handleInstall}
             disabled={isInstalling}
           >
             {isInstalling ? (
               <ActivityIndicator size="small" color={colors.text.primary} />
             ) : (
-              <Text style={styles.installButtonText}>Install Coach</Text>
+              <Text className="text-text-primary text-base font-semibold">Install Coach</Text>
             )}
           </TouchableOpacity>
         )}
@@ -290,231 +287,3 @@ export function StoreCoachDetailScreen({ navigation, route }: StoreCoachDetailSc
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: spacing.md,
-    color: colors.text.secondary,
-    fontSize: fontSize.md,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.xl,
-  },
-  errorText: {
-    fontSize: fontSize.lg,
-    color: colors.text.secondary,
-    marginBottom: spacing.md,
-  },
-  backButton: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    backgroundColor: colors.primary[500],
-    borderRadius: borderRadius.md,
-  },
-  backButtonText: {
-    color: colors.text.primary,
-    fontSize: fontSize.md,
-    fontWeight: '500',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
-  },
-  backArrow: {
-    padding: spacing.sm,
-  },
-  backArrowText: {
-    fontSize: 24,
-    color: colors.text.primary,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: fontSize.lg,
-    fontWeight: '600',
-    color: colors.text.primary,
-    textAlign: 'center',
-    marginHorizontal: spacing.sm,
-  },
-  headerSpacer: {
-    width: 40,
-  },
-  content: {
-    flex: 1,
-  },
-  metaSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.sm,
-  },
-  categoryBadge: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-  },
-  categoryBadgeText: {
-    fontSize: fontSize.sm,
-    fontWeight: '600',
-    textTransform: 'capitalize',
-  },
-  installCount: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-  },
-  title: {
-    fontSize: fontSize.xxl,
-    fontWeight: '700',
-    color: colors.text.primary,
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.sm,
-  },
-  description: {
-    fontSize: fontSize.md,
-    color: colors.text.secondary,
-    paddingHorizontal: spacing.lg,
-    lineHeight: 22,
-    marginBottom: spacing.md,
-  },
-  section: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  sectionTitle: {
-    fontSize: fontSize.sm,
-    fontWeight: '600',
-    color: colors.text.secondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: spacing.sm,
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  tag: {
-    backgroundColor: colors.background.secondary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-    marginRight: spacing.sm,
-    marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  tagText: {
-    fontSize: fontSize.sm,
-    color: colors.text.primary,
-  },
-  promptCard: {
-    backgroundColor: colors.background.secondary,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  promptText: {
-    fontSize: fontSize.md,
-    color: colors.text.primary,
-    lineHeight: 20,
-  },
-  systemPromptCard: {
-    backgroundColor: colors.background.secondary,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  systemPromptText: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-    lineHeight: 20,
-    fontFamily: 'monospace',
-  },
-  systemPromptMore: {
-    fontSize: fontSize.xs,
-    color: colors.text.secondary,
-    fontStyle: 'italic',
-    marginTop: spacing.sm,
-  },
-  detailsCard: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    overflow: 'hidden',
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
-  },
-  detailLabel: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-  },
-  detailValue: {
-    fontSize: fontSize.sm,
-    color: colors.text.primary,
-    fontWeight: '500',
-  },
-  bottomSpacer: {
-    height: 100,
-  },
-  actionBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: colors.background.primary,
-    borderTopWidth: 1,
-    borderTopColor: colors.border.default,
-    padding: spacing.md,
-    paddingBottom: spacing.lg,
-  },
-  actionButton: {
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  installButton: {
-    backgroundColor: colors.primary[500],
-  },
-  installButtonText: {
-    color: colors.text.primary,
-    fontSize: fontSize.md,
-    fontWeight: '600',
-  },
-  uninstallButton: {
-    backgroundColor: colors.background.secondary,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  uninstallButtonText: {
-    color: colors.text.primary,
-    fontSize: fontSize.md,
-    fontWeight: '500',
-  },
-});

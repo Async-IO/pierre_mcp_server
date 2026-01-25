@@ -5,13 +5,13 @@ import React from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   SafeAreaView,
   TouchableOpacity,
   Image,
+  type ImageStyle,
 } from 'react-native';
 import { Button } from '../../components/ui';
-import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
+import { spacing } from '../../constants/theme';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 type AuthStackParamList = {
@@ -24,46 +24,59 @@ interface PendingApprovalScreenProps {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'PendingApproval'>;
 }
 
+// Logo style (pixel-specific dimensions)
+const logoStyle: ImageStyle = { width: 120, height: 120, alignSelf: 'center', marginBottom: spacing.lg };
+
 export function PendingApprovalScreen({ navigation }: PendingApprovalScreenProps) {
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
+    <SafeAreaView className="flex-1 bg-background-primary">
+      <View className="flex-1 justify-center px-5 py-6">
         {/* Pierre Logo */}
         <Image
           source={require('../../../assets/pierre-logo.png')}
-          style={styles.logo}
+          style={logoStyle}
           resizeMode="contain"
         />
 
         {/* Message */}
-        <Text style={styles.title}>Account Pending Approval</Text>
-        <Text style={styles.description}>
+        <Text className="text-2xl font-bold text-text-primary text-center mb-3">
+          Account Pending Approval
+        </Text>
+        <Text className="text-base text-text-secondary text-center leading-6 mb-2">
           Thank you for registering with Pierre! Your account is currently
           being reviewed by our team.
         </Text>
-        <Text style={styles.description}>
+        <Text className="text-base text-text-secondary text-center leading-6 mb-2">
           You'll receive an email notification once your account has been
           approved and is ready to use.
         </Text>
 
         {/* Info Box */}
-        <View style={styles.infoBox}>
-          <Text style={styles.infoTitle}>What happens next?</Text>
-          <View style={styles.infoItem}>
-            <Text style={styles.bullet}>1</Text>
-            <Text style={styles.infoText}>
+        <View className="bg-background-secondary rounded-lg p-3 mt-6 mb-6 border border-border-subtle">
+          <Text className="text-base font-semibold text-text-primary mb-3">
+            What happens next?
+          </Text>
+          <View className="flex-row items-center mb-2">
+            <Text className="w-6 h-6 rounded-full bg-primary-600 text-text-primary text-sm font-semibold text-center leading-6 mr-2 overflow-hidden">
+              1
+            </Text>
+            <Text className="flex-1 text-sm text-text-secondary">
               Our team reviews your registration
             </Text>
           </View>
-          <View style={styles.infoItem}>
-            <Text style={styles.bullet}>2</Text>
-            <Text style={styles.infoText}>
+          <View className="flex-row items-center mb-2">
+            <Text className="w-6 h-6 rounded-full bg-primary-600 text-text-primary text-sm font-semibold text-center leading-6 mr-2 overflow-hidden">
+              2
+            </Text>
+            <Text className="flex-1 text-sm text-text-secondary">
               You'll receive an approval email
             </Text>
           </View>
-          <View style={styles.infoItem}>
-            <Text style={styles.bullet}>3</Text>
-            <Text style={styles.infoText}>
+          <View className="flex-row items-center mb-2">
+            <Text className="w-6 h-6 rounded-full bg-primary-600 text-text-primary text-sm font-semibold text-center leading-6 mr-2 overflow-hidden">
+              3
+            </Text>
+            <Text className="flex-1 text-sm text-text-secondary">
               Sign in and connect your fitness accounts
             </Text>
           </View>
@@ -75,12 +88,12 @@ export function PendingApprovalScreen({ navigation }: PendingApprovalScreenProps
           onPress={() => navigation.navigate('Login')}
           variant="secondary"
           fullWidth
-          style={styles.backButton}
+          style={{ marginBottom: spacing.md }}
         />
 
         {/* Contact Support */}
-        <TouchableOpacity style={styles.supportLink}>
-          <Text style={styles.supportText}>
+        <TouchableOpacity className="items-center">
+          <Text className="text-sm text-text-tertiary">
             Questions? Contact support@pierre.fitness
           </Text>
         </TouchableOpacity>
@@ -88,84 +101,3 @@ export function PendingApprovalScreen({ navigation }: PendingApprovalScreenProps
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xl,
-  },
-  logo: {
-    width: 120,
-    height: 120,
-    alignSelf: 'center',
-    marginBottom: spacing.lg,
-  },
-  title: {
-    fontSize: fontSize.xxl,
-    fontWeight: '700',
-    color: colors.text.primary,
-    textAlign: 'center',
-    marginBottom: spacing.md,
-  },
-  description: {
-    fontSize: fontSize.md,
-    color: colors.text.secondary,
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: spacing.sm,
-  },
-  infoBox: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    marginTop: spacing.xl,
-    marginBottom: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-  },
-  infoTitle: {
-    fontSize: fontSize.md,
-    fontWeight: '600',
-    color: colors.text.primary,
-    marginBottom: spacing.md,
-  },
-  infoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  bullet: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.primary[600],
-    color: colors.text.primary,
-    fontSize: fontSize.sm,
-    fontWeight: '600',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginRight: spacing.sm,
-    overflow: 'hidden',
-  },
-  infoText: {
-    flex: 1,
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-  },
-  backButton: {
-    marginBottom: spacing.md,
-  },
-  supportLink: {
-    alignItems: 'center',
-  },
-  supportText: {
-    fontSize: fontSize.sm,
-    color: colors.text.tertiary,
-  },
-});

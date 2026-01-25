@@ -27,6 +27,7 @@
 use anyhow::Result;
 use chrono::{Duration, Utc};
 use clap::Parser;
+use rand::prelude::SliceRandom;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use sqlx::{Row, SqlitePool};
@@ -214,15 +215,39 @@ async fn main() -> Result<()> {
     let user_ids = get_demo_user_ids(&pool).await?;
     info!("Found {} demo users", user_ids.len());
 
+    // Get admin user ID for testing
+    let admin_id = get_admin_user_id(&pool).await?;
+    if let Some(ref id) = admin_id {
+        info!("Found admin user for social testing: {}", id);
+    }
+
     // Seed social settings
     info!("Step 1: Creating user social settings...");
     let settings_count = seed_social_settings(&pool, &user_ids).await?;
-    info!("  Created {} social settings", settings_count);
+    // Also create settings for admin user
+    if let Some(ref id) = admin_id {
+        let admin_settings = seed_social_settings(&pool, &[*id]).await?;
+        info!(
+            "  Created {} social settings (+ {} for admin)",
+            settings_count, admin_settings
+        );
+    } else {
+        info!("  Created {} social settings", settings_count);
+    }
 
     // Seed friend connections
     info!("Step 2: Creating friend connections...");
     let friend_count = seed_friend_connections(&pool, &user_ids).await?;
-    info!("  Created {} friend connections", friend_count);
+    // Connect admin to first 5 demo users as friends
+    let admin_friend_count = if let Some(ref id) = admin_id {
+        seed_admin_friend_connections(&pool, id, &user_ids).await?
+    } else {
+        0
+    };
+    info!(
+        "  Created {} friend connections (+ {} for admin)",
+        friend_count, admin_friend_count
+    );
 
     // Seed shared insights
     info!("Step 3: Creating shared insights...");
@@ -237,7 +262,16 @@ async fn main() -> Result<()> {
     // Seed adapted insights
     info!("Step 5: Creating adapted insights...");
     let adapted_count = seed_adapted_insights(&pool, &user_ids).await?;
-    info!("  Created {} adapted insights", adapted_count);
+    // Also create adapted insights for admin user
+    let admin_adapted_count = if let Some(ref id) = admin_id {
+        seed_admin_adapted_insights(&pool, id).await?
+    } else {
+        0
+    };
+    info!(
+        "  Created {} adapted insights (+ {} for admin)",
+        adapted_count, admin_adapted_count
+    );
 
     // Print summary
     info!("");
@@ -260,6 +294,20 @@ async fn get_demo_user_ids(pool: &SqlitePool) -> Result<Vec<Uuid>> {
     }
 
     Ok(ids)
+}
+
+/// Get the admin user ID for testing social features
+async fn get_admin_user_id(pool: &SqlitePool) -> Result<Option<Uuid>> {
+    let row = sqlx::query("SELECT id FROM users WHERE is_admin = 1 ORDER BY created_at LIMIT 1")
+        .fetch_optional(pool)
+        .await?;
+
+    if let Some(row) = row {
+        let id_str: String = row.get("id");
+        Ok(Some(Uuid::parse_str(&id_str)?))
+    } else {
+        Ok(None)
+    }
 }
 
 /// Reset social data tables
@@ -392,6 +440,60 @@ async fn seed_friend_connections(pool: &SqlitePool, user_ids: &[Uuid]) -> Result
 
             count += 1;
         }
+    }
+
+    Ok(count)
+}
+
+/// Seed friend connections between admin user and demo users for testing
+async fn seed_admin_friend_connections(
+    pool: &SqlitePool,
+    admin_id: &Uuid,
+    user_ids: &[Uuid],
+) -> Result<u32> {
+    let mut rng = StdRng::from_entropy();
+    let mut count: u32 = 0;
+
+    // Connect admin to first 8 demo users (more friends = better testing)
+    let friends_to_create = user_ids.len().min(8);
+
+    for demo_user_id in user_ids.iter().take(friends_to_create) {
+        // Check if connection already exists in either direction
+        let existing: Option<(String,)> = sqlx::query_as(
+            "SELECT id FROM friend_connections WHERE \
+             (initiator_id = ? AND receiver_id = ?) OR (initiator_id = ? AND receiver_id = ?)",
+        )
+        .bind(admin_id.to_string())
+        .bind(demo_user_id.to_string())
+        .bind(demo_user_id.to_string())
+        .bind(admin_id.to_string())
+        .fetch_optional(pool)
+        .await?;
+
+        if existing.is_some() {
+            continue;
+        }
+
+        let id = Uuid::new_v4();
+        let days_ago: i64 = rng.gen_range(1..15);
+        let created_at = (Utc::now() - Duration::days(days_ago)).to_rfc3339();
+        let accepted_at = (Utc::now() - Duration::days(days_ago - 1)).to_rfc3339();
+
+        // All admin friend connections are accepted for testing
+        sqlx::query(
+            "INSERT INTO friend_connections (id, initiator_id, receiver_id, status, created_at, updated_at, accepted_at) \
+             VALUES (?, ?, ?, 'accepted', ?, ?, ?)"
+        )
+        .bind(id.to_string())
+        .bind(demo_user_id.to_string())
+        .bind(admin_id.to_string())
+        .bind(&created_at)
+        .bind(&created_at)
+        .bind(&accepted_at)
+        .execute(pool)
+        .await?;
+
+        count += 1;
     }
 
     Ok(count)
@@ -562,6 +664,68 @@ async fn seed_adapted_insights(pool: &SqlitePool, user_ids: &[Uuid]) -> Result<u
             if result.is_ok() {
                 count += 1;
             }
+        }
+    }
+
+    Ok(count)
+}
+
+/// Seed adapted insights for admin user from demo users' shared insights
+async fn seed_admin_adapted_insights(pool: &SqlitePool, admin_id: &Uuid) -> Result<u32> {
+    let mut rng = StdRng::from_entropy();
+    let templates = get_adaptation_templates();
+    let mut count: u32 = 0;
+
+    // Get shared insights from demo users (not from admin)
+    let insights: Vec<(String,)> = sqlx::query_as(
+        "SELECT id FROM shared_insights WHERE user_id != ? ORDER BY created_at DESC LIMIT 10",
+    )
+    .bind(admin_id.to_string())
+    .fetch_all(pool)
+    .await?;
+
+    // Adapt 3-5 random insights for the admin user
+    let num_to_adapt = rng.gen_range(3..=5).min(insights.len());
+    let mut adapted_indices: Vec<usize> = (0..insights.len()).collect();
+    adapted_indices.shuffle(&mut rng);
+
+    for idx in adapted_indices.into_iter().take(num_to_adapt) {
+        let (insight_id,) = &insights[idx];
+
+        // Check if adaptation already exists
+        let existing: Option<(String,)> = sqlx::query_as(
+            "SELECT id FROM adapted_insights WHERE source_insight_id = ? AND user_id = ?",
+        )
+        .bind(insight_id)
+        .bind(admin_id.to_string())
+        .fetch_optional(pool)
+        .await?;
+
+        if existing.is_some() {
+            continue;
+        }
+
+        let id = Uuid::new_v4();
+        let adapted_content = templates[rng.gen_range(0..templates.len())];
+        let context = r#"{"training_phase": "build", "fitness_level": "advanced"}"#;
+        let days_ago: i64 = rng.gen_range(1..7);
+        let created_at = (Utc::now() - Duration::days(days_ago)).to_rfc3339();
+
+        let result = sqlx::query(
+            "INSERT INTO adapted_insights (id, source_insight_id, user_id, adapted_content, adaptation_context, was_helpful, created_at) \
+             VALUES (?, ?, ?, ?, ?, 1, ?)"
+        )
+        .bind(id.to_string())
+        .bind(insight_id)
+        .bind(admin_id.to_string())
+        .bind(adapted_content)
+        .bind(context)
+        .bind(&created_at)
+        .execute(pool)
+        .await;
+
+        if result.is_ok() {
+            count += 1;
         }
     }
 

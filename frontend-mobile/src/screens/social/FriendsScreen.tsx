@@ -5,7 +5,6 @@ import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   SafeAreaView,
   FlatList,
   TouchableOpacity,
@@ -14,16 +13,16 @@ import {
   TextInput,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import type { DrawerNavigationProp } from '@react-navigation/drawer';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
-import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
+import { colors, spacing } from '../../constants/theme';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { FriendCard } from '../../components/social/FriendCard';
 import type { FriendWithInfo } from '../../types';
-import type { AppDrawerParamList } from '../../navigation/AppDrawer';
+import type { SocialStackParamList } from '../../navigation/MainTabs';
 
-type NavigationProp = DrawerNavigationProp<AppDrawerParamList>;
+type NavigationProp = NativeStackNavigationProp<SocialStackParamList>;
 
 export function FriendsScreen() {
   const navigation = useNavigation<NavigationProp>();
@@ -108,62 +107,60 @@ export function FriendsScreen() {
   );
 
   const renderEmptyState = () => (
-    <View style={styles.emptyState}>
+    <View className="flex-1 justify-center items-center p-6">
       <Feather name="users" size={64} color={colors.text.tertiary} />
-      <Text style={styles.emptyTitle}>No Friends Yet</Text>
-      <Text style={styles.emptyText}>
+      <Text className="text-text-primary text-xl font-bold mt-5">No Friends Yet</Text>
+      <Text className="text-text-secondary text-base text-center mt-2 mb-6">
         Find and connect with other athletes to share coach insights
       </Text>
       <TouchableOpacity
-        style={styles.findFriendsButton}
+        className="flex-row items-center px-5 py-4 rounded-lg gap-2"
+        style={{ backgroundColor: colors.pierre.violet }}
         onPress={() => navigation.navigate('SearchFriends')}
       >
         <Feather name="search" size={18} color={colors.text.primary} />
-        <Text style={styles.findFriendsText}>Find Friends</Text>
+        <Text className="text-text-primary text-base font-semibold">Find Friends</Text>
       </TouchableOpacity>
     </View>
   );
 
   if (isLoading && friends.length === 0) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
+      <SafeAreaView className="flex-1 bg-background-primary">
+        <View className="flex-1 justify-center items-center">
           <ActivityIndicator size="large" color={colors.pierre.violet} />
-          <Text style={styles.loadingText}>Loading friends...</Text>
+          <Text className="text-text-secondary mt-4">Loading friends...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} testID="friends-screen">
+    <SafeAreaView className="flex-1 bg-background-primary" testID="friends-screen">
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.menuButton}
-          onPress={() => navigation.openDrawer()}
-          testID="drawer-toggle"
-        >
-          <Feather name="menu" size={24} color={colors.text.primary} />
-        </TouchableOpacity>
-        <Text style={styles.title}>Friends</Text>
-        <View style={styles.headerActions}>
+      <View className="flex-row items-center px-4 py-4 border-b border-border-subtle">
+        <View className="w-10" />
+        <Text className="flex-1 text-xl font-bold text-text-primary text-center">Friends</Text>
+        <View className="flex-row gap-2">
           <TouchableOpacity
-            style={styles.iconButton}
+            className="p-2 relative"
             onPress={() => navigation.navigate('FriendRequests')}
             testID="friend-requests-button"
           >
             <Feather name="inbox" size={22} color={colors.text.primary} />
             {pendingCount > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>
+              <View
+                className="absolute top-0 right-0 rounded-full min-w-[18px] h-[18px] justify-center items-center px-1"
+                style={{ backgroundColor: colors.pierre.violet }}
+              >
+                <Text className="text-text-primary text-[10px] font-bold">
                   {pendingCount > 9 ? '9+' : pendingCount}
                 </Text>
               </View>
             )}
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.iconButton}
+            className="p-2"
             onPress={() => navigation.navigate('SearchFriends')}
             testID="search-friends-button"
           >
@@ -174,10 +171,10 @@ export function FriendsScreen() {
 
       {/* Search Bar */}
       {friends.length > 0 && (
-        <View style={styles.searchContainer}>
+        <View className="flex-row items-center mx-4 my-4 px-4 py-2 rounded-lg bg-background-secondary">
           <Feather name="search" size={18} color={colors.text.tertiary} />
           <TextInput
-            style={styles.searchInput}
+            className="flex-1 ml-2 text-text-primary text-base"
             placeholder="Search friends..."
             placeholderTextColor={colors.text.tertiary}
             value={searchQuery}
@@ -197,9 +194,7 @@ export function FriendsScreen() {
         keyExtractor={item => item.id}
         renderItem={renderFriend}
         ListEmptyComponent={renderEmptyState}
-        contentContainerStyle={
-          filteredFriends.length === 0 ? styles.emptyContainer : styles.listContent
-        }
+        contentContainerStyle={filteredFriends.length === 0 ? { flexGrow: 1 } : { paddingVertical: spacing.sm }}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -211,117 +206,3 @@ export function FriendsScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    color: colors.text.secondary,
-    marginTop: spacing.md,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-  },
-  menuButton: {
-    padding: spacing.sm,
-    marginRight: spacing.sm,
-  },
-  title: {
-    flex: 1,
-    fontSize: fontSize.xl,
-    fontWeight: '700',
-    color: colors.text.primary,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  iconButton: {
-    padding: spacing.sm,
-    position: 'relative',
-  },
-  badge: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    backgroundColor: colors.pierre.violet,
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-  },
-  badgeText: {
-    color: colors.text.primary,
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: spacing.md,
-    marginVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.lg,
-    backgroundColor: colors.background.secondary,
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: spacing.sm,
-    color: colors.text.primary,
-    fontSize: fontSize.md,
-  },
-  listContent: {
-    paddingVertical: spacing.sm,
-  },
-  emptyContainer: {
-    flexGrow: 1,
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.xl,
-  },
-  emptyTitle: {
-    color: colors.text.primary,
-    fontSize: fontSize.xl,
-    fontWeight: '700',
-    marginTop: spacing.lg,
-  },
-  emptyText: {
-    color: colors.text.secondary,
-    fontSize: fontSize.md,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-    marginBottom: spacing.xl,
-  },
-  findFriendsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.lg,
-    backgroundColor: colors.pierre.violet,
-    gap: spacing.sm,
-  },
-  findFriendsText: {
-    color: colors.text.primary,
-    fontSize: fontSize.md,
-    fontWeight: '600',
-  },
-});

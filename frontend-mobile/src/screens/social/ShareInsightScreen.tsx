@@ -5,7 +5,6 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   SafeAreaView,
   ScrollView,
   TouchableOpacity,
@@ -15,18 +14,18 @@ import {
   Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import type { DrawerNavigationProp } from '@react-navigation/drawer';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
-import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
+import { colors } from '../../constants/theme';
 
 type FeatherIconName = ComponentProps<typeof Feather>['name'];
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { InsightType, ShareVisibility, TrainingPhase } from '../../types';
-import type { AppDrawerParamList } from '../../navigation/AppDrawer';
+import type { SocialStackParamList } from '../../navigation/MainTabs';
 
-type NavigationProp = DrawerNavigationProp<AppDrawerParamList>;
+type NavigationProp = NativeStackNavigationProp<SocialStackParamList>;
 
 // Insight type options
 const INSIGHT_TYPES: Array<{ key: InsightType; label: string; icon: FeatherIconName; color: string }> = [
@@ -78,7 +77,7 @@ export function ShareInsightScreen() {
       });
 
       // Navigate back to feed
-      navigation.navigate('SocialFeed');
+      navigation.navigate('SocialMain');
     } catch (error) {
       console.error('Failed to share insight:', error);
     } finally {
@@ -87,19 +86,20 @@ export function ShareInsightScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} testID="share-insight-screen">
+    <SafeAreaView className="flex-1 bg-background-primary" testID="share-insight-screen">
       {/* Header */}
-      <View style={styles.header}>
+      <View className="flex-row items-center px-4 py-4 border-b border-border-subtle">
         <TouchableOpacity
-          style={styles.backButton}
+          className="p-2"
           onPress={() => navigation.goBack()}
           testID="close-button"
         >
           <Feather name="x" size={24} color={colors.text.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Share Insight</Text>
+        <Text className="flex-1 text-lg font-bold text-text-primary text-center">Share Insight</Text>
         <TouchableOpacity
-          style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
+          className={`px-4 py-2 rounded-md ${canSubmit ? '' : 'opacity-50'}`}
+          style={{ backgroundColor: colors.pierre.violet }}
           onPress={handleSubmit}
           disabled={!canSubmit || isSubmitting}
           testID="share-button"
@@ -107,30 +107,29 @@ export function ShareInsightScreen() {
           {isSubmitting ? (
             <ActivityIndicator size="small" color={colors.text.primary} />
           ) : (
-            <Text style={styles.submitText}>Share</Text>
+            <Text className="text-text-primary text-base font-semibold">Share</Text>
           )}
         </TouchableOpacity>
       </View>
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
+        className="flex-1"
       >
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
           {/* Insight Type Selection */}
-          <Text style={styles.sectionLabel}>Type</Text>
-          <View style={styles.typeGrid} testID="insight-type-picker">
+          <Text className="text-text-secondary text-sm font-semibold mt-5 mb-2 uppercase tracking-wide">Type</Text>
+          <View className="flex-row flex-wrap gap-2" testID="insight-type-picker">
             {INSIGHT_TYPES.map((type) => (
               <TouchableOpacity
                 key={type.key}
                 testID={`insight-type-${type.key}`}
-                style={[
-                  styles.typeButton,
-                  insightType === type.key && {
-                    backgroundColor: type.color + '20',
-                    borderColor: type.color,
-                  },
-                ]}
+                className="flex-row items-center px-4 py-2 rounded-md gap-1"
+                style={
+                  insightType === type.key
+                    ? { backgroundColor: type.color + '20', borderWidth: 1, borderColor: type.color }
+                    : { backgroundColor: colors.background.secondary, borderWidth: 1, borderColor: 'transparent' }
+                }
                 onPress={() => setInsightType(type.key)}
               >
                 <Feather
@@ -139,10 +138,8 @@ export function ShareInsightScreen() {
                   color={insightType === type.key ? type.color : colors.text.tertiary}
                 />
                 <Text
-                  style={[
-                    styles.typeButtonText,
-                    insightType === type.key && { color: type.color },
-                  ]}
+                  className="text-sm font-medium"
+                  style={{ color: insightType === type.key ? type.color : colors.text.tertiary }}
                 >
                   {type.label}
                 </Text>
@@ -151,10 +148,10 @@ export function ShareInsightScreen() {
           </View>
 
           {/* Title (optional) */}
-          <Text style={styles.sectionLabel}>Title (optional)</Text>
+          <Text className="text-text-secondary text-sm font-semibold mt-5 mb-2 uppercase tracking-wide">Title (optional)</Text>
           <TextInput
             testID="insight-title-input"
-            style={styles.titleInput}
+            className="bg-background-secondary rounded-md px-4 py-4 text-text-primary text-base"
             placeholder="Give your insight a catchy title..."
             placeholderTextColor={colors.text.tertiary}
             value={title}
@@ -163,10 +160,10 @@ export function ShareInsightScreen() {
           />
 
           {/* Content */}
-          <Text style={styles.sectionLabel}>Content *</Text>
+          <Text className="text-text-secondary text-sm font-semibold mt-5 mb-2 uppercase tracking-wide">Content *</Text>
           <TextInput
             testID="insight-content-input"
-            style={styles.contentInput}
+            className="bg-background-secondary rounded-md px-4 py-4 text-text-primary text-base min-h-[120px]"
             placeholder="Share your coach insight... (min 10 characters)"
             placeholderTextColor={colors.text.tertiary}
             value={content}
@@ -176,34 +173,32 @@ export function ShareInsightScreen() {
             textAlignVertical="top"
             maxLength={500}
           />
-          <Text style={styles.charCount}>{content.length}/500</Text>
+          <Text className="text-text-tertiary text-xs text-right mt-1">{content.length}/500</Text>
 
           {/* Privacy note */}
-          <View style={styles.privacyNote}>
+          <View
+            className="flex-row items-start rounded-md p-4 mt-4 gap-2"
+            style={{ backgroundColor: colors.pierre.violet + '15' }}
+          >
             <Feather name="shield" size={16} color={colors.pierre.violet} />
-            <Text style={styles.privacyNoteText}>
+            <Text className="flex-1 text-text-secondary text-sm leading-5">
               Your insight is automatically sanitized. Private data like GPS coordinates,
               exact pace, and recovery scores are never shared.
             </Text>
           </View>
 
           {/* Sport Type */}
-          <Text style={styles.sectionLabel}>Sport (optional)</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+          <Text className="text-text-secondary text-sm font-semibold mt-5 mb-2 uppercase tracking-wide">Sport (optional)</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
             {SPORT_TYPES.map((sport) => (
               <TouchableOpacity
                 key={sport}
-                style={[
-                  styles.chip,
-                  sportType === sport && styles.chipActive,
-                ]}
+                className={`px-4 py-2 rounded-full mr-2 ${sportType === sport ? '' : 'bg-background-secondary'}`}
+                style={sportType === sport ? { backgroundColor: colors.pierre.violet } : undefined}
                 onPress={() => setSportType(sportType === sport ? null : sport)}
               >
                 <Text
-                  style={[
-                    styles.chipText,
-                    sportType === sport && styles.chipTextActive,
-                  ]}
+                  className={`text-sm font-medium ${sportType === sport ? 'text-text-primary' : 'text-text-tertiary'}`}
                 >
                   {sport}
                 </Text>
@@ -212,22 +207,17 @@ export function ShareInsightScreen() {
           </ScrollView>
 
           {/* Training Phase */}
-          <Text style={styles.sectionLabel}>Training Phase (optional)</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+          <Text className="text-text-secondary text-sm font-semibold mt-5 mb-2 uppercase tracking-wide">Training Phase (optional)</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
             {TRAINING_PHASES.map((phase) => (
               <TouchableOpacity
                 key={phase.key}
-                style={[
-                  styles.chip,
-                  trainingPhase === phase.key && styles.chipActive,
-                ]}
+                className={`px-4 py-2 rounded-full mr-2 ${trainingPhase === phase.key ? '' : 'bg-background-secondary'}`}
+                style={trainingPhase === phase.key ? { backgroundColor: colors.pierre.violet } : undefined}
                 onPress={() => setTrainingPhase(trainingPhase === phase.key ? null : phase.key)}
               >
                 <Text
-                  style={[
-                    styles.chipText,
-                    trainingPhase === phase.key && styles.chipTextActive,
-                  ]}
+                  className={`text-sm font-medium ${trainingPhase === phase.key ? 'text-text-primary' : 'text-text-tertiary'}`}
                 >
                   {phase.label}
                 </Text>
@@ -236,13 +226,15 @@ export function ShareInsightScreen() {
           </ScrollView>
 
           {/* Visibility */}
-          <Text style={styles.sectionLabel}>Visibility</Text>
-          <View style={styles.visibilityRow}>
+          <Text className="text-text-secondary text-sm font-semibold mt-5 mb-2 uppercase tracking-wide">Visibility</Text>
+          <View className="flex-row gap-4">
             <TouchableOpacity
-              style={[
-                styles.visibilityOption,
-                visibility === 'friends_only' && styles.visibilityOptionActive,
-              ]}
+              className={`flex-1 flex-row items-center justify-center py-4 rounded-md gap-2 ${visibility === 'friends_only' ? '' : 'bg-background-secondary'}`}
+              style={
+                visibility === 'friends_only'
+                  ? { backgroundColor: colors.pierre.violet + '20', borderWidth: 1, borderColor: colors.pierre.violet }
+                  : undefined
+              }
               onPress={() => setVisibility('friends_only')}
             >
               <Feather
@@ -251,19 +243,19 @@ export function ShareInsightScreen() {
                 color={visibility === 'friends_only' ? colors.pierre.violet : colors.text.tertiary}
               />
               <Text
-                style={[
-                  styles.visibilityText,
-                  visibility === 'friends_only' && styles.visibilityTextActive,
-                ]}
+                className="text-base font-medium"
+                style={{ color: visibility === 'friends_only' ? colors.pierre.violet : colors.text.tertiary }}
               >
                 Friends Only
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[
-                styles.visibilityOption,
-                visibility === 'public' && styles.visibilityOptionActive,
-              ]}
+              className={`flex-1 flex-row items-center justify-center py-4 rounded-md gap-2 ${visibility === 'public' ? '' : 'bg-background-secondary'}`}
+              style={
+                visibility === 'public'
+                  ? { backgroundColor: colors.pierre.violet + '20', borderWidth: 1, borderColor: colors.pierre.violet }
+                  : undefined
+              }
               onPress={() => setVisibility('public')}
             >
               <Feather
@@ -272,184 +264,17 @@ export function ShareInsightScreen() {
                 color={visibility === 'public' ? colors.pierre.violet : colors.text.tertiary}
               />
               <Text
-                style={[
-                  styles.visibilityText,
-                  visibility === 'public' && styles.visibilityTextActive,
-                ]}
+                className="text-base font-medium"
+                style={{ color: visibility === 'public' ? colors.pierre.violet : colors.text.tertiary }}
               >
                 Public
               </Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.bottomSpacer} />
+          <View className="h-6" />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-  },
-  backButton: {
-    padding: spacing.sm,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: fontSize.lg,
-    fontWeight: '700',
-    color: colors.text.primary,
-    textAlign: 'center',
-  },
-  submitButton: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.pierre.violet,
-  },
-  submitButtonDisabled: {
-    opacity: 0.5,
-  },
-  submitText: {
-    color: colors.text.primary,
-    fontSize: fontSize.md,
-    fontWeight: '600',
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-    paddingHorizontal: spacing.md,
-  },
-  sectionLabel: {
-    color: colors.text.secondary,
-    fontSize: fontSize.sm,
-    fontWeight: '600',
-    marginTop: spacing.lg,
-    marginBottom: spacing.sm,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  typeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  typeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.background.secondary,
-    borderWidth: 1,
-    borderColor: 'transparent',
-    gap: spacing.xs,
-  },
-  typeButtonText: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.sm,
-    fontWeight: '500',
-  },
-  titleInput: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    color: colors.text.primary,
-    fontSize: fontSize.md,
-  },
-  contentInput: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    color: colors.text.primary,
-    fontSize: fontSize.md,
-    minHeight: 120,
-  },
-  charCount: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.xs,
-    textAlign: 'right',
-    marginTop: spacing.xs,
-  },
-  privacyNote: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: colors.pierre.violet + '15',
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    marginTop: spacing.md,
-    gap: spacing.sm,
-  },
-  privacyNoteText: {
-    flex: 1,
-    color: colors.text.secondary,
-    fontSize: fontSize.sm,
-    lineHeight: 20,
-  },
-  chipScroll: {
-    flexDirection: 'row',
-  },
-  chip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.background.secondary,
-    marginRight: spacing.sm,
-  },
-  chipActive: {
-    backgroundColor: colors.pierre.violet,
-  },
-  chipText: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.sm,
-    fontWeight: '500',
-  },
-  chipTextActive: {
-    color: colors.text.primary,
-  },
-  visibilityRow: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
-  visibilityOption: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.background.secondary,
-    gap: spacing.sm,
-  },
-  visibilityOptionActive: {
-    backgroundColor: colors.pierre.violet + '20',
-    borderWidth: 1,
-    borderColor: colors.pierre.violet,
-  },
-  visibilityText: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.md,
-    fontWeight: '500',
-  },
-  visibilityTextActive: {
-    color: colors.pierre.violet,
-  },
-  bottomSpacer: {
-    height: spacing.xl,
-  },
-});

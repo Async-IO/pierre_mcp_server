@@ -1,17 +1,17 @@
 // ABOUTME: Main app drawer navigation for authenticated users
-// ABOUTME: Contains Chat, Settings screens and recent conversations in drawer
+// ABOUTME: Provides drawer for conversations/providers with bottom tabs for primary screens
 
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
   Alert,
   Modal,
   ScrollView,
   AppState,
+  type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Linking from 'expo-linking';
@@ -22,11 +22,9 @@ import {
   type DrawerContentComponentProps,
 } from '@react-navigation/drawer';
 import { useFocusEffect } from '@react-navigation/native';
-import { ChatScreen } from '../screens/chat/ChatScreen';
+import { MainTabs } from './MainTabs';
 import { ConnectionsScreen } from '../screens/connections/ConnectionsScreen';
-import { SettingsScreen } from '../screens/settings/SettingsScreen';
 import { ConversationsScreen } from '../screens/conversations/ConversationsScreen';
-import { CoachLibraryScreen } from '../screens/coaches/CoachLibraryScreen';
 import { CoachEditorScreen } from '../screens/coaches/CoachEditorScreen';
 import { CoachWizardScreen } from '../screens/coaches/CoachWizardScreen';
 import { CoachDetailScreen } from '../screens/coaches/CoachDetailScreen';
@@ -35,19 +33,36 @@ import { StoreCoachDetailScreen } from '../screens/store/StoreCoachDetailScreen'
 import { FriendsScreen } from '../screens/social/FriendsScreen';
 import { SearchFriendsScreen } from '../screens/social/SearchFriendsScreen';
 import { FriendRequestsScreen } from '../screens/social/FriendRequestsScreen';
-import { SocialFeedScreen } from '../screens/social/SocialFeedScreen';
 import { ShareInsightScreen } from '../screens/social/ShareInsightScreen';
 import { AdaptedInsightScreen } from '../screens/social/AdaptedInsightScreen';
 import { AdaptedInsightsScreen } from '../screens/social/AdaptedInsightsScreen';
 import { SocialSettingsScreen } from '../screens/social/SocialSettingsScreen';
 import { useAuth } from '../contexts/AuthContext';
 import { apiService } from '../services/api';
-import { colors, spacing, fontSize, borderRadius } from '../constants/theme';
+import { colors, spacing, borderRadius } from '../constants/theme';
 import { Feather } from '@expo/vector-icons';
 import { PromptDialog } from '../components/ui';
 import type { Conversation, ProviderStatus, AdaptedInsight } from '../types';
 
+// Shadow styles for elevated elements (React Native requires style objects for shadows)
+const userButtonShadow: ViewStyle = {
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.25,
+  shadowRadius: 4,
+  elevation: 4,
+};
+
+const actionMenuShadow: ViewStyle = {
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.3,
+  shadowRadius: 8,
+  elevation: 8,
+};
+
 export type AppDrawerParamList = {
+  Main: undefined;
   Chat: { conversationId?: string } | undefined;
   Conversations: undefined;
   Connections: undefined;
@@ -58,7 +73,6 @@ export type AppDrawerParamList = {
   CoachDetail: { coachId: string };
   Store: undefined;
   StoreCoachDetail: { coachId: string };
-  // Social screens
   Friends: undefined;
   SearchFriends: undefined;
   FriendRequests: undefined;
@@ -245,87 +259,83 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   };
 
   return (
-    <View style={[styles.drawerContainer, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <View
+      className="flex-1 bg-background-secondary"
+      style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
+    >
       {/* Brand Header */}
-      <View style={styles.brandHeader}>
-        <Text style={styles.brandTitle}>Pierre</Text>
+      <View className="px-5 pt-5 pb-3">
+        <Text className="text-[28px] font-bold text-text-primary">Pierre</Text>
       </View>
 
-      {/* Discussions Button */}
+      {/* Quick Actions */}
       <TouchableOpacity
-        style={styles.discussionsButton}
+        className="flex-row items-center px-5 py-3 mb-2"
         onPress={() => navigation.navigate('Conversations')}
       >
-        <Feather name="message-circle" size={20} color={colors.text.secondary} style={styles.discussionsIcon} />
-        <Text style={styles.discussionsText}>Discussions</Text>
+        <Feather name="message-circle" size={20} color={colors.text.secondary} className="mr-2" />
+        <Text className="flex-1 text-base font-medium text-text-primary">All Conversations</Text>
         <Feather name="chevron-right" size={18} color={colors.text.tertiary} />
       </TouchableOpacity>
 
-      {/* Connect Providers Button */}
       <TouchableOpacity
-        style={styles.discussionsButton}
+        className="flex-row items-center px-5 py-3 mb-2"
         onPress={() => setProviderModalVisible(true)}
       >
-        <Feather name="link" size={20} color={colors.text.secondary} style={styles.discussionsIcon} />
-        <Text style={styles.discussionsText}>Connect Providers</Text>
+        <Feather name="link" size={20} color={colors.text.secondary} className="mr-2" />
+        <Text className="flex-1 text-base font-medium text-text-primary">Connect Providers</Text>
         <Feather name="chevron-right" size={18} color={colors.text.tertiary} />
       </TouchableOpacity>
 
-      {/* My Coaches Button */}
       <TouchableOpacity
-        style={styles.discussionsButton}
-        onPress={() => navigation.navigate('CoachLibrary')}
+        className="flex-row items-center px-5 py-3 mb-2"
+        onPress={() => {
+          // Navigate to Coaches tab at root (CoachesMain / My Coaches)
+          navigation.navigate('Main', {
+            screen: 'CoachesTab',
+          });
+        }}
       >
-        <Feather name="users" size={20} color={colors.text.secondary} style={styles.discussionsIcon} />
-        <Text style={styles.discussionsText}>My Coaches</Text>
+        <Feather name="book" size={20} color={colors.text.secondary} className="mr-2" />
+        <Text className="flex-1 text-base font-medium text-text-primary">My Coaches</Text>
         <Feather name="chevron-right" size={18} color={colors.text.tertiary} />
       </TouchableOpacity>
 
-      {/* Discover Button */}
       <TouchableOpacity
-        style={styles.discussionsButton}
-        onPress={() => navigation.navigate('Store')}
+        className="flex-row items-center px-5 py-3 mb-2"
+        onPress={() => {
+          // Navigate to Coaches tab, then to Store screen within that tab's stack
+          navigation.navigate('Main');
+          // Use setTimeout to ensure tab is focused before navigating within its stack
+          setTimeout(() => {
+            navigation.navigate('Main', {
+              screen: 'CoachesTab',
+              params: { screen: 'Store' },
+            });
+          }, 100);
+        }}
       >
-        <Feather name="compass" size={20} color={colors.text.secondary} style={styles.discussionsIcon} />
-        <Text style={styles.discussionsText}>Discover</Text>
+        <Feather name="compass" size={20} color={colors.text.secondary} className="mr-2" />
+        <Text className="flex-1 text-base font-medium text-text-primary">Discover Coaches</Text>
         <Feather name="chevron-right" size={18} color={colors.text.tertiary} />
       </TouchableOpacity>
-
-      {/* Social Section */}
-      <View style={styles.socialSection}>
-        <Text style={styles.sectionHeader}>Social</Text>
-        <TouchableOpacity
-          style={styles.discussionsButton}
-          onPress={() => navigation.navigate('SocialFeed')}
-        >
-          <Feather name="activity" size={20} color={colors.text.secondary} style={styles.discussionsIcon} />
-          <Text style={styles.discussionsText}>Feed</Text>
-          <Feather name="chevron-right" size={18} color={colors.text.tertiary} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.discussionsButton}
-          onPress={() => navigation.navigate('Friends')}
-        >
-          <Feather name="users" size={20} color={colors.text.secondary} style={styles.discussionsIcon} />
-          <Text style={styles.discussionsText}>Friends</Text>
-          <Feather name="chevron-right" size={18} color={colors.text.tertiary} />
-        </TouchableOpacity>
-      </View>
 
       {/* Conversations List */}
-      <ScrollView style={styles.conversationsContainer} contentContainerStyle={styles.conversationsContent}>
+      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 80 }}>
         {conversations.length > 0 && (
           <>
-            <Text style={styles.sectionHeader}>Recents</Text>
+            <Text className="text-sm font-semibold text-text-tertiary px-5 py-1 uppercase tracking-wide">
+              Recents
+            </Text>
             {conversations.map((conv) => (
               <TouchableOpacity
                 key={conv.id}
-                style={styles.conversationItem}
+                className="px-5 py-2.5"
                 onPress={() => handleConversationPress(conv.id)}
                 onLongPress={() => handleConversationLongPress(conv)}
                 delayLongPress={300}
               >
-                <Text style={styles.conversationTitle} numberOfLines={1}>
+                <Text className="text-base text-text-primary" numberOfLines={1}>
                   {conv.title || 'Untitled'}
                 </Text>
               </TouchableOpacity>
@@ -334,30 +344,38 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
         )}
 
         {isLoadingConversations && (
-          <View style={styles.loadingContainer}>
+          <View className="py-3 items-center">
             <ActivityIndicator size="small" color={colors.primary[500]} />
           </View>
         )}
       </ScrollView>
 
       {/* Floating Bottom Bar: Avatar + Username + New Chat */}
-      <View style={styles.floatingBottomBar}>
+      <View
+        className="absolute flex-row items-center justify-between"
+        style={{ bottom: spacing.lg, left: spacing.md, right: spacing.md }}
+      >
         <TouchableOpacity
-          style={styles.userButton}
+          className="flex-row items-center bg-background-tertiary py-1 px-2 rounded-full"
+          style={userButtonShadow}
           onPress={() => navigation.navigate('Settings')}
           activeOpacity={0.7}
         >
-          <View style={styles.userAvatar}>
-            <Text style={styles.userAvatarText}>
+          <View className="w-7 h-7 rounded-full bg-primary-700 items-center justify-center mr-1">
+            <Text className="text-xs font-semibold text-text-primary">
               {user?.display_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
             </Text>
           </View>
-          <Text style={styles.userName} numberOfLines={1}>
+          <Text className="text-sm font-medium text-text-primary max-w-[120px]" numberOfLines={1}>
             {user?.display_name || 'User'}
           </Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.newChatButton} onPress={handleNewChat}>
-          <Text style={styles.newChatIcon}>+</Text>
+        <TouchableOpacity
+          className="w-11 h-11 rounded-full bg-primary-500 items-center justify-center"
+          style={userButtonShadow}
+          onPress={handleNewChat}
+        >
+          <Text className="text-[28px] text-text-primary -mt-0.5">+</Text>
         </TouchableOpacity>
       </View>
 
@@ -369,33 +387,36 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
         onRequestClose={closeActionMenu}
       >
         <TouchableOpacity
-          style={styles.modalOverlay}
+          className="flex-1 bg-black/30 justify-center items-center"
           activeOpacity={1}
           onPress={closeActionMenu}
         >
-          <View style={styles.actionMenuContainer}>
+          <View
+            className="bg-background-primary rounded-lg py-1 min-w-[200px]"
+            style={actionMenuShadow}
+          >
             <TouchableOpacity
-              style={[styles.actionMenuItem, styles.actionMenuItemDisabled]}
+              className="flex-row items-center px-4 py-2 opacity-40"
               disabled
             >
-              <Text style={styles.actionMenuIcon}>☆</Text>
-              <Text style={styles.actionMenuTextDisabled}>Add to favorites</Text>
+              <Text className="text-lg mr-2 w-6">☆</Text>
+              <Text className="text-base text-text-tertiary">Add to favorites</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.actionMenuItem}
+              className="flex-row items-center px-4 py-2"
               onPress={handleRename}
             >
-              <Text style={styles.actionMenuIcon}>✎</Text>
-              <Text style={styles.actionMenuText}>Rename</Text>
+              <Text className="text-lg mr-2 w-6">✎</Text>
+              <Text className="text-base text-text-primary">Rename</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.actionMenuItem}
+              className="flex-row items-center px-4 py-2"
               onPress={handleDelete}
             >
-              <Text style={styles.actionMenuIconDanger}>🗑</Text>
-              <Text style={styles.actionMenuTextDanger}>Delete</Text>
+              <Text className="text-lg mr-2 w-6">🗑</Text>
+              <Text className="text-base text-error">Delete</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -409,18 +430,23 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
         onRequestClose={() => setProviderModalVisible(false)}
       >
         <TouchableOpacity
-          style={styles.bottomSheetOverlay}
+          className="flex-1 bg-black/50 justify-end"
           activeOpacity={1}
           onPress={() => setProviderModalVisible(false)}
         >
-          <View style={styles.bottomSheetContainer}>
-            <View style={styles.bottomSheetHandle} />
-            <Text style={styles.bottomSheetTitle}>Connect a Provider</Text>
-            <Text style={styles.bottomSheetSubtitle}>
+          <View
+            className="bg-background-primary px-5 pt-2 pb-6 max-h-[70%]"
+            style={{ borderTopLeftRadius: borderRadius.xl, borderTopRightRadius: borderRadius.xl }}
+          >
+            <View className="w-10 h-1 bg-text-tertiary rounded-full self-center mb-3" />
+            <Text className="text-lg font-semibold text-text-primary text-center mb-1">
+              Connect a Provider
+            </Text>
+            <Text className="text-sm text-text-secondary text-center mb-5">
               Link your fitness accounts to analyze your data
             </Text>
 
-            <ScrollView style={styles.providerList} showsVerticalScrollIndicator={false}>
+            <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
               {[
                 { id: 'strava', name: 'Strava', icon: '🚴' },
                 { id: 'fitbit', name: 'Fitbit', icon: '⌚' },
@@ -439,27 +465,31 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
                 return (
                   <TouchableOpacity
                     key={provider.id}
-                    style={[
-                      styles.providerButton,
-                      isConnected && styles.providerButtonConnected,
-                      !isAvailable && styles.providerButtonDisabled,
-                    ]}
+                    className={`flex-row items-center p-3 mb-2 rounded-lg border ${
+                      isConnected
+                        ? 'border-primary-500 bg-background-tertiary'
+                        : isAvailable
+                        ? 'border-border-default bg-background-secondary'
+                        : 'border-border-subtle bg-background-secondary opacity-50'
+                    }`}
                     onPress={() => handleConnectProvider(provider.id)}
                     disabled={!isAvailable}
                   >
-                    <Text style={[
-                      styles.providerIcon,
-                      !isAvailable && styles.providerIconDisabled,
-                    ]}>{provider.icon}</Text>
-                    <Text style={[
-                      styles.providerName,
-                      !isAvailable && styles.providerNameDisabled,
-                    ]}>{provider.name}</Text>
+                    <Text className={`text-2xl mr-3 ${!isAvailable ? 'opacity-50' : ''}`}>
+                      {provider.icon}
+                    </Text>
+                    <Text
+                      className={`flex-1 text-base font-medium ${
+                        isAvailable ? 'text-text-primary' : 'text-text-tertiary'
+                      }`}
+                    >
+                      {provider.name}
+                    </Text>
                     {isConnected && (
-                      <Text style={styles.providerConnectedBadge}>✓</Text>
+                      <Text className="text-lg text-primary-500 font-semibold">✓</Text>
                     )}
                     {!isAvailable && (
-                      <Text style={styles.providerComingSoon}>Coming soon</Text>
+                      <Text className="text-xs text-text-tertiary italic">Coming soon</Text>
                     )}
                   </TouchableOpacity>
                 );
@@ -467,10 +497,10 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
             </ScrollView>
 
             <TouchableOpacity
-              style={styles.bottomSheetCloseButton}
+              className="items-center p-3 mt-2"
               onPress={() => setProviderModalVisible(false)}
             >
-              <Text style={styles.bottomSheetCloseText}>Close</Text>
+              <Text className="text-base text-text-tertiary font-medium">Close</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -492,6 +522,11 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   );
 }
 
+// Wrapper to pass params to ChatTab within MainTabs
+function ChatScreenWrapper() {
+  return <MainTabs />;
+}
+
 export function AppDrawer() {
   return (
     <Drawer.Navigator
@@ -506,21 +541,18 @@ export function AppDrawer() {
         overlayColor: 'rgba(0, 0, 0, 0.5)',
       }}
     >
-      <Drawer.Screen name="Chat" component={ChatScreen} />
+      <Drawer.Screen name="Main" component={MainTabs} />
+      <Drawer.Screen name="Chat" component={ChatScreenWrapper} />
       <Drawer.Screen name="Conversations" component={ConversationsScreen} />
       <Drawer.Screen name="Connections" component={ConnectionsScreen} />
-      <Drawer.Screen name="Settings" component={SettingsScreen} />
-      <Drawer.Screen name="CoachLibrary" component={CoachLibraryScreen} />
       <Drawer.Screen name="CoachEditor" component={CoachEditorScreen} />
       <Drawer.Screen name="CoachWizard" component={CoachWizardScreen} />
       <Drawer.Screen name="CoachDetail" component={CoachDetailScreen} />
       <Drawer.Screen name="Store" component={StoreScreen} />
       <Drawer.Screen name="StoreCoachDetail" component={StoreCoachDetailScreen} />
-      {/* Social screens */}
       <Drawer.Screen name="Friends" component={FriendsScreen} />
       <Drawer.Screen name="SearchFriends" component={SearchFriendsScreen} />
       <Drawer.Screen name="FriendRequests" component={FriendRequestsScreen} />
-      <Drawer.Screen name="SocialFeed" component={SocialFeedScreen} />
       <Drawer.Screen name="ShareInsight" component={ShareInsightScreen} />
       <Drawer.Screen name="AdaptedInsight" component={AdaptedInsightScreen} />
       <Drawer.Screen name="AdaptedInsights" component={AdaptedInsightsScreen} />
@@ -529,274 +561,3 @@ export function AppDrawer() {
   );
 }
 
-const styles = StyleSheet.create({
-  drawerContainer: {
-    flex: 1,
-    backgroundColor: colors.background.secondary,
-  },
-  brandHeader: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
-  },
-  brandTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: colors.text.primary,
-  },
-  discussionsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  discussionsIcon: {
-    fontSize: 18,
-    marginRight: spacing.sm,
-  },
-  discussionsText: {
-    flex: 1,
-    fontSize: fontSize.md,
-    fontWeight: '500',
-    color: colors.text.primary,
-  },
-  socialSection: {
-    marginTop: spacing.md,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border.subtle,
-  },
-  discussionsChevron: {
-    fontSize: 20,
-    color: colors.text.tertiary,
-  },
-  sectionHeader: {
-    fontSize: fontSize.sm,
-    fontWeight: '600',
-    color: colors.text.tertiary,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  conversationsContainer: {
-    flex: 1,
-  },
-  conversationsContent: {
-    paddingBottom: 80, // Space for floating bottom bar
-  },
-  conversationItem: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm + 2,
-  },
-  conversationTitle: {
-    fontSize: fontSize.md,
-    color: colors.text.primary,
-  },
-  loadingContainer: {
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-  },
-  floatingBottomBar: {
-    position: 'absolute',
-    bottom: spacing.lg,
-    left: spacing.md,
-    right: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  userButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.background.tertiary,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    borderRadius: borderRadius.full,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  userAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.primary[700],
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.xs,
-  },
-  userAvatarText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.text.primary,
-  },
-  userName: {
-    fontSize: fontSize.sm,
-    fontWeight: '500',
-    color: colors.text.primary,
-    maxWidth: 120,
-  },
-  newChatButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.primary[500],
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  newChatIcon: {
-    fontSize: 28,
-    color: colors.text.primary,
-    marginTop: -2,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  actionMenuContainer: {
-    backgroundColor: colors.background.primary,
-    borderRadius: borderRadius.lg,
-    paddingVertical: spacing.xs,
-    minWidth: 200,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  actionMenuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  actionMenuItemDisabled: {
-    opacity: 0.4,
-  },
-  actionMenuIcon: {
-    fontSize: 18,
-    marginRight: spacing.sm,
-    width: 24,
-  },
-  actionMenuIconDanger: {
-    fontSize: 18,
-    marginRight: spacing.sm,
-    width: 24,
-  },
-  actionMenuText: {
-    fontSize: fontSize.md,
-    color: colors.text.primary,
-  },
-  actionMenuTextDisabled: {
-    fontSize: fontSize.md,
-    color: colors.text.tertiary,
-  },
-  actionMenuTextDanger: {
-    fontSize: fontSize.md,
-    color: colors.error,
-  },
-  // Bottom Sheet Modal styles
-  bottomSheetOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  bottomSheetContainer: {
-    backgroundColor: colors.background.primary,
-    borderTopLeftRadius: borderRadius.xl,
-    borderTopRightRadius: borderRadius.xl,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xl,
-    maxHeight: '70%',
-  },
-  bottomSheetHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: colors.text.tertiary,
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: spacing.md,
-  },
-  bottomSheetTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: '600',
-    color: colors.text.primary,
-    textAlign: 'center',
-    marginBottom: spacing.xs,
-  },
-  bottomSheetSubtitle: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-    textAlign: 'center',
-    marginBottom: spacing.lg,
-  },
-  providerList: {
-    maxHeight: 300,
-  },
-  providerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  providerButtonConnected: {
-    borderColor: colors.primary[500],
-    backgroundColor: colors.background.tertiary,
-  },
-  providerButtonDisabled: {
-    opacity: 0.5,
-    borderColor: colors.border.subtle,
-  },
-  providerIcon: {
-    fontSize: 24,
-    marginRight: spacing.md,
-  },
-  providerIconDisabled: {
-    opacity: 0.5,
-  },
-  providerName: {
-    flex: 1,
-    fontSize: fontSize.md,
-    color: colors.text.primary,
-    fontWeight: '500',
-  },
-  providerNameDisabled: {
-    color: colors.text.tertiary,
-  },
-  providerConnectedBadge: {
-    fontSize: 18,
-    color: colors.primary[500],
-    fontWeight: '600',
-  },
-  providerComingSoon: {
-    fontSize: fontSize.xs,
-    color: colors.text.tertiary,
-    fontStyle: 'italic',
-  },
-  bottomSheetCloseButton: {
-    alignItems: 'center',
-    padding: spacing.md,
-    marginTop: spacing.sm,
-  },
-  bottomSheetCloseText: {
-    fontSize: fontSize.md,
-    color: colors.text.tertiary,
-    fontWeight: '500',
-  },
-});

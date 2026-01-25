@@ -2,10 +2,10 @@
 // ABOUTME: Shows author, content, reactions, and adapt-to-my-training action
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, type ViewStyle } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
-import { colors, spacing, fontSize, borderRadius, glassCard } from '../../constants/theme';
+import { colors, glassCard } from '../../constants/theme';
 import type { FeedItem, ReactionType } from '../../types';
 
 type FeatherIconName = ComponentProps<typeof Feather>['name'];
@@ -64,6 +64,11 @@ const formatRelativeTime = (dateStr: string): string => {
   return date.toLocaleDateString();
 };
 
+// Glass card style with shadow (React Native shadows cannot use className)
+const cardStyle: ViewStyle = {
+  ...glassCard,
+};
+
 interface InsightCardProps {
   item: FeedItem;
   onReaction: (type: ReactionType) => void;
@@ -86,46 +91,57 @@ export function InsightCard({
   const typeStyle = INSIGHT_TYPE_STYLES[insight.insight_type] || INSIGHT_TYPE_STYLES.motivation;
 
   return (
-    <View style={styles.card}>
+    <View
+      className="mx-3 my-2 p-3 rounded-lg"
+      style={cardStyle}
+    >
       {/* Header with author info and type badge */}
-      <View style={styles.header}>
-        <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
-          <Text style={styles.avatarText}>{initials}</Text>
+      <View className="flex-row items-center mb-3">
+        <View
+          className="w-10 h-10 rounded-full justify-center items-center"
+          style={{ backgroundColor: avatarColor }}
+        >
+          <Text className="text-base font-semibold text-text-primary">{initials}</Text>
         </View>
-        <View style={styles.authorInfo}>
-          <Text style={styles.authorName}>{displayName}</Text>
-          <Text style={styles.timestamp}>{formatRelativeTime(insight.created_at)}</Text>
+        <View className="flex-1 ml-2">
+          <Text className="text-base font-semibold text-text-primary">{displayName}</Text>
+          <Text className="text-xs text-text-tertiary mt-0.5">{formatRelativeTime(insight.created_at)}</Text>
         </View>
-        <View style={[styles.typeBadge, { backgroundColor: typeStyle.color + '20' }]}>
+        <View
+          className="flex-row items-center px-2 py-1 rounded gap-1"
+          style={{ backgroundColor: typeStyle.color + '20' }}
+        >
           <Feather name={typeStyle.icon} size={12} color={typeStyle.color} />
-          <Text style={[styles.typeLabel, { color: typeStyle.color }]}>{typeStyle.label}</Text>
+          <Text className="text-xs font-medium" style={{ color: typeStyle.color }}>{typeStyle.label}</Text>
         </View>
       </View>
 
       {/* Insight content */}
-      {insight.title && <Text style={styles.title}>{insight.title}</Text>}
-      <Text style={styles.content}>{insight.content}</Text>
+      {insight.title && (
+        <Text className="text-lg font-bold text-text-primary mb-2">{insight.title}</Text>
+      )}
+      <Text className="text-base text-text-secondary leading-[22px]">{insight.content}</Text>
 
       {/* Sport type and training phase context */}
       {(insight.sport_type || insight.training_phase) && (
-        <View style={styles.contextRow}>
+        <View className="flex-row flex-wrap mt-2 gap-2">
           {insight.sport_type && (
-            <View style={styles.contextBadge}>
+            <View className="flex-row items-center gap-1 px-2 py-1 bg-background-tertiary rounded">
               <Feather name="activity" size={12} color={colors.text.tertiary} />
-              <Text style={styles.contextText}>{insight.sport_type}</Text>
+              <Text className="text-xs text-text-tertiary capitalize">{insight.sport_type}</Text>
             </View>
           )}
           {insight.training_phase && (
-            <View style={styles.contextBadge}>
+            <View className="flex-row items-center gap-1 px-2 py-1 bg-background-tertiary rounded">
               <Feather name="trending-up" size={12} color={colors.text.tertiary} />
-              <Text style={styles.contextText}>{insight.training_phase} phase</Text>
+              <Text className="text-xs text-text-tertiary capitalize">{insight.training_phase} phase</Text>
             </View>
           )}
         </View>
       )}
 
       {/* Reaction bar */}
-      <View style={styles.reactionBar}>
+      <View className="flex-row justify-around mt-3 pt-3 border-t border-border-subtle">
         {(Object.keys(REACTION_ICONS) as ReactionType[]).map((type) => {
           const reactionStyle = REACTION_ICONS[type];
           const count = reactions[type];
@@ -134,7 +150,9 @@ export function InsightCard({
           return (
             <TouchableOpacity
               key={type}
-              style={[styles.reactionButton, isActive && styles.reactionButtonActive]}
+              className={`flex-row items-center px-3 py-2 rounded-lg gap-1 ${
+                isActive ? 'bg-background-secondary' : ''
+              }`}
               onPress={() => onReaction(type)}
               disabled={isReacting}
             >
@@ -145,10 +163,8 @@ export function InsightCard({
               />
               {count > 0 && (
                 <Text
-                  style={[
-                    styles.reactionCount,
-                    isActive && { color: reactionStyle.color },
-                  ]}
+                  className="text-sm"
+                  style={{ color: isActive ? reactionStyle.color : colors.text.tertiary }}
                 >
                   {count}
                 </Text>
@@ -160,10 +176,10 @@ export function InsightCard({
 
       {/* Adapt to My Training button */}
       <TouchableOpacity
-        style={[
-          styles.adaptButton,
-          user_has_adapted && styles.adaptButtonUsed,
-        ]}
+        className={`flex-row items-center justify-center mt-3 py-3 rounded-lg gap-2 ${
+          user_has_adapted ? 'bg-background-secondary' : ''
+        }`}
+        style={!user_has_adapted ? { backgroundColor: colors.pierre.violet } : undefined}
         onPress={onAdapt}
         disabled={isAdapting || user_has_adapted}
       >
@@ -177,10 +193,10 @@ export function InsightCard({
               color={user_has_adapted ? colors.pierre.activity : colors.text.primary}
             />
             <Text
-              style={[
-                styles.adaptButtonText,
-                user_has_adapted && styles.adaptButtonTextUsed,
-              ]}
+              className={`text-base font-semibold ${
+                user_has_adapted ? '' : 'text-text-primary'
+              }`}
+              style={user_has_adapted ? { color: colors.pierre.activity } : undefined}
             >
               {user_has_adapted ? 'Adapted' : 'Adapt to My Training'}
             </Text>
@@ -190,131 +206,3 @@ export function InsightCard({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  card: {
-    marginHorizontal: spacing.md,
-    marginVertical: spacing.sm,
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    ...glassCard,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarText: {
-    color: colors.text.primary,
-    fontSize: fontSize.md,
-    fontWeight: '600',
-  },
-  authorInfo: {
-    flex: 1,
-    marginLeft: spacing.sm,
-  },
-  authorName: {
-    color: colors.text.primary,
-    fontSize: fontSize.md,
-    fontWeight: '600',
-  },
-  timestamp: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.xs,
-    marginTop: 2,
-  },
-  typeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: borderRadius.sm,
-    gap: 4,
-  },
-  typeLabel: {
-    fontSize: fontSize.xs,
-    fontWeight: '500',
-  },
-  title: {
-    color: colors.text.primary,
-    fontSize: fontSize.lg,
-    fontWeight: '700',
-    marginBottom: spacing.sm,
-  },
-  content: {
-    color: colors.text.secondary,
-    fontSize: fontSize.md,
-    lineHeight: 22,
-  },
-  contextRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: spacing.sm,
-    gap: spacing.sm,
-  },
-  contextBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    backgroundColor: colors.background.tertiary,
-    borderRadius: borderRadius.sm,
-  },
-  contextText: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.xs,
-    textTransform: 'capitalize',
-  },
-  reactionBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: spacing.md,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border.subtle,
-  },
-  reactionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    gap: spacing.xs,
-  },
-  reactionButtonActive: {
-    backgroundColor: colors.background.secondary,
-  },
-  reactionCount: {
-    color: colors.text.tertiary,
-    fontSize: fontSize.sm,
-  },
-  adaptButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: spacing.md,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.pierre.violet,
-    gap: spacing.sm,
-  },
-  adaptButtonUsed: {
-    backgroundColor: colors.background.secondary,
-  },
-  adaptButtonText: {
-    color: colors.text.primary,
-    fontSize: fontSize.md,
-    fontWeight: '600',
-  },
-  adaptButtonTextUsed: {
-    color: colors.pierre.activity,
-  },
-});

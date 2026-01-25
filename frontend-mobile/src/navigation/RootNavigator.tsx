@@ -1,12 +1,12 @@
 // ABOUTME: Root navigation component handling auth state
-// ABOUTME: Shows AuthStack for unauthenticated users, AppDrawer for authenticated users
+// ABOUTME: Shows AuthStack for unauthenticated users, AppNavigator for authenticated users
 
 import React from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { AuthStack } from './AuthStack';
-import { AppDrawer } from './AppDrawer';
+import { AppNavigator } from './AppNavigator';
 import { colors } from '../constants/theme';
 
 export function RootNavigator() {
@@ -15,7 +15,7 @@ export function RootNavigator() {
   // Show loading screen while checking auth state
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View className="flex-1 items-center justify-center bg-background-primary">
         <ActivityIndicator size="large" color={colors.primary[500]} />
       </View>
     );
@@ -26,16 +26,7 @@ export function RootNavigator() {
 
   return (
     <NavigationContainer>
-      {showAuthStack ? <AuthStack /> : <AppDrawer />}
+      {showAuthStack ? <AuthStack /> : <AppNavigator />}
     </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background.primary,
-  },
-});
