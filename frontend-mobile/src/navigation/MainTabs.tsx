@@ -3,7 +3,10 @@
 
 import React from 'react';
 import { View, TouchableOpacity, Text, type ViewStyle } from 'react-native';
-import { createBottomTabNavigator, type BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import {
+  createBottomTabNavigator,
+  type BottomTabBarProps,
+} from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -170,8 +173,8 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
       className="flex-row bg-background-secondary border-t border-border-subtle pt-2"
       style={{ paddingBottom: insets.bottom || spacing.sm }}
     >
-      {state.routes.map((route, index) => {
-        const isFocused = state.index === index;
+      {state.routes.map((route, tabIndex) => {
+        const isFocused = state.index === tabIndex;
         const config = tabConfig[route.name] || { icon: 'circle', label: route.name };
 
         const onPress = () => {
@@ -220,7 +223,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
 export function MainTabs() {
   return (
     <Tab.Navigator
-      tabBar={(props) => <CustomTabBar {...props} />}
+      tabBar={(props: BottomTabBarProps) => <CustomTabBar {...props} />}
       screenOptions={{
         headerShown: false,
       }}
