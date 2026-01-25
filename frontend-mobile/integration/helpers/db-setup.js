@@ -7,7 +7,7 @@ const fs = require('fs');
 
 const PROJECT_ROOT = path.resolve(__dirname, '../../..');
 const DB_PATH = path.join(PROJECT_ROOT, 'data', 'mobile-integration-test.db');
-const BACKEND_URL = process.env.PIERRE_API_URL || 'http://localhost:8081';
+const BACKEND_URL = process.env.BACKEND_URL || process.env.PIERRE_API_URL || 'http://localhost:8081';
 
 /**
  * Environment variables required for running admin-setup commands (fallback).

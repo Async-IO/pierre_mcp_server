@@ -66,6 +66,85 @@ jobs:
           path: frontend-mobile/coverage/
           retention-days: 7
 
+  mobile-integration-tests:
+    name: Mobile Integration Tests (Real Server)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.92.0
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-mobile-integration-1.92.0-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-mobile-integration-1.92.0-
+            ${{ runner.os }}-cargo-
+
+      - name: Build Pierre server (release for performance)
+        run: cargo build --release
+        env:
+          CARGO_INCREMENTAL: 0
+
+      - name: Install mobile dependencies
+        working-directory: frontend-mobile
+        run: bun install --frozen-lockfile
+
+      - name: Create data directory
+        run: mkdir -p data
+
+      - name: Start Pierre server
+        run: |
+          ./target/release/pierre_mcp_server &
+          echo "Waiting for server to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:8081/health > /dev/null; then
+              echo "Server is healthy!"
+              break
+            fi
+            echo "Attempt $i: Server not ready yet..."
+            sleep 2
+          done
+        env:
+          DATABASE_URL: "sqlite:${{ github.workspace }}/data/mobile-integration-test.db"
+          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+          PIERRE_RSA_KEY_SIZE: "2048"
+          HTTP_PORT: "8081"
+          RUST_LOG: "warn"
+          STRAVA_CLIENT_ID: "test_client_id_ci"
+          STRAVA_CLIENT_SECRET: "test_client_secret_ci"
+          STRAVA_REDIRECT_URI: "http://localhost:8081/auth/strava/callback"
+
+      - name: Run mobile integration tests
+        working-directory: frontend-mobile
+        run: bun run e2e:integration
+        env:
+          CI: true
+          BACKEND_URL: "http://localhost:8081"
+
+      - name: Upload integration test results
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: mobile-integration-test-results
+          path: frontend-mobile/integration/
+          retention-days: 7
+
   mobile-e2e-tests:
     name: Mobile E2E Tests (Detox)
     runs-on: macos-latest

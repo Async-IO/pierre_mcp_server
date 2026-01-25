@@ -1,7 +1,7 @@
 // ABOUTME: Server management utilities for mobile integration tests.
 // ABOUTME: Provides health check polling and backend server readiness verification.
 
-const BACKEND_URL = process.env.PIERRE_API_URL || 'http://localhost:8081';
+const BACKEND_URL = process.env.BACKEND_URL || process.env.PIERRE_API_URL || 'http://localhost:8081';
 
 /**
  * Wait for the backend server to be healthy and ready to accept requests.
