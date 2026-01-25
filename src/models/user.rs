@@ -75,14 +75,14 @@ impl UserTier {
 }
 
 impl FromStr for UserTier {
-    type Err = anyhow::Error;
+    type Err = AppError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             tiers::STARTER => Ok(Self::Starter),
             tiers::PROFESSIONAL => Ok(Self::Professional),
             tiers::ENTERPRISE => Ok(Self::Enterprise),
-            _ => Err(AppError::invalid_input(format!("Invalid user tier: {s}")).into()),
+            _ => Err(AppError::invalid_input(format!("Invalid user tier: {s}"))),
         }
     }
 }
