@@ -77,9 +77,10 @@ Ready to contribute - create a pull request from your branch.
 - Documentation is as important as code!
 
 ### New Fitness Providers
-- Add support for Garmin, Polar, Suunto, local files, etc.
+- Add support for Suunto, local files, etc.
 - See `src/providers/strava.rs` as a reference implementation
 - Provider needs: OAuth flow, activity fetching, data normalization
+- Supported: Strava, Garmin, Fitbit, WHOOP, COROS, Terra (aggregator for 150+ devices)
 
 ### Client Libraries
 - Build SDKs for Go, JavaScript, Ruby, PHP, etc.
@@ -104,7 +105,7 @@ Ready to contribute - create a pull request from your branch.
 - **Frontend improvements** - Add features to admin dashboard in `frontend/src/`
 
 ### Advanced
-- **New fitness provider** - Add Garmin/Polar support in `src/providers/`
+- **New fitness provider** - Add new provider support in `src/providers/`
 - **Performance optimization** - Profile and optimize database queries
 - **Security improvements** - Enhance authentication or encryption
 

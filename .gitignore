@@ -98,3 +98,4 @@ package-lock.json
 /.tools/
 
 .claude/settings.local.json
+data/

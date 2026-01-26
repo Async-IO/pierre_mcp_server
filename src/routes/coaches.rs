@@ -1663,8 +1663,7 @@ fn capitalize_provider(provider: &str) -> String {
         "strava" => "Strava".to_owned(),
         "garmin" => "Garmin".to_owned(),
         "fitbit" => "Fitbit".to_owned(),
-        "wahoo" => "Wahoo".to_owned(),
-        "polar" => "Polar".to_owned(),
+        "terra" => "Terra".to_owned(),
         _ => {
             // Capitalize first letter
             let mut chars = provider.chars();

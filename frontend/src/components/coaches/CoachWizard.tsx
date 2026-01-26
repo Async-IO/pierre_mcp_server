@@ -56,7 +56,7 @@ const CATEGORIES: Array<{ key: CoachCategory; label: string; color: string }> = 
   { key: 'custom', label: 'Custom', color: '#7C3AED' },
 ];
 
-const PROVIDERS = ['Strava', 'Garmin', 'Fitbit', 'Wahoo', 'Polar', 'Whoop', 'Coros'];
+const PROVIDERS = ['Strava', 'Garmin', 'Fitbit', 'Whoop', 'Coros', 'Terra'];
 const ACTIVITY_TYPES = ['Run', 'Ride', 'Swim', 'Walk', 'Hike', 'Workout', 'Yoga'];
 
 const CONTEXT_WINDOW_SIZE = 128000;

@@ -327,8 +327,8 @@ fn get_demo_api_keys_part1() -> Vec<DemoApiKey> {
 fn get_demo_api_keys_part2() -> Vec<DemoApiKey> {
     vec![
         DemoApiKey {
-            name: "Wahoo Bridge",
-            description: "Wahoo workout imports",
+            name: "Terra Bridge",
+            description: "Multi-provider workout imports via Terra",
             tier: "starter",
             rate_limit: Some(1500),
         },

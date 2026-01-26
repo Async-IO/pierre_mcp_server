@@ -24,7 +24,7 @@ This guide shows how pierre's pluggable provider architecture supports **1 to x 
 │  registry.register_factory("coros", CorosFactory)    │ <- built-in
 │  registry.register_factory("synthetic", SynthFactory)│
 │  registry.register_factory("terra", TerraFactory)    │ <- built-in
-│  registry.register_factory("polar", PolarFactory)    │ <- custom example
+│  registry.register_factory("suunto", SuuntoFactory)  │ <- custom example
 │  ... unlimited providers ...                         │
 └────────────┬─────────────────────────────────────────┘
              │
@@ -54,7 +54,7 @@ This guide shows how pierre's pluggable provider architecture supports **1 to x 
 │  // List all available providers                     │
 │  let providers = registry.supported_providers();     │
 │  // ["strava", "garmin", "fitbit", "whoop", "coros", │
-│  //  "synthetic", "polar", ...]                      │
+│  //  "synthetic", "terra", ...]                      │
 │                                                       │
 │  // Create provider instance                         │
 │  let provider = registry.create_provider("strava");  │
@@ -184,9 +184,9 @@ export PIERRE_COROS_CLIENT_SECRET=coros_secret
 # Provider 6: Synthetic (no credentials needed!)
 # Automatically available - no env vars required
 
-# Provider 7: Custom Polar
-export PIERRE_POLAR_CLIENT_ID=polar_client
-export PIERRE_POLAR_CLIENT_SECRET=polar_secret
+# Provider 7: Custom (example for adding your own)
+# export PIERRE_SUUNTO_CLIENT_ID=suunto_client
+# export PIERRE_SUUNTO_CLIENT_SECRET=suunto_secret
 
 # ... unlimited providers ...
 ```
@@ -219,7 +219,7 @@ Tools automatically discover all registered providers:
       "whoop": { "connected": true, "status": "connected" },
       "coros": { "connected": false, "status": "disconnected" },
       "synthetic": { "connected": true, "status": "connected" },
-      "polar": { "connected": false, "status": "disconnected" }
+      "terra": { "connected": false, "status": "disconnected" }
     }
   }
 }
@@ -271,7 +271,7 @@ for provider in providers_to_check {
 ```json
 {
   "success": false,
-  "error": "Provider 'unknown_provider' is not supported. Supported providers: strava, garmin, fitbit, whoop, coros, synthetic, polar"
+  "error": "Provider 'unknown_provider' is not supported. Supported providers: strava, garmin, fitbit, whoop, coros, terra, synthetic"
 }
 ```
 
@@ -385,7 +385,7 @@ pub async fn get_all_activities_from_all_providers(
 }
 ```
 
-**Result**: Activities from Strava, Garmin, Fitbit, WHOOP, COROS, Polar all in one unified list!
+**Result**: Activities from Strava, Garmin, Fitbit, WHOOP, COROS, Terra all in one unified list!
 
 ## configuration best practices
 
