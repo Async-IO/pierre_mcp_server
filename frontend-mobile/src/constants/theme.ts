@@ -2,17 +2,18 @@
 // ABOUTME: Colors, spacing, and typography matching Pierre design system
 
 export const colors = {
-  // Pierre Design System - Primary brand colors
+  // Pierre Design System - Primary brand colors (Stitch UX Refresh)
   pierre: {
-    violet: '#7C3AED',
-    cyan: '#06B6D4',
-    // Three Pillars - Semantic accent colors (brightened for dark mode per Stitch)
-    activity: '#10B981',   // Emerald - Movement, fitness, energy
-    nutrition: '#FBBF24',  // Amber - Brightened for dark mode contrast
+    violet: '#8B5CF6',     // Primary, AI indicators, CTAs
+    cyan: '#22D3EE',       // Data viz, progress indicators
+    // Three Pillars - Semantic accent colors
+    activity: '#4ADE80',   // Success, health metrics, green
+    nutrition: '#F59E0B',  // Warnings, nutrition data, amber
     recovery: '#818CF8',   // Indigo - Brightened for dark mode contrast
+    red: '#FF6B6B',        // Errors, destructive actions
     // Dark theme
-    dark: '#0F0F1A',
-    slate: '#1E1E2E',
+    dark: '#0F0F1A',       // Page backgrounds
+    slate: '#1E1E2E',      // Card backgrounds
   },
 
   // Primary brand color (sky blue palette)
@@ -43,7 +44,7 @@ export const colors = {
     primary: '#ffffff',
     secondary: '#a1a1aa',  // zinc-400
     tertiary: '#71717a',   // zinc-500
-    accent: '#7C3AED',     // pierre-violet for accent
+    accent: '#8B5CF6',     // pierre-violet for accent
   },
 
   // Border colors - subtle white opacity borders
@@ -113,7 +114,7 @@ export const glassCard = {
   borderColor: 'rgba(255, 255, 255, 0.1)',
   borderWidth: 1,
   // Shadow for depth (iOS)
-  shadowColor: '#7C3AED',
+  shadowColor: '#8B5CF6',
   shadowOffset: { width: 0, height: 4 },
   shadowOpacity: 0.15,
   shadowRadius: 12,
@@ -123,7 +124,7 @@ export const glassCard = {
 
 // Glow effect for primary buttons
 export const buttonGlow = {
-  shadowColor: '#7C3AED',
+  shadowColor: '#8B5CF6',
   shadowOffset: { width: 0, height: 0 },
   shadowOpacity: 0.4,
   shadowRadius: 20,
@@ -133,7 +134,7 @@ export const buttonGlow = {
 // Gradient colors for premium effects
 export const gradients = {
   violetIndigo: ['rgba(124, 59, 237, 0.15)', 'rgba(79, 70, 229, 0.05)'],
-  violetCyan: ['#7C3AED', '#06B6D4'],
+  violetCyan: ['#8B5CF6', '#06B6D4'],
   darkOverlay: ['rgba(15, 15, 26, 0)', 'rgba(15, 15, 26, 0.8)'],
   aiGradient: ['rgba(124, 58, 237, 0.08)', 'rgba(30, 30, 46, 0.6)'],
 } as const;
@@ -143,7 +144,7 @@ export const gradients = {
 export const aiGlow = {
   // Subtle ambient glow for AI elements
   ambient: {
-    shadowColor: '#7C3AED',
+    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.15,
     shadowRadius: 20,
@@ -151,7 +152,7 @@ export const aiGlow = {
   },
   // Strong glow for prominent AI elements
   strong: {
-    shadowColor: '#7C3AED',
+    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.25,
     shadowRadius: 30,
@@ -159,7 +160,7 @@ export const aiGlow = {
   },
   // Avatar/icon glow
   avatar: {
-    shadowColor: '#7C3AED',
+    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.4,
     shadowRadius: 20,
@@ -167,7 +168,7 @@ export const aiGlow = {
   },
   // Thinking/processing state glow
   thinking: {
-    shadowColor: '#7C3AED',
+    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.5,
     shadowRadius: 25,
@@ -175,7 +176,7 @@ export const aiGlow = {
   },
   // Response glow for new AI messages
   response: {
-    shadowColor: '#7C3AED',
+    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.3,
     shadowRadius: 15,

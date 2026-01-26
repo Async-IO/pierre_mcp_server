@@ -1,4 +1,4 @@
-// ABOUTME: Bottom tab navigation for primary app screens (Chat, Social, Coaches, Settings)
+// ABOUTME: Bottom tab navigation for primary app screens (Home, Chat, Coaches, Activity, Profile)
 // ABOUTME: Each tab has its own stack navigator so detail screens keep the tab bar visible
 
 import React from 'react';
@@ -11,6 +11,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { colors, spacing } from '../constants/theme';
+import { HomeScreen } from '../screens/HomeScreen';
 import { ChatScreen } from '../screens/chat/ChatScreen';
 import { ConversationsScreen } from '../screens/conversations/ConversationsScreen';
 import { SocialFeedScreen } from '../screens/social/SocialFeedScreen';
@@ -32,6 +33,10 @@ import { AdaptedInsightScreen } from '../screens/social/AdaptedInsightScreen';
 import type { AdaptedInsight } from '../types';
 
 // Stack param lists for each tab
+export type HomeStackParamList = {
+  HomeMain: undefined;
+};
+
 export type ChatStackParamList = {
   ChatMain: { conversationId?: string } | undefined;
   Conversations: undefined;
@@ -64,19 +69,29 @@ export type SettingsStackParamList = {
 
 // Tab param list references the stacks
 export type MainTabsParamList = {
+  HomeTab: undefined;
   ChatTab: undefined;
-  SocialTab: undefined;
   CoachesTab: undefined;
+  SocialTab: undefined;
   SettingsTab: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabsParamList>();
+const HomeStack = createNativeStackNavigator<HomeStackParamList>();
 const ChatStack = createNativeStackNavigator<ChatStackParamList>();
 const SocialStack = createNativeStackNavigator<SocialStackParamList>();
 const CoachesStack = createNativeStackNavigator<CoachesStackParamList>();
 const SettingsStack = createNativeStackNavigator<SettingsStackParamList>();
 
 // Stack navigators for each tab
+function HomeStackScreen() {
+  return (
+    <HomeStack.Navigator screenOptions={{ headerShown: false }}>
+      <HomeStack.Screen name="HomeMain" component={HomeScreen} />
+    </HomeStack.Navigator>
+  );
+}
+
 function ChatStackScreen() {
   return (
     <ChatStack.Navigator screenOptions={{ headerShown: false }}>
@@ -135,12 +150,11 @@ function TabBarIcon({ focused, name, label }: TabBarIconProps) {
       <Feather
         name={name}
         size={22}
-        color={focused ? colors.primary[400] : colors.text.tertiary}
+        color={focused ? colors.pierre.violet : colors.text.tertiary}
       />
       <Text
-        className={`text-[10px] font-medium mt-0.5 ${
-          focused ? 'text-primary-400' : 'text-text-tertiary'
-        }`}
+        className={`text-[10px] font-medium mt-0.5`}
+        style={{ color: focused ? colors.pierre.violet : colors.text.tertiary }}
       >
         {label}
       </Text>
@@ -155,17 +169,18 @@ const activeIndicatorStyle: ViewStyle = {
   width: 4,
   height: 4,
   borderRadius: 2,
-  backgroundColor: colors.primary[400],
+  backgroundColor: colors.pierre.violet,
 };
 
 function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
 
   const tabConfig: Record<string, { icon: keyof typeof Feather.glyphMap; label: string }> = {
+    HomeTab: { icon: 'home', label: 'Home' },
     ChatTab: { icon: 'message-circle', label: 'Chat' },
-    SocialTab: { icon: 'users', label: 'Social' },
     CoachesTab: { icon: 'award', label: 'Coaches' },
-    SettingsTab: { icon: 'settings', label: 'Settings' },
+    SocialTab: { icon: 'activity', label: 'Activity' },
+    SettingsTab: { icon: 'user', label: 'Profile' },
   };
 
   return (
@@ -229,14 +244,14 @@ export function MainTabs() {
       }}
     >
       <Tab.Screen
+        name="HomeTab"
+        component={HomeStackScreen}
+        options={{ tabBarLabel: 'Home' }}
+      />
+      <Tab.Screen
         name="ChatTab"
         component={ChatStackScreen}
         options={{ tabBarLabel: 'Chat' }}
-      />
-      <Tab.Screen
-        name="SocialTab"
-        component={SocialStackScreen}
-        options={{ tabBarLabel: 'Social' }}
       />
       <Tab.Screen
         name="CoachesTab"
@@ -244,9 +259,14 @@ export function MainTabs() {
         options={{ tabBarLabel: 'Coaches' }}
       />
       <Tab.Screen
+        name="SocialTab"
+        component={SocialStackScreen}
+        options={{ tabBarLabel: 'Activity' }}
+      />
+      <Tab.Screen
         name="SettingsTab"
         component={SettingsStackScreen}
-        options={{ tabBarLabel: 'Settings' }}
+        options={{ tabBarLabel: 'Profile' }}
       />
     </Tab.Navigator>
   );
