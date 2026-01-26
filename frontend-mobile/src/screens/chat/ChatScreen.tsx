@@ -1037,16 +1037,28 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     const isUser = item.role === 'user';
     const isError = item.isError === true;
 
+    // Format timestamp
+    const timestamp = item.created_at ? new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
     return (
       <View className={`mb-4 ${isUser ? 'items-end' : ''}`}>
+        {/* Timestamp - muted zinc-500 per Stitch spec */}
+        <Text className="text-xs text-zinc-500 mb-1 px-1">{timestamp}</Text>
         <View
-          className={`flex-row max-w-[85%] rounded-xl p-4 ${
+          className={`flex-row max-w-[85%] rounded-2xl p-4 ${
             isUser
               ? 'rounded-br-[4px]'
-              : 'rounded-bl-[4px] bg-background-secondary'
+              : 'rounded-bl-[4px]'
           } ${isError ? 'border border-error' : ''}`}
           style={[
-            isUser ? { backgroundColor: colors.primary[600] } : undefined,
+            // User bubbles: violet (#8B5CF6) per Stitch spec
+            isUser ? { backgroundColor: colors.pierre.violet } : undefined,
+            // AI bubbles: glassmorphic dark slate per Stitch spec
+            !isUser && !isError ? {
+              backgroundColor: 'rgba(30, 30, 46, 0.9)',
+              borderWidth: 1,
+              borderColor: 'rgba(255, 255, 255, 0.1)',
+            } : undefined,
             isError ? { backgroundColor: 'rgba(239, 68, 68, 0.15)' } : undefined,
           ]}
         >
@@ -1107,7 +1119,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
                   <Ionicons
                     name={messageFeedback[item.id] === 'up' ? 'thumbs-up' : 'thumbs-up-outline'}
                     size={14}
-                    color={messageFeedback[item.id] === 'up' ? colors.primary[400] : colors.text.tertiary}
+                    color={messageFeedback[item.id] === 'up' ? colors.pierre.violet : colors.text.tertiary}
                   />
                 </TouchableOpacity>
                 {/* Thumbs Down */}
@@ -1144,17 +1156,26 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
 
   const renderThinkingIndicator = () => (
     <View className="mb-4">
-      <View className="flex-row max-w-[85%] rounded-xl rounded-bl-[4px] p-4 bg-background-secondary">
-        <View className="w-8 h-8 rounded-full mr-2 overflow-hidden">
+      <View
+        className="flex-row max-w-[85%] rounded-2xl rounded-bl-[4px] p-4"
+        style={{
+          backgroundColor: 'rgba(30, 30, 46, 0.9)',
+          borderWidth: 1,
+          borderColor: 'rgba(255, 255, 255, 0.1)',
+        }}
+      >
+        <View className="w-8 h-8 rounded-full mr-3 overflow-hidden">
           <Image
             source={require('../../../assets/pierre-logo.png')}
             className="w-8 h-8"
             resizeMode="cover"
           />
         </View>
-        <View className="flex-row items-center">
-          <ActivityIndicator size="small" color={colors.primary[500]} style={{ marginRight: spacing.sm }} />
-          <Text className="text-base text-text-secondary italic">Pierre is thinking...</Text>
+        {/* Pulsing dots typing indicator per Stitch spec */}
+        <View className="flex-row items-center gap-1">
+          <View className="w-2 h-2 rounded-full bg-pierre-violet opacity-60" />
+          <View className="w-2 h-2 rounded-full bg-pierre-violet opacity-80" />
+          <View className="w-2 h-2 rounded-full bg-pierre-violet" />
         </View>
       </View>
     </View>
@@ -1278,25 +1299,46 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        {/* Header with safe area inset for status bar */}
+        {/* Header with safe area inset for status bar - Stitch spec */}
         <View
           className="flex-row items-center px-4 py-2 border-b border-border-subtle"
           style={{ paddingTop: insets.top + spacing.sm }}
         >
+          {/* Back arrow or history button */}
           <TouchableOpacity
             className="w-10 h-10 items-center justify-center"
-            onPress={() => navigation.navigate('Conversations')}
+            onPress={() => currentConversation ? handleNewChat() : navigation.navigate('Conversations')}
             testID="history-button"
           >
-            <Ionicons name="time-outline" size={24} color={colors.text.primary} />
+            <Ionicons
+              name={currentConversation ? 'arrow-back' : 'time-outline'}
+              size={24}
+              color={colors.text.primary}
+            />
           </TouchableOpacity>
+
+          {/* Coach avatar with status dot when in conversation */}
+          {currentConversation && (
+            <View className="relative mr-2">
+              <View className="w-10 h-10 rounded-full overflow-hidden bg-pierre-slate items-center justify-center">
+                <Image
+                  source={require('../../../assets/pierre-logo.png')}
+                  className="w-10 h-10"
+                  resizeMode="cover"
+                />
+              </View>
+              {/* Pulsing green status dot per Stitch spec */}
+              <View className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-pierre-activity border-2 border-background-primary" />
+            </View>
+          )}
+
           <TouchableOpacity
-            className={`flex-1 flex-row items-center justify-center mx-2 ${actionMenuVisible ? 'opacity-0' : ''}`}
+            className={`flex-1 flex-row items-center ${currentConversation ? '' : 'justify-center'} mx-2 ${actionMenuVisible ? 'opacity-0' : ''}`}
             onPress={showTitleActionMenu}
             disabled={!currentConversation}
             testID="chat-title-button"
           >
-            <Text className="text-lg font-semibold text-text-primary text-center" numberOfLines={1} testID="chat-title">
+            <Text className="text-lg font-semibold text-text-primary" numberOfLines={1} testID="chat-title">
               {currentConversation?.title || 'New Chat'}
             </Text>
             {currentConversation && (
@@ -1332,9 +1374,57 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
           />
         )}
 
-        {/* Input Area */}
+        {/* Input Area with Suggestion Chips per Stitch spec */}
         <View className="absolute bottom-0 left-0 right-0 px-4 py-2 bg-background-primary">
-          <View className="flex-row items-end bg-background-secondary rounded-2xl border border-border-default px-4 py-1 min-h-[48px] max-h-[120px]">
+          {/* Suggestion Chips - show when no messages */}
+          {(messages?.length ?? 0) === 0 && !isSending && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              className="mb-2"
+              contentContainerStyle={{ gap: 8 }}
+            >
+              <TouchableOpacity
+                className="px-4 py-2 rounded-full"
+                style={{
+                  backgroundColor: 'rgba(139, 92, 246, 0.15)',
+                  borderWidth: 1,
+                  borderColor: 'rgba(139, 92, 246, 0.3)',
+                }}
+                onPress={() => handlePromptSelect('Analyze my last run')}
+              >
+                <Text className="text-sm text-pierre-violet">Analyze my last run</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="px-4 py-2 rounded-full"
+                style={{
+                  backgroundColor: 'rgba(139, 92, 246, 0.15)',
+                  borderWidth: 1,
+                  borderColor: 'rgba(139, 92, 246, 0.3)',
+                }}
+                onPress={() => handlePromptSelect('Weekly summary')}
+              >
+                <Text className="text-sm text-pierre-violet">Weekly summary</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="px-4 py-2 rounded-full"
+                style={{
+                  backgroundColor: 'rgba(139, 92, 246, 0.15)',
+                  borderWidth: 1,
+                  borderColor: 'rgba(139, 92, 246, 0.3)',
+                }}
+                onPress={() => handlePromptSelect('Training advice')}
+              >
+                <Text className="text-sm text-pierre-violet">Training advice</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          )}
+
+          <View className="flex-row items-end bg-background-secondary rounded-2xl border border-border-default px-3 py-1 min-h-[48px] max-h-[120px]">
+            {/* Paperclip icon per Stitch spec */}
+            <TouchableOpacity className="w-8 h-8 items-center justify-center mr-1">
+              <Ionicons name="attach-outline" size={22} color={colors.text.tertiary} />
+            </TouchableOpacity>
             <TextInput
               ref={inputRef}
               className="flex-1 text-base text-text-primary py-2 max-h-[100px]"
@@ -1356,11 +1446,12 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
               size="sm"
               testID="voice-input-button"
             />
+            {/* Violet send button per Stitch spec */}
             <TouchableOpacity
               className={`w-9 h-9 rounded-full items-center justify-center ml-2 ${
                 !inputText.trim() || isSending || isListening ? 'bg-background-tertiary' : ''
               }`}
-              style={inputText.trim() && !isSending && !isListening ? { backgroundColor: colors.primary[600] } : undefined}
+              style={inputText.trim() && !isSending && !isListening ? { backgroundColor: colors.pierre.violet } : undefined}
               onPress={handleSendMessage}
               disabled={!inputText.trim() || isSending || isListening}
               testID="send-button"
@@ -1368,7 +1459,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
               {isSending ? (
                 <ActivityIndicator size="small" color={colors.text.primary} />
               ) : (
-                <Text className="text-lg text-text-primary font-bold">{'>'}</Text>
+                <Ionicons name="arrow-up" size={20} color={colors.text.primary} />
               )}
             </TouchableOpacity>
           </View>

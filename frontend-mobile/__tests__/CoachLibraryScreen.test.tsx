@@ -178,7 +178,7 @@ describe('CoachLibraryScreen', () => {
       ];
       mockListCoaches.mockResolvedValue({ coaches });
 
-      const { getByText, queryByText } = render(
+      const { getByText, getByTestId, queryByText } = render(
         <CoachLibraryScreen navigation={mockNavigation as never} />
       );
 
@@ -187,8 +187,8 @@ describe('CoachLibraryScreen', () => {
         expect(getByText('Nutrition Coach')).toBeTruthy();
       });
 
-      // Filter by training
-      fireEvent.press(getByText('Training'));
+      // Filter by training using testID
+      fireEvent.press(getByTestId('category-filter-training'));
 
       await waitFor(() => {
         expect(getByText('Training Coach')).toBeTruthy();
@@ -204,7 +204,7 @@ describe('CoachLibraryScreen', () => {
       ];
       mockListCoaches.mockResolvedValue({ coaches });
 
-      const { getByText, queryByText } = render(
+      const { getByText, getByTestId, queryByText } = render(
         <CoachLibraryScreen navigation={mockNavigation as never} />
       );
 
@@ -214,8 +214,8 @@ describe('CoachLibraryScreen', () => {
         expect(getByText('Nutrition Coach')).toBeTruthy();
       });
 
-      // Filter by mobility
-      fireEvent.press(getByText('Mobility'));
+      // Filter by mobility using testID
+      fireEvent.press(getByTestId('category-filter-mobility'));
 
       await waitFor(() => {
         expect(getByText('Mobility Coach')).toBeTruthy();

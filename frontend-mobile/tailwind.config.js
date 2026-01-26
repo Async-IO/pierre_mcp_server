@@ -11,17 +11,18 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Pierre Design System - Brand Colors
+        // Pierre Design System - Brand Colors (Stitch UX Refresh)
         pierre: {
-          violet: '#7C3AED',
-          cyan: '#06B6D4',
+          violet: '#8B5CF6',    // Primary, AI indicators, CTAs
+          cyan: '#22D3EE',      // Data viz, progress indicators
           // Three Pillars (dark-mode optimized)
-          activity: '#10B981',
-          nutrition: '#FBBF24',  // Brightened for dark mode contrast
-          recovery: '#818CF8',   // Brightened for dark mode contrast
+          activity: '#4ADE80',  // Success, health metrics, green
+          nutrition: '#F59E0B', // Warnings, nutrition data, amber
+          recovery: '#818CF8',  // Brightened for dark mode contrast
+          red: '#FF6B6B',       // Errors, destructive actions
           // Dark theme
-          dark: '#0F0F1A',
-          slate: '#1E1E2E',
+          dark: '#0F0F1A',      // Page backgrounds
+          slate: '#1E1E2E',     // Card backgrounds
           // Extended palettes
           gray: {
             50: '#f9fafb',
@@ -88,7 +89,7 @@ module.exports = {
           primary: '#ffffff',
           secondary: '#a1a1aa',  // zinc-400
           tertiary: '#71717a',   // zinc-500
-          accent: '#7C3AED',     // pierre-violet
+          accent: '#8B5CF6',     // pierre-violet
         },
         border: {
           subtle: 'rgba(255, 255, 255, 0.05)',   // white/5

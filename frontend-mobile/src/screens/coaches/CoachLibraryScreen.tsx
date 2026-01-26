@@ -17,7 +17,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
-import { colors, spacing, glassCard } from '../../constants/theme';
+import { colors, spacing } from '../../constants/theme';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { PromptDialog, ScrollFadeContainer } from '../../components/ui';
@@ -47,23 +47,17 @@ const SOURCE_FILTERS: Array<{ key: CoachSource; label: string }> = [
   { key: 'system', label: 'System' },
 ];
 
-// Coach category colors matching web frontend
+// Coach category colors matching Stitch UX spec
 const COACH_CATEGORY_COLORS: Record<CoachCategory, string> = {
-  training: '#10B981',  // Green
-  nutrition: '#F59E0B', // Orange
-  recovery: '#6366F1',  // Indigo/Blue
-  recipes: '#F97316',   // Amber
+  training: '#4ADE80',  // Green per Stitch spec
+  nutrition: '#F59E0B', // Amber per Stitch spec
+  recovery: '#22D3EE',  // Cyan per Stitch spec
+  recipes: '#F59E0B',   // Amber
   mobility: '#EC4899',  // Pink - for stretching/yoga
-  custom: '#7C3AED',    // Purple
+  custom: '#8B5CF6',    // Violet per Stitch spec
 };
 
-// Glass card style with shadow (React Native shadows cannot use className)
-const coachCardStyle: ViewStyle = {
-  ...glassCard,
-  borderLeftWidth: 4,
-};
-
-// FAB shadow style
+// FAB shadow style with violet glow per Stitch spec
 const fabStyle: ViewStyle = {
   position: 'absolute',
   bottom: spacing.xl,
@@ -71,14 +65,14 @@ const fabStyle: ViewStyle = {
   width: 56,
   height: 56,
   borderRadius: 28,
-  backgroundColor: colors.primary[500],
+  backgroundColor: colors.pierre.violet,
   alignItems: 'center',
   justifyContent: 'center',
-  shadowColor: '#000',
+  shadowColor: colors.pierre.violet,
   shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 0.3,
-  shadowRadius: 6,
-  elevation: 6,
+  shadowOpacity: 0.4,
+  shadowRadius: 12,
+  elevation: 8,
 };
 
 // Action menu shadow style
@@ -354,53 +348,130 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
   };
 
   const renderCoachCard = ({ item }: { item: Coach }) => {
-    const isSystemCoach = item.is_system;
     const isHidden = item.is_hidden;
+    const categoryColor = COACH_CATEGORY_COLORS[item.category];
 
     return (
       <TouchableOpacity
         style={[
-          coachCardStyle,
-          { borderLeftColor: COACH_CATEGORY_COLORS[item.category] },
-          isHidden && { opacity: 0.6, borderStyle: 'dashed' },
+          {
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            borderWidth: 1,
+            borderColor: 'rgba(255, 255, 255, 0.1)',
+            borderRadius: 16,
+          },
+          isHidden && { opacity: 0.6 },
         ]}
-        className="rounded-lg p-3"
+        className="p-4"
         onPress={() => handleCoachPress(item)}
         onLongPress={() => handleCoachLongPress(item)}
         delayLongPress={300}
         activeOpacity={0.7}
         testID={`coach-card-${item.id}`}
       >
-        <View className="flex-row items-center justify-between mb-1">
-          <View className="flex-1 flex-row items-center gap-1 mr-2">
-            <Text className={`flex-shrink text-base font-semibold ${isHidden ? 'text-text-tertiary' : 'text-text-primary'}`} numberOfLines={1}>
-              {item.title}
+        <View className="flex-row items-start">
+          {/* Coach Avatar/Icon */}
+          <View
+            className="w-12 h-12 rounded-xl items-center justify-center mr-3"
+            style={{ backgroundColor: `${categoryColor}20` }}
+          >
+            <Text className="text-xl">
+              {item.category === 'training' ? '🏃' :
+               item.category === 'nutrition' ? '🥗' :
+               item.category === 'recovery' ? '😴' :
+               item.category === 'recipes' ? '👨‍🍳' :
+               item.category === 'mobility' ? '🧘' : '⚙️'}
             </Text>
-            {isSystemCoach && (
-              <View className="px-1 py-0.5 rounded" style={{ backgroundColor: colors.primary[500] + '30' }}>
-                <Text className="text-xs font-semibold text-primary-500">System</Text>
+          </View>
+
+          <View className="flex-1">
+            {/* Title and badges row */}
+            <View className="flex-row items-center gap-2 mb-1">
+              <Text className={`text-base font-semibold ${isHidden ? 'text-zinc-500' : 'text-white'}`} numberOfLines={1}>
+                {item.title}
+              </Text>
+              {/* Category badge with color per Stitch spec */}
+              <View
+                className="px-2 py-0.5 rounded-full"
+                style={{ backgroundColor: `${categoryColor}20` }}
+              >
+                <Text className="text-xs font-medium" style={{ color: categoryColor }}>
+                  {item.category.charAt(0).toUpperCase() + item.category.slice(1)}
+                </Text>
               </View>
-            )}
-            {isHidden && (
-              <Feather name="eye-off" size={14} color={colors.text.tertiary} style={{ marginLeft: spacing.xs }} />
+            </View>
+
+            {/* Star rating (use count as proxy) and favorite button */}
+            <View className="flex-row items-center gap-1 mb-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Feather
+                  key={star}
+                  name="star"
+                  size={12}
+                  color={item.use_count >= star * 2 ? '#F59E0B' : colors.text.tertiary}
+                />
+              ))}
+              <TouchableOpacity
+                className="ml-2 p-0.5"
+                onPress={() => handleToggleFavorite(item)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                testID={`favorite-button-${item.id}`}
+              >
+                <Feather
+                  name="heart"
+                  size={14}
+                  color={item.is_favorite ? colors.pierre.violet : colors.text.tertiary}
+                />
+              </TouchableOpacity>
+            </View>
+
+            {/* Description */}
+            {item.description && (
+              <Text className={`text-sm leading-5 ${isHidden ? 'text-zinc-600' : 'text-zinc-400'}`} numberOfLines={2}>
+                {item.description}
+              </Text>
             )}
           </View>
-          <View className="flex-row items-center gap-1">
+
+          {/* Chat button with violet glow per Stitch spec */}
+          <TouchableOpacity
+            className="px-4 py-2 rounded-full ml-2"
+            style={{
+              backgroundColor: colors.pierre.violet,
+              shadowColor: colors.pierre.violet,
+              shadowOffset: { width: 0, height: 0 },
+              shadowOpacity: 0.4,
+              shadowRadius: 8,
+              elevation: 4,
+            }}
+            onPress={() => handleCoachPress(item)}
+            testID={`chat-button-${item.id}`}
+          >
+            <Text className="text-sm font-semibold text-white">Chat</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Action row for system coaches and hidden coaches */}
+        {(item.is_system || isHidden) && (
+          <View className="flex-row items-center justify-end mt-3 pt-2 border-t border-white/5 gap-2">
             {/* Fork button for system coaches */}
-            {isSystemCoach && (
+            {item.is_system && (
               <TouchableOpacity
-                className="p-1"
+                className="flex-row items-center px-2 py-1 rounded"
+                style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)' }}
                 onPress={() => handleForkCoach(item)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 testID={`fork-button-${item.id}`}
               >
-                <Feather name="copy" size={16} color={colors.text.tertiary} />
+                <Feather name="copy" size={14} color={colors.text.tertiary} />
+                <Text className="text-xs text-zinc-500 ml-1">Fork</Text>
               </TouchableOpacity>
             )}
-            {/* Hide/Show button for system coaches */}
-            {isSystemCoach && (
+            {/* Hide/Show button */}
+            {item.is_system && (
               <TouchableOpacity
-                className="p-1"
+                className="flex-row items-center px-2 py-1 rounded"
+                style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)' }}
                 onPress={() => {
                   if (isHidden) {
                     handleShowCoach(item);
@@ -413,67 +484,54 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
               >
                 <Feather
                   name={isHidden ? 'eye' : 'eye-off'}
-                  size={16}
-                  color={isHidden ? colors.primary[400] : colors.text.tertiary}
+                  size={14}
+                  color={isHidden ? colors.pierre.violet : colors.text.tertiary}
                 />
+                <Text className="text-xs text-zinc-500 ml-1">{isHidden ? 'Show' : 'Hide'}</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity
-              className="p-1"
-              onPress={() => handleToggleFavorite(item)}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              testID={`favorite-button-${item.id}`}
-            >
-              <Feather
-                name="star"
-                size={18}
-                color={item.is_favorite ? '#F59E0B' : colors.text.tertiary}
-                fill={item.is_favorite ? '#F59E0B' : 'none'}
-              />
-            </TouchableOpacity>
+            {/* Hidden indicator */}
+            {isHidden && !item.is_system && (
+              <View className="flex-row items-center">
+                <Feather name="eye-off" size={14} color={colors.text.tertiary} />
+                <Text className="text-xs text-zinc-500 ml-1">Hidden</Text>
+              </View>
+            )}
           </View>
-        </View>
-        <Text className={`text-sm mb-1 ${isHidden ? 'text-text-tertiary' : 'text-text-secondary'}`}>
-          ~{Math.ceil(item.token_count / 4)} tokens ({((item.token_count / 128000) * 100).toFixed(1)}% context)
-        </Text>
-        {item.description && (
-          <Text className={`text-sm leading-5 mb-2 ${isHidden ? 'text-text-tertiary' : 'text-text-secondary'}`} numberOfLines={2}>
-            {item.description}
-          </Text>
         )}
-        <View className="border-t border-border-subtle pt-2 mt-1">
-          <Text className={`text-sm ${isHidden ? 'text-text-tertiary' : 'text-text-tertiary'}`}>
-            Used {item.use_count} times
-          </Text>
-        </View>
       </TouchableOpacity>
     );
   };
 
   const renderCategoryFilter = () => (
-    <View className="flex-row items-center py-2 border-b border-border-subtle">
+    <View className="flex-row items-center py-3 border-b border-border-subtle">
       <ScrollFadeContainer
         backgroundColor={colors.background.primary}
         fadeWidth={40}
-        contentContainerStyle={{ paddingHorizontal: spacing.md, gap: spacing.xs }}
+        contentContainerStyle={{ paddingHorizontal: spacing.md, gap: spacing.sm }}
         testID="category-filter-scroll"
       >
         {CATEGORY_FILTERS.map((filter) => (
           <TouchableOpacity
             key={filter.key}
-            className={`px-3 py-1 rounded-full border ${
-              selectedCategory === filter.key
-                ? 'bg-primary-500 border-primary-500'
-                : 'bg-background-secondary border-border-subtle'
-            }`}
+            className="px-4 py-2 rounded-full"
+            style={{
+              backgroundColor: selectedCategory === filter.key
+                ? colors.pierre.violet
+                : 'rgba(255, 255, 255, 0.05)',
+              borderWidth: 1,
+              borderColor: selectedCategory === filter.key
+                ? colors.pierre.violet
+                : 'rgba(255, 255, 255, 0.1)',
+            }}
             onPress={() => setSelectedCategory(filter.key)}
             testID={`category-filter-${filter.key}`}
           >
             <Text
               className={`text-sm ${
                 selectedCategory === filter.key
-                  ? 'text-text-primary font-semibold'
-                  : 'text-text-secondary'
+                  ? 'text-white font-semibold'
+                  : 'text-zinc-400'
               }`}
             >
               {filter.label}
@@ -485,24 +543,34 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
   );
 
   const renderSourceFilter = () => (
-    <View className="flex-row justify-center items-center py-1 px-3 gap-2 border-b border-border-subtle">
+    <View className="flex-row justify-center items-center py-2 px-4 gap-3">
       {SOURCE_FILTERS.map((filter) => (
         <TouchableOpacity
           key={filter.key}
-          className={`px-3 py-1 rounded-full border ${
-            selectedSource === filter.key
-              ? 'bg-primary-600 border-primary-600'
-              : 'bg-background-tertiary border-border-subtle'
-          }`}
+          className="px-3 py-1.5 rounded-full"
+          style={{
+            backgroundColor: selectedSource === filter.key
+              ? 'rgba(139, 92, 246, 0.2)'
+              : 'transparent',
+            borderWidth: 1,
+            borderColor: selectedSource === filter.key
+              ? colors.pierre.violet
+              : 'transparent',
+          }}
           onPress={() => setSelectedSource(filter.key)}
           testID={`source-filter-${filter.key}`}
         >
           <Text
             className={`text-xs ${
               selectedSource === filter.key
-                ? 'text-text-primary font-semibold'
-                : 'text-text-secondary'
+                ? 'font-semibold'
+                : ''
             }`}
+            style={{
+              color: selectedSource === filter.key
+                ? colors.pierre.violet
+                : colors.text.secondary,
+            }}
           >
             {filter.label}
           </Text>
@@ -513,13 +581,19 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
 
   return (
     <SafeAreaView className="flex-1 bg-background-primary" testID="coach-library-screen">
-      {/* Header */}
-      <View className="flex-row items-center px-3 py-2 border-b border-border-subtle">
-        <View className="w-10" />
-        <Text className="flex-1 text-lg font-semibold text-text-primary text-center">My Coaches</Text>
-        <View className="flex-row items-center gap-1">
+      {/* Header with bold title and search icon per Stitch spec */}
+      <View className="flex-row items-center px-4 py-3 border-b border-border-subtle">
+        <Text className="flex-1 text-xl font-bold text-white">Coaches</Text>
+        <View className="flex-row items-center gap-2">
           <TouchableOpacity
-            className={`w-9 h-9 items-center justify-center rounded-full ${showFavoritesOnly ? 'bg-primary-500/20' : ''}`}
+            className="w-10 h-10 items-center justify-center"
+            onPress={() => navigation.navigate('Store')}
+            testID="search-button"
+          >
+            <Feather name="search" size={22} color={colors.text.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            className={`w-10 h-10 items-center justify-center rounded-full ${showFavoritesOnly ? 'bg-pierre-violet/20' : ''}`}
             onPress={() => setShowFavoritesOnly(!showFavoritesOnly)}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             testID="favorites-toggle"
@@ -531,7 +605,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
             />
           </TouchableOpacity>
           <TouchableOpacity
-            className={`w-9 h-9 items-center justify-center rounded-full ${showHidden ? 'bg-primary-500/20' : ''}`}
+            className={`w-10 h-10 items-center justify-center rounded-full ${showHidden ? 'bg-pierre-violet/20' : ''}`}
             onPress={() => setShowHidden(!showHidden)}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             testID="show-hidden-toggle"
@@ -539,7 +613,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
             <Feather
               name={showHidden ? 'eye' : 'eye-off'}
               size={20}
-              color={showHidden ? colors.primary[400] : colors.text.tertiary}
+              color={showHidden ? colors.pierre.violet : colors.text.tertiary}
             />
           </TouchableOpacity>
         </View>
