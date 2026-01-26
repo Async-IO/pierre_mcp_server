@@ -101,15 +101,6 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
     }
   };
 
-  const loadProviderStatus = async () => {
-    try {
-      const response = await apiService.getOAuthStatus();
-      setConnectedProviders(response.providers || []);
-    } catch (error) {
-      console.error('Failed to load provider status:', error);
-    }
-  };
-
   const handleCreateToken = async () => {
     if (!newTokenName.trim()) {
       Alert.alert('Error', 'Please enter a token name');
