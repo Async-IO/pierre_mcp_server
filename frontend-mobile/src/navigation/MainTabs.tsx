@@ -30,6 +30,7 @@ import { ConnectionsScreen } from '../screens/connections/ConnectionsScreen';
 import { SocialSettingsScreen } from '../screens/social/SocialSettingsScreen';
 import { ShareInsightScreen } from '../screens/social/ShareInsightScreen';
 import { AdaptedInsightScreen } from '../screens/social/AdaptedInsightScreen';
+import { ActivityDetailScreen } from '../screens/ActivityDetailScreen';
 import type { AdaptedInsight } from '../types';
 
 // Stack param lists for each tab
@@ -51,6 +52,7 @@ export type SocialStackParamList = {
   AdaptedInsight: { adaptedInsight: AdaptedInsight };
   ShareInsight: { activityId?: string } | undefined;
   SocialSettings: undefined;
+  ActivityDetail: { activityId?: string } | undefined;
 };
 
 export type CoachesStackParamList = {
@@ -112,6 +114,7 @@ function SocialStackScreen() {
       <SocialStack.Screen name="AdaptedInsight" component={AdaptedInsightScreen} />
       <SocialStack.Screen name="ShareInsight" component={ShareInsightScreen} />
       <SocialStack.Screen name="SocialSettings" component={SocialSettingsScreen} />
+      <SocialStack.Screen name="ActivityDetail" component={ActivityDetailScreen} />
     </SocialStack.Navigator>
   );
 }
