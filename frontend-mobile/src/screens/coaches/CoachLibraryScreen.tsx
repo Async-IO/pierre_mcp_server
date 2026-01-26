@@ -451,11 +451,52 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
           </TouchableOpacity>
         </View>
 
-        {/* Hidden indicator */}
-        {isHidden && (
-          <View className="flex-row items-center mt-2">
-            <Feather name="eye-off" size={14} color={colors.text.tertiary} />
-            <Text className="text-xs text-zinc-500 ml-1">Hidden</Text>
+        {/* Action row for system coaches and hidden coaches */}
+        {(item.is_system || isHidden) && (
+          <View className="flex-row items-center justify-end mt-3 pt-2 border-t border-white/5 gap-2">
+            {/* Fork button for system coaches */}
+            {item.is_system && (
+              <TouchableOpacity
+                className="flex-row items-center px-2 py-1 rounded"
+                style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)' }}
+                onPress={() => handleForkCoach(item)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                testID={`fork-button-${item.id}`}
+              >
+                <Feather name="copy" size={14} color={colors.text.tertiary} />
+                <Text className="text-xs text-zinc-500 ml-1">Fork</Text>
+              </TouchableOpacity>
+            )}
+            {/* Hide/Show button */}
+            {item.is_system && (
+              <TouchableOpacity
+                className="flex-row items-center px-2 py-1 rounded"
+                style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)' }}
+                onPress={() => {
+                  if (isHidden) {
+                    handleShowCoach(item);
+                  } else {
+                    handleHideCoach(item);
+                  }
+                }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                testID={`hide-button-${item.id}`}
+              >
+                <Feather
+                  name={isHidden ? 'eye' : 'eye-off'}
+                  size={14}
+                  color={isHidden ? colors.pierre.violet : colors.text.tertiary}
+                />
+                <Text className="text-xs text-zinc-500 ml-1">{isHidden ? 'Show' : 'Hide'}</Text>
+              </TouchableOpacity>
+            )}
+            {/* Hidden indicator */}
+            {isHidden && !item.is_system && (
+              <View className="flex-row items-center">
+                <Feather name="eye-off" size={14} color={colors.text.tertiary} />
+                <Text className="text-xs text-zinc-500 ml-1">Hidden</Text>
+              </View>
+            )}
           </View>
         )}
       </TouchableOpacity>
