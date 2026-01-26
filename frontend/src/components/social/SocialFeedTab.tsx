@@ -112,7 +112,7 @@ export default function SocialFeedTab() {
         setIsLoading(true);
       }
 
-      const response = await apiService.getSocialFeed(cursor, 20);
+      const response = await apiService.getSocialFeed({ cursor: cursor ?? undefined, limit: 20 });
 
       // Cast response items to FeedItem[] - API ensures fields are present
       const items = response.items as unknown as FeedItem[];
@@ -165,14 +165,25 @@ export default function SocialFeedTab() {
         );
       } else {
         // Add or change reaction
-        const response = await apiService.addReaction(insightId, reactionType);
+        await apiService.addReaction(insightId, reactionType);
         setFeedItems(prev =>
           prev.map(i => {
             if (i.insight.id === insightId) {
+              const oldReaction = i.user_reaction;
+              const newReactions = { ...i.reactions } as Record<string, number>;
+              // Decrement old reaction if exists
+              if (oldReaction && newReactions[oldReaction]) {
+                newReactions[oldReaction] = Math.max(0, newReactions[oldReaction] - 1);
+              }
+              // Increment new reaction
+              newReactions[reactionType] = (newReactions[reactionType] || 0) + 1;
+              if (oldReaction !== reactionType) {
+                newReactions.total = (newReactions.total || 0) + (oldReaction ? 0 : 1);
+              }
               return {
                 ...i,
                 user_reaction: reactionType,
-                reactions: response.updated_counts,
+                reactions: newReactions as unknown as typeof i.reactions,
               };
             }
             return i;

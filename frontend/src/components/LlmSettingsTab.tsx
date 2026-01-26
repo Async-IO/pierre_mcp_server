@@ -101,7 +101,7 @@ export default function LlmSettingsTab() {
 
       setValidationResult({
         valid: result.valid,
-        models: result.models || undefined,
+        models: (result as { models?: string[] }).models || undefined,
         error: result.error || undefined,
       });
     } catch (error) {
@@ -203,7 +203,7 @@ export default function LlmSettingsTab() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="font-medium text-pierre-gray-900">{provider.display_name}</h3>
-                    {provider.has_credentials && getSourceBadge(provider.credential_source)}
+                    {provider.has_credentials && getSourceBadge(provider.credential_source ?? null)}
                     {provider.name === currentProvider && (
                       <Badge variant="success">Active</Badge>
                     )}

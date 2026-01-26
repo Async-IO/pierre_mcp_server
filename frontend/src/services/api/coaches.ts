@@ -5,25 +5,10 @@
 // ABOUTME: Handles user-created coaches and coach library functionality
 
 import { axios } from './client';
+import type { Coach } from '@pierre/shared-types';
 
-// Common Coach type used across responses
-export interface Coach {
-  id: string;
-  title: string;
-  description: string | null;
-  system_prompt: string;
-  category: string;
-  tags: string[];
-  token_count: number;
-  is_favorite: boolean;
-  use_count: number;
-  last_used_at: string | null;
-  created_at: string;
-  updated_at: string;
-  is_system: boolean;
-  visibility: string;
-  is_assigned: boolean;
-}
+// Re-export Coach type for backward compatibility
+export type { Coach } from '@pierre/shared-types';
 
 export const coachesApi = {
   async getCoaches(options?: {

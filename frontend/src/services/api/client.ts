@@ -1,15 +1,24 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-// ABOUTME: Base API client with axios setup, interceptors, and CSRF token management
-// ABOUTME: Shared by all domain-specific API modules
+// ABOUTME: Base API client with axios setup and @pierre/api-client integration
+// ABOUTME: Provides shared Pierre API instance and local axios for web-only modules
 
 import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
+import { createPierreApi, type PierreApiService } from '@pierre/api-client';
+import { createWebAdapter } from '@pierre/api-client/adapters/web';
 
 // In development, use empty string to leverage Vite proxy (avoids CORS issues)
 // In production, use VITE_API_BASE_URL environment variable
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
+// Create Pierre API instance using shared package
+const webAdapter = createWebAdapter({
+  baseURL: API_BASE_URL || window.location.origin,
+});
+export const pierreApi: PierreApiService = createPierreApi(webAdapter);
+
+// Legacy ApiClient class for backward compatibility and web-only modules
 class ApiClient {
   private csrfToken: string | null = null;
   private initialized = false;
@@ -21,7 +30,7 @@ class ApiClient {
   private initialize() {
     if (this.initialized) return;
 
-    // Set up axios defaults
+    // Set up axios defaults for web-only modules (admin, keys, dashboard, a2a)
     axios.defaults.baseURL = API_BASE_URL;
     axios.defaults.headers.common['Content-Type'] = 'application/json';
 
@@ -102,5 +111,5 @@ class ApiClient {
 // Export singleton instance
 export const apiClient = new ApiClient();
 
-// Re-export axios for use in domain modules
+// Re-export axios for use in web-only domain modules (admin, keys, dashboard, a2a)
 export { axios };

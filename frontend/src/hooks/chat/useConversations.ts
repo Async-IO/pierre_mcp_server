@@ -8,17 +8,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../../services/api';
 import { QUERY_KEYS } from '../../constants/queryKeys';
-
-interface Conversation {
-  id: string;
-  title: string;
-  model: string;
-  system_prompt?: string;
-  total_tokens: number;
-  message_count: number;
-  created_at: string;
-  updated_at: string;
-}
+import type { Conversation } from '@pierre/shared-types';
 
 interface Message {
   id: string;
@@ -43,7 +33,7 @@ export function useConversations(options: UseConversationsOptions = {}) {
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
   const [editedTitleValue, setEditedTitleValue] = useState('');
-  const [deleteConfirmation, setDeleteConfirmation] = useState<{ id: string; title: string } | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{ id: string; title: string | null } | null>(null);
   const [pendingSystemPrompt, setPendingSystemPrompt] = useState<string | null>(null);
 
   // Fetch conversations
@@ -118,7 +108,7 @@ export function useConversations(options: UseConversationsOptions = {}) {
   const handleStartRename = (e: React.MouseEvent, conv: Conversation) => {
     e.stopPropagation();
     setEditingTitle(conv.id);
-    setEditedTitleValue(conv.title);
+    setEditedTitleValue(conv.title ?? '');
   };
 
   const handleSaveRename = (convId: string) => {

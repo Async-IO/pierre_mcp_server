@@ -1,0 +1,10 @@
+{
+  "name": "@pierre/tsconfig",
+  "version": "1.0.0",
+  "description": "Shared TypeScript configuration for Pierre frontend applications",
+  "main": "",
+  "files": [
+    "*.json"
+  ],
+  "private": true
+}

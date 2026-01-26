@@ -9,21 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { X, Users, Eye, EyeOff, Pencil, Trash2 } from 'lucide-react';
 import { apiService } from '../services/api';
 import { Card } from './ui';
-
-interface Coach {
-  id: string;
-  title: string;
-  description: string | null;
-  system_prompt: string;
-  category: string;
-  tags: string[];
-  token_count: number;
-  is_favorite: boolean;
-  use_count: number;
-  last_used_at: string | null;
-  is_system: boolean;
-  is_assigned: boolean;
-}
+import type { Coach } from '@pierre/shared-types';
 
 interface PromptSuggestionsProps {
   onSelectPrompt: (prompt: string, coachId?: string, systemPrompt?: string) => void;

@@ -150,7 +150,7 @@ export default function SystemCoachesTab() {
         system_prompt: selectedCoach.system_prompt,
         category: selectedCoach.category,
         tags: selectedCoach.tags.join(', '),
-        visibility: selectedCoach.visibility,
+        visibility: selectedCoach.visibility || 'private',
       });
     }
   }, [isEditing, selectedCoach]);

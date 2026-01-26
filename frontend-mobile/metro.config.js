@@ -1,10 +1,33 @@
-// ABOUTME: Metro bundler configuration for Expo with NativeWind v4
-// ABOUTME: Enables CSS support for Tailwind-style classes in React Native
+// ABOUTME: Metro bundler configuration for Expo with NativeWind v4 and npm workspaces
+// ABOUTME: Enables CSS support for Tailwind-style classes and resolves workspace packages
 
 const { getDefaultConfig } = require('expo/metro-config');
 const { withNativeWind } = require('nativewind/metro');
+const path = require('path');
 
-const config = getDefaultConfig(__dirname);
+// Get the project root (monorepo root)
+const projectRoot = __dirname;
+const monorepoRoot = path.resolve(projectRoot, '..');
+
+const config = getDefaultConfig(projectRoot);
+
+// Watch all files in the monorepo
+config.watchFolders = [monorepoRoot];
+
+// Let Metro know where to resolve packages from
+config.resolver.nodeModulesPaths = [
+  path.resolve(projectRoot, 'node_modules'),
+  path.resolve(monorepoRoot, 'node_modules'),
+];
+
+// Resolve packages from the monorepo root
+config.resolver.disableHierarchicalLookup = false;
+
+// Ensure @pierre/* packages resolve correctly
+config.resolver.extraNodeModules = {
+  '@pierre/shared-types': path.resolve(monorepoRoot, 'packages/shared-types'),
+  '@pierre/shared-constants': path.resolve(monorepoRoot, 'packages/shared-constants'),
+};
 
 // Use port 8082 to avoid conflict with Pierre MCP server on 8081
 config.server = {

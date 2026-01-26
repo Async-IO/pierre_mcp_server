@@ -86,7 +86,7 @@ export default function Register({ onNavigateToLogin, onRegistrationSuccess }: R
     setIsLoading(true);
 
     try {
-      const response = await apiService.register(email, password, displayName || undefined);
+      const response = await apiService.register({ email, password, display_name: displayName || undefined });
       onRegistrationSuccess(response.message);
     } catch (err: unknown) {
       const apiError = err as { response?: { data?: { message?: string; error?: string } } };

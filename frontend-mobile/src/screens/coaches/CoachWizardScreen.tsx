@@ -26,7 +26,7 @@ import {
 import { colors, spacing } from '../../constants/theme';
 import { apiService } from '../../services/api';
 import { CoachVersionHistoryModal } from '../../components/CoachVersionHistoryModal';
-import type { CoachCategory, CreateCoachRequest, UpdateCoachRequest } from '../../types';
+import type { CreateCoachRequest, UpdateCoachRequest } from '../../types';
 import type { CoachesStackParamList } from '../../navigation/MainTabs';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -37,7 +37,7 @@ interface CoachWizardScreenProps {
 }
 
 // Category options with colors
-const CATEGORY_OPTIONS: Array<{ key: CoachCategory; label: string; color: string }> = [
+const CATEGORY_OPTIONS: Array<{ key: string; label: string; color: string }> = [
   { key: 'training', label: 'Training', color: '#10B981' },
   { key: 'nutrition', label: 'Nutrition', color: '#F59E0B' },
   { key: 'recovery', label: 'Recovery', color: '#6366F1' },
@@ -65,7 +65,7 @@ export function CoachWizardScreen({ navigation }: CoachWizardScreenProps) {
   // Form state
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState<CoachCategory>('custom');
+  const [category, setCategory] = useState<string>('custom');
   const [tags, setTags] = useState<string[]>([]);
   const [newTag, setNewTag] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');

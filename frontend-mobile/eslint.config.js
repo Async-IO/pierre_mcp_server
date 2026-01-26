@@ -1,11 +1,18 @@
-// ABOUTME: ESLint flat config for React Native/Expo mobile app
-// ABOUTME: Enforces TypeScript and React best practices
+// ABOUTME: ESLint configuration for Pierre Mobile app (React Native/Expo)
+// ABOUTME: Uses shared @pierre/eslint-config for consistent standards
 
 import js from '@eslint/js';
 import tsParser from '@typescript-eslint/parser';
 import tsPlugin from '@typescript-eslint/eslint-plugin';
 import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
+// Import shared ESLint rules via relative path (mobile is outside npm workspaces)
+import {
+  baseTypeScriptRules,
+  baseReactRules,
+  reactHooksRules,
+  testFileRules,
+} from '../packages/eslint-config-pierre/index.js';
 
 // React Native / Browser globals
 const rnGlobals = {
@@ -76,23 +83,12 @@ export default [
       'react-hooks': reactHooksPlugin,
     },
     rules: {
-      // TypeScript rules
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
-      '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/explicit-function-return-type': 'off',
-      '@typescript-eslint/explicit-module-boundary-types': 'off',
-
-      // React rules
-      'react/react-in-jsx-scope': 'off',
-      'react/prop-types': 'off',
-
-      // React Hooks rules
-      'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'warn',
-
-      // General rules
+      // Shared rules from @pierre/eslint-config
+      ...baseTypeScriptRules,
+      ...baseReactRules,
+      ...reactHooksRules,
+      // Mobile-specific rules
       'no-console': 'off',
-      'no-unused-vars': 'off',
     },
     settings: {
       react: {
@@ -123,11 +119,9 @@ export default [
       'react-hooks': reactHooksPlugin,
     },
     rules: {
-      '@typescript-eslint/no-unused-vars': 'off',
-      '@typescript-eslint/no-explicit-any': 'off',
+      // Shared test file rules from @pierre/eslint-config
+      ...testFileRules,
       'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'off',
-      'no-unused-vars': 'off',
     },
     settings: {
       react: {

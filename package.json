@@ -1,4 +1,15 @@
 {
+  "name": "pierre-mcp-server",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "frontend"
+  ],
+  "scripts": {
+    "typecheck:packages": "npm run typecheck --workspaces --if-present",
+    "lint:packages": "npm run lint --workspaces --if-present",
+    "test:packages": "npm run test --workspaces --if-present"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.18.2"
   }

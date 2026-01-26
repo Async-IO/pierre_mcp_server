@@ -287,8 +287,8 @@ export default function UserManagement() {
                     <h4 className="font-medium text-white">
                       {user.display_name || 'Unnamed User'}
                     </h4>
-                    <Badge variant={getStatusBadgeVariant(user.user_status)} className="text-xs">
-                      {user.user_status}
+                    <Badge variant={getStatusBadgeVariant(user.user_status || user.status || 'pending')} className="text-xs">
+                      {user.user_status || user.status || 'pending'}
                     </Badge>
                     <span className="text-xs text-zinc-400 capitalize bg-white/10 px-2 py-1 rounded">
                       {user.tier}
@@ -297,7 +297,7 @@ export default function UserManagement() {
                   <p className="text-sm text-zinc-400 mb-2">{user.email}</p>
                   <div className="flex items-center space-x-4 text-xs text-zinc-500">
                     <span>Registered: {formatDate(user.created_at)}</span>
-                    <span>Last active: {formatDate(user.last_active)}</span>
+                    <span>Last active: {user.last_active ? formatDate(user.last_active) : 'Never'}</span>
                     {user.approved_by && (
                       <span>Approved: {formatDate(user.approved_at!)}</span>
                     )}

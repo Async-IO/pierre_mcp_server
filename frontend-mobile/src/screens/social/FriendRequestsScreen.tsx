@@ -18,7 +18,7 @@ import { colors, spacing } from '../../constants/theme';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { RequestCard } from '../../components/social/FriendCard';
-import type { FriendConnection } from '../../types';
+import type { PendingRequestWithInfo } from '@pierre/shared-types';
 import type { SocialStackParamList } from '../../navigation/MainTabs';
 
 type NavigationProp = NativeStackNavigationProp<SocialStackParamList>;
@@ -28,8 +28,8 @@ export function FriendRequestsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { isAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('incoming');
-  const [incomingRequests, setIncomingRequests] = useState<FriendConnection[]>([]);
-  const [outgoingRequests, setOutgoingRequests] = useState<FriendConnection[]>([]);
+  const [incomingRequests, setIncomingRequests] = useState<PendingRequestWithInfo[]>([]);
+  const [outgoingRequests, setOutgoingRequests] = useState<PendingRequestWithInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
@@ -61,7 +61,7 @@ export function FriendRequestsScreen() {
     }, [loadRequests])
   );
 
-  const handleAccept = async (request: FriendConnection) => {
+  const handleAccept = async (request: PendingRequestWithInfo) => {
     try {
       setProcessingIds(prev => new Set(prev).add(request.id));
       await apiService.acceptFriendRequest(request.id);
@@ -77,7 +77,7 @@ export function FriendRequestsScreen() {
     }
   };
 
-  const handleDecline = async (request: FriendConnection) => {
+  const handleDecline = async (request: PendingRequestWithInfo) => {
     try {
       setProcessingIds(prev => new Set(prev).add(request.id));
       await apiService.declineFriendRequest(request.id);
@@ -93,7 +93,7 @@ export function FriendRequestsScreen() {
     }
   };
 
-  const handleCancel = async (request: FriendConnection) => {
+  const handleCancel = async (request: PendingRequestWithInfo) => {
     try {
       setProcessingIds(prev => new Set(prev).add(request.id));
       await apiService.removeFriend(request.id);
@@ -109,7 +109,7 @@ export function FriendRequestsScreen() {
     }
   };
 
-  const renderRequest = ({ item }: { item: FriendConnection }) => (
+  const renderRequest = ({ item }: { item: PendingRequestWithInfo }) => (
     <RequestCard
       request={item}
       type={activeTab}

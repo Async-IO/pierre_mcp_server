@@ -14,24 +14,26 @@ describe('Type Definitions', () => {
   describe('User type', () => {
     it('should have required fields', () => {
       const user: User = {
-        user_id: '123',
+        id: '123',
         email: 'test@example.com',
         is_admin: false,
         role: 'user',
-        user_status: 'active',
+        tier: 'starter',
+        created_at: '2024-01-01T00:00:00Z',
       };
-      expect(user.user_id).toBe('123');
+      expect(user.id).toBe('123');
       expect(user.email).toBe('test@example.com');
     });
 
     it('should accept optional display_name', () => {
       const user: User = {
-        user_id: '123',
+        id: '123',
         email: 'test@example.com',
         display_name: 'Test User',
         is_admin: false,
         role: 'user',
-        user_status: 'active',
+        tier: 'starter',
+        created_at: '2024-01-01T00:00:00Z',
       };
       expect(user.display_name).toBe('Test User');
     });

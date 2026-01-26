@@ -100,7 +100,7 @@ describe('AuthContext', () => {
     })
 
     expect(screen.getByTestId('user-email')).toHaveTextContent('test@example.com')
-    expect(apiService.login).toHaveBeenCalledWith('test@example.com', 'password')
+    expect(apiService.login).toHaveBeenCalledWith({ email: 'test@example.com', password: 'password' })
     expect(apiService.setCsrfToken).toHaveBeenCalledWith('csrf-test-token')
   })
 

@@ -5,9 +5,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import axios from 'axios'
 import { apiService } from '../api/index'
 
-// Mock axios - must be complete for apiClient initialization
-vi.mock('axios', () => ({
-  default: {
+// Mock axios - must be complete for apiClient and api-client initialization
+vi.mock('axios', () => {
+  const mockAxiosInstance = {
     get: vi.fn(),
     post: vi.fn(),
     put: vi.fn(),
@@ -16,15 +16,21 @@ vi.mock('axios', () => ({
       request: { use: vi.fn() },
       response: { use: vi.fn() },
     },
-    defaults: {
-      baseURL: '',
-      withCredentials: true,
-      headers: {
-        common: {},
+  }
+  return {
+    default: {
+      ...mockAxiosInstance,
+      create: vi.fn(() => mockAxiosInstance),
+      defaults: {
+        baseURL: '',
+        withCredentials: true,
+        headers: {
+          common: {},
+        },
       },
     },
-  },
-}))
+  }
+})
 
 describe('API Service', () => {
   beforeEach(() => {

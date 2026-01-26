@@ -1,142 +1,100 @@
 // ABOUTME: Theme constants for Pierre Mobile app
-// ABOUTME: Colors, spacing, and typography matching Pierre design system
+// ABOUTME: Re-exports shared design system and adds platform-specific styles
 
+// Note: Using relative imports for Jest compatibility since mobile is isolated from workspaces
+// Metro bundler resolves @pierre/* via extraNodeModules in metro.config.js at runtime
+import {
+  PIERRE_COLORS,
+  PILLAR_COLORS,
+  PRIMARY_PALETTE,
+  BACKGROUND_COLORS,
+  TEXT_COLORS,
+  BORDER_COLORS,
+  SEMANTIC_COLORS,
+  PROVIDER_COLORS,
+  GRADIENT_COLORS,
+  GLASS_CARD,
+  AI_GLOW,
+  BUTTON_GLOW,
+  SPACING,
+  BORDER_RADIUS,
+  FONT_SIZE,
+  FONT_WEIGHT,
+} from '../../../packages/shared-constants/src/design-system';
+
+// Re-export spacing and typography from shared constants
+export const spacing = SPACING;
+export const borderRadius = BORDER_RADIUS;
+export const fontSize = FONT_SIZE;
+export const fontWeight = FONT_WEIGHT;
+
+// Combined colors object for mobile (maintains existing API)
 export const colors = {
-  // Pierre Design System - Primary brand colors (Stitch UX Refresh)
+  // Pierre Design System - Primary brand colors with pillars
   pierre: {
-    violet: '#8B5CF6',     // Primary, AI indicators, CTAs
-    cyan: '#22D3EE',       // Data viz, progress indicators
-    // Three Pillars - Semantic accent colors
-    activity: '#4ADE80',   // Success, health metrics, green
-    nutrition: '#F59E0B',  // Warnings, nutrition data, amber
-    recovery: '#818CF8',   // Indigo - Brightened for dark mode contrast
-    red: '#FF6B6B',        // Errors, destructive actions
-    // Dark theme
-    dark: '#0F0F1A',       // Page backgrounds
-    slate: '#1E1E2E',      // Card backgrounds
+    ...PIERRE_COLORS,
+    // Three Pillars - included in pierre for backward compatibility
+    activity: PILLAR_COLORS.activity,
+    nutrition: PILLAR_COLORS.nutrition,
+    recovery: PILLAR_COLORS.recovery,
+    // Additional colors used by Stitch UX components
+    red: '#FF6B6B',  // Errors, destructive actions
   },
 
   // Primary brand color (sky blue palette)
-  primary: {
-    50: '#f0f9ff',
-    100: '#e0f2fe',
-    200: '#bae6fd',
-    300: '#7dd3fc',
-    400: '#38bdf8',
-    500: '#0ea5e9',
-    600: '#0284c7',
-    700: '#0369a1',
-    800: '#075985',
-    900: '#0c4a6e',
-    950: '#082f49',
-  },
+  primary: PRIMARY_PALETTE,
 
   // Dark theme backgrounds - Pierre Design System
-  background: {
-    primary: '#0F0F1A',    // pierre-dark - deepest background
-    secondary: '#1E1E2E',  // pierre-slate - cards, elevated surfaces
-    tertiary: '#2A2A3E',   // slightly lighter for hover states
-    elevated: '#363650',   // elevated components like modals
-  },
+  background: BACKGROUND_COLORS,
 
-  // Text colors - using zinc palette for secondary/muted
-  text: {
-    primary: '#ffffff',
-    secondary: '#a1a1aa',  // zinc-400
-    tertiary: '#71717a',   // zinc-500
-    accent: '#8B5CF6',     // pierre-violet for accent
-  },
+  // Text colors
+  text: TEXT_COLORS,
 
-  // Border colors - subtle white opacity borders
-  border: {
-    subtle: 'rgba(255, 255, 255, 0.05)',   // white/5
-    default: 'rgba(255, 255, 255, 0.1)',   // white/10
-    strong: 'rgba(255, 255, 255, 0.15)',   // white/15
-  },
+  // Border colors
+  border: BORDER_COLORS,
 
   // Semantic colors (mapped to Pierre Design System)
-  success: '#22c55e',  // pierre-green-500
-  warning: '#f59e0b',  // pierre-yellow-500 (nutrition)
-  error: '#ef4444',    // pierre-red-500
-  info: '#3b82f6',     // pierre-blue-500
+  success: SEMANTIC_COLORS.success,
+  warning: SEMANTIC_COLORS.warning,
+  error: SEMANTIC_COLORS.error,
+  info: SEMANTIC_COLORS.info,
 
   // Provider brand colors
-  providers: {
-    strava: '#FC4C02',
-    garmin: '#007CC3',
-    fitbit: '#00B0B9',
-    whoop: '#00D46A',
-    terra: '#6366F1',
-  },
+  providers: PROVIDER_COLORS,
 
   // Google brand color (for OAuth button)
-  google: '#4285F4',
+  google: PROVIDER_COLORS.google,
 } as const;
 
-export const spacing = {
-  xs: 4,
-  sm: 8,
-  md: 16,
-  lg: 24,
-  xl: 32,
-  xxl: 48,
-} as const;
-
-export const borderRadius = {
-  sm: 4,
-  md: 8,
-  lg: 12,
-  xl: 16,
-  full: 9999,
-} as const;
-
-export const fontSize = {
-  xs: 12,
-  sm: 14,
-  md: 16,
-  lg: 18,
-  xl: 20,
-  xxl: 24,
-  xxxl: 32,
-} as const;
-
-export const fontWeight = {
-  normal: '400' as const,
-  medium: '500' as const,
-  semibold: '600' as const,
-  bold: '700' as const,
-};
-
-// Glassmorphism card styles for premium look
+// Glassmorphism card styles for premium look (platform-specific with shadows)
 export const glassCard = {
-  // Base glass card style - use with StyleSheet
-  background: 'rgba(124, 59, 237, 0.08)',  // Subtle violet tint
-  borderColor: 'rgba(255, 255, 255, 0.1)',
-  borderWidth: 1,
+  background: GLASS_CARD.background,
+  borderColor: GLASS_CARD.borderColor,
+  borderWidth: GLASS_CARD.borderWidth,
   // Shadow for depth (iOS)
-  shadowColor: '#8B5CF6',
+  shadowColor: GLASS_CARD.shadowColor,
   shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 0.15,
-  shadowRadius: 12,
+  shadowOpacity: GLASS_CARD.shadowOpacity,
+  shadowRadius: GLASS_CARD.shadowRadius,
   // Android elevation
   elevation: 8,
 } as const;
 
-// Glow effect for primary buttons
+// Glow effect for primary buttons (platform-specific)
 export const buttonGlow = {
-  shadowColor: '#8B5CF6',
+  shadowColor: BUTTON_GLOW.shadowColor,
   shadowOffset: { width: 0, height: 0 },
-  shadowOpacity: 0.4,
-  shadowRadius: 20,
+  shadowOpacity: BUTTON_GLOW.shadowOpacity,
+  shadowRadius: BUTTON_GLOW.shadowRadius,
   elevation: 12,
 } as const;
 
-// Gradient colors for premium effects
+// Gradient colors for premium effects (as arrays for LinearGradient)
 export const gradients = {
-  violetIndigo: ['rgba(124, 59, 237, 0.15)', 'rgba(79, 70, 229, 0.05)'],
-  violetCyan: ['#8B5CF6', '#06B6D4'],
-  darkOverlay: ['rgba(15, 15, 26, 0)', 'rgba(15, 15, 26, 0.8)'],
-  aiGradient: ['rgba(124, 58, 237, 0.08)', 'rgba(30, 30, 46, 0.6)'],
+  violetIndigo: [GRADIENT_COLORS.violetIndigo.start, GRADIENT_COLORS.violetIndigo.end],
+  violetCyan: [GRADIENT_COLORS.violetCyan.start, GRADIENT_COLORS.violetCyan.end],
+  darkOverlay: [GRADIENT_COLORS.darkOverlay.start, GRADIENT_COLORS.darkOverlay.end],
+  aiGradient: [GRADIENT_COLORS.aiGradient.start, GRADIENT_COLORS.aiGradient.end],
 } as const;
 
 // AI Intelligence Glow Effects - Reinforces Pierre's AI-first brand identity
@@ -144,49 +102,49 @@ export const gradients = {
 export const aiGlow = {
   // Subtle ambient glow for AI elements
   ambient: {
-    shadowColor: '#8B5CF6',
+    shadowColor: AI_GLOW.ambient.shadowColor,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
+    shadowOpacity: AI_GLOW.ambient.shadowOpacity,
+    shadowRadius: AI_GLOW.ambient.shadowRadius,
     elevation: 6,
   },
   // Strong glow for prominent AI elements
   strong: {
-    shadowColor: '#8B5CF6',
+    shadowColor: AI_GLOW.strong.shadowColor,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.25,
-    shadowRadius: 30,
+    shadowOpacity: AI_GLOW.strong.shadowOpacity,
+    shadowRadius: AI_GLOW.strong.shadowRadius,
     elevation: 10,
   },
   // Avatar/icon glow
   avatar: {
-    shadowColor: '#8B5CF6',
+    shadowColor: AI_GLOW.avatar.shadowColor,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
+    shadowOpacity: AI_GLOW.avatar.shadowOpacity,
+    shadowRadius: AI_GLOW.avatar.shadowRadius,
     elevation: 8,
   },
   // Thinking/processing state glow
   thinking: {
-    shadowColor: '#8B5CF6',
+    shadowColor: AI_GLOW.thinking.shadowColor,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 25,
+    shadowOpacity: AI_GLOW.thinking.shadowOpacity,
+    shadowRadius: AI_GLOW.thinking.shadowRadius,
     elevation: 12,
   },
   // Response glow for new AI messages
   response: {
-    shadowColor: '#8B5CF6',
+    shadowColor: AI_GLOW.response.shadowColor,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 15,
+    shadowOpacity: AI_GLOW.response.shadowOpacity,
+    shadowRadius: AI_GLOW.response.shadowRadius,
     elevation: 8,
   },
 } as const;
 
 // AI card style with gradient background and glow
 export const aiCard = {
-  backgroundColor: 'rgba(124, 58, 237, 0.08)',
+  backgroundColor: GRADIENT_COLORS.aiGradient.start,
   borderColor: 'rgba(124, 58, 237, 0.2)',
   borderWidth: 1,
   borderRadius: borderRadius.xl,

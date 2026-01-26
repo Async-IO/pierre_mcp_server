@@ -105,13 +105,13 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
       const response = await apiService.getConversations();
       // Deduplicate by ID, sort by updated_at descending (most recent first), take top 10
       const seen = new Set<string>();
-      const deduplicated = (response.conversations || []).filter((conv) => {
+      const deduplicated = (response.conversations || []).filter((conv: { id: string }) => {
         if (seen.has(conv.id)) return false;
         seen.add(conv.id);
         return true;
       });
       const sorted = deduplicated
-        .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+        .sort((a: { updated_at: string }, b: { updated_at: string }) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
         .slice(0, 10);
       setConversations(sorted);
     } catch (error) {

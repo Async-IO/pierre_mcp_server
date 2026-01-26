@@ -1004,7 +1004,7 @@ test.describe('User Coaches - Chat Interface', () => {
     await page.waitForSelector('aside', { timeout: 10000 });
 
     // Click the My Coaches tab in sidebar
-    await page.locator('button').filter({ has: page.locator('span:has-text("My Coaches")') }).click();
+    await page.getByRole('list').getByRole('button', { name: 'My Coaches' }).click();
     await page.waitForTimeout(300);
 
     // Should see My Coaches heading in the main content area (h2)
@@ -1022,7 +1022,7 @@ test.describe('User Coaches - Chat Interface', () => {
     await page.waitForSelector('aside', { timeout: 10000 });
 
     // Click the My Coaches tab in sidebar
-    await page.locator('button').filter({ has: page.locator('span:has-text("My Coaches")') }).click();
+    await page.getByRole('list').getByRole('button', { name: 'My Coaches' }).click();
     await page.waitForTimeout(300);
 
     await expect(page.getByText('My Custom Coach')).toBeVisible({ timeout: 10000 });
@@ -1045,7 +1045,7 @@ test.describe('User Coaches - Chat Interface', () => {
     await page.waitForSelector('main', { timeout: 10000 });
 
     // Click the My Coaches tab in sidebar
-    await page.locator('button').filter({ has: page.locator('span:has-text("My Coaches")') }).click();
+    await page.getByRole('list').getByRole('button', { name: 'My Coaches' }).click();
     await page.waitForTimeout(300);
 
     // Should see My Coaches heading (h2 in content area)
@@ -1078,7 +1078,7 @@ test.describe('User Coaches - Chat Interface', () => {
     await page.waitForSelector('main', { timeout: 10000 });
 
     // Click the My Coaches tab in sidebar
-    await page.locator('button').filter({ has: page.locator('span:has-text("My Coaches")') }).click();
+    await page.getByRole('list').getByRole('button', { name: 'My Coaches' }).click();
     await page.waitForTimeout(300);
 
     await expect(page.getByText('My Custom Coach')).toBeVisible({ timeout: 10000 });
@@ -1125,7 +1125,7 @@ test.describe('User Coaches - Chat Interface', () => {
     await page.waitForSelector('main', { timeout: 10000 });
 
     // Click My Coaches button in sidebar to open the My Coaches panel
-    await page.getByRole('button', { name: 'My Coaches' }).click();
+    await page.getByRole('list').getByRole('button', { name: 'My Coaches' }).click();
 
     // Wait for the My Coaches panel to open
     await expect(page.locator('h2:has-text("My Coaches")')).toBeVisible({ timeout: 5000 });
@@ -1174,7 +1174,7 @@ test.describe('User Coaches - Chat Interface', () => {
     await page.waitForSelector('main', { timeout: 10000 });
 
     // Open My Coaches panel
-    await page.getByRole('button', { name: 'My Coaches' }).click();
+    await page.getByRole('list').getByRole('button', { name: 'My Coaches' }).click();
     await expect(page.locator('h2:has-text("My Coaches")')).toBeVisible({ timeout: 5000 });
 
     // Click Create Coach
@@ -1209,7 +1209,7 @@ test.describe('User Coaches - Chat Interface', () => {
     await page.waitForSelector('main', { timeout: 10000 });
 
     // Open My Coaches panel
-    await page.getByRole('button', { name: 'My Coaches' }).click();
+    await page.getByRole('list').getByRole('button', { name: 'My Coaches' }).click();
     await expect(page.locator('h2:has-text("My Coaches")')).toBeVisible({ timeout: 5000 });
 
     // Wait for coaches to load first
@@ -1274,7 +1274,7 @@ test.describe('User Coaches - Chat Interface', () => {
     await page.waitForSelector('main', { timeout: 10000 });
 
     // Open My Coaches panel
-    await page.getByRole('button', { name: 'My Coaches' }).click();
+    await page.getByRole('list').getByRole('button', { name: 'My Coaches' }).click();
     await expect(page.locator('h2:has-text("My Coaches")')).toBeVisible({ timeout: 5000 });
 
     // Click on coach card to open detail view, then click edit button

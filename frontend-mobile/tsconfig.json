@@ -4,7 +4,9 @@
     "strict": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@pierre/shared-types": ["../packages/shared-types/src"],
+      "@pierre/shared-constants": ["../packages/shared-constants/src"]
     }
   },
   "include": [

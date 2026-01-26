@@ -48,7 +48,7 @@ const SOURCE_FILTERS: Array<{ key: CoachSource; label: string }> = [
 ];
 
 // Coach category colors matching Stitch UX spec
-const COACH_CATEGORY_COLORS: Record<CoachCategory, string> = {
+const COACH_CATEGORY_COLORS: Record<string, string> = {
   training: '#4ADE80',  // Green per Stitch spec
   nutrition: '#F59E0B', // Amber per Stitch spec
   recovery: '#22D3EE',  // Cyan per Stitch spec
@@ -120,7 +120,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
       ]);
 
       // Create a set of hidden coach IDs for quick lookup
-      const hiddenIds = new Set((hiddenResponse.coaches || []).map((c) => c.id));
+      const hiddenIds = new Set((hiddenResponse.coaches || []).map((c: { id: string }) => c.id));
 
       // Mark coaches as hidden if they're in the hidden list
       const coachesWithHiddenFlag = coachesResponse.coaches.map((coach) => ({

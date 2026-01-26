@@ -72,13 +72,13 @@ export function SearchFriendsScreen() {
 
   const handleAddFriend = async (user: DiscoverableUser) => {
     try {
-      setAddingIds(prev => new Set(prev).add(user.user_id));
-      await apiService.sendFriendRequest(user.user_id);
+      setAddingIds(prev => new Set(prev).add(user.id));
+      await apiService.sendFriendRequest(user.id);
       // Update local state to show pending
       setUsers(prev =>
         prev.map(u =>
-          u.user_id === user.user_id
-            ? { ...u, pending_request: true }
+          u.id === user.id
+            ? { ...u, has_pending_request: true }
             : u
         )
       );
@@ -87,7 +87,7 @@ export function SearchFriendsScreen() {
     } finally {
       setAddingIds(prev => {
         const next = new Set(prev);
-        next.delete(user.user_id);
+        next.delete(user.id);
         return next;
       });
     }
@@ -97,7 +97,7 @@ export function SearchFriendsScreen() {
     <SearchUserCard
       user={item}
       onAddFriend={() => handleAddFriend(item)}
-      isAdding={addingIds.has(item.user_id)}
+      isAdding={addingIds.has(item.id)}
     />
   );
 
@@ -149,7 +149,7 @@ export function SearchFriendsScreen() {
         <FlatList
           testID="search-results-list"
           data={users}
-          keyExtractor={item => item.user_id}
+          keyExtractor={item => item.id}
           renderItem={renderUser}
           ListEmptyComponent={renderEmptyState}
           contentContainerStyle={users.length === 0 ? { flexGrow: 1, paddingBottom: 100 } : { paddingVertical: spacing.sm, paddingBottom: 100 }}

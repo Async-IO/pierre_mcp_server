@@ -5,21 +5,10 @@
 // ABOUTME: Handles the public coach marketplace functionality
 
 import { axios } from './client';
+import type { StoreCoach } from '@pierre/shared-types';
 
-// Store coach type
-export interface StoreCoach {
-  id: string;
-  title: string;
-  description: string | null;
-  category: string;
-  tags: string[];
-  sample_prompts: string[];
-  token_count: number;
-  install_count: number;
-  icon_url: string | null;
-  published_at: string | null;
-  author_id: string | null;
-}
+// Re-export StoreCoach type for backward compatibility
+export type { StoreCoach } from '@pierre/shared-types';
 
 export const storeApi = {
   async browseStoreCoaches(options?: {

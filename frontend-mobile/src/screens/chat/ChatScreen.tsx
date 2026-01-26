@@ -64,12 +64,12 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useVoiceInput } from '../../hooks/useVoiceInput';
 import type { VoiceError } from '../../hooks/useVoiceInput';
 import { VoiceButton, PromptDialog } from '../../components/ui';
-import type { Conversation, Message, ProviderStatus, Coach, CoachCategory } from '../../types';
+import type { Conversation, Message, ProviderStatus, Coach } from '../../types';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { ChatStackParamList } from '../../navigation/MainTabs';
 
 // Coach category badge background colors (lighter versions)
-const COACH_CATEGORY_BADGE_BG: Record<CoachCategory, string> = {
+const COACH_CATEGORY_BADGE_BG: Record<string, string> = {
   training: 'rgba(16, 185, 129, 0.15)',
   nutrition: 'rgba(245, 158, 11, 0.15)',
   recovery: 'rgba(99, 102, 241, 0.15)',
@@ -79,7 +79,7 @@ const COACH_CATEGORY_BADGE_BG: Record<CoachCategory, string> = {
 };
 
 // Coach category emoji icons
-const COACH_CATEGORY_ICONS: Record<CoachCategory, string> = {
+const COACH_CATEGORY_ICONS: Record<string, string> = {
   training: '🏃',
   nutrition: '🥗',
   recovery: '😴',
@@ -315,13 +315,13 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       const response = await apiService.getConversations();
       // Deduplicate by ID to prevent duplicate key warnings
       const seen = new Set<string>();
-      const deduplicated = (response.conversations || []).filter((conv) => {
+      const deduplicated = (response.conversations || []).filter((conv: { id: string }) => {
         if (seen.has(conv.id)) return false;
         seen.add(conv.id);
         return true;
       });
       // Sort by updated_at descending (newest first)
-      const sorted = deduplicated.sort((a, b) => {
+      const sorted = deduplicated.sort((a: { updated_at?: string }, b: { updated_at?: string }) => {
         const dateA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
         const dateB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
         return dateB - dateA;

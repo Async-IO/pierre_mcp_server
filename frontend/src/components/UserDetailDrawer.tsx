@@ -144,7 +144,7 @@ export default function UserDetailDrawer({
               </div>
               <div>
                 <span className="text-zinc-400">Last Active</span>
-                <p className="font-medium text-white">{formatDate(user.last_active)}</p>
+                <p className="font-medium text-white">{user.last_active ? formatDate(user.last_active) : 'Never'}</p>
               </div>
               {user.approved_at && (
                 <div>

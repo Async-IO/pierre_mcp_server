@@ -119,7 +119,7 @@ export default function SocialSettingsTab() {
       setIsSaving(true);
       await apiService.updateSocialSettings({
         discoverable: settings.discoverable,
-        default_visibility: settings.default_visibility,
+        default_visibility: settings.default_visibility as 'friends_only' | 'public',
         notifications: settings.notifications,
       });
       setHasChanges(false);

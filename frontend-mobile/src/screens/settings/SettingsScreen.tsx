@@ -80,7 +80,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
       const response = await apiService.getMcpTokens();
       const tokenList = response.tokens || [];
       const seen = new Set<string>();
-      const deduplicated = tokenList.filter((t) => {
+      const deduplicated = tokenList.filter((t: { id: string; is_revoked: boolean }) => {
         if (t.is_revoked || seen.has(t.id)) return false;
         seen.add(t.id);
         return true;

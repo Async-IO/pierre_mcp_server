@@ -5,18 +5,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 import { createContext } from 'react';
-
-type UserRole = 'super_admin' | 'admin' | 'user';
-type UserStatus = 'pending' | 'active' | 'suspended';
-
-interface User {
-  user_id: string;
-  email: string;
-  display_name?: string;
-  is_admin: boolean;
-  role: UserRole;
-  user_status: UserStatus;
-}
+import type { User, UserRole, UserStatus, FirebaseLoginResponse } from '@pierre/shared-types';
 
 interface ImpersonationState {
   isImpersonating: boolean;
@@ -28,13 +17,6 @@ interface ImpersonationState {
   } | null;
   sessionId: string | null;
   originalUser: User | null;
-}
-
-interface FirebaseLoginResponse {
-  csrf_token: string;
-  jwt_token: string;
-  user: User;
-  is_new_user: boolean;
 }
 
 interface AuthContextType {

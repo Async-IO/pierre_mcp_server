@@ -1,21 +1,27 @@
 // ABOUTME: Unit tests for API service
 // ABOUTME: Tests API request formatting and response handling
 
-// Mock axios before importing api service
-jest.mock('axios', () => ({
-  defaults: {
-    baseURL: '',
-    headers: {
-      common: {},
-    },
+// Mock the entire api service module to avoid transformation issues with @pierre/api-client
+jest.mock('../src/services/api', () => ({
+  apiService: {
+    login: jest.fn(),
+    register: jest.fn(),
+    getConversations: jest.fn(),
+    sendMessage: jest.fn(),
+    getOAuthStatus: jest.fn(),
+    listCoaches: jest.fn(),
+    getCoach: jest.fn(),
+    createCoach: jest.fn(),
+    updateCoach: jest.fn(),
+    deleteCoach: jest.fn(),
+    toggleCoachFavorite: jest.fn(),
+    hideCoach: jest.fn(),
+    showCoach: jest.fn(),
+    listHiddenCoaches: jest.fn(),
+    getHiddenCoaches: jest.fn(),
   },
-  get: jest.fn(),
-  post: jest.fn(),
-  delete: jest.fn(),
-  interceptors: {
-    request: { use: jest.fn() },
-    response: { use: jest.fn() },
-  },
+  apiClient: {},
+  onAuthFailure: jest.fn(),
 }));
 
 // Import after mocks

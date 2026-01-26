@@ -50,7 +50,7 @@ export default function MCPTokensTab() {
       apiService.createMcpToken(data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['mcp-tokens'] });
-      setCreatedToken({ token_value: data.token_value, name: data.name });
+      setCreatedToken({ token_value: data.token_value ?? '', name: data.name });
       setShowCreateForm(false);
       setNewTokenName('');
       setExpiresInDays(undefined);

@@ -5,38 +5,44 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import axios, { AxiosError } from 'axios';
 import { apiService } from '../api/index';
 
-// Mock axios - must be complete for apiClient initialization
-vi.mock('axios', () => ({
-  default: {
-    defaults: {
-      baseURL: '',
-      withCredentials: true,
-      headers: { common: {} }
-    },
-    interceptors: {
-      request: { use: vi.fn() },
-      response: { use: vi.fn() }
-    },
+// Mock axios - must be complete for apiClient and api-client initialization
+vi.mock('axios', () => {
+  const mockAxiosInstance = {
     get: vi.fn(),
     post: vi.fn(),
     put: vi.fn(),
-    delete: vi.fn()
-  },
-  AxiosError: class extends Error {
-    constructor(message: string, code?: string, config?: unknown, request?: unknown, response?: unknown) {
-      super(message);
-      this.code = code;
-      this.config = config;
-      this.request = request;
-      this.response = response;
-    }
-    code?: string;
-    config?: unknown;
-    request?: unknown;
-    response?: unknown;
-    isAxiosError = true;
+    delete: vi.fn(),
+    interceptors: {
+      request: { use: vi.fn() },
+      response: { use: vi.fn() },
+    },
   }
-}));
+  return {
+    default: {
+      ...mockAxiosInstance,
+      create: vi.fn(() => mockAxiosInstance),
+      defaults: {
+        baseURL: '',
+        withCredentials: true,
+        headers: { common: {} },
+      },
+    },
+    AxiosError: class extends Error {
+      constructor(message: string, code?: string, config?: unknown, request?: unknown, response?: unknown) {
+        super(message);
+        this.code = code;
+        this.config = config;
+        this.request = request;
+        this.response = response;
+      }
+      code?: string;
+      config?: unknown;
+      request?: unknown;
+      response?: unknown;
+      isAxiosError = true;
+    }
+  }
+});
 
 const mockedAxios = vi.mocked(axios);
 
@@ -455,13 +461,15 @@ describe('API Service - Admin Functionality', () => {
   describe('Token Refresh Integration', () => {
     it('should refresh JWT token successfully', async () => {
       const mockRefreshResponse = {
-        jwt_token: 'new.jwt.token',
+        access_token: 'new.jwt.token',
         expires_at: '2025-01-08T10:00:00Z'
       };
 
+      // With the shared api-client, need to provide refresh token in localStorage
       localStorageMock.getItem.mockImplementation((key: string) => {
         if (key === 'auth_token') return 'old.jwt.token';
         if (key === 'user') return JSON.stringify({ id: 'user-1', email: 'test@example.com' });
+        if (key === 'pierre_refresh_token') return 'stored.refresh.token';
         return null;
       });
 
@@ -469,27 +477,27 @@ describe('API Service - Admin Functionality', () => {
 
       const result = await apiService.refreshToken();
 
-      // With cookie-only auth, no request body needed (JWT comes from httpOnly cookie)
-      expect(mockedAxios.post).toHaveBeenCalledWith('/api/auth/refresh');
+      // Shared auth API uses OAuth2 token endpoint with form-urlencoded data
+      expect(mockedAxios.post).toHaveBeenCalled();
+      const [calledUrl, calledData, calledConfig] = vi.mocked(mockedAxios.post).mock.calls[0];
+      expect(calledUrl).toBe('/oauth/token');
+      expect(calledData.toString()).toContain('grant_type=refresh_token');
+      expect(calledData.toString()).toContain('refresh_token=stored.refresh.token');
+      expect(calledConfig?.headers?.['Content-Type']).toBe('application/x-www-form-urlencoded');
 
       expect(result).toEqual(mockRefreshResponse);
     });
 
-    it('should handle token refresh failure', async () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const error = new AxiosError('Token invalid', '401');
-      
+    it('should handle token refresh failure when no refresh token', async () => {
+      // With the shared api-client, refreshToken checks for stored refresh token first
       localStorageMock.getItem.mockImplementation((key: string) => {
         if (key === 'auth_token') return 'expired.jwt.token';
         if (key === 'user') return JSON.stringify({ id: 'user-1' });
+        // No refresh token available
         return null;
       });
 
-      mockedAxios.post.mockRejectedValueOnce(error);
-
-      await expect(apiService.refreshToken()).rejects.toThrow('Token invalid');
-      
-      consoleSpy.mockRestore();
+      await expect(apiService.refreshToken()).rejects.toThrow('No refresh token available');
     });
   });
 });

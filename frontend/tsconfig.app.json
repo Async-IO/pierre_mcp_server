@@ -15,6 +15,17 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
+    /* Path mapping for workspace packages */
+    "baseUrl": ".",
+    "paths": {
+      "@pierre/shared-types": ["../packages/shared-types/src"],
+      "@pierre/shared-types/*": ["../packages/shared-types/src/*"],
+      "@pierre/shared-constants": ["../packages/shared-constants/src"],
+      "@pierre/shared-constants/*": ["../packages/shared-constants/src/*"],
+      "@pierre/eslint-config": ["../packages/eslint-config-pierre"],
+      "@pierre/eslint-config/*": ["../packages/eslint-config-pierre/*"]
+    },
+
     /* Linting */
     "strict": true,
     "noUnusedLocals": true,

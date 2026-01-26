@@ -85,7 +85,7 @@ export function ConnectionsScreen({ navigation }: ConnectionsScreenProps) {
       const response = await apiService.getOAuthStatus();
       const statusMap = new Map<string, ProviderStatus>();
       const providers = response.providers || [];
-      providers.forEach((status) => {
+      providers.forEach((status: ProviderStatus) => {
         statusMap.set(status.provider, status);
       });
       setProviderStatuses(statusMap);

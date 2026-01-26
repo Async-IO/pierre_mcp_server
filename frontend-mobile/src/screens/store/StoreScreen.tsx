@@ -55,7 +55,7 @@ const SORT_OPTIONS: Array<{ key: SortOption; label: string }> = [
 ];
 
 // Coach category colors
-const COACH_CATEGORY_COLORS: Record<CoachCategory, string> = {
+const COACH_CATEGORY_COLORS: Record<string, string> = {
   training: '#10B981',
   nutrition: '#F59E0B',
   recovery: '#6366F1',
@@ -95,8 +95,8 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
         limit: 20,
       });
       setCoaches(response.coaches);
-      setNextCursor(response.next_cursor);
-      setHasMore(response.has_more);
+      setNextCursor(response.next_cursor ?? null);
+      setHasMore(response.has_more ?? false);
     } catch (error) {
       console.error('Failed to load store coaches:', error);
     } finally {
@@ -117,8 +117,8 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
         cursor: nextCursor,
       });
       setCoaches(prev => [...prev, ...response.coaches]);
-      setNextCursor(response.next_cursor);
-      setHasMore(response.has_more);
+      setNextCursor(response.next_cursor ?? null);
+      setHasMore(response.has_more ?? false);
     } catch (error) {
       console.error('Failed to load more coaches:', error);
     } finally {

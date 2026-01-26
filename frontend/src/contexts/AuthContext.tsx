@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string) => {
-    const response = await apiService.login(email, password);
+    const response = await apiService.login({ email, password });
     // OAuth2 ROPC response uses access_token, csrf_token, and user
     const { access_token, csrf_token, user: userData } = response;
 
@@ -70,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const loginWithFirebase = async (idToken: string) => {
-    const response = await apiService.loginWithFirebase(idToken);
+    const response = await apiService.loginWithFirebase({ idToken });
     const { csrf_token, jwt_token, user: userData } = response;
 
     // Store CSRF token in API service

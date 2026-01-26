@@ -8,6 +8,7 @@ on:
     branches: [ "main", "debug/*", "feature/*", "claude/*" ]
     paths:
       - 'frontend-mobile/**'
+      - 'packages/**'
       - 'src/routes/auth.rs'
       - 'src/routes/coaches.rs'
       - 'src/routes/chat.rs'
@@ -17,6 +18,7 @@ on:
     branches: [ main ]
     paths:
       - 'frontend-mobile/**'
+      - 'packages/**'
       - 'src/routes/auth.rs'
       - 'src/routes/coaches.rs'
       - 'src/routes/chat.rs'
@@ -36,10 +38,6 @@ jobs:
     name: Mobile Unit Tests
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: frontend-mobile
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -49,13 +47,24 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+      - name: Install shared-types dependencies
+        working-directory: packages/shared-types
+        run: bun install
+
+      - name: Install api-client dependencies
+        working-directory: packages/api-client
+        run: bun install
+
+      - name: Install mobile dependencies
+        working-directory: frontend-mobile
+        run: bun install
 
       - name: Type check
+        working-directory: frontend-mobile
         run: bun run typecheck
 
       - name: Run unit tests
+        working-directory: frontend-mobile
         run: bun run test -- --coverage
 
       - name: Upload coverage report
@@ -101,9 +110,17 @@ jobs:
         env:
           CARGO_INCREMENTAL: 0
 
+      - name: Install shared-types dependencies
+        working-directory: packages/shared-types
+        run: bun install
+
+      - name: Install api-client dependencies
+        working-directory: packages/api-client
+        run: bun install
+
       - name: Install mobile dependencies
         working-directory: frontend-mobile
-        run: bun install --frozen-lockfile
+        run: bun install
 
       - name: Create data directory
         run: mkdir -p data

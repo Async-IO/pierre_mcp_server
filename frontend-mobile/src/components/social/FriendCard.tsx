@@ -5,7 +5,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, type ViewStyle } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { colors, glassCard } from '../../constants/theme';
-import type { FriendWithInfo, FriendConnection, DiscoverableUser } from '../../types';
+import type { FriendWithInfo, DiscoverableUser, PendingRequestWithInfo } from '@pierre/shared-types';
 
 // Generate avatar initials from name or email
 const getInitials = (name: string | null, email: string): string => {
@@ -83,10 +83,8 @@ export function FriendCard({ friend, onRemove, isRemoving }: FriendCardProps) {
 }
 
 interface RequestCardProps {
-  request: FriendConnection;
+  request: PendingRequestWithInfo;
   type: 'incoming' | 'outgoing';
-  displayName?: string | null;
-  email?: string;
   onAccept?: () => void;
   onDecline?: () => void;
   onCancel?: () => void;
@@ -96,17 +94,16 @@ interface RequestCardProps {
 export function RequestCard({
   request,
   type,
-  displayName,
-  email,
   onAccept,
   onDecline,
   onCancel,
   isLoading,
 }: RequestCardProps) {
-  const userEmail = email || (type === 'incoming' ? request.initiator_id : request.receiver_id);
-  const initials = getInitials(displayName || null, userEmail);
+  // PendingRequestWithInfo includes user_display_name, user_email, user_id
+  const userEmail = request.user_email;
+  const initials = getInitials(request.user_display_name, userEmail);
   const avatarColor = getAvatarColor(userEmail);
-  const name = displayName || userEmail;
+  const name = request.user_display_name || userEmail;
 
   return (
     <View
@@ -184,18 +181,13 @@ export function SearchUserCard({ user, onAddFriend, isAdding }: SearchUserCardPr
         <Text className="text-base font-semibold text-text-primary" numberOfLines={1}>
           {displayName}
         </Text>
-        {user.mutual_friends_count > 0 && (
-          <Text className="text-sm text-text-tertiary mt-0.5">
-            {user.mutual_friends_count} mutual friend{user.mutual_friends_count > 1 ? 's' : ''}
-          </Text>
-        )}
       </View>
       {user.is_friend ? (
         <View className="flex-row items-center px-3 py-2 gap-1">
           <Feather name="check" size={14} color={colors.pierre.activity} />
           <Text className="text-sm" style={{ color: colors.pierre.activity }}>Friends</Text>
         </View>
-      ) : user.pending_request ? (
+      ) : user.has_pending_request ? (
         <View className="px-3 py-2 rounded-lg bg-background-tertiary">
           <Text className="text-sm text-text-tertiary">Pending</Text>
         </View>

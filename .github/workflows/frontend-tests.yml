@@ -5,6 +5,8 @@ on:
     branches: [ "main", "debug/*", "feature/*", "claude/*" ]
     paths:
       - 'frontend/**'
+      - 'packages/**'
+      - 'bun.lock'
       - 'src/routes/auth.rs'
       - 'src/routes/admin.rs'
       - 'src/routes/web_admin.rs'
@@ -17,6 +19,8 @@ on:
     branches: [ main ]
     paths:
       - 'frontend/**'
+      - 'packages/**'
+      - 'bun.lock'
       - 'src/routes/auth.rs'
       - 'src/routes/admin.rs'
       - 'src/routes/web_admin.rs'
@@ -40,10 +44,6 @@ jobs:
     name: Frontend Test Suite
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: frontend
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -53,19 +53,23 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Install dependencies
+      - name: Install all workspace dependencies
         run: bun install --frozen-lockfile
 
       - name: Lint code
+        working-directory: frontend
         run: bun run lint
 
       - name: Type check
+        working-directory: frontend
         run: bunx tsc --noEmit
 
       - name: Run tests
+        working-directory: frontend
         run: bun run test
 
       - name: Build frontend
+        working-directory: frontend
         run: bun run build
 
       - name: Archive build artifacts
@@ -79,10 +83,6 @@ jobs:
     name: Playwright E2E Tests
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: frontend
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -92,13 +92,15 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Install dependencies
+      - name: Install all workspace dependencies
         run: bun install --frozen-lockfile
 
       - name: Install Playwright browsers
+        working-directory: frontend
         run: bunx playwright install --with-deps chromium
 
       - name: Run Playwright E2E tests
+        working-directory: frontend
         run: bun run test:e2e
 
       - name: Upload Playwright report

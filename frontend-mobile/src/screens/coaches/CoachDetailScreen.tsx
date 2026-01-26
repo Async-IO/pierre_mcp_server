@@ -17,7 +17,7 @@ import { Feather } from '@expo/vector-icons';
 import { colors, spacing } from '../../constants/theme';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import type { Coach, CoachCategory } from '../../types';
+import type { Coach } from '../../types';
 import type { CoachesStackParamList } from '../../navigation/MainTabs';
 
 interface CoachDetailScreenProps {
@@ -26,7 +26,7 @@ interface CoachDetailScreenProps {
 }
 
 // Coach category colors
-const COACH_CATEGORY_COLORS: Record<CoachCategory, string> = {
+const COACH_CATEGORY_COLORS: Record<string, string> = {
   training: '#10B981',
   nutrition: '#F59E0B',
   recovery: '#6366F1',
@@ -54,11 +54,11 @@ export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps)
         apiService.listCoaches({ include_hidden: true }),
         apiService.getHiddenCoaches(),
       ]);
-      const foundCoach = coachesResponse.coaches.find((c) => c.id === coachId);
+      const foundCoach = coachesResponse.coaches.find((c: { id: string }) => c.id === coachId);
       setCoach(foundCoach || null);
 
       // Check if this coach is in the hidden list
-      const hiddenIds = new Set((hiddenResponse.coaches || []).map((c) => c.id));
+      const hiddenIds = new Set((hiddenResponse.coaches || []).map((c: { id: string }) => c.id));
       setIsHidden(hiddenIds.has(coachId));
     } catch (error) {
       console.error('Failed to load coach detail:', error);

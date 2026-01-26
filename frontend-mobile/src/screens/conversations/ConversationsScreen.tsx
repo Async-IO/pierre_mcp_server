@@ -70,13 +70,13 @@ export function ConversationsScreen({ navigation }: ConversationsScreenProps) {
       setIsLoading(true);
       const response = await apiService.getConversations();
       const seen = new Set<string>();
-      const deduplicated = (response.conversations || []).filter((conv) => {
+      const deduplicated = (response.conversations || []).filter((conv: { id: string }) => {
         if (seen.has(conv.id)) return false;
         seen.add(conv.id);
         return true;
       });
       const sorted = deduplicated.sort(
-        (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+        (a: { updated_at: string }, b: { updated_at: string }) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
       );
       setConversations(sorted);
       setFilteredConversations(sorted);

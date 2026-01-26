@@ -8,49 +8,20 @@ import { useState, useEffect, useCallback } from 'react';
 import { clsx } from 'clsx';
 import { apiService } from '../../services/api';
 import { Card, Button } from '../ui';
-
-interface Friend {
-  id: string;
-  initiator_id: string;
-  receiver_id: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
-  accepted_at: string | null;
-  friend_display_name: string | null;
-  friend_email: string;
-  friend_user_id: string;
-}
-
-interface DiscoverableUser {
-  id: string;
-  display_name: string | null;
-  email: string;
-  is_friend: boolean;
-  has_pending_request: boolean;
-}
-
-interface PendingRequest {
-  id: string;
-  initiator_id: string;
-  receiver_id: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
-  accepted_at: string | null;
-  user_display_name: string | null;
-  user_email: string;
-  user_id: string;
-}
+import type {
+  FriendWithInfo,
+  DiscoverableUser,
+  PendingRequestWithInfo,
+} from '@pierre/shared-types';
 
 type TabView = 'friends' | 'search' | 'pending';
 
 export default function FriendsTab() {
   const [activeTab, setActiveTab] = useState<TabView>('friends');
-  const [friends, setFriends] = useState<Friend[]>([]);
+  const [friends, setFriends] = useState<FriendWithInfo[]>([]);
   const [searchResults, setSearchResults] = useState<DiscoverableUser[]>([]);
-  const [pendingReceived, setPendingReceived] = useState<PendingRequest[]>([]);
-  const [pendingSent, setPendingSent] = useState<PendingRequest[]>([]);
+  const [pendingReceived, setPendingReceived] = useState<PendingRequestWithInfo[]>([]);
+  const [pendingSent, setPendingSent] = useState<PendingRequestWithInfo[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);

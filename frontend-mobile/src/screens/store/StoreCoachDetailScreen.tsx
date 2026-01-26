@@ -16,7 +16,7 @@ import type { RouteProp } from '@react-navigation/native';
 import { colors } from '../../constants/theme';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import type { StoreCoachDetail, CoachCategory } from '../../types';
+import type { StoreCoachDetail } from '../../types';
 import type { CoachesStackParamList } from '../../navigation/MainTabs';
 
 interface StoreCoachDetailScreenProps {
@@ -25,7 +25,7 @@ interface StoreCoachDetailScreenProps {
 }
 
 // Coach category colors
-const COACH_CATEGORY_COLORS: Record<CoachCategory, string> = {
+const COACH_CATEGORY_COLORS: Record<string, string> = {
   training: '#10B981',
   nutrition: '#F59E0B',
   recovery: '#6366F1',
@@ -53,7 +53,7 @@ export function StoreCoachDetailScreen({ navigation, route }: StoreCoachDetailSc
       // Check if already installed
       const installations = await apiService.getInstalledCoaches();
       const installed = installations.coaches.some(
-        (c) => c.id === coachId
+        (c: { id: string }) => c.id === coachId
       );
       setIsInstalled(installed);
     } catch (error) {
