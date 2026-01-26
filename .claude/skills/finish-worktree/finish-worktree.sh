@@ -38,7 +38,7 @@ echo ""
 # Run validation
 cargo fmt --check || { echo "Run 'cargo fmt' first"; exit 1; }
 ./scripts/architectural-validation.sh
-cargo clippy --all-targets -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
+cargo clippy --all-targets
 
 echo ""
 echo "Local validation passed!"

@@ -397,7 +397,9 @@ cargo fmt
 ./scripts/architectural-validation.sh
 
 # 3. Clippy WITH --all-targets (REQUIRED - catches test file import errors)
-cargo clippy --all-targets -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
+# Cargo.toml defines all lint levels - no CLI flags needed
+cargo clippy --all-targets
+# For faster iteration, target specific crate: cargo clippy -p pierre_mcp_server --all-targets
 
 # 4. Run TARGETED tests for changed modules (ALWAYS use --test)
 cargo test --test <test_file> <test_pattern> -- --nocapture
@@ -412,7 +414,7 @@ Run the full suite only when preparing a PR or merging:
 # OR manually:
 cargo fmt
 ./scripts/architectural-validation.sh
-cargo clippy --all-targets -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
+cargo clippy --all-targets
 cargo test
 ```
 
@@ -656,7 +658,7 @@ The codebase clone usage falls into these **approved categories**:
    ```bash
    cargo fmt
    ./scripts/architectural-validation.sh
-   cargo clippy --all-targets -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
+   cargo clippy --all-targets  # Or: cargo clippy -p pierre_mcp_server --all-targets
    cargo test --test <test_file> <test_pattern> -- --nocapture
    ```
 
