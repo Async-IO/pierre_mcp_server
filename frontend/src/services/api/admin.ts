@@ -6,6 +6,7 @@
 
 import { axios } from './client';
 import type { Coach } from './coaches';
+import type { SocialInsightsConfig } from '../../types/api';
 
 export const adminApi = {
   // ==================== SETUP STATUS ====================
@@ -201,6 +202,22 @@ export const adminApi = {
 
   async updateAutoApprovalSetting(enabled: boolean): Promise<{ enabled: boolean; description: string }> {
     const response = await axios.put('/api/admin/settings/auto-approval', { enabled });
+    return response.data.data;
+  },
+
+  // ==================== SOCIAL INSIGHTS CONFIG ====================
+  async getSocialInsightsConfig(): Promise<SocialInsightsConfig> {
+    const response = await axios.get('/api/admin/settings/social-insights');
+    return response.data.data;
+  },
+
+  async updateSocialInsightsConfig(config: SocialInsightsConfig): Promise<SocialInsightsConfig> {
+    const response = await axios.put('/api/admin/settings/social-insights', config);
+    return response.data.data;
+  },
+
+  async resetSocialInsightsConfig(): Promise<SocialInsightsConfig> {
+    const response = await axios.delete('/api/admin/settings/social-insights');
     return response.data.data;
   },
 

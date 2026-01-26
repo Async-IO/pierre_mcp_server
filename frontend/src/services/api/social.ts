@@ -33,15 +33,13 @@ export const socialApi = {
 
   async searchUsers(query: string): Promise<{
     users: Array<{
-      user_id: string;
+      id: string;
       display_name: string | null;
       email: string;
-      mutual_friends_count: number;
       is_friend: boolean;
-      pending_request: boolean;
+      has_pending_request: boolean;
     }>;
-    query: string;
-    metadata: { timestamp: string; api_version: string };
+    total: number;
   }> {
     const response = await axios.get(`/api/social/users/search?q=${encodeURIComponent(query)}`);
     return response.data;
@@ -56,6 +54,9 @@ export const socialApi = {
       created_at: string;
       updated_at: string;
       accepted_at: string | null;
+      user_display_name: string | null;
+      user_email: string;
+      user_id: string;
     }>;
     received: Array<{
       id: string;
@@ -65,10 +66,13 @@ export const socialApi = {
       created_at: string;
       updated_at: string;
       accepted_at: string | null;
+      user_display_name: string | null;
+      user_email: string;
+      user_id: string;
     }>;
     metadata: { timestamp: string; api_version: string };
   }> {
-    const response = await axios.get('/api/social/friends/requests');
+    const response = await axios.get('/api/social/friends/pending');
     return response.data;
   },
 
@@ -81,7 +85,7 @@ export const socialApi = {
     updated_at: string;
     accepted_at: string | null;
   }> {
-    const response = await axios.post(`/api/social/friends/requests/${userId}`);
+    const response = await axios.post('/api/social/friends', { receiver_id: userId });
     return response.data;
   },
 
@@ -94,12 +98,12 @@ export const socialApi = {
     updated_at: string;
     accepted_at: string | null;
   }> {
-    const response = await axios.post(`/api/social/friends/requests/${connectionId}/accept`);
+    const response = await axios.post(`/api/social/friends/${connectionId}/accept`);
     return response.data;
   },
 
   async rejectFriendRequest(connectionId: string): Promise<void> {
-    await axios.post(`/api/social/friends/requests/${connectionId}/reject`);
+    await axios.post(`/api/social/friends/${connectionId}/decline`);
   },
 
   async removeFriend(userId: string): Promise<void> {
@@ -155,7 +159,12 @@ export const socialApi = {
     const data = response.data;
     return {
       items: (data.insights || []).map((insight: Record<string, unknown>) => ({
-        insight,
+        insight: {
+          ...insight,
+          // Ensure required fields have default values
+          source_activity_id: insight.source_activity_id ?? null,
+          coach_generated: insight.coach_generated ?? false,
+        },
         author: {
           user_id: insight.user_id as string,
           display_name: null,
@@ -285,6 +294,64 @@ export const socialApi = {
     if (limit) params.append('limit', limit.toString());
     const query = params.toString();
     const response = await axios.get(`/api/social/adapted${query ? `?${query}` : ''}`);
+    return response.data;
+  },
+
+  async getInsightSuggestions(params?: {
+    activity_id?: string;
+    limit?: number;
+    provider?: string;
+    tenant_id?: string;
+  }): Promise<{
+    suggestions: Array<{
+      insight_type: string;
+      suggested_content: string;
+      suggested_title?: string;
+      relevance_score: number;
+      sport_type?: string;
+      training_phase?: string;
+      source_activity_id?: string;
+    }>;
+    total: number;
+    metadata: { timestamp: string; api_version: string };
+  }> {
+    const urlParams = new URLSearchParams();
+    if (params?.activity_id) urlParams.append('activity_id', params.activity_id);
+    if (params?.limit) urlParams.append('limit', params.limit.toString());
+    if (params?.provider) urlParams.append('provider', params.provider);
+    if (params?.tenant_id) urlParams.append('tenant_id', params.tenant_id);
+    const query = urlParams.toString();
+    const url = query ? `/api/social/insights/suggestions?${query}` : '/api/social/insights/suggestions';
+    const response = await axios.get(url);
+    return response.data;
+  },
+
+  async shareFromActivity(data: {
+    activity_id?: string;
+    insight_type: string;
+    content?: string;
+    visibility?: string;
+    provider?: string;
+    tenant_id?: string;
+  }): Promise<{
+    insight: {
+      id: string;
+      user_id: string;
+      visibility: string;
+      insight_type: string;
+      sport_type: string | null;
+      content: string;
+      title: string | null;
+      training_phase: string | null;
+      reaction_count: number;
+      adapt_count: number;
+      created_at: string;
+      updated_at: string;
+      expires_at: string | null;
+    };
+    metadata: { timestamp: string; api_version: string };
+  }> {
+    const response = await axios.post('/api/social/insights/from-activity', data);
     return response.data;
   },
 

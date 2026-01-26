@@ -18,6 +18,7 @@ use crate::admin::models::{
 };
 use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
 use crate::config::fitness::FitnessConfig;
+use crate::config::social::SocialInsightsConfig;
 use crate::dashboard_routes::{RequestLog, ToolUsage};
 use crate::database::oauth_notifications::OAuthNotification;
 use crate::database::{
@@ -258,6 +259,48 @@ impl Database {
     pub async fn set_auto_approval_enabled(&self, enabled: bool) -> AppResult<()> {
         match self {
             Self::SQLite(db) => db.set_auto_approval_enabled(enabled).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => Ok(()), // PostgreSQL implementation pending
+        }
+    }
+
+    /// Get social insights configuration from database
+    ///
+    /// Returns `Some(config)` if explicitly set in database,
+    /// or `None` if no database setting exists (caller should use defaults).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails or JSON deserialization fails
+    pub async fn get_social_insights_config(&self) -> AppResult<Option<SocialInsightsConfig>> {
+        match self {
+            Self::SQLite(db) => db.get_social_insights_config().await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => Ok(None), // PostgreSQL: use config default
+        }
+    }
+
+    /// Set social insights configuration in database
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails or JSON serialization fails
+    pub async fn set_social_insights_config(&self, config: &SocialInsightsConfig) -> AppResult<()> {
+        match self {
+            Self::SQLite(db) => db.set_social_insights_config(config).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => Ok(()), // PostgreSQL implementation pending
+        }
+    }
+
+    /// Delete social insights configuration from database (revert to defaults)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails
+    pub async fn delete_social_insights_config(&self) -> AppResult<()> {
+        match self {
+            Self::SQLite(db) => db.delete_social_insights_config().await,
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(_db) => Ok(()), // PostgreSQL implementation pending
         }

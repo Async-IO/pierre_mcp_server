@@ -143,6 +143,8 @@ pub enum InsightType {
     Recovery,
     /// Motivational content or encouragement
     Motivation,
+    /// A direct message from a coach chat conversation
+    CoachingInsight,
 }
 
 impl Display for InsightType {
@@ -153,6 +155,7 @@ impl Display for InsightType {
             Self::TrainingTip => write!(f, "training_tip"),
             Self::Recovery => write!(f, "recovery"),
             Self::Motivation => write!(f, "motivation"),
+            Self::CoachingInsight => write!(f, "coaching_insight"),
         }
     }
 }
@@ -167,6 +170,7 @@ impl FromStr for InsightType {
             "training_tip" => Ok(Self::TrainingTip),
             "recovery" => Ok(Self::Recovery),
             "motivation" => Ok(Self::Motivation),
+            "coaching_insight" => Ok(Self::CoachingInsight),
             _ => Err(AppError::invalid_input(format!(
                 "Invalid insight type: {s}"
             ))),
@@ -184,6 +188,7 @@ impl InsightType {
             Self::TrainingTip => "training_tip",
             Self::Recovery => "recovery",
             Self::Motivation => "motivation",
+            Self::CoachingInsight => "coaching_insight",
         }
     }
 
@@ -196,6 +201,7 @@ impl InsightType {
             Self::TrainingTip => "Training recommendation",
             Self::Recovery => "Recovery insight",
             Self::Motivation => "Motivational message",
+            Self::CoachingInsight => "Coach chat message",
         }
     }
 }
@@ -504,6 +510,10 @@ pub struct SharedInsight {
     pub updated_at: DateTime<Utc>,
     /// Optional expiry time for time-sensitive insights
     pub expires_at: Option<DateTime<Utc>>,
+    /// Source activity ID that generated this insight (for coach-mediated sharing)
+    pub source_activity_id: Option<String>,
+    /// Whether this insight was coach-generated (vs manual entry)
+    pub coach_generated: bool,
 }
 
 impl SharedInsight {
@@ -530,7 +540,24 @@ impl SharedInsight {
             created_at: now,
             updated_at: now,
             expires_at: None,
+            source_activity_id: None,
+            coach_generated: false,
         }
+    }
+
+    /// Create a coach-generated insight linked to an activity
+    #[must_use]
+    pub fn coach_generated(
+        user_id: Uuid,
+        insight_type: InsightType,
+        content: String,
+        visibility: ShareVisibility,
+        source_activity_id: String,
+    ) -> Self {
+        let mut insight = Self::new(user_id, insight_type, content, visibility);
+        insight.source_activity_id = Some(source_activity_id);
+        insight.coach_generated = true;
+        insight
     }
 
     /// Check if this insight is expired
@@ -714,6 +741,8 @@ pub struct FeedItem {
     pub insight: SharedInsight,
     /// Author information
     pub author: FriendInfo,
+    /// Reaction counts by type
+    pub reactions: ReactionSummary,
     /// Current user's reaction (if any)
     pub user_reaction: Option<ReactionType>,
     /// Whether current user has adapted this

@@ -25,6 +25,7 @@ const INSIGHT_TYPE_STYLES: Record<string, { icon: FeatherIconName; color: string
   training_tip: { icon: 'zap', color: '#6366F1', label: 'Training Tip' },
   recovery: { icon: 'moon', color: '#8B5CF6', label: 'Recovery' },
   motivation: { icon: 'sun', color: '#F97316', label: 'Motivation' },
+  coaching_insight: { icon: 'message-circle', color: '#7C3AED', label: 'Coach Chat' },
 };
 
 // Generate avatar initials from name or email
@@ -73,6 +74,7 @@ interface InsightCardProps {
   item: FeedItem;
   onReaction: (type: ReactionType) => void;
   onAdapt: () => void;
+  onShare?: (activityId: string) => void;
   isReacting?: boolean;
   isAdapting?: boolean;
 }
@@ -81,6 +83,7 @@ export function InsightCard({
   item,
   onReaction,
   onAdapt,
+  onShare,
   isReacting,
   isAdapting,
 }: InsightCardProps) {
@@ -174,35 +177,49 @@ export function InsightCard({
         })}
       </View>
 
-      {/* Adapt to My Training button */}
-      <TouchableOpacity
-        className={`flex-row items-center justify-center mt-3 py-3 rounded-lg gap-2 ${
-          user_has_adapted ? 'bg-background-secondary' : ''
-        }`}
-        style={!user_has_adapted ? { backgroundColor: colors.pierre.violet } : undefined}
-        onPress={onAdapt}
-        disabled={isAdapting || user_has_adapted}
-      >
-        {isAdapting ? (
-          <ActivityIndicator size="small" color={colors.text.primary} />
-        ) : (
-          <>
-            <Feather
-              name={user_has_adapted ? 'check-circle' : 'refresh-cw'}
-              size={16}
-              color={user_has_adapted ? colors.pierre.activity : colors.text.primary}
-            />
-            <Text
-              className={`text-base font-semibold ${
-                user_has_adapted ? '' : 'text-text-primary'
-              }`}
-              style={user_has_adapted ? { color: colors.pierre.activity } : undefined}
-            >
-              {user_has_adapted ? 'Adapted' : 'Adapt to My Training'}
-            </Text>
-          </>
+      {/* Action buttons */}
+      <View className="flex-row gap-2 mt-3">
+        {/* Share Similar button (only for coach-generated insights with activity link) */}
+        {insight.coach_generated && insight.source_activity_id && onShare && (
+          <TouchableOpacity
+            className="flex-1 flex-row items-center justify-center py-3 rounded-lg gap-2 bg-background-secondary"
+            onPress={() => onShare(insight.source_activity_id as string)}
+          >
+            <Feather name="share-2" size={16} color={colors.text.secondary} />
+            <Text className="text-base font-semibold text-text-secondary">Share Similar</Text>
+          </TouchableOpacity>
         )}
-      </TouchableOpacity>
+
+        {/* Adapt to My Training button */}
+        <TouchableOpacity
+          className={`flex-1 flex-row items-center justify-center py-3 rounded-lg gap-2 ${
+            user_has_adapted ? 'bg-background-secondary' : ''
+          }`}
+          style={!user_has_adapted ? { backgroundColor: colors.pierre.violet } : undefined}
+          onPress={onAdapt}
+          disabled={isAdapting || user_has_adapted}
+        >
+          {isAdapting ? (
+            <ActivityIndicator size="small" color={colors.text.primary} />
+          ) : (
+            <>
+              <Feather
+                name={user_has_adapted ? 'check-circle' : 'refresh-cw'}
+                size={16}
+                color={user_has_adapted ? colors.pierre.activity : colors.text.primary}
+              />
+              <Text
+                className={`text-base font-semibold ${
+                  user_has_adapted ? '' : 'text-text-primary'
+                }`}
+                style={user_has_adapted ? { color: colors.pierre.activity } : undefined}
+              >
+                {user_has_adapted ? 'Adapted' : 'Adapt to My Training'}
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }

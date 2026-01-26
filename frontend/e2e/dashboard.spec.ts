@@ -296,10 +296,10 @@ test.describe('Dashboard User Profile', () => {
     await setupFullDashboardMocks(page, { isAdmin: false });
     await loginAndGoToDashboard(page);
 
-    // Non-admin layout (no sidebar with user profile)
-    await page.waitForSelector('main', { timeout: 10000 });
-    // Non-admin users see the ChatTab interface with settings button
-    await expect(page.locator('button[title="Open settings"]')).toBeVisible();
+    // Non-admin users see sidebar with tabs (Chat, Friends, Social Feed, Settings, etc.)
+    await page.waitForSelector('aside', { timeout: 10000 });
+    // Non-admin users see the sidebar with Settings tab
+    await expect(page.locator('button').filter({ has: page.locator('span:has-text("Settings")') })).toBeVisible();
   });
 
   test('shows user display name in header', async ({ page }) => {

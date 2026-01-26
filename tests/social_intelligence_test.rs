@@ -8,6 +8,7 @@
 //! insight adaptation, and friend activity caching.
 
 use chrono::{Duration, Utc};
+use pierre_mcp_server::config::SocialInsightsConfig;
 use pierre_mcp_server::intelligence::{
     friend_activity_cache::{
         CacheConfig, DurationCategory, EffortLevel, FriendActivityCache, FriendActivitySummary,
@@ -741,21 +742,23 @@ fn test_generator_create_insight() {
 
 #[test]
 fn test_milestone_relevance() {
-    assert_eq!(calculate_milestone_relevance(1000), 95);
-    assert_eq!(calculate_milestone_relevance(100), 80);
-    assert_eq!(calculate_milestone_relevance(10), 65);
+    let config = SocialInsightsConfig::global();
+    assert_eq!(calculate_milestone_relevance(1000, config), 95);
+    assert_eq!(calculate_milestone_relevance(100, config), 80);
+    assert_eq!(calculate_milestone_relevance(10, config), 65);
 }
 
 #[test]
 fn test_milestone_relevance_all_tiers() {
+    let config = SocialInsightsConfig::global();
     // Test all milestone tiers
-    assert_eq!(calculate_milestone_relevance(1500), 95); // 1000+
-    assert_eq!(calculate_milestone_relevance(750), 90); // 500-999
-    assert_eq!(calculate_milestone_relevance(300), 85); // 250-499
-    assert_eq!(calculate_milestone_relevance(150), 80); // 100-249
-    assert_eq!(calculate_milestone_relevance(75), 75); // 50-99
-    assert_eq!(calculate_milestone_relevance(30), 70); // 25-49
-    assert_eq!(calculate_milestone_relevance(10), 65); // < 25
+    assert_eq!(calculate_milestone_relevance(1500, config), 95); // 1000+
+    assert_eq!(calculate_milestone_relevance(750, config), 90); // 500-999
+    assert_eq!(calculate_milestone_relevance(300, config), 85); // 250-499
+    assert_eq!(calculate_milestone_relevance(150, config), 80); // 100-249
+    assert_eq!(calculate_milestone_relevance(75, config), 75); // 50-99
+    assert_eq!(calculate_milestone_relevance(30, config), 70); // 25-49
+    assert_eq!(calculate_milestone_relevance(10, config), 65); // < 25
 }
 
 // Note: calculate_streak_relevance is private, tested indirectly through generate_suggestions

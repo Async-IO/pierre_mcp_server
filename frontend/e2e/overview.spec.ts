@@ -494,12 +494,11 @@ test.describe('Overview Tab - Quick Actions (Admin Only)', () => {
   test('hides Quick Actions for non-admin users', async ({ page }) => {
     await setupOverviewMocks(page, { isAdmin: false });
     await loginToDashboard(page);
-    // Non-admin users see chat-first layout (no sidebar nav)
-    await page.waitForSelector('main', { timeout: 10000 });
+    // Non-admin users see sidebar with tabs (Chat, Friends, Social Feed, Settings, etc.)
+    await page.waitForSelector('aside', { timeout: 10000 });
 
-    // Non-admin users see the ChatTab interface with settings button, not admin sidebar
-    await expect(page.locator('button[title="Open settings"]')).toBeVisible();
-    // Non-admin users see ChatTab sidebar (nav), but NOT admin-specific tabs like Overview
+    // Non-admin users see the sidebar with Settings tab, but NOT admin-specific tabs like Overview
+    await expect(page.locator('button').filter({ has: page.locator('span:has-text("Settings")') })).toBeVisible();
     await expect(page.locator('button').filter({ has: page.locator('span:has-text("Overview")') })).not.toBeVisible();
     // Quick Actions is admin-only (Overview tab not accessible to non-admin)
     await expect(page.getByText('Quick Actions')).not.toBeVisible();
@@ -586,12 +585,11 @@ test.describe('Overview Tab - Alerts (Admin Only)', () => {
   test('hides Alerts section for non-admin users', async ({ page }) => {
     await setupOverviewMocks(page, { isAdmin: false });
     await loginToDashboard(page);
-    // Non-admin users see chat-first layout (no sidebar nav)
-    await page.waitForSelector('main', { timeout: 10000 });
+    // Non-admin users see sidebar with tabs (Chat, Friends, Social Feed, Settings, etc.)
+    await page.waitForSelector('aside', { timeout: 10000 });
 
-    // Non-admin users see the ChatTab interface with settings button, not admin sidebar
-    await expect(page.locator('button[title="Open settings"]')).toBeVisible();
-    // Non-admin users see ChatTab sidebar (nav), but NOT admin-specific tabs like Overview
+    // Non-admin users see the sidebar with Settings tab, but NOT admin-specific tabs like Overview
+    await expect(page.locator('button').filter({ has: page.locator('span:has-text("Settings")') })).toBeVisible();
     await expect(page.locator('button').filter({ has: page.locator('span:has-text("Overview")') })).not.toBeVisible();
     // Alerts section is admin-only (Overview tab not accessible to non-admin)
     await expect(page.getByText('Alerts')).not.toBeVisible();

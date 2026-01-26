@@ -77,13 +77,32 @@ vi.mock('../../services/api', () => ({
       query: 'marathon',
       metadata: { timestamp: new Date().toISOString(), api_version: '1.0' },
     }),
+    getStoreCoach: vi.fn().mockResolvedValue({
+      id: 'coach-1',
+      title: 'Marathon Training Coach',
+      description: 'A comprehensive marathon training program',
+      category: 'training',
+      tags: ['marathon', 'running', 'endurance'],
+      sample_prompts: ['What should my weekly mileage be?'],
+      system_prompt: 'You are an expert marathon coach...',
+      token_count: 1200,
+      install_count: 75,
+      icon_url: null,
+      published_at: '2024-01-15T00:00:00Z',
+      created_at: '2024-01-10T00:00:00Z',
+      author_id: 'author-123',
+      publish_status: 'published',
+    }),
+    getStoreInstallations: vi.fn().mockResolvedValue({
+      coaches: [],
+      metadata: { timestamp: new Date().toISOString(), api_version: '1.0' },
+    }),
   },
 }));
 
 import { apiService } from '../../services/api';
 
-const mockOnSelectCoach = vi.fn();
-const mockOnBack = vi.fn();
+const mockOnNavigateToCoaches = vi.fn();
 
 function renderStoreScreen() {
   const queryClient = new QueryClient({
@@ -95,7 +114,7 @@ function renderStoreScreen() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <StoreScreen onSelectCoach={mockOnSelectCoach} onBack={mockOnBack} />
+      <StoreScreen onNavigateToCoaches={mockOnNavigateToCoaches} />
     </QueryClientProvider>
   );
 }
@@ -266,7 +285,7 @@ describe('StoreScreen', () => {
   });
 
   describe('navigation', () => {
-    it('should call onSelectCoach when coach card is clicked', async () => {
+    it('should open detail view when coach card is clicked', async () => {
       const user = userEvent.setup();
       renderStoreScreen();
 
@@ -276,7 +295,10 @@ describe('StoreScreen', () => {
 
       await user.click(screen.getByText('Marathon Training Coach'));
 
-      expect(mockOnSelectCoach).toHaveBeenCalledWith('coach-1');
+      // Detail view should show Add Coach button and System Prompt section
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Add Coach' })).toBeInTheDocument();
+      });
     });
   });
 

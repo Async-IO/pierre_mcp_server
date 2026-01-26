@@ -23,12 +23,11 @@ interface Friend {
 }
 
 interface DiscoverableUser {
-  user_id: string;
+  id: string;
   display_name: string | null;
   email: string;
-  mutual_friends_count: number;
   is_friend: boolean;
-  pending_request: boolean;
+  has_pending_request: boolean;
 }
 
 interface PendingRequest {
@@ -39,6 +38,9 @@ interface PendingRequest {
   created_at: string;
   updated_at: string;
   accepted_at: string | null;
+  user_display_name: string | null;
+  user_email: string;
+  user_id: string;
 }
 
 type TabView = 'friends' | 'search' | 'pending';
@@ -107,7 +109,7 @@ export default function FriendsTab() {
       await apiService.sendFriendRequest(userId);
       // Update search results to show pending
       setSearchResults(prev =>
-        prev.map(u => u.user_id === userId ? { ...u, pending_request: true } : u)
+        prev.map(u => u.id === userId ? { ...u, has_pending_request: true } : u)
       );
     } catch (error) {
       console.error('Failed to send friend request:', error);
@@ -343,7 +345,7 @@ export default function FriendsTab() {
               <div className="space-y-3">
                 {searchResults.map((user) => (
                   <div
-                    key={user.user_id}
+                    key={user.id}
                     className="flex items-center justify-between p-4 rounded-lg bg-white/5"
                   >
                     <div className="flex items-center gap-3">
@@ -357,18 +359,13 @@ export default function FriendsTab() {
                         <p className="font-medium text-white">
                           {user.display_name || user.email.split('@')[0]}
                         </p>
-                        {user.mutual_friends_count > 0 && (
-                          <p className="text-sm text-zinc-500">
-                            {user.mutual_friends_count} mutual friend{user.mutual_friends_count !== 1 ? 's' : ''}
-                          </p>
-                        )}
                       </div>
                     </div>
                     {user.is_friend ? (
                       <span className="px-3 py-1 text-sm text-pierre-activity bg-pierre-activity/20 rounded-full">
                         Friends
                       </span>
-                    ) : user.pending_request ? (
+                    ) : user.has_pending_request ? (
                       <span className="px-3 py-1 text-sm text-pierre-nutrition bg-pierre-nutrition/20 rounded-full">
                         Pending
                       </span>
@@ -376,8 +373,8 @@ export default function FriendsTab() {
                       <Button
                         variant="primary"
                         size="sm"
-                        onClick={() => handleSendRequest(user.user_id)}
-                        loading={actionLoading === user.user_id}
+                        onClick={() => handleSendRequest(user.id)}
+                        loading={actionLoading === user.id}
                       >
                         Add Friend
                       </Button>
@@ -406,7 +403,10 @@ export default function FriendsTab() {
               <p className="text-center py-8 text-zinc-500">No pending requests</p>
             ) : (
               <div className="space-y-3">
-                {pendingReceived.map((request) => (
+                {pendingReceived.map((request) => {
+                  const displayName = request.user_display_name || request.user_email.split('@')[0];
+                  const initials = displayName.substring(0, 2).toUpperCase();
+                  return (
                   <div
                     key={request.id}
                     className="flex items-center justify-between p-4 rounded-lg bg-white/5"
@@ -414,12 +414,12 @@ export default function FriendsTab() {
                     <div className="flex items-center gap-3">
                       <div
                         className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold text-white"
-                        style={{ backgroundColor: getAvatarColor(request.initiator_id) }}
+                        style={{ backgroundColor: getAvatarColor(request.user_id) }}
                       >
-                        {request.initiator_id.substring(0, 2).toUpperCase()}
+                        {initials}
                       </div>
                       <div>
-                        <p className="font-medium text-white">User {request.initiator_id.substring(0, 8)}...</p>
+                        <p className="font-medium text-white">{displayName}</p>
                         <p className="text-sm text-zinc-500">
                           Sent {formatRelativeTime(request.created_at)}
                         </p>
@@ -444,7 +444,8 @@ export default function FriendsTab() {
                       </Button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </Card>
@@ -458,7 +459,10 @@ export default function FriendsTab() {
               <p className="text-center py-8 text-zinc-500">No sent requests</p>
             ) : (
               <div className="space-y-3">
-                {pendingSent.map((request) => (
+                {pendingSent.map((request) => {
+                  const displayName = request.user_display_name || request.user_email.split('@')[0];
+                  const initials = displayName.substring(0, 2).toUpperCase();
+                  return (
                   <div
                     key={request.id}
                     className="flex items-center justify-between p-4 rounded-lg bg-white/5"
@@ -466,12 +470,12 @@ export default function FriendsTab() {
                     <div className="flex items-center gap-3">
                       <div
                         className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold text-white"
-                        style={{ backgroundColor: getAvatarColor(request.receiver_id) }}
+                        style={{ backgroundColor: getAvatarColor(request.user_id) }}
                       >
-                        {request.receiver_id.substring(0, 2).toUpperCase()}
+                        {initials}
                       </div>
                       <div>
-                        <p className="font-medium text-white">User {request.receiver_id.substring(0, 8)}...</p>
+                        <p className="font-medium text-white">{displayName}</p>
                         <p className="text-sm text-zinc-500">
                           Sent {formatRelativeTime(request.created_at)}
                         </p>
@@ -481,7 +485,8 @@ export default function FriendsTab() {
                       Awaiting
                     </span>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </Card>

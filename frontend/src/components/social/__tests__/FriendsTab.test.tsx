@@ -45,16 +45,14 @@ const mockFriends = {
 const mockSearchResults = {
   users: [
     {
-      user_id: 'user-3',
+      id: 'user-3',
       display_name: 'Bob Smith',
       email: 'bob@example.com',
-      mutual_friends_count: 2,
       is_friend: false,
-      pending_request: false,
+      has_pending_request: false,
     },
   ],
-  query: 'bob',
-  metadata: { timestamp: '2024-01-01T00:00:00Z', api_version: 'v1' },
+  total: 1,
 };
 
 const mockPendingRequests = {
@@ -68,6 +66,9 @@ const mockPendingRequests = {
       created_at: '2024-01-01T00:00:00Z',
       updated_at: '2024-01-01T00:00:00Z',
       accepted_at: null,
+      user_display_name: 'Alice Johnson',
+      user_email: 'alice@example.com',
+      user_id: 'user-4',
     },
   ],
   metadata: { timestamp: '2024-01-01T00:00:00Z', api_version: 'v1' },

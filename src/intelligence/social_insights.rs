@@ -15,28 +15,10 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::models::{Activity, InsightType, ShareVisibility, SharedInsight, TrainingPhase};
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-/// Minimum activity count to suggest sharing milestones
-const MIN_ACTIVITIES_FOR_MILESTONE: u32 = 10;
-
-/// Milestone thresholds for activity counts
-const MILESTONE_COUNTS: [u32; 7] = [10, 25, 50, 100, 250, 500, 1000];
-
-/// Milestone thresholds for total distance (in km)
-const DISTANCE_MILESTONES_KM: [f64; 8] = [
-    100.0, 250.0, 500.0, 1000.0, 2500.0, 5000.0, 10000.0, 25000.0,
-];
-
-/// Days to look back for streak calculation
-const STREAK_LOOKBACK_DAYS: i64 = 90;
-
-/// Minimum streak length to suggest sharing
-const MIN_STREAK_FOR_SHARING: u32 = 7;
+use crate::{
+    config::SocialInsightsConfig,
+    models::{Activity, InsightType, ShareVisibility, SharedInsight, TrainingPhase},
+};
 
 // ============================================================================
 // Shareable Insight Context
@@ -187,11 +169,12 @@ impl SharedInsightGenerator {
         context: &InsightGenerationContext,
         suggestions: &mut Vec<InsightSuggestion>,
     ) {
-        if context.total_activity_count < MIN_ACTIVITIES_FOR_MILESTONE {
+        let config = SocialInsightsConfig::global();
+        if context.total_activity_count < config.milestone_thresholds.min_activities_for_milestone {
             return;
         }
 
-        for &milestone in &MILESTONE_COUNTS {
+        for &milestone in &config.milestone_thresholds.activity_counts {
             if context.total_activity_count >= milestone
                 && context.total_activity_count < milestone + 5
             {
@@ -212,7 +195,7 @@ impl SharedInsightGenerator {
                         "Just completed my {milestone}th {sport_desc}! Consistency is key 💪"
                     ),
                     suggested_title: Some(format!("{milestone} {}", capitalize_first(sport_desc))),
-                    relevance_score: calculate_milestone_relevance(milestone),
+                    relevance_score: calculate_milestone_relevance(milestone, config),
                     sport_type: context.primary_sport.clone(),
                     training_phase: context.training_phase,
                 });
@@ -226,9 +209,10 @@ impl SharedInsightGenerator {
         context: &InsightGenerationContext,
         suggestions: &mut Vec<InsightSuggestion>,
     ) {
-        for &milestone in &DISTANCE_MILESTONES_KM {
-            // Within 5% of milestone
-            let threshold = milestone * 0.05;
+        let config = SocialInsightsConfig::global();
+        for &milestone in &config.distance_milestones.thresholds_km {
+            // Within configured percentage of milestone
+            let threshold = milestone * (config.distance_milestones.near_milestone_percent / 100.0);
             if context.total_distance_km >= milestone
                 && context.total_distance_km < milestone + threshold
             {
@@ -244,7 +228,7 @@ impl SharedInsightGenerator {
                         "Crossed the {display_distance} total distance milestone! Every kilometer counts 🏃"
                     ),
                     suggested_title: Some(format!("{display_distance} Club")),
-                    relevance_score: calculate_distance_milestone_relevance(milestone),
+                    relevance_score: calculate_distance_milestone_relevance(milestone, config),
                     sport_type: context.primary_sport.clone(),
                     training_phase: context.training_phase,
                 });
@@ -258,10 +242,9 @@ impl SharedInsightGenerator {
         context: &InsightGenerationContext,
         suggestions: &mut Vec<InsightSuggestion>,
     ) {
-        if context.current_streak_days >= MIN_STREAK_FOR_SHARING {
-            let streak_milestones = [7, 14, 21, 30, 60, 90, 180, 365];
-
-            for &milestone in &streak_milestones {
+        let config = SocialInsightsConfig::global();
+        if context.current_streak_days >= config.streak_config.min_for_sharing {
+            for &milestone in &config.streak_config.milestone_days {
                 if context.current_streak_days >= milestone
                     && context.current_streak_days < milestone + 3
                 {
@@ -277,7 +260,7 @@ impl SharedInsightGenerator {
                             "{time_desc} training streak! Building habits one day at a time 🔥"
                         ),
                         suggested_title: Some(format!("{time_desc} Streak")),
-                        relevance_score: calculate_streak_relevance(milestone),
+                        relevance_score: calculate_streak_relevance(milestone, config),
                         sport_type: context.primary_sport.clone(),
                         training_phase: context.training_phase,
                     });
@@ -451,7 +434,8 @@ impl InsightContextBuilder {
             return (0, 0);
         }
 
-        let cutoff = Utc::now() - Duration::days(STREAK_LOOKBACK_DAYS);
+        let config = SocialInsightsConfig::global();
+        let cutoff = Utc::now() - Duration::days(config.streak_config.lookback_days);
 
         // Get unique activity dates within lookback period
         let mut dates: Vec<chrono::NaiveDate> = self
@@ -519,46 +503,27 @@ impl Default for InsightContextBuilder {
 
 /// Calculate relevance score for activity count milestone
 #[must_use]
-pub const fn calculate_milestone_relevance(milestone: u32) -> u8 {
-    match milestone {
-        1000.. => 95,
-        500..=999 => 90,
-        250..=499 => 85,
-        100..=249 => 80,
-        50..=99 => 75,
-        25..=49 => 70,
-        _ => 65,
-    }
+pub const fn calculate_milestone_relevance(milestone: u32, config: &SocialInsightsConfig) -> u8 {
+    config
+        .relevance_scoring
+        .activity_milestone_scores
+        .score_for_milestone(milestone)
 }
 
 /// Calculate relevance score for distance milestone
-fn calculate_distance_milestone_relevance(milestone_km: f64) -> u8 {
-    // Note: Can't be const fn due to f64 comparisons
-    if milestone_km >= 10000.0 {
-        95
-    } else if milestone_km >= 5000.0 {
-        90
-    } else if milestone_km >= 2500.0 {
-        85
-    } else if milestone_km >= 1000.0 {
-        80
-    } else if milestone_km >= 500.0 {
-        75
-    } else {
-        70
-    }
+fn calculate_distance_milestone_relevance(milestone_km: f64, config: &SocialInsightsConfig) -> u8 {
+    config
+        .relevance_scoring
+        .distance_milestone_scores
+        .score_for_distance(milestone_km)
 }
 
 /// Calculate relevance score for streak achievement
-const fn calculate_streak_relevance(streak_days: u32) -> u8 {
-    match streak_days {
-        365.. => 95,
-        180..=364 => 90,
-        90..=179 => 85,
-        60..=89 => 80,
-        30..=59 => 75,
-        _ => 70,
-    }
+const fn calculate_streak_relevance(streak_days: u32, config: &SocialInsightsConfig) -> u8 {
+    config
+        .relevance_scoring
+        .streak_scores
+        .score_for_streak(streak_days)
 }
 
 /// Capitalize first letter of a string

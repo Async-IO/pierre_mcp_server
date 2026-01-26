@@ -5,6 +5,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use super::Database;
+use crate::config::social::SocialInsightsConfig;
 use crate::errors::{AppError, AppResult};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -12,6 +13,8 @@ use sqlx::Row;
 
 /// System setting key constants
 pub const SETTING_AUTO_APPROVAL_ENABLED: &str = "auto_approval_enabled";
+/// Key for social insights configuration storage
+pub const SETTING_SOCIAL_INSIGHTS_CONFIG: &str = "social_insights_config";
 
 /// A system setting entry
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -149,5 +152,58 @@ impl Database {
             if enabled { "true" } else { "false" },
         )
         .await
+    }
+
+    /// Get social insights configuration from database
+    ///
+    /// Returns `Some(config)` if explicitly set in database,
+    /// or `None` if no database setting exists (caller should use defaults).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails or JSON deserialization fails
+    pub async fn get_social_insights_config(&self) -> AppResult<Option<SocialInsightsConfig>> {
+        match self
+            .get_system_setting(SETTING_SOCIAL_INSIGHTS_CONFIG)
+            .await?
+        {
+            Some(setting) => {
+                let config: SocialInsightsConfig =
+                    serde_json::from_str(&setting.value).map_err(|e| {
+                        AppError::internal(format!("Failed to parse social insights config: {e}"))
+                    })?;
+                Ok(Some(config))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Set social insights configuration in database
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails or JSON serialization fails
+    pub async fn set_social_insights_config(&self, config: &SocialInsightsConfig) -> AppResult<()> {
+        let json = serde_json::to_string(config).map_err(|e| {
+            AppError::internal(format!("Failed to serialize social insights config: {e}"))
+        })?;
+        self.set_system_setting(SETTING_SOCIAL_INSIGHTS_CONFIG, &json)
+            .await
+    }
+
+    /// Delete social insights configuration from database (revert to defaults)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails
+    pub async fn delete_social_insights_config(&self) -> AppResult<()> {
+        sqlx::query("DELETE FROM system_settings WHERE key = ?1")
+            .bind(SETTING_SOCIAL_INSIGHTS_CONFIG)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to delete social insights config: {e}"))
+            })?;
+        Ok(())
     }
 }

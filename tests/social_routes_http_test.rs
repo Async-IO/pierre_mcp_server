@@ -1106,8 +1106,8 @@ async fn test_get_feed_empty() {
     assert_eq!(response.status(), 200);
 
     let body: serde_json::Value = response.json();
-    assert!(body["insights"].is_array());
-    assert_eq!(body["total"], 0);
+    assert!(body["items"].is_array());
+    assert_eq!(body["has_more"], false);
 }
 
 #[tokio::test]
@@ -1176,9 +1176,11 @@ async fn test_adapt_insight_success() {
     assert_eq!(response.status(), 201);
 
     let body: serde_json::Value = response.json();
-    assert!(body["id"].is_string());
-    assert!(body["adapted_content"].is_string());
-    assert_eq!(body["source_insight_id"], insight_id);
+    // Response is wrapped in AdaptInsightResultResponse with adapted and source_insight fields
+    assert!(body["adapted"]["id"].is_string());
+    assert!(body["adapted"]["adapted_content"].is_string());
+    assert_eq!(body["adapted"]["source_insight_id"], insight_id);
+    assert!(body["source_insight"]["id"].is_string());
 }
 
 #[tokio::test]
@@ -1305,7 +1307,8 @@ async fn test_update_helpful_success() {
         .await;
 
     let adapted: serde_json::Value = adapt_response.json();
-    let adapted_id = adapted["id"].as_str().unwrap();
+    // Response is wrapped in AdaptInsightResultResponse with adapted field
+    let adapted_id = adapted["adapted"]["id"].as_str().unwrap();
 
     // Update helpful status
     let helpful_url = format!("/api/social/adapted/{}/helpful", adapted_id);
@@ -1534,7 +1537,8 @@ async fn test_full_insight_workflow() {
 
     assert_eq!(adapt_response.status(), 201);
     let adapted: serde_json::Value = adapt_response.json();
-    let adapted_id = adapted["id"].as_str().unwrap();
+    // Response is wrapped in AdaptInsightResultResponse with adapted field
+    let adapted_id = adapted["adapted"]["id"].as_str().unwrap();
 
     // 4. Mark adaptation as helpful
     let helpful_url = format!("/api/social/adapted/{}/helpful", adapted_id);

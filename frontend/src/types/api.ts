@@ -499,3 +499,71 @@ export interface InstallationsResponse {
   coaches: StoreCoach[];
   metadata: StoreMetadata;
 }
+
+// Social Insights Configuration Types
+export interface MilestoneConfig {
+  min_activities_for_milestone: number;
+  activity_counts: number[];
+}
+
+export interface DistanceMilestoneConfig {
+  thresholds_km: number[];
+  near_milestone_percent: number;
+}
+
+export interface StreakConfig {
+  lookback_days: number;
+  min_for_sharing: number;
+  milestone_days: number[];
+}
+
+export interface MilestoneRelevanceScores {
+  score_1000_plus: number;
+  score_500_999: number;
+  score_250_499: number;
+  score_100_249: number;
+  score_50_99: number;
+  score_25_49: number;
+  score_default: number;
+}
+
+export interface DistanceRelevanceScores {
+  score_10000_plus: number;
+  score_5000_9999: number;
+  score_2500_4999: number;
+  score_1000_2499: number;
+  score_500_999: number;
+  score_default: number;
+}
+
+export interface StreakRelevanceScores {
+  score_365_plus: number;
+  score_180_364: number;
+  score_90_179: number;
+  score_60_89: number;
+  score_30_59: number;
+  score_default: number;
+}
+
+export interface RelevanceConfig {
+  activity_milestone_scores: MilestoneRelevanceScores;
+  distance_milestone_scores: DistanceRelevanceScores;
+  streak_scores: StreakRelevanceScores;
+  pr_base_score: number;
+  training_phase_base_score: number;
+}
+
+export interface ActivityFetchLimitsConfig {
+  insight_context_limit: number;
+  training_context_limit: number;
+  max_client_limit: number;
+}
+
+export interface SocialInsightsConfig {
+  milestone_thresholds: MilestoneConfig;
+  distance_milestones: DistanceMilestoneConfig;
+  streak_config: StreakConfig;
+  relevance_scoring: RelevanceConfig;
+  activity_fetch_limits: ActivityFetchLimitsConfig;
+  min_relevance_score: number;
+}

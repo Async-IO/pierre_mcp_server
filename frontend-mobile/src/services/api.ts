@@ -34,7 +34,6 @@ import type {
   FriendConnectionResponse,
   SearchUsersResponse,
   FeedResponse,
-  SharedInsight,
   ShareInsightRequest,
   ShareInsightResponse,
   ListInsightsResponse,
@@ -45,6 +44,10 @@ import type {
   AdaptInsightResponse,
   SocialSettingsResponse,
   UpdateSocialSettingsRequest,
+  // Coach-mediated sharing types
+  ListSuggestionsResponse,
+  ShareFromActivityRequest,
+  GetSuggestionsParams,
 } from '../types';
 
 // Configuration - should be set via environment or config
@@ -780,33 +783,12 @@ class ApiService {
   }): Promise<FeedResponse> {
     const params = new URLSearchParams();
     if (options?.limit) params.append('limit', options.limit.toString());
-    if (options?.cursor) params.append('cursor', options.cursor);
+    // Backend uses 'offset' parameter, cursor is the offset value as string
+    if (options?.cursor) params.append('offset', options.cursor);
     const url = params.toString() ? `/api/social/feed?${params}` : '/api/social/feed';
     const response = await axios.get(url);
-    // Backend returns { insights, total, metadata } but frontend expects { items, ... }
-    const data = response.data;
-    return {
-      items: (data.insights || []).map((insight: SharedInsight) => ({
-        insight,
-        author: {
-          user_id: insight.user_id,
-          display_name: null,
-          email: 'user@example.com',
-        },
-        reactions: {
-          like: 0,
-          celebrate: 0,
-          inspire: 0,
-          support: 0,
-          total: insight.reaction_count || 0,
-        },
-        user_reaction: null,
-        user_has_adapted: false,
-      })),
-      next_cursor: null,
-      has_more: false,
-      metadata: data.metadata || { timestamp: new Date().toISOString(), api_version: '1.0' },
-    };
+    // Backend now returns full FeedResponse with items, next_cursor, has_more, metadata
+    return response.data;
   }
 
   // ---------- Insights ----------
@@ -842,6 +824,34 @@ class ApiService {
     await axios.delete(`/api/social/insights/${insightId}`);
   }
 
+  // ---------- Coach Suggestions ----------
+
+  /**
+   * Get coach-generated insight suggestions based on user's activities
+   */
+  async getInsightSuggestions(
+    params?: GetSuggestionsParams
+  ): Promise<ListSuggestionsResponse> {
+    const urlParams = new URLSearchParams();
+    if (params?.activity_id) urlParams.append('activity_id', params.activity_id);
+    if (params?.limit) urlParams.append('limit', params.limit.toString());
+    if (params?.provider) urlParams.append('provider', params.provider);
+    if (params?.tenant_id) urlParams.append('tenant_id', params.tenant_id);
+    const url = urlParams.toString()
+      ? `/api/social/insights/suggestions?${urlParams}`
+      : '/api/social/insights/suggestions';
+    const response = await axios.get(url);
+    return response.data;
+  }
+
+  /**
+   * Share a coach-mediated insight from an activity
+   */
+  async shareFromActivity(data: ShareFromActivityRequest): Promise<ShareInsightResponse> {
+    const response = await axios.post('/api/social/insights/from-activity', data);
+    return response.data;
+  }
+
   // ---------- Reactions ----------
 
   /**
@@ -857,8 +867,8 @@ class ApiService {
   /**
    * Remove user's reaction from an insight
    */
-  async removeReaction(insightId: string): Promise<void> {
-    await axios.delete(`/api/social/insights/${insightId}/reactions`);
+  async removeReaction(insightId: string, reactionType: string): Promise<void> {
+    await axios.delete(`/api/social/insights/${insightId}/reactions/${reactionType}`);
   }
 
   // ---------- Adapt to My Training ----------

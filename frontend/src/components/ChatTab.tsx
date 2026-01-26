@@ -1,22 +1,19 @@
 // ABOUTME: AI Chat tab component for users to interact with fitness AI assistant
-// ABOUTME: Features Claude.ai-style two-column layout with sidebar and chat area
+// ABOUTME: Pure chat interface - navigation handled by Dashboard
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Panel, Group as PanelGroup, Separator as PanelResizeHandle, usePanelRef } from 'react-resizable-panels';
 import { ConfirmDialog } from './ui';
 import { clsx } from 'clsx';
 import { apiService } from '../services/api';
 import Markdown from 'react-markdown';
 import PromptSuggestions from './PromptSuggestions';
 import ProviderConnectionCards from './ProviderConnectionCards';
-import StoreScreen from './StoreScreen';
-import StoreCoachDetail from './StoreCoachDetail';
-import { useAuth } from '../hooks/useAuth';
-import { MessageCircle, Users, Compass, History, Plus, Settings, Zap, ChevronRight, Pencil, Trash2 } from 'lucide-react';
+import { MessageCircle, Plus, ChevronDown, Pencil, Trash2, X, Check, Share2 } from 'lucide-react';
+import { ShareChatMessageModal } from './social';
 
 // Convert plain URLs to markdown links with friendly display names
 // Matches http/https URLs that aren't already in markdown link format
@@ -96,71 +93,37 @@ interface ConversationListResponse {
   total: number;
 }
 
-interface Coach {
-  id: string;
-  title: string;
-  description: string | null;
-  system_prompt: string;
-  category: string;
-  tags: string[];
-  token_count: number;
-  is_favorite: boolean;
-  use_count: number;
-  last_used_at: string | null;
-  is_system: boolean;
-  is_assigned: boolean;
-}
-
-interface ChatTabProps {
-  onOpenSettings?: () => void;
-}
-
-export default function ChatTab({ onOpenSettings }: ChatTabProps) {
+export default function ChatTab() {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [errorCountdown, setErrorCountdown] = useState<number | null>(null);
-  const [editingTitle, setEditingTitle] = useState<string | null>(null);
-  const [editedTitleValue, setEditedTitleValue] = useState('');
   const [oauthNotification, setOauthNotification] = useState<{ provider: string; timestamp: number } | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ id: string; title: string } | null>(null);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [pendingSystemPrompt, setPendingSystemPrompt] = useState<string | null>(null);
-  const [showIdeas, setShowIdeas] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
   const [showProviderModal, setShowProviderModal] = useState(false);
   const [pendingCoachAction, setPendingCoachAction] = useState<{ prompt: string; systemPrompt?: string } | null>(null);
   // Track model and execution time for assistant messages (for debugging/transparency)
   const [messageMetadata, setMessageMetadata] = useState<Map<string, { model: string; executionTimeMs: number }>>(new Map());
-  // Coach CRUD state
-  const [showCoachModal, setShowCoachModal] = useState(false);
-  const [showMyCoachesPanel, setShowMyCoachesPanel] = useState(false);
-  const [showStorePanel, setShowStorePanel] = useState(false);
-  const [selectedStoreCoach, setSelectedStoreCoach] = useState<string | null>(null);
-  const [coachesCategoryFilter, setCoachesCategoryFilter] = useState<string | null>(null);
-  const [showHiddenCoaches, setShowHiddenCoaches] = useState(false);
-  const [coachesSearchQuery, setCoachesSearchQuery] = useState('');
-  const [editingCoachId, setEditingCoachId] = useState<string | null>(null);
-  const [coachFormData, setCoachFormData] = useState({
-    title: '',
-    description: '',
-    system_prompt: '',
-    category: 'Training',
-  });
-  const [coachDeleteConfirmation, setCoachDeleteConfirmation] = useState<{ id: string; title: string } | null>(null);
+  // Conversation selector dropdown
+  const [showConversationDropdown, setShowConversationDropdown] = useState(false);
+  const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
+  const [editedTitle, setEditedTitle] = useState('');
 
-  const sidebarPanelRef = usePanelRef();
+  // Share message modal state
+  const [shareMessageContent, setShareMessageContent] = useState<string | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const titleInputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Fetch conversations
-  const { data: conversationsData, isLoading: conversationsLoading } = useQuery<ConversationListResponse>({
+  const { data: conversationsData } = useQuery<ConversationListResponse>({
     queryKey: ['chat-conversations'],
     queryFn: () => apiService.getConversations(),
   });
@@ -173,22 +136,6 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
 
   // Check if any provider is connected
   const hasConnectedProvider = oauthStatus?.providers?.some(p => p.connected) ?? false;
-
-  // Fetch coaches for My Coaches panel
-  const { data: coachesData, isLoading: coachesLoading } = useQuery({
-    queryKey: ['user-coaches'],
-    queryFn: () => apiService.getCoaches(),
-    staleTime: 5 * 60 * 1000,
-    enabled: showMyCoachesPanel,
-  });
-
-  // Fetch hidden coaches for My Coaches panel
-  const { data: hiddenCoachesData } = useQuery({
-    queryKey: ['hidden-coaches'],
-    queryFn: () => apiService.getHiddenCoaches(),
-    staleTime: 5 * 60 * 1000,
-    enabled: showMyCoachesPanel,
-  });
 
   // Fetch messages for selected conversation
   const { data: messagesData, isLoading: messagesLoading } = useQuery<{ messages: Message[] }>({
@@ -220,8 +167,8 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
       apiService.updateConversation(id, { title }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
-      setEditingTitle(null);
-      setEditedTitleValue('');
+      setEditingConversationId(null);
+      setEditedTitle('');
     },
   });
 
@@ -233,54 +180,6 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
       if (selectedConversation) {
         setSelectedConversation(null);
       }
-    },
-  });
-
-  // Create coach mutation
-  const createCoach = useMutation({
-    mutationFn: (data: typeof coachFormData) => apiService.createCoach(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
-      setShowCoachModal(false);
-      setCoachFormData({ title: '', description: '', system_prompt: '', category: 'Training' });
-    },
-  });
-
-  // Update coach mutation
-  const updateCoach = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: typeof coachFormData }) => apiService.updateCoach(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
-      setShowCoachModal(false);
-      setEditingCoachId(null);
-      setCoachFormData({ title: '', description: '', system_prompt: '', category: 'Training' });
-    },
-  });
-
-  // Delete coach mutation
-  const deleteCoach = useMutation({
-    mutationFn: (id: string) => apiService.deleteCoach(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
-      setCoachDeleteConfirmation(null);
-    },
-  });
-
-  // Hide coach mutation
-  const hideCoach = useMutation({
-    mutationFn: (coachId: string) => apiService.hideCoach(coachId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
-      queryClient.invalidateQueries({ queryKey: ['hidden-coaches'] });
-    },
-  });
-
-  // Show coach mutation
-  const showCoach = useMutation({
-    mutationFn: (coachId: string) => apiService.showCoach(coachId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
-      queryClient.invalidateQueries({ queryKey: ['hidden-coaches'] });
     },
   });
 
@@ -296,19 +195,25 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
     }
   }, [selectedConversation]);
 
-  // Listen for OAuth completion from popup/new tab
-  // Uses a processing flag to prevent race conditions when multiple events fire
+  // Close dropdown when clicking outside
   useEffect(() => {
-    // Flag to prevent duplicate processing when multiple events fire simultaneously
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowConversationDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Listen for OAuth completion from popup/new tab
+  useEffect(() => {
     let isProcessingOAuth = false;
 
-    // Process OAuth result - extracts and removes localStorage items atomically
-    // Returns the data if found and valid, null otherwise
     const extractOAuthData = () => {
       const stored = localStorage.getItem('pierre_oauth_result');
       if (!stored) return null;
 
-      // Remove immediately to prevent duplicate processing from other handlers
       localStorage.removeItem('pierre_oauth_result');
 
       try {
@@ -316,11 +221,9 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
         const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
 
         if (result.type === 'oauth_completed' && result.success && result.timestamp > fiveMinutesAgo) {
-          // Also extract related items atomically
           const savedConversation = localStorage.getItem('pierre_oauth_conversation');
           const savedCoachAction = localStorage.getItem('pierre_pending_coach_action');
 
-          // Remove these immediately too
           if (savedConversation) localStorage.removeItem('pierre_oauth_conversation');
           if (savedCoachAction) localStorage.removeItem('pierre_pending_coach_action');
 
@@ -330,7 +233,6 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
             savedCoachAction: savedCoachAction ? JSON.parse(savedCoachAction) : null,
           };
         } else if (result.timestamp <= fiveMinutesAgo) {
-          // Clean up stale entries
           localStorage.removeItem('pierre_oauth_conversation');
           localStorage.removeItem('pierre_pending_coach_action');
         }
@@ -340,7 +242,6 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
       return null;
     };
 
-    // Process the extracted OAuth data (called after extraction to avoid races)
     const processOAuthData = (data: { result: { provider: string }; savedConversation: string | null; savedCoachAction: { prompt: string; systemPrompt?: string } | null }) => {
       if (isProcessingOAuth) return;
       isProcessingOAuth = true;
@@ -348,17 +249,14 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
       queryClient.invalidateQueries({ queryKey: ['oauth-status'] });
       queryClient.invalidateQueries({ queryKey: ['user-profile'] });
 
-      // Show visible notification in chat
       const providerDisplay = data.result.provider.charAt(0).toUpperCase() + data.result.provider.slice(1);
       setOauthNotification({ provider: providerDisplay, timestamp: Date.now() });
       setConnectingProvider(null);
 
-      // Restore the conversation that was active before OAuth redirect
       if (data.savedConversation) {
         setSelectedConversation(data.savedConversation);
       }
 
-      // Restore pending coach action and create conversation
       if (data.savedCoachAction) {
         setPendingPrompt(data.savedCoachAction.prompt);
         if (data.savedCoachAction.systemPrompt) {
@@ -367,13 +265,11 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
         createConversation.mutate(data.savedCoachAction.systemPrompt);
       }
 
-      // Reset flag after a short delay to allow state updates to propagate
       setTimeout(() => {
         isProcessingOAuth = false;
       }, 500);
     };
 
-    // Check localStorage for OAuth result and process if found
     const checkAndProcessOAuthResult = () => {
       const data = extractOAuthData();
       if (data) {
@@ -382,15 +278,12 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
     };
 
     const handleOAuthMessage = (event: MessageEvent) => {
-      // Validate message structure
       if (event.data?.type === 'oauth_completed') {
         const { provider, success } = event.data;
         if (success && !isProcessingOAuth) {
-          // For postMessage, we don't have localStorage data, so extract what we can
           const savedConversation = localStorage.getItem('pierre_oauth_conversation');
           const savedCoachActionStr = localStorage.getItem('pierre_pending_coach_action');
 
-          // Remove immediately
           if (savedConversation) localStorage.removeItem('pierre_oauth_conversation');
           if (savedCoachActionStr) localStorage.removeItem('pierre_pending_coach_action');
 
@@ -414,8 +307,6 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
 
     const handleStorageChange = (event: StorageEvent) => {
       if (event.key === 'pierre_oauth_result' && event.newValue) {
-        // The storage event fires, but another handler might have already processed it
-        // Try to extract - if extraction returns null, it was already processed
         const data = extractOAuthData();
         if (data) {
           processOAuthData(data);
@@ -423,14 +314,12 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
       }
     };
 
-    // Check when tab becomes visible (user returns from OAuth tab)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         checkAndProcessOAuthResult();
       }
     };
 
-    // Check when window gains focus (alternative to visibility change)
     const handleFocus = () => {
       checkAndProcessOAuthResult();
     };
@@ -440,7 +329,6 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleFocus);
 
-    // Also check on mount in case OAuth completed while component was being rendered
     checkAndProcessOAuthResult();
 
     return () => {
@@ -457,7 +345,6 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
       const promptToSend = pendingPrompt;
       setPendingPrompt(null);
       setNewMessage(promptToSend);
-      // Small delay to ensure state is updated before sending
       setTimeout(() => {
         const sendButton = document.querySelector('[aria-label="Send message"]') as HTMLButtonElement;
         sendButton?.click();
@@ -472,7 +359,6 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
       return;
     }
 
-    // Look for "in X seconds" pattern in error message
     const match = errorMessage.match(/in (\d+) seconds/);
     if (match) {
       const seconds = parseInt(match[1], 10);
@@ -506,20 +392,15 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
   const handleSendMessage = useCallback(async () => {
     if (!newMessage.trim() || !selectedConversation || isStreaming) return;
 
-    // Store conversation ID at the START if we're connecting a provider
-    // This ensures the ID is saved before any OAuth links appear that user might click
     if (connectingProvider) {
       localStorage.setItem('pierre_oauth_conversation', selectedConversation);
     }
 
     const displayContent = newMessage.trim();
-    // Add context about connected providers to help the LLM
     let messageContent = displayContent;
     if (oauthNotification) {
-      // OAuth just completed - mention the newly connected provider
       messageContent = `[Context: I just connected my ${oauthNotification.provider} account successfully] ${displayContent}`;
     } else if (hasConnectedProvider && (!messagesData?.messages || messagesData.messages.length === 0)) {
-      // First message in conversation with connected providers - add context
       const connectedProviders = oauthStatus?.providers
         ?.filter(p => p.connected)
         .map(p => p.provider.charAt(0).toUpperCase() + p.provider.slice(1))
@@ -533,10 +414,9 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
     setIsStreaming(true);
     setStreamingContent('');
     setErrorMessage(null);
-    setOauthNotification(null); // Clear OAuth notification when user sends a new message
+    setOauthNotification(null);
 
     try {
-      // Optimistically add user message to UI (without context prefix)
       queryClient.setQueryData(['chat-messages', selectedConversation], (old: { messages: Message[] } | undefined) => ({
         messages: [
           ...(old?.messages || []),
@@ -549,7 +429,6 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
         ],
       }));
 
-      // Send message and stream response
       const response = await fetch(`/api/chat/conversations/${selectedConversation}/messages`, {
         method: 'POST',
         headers: {
@@ -561,23 +440,19 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-        // Show actual error message from backend
         const userMessage = errorData.message || errorData.error || 'Failed to send message';
         throw new Error(userMessage);
       }
 
-      // Try to read response as JSON first (non-streaming endpoint returns JSON)
       const responseText = await response.text();
       let fullContent = '';
       let responseModel: string | undefined;
       let responseExecutionTimeMs: number | undefined;
       let assistantMessageId: string | undefined;
 
-      // Check if this is a JSON response (non-streaming)
       try {
         const jsonResponse = JSON.parse(responseText);
         if (jsonResponse.assistant_message) {
-          // Non-streaming JSON response from send_message endpoint
           fullContent = jsonResponse.assistant_message.content || '';
           assistantMessageId = jsonResponse.assistant_message.id;
           responseModel = jsonResponse.model;
@@ -585,7 +460,6 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
           setStreamingContent(fullContent);
         }
       } catch {
-        // Not JSON, try SSE parsing for streaming responses
         const lines = responseText.split('\n');
         for (const line of lines) {
           if (line.startsWith('data: ')) {
@@ -598,7 +472,6 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
                 fullContent += parsed.delta;
                 setStreamingContent(fullContent);
               }
-              // Capture metadata from done event
               if (parsed.type === 'done' && parsed.message) {
                 assistantMessageId = parsed.message.id;
                 responseModel = parsed.model;
@@ -611,7 +484,6 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
         }
       }
 
-      // Store model and execution time metadata for display
       if (assistantMessageId && (responseModel || responseExecutionTimeMs)) {
         setMessageMetadata(prev => {
           const updated = new Map(prev);
@@ -623,28 +495,20 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
         });
       }
 
-      // Refresh messages after streaming completes
       queryClient.invalidateQueries({ queryKey: ['chat-messages', selectedConversation] });
       queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
 
-      // Auto-redirect to OAuth URL if we're connecting a provider
       if (connectingProvider && fullContent) {
-        // Look for OAuth URLs in the response
         const oauthUrlMatch = fullContent.match(/https?:\/\/[^\s<>[\]()]+oauth[^\s<>[\]()]*/i) ||
                              fullContent.match(/https?:\/\/[^\s<>[\]()]*strava\.com[^\s<>[\]()]*/i) ||
                              fullContent.match(/https?:\/\/[^\s<>[\]()]*fitbit\.com[^\s<>[\]()]*/i) ||
                              fullContent.match(/https?:\/\/[^\s<>[\]()]*garmin\.com[^\s<>[\]()]*/i) ||
                              fullContent.match(/https?:\/\/[^\s<>[\]()]*whoop\.com[^\s<>[\]()]*/i);
         if (oauthUrlMatch) {
-          // Conversation ID was stored at the start of handleSendMessage
-          // Security: Don't log the full OAuth URL as it may contain sensitive query parameters
           console.log(`Auto-redirecting to OAuth URL for ${connectingProvider}`);
-          // Small delay to let user see the response before redirect
           setTimeout(() => {
-            // Security: Validate URL before redirect to prevent open redirect attacks
             try {
               const url = new URL(oauthUrlMatch[0]);
-              // Only allow redirects to known OAuth providers
               const trustedDomains = ['strava.com', 'fitbit.com', 'garmin.com', 'whoop.com', 'coros.com'];
               const isTrusted = trustedDomains.some(domain =>
                 url.hostname === domain || url.hostname.endsWith(`.${domain}`)
@@ -661,7 +525,6 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
             }
           }, 500);
         } else {
-          // No OAuth URL found, clear the connecting state
           setConnectingProvider(null);
         }
       }
@@ -684,16 +547,13 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
   };
 
   const handleNewChat = () => {
-    // Clear selection to show welcome/onboarding screen
-    // Conversation is created when user sends a message or clicks a prompt
     setSelectedConversation(null);
+    setShowConversationDropdown(false);
   };
 
   const handleSelectPrompt = (prompt: string, coachIdForTracking?: string, systemPrompt?: string) => {
-    // coachIdForTracking is used by PromptSuggestions for usage tracking before calling this
-    void coachIdForTracking; // Acknowledge the parameter is intentionally not used here
+    void coachIdForTracking;
 
-    // If no provider connected, show modal and store the action for later
     if (!hasConnectedProvider) {
       setPendingCoachAction({ prompt, systemPrompt });
       setShowProviderModal(true);
@@ -707,31 +567,16 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
     createConversation.mutate(systemPrompt);
   };
 
-  const handleFillPrompt = (prompt: string, coachIdForTracking?: string, systemPrompt?: string) => {
-    // coachIdForTracking is used by PromptSuggestions for usage tracking before calling this
-    void coachIdForTracking; // Acknowledge the parameter is intentionally not used here
-    setNewMessage(prompt);
-    if (systemPrompt) {
-      setPendingSystemPrompt(systemPrompt);
-    }
-    setShowIdeas(false);
-    inputRef.current?.focus();
-  };
-
   const handleConnectProvider = async (providerName: string) => {
     setConnectingProvider(providerName);
-    // If we have a pending coach action, store it for after OAuth completes
     if (pendingCoachAction) {
-      // Store in localStorage so it persists through OAuth redirect
       localStorage.setItem('pierre_pending_coach_action', JSON.stringify(pendingCoachAction));
     }
     setShowProviderModal(false);
 
     try {
-      // Convert provider name to lowercase ID (e.g., "Strava" -> "strava")
       const providerId = providerName.toLowerCase();
       const authUrl = await apiService.getOAuthAuthorizeUrl(providerId);
-      // Open OAuth in new tab to avoid security blocks from automated browser detection
       window.open(authUrl, '_blank');
       setConnectingProvider(null);
     } catch (error) {
@@ -740,7 +585,6 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
     }
   };
 
-  // Handle skip in provider modal - proceed with pending action without provider
   const handleProviderModalSkip = () => {
     setShowProviderModal(false);
     if (pendingCoachAction) {
@@ -753,46 +597,10 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
     }
   };
 
-  // Handle close provider modal without action
   const handleProviderModalClose = () => {
     setShowProviderModal(false);
     setPendingCoachAction(null);
   };
-
-  const handleStartRename = (e: React.MouseEvent, conv: Conversation) => {
-    e.stopPropagation();
-    setEditingTitle(conv.id);
-    setEditedTitleValue(conv.title);
-    setTimeout(() => titleInputRef.current?.focus(), 0);
-  };
-
-  const handleSaveRename = (convId: string) => {
-    if (editedTitleValue.trim() && editedTitleValue.trim() !== conversationsData?.conversations.find(c => c.id === convId)?.title) {
-      updateConversation.mutate({ id: convId, title: editedTitleValue.trim() });
-    } else {
-      setEditingTitle(null);
-      setEditedTitleValue('');
-    }
-  };
-
-  const handleCancelRename = () => {
-    setEditingTitle(null);
-    setEditedTitleValue('');
-  };
-
-  // Toggle sidebar collapse/expand
-  const toggleSidebar = useCallback(() => {
-    const panel = sidebarPanelRef.current;
-    if (panel) {
-      if (panel.isCollapsed()) {
-        panel.expand();
-        setSidebarCollapsed(false);
-      } else {
-        panel.collapse();
-        setSidebarCollapsed(true);
-      }
-    }
-  }, [sidebarPanelRef]);
 
   const handleDeleteConversation = (e: React.MouseEvent, conv: Conversation) => {
     e.stopPropagation();
@@ -806,28 +614,24 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
     }
   };
 
-  // Coach edit handler - opens modal with coach data pre-filled
-  const handleEditCoach = (coach: { id: string; title: string; description: string | null; system_prompt: string; category: string }) => {
-    setEditingCoachId(coach.id);
-    setCoachFormData({
-      title: coach.title,
-      description: coach.description || '',
-      system_prompt: coach.system_prompt,
-      category: coach.category,
-    });
-    setShowCoachModal(true);
+  const handleStartRename = (e: React.MouseEvent, conv: Conversation) => {
+    e.stopPropagation();
+    setEditingConversationId(conv.id);
+    setEditedTitle(conv.title);
   };
 
-  // Coach delete handler - opens confirmation dialog
-  const handleDeleteCoach = (coach: { id: string; title: string }) => {
-    setCoachDeleteConfirmation({ id: coach.id, title: coach.title });
-  };
-
-  // Confirm coach deletion
-  const handleConfirmCoachDelete = () => {
-    if (coachDeleteConfirmation) {
-      deleteCoach.mutate(coachDeleteConfirmation.id);
+  const handleSaveRename = () => {
+    if (editingConversationId && editedTitle.trim()) {
+      updateConversation.mutate({ id: editingConversationId, title: editedTitle.trim() });
+    } else {
+      setEditingConversationId(null);
+      setEditedTitle('');
     }
+  };
+
+  const handleCancelRename = () => {
+    setEditingConversationId(null);
+    setEditedTitle('');
   };
 
   const formatDate = (dateString: string) => {
@@ -842,1317 +646,361 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
     return date.toLocaleDateString();
   };
 
+  const selectedConversationData = conversationsData?.conversations?.find(c => c.id === selectedConversation);
+
   return (
-    <PanelGroup
-      orientation="horizontal"
-      className="h-full"
-    >
-      {/* Left Sidebar - Premium Dark Theme Design */}
-      <Panel
-        panelRef={sidebarPanelRef}
-        defaultSize="18%"
-        minSize="12%"
-        maxSize="30%"
-        collapsible
-        collapsedSize="0%"
-        onResize={(size) => setSidebarCollapsed(size.asPercentage === 0)}
-        className="bg-pierre-dark flex flex-col relative border-r border-white/5"
-        style={{
-          background: 'rgba(15, 15, 26, 0.95)',
-          backdropFilter: 'blur(12px)',
-        }}
-      >
-        {/* Header / Logo */}
-        <div className="px-6 py-5 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-pierre-violet to-pierre-violet-dark flex items-center justify-center shadow-glow-sm">
-            <Zap className="w-5 h-5 text-white" />
-          </div>
-          <h1 className="text-white text-lg font-bold tracking-tight">Pierre</h1>
-        </div>
-
-        {/* Main Navigation */}
-        <nav className="px-3 py-2 flex flex-col gap-1.5">
-          {/* Chat - Active when not in My Coaches or Store */}
-          <button
-            onClick={() => {
-              setShowMyCoachesPanel(false);
-              setShowStorePanel(false);
-              setSelectedStoreCoach(null);
-            }}
-            className={clsx(
-              'group flex items-center gap-3 px-3 py-2.5 rounded-full transition-all duration-200',
-              !showMyCoachesPanel && !showStorePanel
-                ? 'bg-pierre-violet/10 border border-pierre-violet/20 text-pierre-violet shadow-[inset_0_0_12px_rgba(124,59,237,0.1)]'
-                : 'text-zinc-400 hover:text-white hover:bg-white/5'
-            )}
-          >
-            <MessageCircle className={clsx('w-5 h-5', !showMyCoachesPanel && !showStorePanel && 'fill-current')} />
-            <span className="text-sm font-medium">Chat</span>
-            {!showMyCoachesPanel && !showStorePanel && (
-              <div className="ml-auto w-1.5 h-1.5 rounded-full bg-pierre-violet shadow-glow" />
-            )}
-          </button>
-
-          {/* My Coaches */}
-          <button
-            onClick={() => {
-              setSelectedConversation(null);
-              setShowMyCoachesPanel(true);
-              setShowStorePanel(false);
-            }}
-            title="My Coaches"
-            aria-label="My Coaches"
-            className={clsx(
-              'group flex items-center gap-3 px-3 py-2.5 rounded-full transition-all duration-200',
-              showMyCoachesPanel && !showStorePanel
-                ? 'bg-pierre-violet/10 border border-pierre-violet/20 text-pierre-violet shadow-[inset_0_0_12px_rgba(124,59,237,0.1)]'
-                : 'text-zinc-400 hover:text-white hover:bg-white/5'
-            )}
-          >
-            <Users className="w-5 h-5" />
-            <span className="text-sm font-medium">My Coaches</span>
-            {showMyCoachesPanel && !showStorePanel && (
-              <div className="ml-auto w-1.5 h-1.5 rounded-full bg-pierre-violet shadow-glow" />
-            )}
-          </button>
-
-          {/* Discover (formerly Coach Store) */}
-          <button
-            onClick={() => {
-              setSelectedConversation(null);
-              setShowMyCoachesPanel(false);
-              setShowStorePanel(true);
-              setSelectedStoreCoach(null);
-            }}
-            title="Discover Coaches"
-            aria-label="Discover Coaches"
-            className={clsx(
-              'group flex items-center gap-3 px-3 py-2.5 rounded-full transition-all duration-200',
-              showStorePanel
-                ? 'bg-pierre-violet/10 border border-pierre-violet/20 text-pierre-violet shadow-[inset_0_0_12px_rgba(124,59,237,0.1)]'
-                : 'text-zinc-400 hover:text-white hover:bg-white/5'
-            )}
-          >
-            <Compass className="w-5 h-5" />
-            <span className="text-sm font-medium">Discover</span>
-            {showStorePanel && (
-              <div className="ml-auto w-1.5 h-1.5 rounded-full bg-pierre-violet shadow-glow" />
-            )}
-          </button>
-        </nav>
-
-        {/* Section Divider */}
-        <div className="px-6 py-4">
-          <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-        </div>
-
-        {/* Recent Conversations Header */}
-        <div className="px-6 pb-2">
-          <h3 className="text-[11px] font-bold text-zinc-500 tracking-[0.15em] uppercase">Recent Conversations</h3>
-        </div>
-
-        {/* Conversation List - Scrollable */}
-        <div className="flex-1 overflow-y-auto pb-44 px-3 space-y-0.5 sidebar-scroll">
-          {conversationsLoading ? (
-            <div className="p-4 text-center text-zinc-500 text-sm">Loading...</div>
-          ) : conversationsData?.conversations?.length === 0 ? (
-            <div className="p-4 text-center text-zinc-500 text-sm">No conversations yet</div>
-          ) : (
-            conversationsData?.conversations?.map((conv) => (
-              <button
-                key={conv.id}
-                onClick={() => {
-                  if (editingTitle !== conv.id) {
-                    setShowMyCoachesPanel(false);
-                    setShowStorePanel(false);
-                    setSelectedConversation(conv.id);
-                  }
-                }}
-                className={clsx(
-                  'w-full flex items-center gap-3 px-3 py-2 rounded-lg group transition-colors text-left',
-                  selectedConversation === conv.id
-                    ? 'bg-white/10 text-white'
-                    : 'hover:bg-white/5 text-zinc-300'
-                )}
-              >
-                <div className="text-zinc-500 group-hover:text-zinc-300 transition-colors flex-shrink-0">
-                  <History className="w-4 h-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  {editingTitle === conv.id ? (
-                    <input
-                      ref={titleInputRef}
-                      type="text"
-                      value={editedTitleValue}
-                      onChange={(e) => setEditedTitleValue(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleSaveRename(conv.id);
-                        if (e.key === 'Escape') handleCancelRename();
-                      }}
-                      onBlur={() => handleSaveRename(conv.id)}
-                      className="w-full text-sm font-medium text-white bg-pierre-slate border border-pierre-violet rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-pierre-violet"
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  ) : (
-                    <p className="text-sm font-normal truncate group-hover:text-white transition-colors">
-                      {conv.title}
-                    </p>
-                  )}
-                </div>
-                <span className="text-zinc-600 text-xs whitespace-nowrap flex-shrink-0">{formatDate(conv.updated_at)}</span>
-                {/* Action buttons on hover */}
-                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={(e) => handleStartRename(e, conv)}
-                    className="p-1 text-zinc-500 hover:text-pierre-violet transition-colors"
-                    title="Rename"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={(e) => handleDeleteConversation(e, conv)}
-                    className="p-1 text-zinc-500 hover:text-pierre-red-500 transition-colors"
-                    title="Delete"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </button>
-            ))
-          )}
-        </div>
-
-        {/* Footer Area - Gradient fade + user profile */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-pierre-dark via-pierre-dark/95 to-transparent">
-          {/* User Profile Pill */}
-          <button
-            onClick={onOpenSettings}
-            className="w-full flex items-center gap-3 p-1.5 pr-3 bg-white/5 border border-white/5 rounded-full hover:bg-white/10 transition-colors cursor-pointer group"
-            title="Open settings"
-          >
-            {/* Avatar */}
-            <div className="relative w-9 h-9 rounded-full overflow-hidden border border-white/10 flex-shrink-0 bg-gradient-to-br from-pierre-violet to-pierre-cyan flex items-center justify-center">
-              <span className="text-sm font-bold text-white">
-                {(user?.display_name || user?.email)?.charAt(0).toUpperCase()}
+    <div className="h-full flex flex-col bg-pierre-dark">
+      {/* Header with conversation selector */}
+      <div className="flex-shrink-0 border-b border-white/10 px-4 py-3">
+        <div className="flex items-center justify-between">
+          <div className="relative" ref={dropdownRef}>
+            <button
+              onClick={() => setShowConversationDropdown(!showConversationDropdown)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-white"
+            >
+              <MessageCircle className="w-4 h-4 text-pierre-violet" />
+              <span className="text-sm font-medium truncate max-w-[200px]">
+                {selectedConversationData?.title || 'New Chat'}
               </span>
-            </div>
-            {/* Text */}
-            <div className="flex flex-col flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate group-hover:text-pierre-violet transition-colors">
-                {user?.display_name || 'User'}
-              </p>
-              <p className="text-[11px] text-zinc-400 truncate">
-                {user?.email || 'Settings'}
-              </p>
-            </div>
-            {/* Settings Icon */}
-            <Settings className="w-5 h-5 text-zinc-400 group-hover:text-white transition-all group-hover:rotate-90 duration-500" />
-          </button>
-        </div>
-      </Panel>
+              <ChevronDown className={clsx('w-4 h-4 transition-transform', showConversationDropdown && 'rotate-180')} />
+            </button>
 
-      {/* Resize Handle with Toggle Button - Dark Theme */}
-      <PanelResizeHandle className="w-1 bg-pierre-dark/50 hover:bg-pierre-violet/30 transition-colors relative group">
-        {/* Toggle button - appears on hover or when collapsed */}
-        <button
-          onClick={toggleSidebar}
-          className={clsx(
-            'absolute top-3 -left-3 w-6 h-6 rounded-full bg-pierre-slate border border-white/10 shadow-sm flex items-center justify-center text-zinc-400 hover:text-pierre-violet hover:border-pierre-violet transition-all z-10',
-            sidebarCollapsed ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-          )}
-          title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
-        >
-          <ChevronRight className={clsx('w-3 h-3', !sidebarCollapsed && 'rotate-180')} />
-        </button>
-      </PanelResizeHandle>
-
-      {/* Main Chat Area - Dark Theme */}
-      <Panel defaultSize="82%" className="flex flex-col bg-pierre-dark">
-        {/* Coach Store View - shown when Coach Store button is clicked */}
-        {showStorePanel && !selectedConversation ? (
-          selectedStoreCoach ? (
-            <StoreCoachDetail
-              coachId={selectedStoreCoach}
-              onBack={() => setSelectedStoreCoach(null)}
-              onNavigateToLibrary={() => {
-                setShowStorePanel(false);
-                setSelectedStoreCoach(null);
-                setShowMyCoachesPanel(true);
-              }}
-            />
-          ) : (
-            <StoreScreen
-              onSelectCoach={(coachId) => setSelectedStoreCoach(coachId)}
-              onBack={() => {
-                setShowStorePanel(false);
-                setSelectedStoreCoach(null);
-              }}
-            />
-          )
-        ) : showMyCoachesPanel && !selectedConversation ? (
-          <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Header - Dark Theme */}
-            <div className="p-6 border-b border-white/5 flex items-center justify-between flex-shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-gradient-to-br from-pierre-violet to-pierre-recovery-dark text-white shadow-glow-sm">
-                  <Users className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-semibold text-white">My Coaches</h2>
-                  <p className="text-sm text-zinc-400">Select a coach to start chatting</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {/* Add Coach Button */}
-                <button
-                  onClick={() => {
-                    setShowMyCoachesPanel(false);
-                    setEditingCoachId(null);
-                    setCoachFormData({ title: '', description: '', system_prompt: '', category: 'Training' });
-                    setShowCoachModal(true);
-                  }}
-                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-pierre-violet rounded-lg hover:bg-pierre-violet-dark transition-colors shadow-glow-sm hover:shadow-glow"
-                  title="Add coach"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Coach
-                </button>
-              </div>
-            </div>
-
-            {/* Search Bar */}
-            <div className="px-6 py-4 border-b border-white/10">
-              <div className="relative">
-                <svg
-                  className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Search coaches..."
-                  value={coachesSearchQuery}
-                  onChange={(e) => setCoachesSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-pierre-violet/30 focus:border-pierre-violet transition-colors"
-                />
-                {coachesSearchQuery && (
+            {/* Dropdown menu */}
+            {showConversationDropdown && (
+              <div className="absolute top-full left-0 mt-1 w-80 bg-pierre-slate border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden">
+                <div className="p-2 border-b border-white/10">
                   <button
-                    onClick={() => setCoachesSearchQuery('')}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                    onClick={handleNewChat}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-pierre-violet/20 hover:bg-pierre-violet/30 text-pierre-violet transition-colors"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                    <Plus className="w-4 h-4" />
+                    <span className="text-sm font-medium">New Chat</span>
                   </button>
-                )}
-              </div>
-            </div>
-
-            {/* Category Filters - Dark Theme */}
-            <div className="px-6 py-4 border-b border-white/5 flex-shrink-0">
-              <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                <button
-                  onClick={() => setCoachesCategoryFilter(null)}
-                  className={clsx(
-                    'px-4 py-2 text-sm font-medium rounded-full whitespace-nowrap transition-colors',
-                    coachesCategoryFilter === null
-                      ? 'bg-pierre-violet text-white shadow-glow-sm'
-                      : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'
-                  )}
-                >
-                  All
-                </button>
-                {['Training', 'Nutrition', 'Recovery', 'Recipes', 'Mobility', 'Analysis', 'Custom'].map((category) => (
-                  <button
-                    key={category}
-                    onClick={() => setCoachesCategoryFilter(category)}
-                    className={clsx(
-                      'px-4 py-2 text-sm font-medium rounded-full whitespace-nowrap transition-colors flex items-center gap-1.5',
-                      coachesCategoryFilter === category
-                        ? 'bg-pierre-violet text-white shadow-glow-sm'
-                        : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'
-                    )}
-                  >
-                    <span>{getCategoryIcon(category)}</span>
-                    {category}
-                  </button>
-                ))}
-                {/* Hidden coaches filter - only show when there are hidden coaches */}
-                {(hiddenCoachesData?.coaches?.length ?? 0) > 0 && (
-                  <button
-                    onClick={() => setCoachesCategoryFilter(coachesCategoryFilter === '__hidden__' ? null : '__hidden__')}
-                    className={clsx(
-                      'px-4 py-2 text-sm font-medium rounded-full whitespace-nowrap transition-colors flex items-center gap-1.5',
-                      coachesCategoryFilter === '__hidden__'
-                        ? 'bg-zinc-600 text-white shadow-sm'
-                        : 'bg-white/5 text-zinc-500 hover:bg-white/10 hover:text-zinc-300 border border-dashed border-zinc-600'
-                    )}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                    </svg>
-                    Hidden ({hiddenCoachesData?.coaches?.length})
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Coaches List - Dark Theme */}
-            <div className="flex-1 overflow-y-auto p-6">
-              {coachesLoading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {[1, 2, 3, 4, 5, 6].map((i) => (
-                    <div key={i} className="h-24 bg-white/5 rounded-xl animate-pulse" />
-                  ))}
                 </div>
-              ) : (
-                <>
-                  {/* Coaches organized: User coaches first, then System coaches by category */}
-                  {(() => {
-                    // Special case: show hidden coaches when __hidden__ filter is selected
-                    if (coachesCategoryFilter === '__hidden__') {
-                      const hiddenCoaches: Coach[] = hiddenCoachesData?.coaches || [];
-                      if (hiddenCoaches.length === 0) {
-                        return (
-                          <div className="text-center py-12 text-zinc-500">
-                            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/5 flex items-center justify-center">
-                              <svg className="w-8 h-8 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                              </svg>
-                            </div>
-                            <p className="text-base font-medium text-zinc-400">No hidden coaches</p>
-                            <p className="text-sm mt-1">All coaches are visible</p>
-                          </div>
-                        );
-                      }
-                      return (
-                        <div className="space-y-4">
-                          <p className="text-sm text-zinc-500 mb-4">
-                            Click the eye icon to unhide a coach and make it visible again.
-                          </p>
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {hiddenCoaches.map((coach: Coach) => (
-                              <div
-                                key={coach.id}
-                                className="relative text-left text-sm rounded-xl border border-white/10 px-4 py-3 opacity-70 hover:opacity-100 transition-all group bg-white/5"
-                              >
-                                <div className="absolute top-2 right-2">
-                                  <button
-                                    onClick={() => showCoach.mutate(coach.id)}
-                                    disabled={showCoach.isPending}
-                                    className="p-1.5 text-zinc-400 hover:text-pierre-activity hover:bg-pierre-activity/10 rounded-lg transition-colors disabled:opacity-50"
-                                    title="Unhide coach"
-                                    aria-label="Unhide coach"
-                                  >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                    </svg>
-                                  </button>
-                                </div>
-                                <div className="flex items-center justify-between pr-8">
-                                  <span className="font-medium text-zinc-300">{coach.title}</span>
-                                  <span className={clsx('text-xs px-1.5 py-0.5 rounded', getCategoryBadgeClass(coach.category))}>
-                                    {getCategoryIcon(coach.category)}
-                                  </span>
-                                </div>
-                                {coach.description && (
-                                  <p className="text-zinc-500 text-xs mt-1 line-clamp-2">{coach.description}</p>
-                                )}
-                                {coach.is_system && (
-                                  <span className="inline-block mt-2 text-xs text-zinc-600 bg-white/5 px-2 py-0.5 rounded">System</span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    const coaches: Coach[] = coachesData?.coaches || [];
-                    // Filter by category
-                    let filteredCoaches = coachesCategoryFilter
-                      ? coaches.filter((c: Coach) => c.category.toLowerCase() === coachesCategoryFilter.toLowerCase())
-                      : coaches;
-                    // Filter by search query
-                    if (coachesSearchQuery.trim()) {
-                      const query = coachesSearchQuery.toLowerCase().trim();
-                      filteredCoaches = filteredCoaches.filter((c: Coach) =>
-                        c.title.toLowerCase().includes(query) ||
-                        (c.description?.toLowerCase().includes(query)) ||
-                        c.tags.some((tag: string) => tag.toLowerCase().includes(query))
-                      );
-                    }
-
-                    // Separate user coaches from system coaches
-                    const userCoaches = filteredCoaches.filter((c: Coach) => !c.is_system);
-                    const systemCoaches = filteredCoaches.filter((c: Coach) => c.is_system);
-
-                    // Sort each group by favorites then use count
-                    const sortByUsage = (a: Coach, b: Coach) => {
-                      if (a.is_favorite !== b.is_favorite) return a.is_favorite ? -1 : 1;
-                      return b.use_count - a.use_count;
-                    };
-                    const sortedUserCoaches = [...userCoaches].sort(sortByUsage);
-                    const sortedSystemCoaches = [...systemCoaches].sort(sortByUsage);
-
-                    if (sortedUserCoaches.length === 0 && sortedSystemCoaches.length === 0 && !showHiddenCoaches) {
-                      return (
-                        <div className="text-center py-12 text-pierre-gray-500">
-                          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-pierre-gray-100 flex items-center justify-center">
-                            <span className="text-2xl">🎯</span>
-                          </div>
-                          <p className="text-base font-medium">No coaches found</p>
-                          <p className="text-sm mt-1">
-                            {coachesCategoryFilter ? 'Try selecting a different category' : 'Add a coach to get started'}
-                          </p>
-                        </div>
-                      );
-                    }
-
-                    // Helper to render a coach card
-                    const renderCoachCard = (coach: Coach) => (
-                      <MyCoachCard
-                        key={coach.id}
-                        coach={coach}
-                        onSelect={() => {
-                          apiService.recordCoachUsage(coach.id).catch(() => {});
-                          setShowMyCoachesPanel(false);
-                          setPendingSystemPrompt(coach.system_prompt);
-                          setPendingPrompt(coach.description || `Chat with ${coach.title}`);
-                          handleNewChat();
-                        }}
-                        onEdit={() => {
-                          setShowMyCoachesPanel(false);
-                          setEditingCoachId(coach.id);
-                          setCoachFormData({
-                            title: coach.title,
-                            description: coach.description || '',
-                            system_prompt: coach.system_prompt,
-                            category: coach.category,
-                          });
-                          setShowCoachModal(true);
-                        }}
-                        onDelete={() => {
-                          setCoachDeleteConfirmation({ id: coach.id, title: coach.title });
-                        }}
-                        onHide={() => hideCoach.mutate(coach.id)}
-                        isHiding={hideCoach.isPending}
-                      />
-                    );
-
-                    // Group system coaches by category
-                    const groupedSystemCoaches = sortedSystemCoaches.reduce<Record<string, Coach[]>>((acc, coach) => {
-                      const cat = coach.category;
-                      if (!acc[cat]) acc[cat] = [];
-                      acc[cat].push(coach);
-                      return acc;
-                    }, {});
-
-                    return (
-                      <div className="space-y-8">
-                        {/* Personalized (user-created) - always first */}
-                        {sortedUserCoaches.length > 0 && (
-                          <div>
-                            <h3 className="text-sm font-semibold text-zinc-300 mb-3 flex items-center gap-2">
-                              <span className="text-lg">✨</span>
-                              Personalized
-                              <span className="text-xs text-zinc-500 font-normal">({sortedUserCoaches.length})</span>
-                            </h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                              {sortedUserCoaches.map(renderCoachCard)}
-                            </div>
-                          </div>
+                <div className="max-h-64 overflow-y-auto">
+                  {conversationsData?.conversations?.length === 0 ? (
+                    <div className="p-4 text-center text-zinc-500 text-sm">No conversations yet</div>
+                  ) : (
+                    conversationsData?.conversations?.map((conv) => (
+                      <div
+                        key={conv.id}
+                        className={clsx(
+                          'group flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors',
+                          selectedConversation === conv.id
+                            ? 'bg-white/10 text-white'
+                            : 'hover:bg-white/5 text-zinc-300'
                         )}
-
-                        {/* System Coaches - grouped by category */}
-                        {Object.keys(groupedSystemCoaches).length > 0 && (
-                          <div className={sortedUserCoaches.length > 0 ? 'pt-4 border-t border-white/5' : ''}>
-                            <h3 className="text-sm font-semibold text-zinc-400 mb-4 flex items-center gap-2">
-                              <span className="text-lg">🏛️</span>
-                              System Coaches
-                            </h3>
-                            <div className="space-y-6">
-                              {Object.entries(groupedSystemCoaches).map(([category, categoryCoaches]) => (
-                                <div key={category}>
-                                  <h4 className="text-xs font-medium text-zinc-500 mb-2 flex items-center gap-1.5 uppercase tracking-wider">
-                                    <span>{getCategoryIcon(category)}</span>
-                                    {category}
-                                    <span className="text-zinc-600 font-normal normal-case">({categoryCoaches.length})</span>
-                                  </h4>
-                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {categoryCoaches.map(renderCoachCard)}
-                                  </div>
-                                </div>
-                              ))}
+                        onClick={() => {
+                          if (editingConversationId !== conv.id) {
+                            setSelectedConversation(conv.id);
+                            setShowConversationDropdown(false);
+                          }
+                        }}
+                      >
+                        <MessageCircle className="w-4 h-4 flex-shrink-0 text-zinc-500" />
+                        <div className="flex-1 min-w-0">
+                          {editingConversationId === conv.id ? (
+                            <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                              <input
+                                type="text"
+                                value={editedTitle}
+                                onChange={(e) => setEditedTitle(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveRename();
+                                  if (e.key === 'Escape') handleCancelRename();
+                                }}
+                                className="flex-1 text-sm bg-pierre-dark border border-pierre-violet rounded px-2 py-0.5 text-white focus:outline-none"
+                                autoFocus
+                              />
+                              <button onClick={handleSaveRename} className="p-1 text-pierre-activity hover:text-pierre-activity-light">
+                                <Check className="w-3 h-3" />
+                              </button>
+                              <button onClick={handleCancelRename} className="p-1 text-zinc-500 hover:text-white">
+                                <X className="w-3 h-3" />
+                              </button>
                             </div>
+                          ) : (
+                            <p className="text-sm truncate">{conv.title}</p>
+                          )}
+                        </div>
+                        <span className="text-xs text-zinc-500 flex-shrink-0">{formatDate(conv.updated_at)}</span>
+                        {editingConversationId !== conv.id && (
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => handleStartRename(e, conv)}
+                              className="p-1 text-zinc-500 hover:text-pierre-violet"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={(e) => handleDeleteConversation(e, conv)}
+                              className="p-1 text-zinc-500 hover:text-pierre-red-500"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
                           </div>
                         )}
                       </div>
-                    );
-                  })()}
-
-                  {/* Hidden Coaches Toggle - Dark Theme */}
-                  {(hiddenCoachesData?.coaches?.length ?? 0) > 0 && (
-                    <div className="mt-8 pt-6 border-t border-white/5">
-                      <button
-                        onClick={() => setShowHiddenCoaches(!showHiddenCoaches)}
-                        className={clsx(
-                          'flex items-center gap-2 text-sm font-medium transition-colors',
-                          showHiddenCoaches
-                            ? 'text-pierre-violet'
-                            : 'text-zinc-500 hover:text-zinc-300'
-                        )}
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          {showHiddenCoaches ? (
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          ) : (
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                          )}
-                        </svg>
-                        {showHiddenCoaches ? 'Hide' : 'Show'} hidden coaches ({hiddenCoachesData?.coaches?.length})
-                      </button>
-
-                      {showHiddenCoaches && (
-                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          {hiddenCoachesData?.coaches?.map((coach: Coach) => (
-                            <div
-                              key={coach.id}
-                              className="relative text-left text-sm rounded-xl border border-white/5 px-4 py-3 opacity-60 hover:opacity-100 transition-all group bg-white/5"
-                            >
-                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                  onClick={() => showCoach.mutate(coach.id)}
-                                  disabled={showCoach.isPending}
-                                  className="p-1.5 text-zinc-400 hover:text-pierre-activity hover:bg-pierre-activity/10 rounded-lg transition-colors disabled:opacity-50"
-                                  title="Show coach"
-                                  aria-label="Show coach"
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                  </svg>
-                                </button>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span className="font-medium text-zinc-400">{coach.title}</span>
-                                <span className={clsx('text-xs px-1.5 py-0.5 rounded', getCategoryBadgeClass(coach.category))}>
-                                  {getCategoryIcon(coach.category)}
-                                </span>
-                              </div>
-                              {coach.description && (
-                                <p className="text-zinc-500 text-xs mt-1 line-clamp-2">{coach.description}</p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    ))
                   )}
-                </>
-              )}
-            </div>
+                </div>
+              </div>
+            )}
           </div>
-        ) : !selectedConversation ? (
-          <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Header - matches My Coaches layout */}
-            <div className="p-6 border-b border-white/5 flex items-center justify-between flex-shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-gradient-to-br from-pierre-violet to-pierre-cyan text-white shadow-glow-sm">
-                  <MessageCircle className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-semibold text-white">Chat</h2>
-                  <p className="text-sm text-zinc-400">
-                    {hasConnectedProvider
-                      ? oauthStatus?.providers?.filter(p => p.connected).map(p =>
-                          p.provider.charAt(0).toUpperCase() + p.provider.slice(1)
-                        ).join(', ') + ' connected'
-                      : 'No provider connected'}
+
+          <button
+            onClick={handleNewChat}
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors text-zinc-400 hover:text-white"
+            title="New Chat"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Main content area */}
+      <div className="flex-1 overflow-hidden flex flex-col">
+        {!selectedConversation ? (
+          /* Welcome / Onboarding Screen */
+          <div className="flex-1 flex flex-col items-center justify-center p-8 overflow-y-auto">
+            <div className="max-w-2xl w-full space-y-8">
+              {/* Welcome header */}
+              <div className="text-center">
+                <h1 className="text-3xl font-bold text-white mb-2">Welcome to Pierre</h1>
+                <p className="text-zinc-400">Your AI fitness intelligence assistant</p>
+              </div>
+
+              {/* OAuth notification */}
+              {oauthNotification && (
+                <div className="bg-pierre-activity/20 border border-pierre-activity/30 rounded-lg p-4 text-center">
+                  <p className="text-pierre-activity font-medium">
+                    ✓ Successfully connected to {oauthNotification.provider}!
                   </p>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {/* New Chat Button */}
-                <button
-                  onClick={() => {
-                    setShowMyCoachesPanel(false);
-                    setShowStorePanel(false);
-                    createConversation.mutate();
-                  }}
-                  disabled={createConversation.isPending}
-                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-pierre-violet rounded-lg hover:bg-pierre-violet-dark transition-colors shadow-glow-sm hover:shadow-glow"
-                  title="New chat"
-                >
-                  <Plus className="w-4 h-4" />
-                  New Chat
-                </button>
-              </div>
-            </div>
+              )}
 
-            {/* Scrollable content area */}
-            <div className="flex-1 overflow-y-auto">
-              <div className="w-full max-w-5xl mx-auto px-6 py-8">
-                <div className="text-center mb-8">
-                  <h2 className="text-2xl font-semibold text-white mb-2">
-                    Ready to analyze your fitness
-                  </h2>
-                  <p className="text-zinc-400 text-sm">
-                    {hasConnectedProvider
-                      ? 'Get personalized insights from your activity data'
-                      : 'Select a coach to get started - connect your data anytime'}
-                  </p>
-
-                  {/* Chat Input */}
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      if (newMessage.trim()) {
-                        setPendingPrompt(newMessage.trim());
-                        createConversation.mutate();
-                      }
-                    }}
-                    className="relative mt-6 max-w-2xl mx-auto"
-                  >
-                    <input
-                      type="text"
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      placeholder="Message Pierre..."
-                      className="w-full rounded-xl border border-white/10 bg-[#151520] text-white placeholder-zinc-500 pl-4 pr-24 py-3.5 focus:outline-none focus:ring-2 focus:ring-pierre-violet/30 focus:border-pierre-violet text-sm transition-colors"
-                      disabled={createConversation.isPending}
-                    />
-                    <button
-                      type="submit"
-                      disabled={!newMessage.trim() || createConversation.isPending}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-1.5 bg-pierre-violet text-white text-sm font-medium rounded-lg hover:bg-pierre-violet-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
-                    >
-                      {createConversation.isPending ? (
-                        <div className="pierre-spinner w-4 h-4 border-white border-t-transparent" />
-                      ) : (
-                        <>
-                          Send
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                          </svg>
-                        </>
-                      )}
-                    </button>
-                  </form>
-                </div>
-
-                {/* Coach selection */}
-                <PromptSuggestions
-                  onSelectPrompt={handleSelectPrompt}
-                  onEditCoach={handleEditCoach}
-                  onDeleteCoach={handleDeleteCoach}
-                />
-
-                {/* Discover more coaches button */}
-                <div className="text-center mt-6">
-                  <button
-                    onClick={() => {
-                      setShowMyCoachesPanel(false);
-                      setShowStorePanel(true);
-                    }}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
-                  >
-                    <Compass className="w-4 h-4" />
-                    Discover more coaches
-                  </button>
-                </div>
-              </div>
+              {/* Prompt suggestions */}
+              <PromptSuggestions
+                onSelectPrompt={handleSelectPrompt}
+              />
             </div>
           </div>
         ) : (
-          <div className="h-full flex flex-col">
-            {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto min-h-0">
-              <div className="max-w-3xl mx-auto py-6 px-6">
-                {messagesLoading ? (
-                  <div className="text-center text-zinc-400 py-8 text-sm">Loading messages...</div>
-                ) : (
-                  <div className="space-y-6">
-                    {messagesData?.messages?.map((msg) => (
-                      <div key={msg.id} className="flex gap-3">
-                        {/* Avatar */}
-                        <div className="flex-shrink-0">
-                          {msg.role === 'user' ? (
-                            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
-                              <svg className="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                              </svg>
-                            </div>
-                          ) : (
-                            <img src="/pierre-icon.svg" alt="Pierre" className="w-8 h-8 rounded-xl" />
-                          )}
-                        </div>
-                        {/* Message Content */}
-                        <div className="flex-1 min-w-0 pt-1">
-                          <div className="font-medium text-white text-sm mb-1">
-                            {msg.role === 'user' ? 'You' : 'Pierre'}
-                          </div>
-                          <div className="text-zinc-300 text-sm leading-relaxed prose prose-sm prose-invert max-w-none prose-a:text-pierre-violet prose-a:underline hover:prose-a:text-pierre-violet/80">
-                            <Markdown
-                              components={{
-                                a: ({ href, children }) => (
-                                  <a href={href} target="_blank" rel="noopener noreferrer" className="break-all">
-                                    {children}
-                                  </a>
-                                ),
-                              }}
-                            >
-                              {linkifyUrls(stripContextPrefix(msg.content))}
-                            </Markdown>
-                          </div>
-                          {/* Model and execution time metadata for assistant messages */}
-                          {msg.role === 'assistant' && messageMetadata.get(msg.id) && (
-                            <div className="mt-2 text-xs text-zinc-500 flex items-center gap-2">
-                              <span className="inline-flex items-center gap-1">
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                </svg>
-                                {messageMetadata.get(msg.id)?.model}
-                              </span>
-                              <span className="inline-flex items-center gap-1">
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                {((messageMetadata.get(msg.id)?.executionTimeMs || 0) / 1000).toFixed(1)}s
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-
-                    {/* OAuth connection notification */}
-                    {oauthNotification && (
-                      <div className="flex gap-3 animate-fadeIn">
-                        <div className="flex-shrink-0">
-                          <img src="/pierre-icon.svg" alt="Pierre" className="w-8 h-8 rounded-xl" />
-                        </div>
-                        <div className="flex-1 min-w-0 pt-1">
-                          <div className="font-medium text-white text-sm mb-1 flex items-center gap-2">
-                            Pierre
-                            <button
-                              onClick={() => setOauthNotification(null)}
-                              className="text-zinc-500 hover:text-white transition-colors"
-                            >
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
-                          </div>
-                          <div className="text-zinc-300 text-sm leading-relaxed">
-                            {oauthNotification.provider} connected successfully. You can now access your {oauthNotification.provider} data.
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Streaming response */}
-                    {isStreaming && streamingContent && (
-                      <div className="flex gap-3">
-                        <div className="flex-shrink-0">
-                          <img src="/pierre-icon.svg" alt="Pierre" className="w-8 h-8 rounded-xl" />
-                        </div>
-                        <div className="flex-1 min-w-0 pt-1">
-                          <div className="font-medium text-white text-sm mb-1 flex items-center gap-2">
-                            Pierre
-                            <span className="w-1.5 h-1.5 bg-pierre-violet rounded-full animate-pulse" />
-                          </div>
-                          <div className="text-zinc-300 text-sm leading-relaxed prose prose-sm prose-invert max-w-none prose-a:text-pierre-violet prose-a:underline hover:prose-a:text-pierre-violet/80">
-                            <Markdown
-                              components={{
-                                a: ({ href, children }) => (
-                                  <a href={href} target="_blank" rel="noopener noreferrer" className="break-all">
-                                    {children}
-                                  </a>
-                                ),
-                              }}
-                            >
-                              {linkifyUrls(streamingContent)}
-                            </Markdown>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Thinking/Loading indicator - Claude Code style spinner */}
-                    {isStreaming && !streamingContent && (
-                      <div className="flex gap-3">
-                        <div className="flex-shrink-0">
-                          <img src="/pierre-icon.svg" alt="Pierre" className="w-8 h-8 rounded-xl" />
-                        </div>
-                        <div className="flex-1 pt-1">
-                          <div className="font-medium text-white text-sm mb-2 flex items-center gap-2">
-                            Pierre
-                          </div>
-                          <div className="flex items-center gap-2 text-zinc-400 text-sm">
-                            <div className="pierre-spinner w-4 h-4"></div>
-                            <span>Thinking...</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Error message display */}
-                    {errorMessage && !isStreaming && (
-                      <div className="flex gap-3">
-                        <div className="flex-shrink-0">
-                          <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center">
-                            <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                            </svg>
-                          </div>
-                        </div>
-                        <div className="flex-1 pt-1">
-                          <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3">
-                            <p className="text-red-400 text-sm">
-                              {errorCountdown !== null
-                                ? errorMessage.replace(/in \d+ seconds/, `in ${errorCountdown} seconds`)
-                                : errorMessage}
-                            </p>
-                            <button
-                              onClick={() => { setErrorMessage(null); setErrorCountdown(null); }}
-                              className="text-red-400 hover:text-red-300 text-xs mt-2 underline transition-colors"
-                            >
-                              Dismiss
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-            </div>
-
-            {/* Input Area */}
-            <div className="border-t border-white/10 p-4 bg-pierre-slate">
-              <div className="max-w-3xl mx-auto">
-                {/* Ideas popover */}
-                {showIdeas && (
-                  <div className="mb-4 p-4 bg-white/5 rounded-xl border border-white/10 relative">
-                    <button
-                      onClick={() => setShowIdeas(false)}
-                      className="absolute top-2 right-2 text-zinc-500 hover:text-white transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                    <p className="text-xs text-zinc-400 mb-3">Click a suggestion to fill the input:</p>
-                    <PromptSuggestions onSelectPrompt={handleFillPrompt} />
-                  </div>
-                )}
-                <div className="relative">
-                  <textarea
-                    ref={inputRef}
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Message Pierre..."
-                    className="w-full resize-none rounded-xl border border-white/10 bg-[#151520] text-white placeholder-zinc-500 pl-4 pr-14 py-3 focus:outline-none focus:ring-2 focus:ring-pierre-violet/30 focus:border-pierre-violet text-sm transition-colors overflow-hidden"
-                    rows={1}
-                    disabled={isStreaming}
-                  />
-                  <button
-                    onClick={handleSendMessage}
-                    disabled={!newMessage.trim() || isStreaming}
-                    aria-label="Send message"
-                    className={clsx(
-                      'absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-lg transition-colors',
-                      newMessage.trim() && !isStreaming
-                        ? 'bg-pierre-violet text-white hover:bg-pierre-violet/90 shadow-glow-sm'
-                        : 'text-zinc-600 cursor-not-allowed'
-                    )}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                    </svg>
-                  </button>
-                </div>
-                <div className="flex items-center justify-center gap-2 mt-2">
-                  <p className="text-xs text-zinc-500">
-                    Press Enter to send, Shift+Enter for new line
+          /* Chat messages area */
+          <>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* OAuth notification */}
+              {oauthNotification && (
+                <div className="bg-pierre-activity/20 border border-pierre-activity/30 rounded-lg p-3 flex items-center gap-2">
+                  <span className="text-pierre-activity">✓</span>
+                  <p className="text-sm text-pierre-activity">
+                    Successfully connected to {oauthNotification.provider}!
                   </p>
-                  <span className="text-zinc-600">|</span>
-                  <button
-                    onClick={() => setShowIdeas(!showIdeas)}
-                    className="text-xs text-pierre-violet hover:text-pierre-violet/80 flex items-center gap-1 transition-colors"
+                </div>
+              )}
+
+              {messagesLoading ? (
+                <div className="flex justify-center py-8">
+                  <div className="pierre-spinner w-6 h-6 border-pierre-violet border-t-transparent"></div>
+                </div>
+              ) : messagesData?.messages?.length === 0 ? (
+                <div className="text-center py-8 text-zinc-500">
+                  <p>Start a conversation by typing a message below</p>
+                </div>
+              ) : (
+                messagesData?.messages?.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={clsx(
+                      'flex',
+                      msg.role === 'user' ? 'justify-end' : 'justify-start'
+                    )}
                   >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                    </svg>
-                    Need ideas?
+                    <div
+                      className={clsx(
+                        'max-w-[80%] rounded-2xl px-4 py-3',
+                        msg.role === 'user'
+                          ? 'bg-pierre-violet text-white'
+                          : 'bg-white/10 text-zinc-100'
+                      )}
+                    >
+                      {msg.role === 'assistant' ? (
+                        <div className="prose prose-invert prose-sm max-w-none">
+                          <Markdown
+                            components={{
+                              a: ({ href, children }) => (
+                                <a
+                                  href={href}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-pierre-cyan hover:underline"
+                                >
+                                  {children}
+                                </a>
+                              ),
+                            }}
+                          >
+                            {linkifyUrls(stripContextPrefix(msg.content))}
+                          </Markdown>
+                          {/* Actions row with model/timing info and share button */}
+                          <div className="mt-2 pt-2 border-t border-white/10 flex items-center justify-between">
+                            {/* Model/timing info */}
+                            {messageMetadata.get(msg.id) ? (
+                              <div className="text-xs text-zinc-500">
+                                {messageMetadata.get(msg.id)?.model} • {Math.round((messageMetadata.get(msg.id)?.executionTimeMs || 0) / 1000)}s
+                              </div>
+                            ) : (
+                              <div />
+                            )}
+                            {/* Share button */}
+                            <button
+                              onClick={() => setShareMessageContent(stripContextPrefix(msg.content))}
+                              className="flex items-center gap-1 text-xs text-zinc-400 hover:text-pierre-violet transition-colors"
+                              title="Share to social feed"
+                            >
+                              <Share2 className="w-3.5 h-3.5" />
+                              <span>Share</span>
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm whitespace-pre-wrap">{stripContextPrefix(msg.content)}</p>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+
+              {/* Streaming content */}
+              {isStreaming && streamingContent && (
+                <div className="flex justify-start">
+                  <div className="max-w-[80%] rounded-2xl px-4 py-3 bg-white/10 text-zinc-100">
+                    <div className="prose prose-invert prose-sm max-w-none">
+                      <Markdown>{linkifyUrls(streamingContent)}</Markdown>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Streaming indicator */}
+              {isStreaming && !streamingContent && (
+                <div className="flex justify-start">
+                  <div className="rounded-2xl px-4 py-3 bg-white/10">
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 rounded-full bg-pierre-violet animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                      <div className="w-2 h-2 rounded-full bg-pierre-violet animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                      <div className="w-2 h-2 rounded-full bg-pierre-violet animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Error message */}
+            {errorMessage && (
+              <div className="px-4 pb-2">
+                <div className="bg-pierre-red-500/20 border border-pierre-red-500/30 rounded-lg p-3 flex items-center justify-between">
+                  <p className="text-sm text-pierre-red-400">
+                    {errorCountdown !== null
+                      ? errorMessage.replace(/in \d+ seconds/, `in ${errorCountdown} seconds`)
+                      : errorMessage}
+                  </p>
+                  <button
+                    onClick={() => setErrorMessage(null)}
+                    className="text-pierre-red-400 hover:text-pierre-red-300"
+                  >
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
-        )}
-      </Panel>
+            )}
 
-      {/* Delete Confirmation Dialog */}
+            {/* Input area */}
+            <div className="flex-shrink-0 p-4 border-t border-white/10">
+              <div className="flex items-end gap-2">
+                <textarea
+                  ref={inputRef}
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Type your message..."
+                  disabled={isStreaming}
+                  rows={1}
+                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-zinc-500 resize-none focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:border-transparent disabled:opacity-50"
+                  style={{ minHeight: '48px', maxHeight: '200px' }}
+                />
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!newMessage.trim() || isStreaming}
+                  aria-label="Send message"
+                  className={clsx(
+                    'p-3 rounded-xl transition-colors',
+                    newMessage.trim() && !isStreaming
+                      ? 'bg-pierre-violet hover:bg-pierre-violet-dark text-white'
+                      : 'bg-white/10 text-zinc-500 cursor-not-allowed'
+                  )}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Delete confirmation dialog */}
       <ConfirmDialog
         isOpen={!!deleteConfirmation}
         onClose={() => setDeleteConfirmation(null)}
         onConfirm={handleConfirmDelete}
         title="Delete Conversation"
-        message={`Are you sure you want to delete "${deleteConfirmation?.title || 'this conversation'}"? This action cannot be undone.`}
+        message={`Are you sure you want to delete "${deleteConfirmation?.title}"? This action cannot be undone.`}
         confirmLabel="Delete"
-        cancelLabel="Cancel"
         variant="danger"
-        isLoading={deleteConversation.isPending}
       />
 
-      {/* Provider Connection Modal - shown when selecting coach without connected provider */}
+      {/* Provider connection modal */}
       {showProviderModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-            onClick={handleProviderModalClose}
-          />
-          {/* Modal Content */}
-          <div className="relative bg-pierre-slate rounded-2xl shadow-2xl border border-white/10 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              {/* Close button */}
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-pierre-slate border border-white/10 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+            <h2 className="text-xl font-semibold text-white mb-2">Connect a Fitness Provider</h2>
+            <p className="text-zinc-400 mb-6">
+              To get personalized insights, connect one of your fitness accounts.
+            </p>
+            <ProviderConnectionCards onConnectProvider={handleConnectProvider} />
+            <div className="mt-6 flex justify-between">
               <button
                 onClick={handleProviderModalClose}
-                className="absolute top-4 right-4 p-2 text-zinc-500 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                aria-label="Close"
+                className="px-4 py-2 text-zinc-400 hover:text-white transition-colors"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                Cancel
               </button>
-
-              <div className="text-center mb-6">
-                <div className="w-12 h-12 bg-pierre-violet/20 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-glow-sm">
-                  <svg className="w-6 h-6 text-pierre-violet" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                </div>
-                <h2 className="text-xl font-semibold text-white mb-2">
-                  Connect your fitness data
-                </h2>
-                <p className="text-zinc-400 text-sm">
-                  Link a provider for personalized insights, or continue without
-                </p>
-              </div>
-
-              <ProviderConnectionCards
-                onConnectProvider={handleConnectProvider}
-                connectingProvider={connectingProvider}
-                onSkip={handleProviderModalSkip}
-                isSkipPending={createConversation.isPending}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Coach Create/Edit Modal */}
-      {showCoachModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => {
-              setShowCoachModal(false);
-              setEditingCoachId(null);
-              setCoachFormData({ title: '', description: '', system_prompt: '', category: 'Training' });
-            }}
-          />
-          {/* Modal Content */}
-          <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              {/* Close button */}
               <button
-                onClick={() => {
-                  setShowCoachModal(false);
-                  setEditingCoachId(null);
-                  setCoachFormData({ title: '', description: '', system_prompt: '', category: 'Training' });
-                }}
-                className="absolute top-4 right-4 p-2 text-pierre-gray-400 hover:text-pierre-gray-600 hover:bg-pierre-gray-100 rounded-lg transition-colors"
-                aria-label="Close"
+                onClick={handleProviderModalSkip}
+                className="px-4 py-2 text-pierre-violet hover:text-pierre-violet-light transition-colors"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                Skip for now
               </button>
-
-              <div className="text-center mb-6">
-                <div className="w-12 h-12 bg-pierre-violet/10 rounded-xl flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-6 h-6 text-pierre-violet" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </div>
-                <h2 className="text-xl font-semibold text-pierre-gray-900 mb-2">
-                  {editingCoachId ? 'Edit Coach' : 'Create Custom Coach'}
-                </h2>
-                <p className="text-pierre-gray-500 text-sm">
-                  {editingCoachId
-                    ? 'Update your coaching persona settings'
-                    : 'Define a specialized AI coaching persona for your training'}
-                </p>
-              </div>
-
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!coachFormData.title.trim() || !coachFormData.system_prompt.trim()) return;
-                  if (editingCoachId) {
-                    updateCoach.mutate({ id: editingCoachId, data: coachFormData });
-                  } else {
-                    createCoach.mutate(coachFormData);
-                  }
-                }}
-                className="space-y-4"
-              >
-                <div>
-                  <label className="block text-sm font-medium text-pierre-gray-700 mb-1">
-                    Coach Name
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Marathon Training Coach"
-                    value={coachFormData.title}
-                    onChange={(e) => setCoachFormData({ ...coachFormData, title: e.target.value })}
-                    className="w-full px-3 py-2 text-sm border border-pierre-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:border-transparent"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-pierre-gray-700 mb-1">
-                    Description <span className="text-pierre-gray-400">(optional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Brief description of what this coach specializes in"
-                    value={coachFormData.description}
-                    onChange={(e) => setCoachFormData({ ...coachFormData, description: e.target.value })}
-                    className="w-full px-3 py-2 text-sm border border-pierre-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-pierre-gray-700 mb-1">
-                    System Prompt
-                  </label>
-                  <textarea
-                    placeholder="Define your coach's personality, expertise, and communication style..."
-                    value={coachFormData.system_prompt}
-                    onChange={(e) => setCoachFormData({ ...coachFormData, system_prompt: e.target.value })}
-                    rows={4}
-                    className="w-full px-3 py-2 text-sm border border-pierre-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:border-transparent resize-none"
-                    required
-                  />
-                  {coachFormData.system_prompt && (
-                    <p className="text-xs text-pierre-gray-500 mt-1">
-                      ~{Math.ceil(coachFormData.system_prompt.length / 4)} tokens ({((Math.ceil(coachFormData.system_prompt.length / 4) / 128000) * 100).toFixed(1)}% of context)
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-pierre-gray-700 mb-1">
-                    Category
-                  </label>
-                  <select
-                    value={coachFormData.category}
-                    onChange={(e) => setCoachFormData({ ...coachFormData, category: e.target.value })}
-                    className="w-full px-3 py-2 text-sm border border-pierre-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:border-transparent bg-white"
-                  >
-                    <option value="Training">Training</option>
-                    <option value="Nutrition">Nutrition</option>
-                    <option value="Recovery">Recovery</option>
-                    <option value="Recipes">Recipes</option>
-                    <option value="Mobility">Mobility</option>
-                    <option value="Analysis">Analysis</option>
-                    <option value="Custom">Custom</option>
-                  </select>
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowCoachModal(false);
-                      setEditingCoachId(null);
-                      setCoachFormData({ title: '', description: '', system_prompt: '', category: 'Training' });
-                    }}
-                    className="flex-1 px-4 py-2 text-sm font-medium text-pierre-gray-600 bg-pierre-gray-100 rounded-lg hover:bg-pierre-gray-200 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={(editingCoachId ? updateCoach.isPending : createCoach.isPending) || !coachFormData.title.trim() || !coachFormData.system_prompt.trim()}
-                    className="flex-1 px-4 py-2 text-sm font-medium text-white bg-pierre-violet rounded-lg hover:bg-pierre-violet/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {editingCoachId
-                      ? (updateCoach.isPending ? 'Saving...' : 'Save Changes')
-                      : (createCoach.isPending ? 'Creating...' : 'Create Coach')}
-                  </button>
-                </div>
-
-                {(createCoach.isError || updateCoach.isError) && (
-                  <p className="text-xs text-pierre-red-500 text-center">
-                    Failed to {editingCoachId ? 'update' : 'create'} coach. Please try again.
-                  </p>
-                )}
-              </form>
             </div>
           </div>
         </div>
       )}
 
-      {/* Coach Delete Confirmation Dialog */}
-      <ConfirmDialog
-        isOpen={!!coachDeleteConfirmation}
-        onClose={() => setCoachDeleteConfirmation(null)}
-        onConfirm={handleConfirmCoachDelete}
-        title="Delete Coach"
-        message={`Are you sure you want to delete "${coachDeleteConfirmation?.title || 'this coach'}"? This action cannot be undone.`}
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
-        variant="danger"
-        isLoading={deleteCoach.isPending}
-      />
-    </PanelGroup>
-  );
-}
-
-// Helper functions for category styling
-function getCategoryBadgeClass(category: string): string {
-  const classes: Record<string, string> = {
-    training: 'bg-pierre-green-100 text-pierre-green-700',
-    nutrition: 'bg-pierre-nutrition/10 text-pierre-nutrition',
-    recovery: 'bg-pierre-blue-100 text-pierre-blue-700',
-    recipes: 'bg-pierre-yellow-100 text-pierre-yellow-700',
-    mobility: 'bg-pierre-mobility/10 text-pierre-mobility',
-    analysis: 'bg-pierre-violet/10 text-pierre-violet',
-    custom: 'bg-pierre-gray-100 text-pierre-gray-600',
-  };
-  return classes[category.toLowerCase()] || classes.custom;
-}
-
-function getCategoryIcon(category: string): string {
-  const icons: Record<string, string> = {
-    training: '🏃',
-    nutrition: '🥗',
-    recovery: '😴',
-    recipes: '👨‍🍳',
-    mobility: '🧘',
-    analysis: '📊',
-    custom: '⚙️',
-  };
-  return icons[category.toLowerCase()] || icons.custom;
-}
-
-// Coach card component for My Coaches panel
-interface MyCoachCardProps {
-  coach: Coach;
-  onSelect: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
-  onHide: () => void;
-  isHiding: boolean;
-}
-
-function MyCoachCard({ coach, onSelect, onEdit, onDelete, onHide, isHiding }: MyCoachCardProps) {
-  return (
-    <div
-      className="relative text-left text-sm rounded-xl border border-white/10 bg-white/5 hover:border-pierre-violet/50 hover:bg-white/10 px-4 py-3 transition-all focus-within:outline-none focus-within:ring-2 focus-within:ring-pierre-violet focus-within:ring-opacity-50 group hover:shadow-glow-sm cursor-pointer"
-      onClick={onSelect}
-    >
-      {/* Action buttons container - Dark Theme */}
-      <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10 bg-pierre-slate/90 backdrop-blur-sm rounded-lg px-1 py-0.5 shadow-sm border border-white/10">
-        {/* Edit/Delete for user-created coaches */}
-        {!coach.is_system && (
-          <>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit();
-              }}
-              className="p-1 text-zinc-400 hover:text-pierre-violet hover:bg-pierre-violet/10 rounded transition-colors"
-              title="Edit coach"
-              aria-label="Edit coach"
-            >
-              <Pencil className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete();
-              }}
-              className="p-1 text-zinc-400 hover:text-pierre-red-500 hover:bg-pierre-red-500/10 rounded transition-colors"
-              title="Delete coach"
-              aria-label="Delete coach"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </>
-        )}
-        {/* Hide button for system coaches */}
-        {coach.is_system && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onHide();
-            }}
-            disabled={isHiding}
-            className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 rounded transition-colors disabled:opacity-50"
-            title="Hide coach"
-            aria-label="Hide coach"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-            </svg>
-          </button>
-        )}
-      </div>
-
-      <div className="flex items-center justify-between">
-        <span className="font-medium text-zinc-200 group-hover:text-pierre-violet">
-          {coach.title}
-        </span>
-        <div className="flex items-center gap-1">
-          {coach.is_favorite && (
-            <span className="text-pierre-yellow-500">★</span>
-          )}
-          <span className={`text-xs px-1.5 py-0.5 rounded ${getCategoryBadgeClass(coach.category)}`}>
-            {getCategoryIcon(coach.category)}
-          </span>
-        </div>
-      </div>
-      {coach.description && (
-        <p className="text-zinc-400 text-xs mt-0.5 line-clamp-2">
-          {coach.description}
-        </p>
+      {/* Share message modal */}
+      {shareMessageContent && (
+        <ShareChatMessageModal
+          content={shareMessageContent}
+          onClose={() => setShareMessageContent(null)}
+          onSuccess={() => {
+            setShareMessageContent(null);
+            // Could add a toast/notification here
+          }}
+        />
       )}
-      <div className="flex items-center gap-2 mt-1 text-xs text-zinc-500">
-        {coach.is_system && (
-          <span className="bg-pierre-violet/20 text-pierre-violet px-1.5 py-0.5 rounded">
-            System
-          </span>
-        )}
-        {coach.use_count > 0 && (
-          <span>Used {coach.use_count}x</span>
-        )}
-      </div>
     </div>
   );
 }

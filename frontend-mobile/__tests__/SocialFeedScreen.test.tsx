@@ -62,6 +62,8 @@ const createMockFeedItem = (overrides: Partial<FeedItem> = {}): FeedItem => {
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     expires_at: null,
+    source_activity_id: null,
+    coach_generated: false,
   };
 
   const author: FeedAuthor = {

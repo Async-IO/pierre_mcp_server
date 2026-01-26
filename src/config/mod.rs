@@ -52,6 +52,8 @@ pub mod oauth;
 pub mod security;
 /// Sleep tool operational parameters (activity limits, trend thresholds)
 pub mod sleep_tool_params;
+/// Social insights configuration for coach-mediated sharing
+pub mod social;
 /// Tool selection configuration for global tool disabling via environment variables
 pub mod tool_selection;
 /// Core configuration type definitions (`LogLevel`, `Environment`, `LlmProviderType`)
@@ -162,6 +164,13 @@ pub use routes::{ConfigurationRoutes, FitnessConfigurationRoutes};
 // Re-export tool selection types
 pub use tool_selection::ToolSelectionConfig;
 
+// Re-export social insights configuration types
+pub use social::{
+    ActivityFetchLimitsConfig, DistanceMilestoneConfig, DistanceRelevanceScores, MilestoneConfig,
+    MilestoneRelevanceScores, RelevanceConfig, SocialInsightsConfig, StreakConfig,
+    StreakRelevanceScores,
+};
+
 /// Initialize all configurations
 ///
 /// # Errors
@@ -178,6 +187,13 @@ pub fn init_configs() -> Result<(), Box<dyn Error>> {
             .activity_analyzer
             .analysis
             .min_duration_seconds
+    );
+
+    // Initialize global social insights config
+    let social_config = SocialInsightsConfig::global();
+    debug!(
+        "Social insights config initialized successfully (activity limit: {})",
+        social_config.activity_fetch_limits.insight_context_limit
     );
 
     info!("All configurations initialized successfully");

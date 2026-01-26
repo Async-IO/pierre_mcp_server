@@ -1,19 +1,32 @@
 // ABOUTME: Admin settings tab for system configuration
-// ABOUTME: Provides toggles for auto-approval and other admin-configurable settings
+// ABOUTME: Provides toggles for auto-approval, social insights config, and other admin settings
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../services/api';
 import { Card } from './ui';
+import type { SocialInsightsConfig } from '../types/api';
 
 export default function AdminSettings() {
   const queryClient = useQueryClient();
+  const [showSocialInsightsConfig, setShowSocialInsightsConfig] = useState(false);
 
   const { data: autoApprovalData, isLoading, error } = useQuery({
     queryKey: ['auto-approval-setting'],
     queryFn: () => apiService.getAutoApprovalSetting(),
+    retry: 1,
+  });
+
+  const {
+    data: socialInsightsConfig,
+    isLoading: socialInsightsLoading,
+    error: socialInsightsError,
+  } = useQuery({
+    queryKey: ['social-insights-config'],
+    queryFn: () => apiService.getSocialInsightsConfig(),
     retry: 1,
   });
 
@@ -24,9 +37,72 @@ export default function AdminSettings() {
     },
   });
 
+  const updateSocialInsightsMutation = useMutation({
+    mutationFn: (config: SocialInsightsConfig) => apiService.updateSocialInsightsConfig(config),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['social-insights-config'] });
+    },
+  });
+
+  const resetSocialInsightsMutation = useMutation({
+    mutationFn: () => apiService.resetSocialInsightsConfig(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['social-insights-config'] });
+    },
+  });
+
   const handleToggleAutoApproval = () => {
     if (autoApprovalData) {
       updateAutoApprovalMutation.mutate(!autoApprovalData.enabled);
+    }
+  };
+
+  const handleSocialInsightsChange = (field: string, value: number) => {
+    if (!socialInsightsConfig) return;
+
+    const updatedConfig = { ...socialInsightsConfig };
+
+    // Handle nested fields
+    if (field === 'min_relevance_score') {
+      updatedConfig.min_relevance_score = value;
+    } else if (field === 'insight_context_limit') {
+      updatedConfig.activity_fetch_limits = {
+        ...updatedConfig.activity_fetch_limits,
+        insight_context_limit: value,
+      };
+    } else if (field === 'training_context_limit') {
+      updatedConfig.activity_fetch_limits = {
+        ...updatedConfig.activity_fetch_limits,
+        training_context_limit: value,
+      };
+    } else if (field === 'max_client_limit') {
+      updatedConfig.activity_fetch_limits = {
+        ...updatedConfig.activity_fetch_limits,
+        max_client_limit: value,
+      };
+    } else if (field === 'streak_lookback_days') {
+      updatedConfig.streak_config = {
+        ...updatedConfig.streak_config,
+        lookback_days: value,
+      };
+    } else if (field === 'streak_min_for_sharing') {
+      updatedConfig.streak_config = {
+        ...updatedConfig.streak_config,
+        min_for_sharing: value,
+      };
+    } else if (field === 'min_activities_for_milestone') {
+      updatedConfig.milestone_thresholds = {
+        ...updatedConfig.milestone_thresholds,
+        min_activities_for_milestone: value,
+      };
+    }
+
+    updateSocialInsightsMutation.mutate(updatedConfig);
+  };
+
+  const handleResetSocialInsights = () => {
+    if (window.confirm('Are you sure you want to reset social insights configuration to defaults?')) {
+      resetSocialInsightsMutation.mutate();
     }
   };
 
@@ -134,6 +210,197 @@ export default function AdminSettings() {
             </span>
           </div>
         </div>
+      </Card>
+
+      {/* Social Insights Configuration */}
+      <Card variant="dark">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-white">Social Insights Configuration</h2>
+          <button
+            onClick={() => setShowSocialInsightsConfig(!showSocialInsightsConfig)}
+            className="text-sm text-pierre-violet hover:text-pierre-violet/80 transition-colors"
+          >
+            {showSocialInsightsConfig ? 'Hide Details' : 'Show Details'}
+          </button>
+        </div>
+
+        <p className="text-sm text-zinc-400 mb-4">
+          Configure thresholds and limits for coach-mediated social sharing features.
+        </p>
+
+        {socialInsightsLoading ? (
+          <div className="p-4 flex justify-center">
+            <div className="w-8 h-8 border-2 border-pierre-violet border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : socialInsightsError ? (
+          <div className="p-3 rounded-lg bg-pierre-red-500/15 text-pierre-red-400 text-sm border border-pierre-red-500/30">
+            Failed to load social insights configuration.
+          </div>
+        ) : socialInsightsConfig && showSocialInsightsConfig ? (
+          <div className="space-y-4">
+            {/* Min Relevance Score */}
+            <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+              <div className="flex items-center justify-between mb-2">
+                <label className="font-medium text-white">Minimum Relevance Score</label>
+                <span className="text-sm text-zinc-400">{socialInsightsConfig.min_relevance_score}%</span>
+              </div>
+              <p className="text-xs text-zinc-500 mb-3">
+                Suggestions with lower relevance scores will be filtered out.
+              </p>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={socialInsightsConfig.min_relevance_score}
+                onChange={(e) => handleSocialInsightsChange('min_relevance_score', parseInt(e.target.value))}
+                className="w-full accent-pierre-violet"
+                disabled={updateSocialInsightsMutation.isPending}
+              />
+            </div>
+
+            {/* Activity Fetch Limits */}
+            <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+              <h3 className="font-medium text-white mb-3">Activity Fetch Limits</h3>
+
+              <div className="space-y-3">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-sm text-zinc-300">Insight Context Limit</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="500"
+                      value={socialInsightsConfig.activity_fetch_limits.insight_context_limit}
+                      onChange={(e) => handleSocialInsightsChange('insight_context_limit', parseInt(e.target.value) || 1)}
+                      className="w-20 px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm text-right"
+                      disabled={updateSocialInsightsMutation.isPending}
+                    />
+                  </div>
+                  <p className="text-xs text-zinc-500">Activities to analyze for insight generation</p>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-sm text-zinc-300">Training Context Limit</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="100"
+                      value={socialInsightsConfig.activity_fetch_limits.training_context_limit}
+                      onChange={(e) => handleSocialInsightsChange('training_context_limit', parseInt(e.target.value) || 1)}
+                      className="w-20 px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm text-right"
+                      disabled={updateSocialInsightsMutation.isPending}
+                    />
+                  </div>
+                  <p className="text-xs text-zinc-500">Activities for training context analysis</p>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-sm text-zinc-300">Max Client Request Limit</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="1000"
+                      value={socialInsightsConfig.activity_fetch_limits.max_client_limit}
+                      onChange={(e) => handleSocialInsightsChange('max_client_limit', parseInt(e.target.value) || 1)}
+                      className="w-20 px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm text-right"
+                      disabled={updateSocialInsightsMutation.isPending}
+                    />
+                  </div>
+                  <p className="text-xs text-zinc-500">Maximum activities clients can request</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Streak Configuration */}
+            <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+              <h3 className="font-medium text-white mb-3">Streak Configuration</h3>
+
+              <div className="space-y-3">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-sm text-zinc-300">Lookback Days</label>
+                    <input
+                      type="number"
+                      min="7"
+                      max="365"
+                      value={socialInsightsConfig.streak_config.lookback_days}
+                      onChange={(e) => handleSocialInsightsChange('streak_lookback_days', parseInt(e.target.value) || 7)}
+                      className="w-20 px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm text-right"
+                      disabled={updateSocialInsightsMutation.isPending}
+                    />
+                  </div>
+                  <p className="text-xs text-zinc-500">Days to analyze for streak calculation</p>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-sm text-zinc-300">Min Days for Sharing</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="30"
+                      value={socialInsightsConfig.streak_config.min_for_sharing}
+                      onChange={(e) => handleSocialInsightsChange('streak_min_for_sharing', parseInt(e.target.value) || 1)}
+                      className="w-20 px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm text-right"
+                      disabled={updateSocialInsightsMutation.isPending}
+                    />
+                  </div>
+                  <p className="text-xs text-zinc-500">Minimum streak length to suggest sharing</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Milestone Configuration */}
+            <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+              <h3 className="font-medium text-white mb-3">Milestone Configuration</h3>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-sm text-zinc-300">Min Activities for Milestone</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={socialInsightsConfig.milestone_thresholds.min_activities_for_milestone}
+                    onChange={(e) => handleSocialInsightsChange('min_activities_for_milestone', parseInt(e.target.value) || 1)}
+                    className="w-20 px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm text-right"
+                    disabled={updateSocialInsightsMutation.isPending}
+                  />
+                </div>
+                <p className="text-xs text-zinc-500">Minimum activity count before suggesting milestones</p>
+              </div>
+            </div>
+
+            {/* Reset to Defaults */}
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={handleResetSocialInsights}
+                disabled={resetSocialInsightsMutation.isPending}
+                className="px-4 py-2 text-sm text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {resetSocialInsightsMutation.isPending ? 'Resetting...' : 'Reset to Defaults'}
+              </button>
+            </div>
+
+            {/* Mutation Status */}
+            {updateSocialInsightsMutation.isSuccess && (
+              <div className="p-3 rounded-lg bg-pierre-activity/15 text-pierre-activity text-sm border border-pierre-activity/30">
+                Configuration updated successfully.
+              </div>
+            )}
+            {(updateSocialInsightsMutation.isError || resetSocialInsightsMutation.isError) && (
+              <div className="p-3 rounded-lg bg-pierre-red-500/15 text-pierre-red-400 text-sm border border-pierre-red-500/30">
+                Failed to update configuration. Please try again.
+              </div>
+            )}
+          </div>
+        ) : socialInsightsConfig && !showSocialInsightsConfig ? (
+          <div className="p-3 rounded-lg bg-white/5 text-zinc-400 text-sm border border-white/10">
+            Click "Show Details" to configure social insights parameters.
+          </div>
+        ) : null}
       </Card>
 
       {/* Security Recommendations */}

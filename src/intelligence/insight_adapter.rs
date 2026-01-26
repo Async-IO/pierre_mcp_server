@@ -220,6 +220,7 @@ impl InsightAdapter {
             InsightType::TrainingTip => Self::adapt_training_tip(insight, context),
             InsightType::Recovery => Self::adapt_recovery_insight(insight, context),
             InsightType::Motivation => Self::adapt_motivation(insight, context),
+            InsightType::CoachingInsight => Self::adapt_coaching_insight(insight, context),
         }
     }
 
@@ -331,6 +332,18 @@ impl InsightAdapter {
         format!("From a friend: {base}\n\n{personal_touch}")
     }
 
+    /// Adapt a coaching insight (coach chat message shared by a friend)
+    fn adapt_coaching_insight(insight: &SharedInsight, context: &UserTrainingContext) -> String {
+        let base = &insight.content;
+
+        let personalization = context.training_goal.as_ref().map_or_else(
+            || "Consider how this advice might apply to your own training!".to_owned(),
+            |goal| format!("Think about how this coaching insight relates to your goal of {goal}."),
+        );
+
+        format!("From a friend's coach: {base}\n\nFor you: {personalization}")
+    }
+
     /// Generate suggested actions based on insight and context
     fn generate_suggested_actions(
         insight: &SharedInsight,
@@ -362,6 +375,10 @@ impl InsightAdapter {
             InsightType::Motivation => {
                 actions.push("Save this for motivation on tough days".to_owned());
                 actions.push("Share your own wins with friends".to_owned());
+            }
+            InsightType::CoachingInsight => {
+                actions.push("Discuss this advice with your own coach".to_owned());
+                actions.push("Consider how this applies to your training".to_owned());
             }
         }
 

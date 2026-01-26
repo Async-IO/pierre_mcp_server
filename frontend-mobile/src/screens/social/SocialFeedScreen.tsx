@@ -18,7 +18,7 @@ import { colors, spacing } from '../../constants/theme';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { InsightCard } from '../../components/social/InsightCard';
-import type { FeedItem, ReactionType } from '../../types';
+import type { FeedItem, ReactionType, InsightSuggestion } from '../../types';
 import type { SocialStackParamList } from '../../navigation/MainTabs';
 
 type NavigationProp = NativeStackNavigationProp<SocialStackParamList>;
@@ -27,6 +27,7 @@ export function SocialFeedScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { isAuthenticated } = useAuth();
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
+  const [suggestions, setSuggestions] = useState<InsightSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -34,6 +35,19 @@ export function SocialFeedScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [reactingIds, setReactingIds] = useState<Set<string>>(new Set());
   const [adaptingIds, setAdaptingIds] = useState<Set<string>>(new Set());
+  const [showSuggestionsBanner, setShowSuggestionsBanner] = useState(true);
+
+  // Load suggestions for the banner
+  const loadSuggestions = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      const response = await apiService.getInsightSuggestions({ limit: 3 });
+      setSuggestions(response.suggestions);
+    } catch (error) {
+      // Silently fail - suggestions are optional enhancement
+      console.debug('Failed to load suggestions:', error);
+    }
+  }, [isAuthenticated]);
 
   const loadFeed = useCallback(async (isRefresh = false) => {
     if (!isAuthenticated) return;
@@ -45,17 +59,21 @@ export function SocialFeedScreen() {
         setIsLoading(true);
       }
 
-      const response = await apiService.getSocialFeed({ limit: 20 });
-      setFeedItems(response.items);
-      setNextCursor(response.next_cursor);
-      setHasMore(response.has_more);
+      // Load feed and suggestions in parallel
+      const [feedResponse] = await Promise.all([
+        apiService.getSocialFeed({ limit: 20 }),
+        loadSuggestions(),
+      ]);
+      setFeedItems(feedResponse.items);
+      setNextCursor(feedResponse.next_cursor);
+      setHasMore(feedResponse.has_more);
     } catch (error) {
       console.error('Failed to load feed:', error);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, loadSuggestions]);
 
   const loadMoreFeed = useCallback(async () => {
     if (!isAuthenticated || !hasMore || isLoadingMore || !nextCursor) return;
@@ -90,7 +108,7 @@ export function SocialFeedScreen() {
       const isRemoving = currentItem?.user_reaction === reactionType;
 
       if (isRemoving) {
-        await apiService.removeReaction(insightId);
+        await apiService.removeReaction(insightId, reactionType);
       } else {
         await apiService.addReaction(insightId, reactionType);
       }
@@ -170,11 +188,16 @@ export function SocialFeedScreen() {
     }
   };
 
+  const handleShare = (activityId: string) => {
+    navigation.navigate('ShareInsight', { activityId });
+  };
+
   const renderFeedItem = ({ item }: { item: FeedItem }) => (
     <InsightCard
       item={item}
       onReaction={(type) => handleReaction(item.insight.id, type)}
       onAdapt={() => handleAdapt(item.insight.id)}
+      onShare={handleShare}
       isReacting={reactingIds.has(item.insight.id)}
       isAdapting={adaptingIds.has(item.insight.id)}
     />
@@ -203,6 +226,52 @@ export function SocialFeedScreen() {
     return (
       <View className="py-5 items-center">
         <ActivityIndicator size="small" color={colors.pierre.violet} />
+      </View>
+    );
+  };
+
+  // Suggestions banner at top of feed
+  const renderSuggestionsBanner = () => {
+    if (suggestions.length === 0 || !showSuggestionsBanner) return null;
+
+    return (
+      <View
+        className="mx-4 mt-4 mb-2 p-4 rounded-xl"
+        style={{ backgroundColor: colors.pierre.violet + '15' }}
+        testID="suggestions-banner"
+      >
+        {/* Header with dismiss */}
+        <View className="flex-row items-center justify-between mb-3">
+          <View className="flex-row items-center gap-2">
+            <Feather name="zap" size={18} color={colors.pierre.violet} />
+            <Text className="text-text-primary font-semibold">Coach noticed something!</Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => setShowSuggestionsBanner(false)}
+            className="p-1"
+            testID="dismiss-suggestions"
+          >
+            <Feather name="x" size={18} color={colors.text.tertiary} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Preview of top suggestion */}
+        <Text className="text-text-secondary text-sm mb-3" numberOfLines={2}>
+          {suggestions[0].suggested_content}
+        </Text>
+
+        {/* Share button */}
+        <TouchableOpacity
+          className="flex-row items-center justify-center py-3 rounded-lg gap-2"
+          style={{ backgroundColor: colors.pierre.violet }}
+          onPress={() => navigation.navigate('ShareInsight')}
+          testID="share-suggestion-button"
+        >
+          <Feather name="share-2" size={16} color={colors.text.primary} />
+          <Text className="text-text-primary font-semibold">
+            Share with Friends ({suggestions.length} available)
+          </Text>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -239,6 +308,7 @@ export function SocialFeedScreen() {
         data={feedItems}
         keyExtractor={item => item.insight.id}
         renderItem={renderFeedItem}
+        ListHeaderComponent={renderSuggestionsBanner}
         ListEmptyComponent={renderEmptyState}
         ListFooterComponent={renderFooter}
         contentContainerStyle={feedItems.length === 0 ? { flexGrow: 1 } : { paddingVertical: spacing.sm }}

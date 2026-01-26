@@ -10,7 +10,7 @@ export type FriendStatus = 'pending' | 'accepted' | 'declined' | 'blocked';
 export type ShareVisibility = 'friends_only' | 'public';
 
 /** Type of coach insight that can be shared */
-export type InsightType = 'achievement' | 'milestone' | 'training_tip' | 'recovery' | 'motivation';
+export type InsightType = 'achievement' | 'milestone' | 'training_tip' | 'recovery' | 'motivation' | 'coaching_insight';
 
 /** Types of reactions users can give to shared insights */
 export type ReactionType = 'like' | 'celebrate' | 'inspire' | 'support';
@@ -124,6 +124,10 @@ export interface SharedInsight {
   updated_at: string;
   /** When the insight expires (optional) */
   expires_at: string | null;
+  /** Source activity ID (for coach-generated insights) */
+  source_activity_id: string | null;
+  /** Whether this insight was coach-generated */
+  coach_generated: boolean;
 }
 
 /** A reaction on a shared insight */
@@ -154,6 +158,61 @@ export interface AdaptedInsight {
   adaptation_context: string | null;
   /** When the adaptation was created */
   created_at: string;
+}
+
+// ========== COACH SUGGESTION TYPES ==========
+
+/** A coach-generated insight suggestion based on user's activities */
+export interface InsightSuggestion {
+  /** Type of insight */
+  insight_type: InsightType;
+  /** Coach-generated content */
+  suggested_content: string;
+  /** Optional suggested title */
+  suggested_title?: string;
+  /** Relevance score (0-100) */
+  relevance_score: number;
+  /** Sport type context */
+  sport_type?: string;
+  /** Training phase context */
+  training_phase?: TrainingPhase;
+  /** Source activity ID (if applicable) */
+  source_activity_id?: string;
+}
+
+/** Response for listing coach suggestions */
+export interface ListSuggestionsResponse {
+  suggestions: InsightSuggestion[];
+  total: number;
+  metadata: SocialMetadata;
+}
+
+/** Request to share an insight from an activity */
+export interface ShareFromActivityRequest {
+  /** Activity ID to base the insight on */
+  activity_id?: string;
+  /** Type of insight to share */
+  insight_type: InsightType;
+  /** Optional custom content (overrides coach-generated) */
+  content?: string;
+  /** Visibility setting */
+  visibility?: ShareVisibility;
+  /** Provider name (defaults to configured default) */
+  provider?: string;
+  /** Tenant ID for multi-tenant environments */
+  tenant_id?: string;
+}
+
+/** Parameters for getting suggestions */
+export interface GetSuggestionsParams {
+  /** Filter suggestions to a specific activity */
+  activity_id?: string;
+  /** Maximum number of suggestions */
+  limit?: number;
+  /** Provider name (defaults to configured default) */
+  provider?: string;
+  /** Tenant ID for multi-tenant environments */
+  tenant_id?: string;
 }
 
 // ========== FEED TYPES ==========
@@ -340,6 +399,7 @@ export const INSIGHT_TYPE_COLORS: Record<InsightType, string> = {
   training_tip: '#3B82F6', // blue
   recovery: '#6366F1', // indigo
   motivation: '#EC4899', // pink
+  coaching_insight: '#7C3AED', // pierre-violet
 };
 
 /** Labels for insight types */
@@ -349,4 +409,5 @@ export const INSIGHT_TYPE_LABELS: Record<InsightType, string> = {
   training_tip: 'Training Tip',
   recovery: 'Recovery',
   motivation: 'Motivation',
+  coaching_insight: 'Coach Chat',
 };

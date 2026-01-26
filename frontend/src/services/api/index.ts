@@ -191,6 +191,9 @@ export const apiService = {
   approveStoreCoach: adminApi.approveStoreCoach,
   rejectStoreCoach: adminApi.rejectStoreCoach,
   unpublishStoreCoach: adminApi.unpublishStoreCoach,
+  getSocialInsightsConfig: adminApi.getSocialInsightsConfig,
+  updateSocialInsightsConfig: adminApi.updateSocialInsightsConfig,
+  resetSocialInsightsConfig: adminApi.resetSocialInsightsConfig,
 
   // Store
   browseStoreCoaches: storeApi.browseStoreCoaches,
@@ -217,6 +220,8 @@ export const apiService = {
   removeReaction: socialApi.removeReaction,
   adaptInsight: socialApi.adaptInsight,
   getAdaptedInsights: socialApi.getAdaptedInsights,
+  getInsightSuggestions: socialApi.getInsightSuggestions,
+  shareFromActivity: socialApi.shareFromActivity,
   getSocialSettings: socialApi.getSocialSettings,
   updateSocialSettings: socialApi.updateSocialSettings,
 };

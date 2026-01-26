@@ -3,3 +3,4 @@
 
 export { FriendCard, RequestCard, SearchUserCard } from './FriendCard';
 export { InsightCard } from './InsightCard';
+export { SuggestionCard } from './SuggestionCard';

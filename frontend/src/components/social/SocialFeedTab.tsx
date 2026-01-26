@@ -10,6 +10,17 @@ import { apiService } from '../../services/api';
 import { Card, Button } from '../ui';
 import ShareInsightModal from './ShareInsightModal';
 import AdaptInsightModal from './AdaptInsightModal';
+import type { InsightType, TrainingPhase } from '../../types/social';
+
+interface InsightSuggestion {
+  insight_type: InsightType;
+  suggested_content: string;
+  suggested_title?: string;
+  relevance_score: number;
+  sport_type?: string;
+  training_phase?: TrainingPhase;
+  source_activity_id?: string;
+}
 
 interface SharedInsight {
   id: string;
@@ -25,6 +36,8 @@ interface SharedInsight {
   created_at: string;
   updated_at: string;
   expires_at: string | null;
+  source_activity_id: string | null;
+  coach_generated: boolean;
 }
 
 interface FeedAuthor {
@@ -74,8 +87,22 @@ export default function SocialFeedTab() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [reactionLoading, setReactionLoading] = useState<string | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [shareActivityId, setShareActivityId] = useState<string | undefined>(undefined);
   const [showAdaptModal, setShowAdaptModal] = useState(false);
   const [selectedInsightId, setSelectedInsightId] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<InsightSuggestion[]>([]);
+  const [showSuggestionsBanner, setShowSuggestionsBanner] = useState(true);
+
+  // Load coach suggestions
+  const loadSuggestions = useCallback(async () => {
+    try {
+      const response = await apiService.getInsightSuggestions({ limit: 3 });
+      setSuggestions(response.suggestions as InsightSuggestion[]);
+    } catch (error) {
+      // Silently fail - suggestions are optional enhancement
+      console.debug('Failed to load suggestions:', error);
+    }
+  }, []);
 
   const loadFeed = useCallback(async (cursor?: string) => {
     try {
@@ -87,10 +114,12 @@ export default function SocialFeedTab() {
 
       const response = await apiService.getSocialFeed(cursor, 20);
 
+      // Cast response items to FeedItem[] - API ensures fields are present
+      const items = response.items as unknown as FeedItem[];
       if (cursor) {
-        setFeedItems(prev => [...prev, ...response.items]);
+        setFeedItems(prev => [...prev, ...items]);
       } else {
-        setFeedItems(response.items);
+        setFeedItems(items);
       }
 
       setNextCursor(response.next_cursor);
@@ -105,7 +134,8 @@ export default function SocialFeedTab() {
 
   useEffect(() => {
     loadFeed();
-  }, [loadFeed]);
+    loadSuggestions();
+  }, [loadFeed, loadSuggestions]);
 
   const handleReaction = async (insightId: string, reactionType: ReactionType) => {
     const item = feedItems.find(i => i.insight.id === insightId);
@@ -235,6 +265,44 @@ export default function SocialFeedTab() {
         </Button>
       </div>
 
+      {/* Suggestions Banner */}
+      {suggestions.length > 0 && showSuggestionsBanner && (
+        <div className="p-4 bg-pierre-violet/10 border border-pierre-violet/20 rounded-xl">
+          {/* Header with dismiss */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-pierre-violet-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <span className="font-semibold text-white">Coach noticed something!</span>
+            </div>
+            <button
+              onClick={() => setShowSuggestionsBanner(false)}
+              className="p-1 text-zinc-400 hover:text-white transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Preview of top suggestion */}
+          <p className="text-zinc-300 text-sm mb-3 line-clamp-2">
+            {suggestions[0].suggested_content}
+          </p>
+
+          {/* Share button */}
+          <Button variant="primary" onClick={() => { setShareActivityId(undefined); setShowShareModal(true); }} className="w-full">
+            <span className="flex items-center justify-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+              </svg>
+              Share with Friends ({suggestions.length} available)
+            </span>
+          </Button>
+        </div>
+      )}
+
       {/* Feed Content */}
       {isLoading ? (
         <div className="flex justify-center py-8">
@@ -339,29 +407,50 @@ export default function SocialFeedTab() {
                     })}
                   </div>
 
-                  {/* Adapt button */}
-                  <Button
-                    variant={item.user_has_adapted ? 'secondary' : 'primary'}
-                    size="sm"
-                    onClick={() => handleAdapt(item.insight.id)}
-                    disabled={item.user_has_adapted}
-                  >
-                    {item.user_has_adapted ? (
-                      <span className="flex items-center gap-2">
-                        <svg className="w-4 h-4 text-pierre-activity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        Adapted
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-2">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        Adapt to My Training
-                      </span>
+                  <div className="flex gap-2">
+                    {/* Share Similar button (only for coach-generated insights with activity link) */}
+                    {item.insight.coach_generated && item.insight.source_activity_id && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          setShareActivityId(item.insight.source_activity_id ?? undefined);
+                          setShowShareModal(true);
+                        }}
+                      >
+                        <span className="flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                          </svg>
+                          Share Similar
+                        </span>
+                      </Button>
                     )}
-                  </Button>
+
+                    {/* Adapt button */}
+                    <Button
+                      variant={item.user_has_adapted ? 'secondary' : 'primary'}
+                      size="sm"
+                      onClick={() => handleAdapt(item.insight.id)}
+                      disabled={item.user_has_adapted}
+                    >
+                      {item.user_has_adapted ? (
+                        <span className="flex items-center gap-2">
+                          <svg className="w-4 h-4 text-pierre-activity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Adapted
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          Adapt to My Training
+                        </span>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </Card>
             );
@@ -385,8 +474,12 @@ export default function SocialFeedTab() {
       {/* Modals */}
       {showShareModal && (
         <ShareInsightModal
-          onClose={() => setShowShareModal(false)}
+          onClose={() => {
+            setShowShareModal(false);
+            setShareActivityId(undefined);
+          }}
           onSuccess={handleShareSuccess}
+          activityId={shareActivityId}
         />
       )}
 

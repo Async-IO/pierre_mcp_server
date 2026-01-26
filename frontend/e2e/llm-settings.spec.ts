@@ -154,29 +154,12 @@ async function setupLlmSettingsMocks(page: Page, withCredentials: boolean = fals
 async function navigateToAiSettings(page: Page) {
   await loginToDashboard(page);
 
-  // Wait for dashboard to load - user mode shows header
-  await page.waitForSelector('main', { timeout: 10000 });
+  // Wait for dashboard to load - all users now have sidebar
+  await page.waitForSelector('aside', { timeout: 10000 });
 
-  // For non-admin users, settings is accessed via gear icon in ChatTab sidebar
-  // Look for the settings button with title="Open settings"
-  const settingsButton = page.locator('button[title="Open settings"]');
-  const settingsVisible = await settingsButton.isVisible({ timeout: 5000 }).catch(() => false);
-
-  if (settingsVisible) {
-    await settingsButton.click();
-    await page.waitForTimeout(500);
-  } else {
-    // Fallback for admin users: try avatar dropdown
-    const avatarButton = page.locator('header button').filter({ hasText: /^[A-Z]$/ }).first();
-    const avatarVisible = await avatarButton.isVisible().catch(() => false);
-
-    if (avatarVisible) {
-      await avatarButton.click();
-      await page.waitForTimeout(300);
-      await page.getByText('Settings').click();
-    }
-  }
-
+  // Click on Settings tab in sidebar (works for both admin and non-admin users)
+  const settingsTab = page.locator('button').filter({ has: page.locator('span:has-text("Settings")') });
+  await settingsTab.click();
   await page.waitForTimeout(500);
 
   // Click on AI Settings tab
@@ -188,26 +171,11 @@ test.describe('LLM Settings - Display and Navigation', () => {
   test('displays AI Settings tab in user settings', async ({ page }) => {
     await setupLlmSettingsMocks(page);
     await loginToDashboard(page);
-    await page.waitForSelector('main', { timeout: 10000 });
+    await page.waitForSelector('aside', { timeout: 10000 });
 
-    // Navigate to settings - for non-admin users, use gear icon button
-    const settingsButton = page.locator('button[title="Open settings"]');
-    const settingsVisible = await settingsButton.isVisible({ timeout: 5000 }).catch(() => false);
-
-    if (settingsVisible) {
-      await settingsButton.click();
-    } else {
-      // Fallback for admin users
-      const avatarButton = page.locator('header button').filter({ hasText: /^[A-Z]$/ }).first();
-      const avatarVisible = await avatarButton.isVisible().catch(() => false);
-
-      if (avatarVisible) {
-        await avatarButton.click();
-        await page.waitForTimeout(300);
-        await page.getByText('Settings').click();
-      }
-    }
-
+    // Click on Settings tab in sidebar
+    const settingsTab = page.locator('button').filter({ has: page.locator('span:has-text("Settings")') });
+    await settingsTab.click();
     await page.waitForTimeout(500);
 
     // Check AI Settings tab exists
@@ -555,26 +523,11 @@ test.describe('LLM Settings - Error Handling', () => {
     });
 
     await loginToDashboard(page);
-    await page.waitForSelector('main', { timeout: 10000 });
+    await page.waitForSelector('aside', { timeout: 10000 });
 
-    // Navigate to settings - for non-admin users, use gear icon button
-    const settingsButton = page.locator('button[title="Open settings"]');
-    const settingsVisible = await settingsButton.isVisible({ timeout: 5000 }).catch(() => false);
-
-    if (settingsVisible) {
-      await settingsButton.click();
-    } else {
-      // Fallback for admin users
-      const avatarButton = page.locator('header button').filter({ hasText: /^[A-Z]$/ }).first();
-      const avatarVisible = await avatarButton.isVisible().catch(() => false);
-
-      if (avatarVisible) {
-        await avatarButton.click();
-        await page.waitForTimeout(300);
-        await page.getByText('Settings').click();
-      }
-    }
-
+    // Click on Settings tab in sidebar
+    const settingsTab = page.locator('button').filter({ has: page.locator('span:has-text("Settings")') });
+    await settingsTab.click();
     await page.waitForTimeout(500);
 
     // Click on AI Settings tab

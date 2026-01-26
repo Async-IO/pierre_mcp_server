@@ -27,13 +27,27 @@ use uuid::Uuid;
 
 use crate::{
     auth::AuthResult,
+    config::{
+        environment::{default_provider, get_oauth_config},
+        SocialInsightsConfig,
+    },
     database::social::SocialManager,
+    database_plugins::DatabaseProvider,
     errors::{AppError, ErrorCode},
+    intelligence::{
+        insight_adapter::{InsightAdapter, UserTrainingContext},
+        social_insights::{
+            InsightContextBuilder, InsightGenerationContext, InsightSuggestion,
+            SharedInsightGenerator,
+        },
+    },
     mcp::resources::ServerResources,
     models::{
-        AdaptedInsight, FriendConnection, FriendStatus, InsightReaction, InsightType, ReactionType,
-        ShareVisibility, SharedInsight, TrainingPhase, UserSocialSettings,
+        Activity, AdaptedInsight, FriendConnection, FriendStatus, InsightReaction, InsightType,
+        ReactionType, ShareVisibility, SharedInsight, TrainingPhase, UserSocialSettings,
     },
+    protocols::universal::auth_service::{AuthService, TokenData},
+    providers::{core::FitnessProvider, OAuth2Credentials, ProviderRegistry},
     security::cookies::get_cookie_value,
 };
 
@@ -75,26 +89,82 @@ impl From<FriendConnection> for FriendConnectionResponse {
     }
 }
 
+/// Response for a friend connection with user info
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct FriendWithInfoResponse {
+    /// Connection ID
+    pub id: String,
+    /// User who initiated the request
+    pub initiator_id: String,
+    /// User who received the request
+    pub receiver_id: String,
+    /// Current status
+    pub status: String,
+    /// When the request was created
+    pub created_at: String,
+    /// When the connection was last updated
+    pub updated_at: String,
+    /// When the request was accepted (if accepted)
+    pub accepted_at: Option<String>,
+    /// Friend's display name
+    pub friend_display_name: Option<String>,
+    /// Friend's email
+    pub friend_email: String,
+    /// Friend's user ID
+    pub friend_user_id: String,
+}
+
 /// Response for listing friends
 #[derive(Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(ToSchema))]
 pub struct ListFriendsResponse {
-    /// List of friend connections
-    pub friends: Vec<FriendConnectionResponse>,
+    /// List of friend connections with user info
+    pub friends: Vec<FriendWithInfoResponse>,
     /// Total count
     pub total: usize,
+    /// Cursor for next page (if any)
+    pub next_cursor: Option<String>,
+    /// Whether more items are available
+    pub has_more: bool,
     /// Metadata
     pub metadata: SocialMetadata,
+}
+
+/// Response for a pending friend request with user info
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct PendingRequestWithInfoResponse {
+    /// Connection ID
+    pub id: String,
+    /// User who initiated the request
+    pub initiator_id: String,
+    /// User who received the request
+    pub receiver_id: String,
+    /// Current status
+    pub status: String,
+    /// When the request was created
+    pub created_at: String,
+    /// When the connection was last updated
+    pub updated_at: String,
+    /// When the request was accepted (if accepted)
+    pub accepted_at: Option<String>,
+    /// The other user's display name (initiator for received, receiver for sent)
+    pub user_display_name: Option<String>,
+    /// The other user's email
+    pub user_email: String,
+    /// The other user's ID
+    pub user_id: String,
 }
 
 /// Response for pending friend requests
 #[derive(Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(ToSchema))]
 pub struct PendingRequestsResponse {
-    /// Requests sent by the user
-    pub sent: Vec<FriendConnectionResponse>,
-    /// Requests received by the user
-    pub received: Vec<FriendConnectionResponse>,
+    /// Requests sent by the user (includes receiver's info)
+    pub sent: Vec<PendingRequestWithInfoResponse>,
+    /// Requests received by the user (includes initiator's info)
+    pub received: Vec<PendingRequestWithInfoResponse>,
     /// Metadata
     pub metadata: SocialMetadata,
 }
@@ -176,6 +246,10 @@ pub struct SharedInsightResponse {
     pub updated_at: String,
     /// Optional expiry time
     pub expires_at: Option<String>,
+    /// Source activity ID that generated this insight (for coach-mediated sharing)
+    pub source_activity_id: Option<String>,
+    /// Whether this insight was coach-generated (vs manual entry)
+    pub coach_generated: bool,
 }
 
 impl From<SharedInsight> for SharedInsightResponse {
@@ -194,6 +268,8 @@ impl From<SharedInsight> for SharedInsightResponse {
             created_at: insight.created_at.to_rfc3339(),
             updated_at: insight.updated_at.to_rfc3339(),
             expires_at: insight.expires_at.map(|dt| dt.to_rfc3339()),
+            source_activity_id: insight.source_activity_id,
+            coach_generated: insight.coach_generated,
         }
     }
 }
@@ -206,6 +282,68 @@ pub struct ListInsightsResponse {
     pub insights: Vec<SharedInsightResponse>,
     /// Total count
     pub total: usize,
+    /// Cursor for next page (if any)
+    pub next_cursor: Option<String>,
+    /// Whether more items are available
+    pub has_more: bool,
+    /// Metadata
+    pub metadata: SocialMetadata,
+}
+
+/// Author information for feed display
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct FeedAuthorResponse {
+    /// User ID
+    pub user_id: String,
+    /// Display name
+    pub display_name: Option<String>,
+    /// Email
+    pub email: String,
+}
+
+/// Reaction counts by type
+#[derive(Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct ReactionCountsResponse {
+    /// Number of likes
+    pub like: i32,
+    /// Number of celebrations
+    pub celebrate: i32,
+    /// Number of inspires
+    pub inspire: i32,
+    /// Number of supports
+    pub support: i32,
+    /// Total reactions
+    pub total: i32,
+}
+
+/// A feed item with full metadata
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct FeedItemResponse {
+    /// The shared insight
+    pub insight: SharedInsightResponse,
+    /// Author information
+    pub author: FeedAuthorResponse,
+    /// Reaction counts
+    pub reactions: ReactionCountsResponse,
+    /// Current user's reaction type (if any)
+    pub user_reaction: Option<String>,
+    /// Whether current user has adapted this insight
+    pub user_has_adapted: bool,
+}
+
+/// Response for social feed
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct FeedResponse {
+    /// Feed items with full metadata
+    pub items: Vec<FeedItemResponse>,
+    /// Cursor for next page (if any)
+    pub next_cursor: Option<String>,
+    /// Whether more items are available
+    pub has_more: bool,
     /// Metadata
     pub metadata: SocialMetadata,
 }
@@ -306,6 +444,22 @@ pub struct ListAdaptedInsightsResponse {
     pub adapted_insights: Vec<AdaptedInsightResponse>,
     /// Total count
     pub total: usize,
+    /// Cursor for next page (if any)
+    pub next_cursor: Option<String>,
+    /// Whether more items are available
+    pub has_more: bool,
+    /// Metadata
+    pub metadata: SocialMetadata,
+}
+
+/// Response for adapting an insight (includes source insight for context)
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct AdaptInsightResultResponse {
+    /// The adapted insight
+    pub adapted: AdaptedInsightResponse,
+    /// The original insight that was adapted
+    pub source_insight: SharedInsightResponse,
     /// Metadata
     pub metadata: SocialMetadata,
 }
@@ -344,6 +498,52 @@ pub struct SocialMetadata {
     pub timestamp: String,
     /// API version
     pub api_version: String,
+}
+
+/// Response for a coach-generated insight suggestion
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct InsightSuggestionResponse {
+    /// Type of insight
+    pub insight_type: String,
+    /// Suggested content (privacy-safe)
+    pub suggested_content: String,
+    /// Suggested title
+    pub suggested_title: Option<String>,
+    /// Relevance score (0-100)
+    pub relevance_score: u8,
+    /// Sport type context
+    pub sport_type: Option<String>,
+    /// Training phase context
+    pub training_phase: Option<String>,
+    /// Source activity ID (if suggestion is for specific activity)
+    pub source_activity_id: Option<String>,
+}
+
+impl From<InsightSuggestion> for InsightSuggestionResponse {
+    fn from(suggestion: InsightSuggestion) -> Self {
+        Self {
+            insight_type: suggestion.insight_type.as_str().to_owned(),
+            suggested_content: suggestion.suggested_content,
+            suggested_title: suggestion.suggested_title,
+            relevance_score: suggestion.relevance_score,
+            sport_type: suggestion.sport_type,
+            training_phase: suggestion.training_phase.map(|p| p.as_str().to_owned()),
+            source_activity_id: None,
+        }
+    }
+}
+
+/// Response for listing insight suggestions
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct ListSuggestionsResponse {
+    /// List of suggestions
+    pub suggestions: Vec<InsightSuggestionResponse>,
+    /// Total count
+    pub total: usize,
+    /// Metadata
+    pub metadata: SocialMetadata,
 }
 
 // ============================================================================
@@ -424,6 +624,10 @@ pub struct ReactToInsightBody {
 pub struct AdaptInsightBody {
     /// Optional context to include in adaptation
     pub context: Option<String>,
+    /// Provider to fetch activities from (defaults to environment default)
+    pub provider: Option<String>,
+    /// Tenant ID for multi-tenant contexts
+    pub tenant_id: Option<String>,
 }
 
 /// Request to update helpful status
@@ -432,6 +636,24 @@ pub struct AdaptInsightBody {
 pub struct UpdateHelpfulBody {
     /// Whether the adaptation was helpful
     pub was_helpful: bool,
+}
+
+/// Request to share an insight from an activity (coach-mediated)
+#[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct ShareFromActivityBody {
+    /// Activity ID that generated the insight
+    pub activity_id: String,
+    /// Insight type to share
+    pub insight_type: String,
+    /// User-edited content (optional, uses suggestion if not provided)
+    pub content: Option<String>,
+    /// Visibility setting
+    pub visibility: Option<String>,
+    /// Provider to fetch activities from (defaults to environment default)
+    pub provider: Option<String>,
+    /// Tenant ID for multi-tenant contexts
+    pub tenant_id: Option<String>,
 }
 
 // ============================================================================
@@ -464,6 +686,42 @@ pub struct SearchUsersQuery {
 #[derive(Debug, Deserialize, Default)]
 #[cfg_attr(feature = "openapi", derive(ToSchema))]
 pub struct FeedQuery {
+    /// Maximum results
+    pub limit: Option<i64>,
+    /// Offset for pagination
+    pub offset: Option<i64>,
+}
+
+/// Query parameters for insight suggestions
+#[derive(Debug, Deserialize, Default)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct SuggestionsQuery {
+    /// Specific activity ID to generate suggestions for
+    pub activity_id: Option<String>,
+    /// Maximum suggestions to return
+    pub limit: Option<usize>,
+    /// Provider to fetch activities from (defaults to environment default)
+    pub provider: Option<String>,
+    /// Tenant ID for multi-tenant contexts
+    pub tenant_id: Option<String>,
+    /// Maximum activities to fetch for context generation (capped by server config)
+    pub activity_limit: Option<usize>,
+}
+
+/// Query parameters for listing friends
+#[derive(Debug, Deserialize, Default)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct ListFriendsQuery {
+    /// Maximum results
+    pub limit: Option<i64>,
+    /// Offset for pagination
+    pub offset: Option<i64>,
+}
+
+/// Query parameters for listing adapted insights
+#[derive(Debug, Deserialize, Default)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct ListAdaptedQuery {
     /// Maximum results
     pub limit: Option<i64>,
     /// Offset for pagination
@@ -503,6 +761,14 @@ impl SocialRoutes {
             // Insights
             .route("/api/social/insights", get(Self::handle_list_insights))
             .route("/api/social/insights", post(Self::handle_share_insight))
+            .route(
+                "/api/social/insights/suggestions",
+                get(Self::handle_get_suggestions),
+            )
+            .route(
+                "/api/social/insights/from-activity",
+                post(Self::handle_share_from_activity),
+            )
             .route("/api/social/insights/:id", get(Self::handle_get_insight))
             .route(
                 "/api/social/insights/:id",
@@ -586,15 +852,64 @@ impl SocialRoutes {
     async fn handle_list_friends(
         State(resources): State<Arc<ServerResources>>,
         headers: HeaderMap,
+        Query(query): Query<ListFriendsQuery>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
         let social = Self::get_social_manager(&resources)?;
 
-        let friends = social.get_friends(auth.user_id).await?;
+        let limit = query.limit.unwrap_or(50);
+        let offset = query.offset.unwrap_or(0);
+
+        let friends = social
+            .get_friends_paginated(auth.user_id, limit, offset)
+            .await?;
+
+        #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+        #[allow(clippy::cast_possible_truncation)] // limit is clamped to small values
+        let limit_usize = limit as usize;
+        let has_more = friends.len() >= limit_usize;
+        let next_cursor = if has_more {
+            Some((offset + limit).to_string())
+        } else {
+            None
+        };
+
+        // Build response with friend user info
+        let mut friends_with_info = Vec::with_capacity(friends.len());
+        for conn in friends {
+            // Determine who the friend is (the other person in the connection)
+            let friend_id = if conn.initiator_id == auth.user_id {
+                conn.receiver_id
+            } else {
+                conn.initiator_id
+            };
+
+            // Fetch friend's user info
+            let friend_user = resources.database.get_user(friend_id).await?;
+            let (friend_display_name, friend_email) = match friend_user {
+                Some(user) => (user.display_name, user.email),
+                None => (None, format!("user-{friend_id}")),
+            };
+
+            friends_with_info.push(FriendWithInfoResponse {
+                id: conn.id.to_string(),
+                initiator_id: conn.initiator_id.to_string(),
+                receiver_id: conn.receiver_id.to_string(),
+                status: conn.status.as_str().to_owned(),
+                created_at: conn.created_at.to_rfc3339(),
+                updated_at: conn.updated_at.to_rfc3339(),
+                accepted_at: conn.accepted_at.map(|dt| dt.to_rfc3339()),
+                friend_display_name,
+                friend_email,
+                friend_user_id: friend_id.to_string(),
+            });
+        }
 
         let response = ListFriendsResponse {
-            total: friends.len(),
-            friends: friends.into_iter().map(Into::into).collect(),
+            total: friends_with_info.len(),
+            friends: friends_with_info,
+            next_cursor,
+            has_more,
             metadata: Self::build_metadata(),
         };
 
@@ -647,13 +962,61 @@ impl SocialRoutes {
 
         let pending = social.get_pending_friend_requests(auth.user_id).await?;
 
-        let (sent, received): (Vec<_>, Vec<_>) = pending
+        let (sent_conns, received_conns): (Vec<_>, Vec<_>) = pending
             .into_iter()
             .partition(|conn| conn.initiator_id == auth.user_id);
 
+        // Build sent requests with receiver's user info
+        let mut sent = Vec::with_capacity(sent_conns.len());
+        for conn in sent_conns {
+            let receiver_id_str = conn.receiver_id.to_string();
+            let receiver_user = resources.database.get_user(conn.receiver_id).await?;
+            let (user_display_name, user_email) = match receiver_user {
+                Some(user) => (user.display_name, user.email),
+                None => (None, format!("user-{receiver_id_str}")),
+            };
+
+            sent.push(PendingRequestWithInfoResponse {
+                id: conn.id.to_string(),
+                initiator_id: conn.initiator_id.to_string(),
+                receiver_id: conn.receiver_id.to_string(),
+                status: conn.status.as_str().to_owned(),
+                created_at: conn.created_at.to_rfc3339(),
+                updated_at: conn.updated_at.to_rfc3339(),
+                accepted_at: conn.accepted_at.map(|dt| dt.to_rfc3339()),
+                user_display_name,
+                user_email,
+                user_id: conn.receiver_id.to_string(),
+            });
+        }
+
+        // Build received requests with initiator's user info
+        let mut received = Vec::with_capacity(received_conns.len());
+        for conn in received_conns {
+            let initiator_id_str = conn.initiator_id.to_string();
+            let initiator_user = resources.database.get_user(conn.initiator_id).await?;
+            let (user_display_name, user_email) = match initiator_user {
+                Some(user) => (user.display_name, user.email),
+                None => (None, format!("user-{initiator_id_str}")),
+            };
+
+            received.push(PendingRequestWithInfoResponse {
+                id: conn.id.to_string(),
+                initiator_id: conn.initiator_id.to_string(),
+                receiver_id: conn.receiver_id.to_string(),
+                status: conn.status.as_str().to_owned(),
+                created_at: conn.created_at.to_rfc3339(),
+                updated_at: conn.updated_at.to_rfc3339(),
+                accepted_at: conn.accepted_at.map(|dt| dt.to_rfc3339()),
+                user_display_name,
+                user_email,
+                user_id: conn.initiator_id.to_string(),
+            });
+        }
+
         let response = PendingRequestsResponse {
-            sent: sent.into_iter().map(Into::into).collect(),
-            received: received.into_iter().map(Into::into).collect(),
+            sent,
+            received,
             metadata: Self::build_metadata(),
         };
 
@@ -858,18 +1221,28 @@ impl SocialRoutes {
             .map(|t| InsightType::from_str(&t))
             .transpose()?;
 
+        let limit = query.limit.unwrap_or(50);
+        let offset = query.offset.unwrap_or(0);
+
         let insights = social
-            .get_user_shared_insights(
-                auth.user_id,
-                insight_type,
-                query.limit.unwrap_or(50),
-                query.offset.unwrap_or(0),
-            )
+            .get_user_shared_insights(auth.user_id, insight_type, limit, offset)
             .await?;
+
+        #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+        #[allow(clippy::cast_possible_truncation)] // limit is clamped to small values
+        let limit_usize = limit as usize;
+        let has_more = insights.len() >= limit_usize;
+        let next_cursor = if has_more {
+            Some((offset + limit).to_string())
+        } else {
+            None
+        };
 
         let response = ListInsightsResponse {
             total: insights.len(),
             insights: insights.into_iter().map(Into::into).collect(),
+            next_cursor,
+            has_more,
             metadata: Self::build_metadata(),
         };
 
@@ -973,6 +1346,305 @@ impl SocialRoutes {
     }
 
     // ========================================================================
+    // Coach-Mediated Sharing
+    // ========================================================================
+
+    /// Handle GET /api/social/insights/suggestions - Get coach suggestions
+    ///
+    /// Returns suggestions based on user's recent activities. If no activities
+    /// can be fetched (e.g., no OAuth token connected), returns an empty list.
+    async fn handle_get_suggestions(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Query(query): Query<SuggestionsQuery>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+
+        // Use provider from query or fall back to environment default
+        let provider_name = query.provider.unwrap_or_else(default_provider);
+
+        // Build insight generation context from user's activities
+        // If we can't fetch activities (no OAuth token), return empty suggestions
+        let suggestions = match Self::build_insight_context(
+            &resources,
+            auth.user_id,
+            &provider_name,
+            query.tenant_id.as_deref(),
+            query.activity_limit,
+        )
+        .await
+        {
+            Ok(context) => {
+                // Generate suggestions using the SharedInsightGenerator
+                let generator = SharedInsightGenerator::new();
+                let mut suggestions = generator.generate_suggestions(&context);
+
+                // Limit results if requested
+                let limit = query.limit.unwrap_or(5);
+                suggestions.truncate(limit);
+
+                // Convert to response format, adding activity_id if provided
+                suggestions
+                    .into_iter()
+                    .map(|s| {
+                        let mut response: InsightSuggestionResponse = s.into();
+                        response.source_activity_id.clone_from(&query.activity_id);
+                        response
+                    })
+                    .collect()
+            }
+            Err(_) => {
+                // No activities available (e.g., no OAuth token) - return empty list
+                Vec::new()
+            }
+        };
+
+        let response = ListSuggestionsResponse {
+            total: suggestions.len(),
+            suggestions,
+            metadata: Self::build_metadata(),
+        };
+
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Handle POST /api/social/insights/from-activity - Share coach-mediated insight
+    async fn handle_share_from_activity(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Json(body): Json<ShareFromActivityBody>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        let social = Self::get_social_manager(&resources)?;
+
+        let insight_type = InsightType::from_str(&body.insight_type)?;
+        let visibility = body
+            .visibility
+            .map(|v| ShareVisibility::from_str(&v))
+            .transpose()?
+            .unwrap_or_default();
+
+        // Use provider from body or fall back to environment default
+        let provider_name = body.provider.unwrap_or_else(default_provider);
+
+        // Default message when we can't generate coach content
+        let default_message = format!(
+            "Sharing a {} from my recent training!",
+            insight_type.description()
+        );
+
+        // Build content: use custom content if provided, otherwise generate coach content
+        let content = match body.content.clone() {
+            Some(custom_content) => custom_content,
+            None => {
+                // Try to generate coach content based on user's activities
+                // Falls back to default message if context building fails (e.g., no OAuth token)
+                Self::build_insight_context(
+                    &resources,
+                    auth.user_id,
+                    &provider_name,
+                    body.tenant_id.as_deref(),
+                    None, // Use default server limit for share operations
+                )
+                .await
+                .map_or_else(
+                    |_| default_message.clone(),
+                    |context| {
+                        let generator = SharedInsightGenerator::new();
+                        let suggestions = generator.generate_suggestions(&context);
+
+                        // Find a matching suggestion for the insight type
+                        suggestions
+                            .into_iter()
+                            .find(|s| s.insight_type == insight_type)
+                            .map_or_else(|| default_message.clone(), |s| s.suggested_content)
+                    },
+                )
+            }
+        };
+
+        // Create the coach-generated insight
+        let insight = SharedInsight::coach_generated(
+            auth.user_id,
+            insight_type,
+            content,
+            visibility,
+            body.activity_id.clone(),
+        );
+
+        social.create_shared_insight(&insight).await?;
+
+        let response: SharedInsightResponse = insight.into();
+        Ok((StatusCode::CREATED, Json(response)).into_response())
+    }
+
+    /// Create a configured provider with OAuth credentials
+    ///
+    /// Uses the same pattern as protocol handlers for creating providers.
+    async fn create_configured_provider(
+        provider_name: &str,
+        provider_registry: &Arc<ProviderRegistry>,
+        token_data: &TokenData,
+    ) -> Result<Box<dyn FitnessProvider>, AppError> {
+        // Create provider instance
+        let provider = provider_registry
+            .create_provider(provider_name)
+            .map_err(|e| {
+                AppError::internal(format!("Failed to create {provider_name} provider: {e}"))
+            })?;
+
+        // Load provider-specific OAuth config
+        let config = get_oauth_config(provider_name);
+
+        // Build credentials
+        let credentials = OAuth2Credentials {
+            client_id: config.client_id.clone().unwrap_or_default(),
+            client_secret: config.client_secret.clone().unwrap_or_default(),
+            access_token: Some(token_data.access_token.clone()),
+            refresh_token: Some(token_data.refresh_token.clone()),
+            expires_at: Some(token_data.expires_at),
+            scopes: config.scopes.clone(),
+        };
+
+        // Set credentials on provider
+        provider.set_credentials(credentials).await.map_err(|e| {
+            AppError::internal(format!(
+                "Failed to set {provider_name} provider credentials: {e}"
+            ))
+        })?;
+
+        Ok(provider)
+    }
+
+    /// Fetch activities from the user's connected provider
+    ///
+    /// Uses `AuthService` to get a valid OAuth token and creates a configured provider
+    /// to fetch recent activities.
+    async fn fetch_activities_from_provider(
+        resources: &Arc<ServerResources>,
+        user_id: Uuid,
+        provider_name: &str,
+        tenant_id: Option<&str>,
+        limit: Option<usize>,
+    ) -> Result<Vec<Activity>, AppError> {
+        let auth_service = AuthService::new(resources.clone());
+
+        // Get valid OAuth token
+        let token_data = auth_service
+            .get_valid_token(user_id, provider_name, tenant_id)
+            .await
+            .map_err(|e| AppError::internal(format!("OAuth error: {e}")))?
+            .ok_or_else(|| {
+                AppError::auth_invalid(format!(
+                    "No valid token for provider '{provider_name}'. Please connect your account."
+                ))
+            })?;
+
+        // Create configured provider with credentials
+        let provider = Self::create_configured_provider(
+            provider_name,
+            &resources.provider_registry,
+            &token_data,
+        )
+        .await?;
+
+        // Fetch activities
+        provider
+            .get_activities(limit, None)
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to fetch activities: {e}")))
+    }
+
+    /// Build insight generation context from user's recent activities
+    ///
+    /// # Arguments
+    /// * `activity_limit` - Optional client-requested limit (capped by server config)
+    async fn build_insight_context(
+        resources: &Arc<ServerResources>,
+        user_id: Uuid,
+        provider_name: &str,
+        tenant_id: Option<&str>,
+        activity_limit: Option<usize>,
+    ) -> Result<InsightGenerationContext, AppError> {
+        let config = SocialInsightsConfig::global();
+
+        // Use client limit if provided, but cap at server's max client limit
+        let effective_limit = activity_limit.map_or(
+            config.activity_fetch_limits.insight_context_limit,
+            |client_limit| client_limit.min(config.activity_fetch_limits.max_client_limit),
+        );
+
+        let activities = Self::fetch_activities_from_provider(
+            resources,
+            user_id,
+            provider_name,
+            tenant_id,
+            Some(effective_limit),
+        )
+        .await?;
+
+        // Build context using InsightContextBuilder
+        let context = InsightContextBuilder::new()
+            .with_activities(activities)
+            .build();
+
+        Ok(context)
+    }
+
+    /// Build user training context for insight adaptation
+    async fn build_user_training_context(
+        resources: &Arc<ServerResources>,
+        user_id: Uuid,
+        provider_name: &str,
+        tenant_id: Option<&str>,
+    ) -> Result<UserTrainingContext, AppError> {
+        let config = SocialInsightsConfig::global();
+        let activities = Self::fetch_activities_from_provider(
+            resources,
+            user_id,
+            provider_name,
+            tenant_id,
+            Some(config.activity_fetch_limits.training_context_limit),
+        )
+        .await?;
+
+        // Calculate fitness metrics from activities
+        let recent_activity_count = u32::try_from(activities.len()).unwrap_or(u32::MAX);
+        let days_since_last = activities.first().map_or(365, |a| {
+            let diff = Utc::now() - a.start_date();
+            u32::try_from(diff.num_days().max(0)).unwrap_or(u32::MAX)
+        });
+
+        // Calculate weekly volume (approximate) using duration_seconds
+        // Safe: duration_seconds is bounded by u64, and we need f64 for hours calculation
+        #[allow(clippy::cast_precision_loss)]
+        let weekly_volume_hours = activities
+            .iter()
+            .filter(|a| {
+                let age = Utc::now() - a.start_date();
+                age.num_days() <= 7
+            })
+            .map(|a| a.duration_seconds() as f64)
+            .sum::<f64>()
+            / 3600.0;
+
+        // Determine primary sport
+        let primary_sport = activities
+            .first()
+            .map(|a| a.sport_type().display_name().to_owned());
+
+        Ok(UserTrainingContext {
+            fitness_score: None,
+            training_phase: None,
+            weekly_volume_hours: Some(weekly_volume_hours),
+            primary_sport,
+            training_goal: None,
+            recent_activity_count,
+            days_since_last_workout: days_since_last,
+        })
+    }
+
+    // ========================================================================
     // Reactions
     // ========================================================================
 
@@ -1038,12 +1710,19 @@ impl SocialRoutes {
             .await?
             .ok_or_else(|| AppError::not_found(format!("Insight {id}")))?;
 
-        // Check if user already reacted with this type
+        // Check if user already has a reaction
         let existing = social.get_user_reaction(insight_id, auth.user_id).await?;
-        if existing.is_some() {
-            return Err(AppError::invalid_input(
-                "You have already reacted to this insight",
-            ));
+        if let Some(existing_reaction) = existing {
+            if existing_reaction.reaction_type == reaction_type {
+                // Same reaction type - should use remove endpoint to toggle
+                return Err(AppError::invalid_input(
+                    "You have already reacted with this type. Use remove to toggle.",
+                ));
+            }
+            // Different reaction type - update to new type (delete old, create new)
+            social
+                .delete_insight_reaction(insight_id, auth.user_id)
+                .await?;
         }
 
         let reaction = InsightReaction::new(insight_id, auth.user_id, reaction_type);
@@ -1088,17 +1767,50 @@ impl SocialRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let social = Self::get_social_manager(&resources)?;
 
-        let insights = social
-            .get_friend_insights_feed(
-                auth.user_id,
-                query.limit.unwrap_or(50),
-                query.offset.unwrap_or(0),
-            )
+        let limit = query.limit.unwrap_or(50);
+        let offset = query.offset.unwrap_or(0);
+
+        // Get full feed items with author, reactions, and user-specific state
+        let feed_items = social
+            .get_friend_insights_feed_full(auth.user_id, limit, offset)
             .await?;
 
-        let response = ListInsightsResponse {
-            total: insights.len(),
-            insights: insights.into_iter().map(Into::into).collect(),
+        // Convert to response format
+        let items: Vec<FeedItemResponse> = feed_items
+            .into_iter()
+            .map(|item| FeedItemResponse {
+                insight: item.insight.into(),
+                author: FeedAuthorResponse {
+                    user_id: item.author.user_id.to_string(),
+                    display_name: item.author.display_name,
+                    email: item.author.email,
+                },
+                reactions: ReactionCountsResponse {
+                    like: item.reactions.like_count,
+                    celebrate: item.reactions.celebrate_count,
+                    inspire: item.reactions.inspire_count,
+                    support: item.reactions.support_count,
+                    total: item.reactions.total,
+                },
+                user_reaction: item.user_reaction.map(|r| r.as_str().to_owned()),
+                user_has_adapted: item.user_has_adapted,
+            })
+            .collect();
+
+        #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+        #[allow(clippy::cast_possible_truncation)] // limit is clamped to small values
+        let limit_usize = limit as usize;
+        let has_more = items.len() >= limit_usize;
+        let next_cursor = if has_more {
+            Some((offset + limit).to_string())
+        } else {
+            None
+        };
+
+        let response = FeedResponse {
+            items,
+            next_cursor,
+            has_more,
             metadata: Self::build_metadata(),
         };
 
@@ -1128,16 +1840,50 @@ impl SocialRoutes {
             .await?
             .ok_or_else(|| AppError::not_found(format!("Insight {id}")))?;
 
-        // For now, create a simple adaptation (the actual AI adaptation would be done
-        // by the intelligence layer in a later ticket)
-        let adapted_content = format!("Adapted for your training: {}", source_insight.content);
+        // Check if user has already adapted this insight
+        if let Some(existing_adaptation) = social
+            .get_adapted_insight_by_source(insight_id, auth.user_id)
+            .await?
+        {
+            // Return existing adaptation instead of creating duplicate
+            let response = AdaptInsightResultResponse {
+                adapted: existing_adaptation.into(),
+                source_insight: source_insight.into(),
+                metadata: Self::build_metadata(),
+            };
+            return Ok((StatusCode::OK, Json(response)).into_response());
+        }
 
-        let mut adapted = AdaptedInsight::new(insight_id, auth.user_id, adapted_content);
-        adapted.adaptation_context = body.context;
+        // Use provider from body or fall back to environment default
+        let provider_name = body.provider.clone().unwrap_or_else(default_provider);
 
-        social.create_adapted_insight(&adapted).await?;
+        // Build user training context from their activities
+        // If we can't fetch activities (no OAuth token), use a default context
+        let user_context = Self::build_user_training_context(
+            &resources,
+            auth.user_id,
+            &provider_name,
+            body.tenant_id.as_deref(),
+        )
+        .await
+        .unwrap_or_else(|_| UserTrainingContext::default());
 
-        let response: AdaptedInsightResponse = adapted.into();
+        // Use the InsightAdapter to generate personalized content
+        let insight_adapter = InsightAdapter::new();
+        let adaptation_result =
+            insight_adapter.adapt(&source_insight, &user_context, body.context.as_deref());
+
+        // Create the adapted insight using the real adaptation
+        let adapted_insight =
+            InsightAdapter::create_adapted_insight(insight_id, auth.user_id, &adaptation_result);
+
+        social.create_adapted_insight(&adapted_insight).await?;
+
+        let response = AdaptInsightResultResponse {
+            adapted: adapted_insight.into(),
+            source_insight: source_insight.into(),
+            metadata: Self::build_metadata(),
+        };
         Ok((StatusCode::CREATED, Json(response)).into_response())
     }
 
@@ -1145,15 +1891,33 @@ impl SocialRoutes {
     async fn handle_list_adapted(
         State(resources): State<Arc<ServerResources>>,
         headers: HeaderMap,
+        Query(query): Query<ListAdaptedQuery>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
         let social = Self::get_social_manager(&resources)?;
 
-        let adapted = social.get_user_adapted_insights(auth.user_id).await?;
+        let limit = query.limit.unwrap_or(50);
+        let offset = query.offset.unwrap_or(0);
+
+        let adapted = social
+            .get_user_adapted_insights_paginated(auth.user_id, limit, offset)
+            .await?;
+
+        #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+        #[allow(clippy::cast_possible_truncation)] // limit is clamped to small values
+        let limit_usize = limit as usize;
+        let has_more = adapted.len() >= limit_usize;
+        let next_cursor = if has_more {
+            Some((offset + limit).to_string())
+        } else {
+            None
+        };
 
         let response = ListAdaptedInsightsResponse {
             total: adapted.len(),
             adapted_insights: adapted.into_iter().map(Into::into).collect(),
+            next_cursor,
+            has_more,
             metadata: Self::build_metadata(),
         };
 

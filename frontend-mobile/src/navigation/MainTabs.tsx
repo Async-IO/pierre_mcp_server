@@ -44,7 +44,7 @@ export type SocialStackParamList = {
   FriendRequests: undefined;
   AdaptedInsights: undefined;
   AdaptedInsight: { adaptedInsight: AdaptedInsight };
-  ShareInsight: undefined;
+  ShareInsight: { activityId?: string } | undefined;
   SocialSettings: undefined;
 };
 

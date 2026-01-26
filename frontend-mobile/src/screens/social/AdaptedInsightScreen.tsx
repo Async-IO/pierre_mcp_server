@@ -35,6 +35,38 @@ const formatDate = (dateStr: string): string => {
   });
 };
 
+// Format adaptation context from JSON to readable text
+const formatAdaptationContext = (contextJson: string): string => {
+  try {
+    const context = JSON.parse(contextJson);
+    const lines: string[] = [];
+
+    if (context.fitness_level && context.fitness_level !== 'Unknown') {
+      lines.push(`Fitness Level: ${context.fitness_level}`);
+    }
+    if (context.training_phase) {
+      lines.push(`Training Phase: ${context.training_phase}`);
+    }
+    if (context.primary_sport) {
+      lines.push(`Sport: ${context.primary_sport}`);
+    }
+    if (context.weekly_volume_hours) {
+      lines.push(`Weekly Volume: ${context.weekly_volume_hours} hours`);
+    }
+    if (context.additional_context) {
+      lines.push(`Context: ${context.additional_context}`);
+    }
+
+    if (lines.length === 0) {
+      return 'Adapted based on general training principles';
+    }
+    return lines.join('\n');
+  } catch {
+    // If not valid JSON, return as-is (might be plain text)
+    return contextJson;
+  }
+};
+
 export function AdaptedInsightScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteProps>();
@@ -84,7 +116,9 @@ export function AdaptedInsightScreen() {
           {adaptedInsight.adaptation_context && (
             <View className="mt-5 pt-4 border-t border-border-subtle">
               <Text className="text-text-tertiary text-sm font-medium mb-2">How this was adapted:</Text>
-              <Text className="text-text-secondary text-base leading-6">{adaptedInsight.adaptation_context}</Text>
+              <Text className="text-text-secondary text-base leading-6">
+                {formatAdaptationContext(adaptedInsight.adaptation_context)}
+              </Text>
             </View>
           )}
         </View>

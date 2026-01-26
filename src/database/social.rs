@@ -11,8 +11,9 @@ use uuid::Uuid;
 
 use crate::errors::{AppError, AppResult};
 use crate::models::{
-    AdaptedInsight, FriendConnection, FriendStatus, InsightReaction, InsightType,
-    NotificationPreferences, SharedInsight, TrainingPhase, UserSocialSettings,
+    AdaptedInsight, FeedItem, FriendConnection, FriendInfo, FriendStatus, InsightReaction,
+    InsightType, NotificationPreferences, ReactionSummary, ReactionType, SharedInsight,
+    TrainingPhase, UserSocialSettings,
 };
 
 /// Social features database operations manager
@@ -159,6 +160,37 @@ impl SocialManager {
             ",
         )
         .bind(user_id.to_string())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get friends: {e}")))?;
+
+        rows.iter().map(Self::row_to_friend_connection).collect()
+    }
+
+    /// Get all accepted friends for a user with pagination
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    pub async fn get_friends_paginated(
+        &self,
+        user_id: Uuid,
+        limit: i64,
+        offset: i64,
+    ) -> AppResult<Vec<FriendConnection>> {
+        let rows = sqlx::query(
+            r"
+            SELECT id, initiator_id, receiver_id, status, created_at, updated_at, accepted_at
+            FROM friend_connections
+            WHERE (initiator_id = $1 OR receiver_id = $1)
+              AND status = 'accepted'
+            ORDER BY accepted_at DESC
+            LIMIT $2 OFFSET $3
+            ",
+        )
+        .bind(user_id.to_string())
+        .bind(limit)
+        .bind(offset)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get friends: {e}")))?;
@@ -369,8 +401,9 @@ impl SocialManager {
             r"
             INSERT INTO shared_insights (
                 id, user_id, visibility, insight_type, sport_type, content, title,
-                training_phase, reaction_count, adapt_count, created_at, updated_at, expires_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                training_phase, reaction_count, adapt_count, created_at, updated_at, expires_at,
+                source_activity_id, coach_generated
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
             ",
         )
         .bind(insight.id.to_string())
@@ -386,6 +419,8 @@ impl SocialManager {
         .bind(insight.created_at.to_rfc3339())
         .bind(insight.updated_at.to_rfc3339())
         .bind(expires_at_str)
+        .bind(&insight.source_activity_id)
+        .bind(i32::from(insight.coach_generated))
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to create shared insight: {e}")))?;
@@ -402,7 +437,8 @@ impl SocialManager {
         let row = sqlx::query(
             r"
             SELECT id, user_id, visibility, insight_type, sport_type, content, title,
-                   training_phase, reaction_count, adapt_count, created_at, updated_at, expires_at
+                   training_phase, reaction_count, adapt_count, created_at, updated_at, expires_at,
+                   source_activity_id, coach_generated
             FROM shared_insights
             WHERE id = $1
             ",
@@ -431,7 +467,8 @@ impl SocialManager {
             sqlx::query(
                 r"
                 SELECT id, user_id, visibility, insight_type, sport_type, content, title,
-                       training_phase, reaction_count, adapt_count, created_at, updated_at, expires_at
+                       training_phase, reaction_count, adapt_count, created_at, updated_at, expires_at,
+                       source_activity_id, coach_generated
                 FROM shared_insights
                 WHERE user_id = $1 AND insight_type = $2
                 ORDER BY created_at DESC
@@ -448,7 +485,8 @@ impl SocialManager {
             sqlx::query(
                 r"
                 SELECT id, user_id, visibility, insight_type, sport_type, content, title,
-                       training_phase, reaction_count, adapt_count, created_at, updated_at, expires_at
+                       training_phase, reaction_count, adapt_count, created_at, updated_at, expires_at,
+                       source_activity_id, coach_generated
                 FROM shared_insights
                 WHERE user_id = $1
                 ORDER BY created_at DESC
@@ -466,6 +504,39 @@ impl SocialManager {
         rows.iter().map(Self::row_to_shared_insight).collect()
     }
 
+    /// Get basic user profile for feed author display
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails or user not found
+    pub async fn get_user_profile(&self, user_id: Uuid) -> AppResult<FriendInfo> {
+        let row: Option<SqliteRow> =
+            sqlx::query("SELECT id, display_name, email, created_at FROM users WHERE id = $1")
+                .bind(user_id.to_string())
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(|e| AppError::database(format!("Failed to get user profile: {e}")))?;
+
+        let row = row.ok_or_else(|| AppError::not_found(format!("User {user_id}")))?;
+
+        let id_str: String = row.get("id");
+        let display_name: Option<String> = row.get("display_name");
+        let email: String = row.get("email");
+        let created_at_str: String = row.get("created_at");
+
+        let created_at = DateTime::parse_from_rfc3339(&created_at_str)
+            .map_err(|e| AppError::database(format!("Invalid datetime: {e}")))?
+            .with_timezone(&Utc);
+
+        Ok(FriendInfo {
+            user_id: Uuid::parse_str(&id_str)
+                .map_err(|e| AppError::database(format!("Invalid UUID: {e}")))?,
+            display_name,
+            email,
+            friends_since: created_at, // Use created_at as placeholder for author info
+        })
+    }
+
     /// Get friend's insights feed
     ///
     /// # Errors
@@ -481,7 +552,7 @@ impl SocialManager {
             r"
             SELECT si.id, si.user_id, si.visibility, si.insight_type, si.sport_type,
                    si.content, si.title, si.training_phase, si.reaction_count, si.adapt_count,
-                   si.created_at, si.updated_at, si.expires_at
+                   si.created_at, si.updated_at, si.expires_at, si.source_activity_id, si.coach_generated
             FROM shared_insights si
             WHERE si.user_id IN (
                 SELECT CASE
@@ -505,6 +576,75 @@ impl SocialManager {
         .map_err(|e| AppError::database(format!("Failed to get friends feed: {e}")))?;
 
         rows.iter().map(Self::row_to_shared_insight).collect()
+    }
+
+    /// Get friend's insights feed with full item data
+    ///
+    /// Returns feed items with author info, reaction counts, and user-specific state.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    pub async fn get_friend_insights_feed_full(
+        &self,
+        user_id: Uuid,
+        limit: i64,
+        offset: i64,
+    ) -> AppResult<Vec<FeedItem>> {
+        // Get insights from friends
+        let insights = self
+            .get_friend_insights_feed(user_id, limit, offset)
+            .await?;
+
+        let mut feed_items = Vec::with_capacity(insights.len());
+
+        for insight in insights {
+            // Get author info
+            let author = self.get_user_profile(insight.user_id).await?;
+
+            // Get reaction counts for this insight
+            let reactions = self.get_insight_reactions(insight.id).await?;
+            // Reaction counts are small numbers (per-insight counts), safe to cast to i32
+            #[allow(clippy::cast_possible_wrap, clippy::cast_possible_truncation)]
+            let reaction_summary = ReactionSummary {
+                like_count: reactions
+                    .iter()
+                    .filter(|r| r.reaction_type == ReactionType::Like)
+                    .count() as i32,
+                celebrate_count: reactions
+                    .iter()
+                    .filter(|r| r.reaction_type == ReactionType::Celebrate)
+                    .count() as i32,
+                inspire_count: reactions
+                    .iter()
+                    .filter(|r| r.reaction_type == ReactionType::Inspire)
+                    .count() as i32,
+                support_count: reactions
+                    .iter()
+                    .filter(|r| r.reaction_type == ReactionType::Support)
+                    .count() as i32,
+                total: reactions.len() as i32,
+            };
+
+            // Get current user's reaction
+            let user_reaction = self.get_user_reaction(insight.id, user_id).await?;
+
+            // Check if user has adapted this insight
+            let user_has_adapted = self
+                .get_adapted_insight_by_source(insight.id, user_id)
+                .await?
+                .is_some();
+
+            feed_items.push(FeedItem {
+                insight,
+                author,
+                reactions: reaction_summary,
+                user_reaction: user_reaction.map(|r| r.reaction_type),
+                user_has_adapted,
+            });
+        }
+
+        Ok(feed_items)
     }
 
     /// Delete a shared insight
@@ -536,6 +676,8 @@ impl SocialManager {
         let created_at_str: String = row.get("created_at");
         let updated_at_str: String = row.get("updated_at");
         let expires_at_str: Option<String> = row.get("expires_at");
+        let source_activity_id: Option<String> = row.get("source_activity_id");
+        let coach_generated: i32 = row.get("coach_generated");
 
         Ok(SharedInsight {
             id: Uuid::parse_str(&id_str)
@@ -570,6 +712,8 @@ impl SocialManager {
                         .map_err(|e| AppError::database(format!("Invalid date: {e}")))
                 })
                 .transpose()?,
+            source_activity_id,
+            coach_generated: coach_generated != 0,
         })
     }
 
@@ -725,6 +869,33 @@ impl SocialManager {
         Ok(insight.id)
     }
 
+    /// Get an adapted insight by source insight ID and user ID
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    pub async fn get_adapted_insight_by_source(
+        &self,
+        source_insight_id: Uuid,
+        user_id: Uuid,
+    ) -> AppResult<Option<AdaptedInsight>> {
+        let row = sqlx::query(
+            r"
+            SELECT id, source_insight_id, user_id, adapted_content, adaptation_context,
+                   was_helpful, created_at
+            FROM adapted_insights
+            WHERE source_insight_id = $1 AND user_id = $2
+            ",
+        )
+        .bind(source_insight_id.to_string())
+        .bind(user_id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get adapted insight: {e}")))?;
+
+        row.as_ref().map(Self::row_to_adapted_insight).transpose()
+    }
+
     /// Get user's adapted insights
     ///
     /// # Errors
@@ -741,6 +912,37 @@ impl SocialManager {
             ",
         )
         .bind(user_id.to_string())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get adapted insights: {e}")))?;
+
+        rows.iter().map(Self::row_to_adapted_insight).collect()
+    }
+
+    /// Get adapted insights for a user with pagination
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    pub async fn get_user_adapted_insights_paginated(
+        &self,
+        user_id: Uuid,
+        limit: i64,
+        offset: i64,
+    ) -> AppResult<Vec<AdaptedInsight>> {
+        let rows = sqlx::query(
+            r"
+            SELECT id, source_insight_id, user_id, adapted_content, adaptation_context,
+                   was_helpful, created_at
+            FROM adapted_insights
+            WHERE user_id = $1
+            ORDER BY created_at DESC
+            LIMIT $2 OFFSET $3
+            ",
+        )
+        .bind(user_id.to_string())
+        .bind(limit)
+        .bind(offset)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get adapted insights: {e}")))?;

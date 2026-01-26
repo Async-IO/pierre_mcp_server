@@ -49,6 +49,7 @@ use crate::{
     },
     api_keys::{ApiKey, ApiKeyManager, ApiKeyTier, CreateApiKeyRequest},
     auth::{AuthManager, SetupStatusResponse},
+    config::social::SocialInsightsConfig,
     constants::{
         tiers,
         time_constants::{SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MONTH, SECONDS_PER_WEEK},
@@ -593,6 +594,18 @@ impl AdminRoutes {
             .route(
                 "/admin/settings/auto-approval",
                 put(Self::handle_set_auto_approval),
+            )
+            .route(
+                "/admin/settings/social-insights",
+                get(Self::handle_get_social_insights_config),
+            )
+            .route(
+                "/admin/settings/social-insights",
+                put(Self::handle_set_social_insights_config),
+            )
+            .route(
+                "/admin/settings/social-insights",
+                delete(Self::handle_reset_social_insights_config),
             )
             .with_state(context)
     }
@@ -1771,6 +1784,155 @@ impl AdminRoutes {
                     description: "When enabled, new user registrations are automatically approved without admin intervention".to_owned(),
                 })
                 .ok(),
+            },
+            StatusCode::OK,
+        ))
+    }
+
+    /// Handle getting social insights configuration
+    async fn handle_get_social_insights_config(
+        State(context): State<Arc<AdminApiContext>>,
+        Extension(admin_token): Extension<ValidatedAdminToken>,
+    ) -> AppResult<impl IntoResponse> {
+        // ManageUsers permission allows reading/writing system settings
+        if !admin_token
+            .permissions
+            .has_permission(&AdminPerm::ManageUsers)
+        {
+            return Ok(json_response(
+                AdminResponse {
+                    success: false,
+                    message: "Permission denied: ManageUsers required".to_owned(),
+                    data: None,
+                },
+                StatusCode::FORBIDDEN,
+            ));
+        }
+
+        info!(
+            "Getting social insights config by service: {}",
+            admin_token.service_name
+        );
+
+        let ctx = context.as_ref();
+
+        // Get database setting or use defaults
+        let config = ctx
+            .database
+            .get_social_insights_config()
+            .await
+            .map_err(|e| {
+                error!(error = %e, "Failed to get social insights config");
+                AppError::internal(format!("Failed to get social insights config: {e}"))
+            })?
+            .unwrap_or_default();
+
+        Ok(json_response(
+            AdminResponse {
+                success: true,
+                message: "Social insights configuration retrieved".to_owned(),
+                data: to_value(&config).ok(),
+            },
+            StatusCode::OK,
+        ))
+    }
+
+    /// Handle setting social insights configuration
+    async fn handle_set_social_insights_config(
+        State(context): State<Arc<AdminApiContext>>,
+        Extension(admin_token): Extension<ValidatedAdminToken>,
+        Json(config): Json<SocialInsightsConfig>,
+    ) -> AppResult<impl IntoResponse> {
+        if !admin_token
+            .permissions
+            .has_permission(&AdminPerm::ManageUsers)
+        {
+            return Ok(json_response(
+                AdminResponse {
+                    success: false,
+                    message: "Permission denied: ManageUsers required".to_owned(),
+                    data: None,
+                },
+                StatusCode::FORBIDDEN,
+            ));
+        }
+
+        info!(
+            "Setting social insights config by service: {}",
+            admin_token.service_name
+        );
+
+        let ctx = context.as_ref();
+
+        ctx.database
+            .set_social_insights_config(&config)
+            .await
+            .map_err(|e| {
+                error!(error = %e, "Failed to set social insights config");
+                AppError::internal(format!("Failed to set social insights config: {e}"))
+            })?;
+
+        info!(
+            "Social insights config updated by {}",
+            admin_token.service_name
+        );
+
+        Ok(json_response(
+            AdminResponse {
+                success: true,
+                message: "Social insights configuration updated".to_owned(),
+                data: to_value(&config).ok(),
+            },
+            StatusCode::OK,
+        ))
+    }
+
+    /// Handle resetting social insights configuration to defaults
+    async fn handle_reset_social_insights_config(
+        State(context): State<Arc<AdminApiContext>>,
+        Extension(admin_token): Extension<ValidatedAdminToken>,
+    ) -> AppResult<impl IntoResponse> {
+        if !admin_token
+            .permissions
+            .has_permission(&AdminPerm::ManageUsers)
+        {
+            return Ok(json_response(
+                AdminResponse {
+                    success: false,
+                    message: "Permission denied: ManageUsers required".to_owned(),
+                    data: None,
+                },
+                StatusCode::FORBIDDEN,
+            ));
+        }
+
+        info!(
+            "Resetting social insights config to defaults by service: {}",
+            admin_token.service_name
+        );
+
+        let ctx = context.as_ref();
+
+        ctx.database
+            .delete_social_insights_config()
+            .await
+            .map_err(|e| {
+                error!(error = %e, "Failed to reset social insights config");
+                AppError::internal(format!("Failed to reset social insights config: {e}"))
+            })?;
+
+        let default_config = SocialInsightsConfig::default();
+
+        info!(
+            "Social insights config reset to defaults by {}",
+            admin_token.service_name
+        );
+
+        Ok(json_response(
+            AdminResponse {
+                success: true,
+                message: "Social insights configuration reset to defaults".to_owned(),
+                data: to_value(&default_config).ok(),
             },
             StatusCode::OK,
         ))

@@ -2,12 +2,12 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 //
 // ABOUTME: Coach Store browse screen for discovering and installing coaches
-// ABOUTME: Lists published coaches with category filters, search, and navigation to detail
+// ABOUTME: Lists published coaches with category filters, search, and detail view with install/uninstall
 
 import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react';
-import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { clsx } from 'clsx';
-import { Compass } from 'lucide-react';
+import { Compass, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { apiService } from '../services/api';
 
 // Category filter options
@@ -56,16 +56,24 @@ interface StoreCoach {
   author_id: string | null;
 }
 
-interface StoreScreenProps {
-  onSelectCoach: (coachId: string) => void;
-  onBack?: () => void;
+interface StoreCoachDetail extends StoreCoach {
+  system_prompt: string;
+  created_at: string;
+  publish_status: string;
 }
 
-export default function StoreScreen({ onSelectCoach }: StoreScreenProps) {
+interface StoreScreenProps {
+  onNavigateToCoaches?: () => void;
+}
+
+export default function StoreScreen({ onNavigateToCoaches }: StoreScreenProps) {
+  const queryClient = useQueryClient();
+  const [selectedCoachId, setSelectedCoachId] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<CategoryFilter>('all');
   const [selectedSort, setSelectedSort] = useState<SortOption>('popular');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   // Debounce search query
@@ -75,6 +83,14 @@ export default function StoreScreen({ onSelectCoach }: StoreScreenProps) {
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // Clear success message after 5 seconds
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => setSuccessMessage(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
 
   // Infinite query for cursor-based pagination
   const {
@@ -103,6 +119,46 @@ export default function StoreScreen({ onSelectCoach }: StoreScreenProps) {
     queryFn: () => apiService.searchStoreCoaches(debouncedSearch, 50),
     enabled: !!debouncedSearch,
     staleTime: 30_000,
+  });
+
+  // Fetch coach detail when selected
+  const { data: coachDetail, isLoading: isLoadingDetail } = useQuery({
+    queryKey: ['store-coach-detail', selectedCoachId],
+    queryFn: () => apiService.getStoreCoach(selectedCoachId!),
+    enabled: !!selectedCoachId,
+    staleTime: 30_000,
+  });
+
+  // Fetch installed coaches to check if selected coach is installed
+  const { data: installedCoaches } = useQuery({
+    queryKey: ['store-installations'],
+    queryFn: () => apiService.getStoreInstallations(),
+    staleTime: 30_000,
+  });
+
+  const isInstalled = useMemo(() => {
+    if (!selectedCoachId || !installedCoaches) return false;
+    return installedCoaches.coaches.some(c => c.id === selectedCoachId);
+  }, [selectedCoachId, installedCoaches]);
+
+  // Install mutation
+  const installMutation = useMutation({
+    mutationFn: (coachId: string) => apiService.installStoreCoach(coachId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['store-installations'] });
+      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
+      setSuccessMessage(`"${coachDetail?.title}" has been added to your coaches.`);
+    },
+  });
+
+  // Uninstall mutation
+  const uninstallMutation = useMutation({
+    mutationFn: (coachId: string) => apiService.uninstallStoreCoach(coachId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['store-installations'] });
+      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
+      setSuccessMessage(`Coach has been removed from your library.`);
+    },
   });
 
   // Flatten pages for rendering
@@ -139,6 +195,44 @@ export default function StoreScreen({ onSelectCoach }: StoreScreenProps) {
     setSearchQuery('');
     setDebouncedSearch('');
   }, []);
+
+  const handleSelectCoach = useCallback((coachId: string) => {
+    setSelectedCoachId(coachId);
+  }, []);
+
+  const handleBackToStore = useCallback(() => {
+    setSelectedCoachId(null);
+    setSuccessMessage(null);
+  }, []);
+
+  const handleInstall = useCallback(() => {
+    if (selectedCoachId) {
+      installMutation.mutate(selectedCoachId);
+    }
+  }, [selectedCoachId, installMutation]);
+
+  const handleRemove = useCallback(() => {
+    if (selectedCoachId && window.confirm(`Remove Coach?\n\nRemove "${coachDetail?.title}" from your coaches? You can always reinstall it later.`)) {
+      uninstallMutation.mutate(selectedCoachId);
+    }
+  }, [selectedCoachId, coachDetail, uninstallMutation]);
+
+  // Render detail view if a coach is selected
+  if (selectedCoachId) {
+    return (
+      <CoachDetailView
+        coach={coachDetail as StoreCoachDetail | undefined}
+        isLoading={isLoadingDetail}
+        isInstalled={isInstalled}
+        isInstalling={installMutation.isPending || uninstallMutation.isPending}
+        successMessage={successMessage}
+        onBack={handleBackToStore}
+        onInstall={handleInstall}
+        onRemove={handleRemove}
+        onNavigateToCoaches={onNavigateToCoaches}
+      />
+    );
+  }
 
   return (
     <div className="h-full flex flex-col bg-pierre-dark">
@@ -262,7 +356,7 @@ export default function StoreScreen({ onSelectCoach }: StoreScreenProps) {
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {coaches.map((coach) => (
-                <CoachCard key={coach.id} coach={coach} onClick={() => onSelectCoach(coach.id)} />
+                <CoachCard key={coach.id} coach={coach} onClick={() => handleSelectCoach(coach.id)} />
               ))}
             </div>
 
@@ -341,3 +435,218 @@ const CoachCard = memo(function CoachCard({ coach, onClick }: CoachCardProps) {
     </button>
   );
 });
+
+// Coach detail view component
+interface CoachDetailViewProps {
+  coach: StoreCoachDetail | undefined;
+  isLoading: boolean;
+  isInstalled: boolean;
+  isInstalling: boolean;
+  successMessage: string | null;
+  onBack: () => void;
+  onInstall: () => void;
+  onRemove: () => void;
+  onNavigateToCoaches?: () => void;
+}
+
+function CoachDetailView({
+  coach,
+  isLoading,
+  isInstalled,
+  isInstalling,
+  successMessage,
+  onBack,
+  onInstall,
+  onRemove,
+  onNavigateToCoaches,
+}: CoachDetailViewProps) {
+  if (isLoading) {
+    return (
+      <div className="h-full flex flex-col bg-pierre-dark">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-8 h-8 border-2 border-pierre-violet border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="mt-3 text-sm text-gray-500">Loading coach details...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!coach) {
+    return (
+      <div className="h-full flex flex-col bg-pierre-dark">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-lg text-gray-400 mb-4">Coach not found</p>
+            <button
+              onClick={onBack}
+              className="px-4 py-2 bg-pierre-violet text-white rounded-lg hover:bg-pierre-violet/80 transition-colors"
+            >
+              Go Back
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const categoryColors = COACH_CATEGORY_COLORS[coach.category] ?? 'bg-gray-500/20 text-gray-400';
+
+  return (
+    <div className="h-full flex flex-col bg-pierre-dark">
+      {/* Header with back button */}
+      <div className="p-4 border-b border-white/10 flex items-center gap-3">
+        <button
+          onClick={onBack}
+          title="Back to Store"
+          className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <h2 className="text-lg font-semibold text-white truncate flex-1">{coach.title}</h2>
+      </div>
+
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto sidebar-scroll">
+        <div className="p-6 space-y-6">
+          {/* Category & Stats */}
+          <div className="flex items-center justify-between">
+            <span className={clsx('px-3 py-1 text-sm font-medium rounded-full capitalize', categoryColors)}>
+              {coach.category}
+            </span>
+            <span className="text-sm text-gray-500">
+              {coach.install_count} {coach.install_count === 1 ? 'user' : 'users'}
+            </span>
+          </div>
+
+          {/* Description */}
+          {coach.description && (
+            <p className="text-base text-gray-300 leading-relaxed">{coach.description}</p>
+          )}
+
+          {/* Tags */}
+          {coach.tags.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Tags</h3>
+              <div className="flex flex-wrap gap-2">
+                {coach.tags.map((tag, index) => (
+                  <span
+                    key={index}
+                    className="px-3 py-1 text-sm bg-white/10 text-gray-300 rounded-full border border-white/10"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Sample Prompts */}
+          {coach.sample_prompts.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Sample Prompts</h3>
+              <div className="space-y-2">
+                {coach.sample_prompts.map((prompt, index) => (
+                  <div
+                    key={index}
+                    className="p-3 bg-white/5 border border-white/10 rounded-lg text-sm text-gray-300"
+                  >
+                    {prompt}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* System Prompt Preview */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">System Prompt</h3>
+            <div className="p-3 bg-white/5 border border-white/10 rounded-lg">
+              <p className="text-sm text-gray-400 font-mono whitespace-pre-wrap line-clamp-10">
+                {coach.system_prompt}
+              </p>
+              {coach.system_prompt.length > 500 && (
+                <p className="text-xs text-gray-500 italic mt-2">
+                  ...and more ({coach.token_count.toLocaleString()} tokens)
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Details */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Details</h3>
+            <div className="bg-white/5 border border-white/10 rounded-lg overflow-hidden">
+              <div className="flex justify-between items-center px-4 py-3 border-b border-white/10">
+                <span className="text-sm text-gray-500">Token Count</span>
+                <span className="text-sm text-white font-medium">{coach.token_count.toLocaleString()}</span>
+              </div>
+              {coach.published_at && (
+                <div className="flex justify-between items-center px-4 py-3">
+                  <span className="text-sm text-gray-500">Published</span>
+                  <span className="text-sm text-white font-medium">
+                    {new Date(coach.published_at).toLocaleDateString()}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Success message */}
+          {successMessage && (
+            <div className="p-4 bg-emerald-500/20 border border-emerald-500/30 rounded-lg">
+              <p className="text-sm text-emerald-400">{successMessage}</p>
+              {isInstalled && onNavigateToCoaches && (
+                <button
+                  onClick={onNavigateToCoaches}
+                  className="mt-2 text-sm text-emerald-400 hover:text-emerald-300 underline"
+                >
+                  View My Coaches →
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Bottom spacer for fixed button */}
+          <div className="h-20" />
+        </div>
+      </div>
+
+      {/* Fixed action button at bottom */}
+      <div className="p-4 border-t border-white/10 bg-pierre-dark">
+        {isInstalled ? (
+          <button
+            onClick={onRemove}
+            disabled={isInstalling}
+            className="w-full py-3 px-4 bg-white/10 border border-white/20 rounded-lg text-white font-medium hover:bg-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {isInstalling ? (
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <>
+                <Trash2 className="w-4 h-4" />
+                Remove
+              </>
+            )}
+          </button>
+        ) : (
+          <button
+            onClick={onInstall}
+            disabled={isInstalling}
+            className="w-full py-3 px-4 bg-pierre-violet text-white font-medium rounded-lg hover:bg-pierre-violet/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {isInstalling ? (
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <>
+                <Plus className="w-4 h-4" />
+                Add Coach
+              </>
+            )}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}

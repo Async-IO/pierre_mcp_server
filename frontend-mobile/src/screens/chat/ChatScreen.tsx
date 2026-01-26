@@ -113,6 +113,11 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   const [renameConversationId, setRenameConversationId] = useState<string | null>(null);
   const [renameDefaultTitle, setRenameDefaultTitle] = useState('');
 
+  // Share to social feed state
+  const [shareToFeedContent, setShareToFeedContent] = useState<string | null>(null);
+  const [shareToFeedVisibility, setShareToFeedVisibility] = useState<'friends_only' | 'public'>('friends_only');
+  const [isSharing, setIsSharing] = useState(false);
+
   // Voice input hook for speech-to-text
   const {
     isListening,
@@ -460,6 +465,35 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       await Share.share({ message: content });
     } catch (error) {
       console.error('Failed to share:', error);
+    }
+  };
+
+  const handleShareToFeed = async () => {
+    if (!shareToFeedContent) return;
+
+    setIsSharing(true);
+    try {
+      await apiService.shareFromActivity({
+        content: shareToFeedContent,
+        insight_type: 'coaching_insight',
+        visibility: shareToFeedVisibility,
+      });
+      Toast.show({
+        type: 'success',
+        text1: 'Shared to Social Feed',
+        text2: 'Your insight has been posted',
+      });
+      setShareToFeedContent(null);
+      setShareToFeedVisibility('friends_only');
+    } catch (error) {
+      console.error('Failed to share to feed:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Share Failed',
+        text2: 'Could not share to social feed',
+      });
+    } finally {
+      setIsSharing(false);
     }
   };
 
@@ -1051,12 +1085,19 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
                 >
                   <Ionicons name="copy-outline" size={14} color={colors.text.tertiary} />
                 </TouchableOpacity>
-                {/* Share */}
+                {/* Share (system share sheet) */}
                 <TouchableOpacity
                   className="p-0.5"
                   onPress={() => handleShareMessage(item.content)}
                 >
                   <Ionicons name="arrow-redo-outline" size={14} color={colors.text.tertiary} />
+                </TouchableOpacity>
+                {/* Share to Social Feed */}
+                <TouchableOpacity
+                  className="p-0.5"
+                  onPress={() => setShareToFeedContent(item.content)}
+                >
+                  <Ionicons name="people-outline" size={14} color={colors.text.tertiary} />
                 </TouchableOpacity>
                 {/* Thumbs Up */}
                 <TouchableOpacity
@@ -1476,6 +1517,119 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
           onCancel={handleRenameCancel}
           testID="rename-conversation-dialog"
         />
+
+        {/* Share to Social Feed Modal */}
+        <Modal
+          visible={shareToFeedContent !== null}
+          animationType="fade"
+          transparent
+          onRequestClose={() => {
+            setShareToFeedContent(null);
+            setShareToFeedVisibility('friends_only');
+          }}
+        >
+          <TouchableOpacity
+            className="flex-1 bg-black/50 justify-center items-center"
+            activeOpacity={1}
+            onPress={() => {
+              setShareToFeedContent(null);
+              setShareToFeedVisibility('friends_only');
+            }}
+          >
+            <View style={providerModalContainerStyle}>
+              <Text className="text-lg font-semibold text-text-primary text-center mb-1">
+                Share to Social Feed
+              </Text>
+              <Text className="text-sm text-text-secondary text-center mb-4">
+                Share this insight with your friends
+              </Text>
+
+              {/* Message Preview */}
+              <View className="bg-background-secondary rounded-lg p-3 mb-4 max-h-32">
+                <ScrollView showsVerticalScrollIndicator={false}>
+                  <Text className="text-sm text-text-primary" numberOfLines={5}>
+                    {shareToFeedContent}
+                  </Text>
+                </ScrollView>
+              </View>
+
+              {/* Visibility Options */}
+              <Text className="text-sm font-medium text-text-secondary mb-2">
+                Who can see this?
+              </Text>
+
+              <TouchableOpacity
+                className={`flex-row items-center rounded-lg p-3 mb-2 border ${
+                  shareToFeedVisibility === 'friends_only'
+                    ? 'border-primary-500 bg-primary-500/10'
+                    : 'border-border-default bg-background-secondary'
+                }`}
+                onPress={() => setShareToFeedVisibility('friends_only')}
+              >
+                <Ionicons
+                  name="people"
+                  size={20}
+                  color={shareToFeedVisibility === 'friends_only' ? colors.primary[500] : colors.text.secondary}
+                  style={{ marginRight: spacing.sm }}
+                />
+                <View className="flex-1">
+                  <Text className="text-sm font-medium text-text-primary">Friends Only</Text>
+                  <Text className="text-xs text-text-tertiary">Only your friends can see this</Text>
+                </View>
+                {shareToFeedVisibility === 'friends_only' && (
+                  <Ionicons name="checkmark-circle" size={20} color={colors.primary[500]} />
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                className={`flex-row items-center rounded-lg p-3 mb-4 border ${
+                  shareToFeedVisibility === 'public'
+                    ? 'border-primary-500 bg-primary-500/10'
+                    : 'border-border-default bg-background-secondary'
+                }`}
+                onPress={() => setShareToFeedVisibility('public')}
+              >
+                <Ionicons
+                  name="globe"
+                  size={20}
+                  color={shareToFeedVisibility === 'public' ? colors.primary[500] : colors.text.secondary}
+                  style={{ marginRight: spacing.sm }}
+                />
+                <View className="flex-1">
+                  <Text className="text-sm font-medium text-text-primary">Public</Text>
+                  <Text className="text-xs text-text-tertiary">Anyone can see this</Text>
+                </View>
+                {shareToFeedVisibility === 'public' && (
+                  <Ionicons name="checkmark-circle" size={20} color={colors.primary[500]} />
+                )}
+              </TouchableOpacity>
+
+              {/* Action Buttons */}
+              <TouchableOpacity
+                className="rounded-lg p-3 mb-2 items-center"
+                style={{ backgroundColor: colors.primary[600] }}
+                onPress={handleShareToFeed}
+                disabled={isSharing}
+              >
+                {isSharing ? (
+                  <ActivityIndicator size="small" color={colors.text.primary} />
+                ) : (
+                  <Text className="text-base font-semibold text-text-primary">Share</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                className="items-center p-3"
+                onPress={() => {
+                  setShareToFeedContent(null);
+                  setShareToFeedVisibility('friends_only');
+                }}
+              >
+                <Text className="text-base text-text-tertiary">Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
       </KeyboardAvoidingView>
     </View>
   );
