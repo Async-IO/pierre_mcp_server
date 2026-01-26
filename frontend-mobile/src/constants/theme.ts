@@ -145,7 +145,7 @@ export const aiGlow = {
 // AI card style with gradient background and glow
 export const aiCard = {
   backgroundColor: GRADIENT_COLORS.aiGradient.start,
-  borderColor: 'rgba(124, 58, 237, 0.2)',
+  borderColor: 'rgba(139, 92, 246, 0.2)',
   borderWidth: 1,
   borderRadius: borderRadius.xl,
   ...aiGlow.ambient,

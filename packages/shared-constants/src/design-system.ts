@@ -3,18 +3,18 @@
 
 // ========== PIERRE BRAND COLORS ==========
 
-/** Pierre primary brand colors */
+/** Pierre primary brand colors (Stitch UX Refresh) */
 export const PIERRE_COLORS = {
-  violet: '#7C3AED',
-  cyan: '#06B6D4',
-  dark: '#0F0F1A',
-  slate: '#1E1E2E',
+  violet: '#8B5CF6',     // Primary, AI indicators, CTAs
+  cyan: '#22D3EE',       // Data viz, progress indicators
+  dark: '#0F0F1A',       // Page backgrounds
+  slate: '#1E1E2E',      // Card backgrounds
 } as const;
 
-/** Three pillars semantic accent colors (brightened for dark mode) */
+/** Three pillars semantic accent colors (Stitch UX Refresh) */
 export const PILLAR_COLORS = {
-  activity: '#10B981',   // Emerald - Movement, fitness, energy
-  nutrition: '#FBBF24',  // Amber - Brightened for dark mode contrast
+  activity: '#4ADE80',   // Success, health metrics, green
+  nutrition: '#F59E0B',  // Warnings, nutrition data, amber
   recovery: '#818CF8',   // Indigo - Brightened for dark mode contrast
 } as const;
 
@@ -52,7 +52,7 @@ export const TEXT_COLORS = {
   primary: '#ffffff',
   secondary: '#a1a1aa',  // zinc-400
   tertiary: '#71717a',   // zinc-500
-  accent: '#7C3AED',     // pierre-violet for accent
+  accent: '#8B5CF6',     // pierre-violet for accent (Stitch UX)
 } as const;
 
 // ========== BORDER COLORS ==========
@@ -88,72 +88,72 @@ export const PROVIDER_COLORS = {
 
 // ========== GRADIENT DEFINITIONS ==========
 
-/** Gradient color stops for premium effects */
+/** Gradient color stops for premium effects (Stitch UX) */
 export const GRADIENT_COLORS = {
   violetIndigo: {
-    start: 'rgba(124, 59, 237, 0.15)',
+    start: 'rgba(139, 92, 246, 0.15)',
     end: 'rgba(79, 70, 229, 0.05)',
   },
   violetCyan: {
-    start: '#7C3AED',
-    end: '#06B6D4',
+    start: '#8B5CF6',
+    end: '#22D3EE',
   },
   darkOverlay: {
     start: 'rgba(15, 15, 26, 0)',
     end: 'rgba(15, 15, 26, 0.8)',
   },
   aiGradient: {
-    start: 'rgba(124, 58, 237, 0.08)',
+    start: 'rgba(139, 92, 246, 0.08)',
     end: 'rgba(30, 30, 46, 0.6)',
   },
 } as const;
 
 // ========== GLASSMORPHISM ==========
 
-/** Glassmorphism card style values */
+/** Glassmorphism card style values (Stitch UX) */
 export const GLASS_CARD = {
-  background: 'rgba(124, 59, 237, 0.08)',
+  background: 'rgba(139, 92, 246, 0.08)',
   borderColor: 'rgba(255, 255, 255, 0.1)',
   borderWidth: 1,
-  shadowColor: '#7C3AED',
+  shadowColor: '#8B5CF6',
   shadowOpacity: 0.15,
   shadowRadius: 12,
 } as const;
 
 // ========== AI GLOW EFFECTS ==========
 
-/** AI glow effect values for various intensities */
+/** AI glow effect values for various intensities (Stitch UX) */
 export const AI_GLOW = {
   ambient: {
-    shadowColor: '#7C3AED',
+    shadowColor: '#8B5CF6',
     shadowOpacity: 0.15,
     shadowRadius: 20,
   },
   strong: {
-    shadowColor: '#7C3AED',
+    shadowColor: '#8B5CF6',
     shadowOpacity: 0.25,
     shadowRadius: 30,
   },
   avatar: {
-    shadowColor: '#7C3AED',
+    shadowColor: '#8B5CF6',
     shadowOpacity: 0.4,
     shadowRadius: 20,
   },
   thinking: {
-    shadowColor: '#7C3AED',
+    shadowColor: '#8B5CF6',
     shadowOpacity: 0.5,
     shadowRadius: 25,
   },
   response: {
-    shadowColor: '#7C3AED',
+    shadowColor: '#8B5CF6',
     shadowOpacity: 0.3,
     shadowRadius: 15,
   },
 } as const;
 
-/** Button glow effect values */
+/** Button glow effect values (Stitch UX) */
 export const BUTTON_GLOW = {
-  shadowColor: '#7C3AED',
+  shadowColor: '#8B5CF6',
   shadowOpacity: 0.4,
   shadowRadius: 20,
 } as const;
