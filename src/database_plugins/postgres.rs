@@ -15,8 +15,7 @@ use crate::a2a::protocol::{A2ATask, TaskStatus};
 use crate::admin::jwks::JwksManager;
 use crate::admin::jwt::AdminJwtManager;
 use crate::admin::models::{
-    AdminAction, AdminPermissions, AdminToken, AdminTokenUsage, CreateAdminTokenRequest,
-    GeneratedAdminToken,
+    AdminPermissions, AdminToken, AdminTokenUsage, CreateAdminTokenRequest, GeneratedAdminToken,
 };
 use crate::api_keys::{ApiKey, ApiKeyTier, ApiKeyUsage, ApiKeyUsageStats};
 use crate::config::environment::PostgresPoolConfig;
@@ -2759,7 +2758,7 @@ impl DatabaseProvider for PostgresDatabase {
             .map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
 
         if let Some(row) = row {
-            Ok(Some(Self::row_to_admin_token(&row)?))
+            Ok(Some(shared::mappers::parse_admin_token_from_row(&row)?))
         } else {
             Ok(None)
         }
@@ -2780,7 +2779,7 @@ impl DatabaseProvider for PostgresDatabase {
             .map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
 
         if let Some(row) = row {
-            Ok(Some(Self::row_to_admin_token(&row)?))
+            Ok(Some(shared::mappers::parse_admin_token_from_row(&row)?))
         } else {
             Ok(None)
         }
@@ -2810,7 +2809,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         let mut tokens = Vec::with_capacity(rows.len());
         for row in rows {
-            tokens.push(Self::row_to_admin_token(&row)?);
+            tokens.push(shared::mappers::parse_admin_token_from_row(&row)?);
         }
 
         Ok(tokens)
@@ -2909,7 +2908,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         let mut usage_history = Vec::new();
         for row in rows {
-            usage_history.push(Self::row_to_admin_token_usage(&row)?);
+            usage_history.push(shared::mappers::parse_admin_token_usage_from_row(&row)?);
         }
 
         Ok(usage_history)
@@ -5450,7 +5449,7 @@ impl DatabaseProvider for PostgresDatabase {
             .await
             .map_err(|e| AppError::database(format!("Failed to get impersonation session: {e}")))?;
 
-        row.map(|r| Self::row_to_impersonation_session(&r))
+        row.map(|r| shared::mappers::parse_impersonation_session_from_row(&r))
             .transpose()
     }
 
@@ -5474,7 +5473,7 @@ impl DatabaseProvider for PostgresDatabase {
                 AppError::database(format!("Failed to get active impersonation session: {e}"))
             })?;
 
-        row.map(|r| Self::row_to_impersonation_session(&r))
+        row.map(|r| shared::mappers::parse_impersonation_session_from_row(&r))
             .transpose()
     }
 
@@ -5566,7 +5565,7 @@ impl DatabaseProvider for PostgresDatabase {
         })?;
 
         rows.iter()
-            .map(Self::row_to_impersonation_session)
+            .map(shared::mappers::parse_impersonation_session_from_row)
             .collect()
     }
 
@@ -5740,7 +5739,8 @@ impl DatabaseProvider for PostgresDatabase {
         .await
         .map_err(|e| AppError::database(format!("Failed to get user MCP token: {e}")))?;
 
-        row.map(|r| Self::row_to_user_mcp_token(&r)).transpose()
+        row.map(|r| shared::mappers::parse_user_mcp_token_from_row(&r))
+            .transpose()
     }
 
     async fn cleanup_expired_user_mcp_tokens(&self) -> AppResult<u64> {
@@ -6079,53 +6079,6 @@ impl PostgresDatabase {
         Ok(())
     }
 
-    /// Convert database row to `UserMcpToken`
-    fn row_to_user_mcp_token(row: &PgRow) -> AppResult<UserMcpToken> {
-        use sqlx::Row;
-        Ok(UserMcpToken {
-            id: row.get("id"),
-            user_id: Uuid::parse_str(row.get::<String, _>("user_id").as_str())
-                .map_err(|e| AppError::internal(format!("Failed to parse user_id UUID: {e}")))?,
-            name: row.get("name"),
-            token_hash: row.get("token_hash"),
-            token_prefix: row.get("token_prefix"),
-            expires_at: row.get("expires_at"),
-            last_used_at: row.get("last_used_at"),
-            usage_count: u32::try_from(row.get::<i32, _>("usage_count")).map_err(|e| {
-                AppError::internal(format!("Integer conversion failed for usage_count: {e}"))
-            })?,
-            is_revoked: row.get("is_revoked"),
-            created_at: row.get("created_at"),
-        })
-    }
-
-    /// Convert database row to `ImpersonationSession`
-    fn row_to_impersonation_session(row: &PgRow) -> AppResult<ImpersonationSession> {
-        use sqlx::Row;
-
-        let id: String = row.get("id");
-        let impersonator_id: String = row.get("impersonator_id");
-        let target_user_id: String = row.get("target_user_id");
-        let reason: Option<String> = row.get("reason");
-        let started_at: chrono::DateTime<chrono::Utc> = row.get("started_at");
-        let ended_at: Option<chrono::DateTime<chrono::Utc>> = row.get("ended_at");
-        let is_active: bool = row.get("is_active");
-        let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
-
-        Ok(ImpersonationSession {
-            id,
-            impersonator_id: Uuid::parse_str(&impersonator_id)
-                .map_err(|e| AppError::database(format!("Invalid impersonator_id UUID: {e}")))?,
-            target_user_id: Uuid::parse_str(&target_user_id)
-                .map_err(|e| AppError::database(format!("Invalid target_user_id UUID: {e}")))?,
-            reason,
-            started_at,
-            ended_at,
-            is_active,
-            created_at,
-        })
-    }
-
     /// Convert database row to `UserOAuthToken` with decryption
     ///
     /// SECURITY: Decrypts OAuth tokens from database storage (AES-256-GCM with AAD)
@@ -6191,115 +6144,6 @@ impl PostgresDatabase {
             updated_at: row.try_get("updated_at").map_err(|e| {
                 AppError::database(format!("Failed to parse updated_at column: {e}"))
             })?,
-        })
-    }
-
-    /// Convert database row to `AdminToken`
-    fn row_to_admin_token(row: &PgRow) -> AppResult<AdminToken> {
-        use sqlx::Row;
-
-        let permissions_json: String = row
-            .try_get("permissions")
-            .map_err(|e| AppError::database(format!("Failed to parse permissions column: {e}")))?;
-        let permissions = AdminPermissions::from_json(&permissions_json)?;
-
-        Ok(AdminToken {
-            id: row
-                .try_get("id")
-                .map_err(|e| AppError::database(format!("Failed to parse id column: {e}")))?,
-            service_name: row.try_get("service_name").map_err(|e| {
-                AppError::database(format!("Failed to parse service_name column: {e}"))
-            })?,
-            service_description: row.try_get("service_description").map_err(|e| {
-                AppError::database(format!("Failed to parse service_description column: {e}"))
-            })?,
-            token_hash: row.try_get("token_hash").map_err(|e| {
-                AppError::database(format!("Failed to parse token_hash column: {e}"))
-            })?,
-            token_prefix: row.try_get("token_prefix").map_err(|e| {
-                AppError::database(format!("Failed to parse token_prefix column: {e}"))
-            })?,
-            jwt_secret_hash: row.try_get("jwt_secret_hash").map_err(|e| {
-                AppError::database(format!("Failed to parse jwt_secret_hash column: {e}"))
-            })?,
-            permissions,
-            is_super_admin: row.try_get("is_super_admin").map_err(|e| {
-                AppError::database(format!("Failed to parse is_super_admin column: {e}"))
-            })?,
-            is_active: row.try_get("is_active").map_err(|e| {
-                AppError::database(format!("Failed to parse is_active column: {e}"))
-            })?,
-            created_at: row.try_get("created_at").map_err(|e| {
-                AppError::database(format!("Failed to parse created_at column: {e}"))
-            })?,
-            expires_at: row.try_get("expires_at").map_err(|e| {
-                AppError::database(format!("Failed to parse expires_at column: {e}"))
-            })?,
-            last_used_at: row.try_get("last_used_at").map_err(|e| {
-                AppError::database(format!("Failed to parse last_used_at column: {e}"))
-            })?,
-            last_used_ip: row.try_get("last_used_ip").map_err(|e| {
-                AppError::database(format!("Failed to parse last_used_ip column: {e}"))
-            })?,
-            usage_count: u64::try_from(
-                row.try_get::<i64, _>("usage_count")
-                    .map_err(|e| {
-                        AppError::database(format!("Failed to parse usage_count column: {e}"))
-                    })?
-                    .max(0),
-            )
-            .unwrap_or(0),
-        })
-    }
-
-    /// Convert database row to `AdminTokenUsage`
-    fn row_to_admin_token_usage(row: &PgRow) -> AppResult<AdminTokenUsage> {
-        use sqlx::Row;
-
-        let action_str: String = row
-            .try_get("action")
-            .map_err(|e| AppError::database(format!("Failed to parse action column: {e}")))?;
-        let action = action_str
-            .parse::<AdminAction>()
-            .unwrap_or(AdminAction::ProvisionKey);
-
-        Ok(AdminTokenUsage {
-            id: Some(
-                row.try_get::<i64, _>("id")
-                    .map_err(|e| AppError::database(format!("Failed to parse id column: {e}")))?,
-            ),
-            admin_token_id: row.try_get("admin_token_id").map_err(|e| {
-                AppError::database(format!("Failed to parse admin_token_id column: {e}"))
-            })?,
-            timestamp: row.try_get("timestamp").map_err(|e| {
-                AppError::database(format!("Failed to parse timestamp column: {e}"))
-            })?,
-            action,
-            target_resource: row.try_get("target_resource").map_err(|e| {
-                AppError::database(format!("Failed to parse target_resource column: {e}"))
-            })?,
-            ip_address: row.try_get("ip_address").map_err(|e| {
-                AppError::database(format!("Failed to parse ip_address column: {e}"))
-            })?,
-            user_agent: row.try_get("user_agent").map_err(|e| {
-                AppError::database(format!("Failed to parse user_agent column: {e}"))
-            })?,
-            request_size_bytes: row
-                .try_get::<Option<i32>, _>("request_size_bytes")
-                .map_err(|e| {
-                    AppError::database(format!("Failed to parse request_size_bytes column: {e}"))
-                })?
-                .map(|v| u32::try_from(v.max(0)).unwrap_or(0)),
-            success: row
-                .try_get("success")
-                .map_err(|e| AppError::database(format!("Failed to parse success column: {e}")))?,
-            error_message: None, // Add the missing field
-            response_time_ms: row
-                .try_get::<Option<i32>, _>("response_time_ms")
-                .map_err(|e| {
-                    AppError::database(format!("Failed to parse response_time_ms column: {e}"))
-                })?
-                .map(|v| u32::try_from(v.max(0)).unwrap_or(0)),
         })
     }
 

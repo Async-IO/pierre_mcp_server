@@ -10,8 +10,11 @@
 //! PostgreSQL and SQLite, eliminating duplicate row parsing logic.
 
 use crate::a2a::protocol::A2ATask;
+use crate::admin::models::{AdminAction, AdminPermissions, AdminToken, AdminTokenUsage};
+use crate::database::UserMcpToken;
 use crate::errors::{AppError, AppResult};
 use crate::models::User;
+use crate::permissions::impersonation::ImpersonationSession;
 use crate::permissions::UserRole;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
@@ -243,4 +246,250 @@ where
         .try_get(column)
         .map_err(|e| AppError::database(format!("Failed to get column: {e}")))?;
     Ok(Uuid::parse_str(&uuid_str)?)
+}
+
+/// Parse `UserMcpToken` from database row (database-agnostic)
+///
+/// Works with both `PostgreSQL` and `SQLite` backends.
+///
+/// # Errors
+/// Returns error if required fields are missing or have invalid types.
+pub fn parse_user_mcp_token_from_row<R>(row: &R) -> AppResult<UserMcpToken>
+where
+    R: sqlx::Row,
+    for<'a> &'a str: sqlx::ColumnIndex<R>,
+    String: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
+    i32: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
+    bool: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
+    DateTime<Utc>: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
+    Option<DateTime<Utc>>: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
+{
+    let user_id_str: String = row
+        .try_get("user_id")
+        .map_err(|e| AppError::database(format!("Failed to get column 'user_id': {e}")))?;
+
+    Ok(UserMcpToken {
+        id: row
+            .try_get("id")
+            .map_err(|e| AppError::database(format!("Failed to get column 'id': {e}")))?,
+        user_id: Uuid::parse_str(&user_id_str)
+            .map_err(|e| AppError::internal(format!("Failed to parse user_id UUID: {e}")))?,
+        name: row
+            .try_get("name")
+            .map_err(|e| AppError::database(format!("Failed to get column 'name': {e}")))?,
+        token_hash: row
+            .try_get("token_hash")
+            .map_err(|e| AppError::database(format!("Failed to get column 'token_hash': {e}")))?,
+        token_prefix: row
+            .try_get("token_prefix")
+            .map_err(|e| AppError::database(format!("Failed to get column 'token_prefix': {e}")))?,
+        expires_at: row
+            .try_get("expires_at")
+            .map_err(|e| AppError::database(format!("Failed to get column 'expires_at': {e}")))?,
+        last_used_at: row
+            .try_get("last_used_at")
+            .map_err(|e| AppError::database(format!("Failed to get column 'last_used_at': {e}")))?,
+        usage_count: u32::try_from(
+            row.try_get::<i32, _>("usage_count").map_err(|e| {
+                AppError::database(format!("Failed to get column 'usage_count': {e}"))
+            })?,
+        )
+        .map_err(|e| {
+            AppError::internal(format!("Integer conversion failed for usage_count: {e}"))
+        })?,
+        is_revoked: row
+            .try_get("is_revoked")
+            .map_err(|e| AppError::database(format!("Failed to get column 'is_revoked': {e}")))?,
+        created_at: row
+            .try_get("created_at")
+            .map_err(|e| AppError::database(format!("Failed to get column 'created_at': {e}")))?,
+    })
+}
+
+/// Parse `ImpersonationSession` from database row (database-agnostic)
+///
+/// Works with both `PostgreSQL` and `SQLite` backends.
+///
+/// # Errors
+/// Returns error if required fields are missing or have invalid types.
+pub fn parse_impersonation_session_from_row<R>(row: &R) -> AppResult<ImpersonationSession>
+where
+    R: sqlx::Row,
+    for<'a> &'a str: sqlx::ColumnIndex<R>,
+    String: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
+    Option<String>: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
+    bool: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
+    DateTime<Utc>: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
+    Option<DateTime<Utc>>: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
+{
+    let id: String = row
+        .try_get("id")
+        .map_err(|e| AppError::database(format!("Failed to get column 'id': {e}")))?;
+    let impersonator_id: String = row
+        .try_get("impersonator_id")
+        .map_err(|e| AppError::database(format!("Failed to get column 'impersonator_id': {e}")))?;
+    let target_user_id: String = row
+        .try_get("target_user_id")
+        .map_err(|e| AppError::database(format!("Failed to get column 'target_user_id': {e}")))?;
+
+    Ok(ImpersonationSession {
+        id,
+        impersonator_id: Uuid::parse_str(&impersonator_id)
+            .map_err(|e| AppError::database(format!("Invalid impersonator_id UUID: {e}")))?,
+        target_user_id: Uuid::parse_str(&target_user_id)
+            .map_err(|e| AppError::database(format!("Invalid target_user_id UUID: {e}")))?,
+        reason: row
+            .try_get("reason")
+            .map_err(|e| AppError::database(format!("Failed to get column 'reason': {e}")))?,
+        started_at: row
+            .try_get("started_at")
+            .map_err(|e| AppError::database(format!("Failed to get column 'started_at': {e}")))?,
+        ended_at: row
+            .try_get("ended_at")
+            .map_err(|e| AppError::database(format!("Failed to get column 'ended_at': {e}")))?,
+        is_active: row
+            .try_get("is_active")
+            .map_err(|e| AppError::database(format!("Failed to get column 'is_active': {e}")))?,
+        created_at: row
+            .try_get("created_at")
+            .map_err(|e| AppError::database(format!("Failed to get column 'created_at': {e}")))?,
+    })
+}
+
+/// Parse `AdminToken` from database row (database-agnostic)
+///
+/// Works with both `PostgreSQL` and `SQLite` backends.
+///
+/// # Errors
+/// Returns error if required fields are missing or have invalid types.
+pub fn parse_admin_token_from_row<R>(row: &R) -> AppResult<AdminToken>
+where
+    R: sqlx::Row,
+    for<'a> &'a str: sqlx::ColumnIndex<R>,
+    String: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
+    Option<String>: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
+    bool: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
+    i64: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
+    DateTime<Utc>: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
+    Option<DateTime<Utc>>: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
+{
+    let permissions_json: String = row
+        .try_get("permissions")
+        .map_err(|e| AppError::database(format!("Failed to get column 'permissions': {e}")))?;
+    let permissions = AdminPermissions::from_json(&permissions_json)?;
+
+    Ok(AdminToken {
+        id: row
+            .try_get("id")
+            .map_err(|e| AppError::database(format!("Failed to get column 'id': {e}")))?,
+        service_name: row
+            .try_get("service_name")
+            .map_err(|e| AppError::database(format!("Failed to get column 'service_name': {e}")))?,
+        service_description: row.try_get("service_description").map_err(|e| {
+            AppError::database(format!("Failed to get column 'service_description': {e}"))
+        })?,
+        token_hash: row
+            .try_get("token_hash")
+            .map_err(|e| AppError::database(format!("Failed to get column 'token_hash': {e}")))?,
+        token_prefix: row
+            .try_get("token_prefix")
+            .map_err(|e| AppError::database(format!("Failed to get column 'token_prefix': {e}")))?,
+        jwt_secret_hash: row.try_get("jwt_secret_hash").map_err(|e| {
+            AppError::database(format!("Failed to get column 'jwt_secret_hash': {e}"))
+        })?,
+        permissions,
+        is_super_admin: row.try_get("is_super_admin").map_err(|e| {
+            AppError::database(format!("Failed to get column 'is_super_admin': {e}"))
+        })?,
+        is_active: row
+            .try_get("is_active")
+            .map_err(|e| AppError::database(format!("Failed to get column 'is_active': {e}")))?,
+        created_at: row
+            .try_get("created_at")
+            .map_err(|e| AppError::database(format!("Failed to get column 'created_at': {e}")))?,
+        expires_at: row
+            .try_get("expires_at")
+            .map_err(|e| AppError::database(format!("Failed to get column 'expires_at': {e}")))?,
+        last_used_at: row
+            .try_get("last_used_at")
+            .map_err(|e| AppError::database(format!("Failed to get column 'last_used_at': {e}")))?,
+        last_used_ip: row
+            .try_get("last_used_ip")
+            .map_err(|e| AppError::database(format!("Failed to get column 'last_used_ip': {e}")))?,
+        #[allow(clippy::cast_sign_loss)]
+        usage_count: u64::try_from(
+            row.try_get::<i64, _>("usage_count")
+                .map_err(|e| {
+                    AppError::database(format!("Failed to get column 'usage_count': {e}"))
+                })?
+                .max(0),
+        )
+        .unwrap_or(0),
+    })
+}
+
+/// Parse `AdminTokenUsage` from database row (database-agnostic)
+///
+/// Works with both `PostgreSQL` and `SQLite` backends.
+///
+/// # Errors
+/// Returns error if required fields are missing or have invalid types.
+pub fn parse_admin_token_usage_from_row<R>(row: &R) -> AppResult<AdminTokenUsage>
+where
+    R: sqlx::Row,
+    for<'a> &'a str: sqlx::ColumnIndex<R>,
+    String: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
+    Option<String>: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
+    bool: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
+    i64: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
+    Option<i32>: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
+    DateTime<Utc>: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
+{
+    let action_str: String = row
+        .try_get("action")
+        .map_err(|e| AppError::database(format!("Failed to get column 'action': {e}")))?;
+    let action = action_str
+        .parse::<AdminAction>()
+        .unwrap_or(AdminAction::ProvisionKey);
+
+    Ok(AdminTokenUsage {
+        id: Some(
+            row.try_get::<i64, _>("id")
+                .map_err(|e| AppError::database(format!("Failed to get column 'id': {e}")))?,
+        ),
+        admin_token_id: row.try_get("admin_token_id").map_err(|e| {
+            AppError::database(format!("Failed to get column 'admin_token_id': {e}"))
+        })?,
+        timestamp: row
+            .try_get("timestamp")
+            .map_err(|e| AppError::database(format!("Failed to get column 'timestamp': {e}")))?,
+        action,
+        target_resource: row.try_get("target_resource").map_err(|e| {
+            AppError::database(format!("Failed to get column 'target_resource': {e}"))
+        })?,
+        ip_address: row
+            .try_get("ip_address")
+            .map_err(|e| AppError::database(format!("Failed to get column 'ip_address': {e}")))?,
+        user_agent: row
+            .try_get("user_agent")
+            .map_err(|e| AppError::database(format!("Failed to get column 'user_agent': {e}")))?,
+        #[allow(clippy::cast_sign_loss)]
+        request_size_bytes: row
+            .try_get::<Option<i32>, _>("request_size_bytes")
+            .map_err(|e| {
+                AppError::database(format!("Failed to get column 'request_size_bytes': {e}"))
+            })?
+            .map(|v| u32::try_from(v.max(0)).unwrap_or(0)),
+        success: row
+            .try_get("success")
+            .map_err(|e| AppError::database(format!("Failed to get column 'success': {e}")))?,
+        error_message: None,
+        #[allow(clippy::cast_sign_loss)]
+        response_time_ms: row
+            .try_get::<Option<i32>, _>("response_time_ms")
+            .map_err(|e| {
+                AppError::database(format!("Failed to get column 'response_time_ms': {e}"))
+            })?
+            .map(|v| u32::try_from(v.max(0)).unwrap_or(0)),
+    })
 }
