@@ -48,7 +48,6 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
   const { user, logout, isAuthenticated } = useAuth();
   const insets = useSafeAreaInsets();
   const [tokens, setTokens] = useState<McpToken[]>([]);
-  const [isLoadingTokens, setIsLoadingTokens] = useState(false);
   const [showCreateToken, setShowCreateToken] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [newTokenName, setNewTokenName] = useState('');
@@ -78,7 +77,6 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
 
   const loadTokens = async () => {
     try {
-      setIsLoadingTokens(true);
       const response = await apiService.getMcpTokens();
       const tokenList = response.tokens || [];
       const seen = new Set<string>();
@@ -91,8 +89,6 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
     } catch (error) {
       console.error('Failed to load tokens:', error);
       setTokens([]);
-    } finally {
-      setIsLoadingTokens(false);
     }
   };
 

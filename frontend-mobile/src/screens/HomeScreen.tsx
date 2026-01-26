@@ -1,7 +1,7 @@
 // ABOUTME: Home Dashboard screen with Stitch UX design
 // ABOUTME: Shows greeting, quick stats, active coach, and recent activities
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -66,7 +66,6 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeCoach, setActiveCoach] = useState<Coach | null>(null);
   const [lastConversation, setLastConversation] = useState<Conversation | null>(null);
-  const [coaches, setCoaches] = useState<Coach[]>([]);
 
   // Mock stats data - in production, these would come from provider APIs
   const [stats] = useState({
@@ -120,8 +119,6 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
         apiService.listCoaches({ favorites_only: false }),
         apiService.getConversations(1, 0),
       ]);
-
-      setCoaches(coachesResponse.coaches);
 
       // Find most recently used coach
       const sortedByUse = [...coachesResponse.coaches].sort((a, b) => {

@@ -17,7 +17,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
-import { colors, spacing, glassCard } from '../../constants/theme';
+import { colors, spacing } from '../../constants/theme';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { PromptDialog, ScrollFadeContainer } from '../../components/ui';
@@ -55,12 +55,6 @@ const COACH_CATEGORY_COLORS: Record<CoachCategory, string> = {
   recipes: '#F59E0B',   // Amber
   mobility: '#EC4899',  // Pink - for stretching/yoga
   custom: '#8B5CF6',    // Violet per Stitch spec
-};
-
-// Glass card style with shadow (React Native shadows cannot use className)
-const coachCardStyle: ViewStyle = {
-  ...glassCard,
-  borderLeftWidth: 4,
 };
 
 // FAB shadow style with violet glow per Stitch spec
@@ -354,7 +348,6 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
   };
 
   const renderCoachCard = ({ item }: { item: Coach }) => {
-    const isSystemCoach = item.is_system;
     const isHidden = item.is_hidden;
     const categoryColor = COACH_CATEGORY_COLORS[item.category];
 
@@ -408,7 +401,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
               </View>
             </View>
 
-            {/* Star rating (use count as proxy) */}
+            {/* Star rating (use count as proxy) and favorite button */}
             <View className="flex-row items-center gap-1 mb-1">
               {[1, 2, 3, 4, 5].map((star) => (
                 <Feather
@@ -418,11 +411,18 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
                   color={item.use_count >= star * 2 ? '#F59E0B' : colors.text.tertiary}
                 />
               ))}
-              {item.is_favorite && (
-                <View className="ml-2">
-                  <Feather name="heart" size={12} color={colors.pierre.violet} />
-                </View>
-              )}
+              <TouchableOpacity
+                className="ml-2 p-0.5"
+                onPress={() => handleToggleFavorite(item)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                testID={`favorite-button-${item.id}`}
+              >
+                <Feather
+                  name="heart"
+                  size={14}
+                  color={item.is_favorite ? colors.pierre.violet : colors.text.tertiary}
+                />
+              </TouchableOpacity>
             </View>
 
             {/* Description */}
