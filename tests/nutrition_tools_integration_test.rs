@@ -19,10 +19,17 @@
 #![allow(missing_docs)]
 
 use anyhow::Result;
-use pierre_mcp_server::protocols::universal::{UniversalRequest, UniversalToolExecutor};
+use pierre_mcp_server::protocols::universal::{
+    UniversalRequest, UniversalResponse, UniversalToolExecutor,
+};
 use serde_json::json;
 use std::env;
+use std::time::Duration;
+use tokio::time::timeout;
 use uuid::Uuid;
+
+/// Timeout for USDA API calls (external government API can be slow)
+const USDA_API_TIMEOUT: Duration = Duration::from_secs(30);
 
 mod common;
 
@@ -56,6 +63,70 @@ fn create_test_request(tool_name: &str, parameters: serde_json::Value) -> Univer
 /// Check if USDA API key is configured
 fn usda_api_key_available() -> bool {
     env::var("USDA_API_KEY").is_ok()
+}
+
+/// Execute a USDA API tool call with timeout and graceful error handling.
+///
+/// Returns:
+/// - `Ok(Some(response))` - API call succeeded
+/// - `Ok(None)` - API call failed due to infrastructure issues (timeout, network, rate limit)
+///   The test should skip gracefully in this case.
+/// - `Err(e)` - Unexpected error that should fail the test
+async fn execute_usda_api_call_with_timeout(
+    executor: &UniversalToolExecutor,
+    request: UniversalRequest,
+    test_name: &str,
+) -> Result<Option<UniversalResponse>> {
+    match timeout(USDA_API_TIMEOUT, executor.execute_tool(request)).await {
+        Ok(Ok(response)) => {
+            // API call completed - check if it failed due to infrastructure issues
+            if !response.success {
+                let error_msg = response
+                    .error
+                    .as_ref()
+                    .map_or("Unknown error", String::as_str);
+                if is_infrastructure_error(error_msg) {
+                    println!("Skipping {test_name} - external API issue: {error_msg}");
+                    return Ok(None);
+                }
+            }
+            Ok(Some(response))
+        }
+        Ok(Err(err)) => {
+            // Tool execution returned an error - check if it's network-related
+            let error_string = err.to_string();
+            if is_infrastructure_error(&error_string) {
+                println!("Skipping {test_name} - execution error (likely network): {error_string}");
+                return Ok(None);
+            }
+            Err(err.into())
+        }
+        Err(_elapsed) => {
+            // Timeout occurred
+            println!(
+                "Skipping {test_name} - USDA API timeout after {} seconds",
+                USDA_API_TIMEOUT.as_secs()
+            );
+            Ok(None)
+        }
+    }
+}
+
+/// Check if an error message indicates infrastructure/network issues rather than logic errors.
+fn is_infrastructure_error(error_msg: &str) -> bool {
+    let error_lower = error_msg.to_lowercase();
+    error_lower.contains("rate limit")
+        || error_lower.contains("timeout")
+        || error_lower.contains("503")
+        || error_lower.contains("500")
+        || error_lower.contains("502")
+        || error_lower.contains("504")
+        || error_lower.contains("connection")
+        || error_lower.contains("network")
+        || error_lower.contains("dns")
+        || error_lower.contains("temporarily unavailable")
+        || error_lower.contains("service unavailable")
+        || error_lower.contains("timed out")
 }
 
 // ============================================================================
@@ -731,7 +802,14 @@ async fn test_search_food_with_api_key() -> Result<()> {
         }),
     );
 
-    let response = executor.execute_tool(request).await?;
+    let response =
+        execute_usda_api_call_with_timeout(&executor, request, "test_search_food_with_api_key")
+            .await?;
+
+    // Skip test if API had infrastructure issues
+    let Some(response) = response else {
+        return Ok(());
+    };
 
     assert!(response.success, "Search should succeed with API key");
     let result = response.result.unwrap();
@@ -763,7 +841,17 @@ async fn test_get_food_details_with_api_key() -> Result<()> {
         }),
     );
 
-    let response = executor.execute_tool(request).await?;
+    let response = execute_usda_api_call_with_timeout(
+        &executor,
+        request,
+        "test_get_food_details_with_api_key",
+    )
+    .await?;
+
+    // Skip test if API had infrastructure issues
+    let Some(response) = response else {
+        return Ok(());
+    };
 
     assert!(response.success, "Should succeed with valid FDC ID");
     let result = response.result.unwrap();
@@ -796,28 +884,19 @@ async fn test_analyze_meal_nutrition_with_api_key() -> Result<()> {
         }),
     );
 
-    let response = executor.execute_tool(request).await?;
+    let response = execute_usda_api_call_with_timeout(
+        &executor,
+        request,
+        "test_analyze_meal_nutrition_with_api_key",
+    )
+    .await?;
 
-    // External API may fail due to rate limiting or temporary issues - skip gracefully
-    if !response.success {
-        let error_msg = response
-            .error
-            .as_ref()
-            .map_or("Unknown error", String::as_str);
-        if error_msg.contains("rate limit")
-            || error_msg.contains("timeout")
-            || error_msg.contains("503")
-            || error_msg.contains("500")
-            || error_msg.contains("connection")
-        {
-            println!(
-                "Skipping test_analyze_meal_nutrition_with_api_key - external API issue: {error_msg}"
-            );
-            return Ok(());
-        }
-        panic!("Unexpected error: {error_msg}");
-    }
+    // Skip test if API had infrastructure issues
+    let Some(response) = response else {
+        return Ok(());
+    };
 
+    assert!(response.success, "Should succeed analyzing meal");
     let result = response.result.unwrap();
 
     assert!(
