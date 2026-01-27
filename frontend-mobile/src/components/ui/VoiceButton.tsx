@@ -5,11 +5,11 @@ import React, { useEffect, useRef } from 'react';
 import {
   TouchableOpacity,
   Animated,
-  View,
   ActivityIndicator,
   type ViewStyle,
 } from 'react-native';
-import { colors, borderRadius } from '../../constants/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { colors } from '../../constants/theme';
 
 interface VoiceButtonProps {
   isListening: boolean;
@@ -26,10 +26,10 @@ const BUTTON_SIZES = {
   lg: 48,
 } as const;
 
-const ICON_SCALES = {
-  sm: 0.7,
-  md: 0.85,
-  lg: 1,
+const ICON_SIZES = {
+  sm: 16,
+  md: 20,
+  lg: 24,
 } as const;
 
 export function VoiceButton({
@@ -42,7 +42,7 @@ export function VoiceButton({
 }: VoiceButtonProps) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const buttonSize = BUTTON_SIZES[size];
-  const iconScale = ICON_SCALES[size];
+  const iconSize = ICON_SIZES[size];
 
   useEffect(() => {
     if (isListening) {
@@ -83,33 +83,6 @@ export function VoiceButton({
     backgroundColor: isListening ? colors.error : colors.background.tertiary,
   };
 
-  // Microphone icon styles (pixel-specific, need style objects)
-  const micHeadStyle: ViewStyle = {
-    width: 12,
-    height: 16,
-    backgroundColor: colors.text.primary,
-    borderTopLeftRadius: borderRadius.md,
-    borderTopRightRadius: borderRadius.md,
-  };
-
-  const micBodyStyle: ViewStyle = {
-    width: 18,
-    height: 6,
-    borderBottomLeftRadius: 9,
-    borderBottomRightRadius: 9,
-    borderWidth: 2,
-    borderColor: colors.text.primary,
-    borderTopWidth: 0,
-    marginTop: -2,
-  };
-
-  const micStandStyle: ViewStyle = {
-    width: 2,
-    height: 5,
-    backgroundColor: colors.text.primary,
-    marginTop: 1,
-  };
-
   return (
     <TouchableOpacity
       className={`items-center justify-center ${isDisabled ? 'opacity-50' : ''}`}
@@ -129,14 +102,7 @@ export function VoiceButton({
         {isListening ? (
           <ActivityIndicator size="small" color={colors.text.primary} />
         ) : (
-          <View
-            className="items-center"
-            style={{ transform: [{ scale: iconScale }] }}
-          >
-            <View style={micHeadStyle} />
-            <View style={micBodyStyle} />
-            <View style={micStandStyle} />
-          </View>
+          <Ionicons name="mic-outline" size={iconSize} color={colors.text.primary} />
         )}
       </Animated.View>
     </TouchableOpacity>

@@ -2,8 +2,8 @@
 // ABOUTME: Wraps @react-native-voice/voice with state management and error handling
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Platform } from 'react-native';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
+import { getLocales } from 'expo-localization';
 
 // Conditionally import Voice - it's not available in Expo Go
 // The native module only exists in development builds
@@ -208,7 +208,8 @@ export function useVoiceInput(): UseVoiceInputResult {
       }));
 
       // Use device locale, defaulting to en-US
-      const locale = Platform.OS === 'ios' ? 'en-US' : 'en-US';
+      const deviceLocales = getLocales();
+      const locale = deviceLocales[0]?.languageTag ?? 'en-US';
       await Voice.start(locale);
 
       // Set up timeout to auto-stop after VOICE_TIMEOUT_MS
