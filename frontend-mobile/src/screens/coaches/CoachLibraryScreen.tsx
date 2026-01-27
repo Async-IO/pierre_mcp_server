@@ -123,7 +123,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
       const hiddenIds = new Set((hiddenResponse.coaches || []).map((c: { id: string }) => c.id));
 
       // Mark coaches as hidden if they're in the hidden list
-      const coachesWithHiddenFlag = coachesResponse.coaches.map((coach) => ({
+      const coachesWithHiddenFlag = coachesResponse.coaches.map((coach: Coach) => ({
         ...coach,
         is_hidden: hiddenIds.has(coach.id),
       }));
