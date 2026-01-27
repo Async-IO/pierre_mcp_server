@@ -132,7 +132,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
         setActiveCoach(sortedByUse[0]);
       } else if (coachesResponse.coaches.length > 0) {
         // Fall back to first favorite or first coach
-        const favorite = coachesResponse.coaches.find(c => c.is_favorite);
+        const favorite = coachesResponse.coaches.find((c: Coach) => c.is_favorite);
         setActiveCoach(favorite || coachesResponse.coaches[0]);
       }
 
