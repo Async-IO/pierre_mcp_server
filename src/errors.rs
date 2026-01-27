@@ -449,6 +449,16 @@ impl AppError {
             format!("{service_str}: {message_str}"),
         )
     }
+
+    /// Resource already exists (conflict)
+    #[must_use]
+    pub fn already_exists(resource: impl Into<String>) -> Self {
+        let resource_str = resource.into();
+        Self::new(
+            ErrorCode::ResourceAlreadyExists,
+            format!("{resource_str} already exists"),
+        )
+    }
 }
 
 /// Conversion from `std::io::Error` to `AppError`

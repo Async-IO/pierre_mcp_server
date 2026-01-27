@@ -1417,6 +1417,17 @@ impl SocialRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let social = Self::get_social_manager(&resources)?;
 
+        // Check if user has already shared an insight from this activity
+        if social
+            .has_insight_for_activity(auth.user_id, &body.activity_id)
+            .await?
+        {
+            return Err(AppError::already_exists(format!(
+                "Insight from activity '{}'",
+                body.activity_id
+            )));
+        }
+
         let insight_type = InsightType::from_str(&body.insight_type)?;
         let visibility = body
             .visibility

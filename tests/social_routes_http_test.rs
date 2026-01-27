@@ -22,7 +22,9 @@ use pierre_mcp_server::{
         AppBehaviorConfig, BackupConfig, DatabaseConfig, DatabaseUrl, Environment, SecurityConfig,
         SecurityHeadersConfig, ServerConfig,
     },
+    database::social::SocialManager,
     mcp::resources::ServerResources,
+    models::{InsightType, ShareVisibility, SharedInsight},
     routes::social::SocialRoutes,
 };
 use serde_json::json;
@@ -1593,4 +1595,111 @@ async fn test_all_social_endpoints_require_auth() {
     // Note: POST/PUT endpoints with missing auth return 401 in their individual tests
     // (test_send_friend_request_missing_auth, test_share_insight_missing_auth, etc.)
     // Testing them here with empty body would fail body validation before auth check
+}
+
+// ============================================================================
+// Duplicate Activity Sharing Prevention Tests
+// ============================================================================
+
+/// Test that `has_insight_for_activity` correctly detects existing insights
+#[tokio::test]
+async fn test_has_insight_for_activity_detects_duplicate() {
+    let setup = SocialRoutesTestSetup::new().await.expect("Setup failed");
+
+    // Create SocialManager directly from database pool
+    let pool = setup
+        .resources
+        .database
+        .sqlite_pool()
+        .expect("SQLite pool required for social tests");
+    let social = SocialManager::new(pool.clone());
+
+    // Create an insight linked to an activity
+    let activity_id = "strava_activity_123456";
+    let insight = SharedInsight::coach_generated(
+        setup.user_id,
+        InsightType::Achievement,
+        "Test insight from activity".to_owned(),
+        ShareVisibility::Public,
+        activity_id.to_owned(),
+    );
+
+    social
+        .create_shared_insight(&insight)
+        .await
+        .expect("Failed to create insight");
+
+    // Verify has_insight_for_activity returns true for this activity
+    let has_insight = social
+        .has_insight_for_activity(setup.user_id, activity_id)
+        .await
+        .expect("Failed to check for insight");
+    assert!(
+        has_insight,
+        "Should detect existing insight for activity {activity_id}"
+    );
+
+    // Verify returns false for different activity
+    let has_other = social
+        .has_insight_for_activity(setup.user_id, "different_activity_789")
+        .await
+        .expect("Failed to check for insight");
+    assert!(
+        !has_other,
+        "Should not find insight for different activity ID"
+    );
+
+    // Verify returns false for different user
+    let other_user_id = Uuid::new_v4();
+    let has_other_user = social
+        .has_insight_for_activity(other_user_id, activity_id)
+        .await
+        .expect("Failed to check for insight");
+    assert!(
+        !has_other_user,
+        "Should not find insight for different user"
+    );
+}
+
+/// Test that creating multiple insights from the same activity is prevented
+#[tokio::test]
+async fn test_duplicate_activity_insight_prevention() {
+    let setup = SocialRoutesTestSetup::new().await.expect("Setup failed");
+
+    let pool = setup
+        .resources
+        .database
+        .sqlite_pool()
+        .expect("SQLite pool required for social tests");
+    let social = SocialManager::new(pool.clone());
+
+    let activity_id = "strava_activity_duplicate_test";
+
+    // Create first insight - should succeed
+    let insight1 = SharedInsight::coach_generated(
+        setup.user_id,
+        InsightType::Achievement,
+        "First insight from activity".to_owned(),
+        ShareVisibility::Public,
+        activity_id.to_owned(),
+    );
+
+    social
+        .create_shared_insight(&insight1)
+        .await
+        .expect("First insight creation should succeed");
+
+    // Check for duplicate before creating second insight
+    let has_existing = social
+        .has_insight_for_activity(setup.user_id, activity_id)
+        .await
+        .expect("Failed to check for existing insight");
+
+    assert!(
+        has_existing,
+        "Should detect that an insight already exists for this activity"
+    );
+
+    // This simulates what the handler does - check before creating
+    // The handler would return 409 CONFLICT at this point
 }

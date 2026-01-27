@@ -451,6 +451,33 @@ impl SocialManager {
         row.map(|r| Self::row_to_shared_insight(&r)).transpose()
     }
 
+    /// Check if a user has already shared an insight from a specific activity
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    pub async fn has_insight_for_activity(
+        &self,
+        user_id: Uuid,
+        activity_id: &str,
+    ) -> AppResult<bool> {
+        let row = sqlx::query(
+            r"
+            SELECT 1
+            FROM shared_insights
+            WHERE user_id = $1 AND source_activity_id = $2
+            LIMIT 1
+            ",
+        )
+        .bind(user_id.to_string())
+        .bind(activity_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to check for existing insight: {e}")))?;
+
+        Ok(row.is_some())
+    }
+
     /// Get user's shared insights with optional filtering
     ///
     /// # Errors
