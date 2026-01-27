@@ -27,6 +27,19 @@ config.resolver.disableHierarchicalLookup = false;
 config.resolver.extraNodeModules = {
   '@pierre/shared-types': path.resolve(monorepoRoot, 'packages/shared-types'),
   '@pierre/shared-constants': path.resolve(monorepoRoot, 'packages/shared-constants'),
+  '@pierre/api-client': path.resolve(monorepoRoot, 'packages/api-client'),
+};
+
+// Use resolveRequest to redirect @pierre/api-client to mobile-specific entry
+// This avoids importing web.ts which uses import.meta (not supported by Hermes)
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName === '@pierre/api-client') {
+    return {
+      filePath: path.resolve(monorepoRoot, 'packages/api-client/src/index-mobile.ts'),
+      type: 'sourceFile',
+    };
+  }
+  return context.resolveRequest(context, moduleName, platform);
 };
 
 // Use port 8082 to avoid conflict with Pierre MCP server on 8081
