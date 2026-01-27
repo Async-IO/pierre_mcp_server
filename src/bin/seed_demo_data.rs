@@ -25,6 +25,7 @@
 //! ```
 
 use anyhow::Result;
+use bcrypt::{hash, DEFAULT_COST};
 use chrono::{DateTime, Datelike, Duration, Timelike, Utc, Weekday};
 use clap::Parser;
 use rand::rngs::StdRng;
@@ -33,6 +34,10 @@ use sqlx::{Row, SqlitePool};
 use std::env;
 use tracing::info;
 use uuid::Uuid;
+
+/// Default password for all demo users - allows login for testing.
+/// Password: `DemoUser123!`
+const DEMO_USER_PASSWORD: &str = "DemoUser123!";
 
 #[derive(Parser)]
 #[command(
@@ -68,6 +73,8 @@ struct DemoUser {
     display_name: &'static str,
     tier: &'static str,
     status: &'static str,
+    /// Optional custom password (defaults to `DEMO_USER_PASSWORD` if None)
+    password: Option<&'static str>,
 }
 
 /// Demo API key configuration
@@ -119,67 +126,94 @@ const A2A_TOOLS: &[&str] = &[
 ];
 
 /// Get demo user definitions (part 1) - extracted for function length
+/// Includes visual testing users at the start for easy identification
 fn get_demo_users_part1() -> Vec<DemoUser> {
     vec![
+        // Visual Testing Users (created first for testing)
+        DemoUser {
+            email: "webtest@pierre.dev",
+            display_name: "Web Test User",
+            tier: "professional",
+            status: "active",
+            password: Some("WebTest123!"),
+        },
+        DemoUser {
+            email: "mobiletest@pierre.dev",
+            display_name: "Mobile Test User",
+            tier: "professional",
+            status: "active",
+            password: Some("MobileTest123!"),
+        },
+        // Regular demo users
         DemoUser {
             email: "alice@acme.com",
             display_name: "Alice Johnson",
             tier: "professional",
             status: "active",
+            password: None,
         },
         DemoUser {
             email: "bob@startup.io",
             display_name: "Bob Smith",
             tier: "starter",
             status: "active",
+            password: None,
         },
         DemoUser {
             email: "charlie@enterprise.co",
             display_name: "Charlie Brown",
             tier: "enterprise",
             status: "active",
+            password: None,
         },
         DemoUser {
             email: "diana@freelance.dev",
             display_name: "Diana Prince",
             tier: "starter",
             status: "active",
+            password: None,
         },
         DemoUser {
             email: "eve@pending.com",
             display_name: "Eve Wilson",
             tier: "starter",
             status: "pending",
+            password: None,
         },
         DemoUser {
             email: "frank@pending.org",
             display_name: "Frank Miller",
             tier: "starter",
             status: "pending",
+            password: None,
         },
         DemoUser {
             email: "grace@suspended.net",
             display_name: "Grace Lee",
             tier: "professional",
             status: "suspended",
+            password: None,
         },
         DemoUser {
             email: "henry@techcorp.io",
             display_name: "Henry Zhang",
             tier: "enterprise",
             status: "active",
+            password: None,
         },
         DemoUser {
             email: "isabella@fitness.app",
             display_name: "Isabella Martinez",
             tier: "professional",
             status: "active",
+            password: None,
         },
         DemoUser {
             email: "james@healthtrack.com",
             display_name: "James OBrien",
             tier: "starter",
             status: "active",
+            password: None,
         },
     ]
 }
@@ -192,60 +226,70 @@ fn get_demo_users_part2() -> Vec<DemoUser> {
             display_name: "Kate Williams",
             tier: "starter",
             status: "active",
+            password: None,
         },
         DemoUser {
             email: "leo@gym.pro",
             display_name: "Leo Thompson",
             tier: "professional",
             status: "active",
+            password: None,
         },
         DemoUser {
             email: "maria@cycling.team",
             display_name: "Maria Garcia",
             tier: "enterprise",
             status: "active",
+            password: None,
         },
         DemoUser {
             email: "noah@swim.club",
             display_name: "Noah Davis",
             tier: "starter",
             status: "active",
+            password: None,
         },
         DemoUser {
             email: "olivia@yoga.studio",
             display_name: "Olivia Taylor",
             tier: "professional",
             status: "active",
+            password: None,
         },
         DemoUser {
             email: "peter@triathlon.org",
             display_name: "Peter Anderson",
             tier: "enterprise",
             status: "active",
+            password: None,
         },
         DemoUser {
             email: "quinn@pending.io",
             display_name: "Quinn Roberts",
             tier: "starter",
             status: "pending",
+            password: None,
         },
         DemoUser {
             email: "rachel@marathon.run",
             display_name: "Rachel Clark",
             tier: "professional",
             status: "active",
+            password: None,
         },
         DemoUser {
             email: "sam@crossfit.box",
             display_name: "Sam Wilson",
             tier: "starter",
             status: "active",
+            password: None,
         },
         DemoUser {
             email: "tina@pilates.center",
             display_name: "Tina Brown",
             tier: "professional",
             status: "active",
+            password: None,
         },
     ]
 }
@@ -590,11 +634,18 @@ async fn reset_usage_data(pool: &SqlitePool) -> Result<()> {
     Ok(())
 }
 
-/// Seed demo users
+/// Seed demo users with proper bcrypt password hashes for login
 async fn seed_demo_users(pool: &SqlitePool) -> Result<Vec<Uuid>> {
     let demo_users = get_demo_users();
     let mut user_ids = Vec::new();
     let mut rng = StdRng::from_entropy();
+
+    // Use lower bcrypt cost in debug builds for faster seeding (cost 4 vs 12)
+    let bcrypt_cost = if cfg!(debug_assertions) {
+        4
+    } else {
+        DEFAULT_COST
+    };
 
     for user in &demo_users {
         // Check if exists
@@ -613,7 +664,10 @@ async fn seed_demo_users(pool: &SqlitePool) -> Result<Vec<Uuid>> {
             let days_ago: i64 = rng.gen_range(10..60);
             let created_at = (Utc::now() - Duration::days(days_ago)).to_rfc3339();
             let last_active = Utc::now().to_rfc3339();
-            let password_hash = "$2b$12$demo.password.hash.placeholder.here";
+
+            // Use custom password if provided, otherwise default
+            let password = user.password.unwrap_or(DEMO_USER_PASSWORD);
+            let password_hash = hash(password, bcrypt_cost)?;
 
             sqlx::query(
                 "INSERT INTO users (id, email, display_name, password_hash, tier, is_active, user_status, is_admin, created_at, last_active) \
@@ -622,7 +676,7 @@ async fn seed_demo_users(pool: &SqlitePool) -> Result<Vec<Uuid>> {
             .bind(id.to_string())
             .bind(user.email)
             .bind(user.display_name)
-            .bind(password_hash)
+            .bind(&password_hash)
             .bind(user.tier)
             .bind(is_active)
             .bind(user.status)
@@ -895,33 +949,45 @@ async fn seed_a2a_usage(pool: &SqlitePool, client_ids: &[Uuid], days: u32) -> Re
     Ok(total_records)
 }
 
+/// Print visual testing credentials
+fn print_test_credentials() {
+    info!(
+        "\n\
+         === Visual Testing Credentials ===\n\
+         Web Test User:    webtest@pierre.dev / WebTest123!\n\
+         Mobile Test User: mobiletest@pierre.dev / MobileTest123!\n\
+         Demo Users:       DemoUser123! (for alice@acme.com, bob@startup.io, etc.)\n\
+         \n\
+         Done! Restart the server to see the demo data in the dashboard."
+    );
+}
+
 /// Print summary statistics
 async fn print_summary(pool: &SqlitePool) -> Result<()> {
-    let counts = [
-        ("Users", "SELECT COUNT(*) as count FROM users"),
-        ("API Keys", "SELECT COUNT(*) as count FROM api_keys"),
-        (
-            "API Usage Records",
-            "SELECT COUNT(*) as count FROM api_key_usage",
-        ),
-        ("A2A Clients", "SELECT COUNT(*) as count FROM a2a_clients"),
-        (
-            "A2A Usage Records",
-            "SELECT COUNT(*) as count FROM a2a_usage",
-        ),
-        (
-            "Pending Users",
-            "SELECT COUNT(*) as count FROM users WHERE user_status = 'pending'",
-        ),
-    ];
+    print_count(pool, "Users", "SELECT COUNT(*) FROM users").await?;
+    print_count(pool, "API Keys", "SELECT COUNT(*) FROM api_keys").await?;
+    print_count(
+        pool,
+        "API Usage Records",
+        "SELECT COUNT(*) FROM api_key_usage",
+    )
+    .await?;
+    print_count(pool, "A2A Clients", "SELECT COUNT(*) FROM a2a_clients").await?;
+    print_count(pool, "A2A Usage Records", "SELECT COUNT(*) FROM a2a_usage").await?;
+    print_count(
+        pool,
+        "Pending Users",
+        "SELECT COUNT(*) FROM users WHERE user_status = 'pending'",
+    )
+    .await?;
 
-    for (label, query) in counts {
-        let row: (i64,) = sqlx::query_as(query).fetch_one(pool).await?;
-        info!("{}: {}", label, row.0);
-    }
+    print_test_credentials();
+    Ok(())
+}
 
-    info!("");
-    info!("Done! Restart the server to see the demo data in the dashboard.");
-
+/// Helper to print a single count query result
+async fn print_count(pool: &SqlitePool, label: &str, query: &str) -> Result<()> {
+    let row: (i64,) = sqlx::query_as(query).fetch_one(pool).await?;
+    info!("{}: {}", label, row.0);
     Ok(())
 }
