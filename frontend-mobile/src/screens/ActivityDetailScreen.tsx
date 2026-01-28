@@ -11,12 +11,16 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors, spacing, aiGlow } from '../constants/theme';
+import type { SocialStackParamList } from '../navigation/MainTabs';
 
-// Type for navigation
+// Type for navigation - support both generic and social navigation
+type SocialNavigationProp = NativeStackNavigationProp<SocialStackParamList>;
+
 interface ActivityDetailScreenProps {
   navigation: NativeStackNavigationProp<Record<string, undefined>>;
   route: {
@@ -75,6 +79,8 @@ const ACTIVITY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
 
 export function ActivityDetailScreen({ navigation, route }: ActivityDetailScreenProps) {
   const insets = useSafeAreaInsets();
+  // Get navigation that can access social stack for Share with Friends
+  const socialNavigation = useNavigation<SocialNavigationProp>();
 
   // Mock activity data - would come from API in production
   const [activity] = useState<ActivityData>({
@@ -128,6 +134,11 @@ export function ActivityDetailScreen({ navigation, route }: ActivityDetailScreen
   const handleAskPierre = () => {
     // Navigate to Chat with activity context
     navigation.navigate('ChatTab' as never);
+  };
+
+  const handleShareWithFriends = () => {
+    // Navigate to ShareInsight screen with this activity's ID for activity-specific suggestions
+    socialNavigation.navigate('ShareInsight', { activityId: activity.id });
   };
 
   return (
@@ -287,20 +298,35 @@ export function ActivityDetailScreen({ navigation, route }: ActivityDetailScreen
                   Great effort today! Your pace was consistent throughout, with a strong finish in the last kilometer.
                   Your heart rate stayed in the aerobic zone for most of the run, which is perfect for building endurance.
                 </Text>
-                <TouchableOpacity
-                  className="self-start px-4 py-2 rounded-full"
-                  style={{
-                    backgroundColor: colors.pierre.violet,
-                    shadowColor: colors.pierre.violet,
-                    shadowOffset: { width: 0, height: 0 },
-                    shadowOpacity: 0.4,
-                    shadowRadius: 8,
-                    elevation: 4,
-                  }}
-                  onPress={handleAskPierre}
-                >
-                  <Text className="text-sm font-semibold text-white">Ask Pierre</Text>
-                </TouchableOpacity>
+                <View className="flex-row gap-3">
+                  <TouchableOpacity
+                    className="px-4 py-2 rounded-full"
+                    style={{
+                      backgroundColor: colors.pierre.violet,
+                      shadowColor: colors.pierre.violet,
+                      shadowOffset: { width: 0, height: 0 },
+                      shadowOpacity: 0.4,
+                      shadowRadius: 8,
+                      elevation: 4,
+                    }}
+                    onPress={handleAskPierre}
+                  >
+                    <Text className="text-sm font-semibold text-white">Ask Pierre</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    className="flex-row items-center px-4 py-2 rounded-full"
+                    style={{
+                      backgroundColor: 'rgba(139, 92, 246, 0.2)',
+                      borderWidth: 1,
+                      borderColor: colors.pierre.violet,
+                    }}
+                    onPress={handleShareWithFriends}
+                    testID="share-with-friends-button"
+                  >
+                    <Feather name="users" size={14} color={colors.pierre.violet} />
+                    <Text className="text-sm font-semibold text-pierre-violet ml-2">Share with Friends</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           </View>
