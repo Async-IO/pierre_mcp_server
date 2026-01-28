@@ -1,0 +1,236 @@
+---
+name: setup-server
+description: Bootstrap Pierre server with database, admin user, coaches, and test users for development and testing
+user-invocable: true
+---
+
+# Setup Server Skill
+
+**CLAUDE: When this skill is invoked with `/setup-server`, run the setup script:**
+```bash
+./bin/setup-and-start.sh --skip-fresh-start
+```
+
+For a completely fresh start (wipes database):
+```bash
+./bin/setup-and-start.sh
+```
+
+## Purpose
+Bootstraps the Pierre MCP Server with all required components: database, admin user, coaches, and optionally test users. Essential for development, testing, and iOS Simulator testing.
+
+## Usage
+```bash
+/setup-server
+```
+
+## Default Test Credentials
+
+**CRITICAL: These are the default credentials from `.envrc`. Always use these for testing.**
+
+### Admin User
+```
+Email:    admin@pierre.mcp
+Password: adminpass123
+```
+
+### Regular Test User
+```
+Email:    user@example.com
+Password: userpass123
+```
+
+### Environment Variables (from .envrc)
+```bash
+export ADMIN_EMAIL="admin@pierre.mcp"
+export ADMIN_PASSWORD="adminpass123"
+export OAUTH_DEFAULT_EMAIL="user@example.com"
+export OAUTH_DEFAULT_PASSWORD="userpass123"
+```
+
+## Bootstrap Commands
+
+### Quick Start (skip database wipe)
+```bash
+./bin/setup-and-start.sh --skip-fresh-start
+```
+
+### Fresh Start (wipes and recreates database)
+```bash
+./bin/setup-and-start.sh
+```
+
+### Fresh Start with Workflow Tests
+```bash
+./bin/setup-and-start.sh --run-tests
+```
+
+## What Setup Does
+
+1. **Database Setup** - Creates/migrates SQLite database
+2. **Admin User** - Creates admin@pierre.mcp with adminpass123
+3. **Seed Coaches** - Loads AI coaching personas
+4. **Start Server** - Starts on port 8081
+5. **Health Check** - Waits for server to be healthy
+
+**Note:** Basic setup only runs `seed-coaches`. For full test data, run additional seeders below.
+
+## Data Seeders (IMPORTANT FOR TESTING)
+
+**CLAUDE: Before testing features, run the appropriate seeders to populate test data.**
+
+### Available Seeders
+
+| Seeder | Command | What It Creates |
+|--------|---------|-----------------|
+| Coaches | `cargo run --bin seed-coaches` | 9 AI coaching personas (training, nutrition, recovery, mobility) |
+| Demo Data | `cargo run --bin seed-demo-data` | Dashboard analytics, API keys, usage time-series data |
+| Mobility | `cargo run --bin seed-mobility` | Stretching exercises, yoga poses, activity-muscle mappings |
+| Social | `cargo run --bin seed-social` | Friend connections, shared insights, reactions, feed data |
+
+### Run All Seeders (Full Test Setup)
+
+**Option A: Fresh database with ALL seeders (RECOMMENDED)**
+```bash
+./bin/reset-dev-db.sh
+```
+This wipes the database and runs ALL seeders automatically.
+
+**Option B: Run seeders individually (existing database)**
+```bash
+cargo run --bin seed-coaches
+cargo run --bin seed-demo-data
+cargo run --bin seed-mobility
+cargo run --bin seed-social
+```
+
+### When to Run Which Seeder
+
+| Testing This Feature | Required Seeders |
+|---------------------|------------------|
+| Mobile app login | `seed-coaches` (minimal) |
+| Coach conversations | `seed-coaches` |
+| Dashboard/Analytics | `seed-demo-data` |
+| Mobility/Stretching | `seed-mobility` |
+| Friends/Feed/Social | `seed-social` |
+| **Full E2E testing** | **All seeders** |
+
+## Complete User Workflow
+
+After server is running, to create a test user with full access:
+```bash
+./scripts/complete-user-workflow.sh
+```
+
+This script:
+1. Creates/gets admin token
+2. Registers regular user (user@example.com)
+3. Approves user with tenant creation
+4. Tests MCP access
+5. Saves tokens to `.workflow_test_env`
+
+## iOS Simulator Testing
+
+When testing the mobile app with iOS Simulator:
+
+### 1. Reset Database with Full Test Data
+```bash
+./bin/reset-dev-db.sh
+```
+This creates a fresh database with ALL seeders (coaches, demo data, mobility, social).
+
+### 2. Start Server
+```bash
+./bin/start-server.sh
+```
+
+### 3. Run User Workflow (creates test user)
+```bash
+./scripts/complete-user-workflow.sh
+```
+
+### 4. Login Credentials for Mobile App
+```
+Email:    user@example.com
+Password: userpass123
+```
+
+### 5. Start Mobile App
+```bash
+cd frontend-mobile && bun start
+```
+
+## Server Endpoints
+
+| Endpoint | Purpose |
+|----------|---------|
+| `http://localhost:8081/health` | Health check |
+| `http://localhost:8081/oauth2/login` | Web login page |
+| `http://localhost:8081/oauth/token` | OAuth token endpoint |
+| `http://localhost:8081/mcp` | MCP protocol endpoint |
+| `http://localhost:8081/admin/*` | Admin endpoints |
+
+## Manual Server Control
+
+### Start Server Only
+```bash
+./bin/start-server.sh
+```
+
+### Stop Server
+```bash
+./bin/stop-server.sh
+```
+
+### Check Server Status
+```bash
+curl http://localhost:8081/health
+```
+
+## Troubleshooting
+
+### Server won't start
+```bash
+# Kill any existing processes
+pkill -f pierre-mcp-server
+
+# Check port availability
+lsof -i :8081
+
+# Start fresh
+./bin/setup-and-start.sh
+```
+
+### Database errors
+```bash
+# Reset database completely
+./bin/reset-dev-db.sh
+```
+
+### Token expired
+```bash
+# Generate new admin token
+cargo run --bin admin-setup -- generate-token --service test --expires-days 7
+```
+
+### Missing .envrc
+```bash
+cp .envrc.example .envrc
+direnv allow
+```
+
+## Environment Files After Setup
+
+After running `complete-user-workflow.sh`:
+```bash
+# Contains JWT tokens for API testing
+source .workflow_test_env
+
+# Use tokens in curl commands
+curl -H "Authorization: Bearer $JWT_TOKEN" http://localhost:8081/mcp ...
+```
+
+## Related Skills
+- `validate-frontend` - Frontend validation
+- `validate-mobile` - Mobile app validation
+- `create-worktree` - Git worktree for feature branches

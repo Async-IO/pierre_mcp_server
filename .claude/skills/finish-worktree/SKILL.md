@@ -8,7 +8,7 @@ user-invocable: true
 
 **CLAUDE: When this skill is invoked with `/finish-worktree`, immediately run:**
 ```bash
-./.claude/skills/finish-worktree.sh
+./.claude/skills/finish-worktree/finish-worktree.sh
 ```
 **Then guide the user through CI monitoring and merge-and-cleanup.**
 
@@ -24,7 +24,7 @@ Completes feature branch work with proper rebase, CI validation, and squash merg
 
 ### Step 1: Rebase onto main
 ```bash
-./.claude/skills/finish-worktree.sh
+./.claude/skills/finish-worktree/finish-worktree.sh
 ```
 
 This script:
@@ -62,7 +62,7 @@ Repeat until CI is green.
 Once CI is green, run from the **main worktree**:
 ```bash
 cd /path/to/main/worktree
-./.claude/skills/merge-and-cleanup.sh
+./.claude/skills/finish-worktree/merge-and-cleanup.sh
 ```
 
 No arguments needed - branch info is saved by `finish-worktree.sh`.
@@ -78,14 +78,14 @@ This script:
 ## Complete Example Session
 ```bash
 # On feature branch in worktree
-./.claude/skills/finish-worktree.sh
+./.claude/skills/finish-worktree/finish-worktree.sh
 
 # Wait for CI...
 # If red, fix and push again
 # Once green, go to main worktree:
 
 cd /path/to/main/worktree
-./.claude/skills/merge-and-cleanup.sh
+./.claude/skills/finish-worktree/merge-and-cleanup.sh
 ```
 
 ## Related Skills

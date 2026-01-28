@@ -9,7 +9,7 @@ user-invocable: true
 
 **CLAUDE: When this skill is invoked with `/create-worktree <branch-name>`, immediately run:**
 ```bash
-./.claude/skills/create-worktree.sh <branch-name>
+./.claude/skills/create-worktree/create-worktree.sh <branch-name>
 ```
 
 ## Purpose
@@ -31,11 +31,11 @@ Creates a new git worktree with a feature branch, automatically copying environm
 
 ### Using the script directly:
 ```bash
-./.claude/skills/create-worktree.sh <branch-name> [optional-path]
+./.claude/skills/create-worktree/create-worktree.sh <branch-name> [optional-path]
 
 # Examples:
-./.claude/skills/create-worktree.sh feature/new-api
-./.claude/skills/create-worktree.sh fix/bug-123 /tmp/quick-fix
+./.claude/skills/create-worktree/create-worktree.sh feature/new-api
+./.claude/skills/create-worktree/create-worktree.sh fix/bug-123 /tmp/quick-fix
 ```
 
 ### Manual steps (if script unavailable):
