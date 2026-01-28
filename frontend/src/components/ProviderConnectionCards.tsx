@@ -241,7 +241,7 @@ export default function ProviderConnectionCards({
                         </Badge>
                       )}
                       {isNonOAuth && !provider.connected && (
-                        <Badge variant="default">
+                        <Badge variant="secondary">
                           Demo
                         </Badge>
                       )}
