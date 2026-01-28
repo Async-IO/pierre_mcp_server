@@ -48,6 +48,46 @@ export OAUTH_DEFAULT_EMAIL="user@example.com"
 export OAUTH_DEFAULT_PASSWORD="userpass123"
 ```
 
+## Admin Token (REQUIRED FOR USER MANAGEMENT)
+
+**CLAUDE: To create/approve users via admin API, you need an admin token.**
+
+### Generate Admin Token
+```bash
+cargo run --bin admin-setup -- generate-token --service claude_test --expires-days 7
+```
+
+### Use Admin Token in API Calls
+```bash
+# Store the token
+export ADMIN_TOKEN="<token-from-above-command>"
+
+# Use in curl requests
+curl -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:8081/admin/users
+```
+
+### Automatic Token Handling
+The `complete-user-workflow.sh` script handles admin tokens automatically:
+```bash
+./scripts/complete-user-workflow.sh
+```
+This script:
+1. Generates an admin token (or reuses existing)
+2. Creates test user
+3. Approves user with tenant
+4. Saves all tokens to `.workflow_test_env`
+
+### After Running Workflow Script
+```bash
+# Load saved tokens
+source .workflow_test_env
+
+# Now you can use $ADMIN_TOKEN and $JWT_TOKEN
+echo "Admin: $ADMIN_TOKEN"
+echo "User JWT: $JWT_TOKEN"
+```
+
 ## Bootstrap Commands
 
 ### Quick Start (skip database wipe)
