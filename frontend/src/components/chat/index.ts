@@ -18,3 +18,4 @@ export { default as MyCoachCard } from './MyCoachCard';
 export { default as CategoryFilterButton } from './CategoryFilterButton';
 export { default as ProviderConnectionModal } from './ProviderConnectionModal';
 export { default as CoachFormModal } from './CoachFormModal';
+export { default as CreateCoachFromConversationModal } from './CreateCoachFromConversationModal';

@@ -1300,3 +1300,340 @@ test.describe('User Coaches - Chat Interface', () => {
     }
   });
 });
+
+// ============================================================================
+// Create Coach from Conversation Tests
+// ============================================================================
+
+const mockConversation = {
+  id: 'conv-123',
+  title: 'Marathon Training Discussion',
+  created_at: '2025-01-10T10:00:00Z',
+  updated_at: '2025-01-10T11:00:00Z',
+  messages_count: 5,
+};
+
+const mockConversationMessages = [
+  {
+    id: 'msg-1',
+    role: 'user',
+    content: 'I want to train for a marathon',
+    created_at: '2025-01-10T10:00:00Z',
+  },
+  {
+    id: 'msg-2',
+    role: 'assistant',
+    content: 'A marathon is 26.2 miles. What is your current running experience?',
+    created_at: '2025-01-10T10:01:00Z',
+  },
+  {
+    id: 'msg-3',
+    role: 'user',
+    content: 'I run about 20 miles per week',
+    created_at: '2025-01-10T10:02:00Z',
+  },
+  {
+    id: 'msg-4',
+    role: 'assistant',
+    content: 'Great base! Let me suggest a 16-week training plan.',
+    created_at: '2025-01-10T10:03:00Z',
+  },
+];
+
+const mockGeneratedCoach = {
+  title: 'Marathon Training Expert',
+  description: 'Specialized in long-distance running preparation',
+  system_prompt:
+    'You are a professional marathon coach helping runners prepare for their first marathon. Focus on gradual mileage building, proper pacing, and injury prevention.',
+  category: 'Training',
+  messages_analyzed: 4,
+  total_messages: 5,
+};
+
+async function setupConversationMocks(page: Page, options: { hasMessages?: boolean } = {}) {
+  const { hasMessages = true } = options;
+
+  // Set up base dashboard mocks for non-admin user
+  await setupDashboardMocks(page, { role: 'user' });
+
+  // Mock conversations list with one conversation
+  await page.route('**/api/chat/conversations**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        conversations: hasMessages ? [mockConversation] : [],
+        total: hasMessages ? 1 : 0,
+        limit: 50,
+        offset: 0,
+      }),
+    });
+  });
+
+  // Mock conversation messages
+  await page.route('**/api/chat/conversations/conv-123/messages**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        messages: hasMessages ? mockConversationMessages : [],
+        total: hasMessages ? mockConversationMessages.length : 0,
+      }),
+    });
+  });
+
+  // Mock user coaches endpoint
+  await page.route('**/api/coaches', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ coaches: [], total: 0 }),
+      });
+    } else if (route.request().method() === 'POST') {
+      const body = route.request().postDataJSON();
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'new-coach-from-conv',
+          ...body,
+          token_count: 150,
+          is_favorite: false,
+          use_count: 0,
+          is_system: false,
+          visibility: 'private',
+          is_assigned: false,
+        }),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+
+  // Mock hidden coaches endpoint
+  await page.route('**/api/coaches/hidden', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ coaches: [] }),
+    });
+  });
+
+  // Mock generate coach from conversation endpoint
+  await page.route('**/api/coaches/generate', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(mockGeneratedCoach),
+    });
+  });
+}
+
+test.describe('Create Coach from Conversation', () => {
+  test('shows Create Coach button when conversation has 2+ messages', async ({ page }) => {
+    await setupConversationMocks(page, { hasMessages: true });
+    await loginToDashboard(page);
+
+    await page.waitForSelector('main', { timeout: 10000 });
+
+    // Click on a conversation in the sidebar
+    await page.getByText('Marathon Training Discussion').click();
+    await page.waitForTimeout(500);
+
+    // Create Coach button should be visible (conversation has 5 messages)
+    await expect(page.getByRole('button', { name: 'Create Coach' })).toBeVisible({ timeout: 5000 });
+  });
+
+  test('clicking Create Coach button opens the modal', async ({ page }) => {
+    await setupConversationMocks(page, { hasMessages: true });
+    await loginToDashboard(page);
+
+    await page.waitForSelector('main', { timeout: 10000 });
+
+    // Click on a conversation
+    await page.getByText('Marathon Training Discussion').click();
+    await page.waitForTimeout(500);
+
+    // Click Create Coach button
+    await page.getByRole('button', { name: 'Create Coach' }).click();
+
+    // Modal should be visible
+    await expect(page.getByText('Create Coach from Conversation')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('AI analyzes your conversation')).toBeVisible();
+  });
+
+  test('modal shows analyzing state then displays form with suggestions', async ({ page }) => {
+    await setupConversationMocks(page, { hasMessages: true });
+    await loginToDashboard(page);
+
+    await page.waitForSelector('main', { timeout: 10000 });
+
+    // Click on a conversation
+    await page.getByText('Marathon Training Discussion').click();
+    await page.waitForTimeout(500);
+
+    // Click Create Coach button
+    await page.getByRole('button', { name: 'Create Coach' }).click();
+
+    // Modal should show
+    await expect(page.getByText('Create Coach from Conversation')).toBeVisible({ timeout: 5000 });
+
+    // Wait for form to appear with LLM-generated suggestions
+    await expect(page.getByText('Analyzed 4 of 5 messages')).toBeVisible({ timeout: 10000 });
+
+    // Form fields should be pre-filled with LLM suggestions
+    const titleInput = page.getByPlaceholder('e.g., Marathon Training Coach');
+    await expect(titleInput).toHaveValue('Marathon Training Expert');
+
+    // System prompt should be filled
+    const systemPromptTextarea = page.locator('textarea').filter({ hasText: 'professional marathon coach' });
+    await expect(systemPromptTextarea).toBeVisible();
+  });
+
+  test('can edit and save the generated coach', async ({ page }) => {
+    await setupConversationMocks(page, { hasMessages: true });
+
+    let createCalled = false;
+    let capturedBody: Record<string, unknown> | null = null;
+    await page.route('**/api/coaches', async (route) => {
+      if (route.request().method() === 'POST') {
+        createCalled = true;
+        capturedBody = route.request().postDataJSON();
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            id: 'new-coach-from-conv',
+            ...capturedBody,
+            is_system: false,
+          }),
+        });
+      } else {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ coaches: [], total: 0 }),
+        });
+      }
+    });
+
+    await loginToDashboard(page);
+
+    await page.waitForSelector('main', { timeout: 10000 });
+
+    // Click on a conversation
+    await page.getByText('Marathon Training Discussion').click();
+    await page.waitForTimeout(500);
+
+    // Click Create Coach button
+    await page.getByRole('button', { name: 'Create Coach' }).click();
+
+    // Wait for form with suggestions
+    await expect(page.getByText('Analyzed 4 of 5 messages')).toBeVisible({ timeout: 10000 });
+
+    // Modify the title
+    await page.getByPlaceholder('e.g., Marathon Training Coach').fill('My Custom Marathon Coach');
+
+    // Click Save Coach button
+    await page.getByRole('button', { name: 'Save Coach' }).click();
+
+    await page.waitForTimeout(500);
+    expect(createCalled).toBe(true);
+    expect(capturedBody?.title).toBe('My Custom Marathon Coach');
+    expect(capturedBody?.category).toBe('Training');
+  });
+
+  test('can cancel the modal', async ({ page }) => {
+    await setupConversationMocks(page, { hasMessages: true });
+    await loginToDashboard(page);
+
+    await page.waitForSelector('main', { timeout: 10000 });
+
+    // Click on a conversation
+    await page.getByText('Marathon Training Discussion').click();
+    await page.waitForTimeout(500);
+
+    // Click Create Coach button
+    await page.getByRole('button', { name: 'Create Coach' }).click();
+
+    // Wait for form
+    await expect(page.getByText('Create Coach from Conversation')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Analyzed 4 of 5 messages')).toBeVisible({ timeout: 10000 });
+
+    // Click Cancel
+    await page.getByRole('button', { name: 'Cancel' }).click();
+
+    // Modal should close
+    await expect(page.getByText('Create Coach from Conversation')).not.toBeVisible({ timeout: 3000 });
+  });
+
+  test('can regenerate coach suggestions', async ({ page }) => {
+    await setupConversationMocks(page, { hasMessages: true });
+
+    let generateCallCount = 0;
+    await page.route('**/api/coaches/generate', async (route) => {
+      generateCallCount++;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...mockGeneratedCoach,
+          title: generateCallCount > 1 ? 'Regenerated Coach Title' : 'Marathon Training Expert',
+        }),
+      });
+    });
+
+    await loginToDashboard(page);
+
+    await page.waitForSelector('main', { timeout: 10000 });
+
+    // Click on a conversation
+    await page.getByText('Marathon Training Discussion').click();
+    await page.waitForTimeout(500);
+
+    // Click Create Coach button
+    await page.getByRole('button', { name: 'Create Coach' }).click();
+
+    // Wait for initial form
+    await expect(page.getByText('Analyzed 4 of 5 messages')).toBeVisible({ timeout: 10000 });
+    expect(generateCallCount).toBe(1);
+
+    // Click regenerate button (title="Regenerate suggestions")
+    await page.getByTitle('Regenerate suggestions').click();
+
+    // Wait for regeneration
+    await page.waitForTimeout(1000);
+    expect(generateCallCount).toBe(2);
+  });
+
+  test('handles API error gracefully', async ({ page }) => {
+    await setupConversationMocks(page, { hasMessages: true });
+
+    // Override generate endpoint to return error
+    await page.route('**/api/coaches/generate', async (route) => {
+      await route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'LLM service unavailable' }),
+      });
+    });
+
+    await loginToDashboard(page);
+
+    await page.waitForSelector('main', { timeout: 10000 });
+
+    // Click on a conversation
+    await page.getByText('Marathon Training Discussion').click();
+    await page.waitForTimeout(500);
+
+    // Click Create Coach button
+    await page.getByRole('button', { name: 'Create Coach' }).click();
+
+    // Should show error state
+    await expect(page.getByText('Analysis Failed')).toBeVisible({ timeout: 10000 });
+
+    // Should show Try Again button
+    await expect(page.getByRole('button', { name: 'Try Again' })).toBeVisible();
+  });
+});

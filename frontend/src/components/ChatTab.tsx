@@ -14,7 +14,7 @@ import PromptSuggestions from './PromptSuggestions';
 import StoreScreen from './StoreScreen';
 import StoreCoachDetail from './StoreCoachDetail';
 import { useAuth } from '../hooks/useAuth';
-import { MessageCircle, Users, Plus, ChevronRight, Compass } from 'lucide-react';
+import { MessageCircle, Users, Plus, ChevronRight, Compass, Sparkles } from 'lucide-react';
 import { ShareChatMessageModal } from './social';
 import {
   ChatSidebar,
@@ -24,6 +24,7 @@ import {
   CategoryFilterButton,
   ProviderConnectionModal,
   CoachFormModal,
+  CreateCoachFromConversationModal,
   stripContextPrefix,
   getCategoryBadgeClass,
   getCategoryIcon,
@@ -78,6 +79,7 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
   const [coachFormData, setCoachFormData] = useState<CoachFormData>(DEFAULT_COACH_FORM_DATA);
   const [coachDeleteConfirmation, setCoachDeleteConfirmation] = useState<CoachDeleteConfirmation | null>(null);
   const [shareMessageContent, setShareMessageContent] = useState<string | null>(null);
+  const [showCreateCoachFromConversation, setShowCreateCoachFromConversation] = useState(false);
 
   const sidebarPanelRef = usePanelRef();
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -1052,6 +1054,20 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
         ) : (
           /* Active Conversation View */
           <div className="h-full flex flex-col">
+            {/* Conversation Header with Create Coach button */}
+            {(messagesData?.messages?.length ?? 0) >= 2 && (
+              <div className="border-b border-white/5 px-6 py-3 flex items-center justify-end">
+                <button
+                  onClick={() => setShowCreateCoachFromConversation(true)}
+                  disabled={isStreaming}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-pierre-violet bg-pierre-violet/10 hover:bg-pierre-violet/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Create a coach based on this conversation"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Create Coach
+                </button>
+              </div>
+            )}
             <div className="flex-1 overflow-y-auto min-h-0">
               <div className="max-w-3xl mx-auto py-6 px-6">
                 <MessageList
@@ -1133,6 +1149,20 @@ export default function ChatTab({ onOpenSettings }: ChatTabProps) {
           content={shareMessageContent}
           onClose={() => setShareMessageContent(null)}
           onSuccess={() => setShareMessageContent(null)}
+        />
+      )}
+
+      {selectedConversation && (
+        <CreateCoachFromConversationModal
+          isOpen={showCreateCoachFromConversation}
+          conversationId={selectedConversation}
+          messageCount={messagesData?.messages?.length ?? 0}
+          onClose={() => setShowCreateCoachFromConversation(false)}
+          onSuccess={() => {
+            setShowCreateCoachFromConversation(false);
+            setShowMyCoachesPanel(true);
+            setSelectedConversation(null);
+          }}
         />
       )}
     </PanelGroup>
