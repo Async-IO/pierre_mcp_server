@@ -5,266 +5,237 @@
 
 ## Overview
 
-This document outlines the multi-tier testing strategy for Pierre MCP Server. The strategy is designed to provide fast feedback during development while maintaining comprehensive test coverage in CI.
+This document outlines the testing strategy for Pierre MCP Server. The strategy provides fast feedback during development through targeted testing while maintaining comprehensive coverage in CI.
 
 ## Test Suite Statistics
 
 - **Total test files:** 195
 - **Total test code:** ~62,000 lines
-- **E2E tests:** 11 files
-- **Comprehensive tests:** 9 files
-- **Integration tests:** 11 files
-- **Unit/Component tests:** ~120 files
+- **Full suite duration:** ~13 minutes (647 tests across 163 files)
+- **Clippy full check:** ~2 minutes
 
-## Test Tiers
+## Testing Tiers
 
-### Tier 1: Smoke Tests (2-3 minutes)
+### Tier 0: Targeted Tests (During Development)
 
-**When to use:** On every commit via git pre-commit hook
+**When to use:** After every code change
 
-**Script:** `./scripts/smoke-test.sh`
+**Command:**
+```bash
+cargo test --test <test_file> <test_pattern> -- --nocapture
+```
 
-**What it runs:**
-- Format check (`cargo fmt --check`)
-- Clippy on lib + bins only
-- Unit tests (`cargo test --lib`)
-- 1 critical integration test (health check)
+**Why targeted tests:**
+- Only compiles the specific test file (~5-10 seconds)
+- Running without `--test` compiles ALL 163 test files (~2-3 minutes)
+- Much faster feedback loop
 
-**Purpose:** Catch obvious errors immediately with minimal time investment.
+**Examples:**
+```bash
+# Run specific test in a file
+cargo test --test intelligence_test test_training_load -- --nocapture
 
-### Tier 2: Fast Tests (< 5 minutes)
+# Run all tests in a specific file
+cargo test --test store_routes_test -- --nocapture
 
-**When to use:** During active development when you want quick feedback
+# List tests in a file
+cargo test --test routes_health_http_test -- --list
+```
 
-**Script:** `./scripts/fast-tests.sh`
+**Finding the right test file:**
+```bash
+# Find which file contains your test
+rg "test_name" tests/ --files-with-matches
+```
 
-**What it runs:**
-- All unit tests
-- Fast integration tests (excludes slow patterns)
+### Tier 1: Pre-Push Validation
 
-**What it excludes:**
-- E2E tests (require full server startup)
-- Comprehensive tests (extensive test scenarios)
-- Large integration tests (OAuth flows, multi-tenant, etc.)
+**When to use:** Before `git push`
 
-**Purpose:** Get rapid feedback on most code changes without waiting for slow tests.
-
-### Tier 3: Pre-Push Tests (5-10 minutes)
-
-**When to use:** Automatically before `git push` via pre-push hook
-
-**Script:** `./scripts/pre-push-tests.sh`
-
-**What it runs:** 20 critical path tests covering:
-1. **Critical Infrastructure** (3 tests)
-   - Health endpoints
-   - Database basics
-   - Encryption & crypto keys
-2. **Security & Authentication** (5 tests)
-   - Authentication
-   - API key validation
-   - JWT persistence
-   - OAuth2 security
-   - Security headers
-3. **MCP Protocol** (3 tests)
-   - MCP compliance
-   - JSON-RPC protocol
-   - MCP tools
-4. **Core Functionality** (4 tests)
-   - Error handling (AppResult validation)
-   - Data models
-   - Database plugins (SQLite/Postgres)
-   - Basic integration
-5. **Multi-tenancy** (2 tests)
-   - Tenant isolation
-   - Tenant context
-6. **Protocols & Features** (3 tests)
-   - A2A protocol basics
-   - Algorithm correctness (sports science)
-   - Rate limiting middleware
-
-**Purpose:** Catch 80% of issues before pushing to remote, preventing CI failures.
-
-### Tier 4: Category Tests
-
-**When to use:** Testing specific subsystems
-
-**Script:** `./scripts/category-test-runner.sh <category>`
-
-**Available categories:**
-- `mcp` - MCP server tests
-- `admin` - Admin functionality tests
-- `oauth` - OAuth2 tests
-- `security` - Security tests
-- `database` - Database tests
-- `intelligence` - Intelligence/analytics tests
-- `config` - Configuration tests
-- `auth` - Authentication tests
-- `integration` - Integration tests
-
-**Purpose:** Run focused test suites when working on specific features.
-
-### Tier 5: Safe Test Runner
-
-**When to use:** Running the full test suite locally without OOM issues
-
-**Script:** `./scripts/safe-test-runner.sh`
+**Script:** `./scripts/pre-push-validate.sh`
 
 **What it does:**
-- Runs ALL 151 test files
-- Batches tests (5 tests per batch)
-- Pauses between batches for memory cleanup
-- Generates detailed logs
+1. Creates validation marker (valid for 15 minutes)
+2. Runs tiered checks based on changed files:
+   - **Tier 0:** Code formatting (`cargo fmt --check`)
+   - **Tier 1:** Architectural validation
+   - **Tier 2:** Schema validation
+   - **Tier 3:** Smart test selection based on changed files
+   - **Tier 4-6:** Frontend/SDK/Mobile tests (if those directories changed)
 
-**Purpose:** Complete local test validation when needed.
+**Workflow:**
+```bash
+# 1. Run validation
+./scripts/pre-push-validate.sh
 
-### Tier 6: Full CI Suite (30-60 minutes)
+# 2. Push (hook verifies marker exists and is fresh)
+git push
+```
 
-**When to use:** Automatically in GitHub Actions on PRs and pushes
+**Purpose:** Fast, focused validation that catches most issues before CI.
+
+### Tier 2: Full CI Suite
+
+**When to use:** Before PR/merge, or in GitHub Actions
+
+**Script:** `./scripts/lint-and-test.sh`
 
 **What it runs:**
-- Format check
-- Clippy (all targets, all features)
-- Security audit (cargo deny)
-- Architectural validation
-- Secret pattern validation
-- All tests with coverage (SQLite + PostgreSQL)
-- Frontend tests
-- SDK builds
+1. Cleanup of generated files
+2. Static analysis & code quality validation
+3. `cargo fmt --check`
+4. `cargo clippy --all-targets` (zero tolerance)
+5. `cargo deny check` (security audit)
+6. SDK build
+7. `cargo test --all-targets` (all tests)
+8. Frontend validation (lint, types, unit, E2E, build)
+9. MCP compliance validation
+10. SDK TypeScript validation + integration tests
+11. Bridge test suite
+12. Release build + documentation
 
-**Purpose:** Comprehensive validation before merging to main branch.
+**Duration:** ~30-60 minutes
+
+**Purpose:** Comprehensive validation before merging to main.
 
 ## Test File Naming Conventions
 
-### Slow Tests (should be excluded from fast test runs)
-- `*_e2e_test.rs` - End-to-end tests requiring full server
-- `*_comprehensive_test.rs` - Extensive test scenarios
-- `*_integration.rs` - Integration tests
-- Large route tests: `routes_comprehensive_test.rs`, `routes_dashboard_test.rs`, etc.
-
-### Fast Tests (included in fast test runs)
-- `*_test.rs` - Standard unit/component tests
-- Short route tests: `routes_test.rs`, `routes_health_http_test.rs`
-- Module-specific tests
+| Pattern | Description |
+|---------|-------------|
+| `*_test.rs` | Standard unit/component tests |
+| `*_e2e_test.rs` | End-to-end tests requiring full server |
+| `*_comprehensive_test.rs` | Extensive test scenarios |
+| `*_integration.rs` | Integration tests |
 
 ## Developer Workflow
 
 ### During Active Development
 
 ```bash
-# Quick feedback loop (< 5 min)
-./scripts/fast-tests.sh
+# Run targeted tests for the module you're changing
+cargo test --test <test_file> <pattern> -- --nocapture
 
-# Or just smoke tests (2-3 min)
-./scripts/smoke-test.sh
-
-# Test specific feature
-./scripts/category-test-runner.sh mcp
+# Examples:
+cargo test --test mcp_tools_unit test_activities -- --nocapture
+cargo test --test auth_test -- --nocapture
+cargo test --test intelligence_algorithms_test -- --nocapture
 ```
 
 ### Before Committing
 
 ```bash
-# Automatic via pre-commit hook
-git commit -m "Your message"
-# Runs: ./scripts/smoke-test.sh
+# 1. Format code
+cargo fmt
+
+# 2. Architectural validation
+./scripts/architectural-validation.sh
+
+# 3. Clippy (strict mode)
+cargo clippy --all-targets
+
+# 4. Run targeted tests for changed modules
+cargo test --test <test_file> <pattern> -- --nocapture
 ```
 
 ### Before Pushing
 
 ```bash
-# Automatic via pre-push hook
+# 1. Run validation (creates marker valid for 15 min)
+./scripts/pre-push-validate.sh
+
+# 2. Push (hook verifies marker)
 git push
-# Runs: ./scripts/pre-push-tests.sh (5-10 min)
 ```
 
 ### Manual Full Validation
 
 ```bash
-# Run everything locally (matches CI closely)
+# Run full CI suite locally
 ./scripts/lint-and-test.sh
-
-# Or just the test suite
-./scripts/safe-test-runner.sh
 ```
 
 ## Setting Up Git Hooks
 
-To enable automatic pre-commit and pre-push testing:
-
 ```bash
-./scripts/setup-git-hooks.sh
+# One-time setup
+git config core.hooksPath .githooks
 ```
 
-This installs:
-- **Pre-commit hook:** Runs smoke tests (2-3 min)
-- **Commit-msg hook:** Enforces 1-2 line commit messages (instant)
-- **Pre-push hook:** Runs critical path tests (5-10 min)
+The pre-push hook verifies:
+- Validation marker exists
+- Marker is fresh (< 15 minutes)
+- Marker matches current commit
 
 ### Bypassing Hooks (Emergency Only)
 
 ```bash
-# Skip pre-commit and commit-msg
-git commit --no-verify
-
-# Skip pre-push
 git push --no-verify
 ```
 
-**Warning:** Only bypass hooks for legitimate emergencies. Bypassing hooks increases the risk of CI failures and breaks the fast feedback loop.
+**Warning:** Only bypass for legitimate emergencies. CI will still run.
+
+## Specialized Testing
+
+### PostgreSQL Integration
+
+```bash
+# Requires Docker
+./scripts/test-postgres.sh
+```
+
+### SDK/Bridge Tests
+
+```bash
+./scripts/run_bridge_tests.sh
+```
+
+### MCP Protocol Compliance
+
+```bash
+./scripts/ensure_mcp_compliance.sh
+```
+
+### Frontend Tests
+
+```bash
+# Web frontend
+./scripts/pre-push-frontend-tests.sh
+
+# Mobile
+./scripts/pre-push-mobile-tests.sh
+```
 
 ## Performance Tips
 
 ### Speed Up Local Testing
 
-1. **Use fast tests during development:**
+1. **Always use targeted tests:**
    ```bash
-   ./scripts/fast-tests.sh  # Skip slow tests
+   # ❌ Slow - compiles all 163 test files
+   cargo test test_browse_store
+
+   # ✅ Fast - only compiles one test file
+   cargo test --test store_routes_test test_browse_store
    ```
 
-2. **Test specific categories:**
+2. **Use watch mode for tight loops:**
    ```bash
-   ./scripts/category-test-runner.sh auth  # Just auth tests
+   cargo watch -x "test --test <file> <pattern>"
    ```
 
-3. **Test single files:**
+3. **Skip tests during clippy:**
    ```bash
-   cargo test --test routes_health_http_test
+   cargo clippy -p pierre_mcp_server --all-targets
    ```
 
-4. **Use watch mode for tight loops:**
-   ```bash
-   cargo watch -x "test --lib"
-   ```
+### Test Targeting Patterns
 
-### Optimize Test Execution
-
-Current test execution uses `--test-threads=1` globally due to database contention. Future optimizations:
-
-1. **Increase parallelism for isolated tests**
-2. **Use in-memory databases for unit tests**
-3. **Mock external dependencies**
-4. **Split large test files into smaller, focused tests**
-
-## Test Categories
-
-### Critical Path Tests (Must Pass)
-- Health checks
-- Authentication
-- MCP protocol compliance
-- Security basics
-- Tenant isolation
-
-### Important Tests (Should Pass)
-- All route handlers
-- Data models
-- Error handling
-- Configuration validation
-
-### Extended Tests (Nice to Have)
-- Comprehensive edge cases
-- Performance tests
-- Integration with all providers
+| Scenario | Command |
+|----------|---------|
+| Run one test | `cargo test --test <file> <test_name>` |
+| Run all tests in file | `cargo test --test <file>` |
+| List tests in file | `cargo test --test <file> -- --list` |
+| Run with output | `cargo test --test <file> <test> -- --nocapture` |
 
 ## CI Configuration
 
@@ -283,40 +254,7 @@ Current test execution uses `--test-threads=1` globally due to database contenti
 - Tools: npm test, ESLint, TypeScript
 - Coverage: Enabled (codecov)
 
-## Future Improvements
-
-### Phase 2: Test Organization
-- [ ] Add test speed markers/tags
-- [ ] Reorganize tests by speed (fast/medium/slow directories)
-- [ ] Create test discovery tools
-
-### Phase 3: Test Optimization
-- [ ] Split large comprehensive test files
-- [ ] Increase parallelism where safe
-- [ ] Add mock servers for E2E tests
-- [ ] Optimize slow database tests
-
-### Phase 4: Monitoring
-- [ ] Add test timing metrics
-- [ ] Set up alerts for slow tests
-- [ ] Regular performance reviews
-- [ ] Track test suite growth
-
 ## Troubleshooting
-
-### Tests Timeout Locally
-
-Use the safe test runner with batching:
-```bash
-./scripts/safe-test-runner.sh
-```
-
-### Pre-Push Tests Too Slow
-
-You can adjust the tests in `scripts/pre-push-tests.sh` or temporarily bypass:
-```bash
-git push --no-verify  # Use sparingly!
-```
 
 ### CI Fails But Local Tests Pass
 
@@ -324,21 +262,29 @@ git push --no-verify  # Use sparingly!
 2. Run the full suite locally: `./scripts/lint-and-test.sh`
 3. Check for environment-specific issues
 
-### Out of Memory (OOM) Errors
+### Validation Marker Expired
 
-1. Use batched test runner: `./scripts/safe-test-runner.sh`
-2. Run category-specific tests: `./scripts/category-test-runner.sh <category>`
-3. Test files individually: `cargo test --test <test_name>`
+```bash
+# Re-run validation to create fresh marker
+./scripts/pre-push-validate.sh
+```
+
+### Finding Which Tests to Run
+
+```bash
+# Find test files for a module
+rg "mod_name" tests/ --files-with-matches
+
+# Find test files mentioning a function
+rg "function_name" tests/ --files-with-matches
+```
 
 ## Summary
 
 | Tier | Time | When | Command |
 |------|------|------|---------|
-| Smoke | 2-3 min | Every commit | `./scripts/smoke-test.sh` |
-| Fast | < 5 min | Active dev | `./scripts/fast-tests.sh` |
-| Pre-push | 5-10 min | Before push | `./scripts/pre-push-tests.sh` |
-| Category | Varies | Feature work | `./scripts/category-test-runner.sh <cat>` |
-| Full | 15-25 min | Before PR | `./scripts/safe-test-runner.sh` |
-| CI | 30-60 min | PR/merge | Automatic in GitHub Actions |
+| Targeted | ~5-10s | Every change | `cargo test --test <file> <pattern>` |
+| Pre-push | ~1-5 min | Before push | `./scripts/pre-push-validate.sh` |
+| Full CI | ~30-60 min | PR/merge | `./scripts/lint-and-test.sh` |
 
-This tiered approach ensures fast feedback during development while maintaining comprehensive coverage in CI.
+This approach prioritizes fast feedback during development while ensuring comprehensive validation before code reaches main.

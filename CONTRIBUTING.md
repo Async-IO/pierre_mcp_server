@@ -225,16 +225,13 @@ git push --no-verify
 #### Manual Testing (Optional)
 If you want to run tests manually:
 ```bash
-# Quick smoke test (what pre-commit runs)
-./scripts/smoke-test.sh
+# Targeted tests during development (fastest)
+cargo test --test <test_file> <pattern> -- --nocapture
 
-# Fast tests (during active development)
-./scripts/fast-tests.sh
+# Pre-push validation (tiered checks, creates marker)
+./scripts/pre-push-validate.sh
 
-# Pre-push tests (what will run on push)
-./scripts/pre-push-tests.sh
-
-# Full test suite (comprehensive, 15-25 min)
+# Full test suite (comprehensive CI suite)
 ./scripts/lint-and-test.sh
 ```
 

@@ -187,9 +187,9 @@ cargo test --test '*' -- --quiet
 echo "3. Documentation Tests..."
 cargo test --doc -- --quiet
 
-# Specific test categories
-echo "4. Category Tests..."
-./scripts/category-test-runner.sh all
+# All targets
+echo "4. All Tests..."
+cargo test --all-targets -- --quiet
 ```
 
 **Test Categories:**
@@ -462,9 +462,6 @@ fi
 **Actions:**
 ```bash
 echo "💨 Smoke Testing..."
-
-# Run smoke test script
-./scripts/smoke-test.sh
 
 # Quick sanity checks
 echo "1. Server Start..."

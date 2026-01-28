@@ -35,10 +35,10 @@ Run this skill:
 cargo test --all-features
 ```
 
-### Category-Based Testing
+### Full CI Suite
 ```bash
-# Use the category test runner
-./scripts/category-test-runner.sh all
+# Run the full CI validation suite
+./scripts/lint-and-test.sh
 ```
 
 ### Specific Test Categories
@@ -200,12 +200,12 @@ cargo test protocol
 # Authentication
 cargo test auth oauth
 
-# Everything in parallel
-./scripts/category-test-runner.sh all
+# Full CI validation
+./scripts/lint-and-test.sh
 ```
 
 ## Related Files
-- `scripts/category-test-runner.sh` - Test orchestration
+- `scripts/lint-and-test.sh` - Full CI validation suite
 - `tests/` - Integration tests directory
 - `tests/common.rs` - Shared test utilities
 

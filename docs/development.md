@@ -204,12 +204,21 @@ cargo test <pattern> -- --nocapture
 
 ## Testing
 
-### Quick Validation
+### Targeted Testing (During Development)
 
 ```bash
-./scripts/smoke-test.sh           # ~3 minutes
-./scripts/fast-tests.sh           # ~5 minutes
-./scripts/pre-push-tests.sh       # ~10 minutes
+# Run specific test in a file (fastest - ~5-10s)
+cargo test --test <test_file> <pattern> -- --nocapture
+
+# Examples:
+cargo test --test intelligence_test test_training_load -- --nocapture
+cargo test --test store_routes_test test_browse -- --nocapture
+```
+
+### Pre-Push Validation
+
+```bash
+./scripts/pre-push-validate.sh    # Tiered validation (~1-5 min)
 ```
 
 ### Full Test Suite
@@ -431,10 +440,10 @@ See [configuration.md](configuration.md) for database configuration.
 
 | Script | Description |
 |--------|-------------|
-| `smoke-test.sh` | Quick smoke tests (~3 min) |
-| `fast-tests.sh` | Fast test subset (~5 min) |
-| `pre-push-tests.sh` | Pre-push tests (~10 min) |
-| `safe-test-runner.sh` | Isolated test runner |
+| `test-postgres.sh` | PostgreSQL integration tests (Docker) |
+| `run_bridge_tests.sh` | SDK/Bridge test suite |
+| `ensure_mcp_compliance.sh` | MCP protocol compliance |
+| `test_trial_keys.sh` | API key provisioning workflow |
 
 See `scripts/README.md` for complete documentation.
 

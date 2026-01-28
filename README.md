@@ -275,7 +275,7 @@ This creates the 9 default AI coaching personas if they don't already exist.
 ```bash
 cargo test                        # all tests
 ./scripts/lint-and-test.sh        # full CI suite
-./scripts/smoke-test.sh           # quick validation (~3 min)
+./scripts/pre-push-validate.sh    # tiered validation before push
 ```
 
 See [Testing Documentation](docs/testing.md).
