@@ -10,6 +10,7 @@ import { apiService } from '../../services/api';
 import { Card, Button } from '../ui';
 import ShareInsightModal from './ShareInsightModal';
 import AdaptInsightModal from './AdaptInsightModal';
+import ActivityDetailModal from './ActivityDetailModal';
 import type { InsightType, TrainingPhase } from '../../types/social';
 
 interface InsightSuggestion {
@@ -92,6 +93,14 @@ export default function SocialFeedTab() {
   const [selectedInsightId, setSelectedInsightId] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<InsightSuggestion[]>([]);
   const [showSuggestionsBanner, setShowSuggestionsBanner] = useState(true);
+  const [showActivityDetailModal, setShowActivityDetailModal] = useState(false);
+  const [selectedActivityDetail, setSelectedActivityDetail] = useState<{
+    activityId: string;
+    title: string;
+    type: string;
+    date: string;
+    insightContent: string;
+  } | null>(null);
 
   // Load coach suggestions
   const loadSuggestions = useCallback(async () => {
@@ -419,6 +428,37 @@ export default function SocialFeedTab() {
                   </div>
 
                   <div className="flex gap-2">
+                    {/* View Activity Details button (for insights with activity link) */}
+                    {item.insight.source_activity_id && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedActivityDetail({
+                            activityId: item.insight.source_activity_id!,
+                            title: item.insight.title || 'Activity',
+                            type: item.insight.sport_type || 'run',
+                            date: new Date(item.insight.created_at).toLocaleDateString('en-US', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                            }),
+                            insightContent: item.insight.content,
+                          });
+                          setShowActivityDetailModal(true);
+                        }}
+                      >
+                        <span className="flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                          View Activity
+                        </span>
+                      </Button>
+                    )}
+
                     {/* Share Similar button (only for coach-generated insights with activity link) */}
                     {item.insight.coach_generated && item.insight.source_activity_id && (
                       <Button
@@ -502,6 +542,20 @@ export default function SocialFeedTab() {
             setSelectedInsightId(null);
           }}
           onSuccess={handleAdaptSuccess}
+        />
+      )}
+
+      {showActivityDetailModal && selectedActivityDetail && (
+        <ActivityDetailModal
+          activityId={selectedActivityDetail.activityId}
+          activityTitle={selectedActivityDetail.title}
+          activityType={selectedActivityDetail.type}
+          activityDate={selectedActivityDetail.date}
+          insightContent={selectedActivityDetail.insightContent}
+          onClose={() => {
+            setShowActivityDetailModal(false);
+            setSelectedActivityDetail(null);
+          }}
         />
       )}
     </div>
