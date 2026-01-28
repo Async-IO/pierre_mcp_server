@@ -34,6 +34,8 @@ pub mod recipes;
 pub mod seed_coaches;
 /// Social features (friend connections, shared insights)
 pub mod social;
+/// Synthetic provider activities storage
+pub mod synthetic_activities;
 /// System settings for admin-configurable options
 pub mod system_settings;
 /// Tool selection and per-tenant MCP tool configuration
@@ -3507,6 +3509,10 @@ impl DatabaseProvider for Database {
 
     async fn count_enabled_tools(&self, tenant_id: Uuid) -> AppResult<usize> {
         Self::count_enabled_tools_impl(self, tenant_id).await
+    }
+
+    async fn user_has_synthetic_activities(&self, user_id: Uuid) -> AppResult<bool> {
+        Self::user_has_synthetic_activities_impl(self, user_id).await
     }
 }
 

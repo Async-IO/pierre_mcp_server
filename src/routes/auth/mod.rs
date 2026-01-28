@@ -18,8 +18,8 @@ mod types;
 pub use types::{
     ConnectionStatus, FirebaseLoginRequest, LoginRequest, LoginResponse, OAuth2ErrorResponse,
     OAuth2TokenRequest, OAuth2TokenResponse, OAuthAuthorizationResponse, OAuthStatus,
-    RefreshTokenRequest, RegisterRequest, RegisterResponse, UpdateProfileRequest,
-    UpdateProfileResponse, UserInfo, UserStatsResponse,
+    ProviderStatus, ProvidersStatusResponse, RefreshTokenRequest, RegisterRequest,
+    RegisterResponse, UpdateProfileRequest, UpdateProfileResponse, UserInfo, UserStatsResponse,
 };
 
 use std::{
@@ -1289,6 +1289,7 @@ impl AuthRoutes {
                 get(Self::handle_oauth_callback),
             )
             .route("/api/oauth/status", get(Self::handle_oauth_status))
+            .route("/api/providers", get(Self::handle_providers_status))
             .route(
                 "/api/oauth/auth/:provider/:user_id",
                 get(Self::handle_oauth_auth_initiate),
@@ -2022,6 +2023,96 @@ impl AuthRoutes {
             );
 
         Ok((StatusCode::OK, Json(provider_statuses)).into_response())
+    }
+
+    /// Get all providers with connection status
+    ///
+    /// Returns all available providers from the registry with their connection status.
+    /// OAuth providers check `user_oauth_tokens`, non-OAuth providers (synthetic) check
+    /// if the user has data in the `synthetic_activities` table.
+    async fn handle_providers_status(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+    ) -> Result<Response, AppError> {
+        use crate::providers::registry::global_registry;
+
+        // Authenticate using middleware
+        let auth_result = resources
+            .auth_middleware
+            .authenticate_request_with_headers(&headers)
+            .await?;
+
+        let user_id = auth_result.user_id;
+
+        // Get all supported providers from the registry
+        let registry = global_registry();
+        let supported_providers = registry.supported_providers();
+
+        // Get user's OAuth tokens to check connection status
+        let oauth_tokens = resources
+            .database
+            .get_user_oauth_tokens(user_id)
+            .await
+            .unwrap_or_default();
+
+        let connected_oauth_providers: HashSet<String> =
+            oauth_tokens.into_iter().map(|t| t.provider).collect();
+
+        // Check if user has synthetic activities
+        let has_synthetic_activities = resources
+            .database
+            .user_has_synthetic_activities(user_id)
+            .await
+            .unwrap_or(false);
+
+        // Build provider status list
+        let mut provider_statuses = Vec::new();
+
+        for provider_name in supported_providers {
+            // Get provider descriptor from registry
+            if let Some(descriptor) = registry.get_descriptor(provider_name) {
+                let caps = descriptor.capabilities();
+                let requires_oauth = caps.requires_oauth();
+
+                // Determine connection status
+                let connected = if requires_oauth {
+                    // OAuth provider - check token table
+                    connected_oauth_providers.contains(provider_name)
+                } else {
+                    // Non-OAuth provider (synthetic) - check for data
+                    provider_name == "synthetic" && has_synthetic_activities
+                };
+
+                // Build capabilities list from bitflags
+                let mut capabilities = Vec::new();
+                if caps.supports_activities() {
+                    capabilities.push("activities".to_owned());
+                }
+                if caps.supports_sleep() {
+                    capabilities.push("sleep".to_owned());
+                }
+                if caps.supports_recovery() {
+                    capabilities.push("recovery".to_owned());
+                }
+                if caps.supports_health() {
+                    capabilities.push("health".to_owned());
+                }
+
+                provider_statuses.push(ProviderStatus {
+                    provider: provider_name.to_owned(),
+                    display_name: descriptor.display_name().to_owned(),
+                    requires_oauth,
+                    connected,
+                    capabilities,
+                });
+            }
+        }
+
+        let response = ProvidersStatusResponse {
+            providers: provider_statuses,
+        };
+
+        Ok((StatusCode::OK, Json(response)).into_response())
     }
 
     /// Parse a user ID string to UUID

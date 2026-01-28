@@ -48,6 +48,11 @@ name = "seed-social"
 path = "src/bin/seed_social.rs"
 bench = false
 
+[[bin]]
+name = "seed-synthetic-activities"
+path = "src/bin/seed_synthetic_activities.rs"
+bench = false
+
 # [[bin]]
 # name = "serve-docs"
 # path = "src/bin/serve_docs.rs"

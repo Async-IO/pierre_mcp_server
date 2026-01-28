@@ -121,6 +121,8 @@ pub use spi::SyntheticDescriptor;
 pub use spi::WhoopDescriptor;
 /// Re-export SPI types for external provider development
 pub use spi::{OAuthEndpoints, ProviderBundle, ProviderCapabilities, ProviderDescriptor};
+#[cfg(feature = "provider-synthetic")]
+pub use synthetic_provider::{get_synthetic_database_pool, set_synthetic_database_pool};
 /// Re-export Terra types
 #[cfg(feature = "provider-terra")]
 pub use terra::{

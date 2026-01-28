@@ -201,3 +201,28 @@ pub struct ConnectionStatus {
     /// Space-separated list of granted OAuth scopes
     pub scopes: Option<String>,
 }
+
+/// Provider status for the unified providers endpoint
+///
+/// Returns all available providers (OAuth and non-OAuth) with their connection status.
+/// This is the source of truth for frontend provider displays.
+#[derive(Debug, Serialize)]
+pub struct ProviderStatus {
+    /// Provider identifier (e.g., "strava", "synthetic")
+    pub provider: String,
+    /// Human-readable display name (e.g., "Strava", "Synthetic")
+    pub display_name: String,
+    /// Whether this provider requires OAuth authentication
+    pub requires_oauth: bool,
+    /// Whether the user is connected to this provider
+    pub connected: bool,
+    /// Provider capabilities (e.g., `["activities", "sleep"]`)
+    pub capabilities: Vec<String>,
+}
+
+/// Response for the /api/providers endpoint
+#[derive(Debug, Serialize)]
+pub struct ProvidersStatusResponse {
+    /// List of all available providers with their status
+    pub providers: Vec<ProviderStatus>,
+}

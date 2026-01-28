@@ -1,59 +1,62 @@
 // ABOUTME: Provider connection cards for the chat interface empty state
-// ABOUTME: Displays 5 fitness providers with connection status and OAuth initiation
+// ABOUTME: Displays fitness providers from server with connection status and OAuth initiation
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../services/api';
+import type { ProviderStatus } from '../services/api/oauth';
 import { Card, Badge } from './ui';
 
-interface Provider {
-  id: string;
-  name: string;
-  description: string;
-  brandColor: string;
-  hoverColor: string;
-}
-
-// Provider definitions with brand colors
-const PROVIDERS: Provider[] = [
-  {
-    id: 'strava',
-    name: 'Strava',
-    description: 'Running, cycling & activities',
+// Brand colors and hover colors for known providers
+const PROVIDER_STYLES: Record<string, { brandColor: string; hoverColor: string }> = {
+  strava: {
     brandColor: 'bg-[#FC4C02]',
     hoverColor: 'hover:border-[#FC4C02]',
   },
-  {
-    id: 'fitbit',
-    name: 'Fitbit',
-    description: 'Activity, sleep & heart rate',
+  fitbit: {
     brandColor: 'bg-[#00B0B9]',
     hoverColor: 'hover:border-[#00B0B9]',
   },
-  {
-    id: 'garmin',
-    name: 'Garmin',
-    description: 'Training metrics & GPS data',
+  garmin: {
     brandColor: 'bg-[#007CC3]',
     hoverColor: 'hover:border-[#007CC3]',
   },
-  {
-    id: 'whoop',
-    name: 'WHOOP',
-    description: 'Recovery & strain tracking',
+  whoop: {
     brandColor: 'bg-[#1A1A1A]',
     hoverColor: 'hover:border-[#1A1A1A]',
   },
-  {
-    id: 'terra',
-    name: 'Terra',
-    description: 'Multi-device aggregation',
+  terra: {
     brandColor: 'bg-[#22C55E]',
     hoverColor: 'hover:border-[#22C55E]',
   },
-];
+  synthetic: {
+    brandColor: 'bg-gradient-to-br from-pierre-violet to-pierre-cyan',
+    hoverColor: 'hover:border-pierre-violet',
+  },
+};
+
+// Default style for unknown providers
+const DEFAULT_STYLE = {
+  brandColor: 'bg-pierre-gray-500',
+  hoverColor: 'hover:border-pierre-gray-500',
+};
+
+// Get description based on capabilities
+const getProviderDescription = (provider: ProviderStatus): string => {
+  const caps = provider.capabilities;
+  if (caps.includes('activities') && caps.includes('sleep')) {
+    return 'Activities, sleep & recovery';
+  }
+  if (caps.includes('activities')) {
+    return 'Activities & workouts';
+  }
+  if (caps.includes('sleep')) {
+    return 'Sleep tracking';
+  }
+  return 'Fitness data';
+};
 
 // SVG icons for each provider - clean and professional
 const ProviderIcon = ({ providerId, className }: { providerId: string; className?: string }) => {
@@ -97,6 +100,12 @@ const ProviderIcon = ({ providerId, className }: { providerId: string; className
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
         </svg>
       );
+    case 'synthetic':
+      return (
+        <svg className={baseClass} viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H9V5h6v2z" />
+        </svg>
+      );
     default:
       return (
         <svg className={baseClass} viewBox="0 0 24 24" fill="currentColor">
@@ -121,34 +130,27 @@ export default function ProviderConnectionCards({
   onSkip,
   isSkipPending
 }: ProviderConnectionCardsProps) {
-  // Fetch OAuth connection status
-  const { data: oauthStatus, isLoading } = useQuery({
-    queryKey: ['oauth-status'],
-    queryFn: () => apiService.getOAuthStatus(),
+  // Fetch providers from server (includes OAuth and non-OAuth providers)
+  const { data: providersData, isLoading } = useQuery({
+    queryKey: ['providers-status'],
+    queryFn: () => apiService.getProvidersStatus(),
     refetchInterval: 5000,
   });
 
-  // Get connection status for a provider
-  const isConnected = (providerId: string): boolean => {
-    if (!oauthStatus?.providers) return false;
-    const provider = oauthStatus.providers.find(p => p.provider === providerId);
-    return provider?.connected ?? false;
-  };
-
   // Handle provider card click
-  const handleConnect = async (provider: Provider) => {
-    const connected = isConnected(provider.id);
-    if (connected) return;
+  const handleConnect = async (provider: ProviderStatus) => {
+    // If already connected or non-OAuth provider, no action needed
+    if (provider.connected || !provider.requires_oauth) return;
 
     // Use callback if provided (for chat-based connection flow)
     if (onConnectProvider) {
-      onConnectProvider(provider.name);
+      onConnectProvider(provider.display_name);
       return;
     }
 
     // Fallback: Navigate directly to OAuth authorization endpoint
     try {
-      const authUrl = await apiService.getOAuthAuthorizeUrl(provider.id);
+      const authUrl = await apiService.getOAuthAuthorizeUrl(provider.provider);
       // Open OAuth in new tab to avoid security blocks from automated browser detection
       window.open(authUrl, '_blank');
     } catch (error) {
@@ -157,7 +159,7 @@ export default function ProviderConnectionCards({
   };
 
   // Check if any provider is connected
-  const hasAnyConnection = oauthStatus?.providers?.some(p => p.connected) ?? false;
+  const hasAnyConnection = providersData?.providers?.some(p => p.connected) ?? false;
 
   // Notify parent when a connection is detected
   if (hasAnyConnection && onProviderConnected) {
@@ -184,52 +186,69 @@ export default function ProviderConnectionCards({
     );
   }
 
+  const providers = providersData?.providers ?? [];
+
   return (
     <div className="w-full">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {PROVIDERS.map((provider) => {
-          const connected = isConnected(provider.id);
-          const isConnecting = connectingProvider === provider.name;
+        {providers.map((provider) => {
+          const style = PROVIDER_STYLES[provider.provider] ?? DEFAULT_STYLE;
+          const isConnecting = connectingProvider === provider.display_name;
+          const isNonOAuth = !provider.requires_oauth;
+
           return (
             <button
-              key={provider.id}
+              key={provider.provider}
               type="button"
               onClick={() => handleConnect(provider)}
-              disabled={connected || isConnecting || !!connectingProvider}
+              disabled={provider.connected || isConnecting || !!connectingProvider || isNonOAuth}
               className="text-left focus:outline-none focus:ring-2 focus:ring-pierre-violet/50 rounded-xl disabled:cursor-default group"
-              aria-label={connected ? `${provider.name} is connected` : `Connect to ${provider.name}`}
+              aria-label={
+                provider.connected
+                  ? `${provider.display_name} is connected`
+                  : isNonOAuth
+                    ? `${provider.display_name} - ${getProviderDescription(provider)}`
+                    : `Connect to ${provider.display_name}`
+              }
             >
               <Card
                 className={`p-4 transition-all duration-200 h-full border-2 ${
-                  connected
+                  provider.connected
                     ? 'bg-pierre-gray-50/50 border-emerald-200'
                     : isConnecting
                       ? 'border-pierre-violet bg-pierre-violet/5'
-                      : `border-transparent ${provider.hoverColor} hover:shadow-lg hover:-translate-y-0.5`
+                      : isNonOAuth
+                        ? 'border-transparent bg-pierre-gray-50/30'
+                        : `border-transparent ${style.hoverColor} hover:shadow-lg hover:-translate-y-0.5`
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <div
-                    className={`w-10 h-10 rounded-xl ${provider.brandColor} flex items-center justify-center text-white shadow-sm`}
+                    className={`w-10 h-10 rounded-xl ${style.brandColor} flex items-center justify-center text-white shadow-sm`}
                   >
                     {isConnecting ? (
                       <div className="pierre-spinner w-5 h-5 border-white border-t-transparent"></div>
                     ) : (
-                      <ProviderIcon providerId={provider.id} />
+                      <ProviderIcon providerId={provider.provider} />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-pierre-gray-900 text-sm">{provider.name}</span>
-                      {connected && (
+                      <span className="font-semibold text-pierre-gray-900 text-sm">{provider.display_name}</span>
+                      {provider.connected && (
                         <Badge variant="success">
                           Connected
                         </Badge>
                       )}
+                      {isNonOAuth && !provider.connected && (
+                        <Badge variant="default">
+                          Demo
+                        </Badge>
+                      )}
                     </div>
-                    <p className="text-xs text-pierre-gray-500 mt-0.5">{provider.description}</p>
+                    <p className="text-xs text-pierre-gray-500 mt-0.5">{getProviderDescription(provider)}</p>
                   </div>
-                  {!connected && (
+                  {!provider.connected && provider.requires_oauth && (
                     <svg
                       className="w-4 h-4 text-pierre-gray-300 group-hover:text-pierre-gray-500 transition-colors"
                       fill="none"
@@ -245,7 +264,7 @@ export default function ProviderConnectionCards({
           );
         })}
 
-        {/* Skip and start chatting - 6th card */}
+        {/* Skip and start chatting - last card */}
         {onSkip && (
           <button
             type="button"

@@ -146,6 +146,10 @@ RUST_LOG=warn cargo run --bin seed-social || true
 echo -e "${BLUE}Step 5: Seeding mobility data...${NC}"
 RUST_LOG=warn cargo run --bin seed-mobility || true
 
+# Seed synthetic activities (100 diverse activities for testing without OAuth)
+echo -e "${BLUE}Step 6: Seeding synthetic activities...${NC}"
+RUST_LOG=warn cargo run --bin seed-synthetic-activities -- --count 100 || true
+
 echo ""
 echo -e "${GREEN}=== Database Reset Complete ===${NC}"
 echo ""

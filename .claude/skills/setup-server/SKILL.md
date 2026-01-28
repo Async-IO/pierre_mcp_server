@@ -24,6 +24,32 @@ Bootstraps the Pierre MCP Server with all required components: database, admin u
 /setup-server
 ```
 
+## Synthetic Provider vs Strava (IMPORTANT)
+
+**CLAUDE: Default to synthetic provider. Ask if Strava is needed.**
+
+### When to Use Synthetic Provider (DEFAULT)
+- **Most development and testing** - no OAuth required
+- **iOS Simulator testing** - works without external accounts
+- **UI/UX development** - realistic data without API limits
+- **CI/CD pipelines** - deterministic, reproducible tests
+
+### When Strava is Needed
+Only use Strava when:
+- Testing OAuth flow specifically
+- Validating real Strava API integration
+- User explicitly requests Strava data
+- Testing webhook sync features
+
+### Set Provider in .envrc
+```bash
+# Default to synthetic (RECOMMENDED)
+export PIERRE_DEFAULT_PROVIDER=synthetic
+
+# Only if Strava OAuth testing needed
+export PIERRE_DEFAULT_PROVIDER=strava
+```
+
 ## Default Test Credentials
 
 **CRITICAL: These are the default credentials from `.envrc`. Always use these for testing.**
@@ -127,6 +153,27 @@ echo "User JWT: $JWT_TOKEN"
 | Demo Data | `cargo run --bin seed-demo-data` | Dashboard analytics, API keys, usage time-series data |
 | Mobility | `cargo run --bin seed-mobility` | Stretching exercises, yoga poses, activity-muscle mappings |
 | Social | `cargo run --bin seed-social` | Friend connections, shared insights, reactions, feed data |
+| **Synthetic Activities** | `cargo run --bin seed-synthetic-activities` | **100+ diverse activities (run, MTB, nordic ski, etc.)** |
+
+### Synthetic Activities Seeder (NEW - For Testing Without Strava)
+
+**CRITICAL: Use this seeder for testing without OAuth.**
+
+```bash
+# Seed 100 activities for default test user
+cargo run --bin seed-synthetic-activities
+
+# Seed more activities
+cargo run --bin seed-synthetic-activities -- --count 200
+
+# Seed for specific user
+cargo run --bin seed-synthetic-activities -- --email alice@example.com
+
+# Reset and reseed
+cargo run --bin seed-synthetic-activities -- --reset --count 150
+```
+
+**Sport types included:** Run, Trail Run, Ride, Mountain Bike, Gravel Ride, Nordic Ski, Backcountry Ski, Alpine Ski, Swim, Hike, Walk, Weight Training, Yoga, Rowing, Kayaking, SUP, and more.
 
 ### Run All Seeders (Full Test Setup)
 
@@ -150,9 +197,11 @@ cargo run --bin seed-social
 |---------------------|------------------|
 | Mobile app login | `seed-coaches` (minimal) |
 | Coach conversations | `seed-coaches` |
+| Activity list/analysis | **`seed-synthetic-activities`** |
+| Performance insights | **`seed-synthetic-activities`** |
 | Dashboard/Analytics | `seed-demo-data` |
 | Mobility/Stretching | `seed-mobility` |
-| Friends/Feed/Social | `seed-social` |
+| Friends/Feed/Social | `seed-social` + `seed-synthetic-activities` |
 | **Full E2E testing** | **All seeders** |
 
 ## Complete User Workflow

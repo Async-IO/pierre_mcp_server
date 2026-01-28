@@ -10,6 +10,7 @@ import { dashboardApi } from './dashboard';
 import { a2aApi } from './a2a';
 import { adminApi } from './admin';
 import { socialApi as localSocialApi } from './social';
+import { oauthApi as localOauthApi } from './oauth';
 
 // Export the shared Pierre API instance for direct access
 export { pierreApi } from './client';
@@ -154,6 +155,8 @@ export const apiService = {
   // OAuth (from @pierre/api-client)
   getOAuthStatus: pierreApi.oauth.getStatus.bind(pierreApi.oauth),
   getOAuthAuthorizeUrl: pierreApi.oauth.getAuthorizeUrl.bind(pierreApi.oauth),
+  // Provider status (local - includes non-OAuth providers like synthetic)
+  getProvidersStatus: localOauthApi.getProvidersStatus,
 
   // A2A (web-only)
   registerA2AClient: a2aApi.registerA2AClient,

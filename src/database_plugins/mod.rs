@@ -1047,4 +1047,14 @@ pub trait DatabaseProvider: Send + Sync + Clone {
 
     /// Count enabled tools for a tenant
     async fn count_enabled_tools(&self, tenant_id: Uuid) -> AppResult<usize>;
+
+    // ================================
+    // Synthetic Provider Support
+    // ================================
+
+    /// Check if a user has synthetic activities seeded
+    ///
+    /// This is used by the providers endpoint to determine if the synthetic
+    /// provider should be shown as "connected" for a user.
+    async fn user_has_synthetic_activities(&self, user_id: Uuid) -> AppResult<bool>;
 }

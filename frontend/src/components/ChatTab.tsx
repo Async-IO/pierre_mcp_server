@@ -65,13 +65,13 @@ export default function ChatTab() {
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Fetch OAuth status
-  const { data: oauthStatus } = useQuery({
-    queryKey: ['oauth-status'],
-    queryFn: () => apiService.getOAuthStatus(),
+  // Fetch provider status (includes both OAuth and non-OAuth providers like synthetic)
+  const { data: providersData } = useQuery({
+    queryKey: ['providers-status'],
+    queryFn: () => apiService.getProvidersStatus(),
   });
 
-  const hasConnectedProvider = oauthStatus?.providers?.some(p => p.connected) ?? false;
+  const hasConnectedProvider = providersData?.providers?.some(p => p.connected) ?? false;
 
   // Fetch conversations list
   const { data: conversationsData, isLoading: conversationsLoading } = useQuery<{ conversations: Conversation[] }>({
@@ -351,8 +351,8 @@ export default function ChatTab() {
     if (oauthNotification) {
       messageContent = `[Context: I just connected my ${oauthNotification.provider} account successfully] ${displayContent}`;
     } else if (hasConnectedProvider && (!messagesData?.messages || messagesData.messages.length === 0)) {
-      const connectedProviders = oauthStatus?.providers?.filter(p => p.connected).map(p =>
-        p.provider.charAt(0).toUpperCase() + p.provider.slice(1)
+      const connectedProviders = providersData?.providers?.filter(p => p.connected).map(p =>
+        p.display_name
       ).join(', ');
       messageContent = `[Context: I have connected ${connectedProviders}] ${displayContent}`;
     }
@@ -450,7 +450,7 @@ export default function ChatTab() {
       setIsStreaming(false);
       setStreamingContent('');
     }
-  }, [newMessage, selectedConversation, isStreaming, connectingProvider, oauthNotification, hasConnectedProvider, messagesData?.messages, oauthStatus?.providers, queryClient]);
+  }, [newMessage, selectedConversation, isStreaming, connectingProvider, oauthNotification, hasConnectedProvider, messagesData?.messages, providersData?.providers, queryClient]);
 
   // Coach handlers
   const handleSelectPrompt = (prompt: string, systemPrompt?: string) => {
@@ -648,8 +648,8 @@ export default function ChatTab() {
                   <h2 className="text-xl font-semibold text-white">Chat</h2>
                   <p className="text-sm text-zinc-400">
                     {hasConnectedProvider
-                      ? oauthStatus?.providers?.filter(p => p.connected).map(p =>
-                          p.provider.charAt(0).toUpperCase() + p.provider.slice(1)
+                      ? providersData?.providers?.filter(p => p.connected).map(p =>
+                          p.display_name
                         ).join(', ') + ' connected'
                       : 'No provider connected'}
                   </p>
