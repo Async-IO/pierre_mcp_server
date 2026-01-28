@@ -37,6 +37,21 @@ export interface PromptSuggestionsResponse {
   suggestions: PromptSuggestion[];
 }
 
+export interface GenerateCoachRequest {
+  conversation_id: string;
+  max_messages?: number;
+}
+
+export interface GenerateCoachResponse {
+  title: string;
+  description: string;
+  system_prompt: string;
+  category: string;
+  tags: string[];
+  messages_analyzed: number;
+  total_messages: number;
+}
+
 /**
  * Creates the coaches API methods bound to an axios instance.
  */
@@ -219,6 +234,16 @@ export function createCoachesApi(axios: AxiosInstance) {
       const response = await axios.get<PromptSuggestionsResponse>(ENDPOINTS.PROMPTS.SUGGESTIONS);
       return response.data;
     },
+
+    /**
+     * Generate a coach from a conversation using LLM analysis.
+     */
+    async generateFromConversation(
+      request: GenerateCoachRequest
+    ): Promise<GenerateCoachResponse> {
+      const response = await axios.post<GenerateCoachResponse>(ENDPOINTS.COACHES.GENERATE, request);
+      return response.data;
+    },
   };
 
   // Add aliases for backward compatibility
@@ -238,6 +263,7 @@ export function createCoachesApi(axios: AxiosInstance) {
     getCoachVersion: api.getVersion,
     revertCoachToVersion: api.revertToVersion,
     getCoachVersionDiff: api.getVersionDiff,
+    generateCoachFromConversation: api.generateFromConversation,
   };
 }
 

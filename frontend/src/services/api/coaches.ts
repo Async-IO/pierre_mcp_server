@@ -140,6 +140,23 @@ export const coachesApi = {
     return response.data;
   },
 
+  // Coach Generation from Conversation
+  async generateCoachFromConversation(data: {
+    conversation_id: string;
+    max_messages?: number;
+  }): Promise<{
+    title: string;
+    description: string;
+    system_prompt: string;
+    category: string;
+    tags: string[];
+    messages_analyzed: number;
+    total_messages: number;
+  }> {
+    const response = await axios.post('/api/coaches/generate', data);
+    return response.data;
+  },
+
   // Prompt Suggestions
   async getPromptSuggestions(): Promise<{
     categories: Array<{

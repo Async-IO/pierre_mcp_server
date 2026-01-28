@@ -10,7 +10,7 @@
 mod common;
 mod helpers;
 
-use common::{create_test_server_resources, create_test_user};
+use common::{create_test_server_resources, create_test_user, create_test_user_with_email};
 use helpers::axum_test::AxumTestRequest;
 use pierre_mcp_server::database::coaches::{
     CoachCategory, CoachVisibility, CoachesManager, CreateSystemCoachRequest,
@@ -22,6 +22,7 @@ use pierre_mcp_server::routes::coaches::{
 
 use axum::http::StatusCode;
 use serde_json::json;
+use uuid::Uuid;
 
 // ============================================================================
 // Test Helpers
@@ -928,4 +929,150 @@ async fn test_list_with_include_hidden() {
         found_coach.is_some(),
         "Hidden coach should appear when include_hidden=true"
     );
+}
+
+// ============================================================================
+// Coach Generation from Conversation Tests
+// ============================================================================
+
+/// Generate coach endpoint requires authentication
+#[tokio::test]
+async fn test_generate_coach_requires_auth() {
+    let (router, _auth_token) = setup_test_environment().await;
+
+    // Try without auth token
+    let response = AxumTestRequest::post("/api/coaches/generate")
+        .json(&json!({
+            "conversation_id": "00000000-0000-0000-0000-000000000001"
+        }))
+        .send(router)
+        .await;
+
+    assert_eq!(response.status_code(), StatusCode::UNAUTHORIZED);
+}
+
+/// Generate coach endpoint returns 404 for non-existent conversation
+#[tokio::test]
+async fn test_generate_coach_nonexistent_conversation() {
+    let (router, auth_token) = setup_test_environment().await;
+
+    let fake_id = Uuid::new_v4().to_string();
+    let response = AxumTestRequest::post("/api/coaches/generate")
+        .header("authorization", &auth_token)
+        .json(&json!({
+            "conversation_id": fake_id
+        }))
+        .send(router)
+        .await;
+
+    assert_eq!(response.status_code(), StatusCode::NOT_FOUND);
+}
+
+/// Generate coach endpoint returns 400 for conversation with no messages
+#[tokio::test]
+async fn test_generate_coach_empty_conversation() {
+    use pierre_mcp_server::routes::chat::ChatRoutes;
+
+    #[derive(serde::Deserialize)]
+    struct ConvResponse {
+        id: String,
+    }
+
+    let resources = create_test_server_resources().await.unwrap();
+    let (_user_id, user) = create_test_user(&resources.database).await.unwrap();
+
+    let token = resources
+        .auth_manager
+        .generate_token(&user, &resources.jwks_manager)
+        .unwrap();
+    let auth_token = format!("Bearer {token}");
+
+    // Create a conversation first via chat routes
+    let chat_router = ChatRoutes::routes(resources.clone());
+
+    let create_response = AxumTestRequest::post("/api/chat/conversations")
+        .header("authorization", &auth_token)
+        .json(&json!({
+            "title": "Empty Conversation"
+        }))
+        .send(chat_router)
+        .await;
+
+    assert_eq!(create_response.status_code(), StatusCode::CREATED);
+
+    let conv: ConvResponse = create_response.json();
+
+    // Now try to generate coach from empty conversation
+    let coaches_router = CoachesRoutes::routes(resources);
+
+    let response = AxumTestRequest::post("/api/coaches/generate")
+        .header("authorization", &auth_token)
+        .json(&json!({
+            "conversation_id": conv.id
+        }))
+        .send(coaches_router)
+        .await;
+
+    // Should return 400 because conversation has no messages
+    assert_eq!(response.status_code(), StatusCode::BAD_REQUEST);
+}
+
+/// Generate coach endpoint returns 404 when accessing another user's conversation
+#[tokio::test]
+async fn test_generate_coach_other_users_conversation() {
+    use pierre_mcp_server::routes::chat::ChatRoutes;
+
+    #[derive(serde::Deserialize)]
+    struct ConvResponse {
+        id: String,
+    }
+
+    let resources = create_test_server_resources().await.unwrap();
+
+    // Create first user and their conversation
+    let (_user1_id, user1) = create_test_user(&resources.database).await.unwrap();
+    let token1 = resources
+        .auth_manager
+        .generate_token(&user1, &resources.jwks_manager)
+        .unwrap();
+    let auth_token1 = format!("Bearer {token1}");
+
+    // Create a conversation for user1
+    let chat_router = ChatRoutes::routes(resources.clone());
+
+    let create_response = AxumTestRequest::post("/api/chat/conversations")
+        .header("authorization", &auth_token1)
+        .json(&json!({
+            "title": "User1 Conversation"
+        }))
+        .send(chat_router)
+        .await;
+
+    assert_eq!(create_response.status_code(), StatusCode::CREATED);
+
+    let conv: ConvResponse = create_response.json();
+
+    // Create second user with different email
+    let (_user2_id, user2) = create_test_user_with_email(&resources.database, "user2@example.com")
+        .await
+        .unwrap();
+    let token2 = resources
+        .auth_manager
+        .generate_token(&user2, &resources.jwks_manager)
+        .unwrap();
+    let auth_token2 = format!("Bearer {token2}");
+
+    // Try to generate coach from user1's conversation as user2
+    let coaches_router = CoachesRoutes::routes(resources);
+
+    let response = AxumTestRequest::post("/api/coaches/generate")
+        .header("authorization", &auth_token2)
+        .json(&json!({
+            "conversation_id": conv.id
+        }))
+        .send(coaches_router)
+        .await;
+
+    // Should return 404 (not found for security - don't reveal conversation exists)
+    assert_eq!(response.status_code(), StatusCode::NOT_FOUND);
 }

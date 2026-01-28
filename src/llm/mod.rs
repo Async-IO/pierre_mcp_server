@@ -47,7 +47,7 @@ pub use gemini::{
 };
 pub use groq::GroqProvider;
 pub use openai_compatible::{OpenAiCompatibleConfig, OpenAiCompatibleProvider};
-pub use prompts::get_pierre_system_prompt;
+pub use prompts::{get_coach_generation_prompt, get_pierre_system_prompt};
 pub use provider::ChatProvider;
 
 use async_trait::async_trait;

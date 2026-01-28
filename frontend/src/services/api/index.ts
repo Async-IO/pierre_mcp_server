@@ -149,6 +149,7 @@ export const apiService = {
   revertCoachToVersion: pierreApi.coaches.revertToVersion.bind(pierreApi.coaches),
   getCoachVersionDiff: pierreApi.coaches.getVersionDiff.bind(pierreApi.coaches),
   getPromptSuggestions: pierreApi.coaches.getPromptSuggestions.bind(pierreApi.coaches),
+  generateCoachFromConversation: pierreApi.coaches.generateFromConversation.bind(pierreApi.coaches),
 
   // OAuth (from @pierre/api-client)
   getOAuthStatus: pierreApi.oauth.getStatus.bind(pierreApi.oauth),

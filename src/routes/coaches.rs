@@ -17,14 +17,18 @@ use crate::{
         parse_coach_content, to_markdown, CoachDefinition, CoachFrontmatter, CoachPrerequisites,
         CoachSections,
     },
-    database::coaches::{
-        Coach, CoachAssignment as DbCoachAssignment, CoachCategory, CoachListItem, CoachVersion,
-        CoachVisibility, CoachesManager, CreateCoachRequest,
-        CreateSystemCoachRequest as DbCreateSystemCoachRequest, ListCoachesFilter,
-        UpdateCoachRequest,
+    database::{
+        coaches::{
+            Coach, CoachAssignment as DbCoachAssignment, CoachCategory, CoachListItem,
+            CoachVersion, CoachVisibility, CoachesManager, CreateCoachRequest,
+            CreateSystemCoachRequest as DbCreateSystemCoachRequest, ListCoachesFilter,
+            UpdateCoachRequest,
+        },
+        ChatManager,
     },
     database_plugins::DatabaseProvider,
     errors::{AppError, ErrorCode},
+    llm::{get_coach_generation_prompt, ChatMessage, ChatProvider, ChatRequest},
     mcp::resources::ServerResources,
     permissions::UserRole,
     security::cookies::get_cookie_value,
@@ -393,6 +397,51 @@ impl From<UpdateCoachBody> for UpdateCoachRequest {
     }
 }
 
+/// Request to generate a coach from a conversation
+#[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct GenerateCoachRequest {
+    /// The conversation ID to analyze
+    pub conversation_id: String,
+    /// Maximum number of messages to analyze (default: 10)
+    #[serde(default = "default_max_messages")]
+    pub max_messages: usize,
+}
+
+const fn default_max_messages() -> usize {
+    10
+}
+
+/// Response for coach generation
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
+pub struct GenerateCoachResponse {
+    /// Generated title for the coach
+    pub title: String,
+    /// Generated description
+    pub description: String,
+    /// Generated system prompt
+    pub system_prompt: String,
+    /// Suggested category
+    pub category: String,
+    /// Suggested tags
+    pub tags: Vec<String>,
+    /// Number of messages analyzed
+    pub messages_analyzed: usize,
+    /// Total messages in the conversation
+    pub total_messages: usize,
+}
+
+/// Internal struct for parsing LLM JSON response
+#[derive(Debug, Deserialize)]
+struct GeneratedCoachData {
+    title: String,
+    description: String,
+    system_prompt: String,
+    category: String,
+    tags: Vec<String>,
+}
+
 /// Coaches routes handler
 pub struct CoachesRoutes;
 
@@ -405,6 +454,7 @@ impl CoachesRoutes {
             .route("/api/coaches/search", get(Self::handle_search))
             .route("/api/coaches/hidden", get(Self::handle_list_hidden))
             .route("/api/coaches/import", post(Self::handle_import))
+            .route("/api/coaches/generate", post(Self::handle_generate))
             .route("/api/coaches/:id", get(Self::handle_get))
             .route("/api/coaches/:id", put(Self::handle_update))
             .route("/api/coaches/:id", delete(Self::handle_delete))
@@ -735,6 +785,99 @@ impl CoachesRoutes {
             token_count: definition.token_count,
         };
         Ok((StatusCode::CREATED, Json(response)).into_response())
+    }
+
+    /// Handle POST /api/coaches/generate - Generate coach from conversation
+    ///
+    /// Uses the LLM to analyze the last N messages of a conversation and
+    /// generate a coach profile with title, description, system prompt, and tags.
+    async fn handle_generate(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Json(body): Json<GenerateCoachRequest>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+
+        // Get chat manager to fetch conversation messages
+        let pool = resources
+            .database
+            .sqlite_pool()
+            .ok_or_else(|| AppError::internal("SQLite database required for coach generation"))?
+            .clone();
+        let chat_manager = ChatManager::new(pool);
+
+        // Verify user owns the conversation (get_conversation returns None if not found or not owned)
+        chat_manager
+            .get_conversation(&body.conversation_id, &auth.user_id.to_string(), &tenant_id)
+            .await?
+            .ok_or_else(|| AppError::not_found("Conversation"))?;
+
+        // Get conversation messages
+        let messages = chat_manager.get_messages(&body.conversation_id).await?;
+        let total_messages = messages.len();
+
+        if messages.is_empty() {
+            return Err(AppError::invalid_input(
+                "Cannot generate coach from empty conversation",
+            ));
+        }
+
+        // Take the last N messages (or all if fewer)
+        let messages_to_analyze: Vec<_> = messages
+            .iter()
+            .rev()
+            .take(body.max_messages)
+            .rev()
+            .collect();
+        let messages_analyzed = messages_to_analyze.len();
+
+        // Build the conversation text for LLM analysis
+        let conversation_text = messages_to_analyze
+            .iter()
+            .map(|m| format!("[{}]: {}", m.role, m.content))
+            .collect::<Vec<_>>()
+            .join("\n\n");
+
+        // Build LLM request with generation prompt
+        let system_prompt = get_coach_generation_prompt();
+        let user_prompt = format!(
+            "Analyze this fitness conversation and create a specialized coach profile.\n\n\
+            Conversation (last {messages_analyzed} of {total_messages} messages):\n\n\
+            {conversation_text}"
+        );
+
+        let llm_messages = vec![
+            ChatMessage::system(system_prompt),
+            ChatMessage::user(&user_prompt),
+        ];
+
+        // Get LLM provider and generate
+        let provider = ChatProvider::from_env()?;
+        let request = ChatRequest::new(llm_messages);
+        let response = provider.complete(&request).await?;
+
+        if response.content.is_empty() {
+            return Err(AppError::internal("LLM returned empty response"));
+        }
+
+        // Parse the JSON response from LLM
+        let generated: GeneratedCoachData =
+            serde_json::from_str(&response.content).map_err(|e| {
+                AppError::internal(format!("Failed to parse LLM response as JSON: {e}"))
+            })?;
+
+        let response = GenerateCoachResponse {
+            title: generated.title,
+            description: generated.description,
+            system_prompt: generated.system_prompt,
+            category: generated.category,
+            tags: generated.tags,
+            messages_analyzed,
+            total_messages,
+        };
+
+        Ok((StatusCode::OK, Json(response)).into_response())
     }
 
     /// Handle PUT /api/coaches/:id - Update a coach

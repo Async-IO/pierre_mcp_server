@@ -45,6 +45,8 @@ export type {
   PromptSuggestion,
   PromptSuggestionsResponse,
   ForkCoachResponse,
+  GenerateCoachRequest,
+  GenerateCoachResponse,
 } from './domains/coaches';
 
 export { createOAuthApi } from './domains/oauth';
@@ -213,6 +215,7 @@ export function createLegacyApiService(adapter: PlatformAdapter) {
     revertCoachToVersion: api.coaches.revertToVersion.bind(api.coaches),
     getCoachVersionDiff: api.coaches.getVersionDiff.bind(api.coaches),
     getPromptSuggestions: api.coaches.getPromptSuggestions.bind(api.coaches),
+    generateCoachFromConversation: api.coaches.generateFromConversation.bind(api.coaches),
 
     // OAuth
     getOAuthStatus: api.oauth.getStatus.bind(api.oauth),

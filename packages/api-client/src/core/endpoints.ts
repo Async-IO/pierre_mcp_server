@@ -63,6 +63,8 @@ export const ENDPOINTS = {
       `/api/coaches/${id}/versions/${fromVersion}/diff/${toVersion}`,
     /** Coach assignments */
     ASSIGNMENTS: (id: string) => `/api/coaches/${id}/assignments`,
+    /** Generate coach from conversation */
+    GENERATE: '/api/coaches/generate',
   },
 
   // ==================== PROMPTS ====================
