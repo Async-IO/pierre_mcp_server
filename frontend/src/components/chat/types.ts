@@ -24,6 +24,8 @@ export interface MessageMetadata {
   executionTimeMs: number;
 }
 
+export type MessageFeedback = 'up' | 'down' | null;
+
 export interface OAuthNotification {
   provider: string;
   timestamp: number;

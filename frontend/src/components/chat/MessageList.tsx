@@ -7,12 +7,13 @@
 import { useRef, useEffect } from 'react';
 import Markdown from 'react-markdown';
 import MessageItem from './MessageItem';
-import type { Message, MessageMetadata, OAuthNotification } from './types';
+import type { Message, MessageMetadata, MessageFeedback, OAuthNotification } from './types';
 import { linkifyUrls } from './utils';
 
 interface MessageListProps {
   messages: Message[];
   messageMetadata: Map<string, MessageMetadata>;
+  messageFeedback: Map<string, MessageFeedback>;
   isLoading: boolean;
   isStreaming: boolean;
   streamingContent: string;
@@ -21,12 +22,18 @@ interface MessageListProps {
   oauthNotification: OAuthNotification | null;
   onDismissError: () => void;
   onDismissOAuthNotification: () => void;
+  onCopyMessage: (content: string) => void;
   onShareMessage: (content: string) => void;
+  onShareToFeed: (content: string) => void;
+  onThumbsUp: (messageId: string) => void;
+  onThumbsDown: (messageId: string) => void;
+  onRetryMessage: (messageId: string) => void;
 }
 
 export default function MessageList({
   messages,
   messageMetadata,
+  messageFeedback,
   isLoading,
   isStreaming,
   streamingContent,
@@ -35,7 +42,12 @@ export default function MessageList({
   oauthNotification,
   onDismissError,
   onDismissOAuthNotification,
+  onCopyMessage,
   onShareMessage,
+  onShareToFeed,
+  onThumbsUp,
+  onThumbsDown,
+  onRetryMessage,
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -57,7 +69,13 @@ export default function MessageList({
           key={msg.id}
           message={msg}
           metadata={messageMetadata.get(msg.id)}
+          feedback={messageFeedback.get(msg.id)}
+          onCopy={msg.role === 'assistant' ? () => onCopyMessage(msg.content) : undefined}
           onShare={msg.role === 'assistant' ? () => onShareMessage(msg.content) : undefined}
+          onShareToFeed={msg.role === 'assistant' ? () => onShareToFeed(msg.content) : undefined}
+          onThumbsUp={msg.role === 'assistant' ? () => onThumbsUp(msg.id) : undefined}
+          onThumbsDown={msg.role === 'assistant' ? () => onThumbsDown(msg.id) : undefined}
+          onRetry={msg.role === 'assistant' ? () => onRetryMessage(msg.id) : undefined}
         />
       ))}
 

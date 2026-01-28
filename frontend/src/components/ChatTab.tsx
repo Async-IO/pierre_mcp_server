@@ -27,6 +27,7 @@ import type {
   Conversation,
   Coach,
   MessageMetadata,
+  MessageFeedback,
   OAuthNotification,
   CoachDeleteConfirmation,
   PendingCoachAction,
@@ -50,6 +51,7 @@ export default function ChatTab() {
   const [showProviderModal, setShowProviderModal] = useState(false);
   const [pendingCoachAction, setPendingCoachAction] = useState<PendingCoachAction | null>(null);
   const [messageMetadata, setMessageMetadata] = useState<Map<string, MessageMetadata>>(new Map());
+  const [messageFeedback, setMessageFeedback] = useState<Map<string, MessageFeedback>>(new Map());
   const [showCoachModal, setShowCoachModal] = useState(false);
   const [editingCoachId, setEditingCoachId] = useState<string | null>(null);
   const [coachFormData, setCoachFormData] = useState<CoachFormData>(DEFAULT_COACH_FORM_DATA);
@@ -535,6 +537,71 @@ export default function ChatTab() {
     window.open(`/api/oauth/${provider}/connect`, '_blank');
   };
 
+  // Message action handlers
+  const handleCopyMessage = useCallback((content: string) => {
+    navigator.clipboard.writeText(stripContextPrefix(content));
+  }, []);
+
+  const handleShareMessage = useCallback((content: string) => {
+    // Use native Web Share API if available, otherwise copy to clipboard
+    const strippedContent = stripContextPrefix(content);
+    if (navigator.share) {
+      navigator.share({
+        title: 'Pierre AI Insight',
+        text: strippedContent,
+      }).catch(() => {
+        // User cancelled share, ignore
+      });
+    } else {
+      navigator.clipboard.writeText(strippedContent);
+    }
+  }, []);
+
+  const handleThumbsUp = useCallback((messageId: string) => {
+    setMessageFeedback(prev => {
+      const newMap = new Map(prev);
+      const current = newMap.get(messageId);
+      // Toggle: if already up, remove; otherwise set to up
+      newMap.set(messageId, current === 'up' ? null : 'up');
+      return newMap;
+    });
+  }, []);
+
+  const handleThumbsDown = useCallback((messageId: string) => {
+    setMessageFeedback(prev => {
+      const newMap = new Map(prev);
+      const current = newMap.get(messageId);
+      // Toggle: if already down, remove; otherwise set to down
+      newMap.set(messageId, current === 'down' ? null : 'down');
+      return newMap;
+    });
+  }, []);
+
+  const handleRetryMessage = useCallback(async (messageId: string) => {
+    if (!selectedConversation || isStreaming) return;
+
+    // Find the message to retry and get the preceding user message
+    const messages = messagesData?.messages || [];
+    const messageIndex = messages.findIndex(m => m.id === messageId);
+    if (messageIndex <= 0) return;
+
+    // Find the user message that preceded this assistant message
+    let userMessageIndex = messageIndex - 1;
+    while (userMessageIndex >= 0 && messages[userMessageIndex].role !== 'user') {
+      userMessageIndex--;
+    }
+    if (userMessageIndex < 0) return;
+
+    const userMessage = messages[userMessageIndex];
+    setNewMessage(userMessage.content);
+
+    // Use setTimeout to allow state update before triggering send
+    setTimeout(() => {
+      const sendButton = document.querySelector('[aria-label="Send message"]') as HTMLButtonElement;
+      sendButton?.click();
+    }, 100);
+  }, [selectedConversation, isStreaming, messagesData?.messages]);
+
   const handleProviderModalClose = () => {
     setShowProviderModal(false);
     setPendingCoachAction(null);
@@ -742,6 +809,7 @@ export default function ChatTab() {
               <MessageList
                 messages={messagesData?.messages || []}
                 messageMetadata={messageMetadata}
+                messageFeedback={messageFeedback}
                 isLoading={messagesLoading}
                 isStreaming={isStreaming}
                 streamingContent={streamingContent}
@@ -750,7 +818,12 @@ export default function ChatTab() {
                 oauthNotification={oauthNotification}
                 onDismissError={() => { setErrorMessage(null); setErrorCountdown(null); }}
                 onDismissOAuthNotification={() => setOauthNotification(null)}
-                onShareMessage={(content) => setShareMessageContent(stripContextPrefix(content))}
+                onCopyMessage={handleCopyMessage}
+                onShareMessage={handleShareMessage}
+                onShareToFeed={(content) => setShareMessageContent(stripContextPrefix(content))}
+                onThumbsUp={handleThumbsUp}
+                onThumbsDown={handleThumbsDown}
+                onRetryMessage={handleRetryMessage}
               />
             </div>
           </div>
