@@ -1,0 +1,30 @@
+# ABOUTME: Test analyzing training load with synthetic data
+# ABOUTME: Converted from synthetic-provider.test.js "should analyze training load"
+
+appId: com.asyncio.pierre
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Start fresh conversation
+- runFlow:
+    file: ../helpers/new-chat.yaml
+
+# Analyze training load
+- tapOn:
+    id: "message-input"
+- inputText: "Analyze my training load using synthetic data"
+- tapOn:
+    id: "send-button"
+
+# Wait for response
+- assertNotVisible:
+    text: "Pierre is thinking..."
+    timeout: 30000
+
+- assertVisible:
+    id: "chat-screen"
