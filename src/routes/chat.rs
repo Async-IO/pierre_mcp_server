@@ -11,12 +11,12 @@
 
 use crate::{
     auth::AuthResult,
-    database::{ChatManager, ConversationRecord, MessageRecord},
+    database::{ConversationRecord, MessageRecord},
     database_plugins::DatabaseProvider,
     errors::AppError,
     llm::{
         get_pierre_system_prompt, ChatMessage, ChatProvider, ChatRequest, FunctionCall,
-        FunctionDeclaration, FunctionResponse, MessageRole, TokenUsage, Tool,
+        FunctionDeclaration, FunctionResponse, TokenUsage, Tool,
     },
     mcp::resources::ServerResources,
     protocols::universal::{UniversalExecutor, UniversalRequest, UniversalResponse},
@@ -316,16 +316,6 @@ impl ChatRoutes {
         Ok(tenants
             .first()
             .map_or_else(|| user_id.to_string(), |t| t.id.to_string()))
-    }
-
-    /// Create a `ChatManager` from server resources
-    fn create_chat_manager(resources: &ServerResources) -> Result<ChatManager, AppError> {
-        let pool = resources
-            .database
-            .sqlite_pool()
-            .ok_or_else(|| AppError::internal("Chat feature requires SQLite database"))?
-            .clone();
-        Ok(ChatManager::new(pool))
     }
 
     /// Get the system prompt text for a conversation
@@ -766,10 +756,10 @@ impl ChatRoutes {
                 |p| p.default_model().to_owned(),
             )
         });
-        let chat_manager = Self::create_chat_manager(&resources)?;
 
-        let conv = chat_manager
-            .create_conversation(
+        let conv = resources
+            .database
+            .chat_create_conversation(
                 &auth.user_id.to_string(),
                 &tenant_id,
                 &request.title,
@@ -800,10 +790,9 @@ impl ChatRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
 
-        let chat_manager = Self::create_chat_manager(&resources)?;
-
-        let conversations = chat_manager
-            .list_conversations(
+        let conversations = resources
+            .database
+            .chat_list_conversations(
                 &auth.user_id.to_string(),
                 &tenant_id,
                 query.limit,
@@ -840,10 +829,9 @@ impl ChatRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
 
-        let chat_manager = Self::create_chat_manager(&resources)?;
-
-        let conv = chat_manager
-            .get_conversation(&conversation_id, &auth.user_id.to_string(), &tenant_id)
+        let conv = resources
+            .database
+            .chat_get_conversation(&conversation_id, &auth.user_id.to_string(), &tenant_id)
             .await?
             .ok_or_else(|| AppError::not_found("Conversation not found"))?;
 
@@ -870,10 +858,9 @@ impl ChatRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
 
-        let chat_manager = Self::create_chat_manager(&resources)?;
-
-        let updated = chat_manager
-            .update_conversation_title(
+        let updated = resources
+            .database
+            .chat_update_conversation_title(
                 &conversation_id,
                 &auth.user_id.to_string(),
                 &tenant_id,
@@ -886,8 +873,9 @@ impl ChatRoutes {
         }
 
         // Fetch and return the updated conversation (proper REST response)
-        let conv = chat_manager
-            .get_conversation(&conversation_id, &auth.user_id.to_string(), &tenant_id)
+        let conv = resources
+            .database
+            .chat_get_conversation(&conversation_id, &auth.user_id.to_string(), &tenant_id)
             .await?
             .ok_or_else(|| AppError::internal("Conversation not found after update"))?;
 
@@ -913,10 +901,9 @@ impl ChatRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
 
-        let chat_manager = Self::create_chat_manager(&resources)?;
-
-        let deleted = chat_manager
-            .delete_conversation(&conversation_id, &auth.user_id.to_string(), &tenant_id)
+        let deleted = resources
+            .database
+            .chat_delete_conversation(&conversation_id, &auth.user_id.to_string(), &tenant_id)
             .await?;
 
         if !deleted {
@@ -939,15 +926,17 @@ impl ChatRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
 
-        let chat_manager = Self::create_chat_manager(&resources)?;
-
         // Verify user owns this conversation
-        chat_manager
-            .get_conversation(&conversation_id, &auth.user_id.to_string(), &tenant_id)
+        resources
+            .database
+            .chat_get_conversation(&conversation_id, &auth.user_id.to_string(), &tenant_id)
             .await?
             .ok_or_else(|| AppError::not_found("Conversation not found"))?;
 
-        let messages = chat_manager.get_messages(&conversation_id).await?;
+        let messages = resources
+            .database
+            .chat_get_messages(&conversation_id)
+            .await?;
 
         let messages_list: Vec<MessageResponse> = messages
             .into_iter()
@@ -977,27 +966,24 @@ impl ChatRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
 
-        let chat_manager = Self::create_chat_manager(&resources)?;
-
         // Get conversation to verify ownership and get model/system prompt
-        let conv = chat_manager
-            .get_conversation(&conversation_id, &auth.user_id.to_string(), &tenant_id)
+        let conv = resources
+            .database
+            .chat_get_conversation(&conversation_id, &auth.user_id.to_string(), &tenant_id)
             .await?
             .ok_or_else(|| AppError::not_found("Conversation not found"))?;
 
         // Save user message
-        let user_msg = chat_manager
-            .add_message(
-                &conversation_id,
-                MessageRole::User,
-                &request.content,
-                None,
-                None,
-            )
+        let user_msg = resources
+            .database
+            .chat_add_message(&conversation_id, "user", &request.content, None, None)
             .await?;
 
         // Get conversation history and build LLM messages with system prompt
-        let history = chat_manager.get_messages(&conversation_id).await?;
+        let history = resources
+            .database
+            .chat_get_messages(&conversation_id)
+            .await?;
 
         let system_prompt_text = Self::get_system_prompt_text(&conv);
         let mut llm_messages =
@@ -1046,10 +1032,11 @@ impl ChatRoutes {
         };
 
         // Save assistant response
-        let assistant_msg = chat_manager
-            .add_message(
+        let assistant_msg = resources
+            .database
+            .chat_add_message(
                 &conversation_id,
-                MessageRole::Assistant,
+                "assistant",
                 &final_content,
                 token_count,
                 result.finish_reason.as_deref(),
@@ -1057,8 +1044,9 @@ impl ChatRoutes {
             .await?;
 
         // Get updated conversation for timestamp
-        let updated_conv = chat_manager
-            .get_conversation(&conversation_id, &auth.user_id.to_string(), &tenant_id)
+        let updated_conv = resources
+            .database
+            .chat_get_conversation(&conversation_id, &auth.user_id.to_string(), &tenant_id)
             .await?
             .ok_or_else(|| AppError::internal("Failed to get updated conversation"))?;
 
@@ -1095,27 +1083,24 @@ impl ChatRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
 
-        let chat_manager = Self::create_chat_manager(&resources)?;
-
         // Get conversation to verify ownership and get model/system prompt
-        let conv = chat_manager
-            .get_conversation(&conversation_id, &auth.user_id.to_string(), &tenant_id)
+        let conv = resources
+            .database
+            .chat_get_conversation(&conversation_id, &auth.user_id.to_string(), &tenant_id)
             .await?
             .ok_or_else(|| AppError::not_found("Conversation not found"))?;
 
         // Save user message
-        let user_msg = chat_manager
-            .add_message(
-                &conversation_id,
-                MessageRole::User,
-                &request.content,
-                None,
-                None,
-            )
+        let user_msg = resources
+            .database
+            .chat_add_message(&conversation_id, "user", &request.content, None, None)
             .await?;
 
         // Get conversation history and build LLM messages with system prompt
-        let history = chat_manager.get_messages(&conversation_id).await?;
+        let history = resources
+            .database
+            .chat_get_messages(&conversation_id)
+            .await?;
 
         let system_prompt_text = Self::get_system_prompt_text(&conv);
         let llm_messages = Self::build_llm_messages(Some(system_prompt_text.as_str()), &history);
@@ -1131,11 +1116,7 @@ impl ChatRoutes {
         // Create stream for SSE
         // Clone values needed for the async block
         let conv_id = conversation_id.clone();
-        let pool = resources
-            .database
-            .sqlite_pool()
-            .ok_or_else(|| AppError::internal("Chat feature requires SQLite database"))?
-            .clone();
+        let stream_resources = resources.clone(); // Arc clone for async stream
 
         let stream = async_stream::stream! {
             let mut full_content = String::new();
@@ -1182,10 +1163,9 @@ impl ChatRoutes {
             }
 
             // Save complete assistant message
-            let chat_mgr = ChatManager::new(pool);
-            match chat_mgr.add_message(
+            match stream_resources.database.chat_add_message(
                 &conv_id,
-                MessageRole::Assistant,
+                "assistant",
                 &full_content,
                 None, // We don't have token count from streaming
                 finish_reason.as_deref(),

@@ -2207,6 +2207,178 @@ impl Database {
             },
         )
     }
+
+    // ================================
+    // Chat Conversations & Messages
+    // ================================
+
+    /// Create a new conversation (impl for trait)
+    ///
+    /// # Errors
+    /// Returns an error if the database insert fails.
+    pub async fn chat_create_conversation_impl(
+        &self,
+        user_id: &str,
+        tenant_id: &str,
+        title: &str,
+        model: &str,
+        system_prompt: Option<&str>,
+    ) -> AppResult<ConversationRecord> {
+        let chat_manager = ChatManager::new(self.pool.clone());
+        chat_manager
+            .create_conversation(user_id, tenant_id, title, model, system_prompt)
+            .await
+    }
+
+    /// Get a conversation by ID (impl for trait)
+    ///
+    /// # Errors
+    /// Returns an error if the database query fails.
+    pub async fn chat_get_conversation_impl(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+        tenant_id: &str,
+    ) -> AppResult<Option<ConversationRecord>> {
+        let chat_manager = ChatManager::new(self.pool.clone());
+        chat_manager
+            .get_conversation(conversation_id, user_id, tenant_id)
+            .await
+    }
+
+    /// List conversations (impl for trait)
+    ///
+    /// # Errors
+    /// Returns an error if the database query fails.
+    pub async fn chat_list_conversations_impl(
+        &self,
+        user_id: &str,
+        tenant_id: &str,
+        limit: i64,
+        offset: i64,
+    ) -> AppResult<Vec<ConversationSummary>> {
+        let chat_manager = ChatManager::new(self.pool.clone());
+        chat_manager
+            .list_conversations(user_id, tenant_id, limit, offset)
+            .await
+    }
+
+    /// Update conversation title (impl for trait)
+    ///
+    /// # Errors
+    /// Returns an error if the database update fails.
+    pub async fn chat_update_conversation_title_impl(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+        tenant_id: &str,
+        title: &str,
+    ) -> AppResult<bool> {
+        let chat_manager = ChatManager::new(self.pool.clone());
+        chat_manager
+            .update_conversation_title(conversation_id, user_id, tenant_id, title)
+            .await
+    }
+
+    /// Delete a conversation (impl for trait)
+    ///
+    /// # Errors
+    /// Returns an error if the database delete fails.
+    pub async fn chat_delete_conversation_impl(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+        tenant_id: &str,
+    ) -> AppResult<bool> {
+        let chat_manager = ChatManager::new(self.pool.clone());
+        chat_manager
+            .delete_conversation(conversation_id, user_id, tenant_id)
+            .await
+    }
+
+    /// Add a message to a conversation (impl for trait)
+    ///
+    /// # Errors
+    /// Returns an error if the database insert fails.
+    pub async fn chat_add_message_impl(
+        &self,
+        conversation_id: &str,
+        role: &str,
+        content: &str,
+        token_count: Option<u32>,
+        finish_reason: Option<&str>,
+    ) -> AppResult<MessageRecord> {
+        use crate::llm::MessageRole;
+
+        let message_role = match role {
+            "assistant" => MessageRole::Assistant,
+            "system" => MessageRole::System,
+            // Default to User for "user" and any unrecognized roles
+            _ => MessageRole::User,
+        };
+
+        let chat_manager = ChatManager::new(self.pool.clone());
+        chat_manager
+            .add_message(
+                conversation_id,
+                message_role,
+                content,
+                token_count,
+                finish_reason,
+            )
+            .await
+    }
+
+    /// Get all messages for a conversation (impl for trait)
+    ///
+    /// # Errors
+    /// Returns an error if the database query fails.
+    pub async fn chat_get_messages_impl(
+        &self,
+        conversation_id: &str,
+    ) -> AppResult<Vec<MessageRecord>> {
+        let chat_manager = ChatManager::new(self.pool.clone());
+        chat_manager.get_messages(conversation_id).await
+    }
+
+    /// Get recent messages (impl for trait)
+    ///
+    /// # Errors
+    /// Returns an error if the database query fails.
+    pub async fn chat_get_recent_messages_impl(
+        &self,
+        conversation_id: &str,
+        limit: i64,
+    ) -> AppResult<Vec<MessageRecord>> {
+        let chat_manager = ChatManager::new(self.pool.clone());
+        chat_manager
+            .get_recent_messages(conversation_id, limit)
+            .await
+    }
+
+    /// Get message count (impl for trait)
+    ///
+    /// # Errors
+    /// Returns an error if the database query fails.
+    pub async fn chat_get_message_count_impl(&self, conversation_id: &str) -> AppResult<i64> {
+        let chat_manager = ChatManager::new(self.pool.clone());
+        chat_manager.get_message_count(conversation_id).await
+    }
+
+    /// Delete all conversations for a user (impl for trait)
+    ///
+    /// # Errors
+    /// Returns an error if the database query fails.
+    pub async fn chat_delete_all_user_conversations_impl(
+        &self,
+        user_id: &str,
+        tenant_id: &str,
+    ) -> AppResult<i64> {
+        let chat_manager = ChatManager::new(self.pool.clone());
+        chat_manager
+            .delete_all_user_conversations(user_id, tenant_id)
+            .await
+    }
 }
 
 // Implement HasEncryption trait for SQLite (delegates to inherent impl methods)
@@ -3513,6 +3685,104 @@ impl DatabaseProvider for Database {
 
     async fn user_has_synthetic_activities(&self, user_id: Uuid) -> AppResult<bool> {
         Self::user_has_synthetic_activities_impl(self, user_id).await
+    }
+
+    // ================================
+    // Chat Conversations & Messages
+    // ================================
+
+    async fn chat_create_conversation(
+        &self,
+        user_id: &str,
+        tenant_id: &str,
+        title: &str,
+        model: &str,
+        system_prompt: Option<&str>,
+    ) -> AppResult<ConversationRecord> {
+        Self::chat_create_conversation_impl(self, user_id, tenant_id, title, model, system_prompt)
+            .await
+    }
+
+    async fn chat_get_conversation(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+        tenant_id: &str,
+    ) -> AppResult<Option<ConversationRecord>> {
+        Self::chat_get_conversation_impl(self, conversation_id, user_id, tenant_id).await
+    }
+
+    async fn chat_list_conversations(
+        &self,
+        user_id: &str,
+        tenant_id: &str,
+        limit: i64,
+        offset: i64,
+    ) -> AppResult<Vec<ConversationSummary>> {
+        Self::chat_list_conversations_impl(self, user_id, tenant_id, limit, offset).await
+    }
+
+    async fn chat_update_conversation_title(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+        tenant_id: &str,
+        title: &str,
+    ) -> AppResult<bool> {
+        Self::chat_update_conversation_title_impl(self, conversation_id, user_id, tenant_id, title)
+            .await
+    }
+
+    async fn chat_delete_conversation(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+        tenant_id: &str,
+    ) -> AppResult<bool> {
+        Self::chat_delete_conversation_impl(self, conversation_id, user_id, tenant_id).await
+    }
+
+    async fn chat_add_message(
+        &self,
+        conversation_id: &str,
+        role: &str,
+        content: &str,
+        token_count: Option<u32>,
+        finish_reason: Option<&str>,
+    ) -> AppResult<MessageRecord> {
+        Self::chat_add_message_impl(
+            self,
+            conversation_id,
+            role,
+            content,
+            token_count,
+            finish_reason,
+        )
+        .await
+    }
+
+    async fn chat_get_messages(&self, conversation_id: &str) -> AppResult<Vec<MessageRecord>> {
+        Self::chat_get_messages_impl(self, conversation_id).await
+    }
+
+    async fn chat_get_recent_messages(
+        &self,
+        conversation_id: &str,
+        limit: i64,
+    ) -> AppResult<Vec<MessageRecord>> {
+        Self::chat_get_recent_messages_impl(self, conversation_id, limit).await
+    }
+
+    async fn chat_get_message_count(&self, conversation_id: &str) -> AppResult<i64> {
+        Self::chat_get_message_count_impl(self, conversation_id).await
+    }
+
+    async fn chat_delete_all_user_conversations(
+        &self,
+        user_id: &str,
+        tenant_id: &str,
+    ) -> AppResult<i64> {
+        Self::chat_delete_all_user_conversations_impl(self, user_id, tenant_id).await
     }
 }
 

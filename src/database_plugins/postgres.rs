@@ -25,8 +25,8 @@ use crate::constants::tiers;
 use crate::dashboard_routes::{RequestLog, ToolUsage};
 use crate::database::oauth_notifications::OAuthNotification;
 use crate::database::{
-    A2AUsage, A2AUsageStats, CreateUserMcpTokenRequest, UserMcpToken, UserMcpTokenCreated,
-    UserMcpTokenInfo,
+    A2AUsage, A2AUsageStats, ConversationRecord, ConversationSummary, CreateUserMcpTokenRequest,
+    MessageRecord, UserMcpToken, UserMcpTokenCreated, UserMcpTokenInfo,
 };
 use crate::database_plugins::shared::encryption::HasEncryption;
 use crate::errors::{AppError, AppResult};
@@ -51,11 +51,25 @@ use chrono::{DateTime, Utc};
 use serde_json::Value;
 use sqlx::postgres::{PgPoolOptions, PgRow};
 use sqlx::{Pool, Postgres, Row};
+use std::collections::HashMap;
 use std::fmt::Write;
 use std::time::Duration;
 use tokio::time::sleep;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
+
+/// Type alias for tool catalog seed data tuple
+/// Fields: (id, `tool_name`, `display_name`, description, category, `is_enabled_by_default`, `requires_provider`, `min_plan`)
+type ToolCatalogSeedEntry<'a> = (
+    &'a str,
+    &'a str,
+    &'a str,
+    &'a str,
+    &'a str,
+    bool,
+    Option<&'a str>,
+    &'a str,
+);
 
 /// `PostgreSQL` database implementation
 #[derive(Clone)]
@@ -143,6 +157,50 @@ impl PostgresDatabase {
     /// Helper function to parse A2A task from database row
     fn parse_a2a_task_from_row(row: &PgRow) -> AppResult<A2ATask> {
         shared::mappers::parse_a2a_task_from_row(row)
+    }
+
+    /// Map a `PostgreSQL` database row to `ToolCatalogEntry`
+    fn map_pg_tool_catalog_row(row: &PgRow) -> AppResult<ToolCatalogEntry> {
+        let id: String = row.get("id");
+        let category_str: String = row.get("category");
+        let min_plan_str: String = row.get("min_plan");
+        let created_at: DateTime<Utc> = row.get("created_at");
+        let updated_at: DateTime<Utc> = row.get("updated_at");
+
+        Ok(ToolCatalogEntry {
+            id,
+            tool_name: row.get("tool_name"),
+            display_name: row.get("display_name"),
+            description: row.get("description"),
+            category: ToolCategory::parse_str(&category_str)
+                .ok_or_else(|| AppError::internal(format!("Invalid category: {category_str}")))?,
+            is_enabled_by_default: row.get("is_enabled_by_default"),
+            requires_provider: row.get("requires_provider"),
+            min_plan: TenantPlan::parse_str(&min_plan_str)
+                .ok_or_else(|| AppError::internal(format!("Invalid min_plan: {min_plan_str}")))?,
+            created_at,
+            updated_at,
+        })
+    }
+
+    /// Map a `PostgreSQL` database row to `TenantToolOverride`
+    fn map_pg_tenant_tool_override_row(row: &PgRow) -> TenantToolOverride {
+        let id: Uuid = row.get("id");
+        let tenant_id: Uuid = row.get("tenant_id");
+        let enabled_by_user_id: Option<Uuid> = row.get("enabled_by_user_id");
+        let created_at: DateTime<Utc> = row.get("created_at");
+        let updated_at: DateTime<Utc> = row.get("updated_at");
+
+        TenantToolOverride {
+            id,
+            tenant_id,
+            tool_name: row.get("tool_name"),
+            is_enabled: row.get("is_enabled"),
+            enabled_by_user_id,
+            reason: row.get("reason"),
+            created_at,
+            updated_at,
+        }
     }
 }
 
@@ -292,7 +350,9 @@ impl DatabaseProvider for PostgresDatabase {
         self.create_jwt_usage_table().await?;
         self.create_oauth_notifications_table().await?;
         self.create_rsa_keypairs_table().await?;
-        self.create_tenant_tables().await?; // Add tenant tables
+        self.create_tenant_tables().await?;
+        self.create_tool_selection_tables().await?;
+        self.create_chat_tables().await?;
         self.create_indexes().await?;
         Ok(())
     }
@@ -5979,67 +6039,227 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     // ================================
-    // Tool Selection (PostgreSQL placeholder - implementation pending)
+    // Tool Selection (PostgreSQL implementation)
     // ================================
 
     async fn get_tool_catalog(&self) -> AppResult<Vec<ToolCatalogEntry>> {
-        Err(AppError::internal("Tool selection requires SQLite backend"))
+        let rows = sqlx::query(
+            r"
+            SELECT id, tool_name, display_name, description, category,
+                   is_enabled_by_default, requires_provider, min_plan,
+                   created_at, updated_at
+            FROM tool_catalog
+            ORDER BY category, tool_name
+            ",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch tool catalog: {e}")))?;
+
+        rows.iter().map(Self::map_pg_tool_catalog_row).collect()
     }
 
-    async fn get_tool_catalog_entry(
-        &self,
-        _tool_name: &str,
-    ) -> AppResult<Option<ToolCatalogEntry>> {
-        Err(AppError::internal("Tool selection requires SQLite backend"))
+    async fn get_tool_catalog_entry(&self, tool_name: &str) -> AppResult<Option<ToolCatalogEntry>> {
+        let row = sqlx::query(
+            r"
+            SELECT id, tool_name, display_name, description, category,
+                   is_enabled_by_default, requires_provider, min_plan,
+                   created_at, updated_at
+            FROM tool_catalog
+            WHERE tool_name = $1
+            ",
+        )
+        .bind(tool_name)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch tool catalog entry: {e}")))?;
+
+        row.as_ref().map(Self::map_pg_tool_catalog_row).transpose()
     }
 
     async fn get_tools_by_category(
         &self,
-        _category: ToolCategory,
+        category: ToolCategory,
     ) -> AppResult<Vec<ToolCatalogEntry>> {
-        Err(AppError::internal("Tool selection requires SQLite backend"))
+        let rows = sqlx::query(
+            r"
+            SELECT id, tool_name, display_name, description, category,
+                   is_enabled_by_default, requires_provider, min_plan,
+                   created_at, updated_at
+            FROM tool_catalog
+            WHERE category = $1
+            ORDER BY tool_name
+            ",
+        )
+        .bind(category.as_str())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch tools by category: {e}")))?;
+
+        rows.iter().map(Self::map_pg_tool_catalog_row).collect()
     }
 
-    async fn get_tools_by_min_plan(&self, _plan: TenantPlan) -> AppResult<Vec<ToolCatalogEntry>> {
-        Err(AppError::internal("Tool selection requires SQLite backend"))
+    async fn get_tools_by_min_plan(&self, plan: TenantPlan) -> AppResult<Vec<ToolCatalogEntry>> {
+        // Build list of acceptable plans based on hierarchy
+        let acceptable_plans: Vec<&str> = match plan {
+            TenantPlan::Starter => vec!["starter"],
+            TenantPlan::Professional => vec!["starter", "professional"],
+            TenantPlan::Enterprise => vec!["starter", "professional", "enterprise"],
+        };
+
+        let rows = sqlx::query(
+            r"
+            SELECT id, tool_name, display_name, description, category,
+                   is_enabled_by_default, requires_provider, min_plan,
+                   created_at, updated_at
+            FROM tool_catalog
+            WHERE min_plan = ANY($1)
+            ORDER BY category, tool_name
+            ",
+        )
+        .bind(&acceptable_plans)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch tools by plan: {e}")))?;
+
+        rows.iter().map(Self::map_pg_tool_catalog_row).collect()
     }
 
     async fn get_tenant_tool_overrides(
         &self,
-        _tenant_id: Uuid,
+        tenant_id: Uuid,
     ) -> AppResult<Vec<TenantToolOverride>> {
-        Err(AppError::internal("Tool selection requires SQLite backend"))
+        let rows = sqlx::query(
+            r"
+            SELECT id, tenant_id, tool_name, is_enabled, enabled_by_user_id,
+                   reason, created_at, updated_at
+            FROM tenant_tool_overrides
+            WHERE tenant_id = $1
+            ORDER BY tool_name
+            ",
+        )
+        .bind(tenant_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch tenant tool overrides: {e}")))?;
+
+        let overrides = rows
+            .iter()
+            .map(Self::map_pg_tenant_tool_override_row)
+            .collect();
+        Ok(overrides)
     }
 
     async fn get_tenant_tool_override(
         &self,
-        _tenant_id: Uuid,
-        _tool_name: &str,
+        tenant_id: Uuid,
+        tool_name: &str,
     ) -> AppResult<Option<TenantToolOverride>> {
-        Err(AppError::internal("Tool selection requires SQLite backend"))
+        let row = sqlx::query(
+            r"
+            SELECT id, tenant_id, tool_name, is_enabled, enabled_by_user_id,
+                   reason, created_at, updated_at
+            FROM tenant_tool_overrides
+            WHERE tenant_id = $1 AND tool_name = $2
+            ",
+        )
+        .bind(tenant_id)
+        .bind(tool_name)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch tenant tool override: {e}")))?;
+
+        Ok(row.as_ref().map(Self::map_pg_tenant_tool_override_row))
     }
 
     async fn upsert_tenant_tool_override(
         &self,
-        _tenant_id: Uuid,
-        _tool_name: &str,
-        _is_enabled: bool,
-        _enabled_by_user_id: Option<Uuid>,
-        _reason: Option<String>,
+        tenant_id: Uuid,
+        tool_name: &str,
+        is_enabled: bool,
+        enabled_by_user_id: Option<Uuid>,
+        reason: Option<String>,
     ) -> AppResult<TenantToolOverride> {
-        Err(AppError::internal("Tool selection requires SQLite backend"))
+        let now = Utc::now();
+        let id = Uuid::new_v4();
+
+        // Use PostgreSQL upsert syntax
+        sqlx::query(
+            r"
+            INSERT INTO tenant_tool_overrides (id, tenant_id, tool_name, is_enabled, enabled_by_user_id, reason, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
+            ON CONFLICT(tenant_id, tool_name) DO UPDATE SET
+                is_enabled = EXCLUDED.is_enabled,
+                enabled_by_user_id = EXCLUDED.enabled_by_user_id,
+                reason = EXCLUDED.reason,
+                updated_at = EXCLUDED.updated_at
+            ",
+        )
+        .bind(id)
+        .bind(tenant_id)
+        .bind(tool_name)
+        .bind(is_enabled)
+        .bind(enabled_by_user_id)
+        .bind(&reason)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to upsert tenant tool override: {e}")))?;
+
+        // Fetch the resulting row (either inserted or updated)
+        self.get_tenant_tool_override(tenant_id, tool_name)
+            .await?
+            .ok_or_else(|| AppError::internal("Failed to retrieve upserted tenant tool override"))
     }
 
     async fn delete_tenant_tool_override(
         &self,
-        _tenant_id: Uuid,
-        _tool_name: &str,
+        tenant_id: Uuid,
+        tool_name: &str,
     ) -> AppResult<bool> {
-        Err(AppError::internal("Tool selection requires SQLite backend"))
+        let result = sqlx::query(
+            r"
+            DELETE FROM tenant_tool_overrides
+            WHERE tenant_id = $1 AND tool_name = $2
+            ",
+        )
+        .bind(tenant_id)
+        .bind(tool_name)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to delete tenant tool override: {e}")))?;
+
+        Ok(result.rows_affected() > 0)
     }
 
-    async fn count_enabled_tools(&self, _tenant_id: Uuid) -> AppResult<usize> {
-        Err(AppError::internal("Tool selection requires SQLite backend"))
+    async fn count_enabled_tools(&self, tenant_id: Uuid) -> AppResult<usize> {
+        // Get tenant's plan to filter by plan restrictions
+        let tenant = self.get_tenant_by_id(tenant_id).await?;
+        let plan = TenantPlan::parse_str(&tenant.plan)
+            .ok_or_else(|| AppError::internal(format!("Invalid tenant plan: {}", tenant.plan)))?;
+
+        // Get tools available for this plan
+        let catalog = self.get_tools_by_min_plan(plan).await?;
+        let overrides = self.get_tenant_tool_overrides(tenant_id).await?;
+
+        // Build override map
+        let override_map: HashMap<String, bool> = overrides
+            .into_iter()
+            .map(|o| (o.tool_name, o.is_enabled))
+            .collect();
+
+        // Count enabled tools
+        let count = catalog
+            .iter()
+            .filter(|tool| {
+                override_map
+                    .get(&tool.tool_name)
+                    .copied()
+                    .unwrap_or(tool.is_enabled_by_default)
+            })
+            .count();
+
+        Ok(count)
     }
 
     async fn user_has_synthetic_activities(&self, user_id: Uuid) -> AppResult<bool> {
@@ -6051,6 +6271,374 @@ impl DatabaseProvider for PostgresDatabase {
         .await?;
 
         Ok(count > 0)
+    }
+
+    // ================================
+    // Chat Conversations & Messages (PostgreSQL implementation)
+    // ================================
+
+    async fn chat_create_conversation(
+        &self,
+        user_id: &str,
+        tenant_id: &str,
+        title: &str,
+        model: &str,
+        system_prompt: Option<&str>,
+    ) -> AppResult<ConversationRecord> {
+        let id = Uuid::new_v4().to_string();
+        let now = Utc::now();
+
+        sqlx::query(
+            r"
+            INSERT INTO chat_conversations (id, user_id, tenant_id, title, model, system_prompt, total_tokens, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, 0, $7, $7)
+            ",
+        )
+        .bind(&id)
+        .bind(parse_uuid(user_id)?)
+        .bind(tenant_id)
+        .bind(title)
+        .bind(model)
+        .bind(system_prompt)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create conversation: {e}")))?;
+
+        Ok(ConversationRecord {
+            id,
+            user_id: user_id.to_owned(),
+            tenant_id: tenant_id.to_owned(),
+            title: title.to_owned(),
+            model: model.to_owned(),
+            system_prompt: system_prompt.map(ToOwned::to_owned),
+            total_tokens: 0,
+            created_at: now.to_rfc3339(),
+            updated_at: now.to_rfc3339(),
+        })
+    }
+
+    async fn chat_get_conversation(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+        tenant_id: &str,
+    ) -> AppResult<Option<ConversationRecord>> {
+        let row = sqlx::query(
+            r"
+            SELECT id, user_id, tenant_id, title, model, system_prompt, total_tokens, created_at, updated_at
+            FROM chat_conversations
+            WHERE id = $1 AND user_id = $2 AND tenant_id = $3
+            ",
+        )
+        .bind(conversation_id)
+        .bind(parse_uuid(user_id)?)
+        .bind(tenant_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get conversation: {e}")))?;
+
+        Ok(row.map(|r| {
+            let created_at: DateTime<Utc> = r.get("created_at");
+            let updated_at: DateTime<Utc> = r.get("updated_at");
+            let user_id_uuid: Uuid = r.get("user_id");
+
+            ConversationRecord {
+                id: r.get("id"),
+                user_id: user_id_uuid.to_string(),
+                tenant_id: r.get("tenant_id"),
+                title: r.get("title"),
+                model: r.get("model"),
+                system_prompt: r.get("system_prompt"),
+                total_tokens: r.get("total_tokens"),
+                created_at: created_at.to_rfc3339(),
+                updated_at: updated_at.to_rfc3339(),
+            }
+        }))
+    }
+
+    async fn chat_list_conversations(
+        &self,
+        user_id: &str,
+        tenant_id: &str,
+        limit: i64,
+        offset: i64,
+    ) -> AppResult<Vec<ConversationSummary>> {
+        let rows = sqlx::query(
+            r"
+            SELECT c.id, c.title, c.model, c.total_tokens, c.created_at, c.updated_at,
+                   COUNT(m.id) as message_count
+            FROM chat_conversations c
+            LEFT JOIN chat_messages m ON m.conversation_id = c.id
+            WHERE c.user_id = $1 AND c.tenant_id = $2
+            GROUP BY c.id
+            ORDER BY c.updated_at DESC
+            LIMIT $3 OFFSET $4
+            ",
+        )
+        .bind(parse_uuid(user_id)?)
+        .bind(tenant_id)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to list conversations: {e}")))?;
+
+        let summaries = rows
+            .into_iter()
+            .map(|r| {
+                let created_at: DateTime<Utc> = r.get("created_at");
+                let updated_at: DateTime<Utc> = r.get("updated_at");
+
+                ConversationSummary {
+                    id: r.get("id"),
+                    title: r.get("title"),
+                    model: r.get("model"),
+                    message_count: r.get("message_count"),
+                    total_tokens: r.get("total_tokens"),
+                    created_at: created_at.to_rfc3339(),
+                    updated_at: updated_at.to_rfc3339(),
+                }
+            })
+            .collect();
+
+        Ok(summaries)
+    }
+
+    async fn chat_update_conversation_title(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+        tenant_id: &str,
+        title: &str,
+    ) -> AppResult<bool> {
+        let now = Utc::now();
+
+        let result = sqlx::query(
+            r"
+            UPDATE chat_conversations
+            SET title = $1, updated_at = $2
+            WHERE id = $3 AND user_id = $4 AND tenant_id = $5
+            ",
+        )
+        .bind(title)
+        .bind(now)
+        .bind(conversation_id)
+        .bind(parse_uuid(user_id)?)
+        .bind(tenant_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to update conversation title: {e}")))?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    async fn chat_delete_conversation(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+        tenant_id: &str,
+    ) -> AppResult<bool> {
+        let result = sqlx::query(
+            r"
+            DELETE FROM chat_conversations
+            WHERE id = $1 AND user_id = $2 AND tenant_id = $3
+            ",
+        )
+        .bind(conversation_id)
+        .bind(parse_uuid(user_id)?)
+        .bind(tenant_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to delete conversation: {e}")))?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    async fn chat_add_message(
+        &self,
+        conversation_id: &str,
+        role: &str,
+        content: &str,
+        token_count: Option<u32>,
+        finish_reason: Option<&str>,
+    ) -> AppResult<MessageRecord> {
+        let id = Uuid::new_v4().to_string();
+        let now = Utc::now();
+
+        sqlx::query(
+            r"
+            INSERT INTO chat_messages (id, conversation_id, role, content, token_count, finish_reason, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ",
+        )
+        .bind(&id)
+        .bind(conversation_id)
+        .bind(role)
+        .bind(content)
+        .bind(token_count.map(i64::from))
+        .bind(finish_reason)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to add message: {e}")))?;
+
+        // Update conversation's updated_at and total_tokens
+        if let Some(tokens) = token_count {
+            sqlx::query(
+                r"
+                UPDATE chat_conversations
+                SET updated_at = $1, total_tokens = total_tokens + $2
+                WHERE id = $3
+                ",
+            )
+            .bind(now)
+            .bind(i64::from(tokens))
+            .bind(conversation_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to update conversation tokens: {e}"))
+            })?;
+        } else {
+            sqlx::query(
+                r"
+                UPDATE chat_conversations
+                SET updated_at = $1
+                WHERE id = $2
+                ",
+            )
+            .bind(now)
+            .bind(conversation_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to update conversation timestamp: {e}"))
+            })?;
+        }
+
+        Ok(MessageRecord {
+            id,
+            conversation_id: conversation_id.to_owned(),
+            role: role.to_owned(),
+            content: content.to_owned(),
+            token_count: token_count.map(i64::from),
+            finish_reason: finish_reason.map(ToOwned::to_owned),
+            created_at: now.to_rfc3339(),
+        })
+    }
+
+    async fn chat_get_messages(&self, conversation_id: &str) -> AppResult<Vec<MessageRecord>> {
+        let rows = sqlx::query(
+            r"
+            SELECT id, conversation_id, role, content, token_count, finish_reason, created_at
+            FROM chat_messages
+            WHERE conversation_id = $1
+            ORDER BY created_at ASC
+            ",
+        )
+        .bind(conversation_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get messages: {e}")))?;
+
+        let messages = rows
+            .into_iter()
+            .map(|r| {
+                let created_at: DateTime<Utc> = r.get("created_at");
+
+                MessageRecord {
+                    id: r.get("id"),
+                    conversation_id: r.get("conversation_id"),
+                    role: r.get("role"),
+                    content: r.get("content"),
+                    token_count: r.get("token_count"),
+                    finish_reason: r.get("finish_reason"),
+                    created_at: created_at.to_rfc3339(),
+                }
+            })
+            .collect();
+
+        Ok(messages)
+    }
+
+    async fn chat_get_recent_messages(
+        &self,
+        conversation_id: &str,
+        limit: i64,
+    ) -> AppResult<Vec<MessageRecord>> {
+        let rows = sqlx::query(
+            r"
+            SELECT id, conversation_id, role, content, token_count, finish_reason, created_at
+            FROM chat_messages
+            WHERE conversation_id = $1
+            ORDER BY created_at DESC
+            LIMIT $2
+            ",
+        )
+        .bind(conversation_id)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get recent messages: {e}")))?;
+
+        // Reverse to get chronological order
+        let mut messages: Vec<MessageRecord> = rows
+            .into_iter()
+            .map(|r| {
+                let created_at: DateTime<Utc> = r.get("created_at");
+
+                MessageRecord {
+                    id: r.get("id"),
+                    conversation_id: r.get("conversation_id"),
+                    role: r.get("role"),
+                    content: r.get("content"),
+                    token_count: r.get("token_count"),
+                    finish_reason: r.get("finish_reason"),
+                    created_at: created_at.to_rfc3339(),
+                }
+            })
+            .collect();
+        messages.reverse();
+
+        Ok(messages)
+    }
+
+    async fn chat_get_message_count(&self, conversation_id: &str) -> AppResult<i64> {
+        let count: i64 = sqlx::query_scalar(
+            r"
+            SELECT COUNT(*)
+            FROM chat_messages
+            WHERE conversation_id = $1
+            ",
+        )
+        .bind(conversation_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get message count: {e}")))?;
+
+        Ok(count)
+    }
+
+    async fn chat_delete_all_user_conversations(
+        &self,
+        user_id: &str,
+        tenant_id: &str,
+    ) -> AppResult<i64> {
+        let result = sqlx::query(
+            r"
+            DELETE FROM chat_conversations
+            WHERE user_id = $1 AND tenant_id = $2
+            ",
+        )
+        .bind(parse_uuid(user_id)?)
+        .bind(tenant_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to delete user conversations: {e}")))?;
+
+        #[allow(clippy::cast_possible_wrap)]
+        Ok(result.rows_affected() as i64)
     }
 }
 
@@ -6761,6 +7349,704 @@ impl PostgresDatabase {
         .map_err(|e| {
             AppError::database(format!("Failed to create user_oauth_tokens table: {e}"))
         })?;
+
+        Ok(())
+    }
+
+    /// Create tool selection tables for per-tenant MCP tool configuration
+    async fn create_tool_selection_tables(&self) -> AppResult<()> {
+        // Create tool_catalog table
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS tool_catalog (
+                id VARCHAR(255) PRIMARY KEY,
+                tool_name VARCHAR(255) NOT NULL UNIQUE,
+                display_name VARCHAR(255) NOT NULL,
+                description TEXT NOT NULL,
+                category VARCHAR(50) NOT NULL CHECK (category IN (
+                    'fitness', 'analysis', 'goals', 'nutrition',
+                    'recipes', 'sleep', 'configuration', 'connections'
+                )),
+                is_enabled_by_default BOOLEAN NOT NULL DEFAULT true,
+                requires_provider VARCHAR(50),
+                min_plan VARCHAR(50) NOT NULL DEFAULT 'starter' CHECK (min_plan IN ('starter', 'professional', 'enterprise')),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create tool_catalog table: {e}")))?;
+
+        // Create tenant_tool_overrides table
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS tenant_tool_overrides (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                tool_name VARCHAR(255) NOT NULL REFERENCES tool_catalog(tool_name) ON DELETE CASCADE,
+                is_enabled BOOLEAN NOT NULL,
+                enabled_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+                reason TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, tool_name)
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            AppError::database(format!("Failed to create tenant_tool_overrides table: {e}"))
+        })?;
+
+        // Create indexes for tool selection tables
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_tool_catalog_category ON tool_catalog(category)",
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create index idx_tool_catalog_category: {e}"
+            ))
+        })?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_tool_catalog_min_plan ON tool_catalog(min_plan)",
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create index idx_tool_catalog_min_plan: {e}"
+            ))
+        })?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_tenant_tool_overrides_tenant ON tenant_tool_overrides(tenant_id)",
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create index idx_tenant_tool_overrides_tenant: {e}"
+            ))
+        })?;
+
+        // Seed tool_catalog with default tools
+        self.seed_tool_catalog().await?;
+
+        Ok(())
+    }
+
+    /// Create chat tables for AI conversation storage
+    async fn create_chat_tables(&self) -> AppResult<()> {
+        // Create chat_conversations table
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS chat_conversations (
+                id VARCHAR(255) PRIMARY KEY,
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                tenant_id VARCHAR(255) NOT NULL,
+                title TEXT NOT NULL,
+                model VARCHAR(255) NOT NULL DEFAULT 'gemini-2.0-flash-exp',
+                system_prompt TEXT,
+                total_tokens INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMPTZ NOT NULL,
+                updated_at TIMESTAMPTZ NOT NULL
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            AppError::database(format!("Failed to create chat_conversations table: {e}"))
+        })?;
+
+        // Create chat_messages table
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id VARCHAR(255) PRIMARY KEY,
+                conversation_id VARCHAR(255) NOT NULL REFERENCES chat_conversations(id) ON DELETE CASCADE,
+                role VARCHAR(50) NOT NULL CHECK (role IN ('system', 'user', 'assistant')),
+                content TEXT NOT NULL,
+                token_count INTEGER,
+                finish_reason VARCHAR(50),
+                created_at TIMESTAMPTZ NOT NULL
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create chat_messages table: {e}")))?;
+
+        // Create indexes for chat tables
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_chat_conversations_user ON chat_conversations(user_id)",
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create index idx_chat_conversations_user: {e}"
+            ))
+        })?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_chat_conversations_tenant ON chat_conversations(tenant_id)",
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create index idx_chat_conversations_tenant: {e}"
+            ))
+        })?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_chat_conversations_updated ON chat_conversations(updated_at DESC)",
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create index idx_chat_conversations_updated: {e}"
+            ))
+        })?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation ON chat_messages(conversation_id)",
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create index idx_chat_messages_conversation: {e}"
+            ))
+        })?;
+
+        Ok(())
+    }
+
+    /// Seed the `tool_catalog` table with default tools
+    async fn seed_tool_catalog(&self) -> AppResult<()> {
+        // Check if tools already exist
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tool_catalog")
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to count tool catalog: {e}")))?;
+
+        if count > 0 {
+            return Ok(());
+        }
+
+        // Seed tool catalog with all ToolId variants (same as SQLite migration)
+        let tools: Vec<ToolCatalogSeedEntry<'_>> = vec![
+            (
+                "tc-001",
+                "get_activities",
+                "Get Activities",
+                "Get user fitness activities with optional filtering and limits",
+                "fitness",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-002",
+                "get_athlete",
+                "Get Athlete Profile",
+                "Get user athlete profile and basic information",
+                "fitness",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-003",
+                "get_stats",
+                "Get Statistics",
+                "Get user performance statistics and metrics",
+                "fitness",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-004",
+                "analyze_activity",
+                "Analyze Activity",
+                "Analyze a specific activity with detailed performance insights",
+                "analysis",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-005",
+                "get_activity_intelligence",
+                "Activity Intelligence",
+                "Get AI-powered intelligence analysis for an activity",
+                "analysis",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-006",
+                "get_connection_status",
+                "Connection Status",
+                "Check OAuth connection status for fitness providers",
+                "connections",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-007",
+                "connect_provider",
+                "Connect Provider",
+                "Connect to a fitness data provider via OAuth",
+                "connections",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-008",
+                "disconnect_provider",
+                "Disconnect Provider",
+                "Disconnect user from a fitness data provider",
+                "connections",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-009",
+                "set_goal",
+                "Set Goal",
+                "Set a new fitness goal for the user",
+                "goals",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-010",
+                "suggest_goals",
+                "Suggest Goals",
+                "Get AI-suggested fitness goals based on activity history",
+                "goals",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-011",
+                "analyze_goal_feasibility",
+                "Goal Feasibility",
+                "Analyze whether a goal is achievable given current fitness level",
+                "goals",
+                true,
+                None,
+                "professional",
+            ),
+            (
+                "tc-012",
+                "track_progress",
+                "Track Progress",
+                "Track progress towards fitness goals",
+                "goals",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-013",
+                "calculate_metrics",
+                "Calculate Metrics",
+                "Calculate custom fitness metrics and performance indicators",
+                "analysis",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-014",
+                "analyze_performance_trends",
+                "Performance Trends",
+                "Analyze performance trends over time",
+                "analysis",
+                true,
+                None,
+                "professional",
+            ),
+            (
+                "tc-015",
+                "compare_activities",
+                "Compare Activities",
+                "Compare two activities for performance analysis",
+                "analysis",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-016",
+                "detect_patterns",
+                "Detect Patterns",
+                "Detect patterns and insights in activity data",
+                "analysis",
+                true,
+                None,
+                "professional",
+            ),
+            (
+                "tc-017",
+                "generate_recommendations",
+                "Generate Recommendations",
+                "Generate personalized training recommendations",
+                "analysis",
+                true,
+                None,
+                "professional",
+            ),
+            (
+                "tc-018",
+                "calculate_fitness_score",
+                "Fitness Score",
+                "Calculate overall fitness score based on recent activities",
+                "analysis",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-019",
+                "predict_performance",
+                "Predict Performance",
+                "Predict future performance based on training patterns",
+                "analysis",
+                true,
+                None,
+                "enterprise",
+            ),
+            (
+                "tc-020",
+                "analyze_training_load",
+                "Training Load",
+                "Analyze training load and recovery metrics",
+                "analysis",
+                true,
+                None,
+                "professional",
+            ),
+            (
+                "tc-021",
+                "get_configuration_catalog",
+                "Configuration Catalog",
+                "Get the complete configuration catalog with all available parameters",
+                "configuration",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-022",
+                "get_configuration_profiles",
+                "Configuration Profiles",
+                "Get available configuration profiles (Research, Elite, Recreational, etc.)",
+                "configuration",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-023",
+                "get_user_configuration",
+                "Get User Config",
+                "Get current user configuration settings and overrides",
+                "configuration",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-024",
+                "update_user_configuration",
+                "Update User Config",
+                "Update user configuration parameters and session overrides",
+                "configuration",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-025",
+                "calculate_personalized_zones",
+                "Personalized Zones",
+                "Calculate personalized training zones based on user VO2 max",
+                "configuration",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-026",
+                "validate_configuration",
+                "Validate Config",
+                "Validate configuration parameters against safety rules",
+                "configuration",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-027",
+                "analyze_sleep_quality",
+                "Sleep Quality",
+                "Analyze sleep quality from Fitbit/Garmin data using NSF/AASM guidelines",
+                "sleep",
+                true,
+                None,
+                "professional",
+            ),
+            (
+                "tc-028",
+                "calculate_recovery_score",
+                "Recovery Score",
+                "Calculate holistic recovery score combining TSB, sleep quality, and HRV",
+                "sleep",
+                true,
+                None,
+                "professional",
+            ),
+            (
+                "tc-029",
+                "suggest_rest_day",
+                "Rest Day Suggestion",
+                "AI-powered rest day recommendation based on recovery indicators",
+                "sleep",
+                true,
+                None,
+                "professional",
+            ),
+            (
+                "tc-030",
+                "track_sleep_trends",
+                "Sleep Trends",
+                "Track sleep patterns and correlate with performance over time",
+                "sleep",
+                true,
+                None,
+                "professional",
+            ),
+            (
+                "tc-031",
+                "optimize_sleep_schedule",
+                "Sleep Schedule",
+                "Optimize sleep duration based on training load and recovery needs",
+                "sleep",
+                true,
+                None,
+                "enterprise",
+            ),
+            (
+                "tc-032",
+                "get_fitness_config",
+                "Get Fitness Config",
+                "Get user fitness configuration settings including heart rate zones",
+                "configuration",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-033",
+                "set_fitness_config",
+                "Set Fitness Config",
+                "Save user fitness configuration settings for zones and thresholds",
+                "configuration",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-034",
+                "list_fitness_configs",
+                "List Fitness Configs",
+                "List all available fitness configuration names for the user",
+                "configuration",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-035",
+                "delete_fitness_config",
+                "Delete Fitness Config",
+                "Delete a specific fitness configuration by name",
+                "configuration",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-036",
+                "calculate_daily_nutrition",
+                "Daily Nutrition",
+                "Calculate daily calorie and macronutrient needs using Mifflin-St Jeor BMR formula",
+                "nutrition",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-037",
+                "get_nutrient_timing",
+                "Nutrient Timing",
+                "Get optimal pre/post-workout nutrition recommendations following ISSN guidelines",
+                "nutrition",
+                true,
+                None,
+                "professional",
+            ),
+            (
+                "tc-038",
+                "search_food",
+                "Search Food",
+                "Search USDA FoodData Central database for foods by name/description",
+                "nutrition",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-039",
+                "get_food_details",
+                "Food Details",
+                "Get detailed nutritional information for a specific food from USDA database",
+                "nutrition",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-040",
+                "analyze_meal_nutrition",
+                "Meal Nutrition",
+                "Analyze total calories and macronutrients for a meal of multiple foods",
+                "nutrition",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-041",
+                "get_recipe_constraints",
+                "Recipe Constraints",
+                "Get macro targets for LLM recipe generation by training phase",
+                "recipes",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-042",
+                "validate_recipe",
+                "Validate Recipe",
+                "Validate recipe nutrition against USDA and calculate macros",
+                "recipes",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-043",
+                "save_recipe",
+                "Save Recipe",
+                "Save validated recipe with cached nutrition data",
+                "recipes",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-044",
+                "list_recipes",
+                "List Recipes",
+                "List saved recipes with optional meal timing filter",
+                "recipes",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-045",
+                "get_recipe",
+                "Get Recipe",
+                "Get a specific recipe by ID",
+                "recipes",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-046",
+                "delete_recipe",
+                "Delete Recipe",
+                "Delete a recipe from collection",
+                "recipes",
+                true,
+                None,
+                "starter",
+            ),
+            (
+                "tc-047",
+                "search_recipes",
+                "Search Recipes",
+                "Search recipes by name, tags, or description",
+                "recipes",
+                true,
+                None,
+                "starter",
+            ),
+        ];
+
+        for (
+            id,
+            tool_name,
+            display_name,
+            description,
+            category,
+            is_enabled,
+            requires_provider,
+            min_plan,
+        ) in tools
+        {
+            sqlx::query(
+                r"
+                INSERT INTO tool_catalog (id, tool_name, display_name, description, category, is_enabled_by_default, requires_provider, min_plan)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                ON CONFLICT (tool_name) DO NOTHING
+                ",
+            )
+            .bind(id)
+            .bind(tool_name)
+            .bind(display_name)
+            .bind(description)
+            .bind(category)
+            .bind(is_enabled)
+            .bind(requires_provider)
+            .bind(min_plan)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to seed tool {tool_name}: {e}")))?;
+        }
 
         Ok(())
     }

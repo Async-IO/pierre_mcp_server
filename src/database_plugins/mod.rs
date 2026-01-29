@@ -16,7 +16,8 @@ use crate::config::fitness::FitnessConfig;
 use crate::dashboard_routes::{RequestLog, ToolUsage};
 use crate::database::oauth_notifications::OAuthNotification;
 use crate::database::{
-    CreateUserMcpTokenRequest, UserMcpToken, UserMcpTokenCreated, UserMcpTokenInfo,
+    ConversationRecord, ConversationSummary, CreateUserMcpTokenRequest, MessageRecord,
+    UserMcpToken, UserMcpTokenCreated, UserMcpTokenInfo,
 };
 use crate::errors::AppResult;
 use crate::models::{
@@ -1057,4 +1058,82 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// This is used by the providers endpoint to determine if the synthetic
     /// provider should be shown as "connected" for a user.
     async fn user_has_synthetic_activities(&self, user_id: Uuid) -> AppResult<bool>;
+
+    // ================================
+    // Chat Conversations & Messages
+    // ================================
+
+    /// Create a new chat conversation
+    async fn chat_create_conversation(
+        &self,
+        user_id: &str,
+        tenant_id: &str,
+        title: &str,
+        model: &str,
+        system_prompt: Option<&str>,
+    ) -> AppResult<ConversationRecord>;
+
+    /// Get a conversation by ID with user/tenant isolation
+    async fn chat_get_conversation(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+        tenant_id: &str,
+    ) -> AppResult<Option<ConversationRecord>>;
+
+    /// List conversations for a user with pagination
+    async fn chat_list_conversations(
+        &self,
+        user_id: &str,
+        tenant_id: &str,
+        limit: i64,
+        offset: i64,
+    ) -> AppResult<Vec<ConversationSummary>>;
+
+    /// Update conversation title
+    async fn chat_update_conversation_title(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+        tenant_id: &str,
+        title: &str,
+    ) -> AppResult<bool>;
+
+    /// Delete a conversation and its messages
+    async fn chat_delete_conversation(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+        tenant_id: &str,
+    ) -> AppResult<bool>;
+
+    /// Add a message to a conversation
+    async fn chat_add_message(
+        &self,
+        conversation_id: &str,
+        role: &str,
+        content: &str,
+        token_count: Option<u32>,
+        finish_reason: Option<&str>,
+    ) -> AppResult<MessageRecord>;
+
+    /// Get all messages for a conversation
+    async fn chat_get_messages(&self, conversation_id: &str) -> AppResult<Vec<MessageRecord>>;
+
+    /// Get recent messages for a conversation (for context window)
+    async fn chat_get_recent_messages(
+        &self,
+        conversation_id: &str,
+        limit: i64,
+    ) -> AppResult<Vec<MessageRecord>>;
+
+    /// Get message count for a conversation
+    async fn chat_get_message_count(&self, conversation_id: &str) -> AppResult<i64>;
+
+    /// Delete all conversations for a user
+    async fn chat_delete_all_user_conversations(
+        &self,
+        user_id: &str,
+        tenant_id: &str,
+    ) -> AppResult<i64>;
 }

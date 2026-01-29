@@ -22,8 +22,8 @@ use crate::config::social::SocialInsightsConfig;
 use crate::dashboard_routes::{RequestLog, ToolUsage};
 use crate::database::oauth_notifications::OAuthNotification;
 use crate::database::{
-    A2AUsage, A2AUsageStats, CreateUserMcpTokenRequest, UserMcpToken, UserMcpTokenCreated,
-    UserMcpTokenInfo,
+    A2AUsage, A2AUsageStats, ConversationRecord, ConversationSummary, CreateUserMcpTokenRequest,
+    MessageRecord, UserMcpToken, UserMcpTokenCreated, UserMcpTokenInfo,
 };
 use crate::errors::{AppError, AppResult};
 use crate::models::{
@@ -2521,10 +2521,7 @@ impl DatabaseProvider for Database {
         match self {
             Self::SQLite(db) => db.get_tool_catalog_impl().await,
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(_db) => {
-                // PostgreSQL implementation will be added when needed
-                Err(AppError::internal("Tool selection requires SQLite backend"))
-            }
+            Self::PostgreSQL(db) => db.get_tool_catalog().await,
         }
     }
 
@@ -2533,9 +2530,7 @@ impl DatabaseProvider for Database {
         match self {
             Self::SQLite(db) => db.get_tool_catalog_entry_impl(tool_name).await,
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(_db) => {
-                Err(AppError::internal("Tool selection requires SQLite backend"))
-            }
+            Self::PostgreSQL(db) => db.get_tool_catalog_entry(tool_name).await,
         }
     }
 
@@ -2547,9 +2542,7 @@ impl DatabaseProvider for Database {
         match self {
             Self::SQLite(db) => db.get_tools_by_category_impl(category).await,
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(_db) => {
-                Err(AppError::internal("Tool selection requires SQLite backend"))
-            }
+            Self::PostgreSQL(db) => db.get_tools_by_category(category).await,
         }
     }
 
@@ -2558,9 +2551,7 @@ impl DatabaseProvider for Database {
         match self {
             Self::SQLite(db) => db.get_tools_by_min_plan_impl(plan).await,
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(_db) => {
-                Err(AppError::internal("Tool selection requires SQLite backend"))
-            }
+            Self::PostgreSQL(db) => db.get_tools_by_min_plan(plan).await,
         }
     }
 
@@ -2572,9 +2563,7 @@ impl DatabaseProvider for Database {
         match self {
             Self::SQLite(db) => db.get_tenant_tool_overrides_impl(tenant_id).await,
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(_db) => {
-                Err(AppError::internal("Tool selection requires SQLite backend"))
-            }
+            Self::PostgreSQL(db) => db.get_tenant_tool_overrides(tenant_id).await,
         }
     }
 
@@ -2587,9 +2576,7 @@ impl DatabaseProvider for Database {
         match self {
             Self::SQLite(db) => db.get_tenant_tool_override_impl(tenant_id, tool_name).await,
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(_db) => {
-                Err(AppError::internal("Tool selection requires SQLite backend"))
-            }
+            Self::PostgreSQL(db) => db.get_tenant_tool_override(tenant_id, tool_name).await,
         }
     }
 
@@ -2614,8 +2601,15 @@ impl DatabaseProvider for Database {
                 .await
             }
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(_db) => {
-                Err(AppError::internal("Tool selection requires SQLite backend"))
+            Self::PostgreSQL(db) => {
+                db.upsert_tenant_tool_override(
+                    tenant_id,
+                    tool_name,
+                    is_enabled,
+                    enabled_by_user_id,
+                    reason,
+                )
+                .await
             }
         }
     }
@@ -2632,9 +2626,7 @@ impl DatabaseProvider for Database {
                     .await
             }
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(_db) => {
-                Err(AppError::internal("Tool selection requires SQLite backend"))
-            }
+            Self::PostgreSQL(db) => db.delete_tenant_tool_override(tenant_id, tool_name).await,
         }
     }
 
@@ -2643,9 +2635,7 @@ impl DatabaseProvider for Database {
         match self {
             Self::SQLite(db) => db.count_enabled_tools_impl(tenant_id).await,
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(_db) => {
-                Err(AppError::internal("Tool selection requires SQLite backend"))
-            }
+            Self::PostgreSQL(db) => db.count_enabled_tools(tenant_id).await,
         }
     }
 
@@ -2654,6 +2644,179 @@ impl DatabaseProvider for Database {
             Self::SQLite(db) => db.user_has_synthetic_activities_impl(user_id).await,
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => db.user_has_synthetic_activities(user_id).await,
+        }
+    }
+
+    // ================================
+    // Chat Conversations & Messages
+    // ================================
+
+    async fn chat_create_conversation(
+        &self,
+        user_id: &str,
+        tenant_id: &str,
+        title: &str,
+        model: &str,
+        system_prompt: Option<&str>,
+    ) -> AppResult<ConversationRecord> {
+        match self {
+            Self::SQLite(db) => {
+                db.chat_create_conversation_impl(user_id, tenant_id, title, model, system_prompt)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.chat_create_conversation(user_id, tenant_id, title, model, system_prompt)
+                    .await
+            }
+        }
+    }
+
+    async fn chat_get_conversation(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+        tenant_id: &str,
+    ) -> AppResult<Option<ConversationRecord>> {
+        match self {
+            Self::SQLite(db) => {
+                db.chat_get_conversation_impl(conversation_id, user_id, tenant_id)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.chat_get_conversation(conversation_id, user_id, tenant_id)
+                    .await
+            }
+        }
+    }
+
+    async fn chat_list_conversations(
+        &self,
+        user_id: &str,
+        tenant_id: &str,
+        limit: i64,
+        offset: i64,
+    ) -> AppResult<Vec<ConversationSummary>> {
+        match self {
+            Self::SQLite(db) => {
+                db.chat_list_conversations_impl(user_id, tenant_id, limit, offset)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.chat_list_conversations(user_id, tenant_id, limit, offset)
+                    .await
+            }
+        }
+    }
+
+    async fn chat_update_conversation_title(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+        tenant_id: &str,
+        title: &str,
+    ) -> AppResult<bool> {
+        match self {
+            Self::SQLite(db) => {
+                db.chat_update_conversation_title_impl(conversation_id, user_id, tenant_id, title)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.chat_update_conversation_title(conversation_id, user_id, tenant_id, title)
+                    .await
+            }
+        }
+    }
+
+    async fn chat_delete_conversation(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+        tenant_id: &str,
+    ) -> AppResult<bool> {
+        match self {
+            Self::SQLite(db) => {
+                db.chat_delete_conversation_impl(conversation_id, user_id, tenant_id)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.chat_delete_conversation(conversation_id, user_id, tenant_id)
+                    .await
+            }
+        }
+    }
+
+    async fn chat_add_message(
+        &self,
+        conversation_id: &str,
+        role: &str,
+        content: &str,
+        token_count: Option<u32>,
+        finish_reason: Option<&str>,
+    ) -> AppResult<MessageRecord> {
+        match self {
+            Self::SQLite(db) => {
+                db.chat_add_message_impl(conversation_id, role, content, token_count, finish_reason)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.chat_add_message(conversation_id, role, content, token_count, finish_reason)
+                    .await
+            }
+        }
+    }
+
+    async fn chat_get_messages(&self, conversation_id: &str) -> AppResult<Vec<MessageRecord>> {
+        match self {
+            Self::SQLite(db) => db.chat_get_messages_impl(conversation_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.chat_get_messages(conversation_id).await,
+        }
+    }
+
+    async fn chat_get_recent_messages(
+        &self,
+        conversation_id: &str,
+        limit: i64,
+    ) -> AppResult<Vec<MessageRecord>> {
+        match self {
+            Self::SQLite(db) => {
+                db.chat_get_recent_messages_impl(conversation_id, limit)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.chat_get_recent_messages(conversation_id, limit).await,
+        }
+    }
+
+    async fn chat_get_message_count(&self, conversation_id: &str) -> AppResult<i64> {
+        match self {
+            Self::SQLite(db) => db.chat_get_message_count_impl(conversation_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.chat_get_message_count(conversation_id).await,
+        }
+    }
+
+    async fn chat_delete_all_user_conversations(
+        &self,
+        user_id: &str,
+        tenant_id: &str,
+    ) -> AppResult<i64> {
+        match self {
+            Self::SQLite(db) => {
+                db.chat_delete_all_user_conversations_impl(user_id, tenant_id)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.chat_delete_all_user_conversations(user_id, tenant_id)
+                    .await
+            }
         }
     }
 }
