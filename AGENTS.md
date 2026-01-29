@@ -47,18 +47,17 @@ bun install
 
 ## Git Workflow: NO Pull Requests
 
-**CRITICAL: NEVER create Pull Requests. ChefFamille manages all merges locally.**
+**CRITICAL: NEVER create Pull Requests. All merges happen locally via squash merge.**
 
 ### Rules
 - **NEVER use `gh pr create`** or any PR creation command
-- **NEVER suggest creating a PR** - just push to the feature branch
-- Feature branches are merged via **squash merge from ChefFamille's local machine**
+- **NEVER suggest creating a PR**
+- Feature branches are merged via **local squash merge**
 
 ### Workflow for Features
 1. Create feature branch: `git checkout -b feature/my-feature`
 2. Make commits, push to remote: `git push -u origin feature/my-feature`
-3. **STOP HERE** - Tell ChefFamille the branch is ready
-4. ChefFamille will squash merge locally:
+3. When ready, squash merge locally (from main worktree):
    ```bash
    git checkout main
    git fetch origin
