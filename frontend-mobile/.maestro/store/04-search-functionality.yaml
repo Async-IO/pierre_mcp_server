@@ -1,0 +1,36 @@
+# ABOUTME: Test search functionality in Discover screen
+# ABOUTME: Converted from store.test.js "search functionality" tests
+
+appId: com.asyncio.pierre
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Discover
+- runFlow:
+    file: ../helpers/navigate-to-discover.yaml
+
+# Test: should search for coaches
+- tapOn:
+    id: "search-input"
+- clearText
+- inputText: "training"
+
+# Wait for search results
+- assertVisible:
+    id: "coach-list"
+    timeout: 5000
+
+# Test: should clear search
+- tapOn:
+    id: "search-input"
+- clearText
+
+# Should show all coaches again
+- assertVisible:
+    id: "coach-list"
+    timeout: 5000

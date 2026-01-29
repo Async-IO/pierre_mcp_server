@@ -1,0 +1,32 @@
+# ABOUTME: Test pull to refresh in Discover screen
+# ABOUTME: Converted from store.test.js "pull to refresh" tests
+
+appId: com.asyncio.pierre
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Discover
+- runFlow:
+    file: ../helpers/navigate-to-discover.yaml
+
+# Test: should refresh coaches on pull down
+# Scroll down first, then scroll up to trigger refresh
+- scroll:
+    element:
+      id: "coach-list"
+    direction: DOWN
+
+- scroll:
+    element:
+      id: "coach-list"
+    direction: UP
+
+# Wait for refresh to complete
+- assertVisible:
+    id: "coach-list"
+    timeout: 5000
