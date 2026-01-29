@@ -1,0 +1,20 @@
+# ABOUTME: Helper flow to navigate from any screen to Discover (Store)
+# ABOUTME: Uses drawer navigation to reach the Store screen
+
+appId: com.asyncio.pierre
+
+---
+# Open the drawer menu
+- tapOn:
+    id: "menu-button"
+
+# Wait for drawer to open and tap Discover
+- assertVisible:
+    text: "Discover"
+    timeout: 3000
+- tapOn: "Discover"
+
+# Wait for store screen to load
+- assertVisible:
+    id: "store-screen"
+    timeout: 5000

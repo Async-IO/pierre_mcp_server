@@ -1,0 +1,13 @@
+# ABOUTME: Helper flow to launch the Pierre app fresh
+# ABOUTME: Clears app state and launches with a new instance
+
+appId: com.asyncio.pierre
+
+---
+- clearState
+- launchApp
+
+# Wait for the app to be ready (login screen should appear)
+- assertVisible:
+    id: "login-screen"
+    timeout: 10000

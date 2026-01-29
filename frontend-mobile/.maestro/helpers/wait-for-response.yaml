@@ -1,0 +1,15 @@
+# ABOUTME: Helper flow to wait for Pierre's response after sending a message
+# ABOUTME: Waits for the thinking indicator to appear and then disappear
+
+appId: com.asyncio.pierre
+
+---
+# Wait for thinking indicator to appear
+- assertVisible:
+    text: "Pierre is thinking..."
+    timeout: 5000
+
+# Wait for thinking indicator to disappear (response received)
+- assertNotVisible:
+    text: "Pierre is thinking..."
+    timeout: 30000

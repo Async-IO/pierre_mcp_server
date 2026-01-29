@@ -1,0 +1,20 @@
+# ABOUTME: Helper flow to navigate from any screen to Social
+# ABOUTME: Uses drawer navigation to reach the Social screen
+
+appId: com.asyncio.pierre
+
+---
+# Open the drawer menu
+- tapOn:
+    id: "menu-button"
+
+# Wait for drawer to open and tap Social
+- assertVisible:
+    text: "Social"
+    timeout: 3000
+- tapOn: "Social"
+
+# Wait for social screen to load
+- assertVisible:
+    id: "social-screen"
+    timeout: 5000

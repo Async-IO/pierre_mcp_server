@@ -1,0 +1,36 @@
+# ABOUTME: Helper flow to perform login with test credentials
+# ABOUTME: Logs in using mobiletest@pierre.dev / MobileTest123! and waits for chat screen
+
+appId: com.asyncio.pierre
+
+---
+# Wait for login screen to be visible
+- assertVisible:
+    id: "login-screen"
+    timeout: 10000
+
+# Clear any pre-filled values and enter test credentials
+- tapOn:
+    id: "email-input"
+- clearText
+- inputText: ${TEST_EMAIL}
+
+- tapOn:
+    id: "password-input"
+- clearText
+- inputText: ${TEST_PASSWORD}
+
+# Hide keyboard
+- hideKeyboard
+
+# Wait for login button to be visible and tap
+- assertVisible:
+    id: "login-button"
+    timeout: 5000
+- tapOn:
+    id: "login-button"
+
+# Wait for successful login (chat screen should appear)
+- assertVisible:
+    id: "chat-screen"
+    timeout: 15000

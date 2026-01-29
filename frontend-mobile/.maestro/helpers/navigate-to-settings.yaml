@@ -1,0 +1,13 @@
+# ABOUTME: Helper flow to navigate from any screen to Settings
+# ABOUTME: Uses bottom tab navigation to reach the Settings screen
+
+appId: com.asyncio.pierre
+
+---
+# Navigate to Settings via bottom tab
+- tapOn: "Settings"
+
+# Wait for settings screen to load
+- assertVisible:
+    id: "settings-screen"
+    timeout: 5000
