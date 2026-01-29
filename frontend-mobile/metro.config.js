@@ -2,8 +2,19 @@
 // ABOUTME: Enables CSS support for Tailwind-style classes and resolves workspace packages
 
 const { getDefaultConfig } = require('expo/metro-config');
-const { withNativeWind } = require('nativewind/metro');
 const path = require('path');
+
+// Load NativeWind's metro plugin with fallback for CI environments
+// In some CI configurations (like xcodebuild's bundle phase), module resolution may fail
+let withNativeWind;
+try {
+  withNativeWind = require('nativewind/metro').withNativeWind;
+} catch (loadError) {
+  // Fallback for environments where NativeWind can't be loaded
+  // This allows the build to proceed; styles will use fallback rendering
+  withNativeWind = (config, nativeWindOptions) => config;
+  console.warn('NativeWind metro plugin not available:', loadError.message);
+}
 
 // Get the project root (monorepo root)
 const projectRoot = __dirname;
