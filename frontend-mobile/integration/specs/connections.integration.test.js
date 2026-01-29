@@ -87,9 +87,10 @@ describe('Connections Integration Tests', () => {
           : result.data.providers || [];
 
         if (providers.length > 0) {
-          // Each provider should have at least a name or id
+          // Each provider should have an identifier field
+          // API returns 'provider' field, but be flexible for compatibility
           expect(
-            providers[0].name || providers[0].id || providers[0].provider_id
+            providers[0].provider || providers[0].name || providers[0].id || providers[0].provider_id
           ).toBeDefined();
         }
       }
@@ -107,8 +108,10 @@ describe('Connections Integration Tests', () => {
           : result.data.providers || [];
 
         // Strava should be in the list of providers
+        // API returns 'provider' field, but be flexible for compatibility
         const hasStrava = providers.some(
           (p) =>
+            p.provider?.toLowerCase() === 'strava' ||
             p.name?.toLowerCase() === 'strava' ||
             p.id?.toLowerCase() === 'strava' ||
             p.provider_id?.toLowerCase() === 'strava'

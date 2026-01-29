@@ -272,13 +272,15 @@ jobs:
 
       - name: Build Detox
         working-directory: frontend-mobile
-        run: bunx detox build --configuration ios.sim.debug
+        # Use release configuration to avoid expo-dev-client polling in CI
+        run: bunx detox build --configuration ios.sim.release
         env:
           RCT_NO_LAUNCH_PACKAGER: 1
 
       - name: Run Detox E2E tests
         working-directory: frontend-mobile
-        run: bunx detox test --configuration ios.sim.debug --headless
+        # Use release configuration to avoid expo-dev-client polling in CI
+        run: bunx detox test --configuration ios.sim.release --headless
         env:
           RCT_NO_LAUNCH_PACKAGER: 1
           BACKEND_URL: "http://localhost:8081"
@@ -386,7 +388,8 @@ jobs:
 
       - name: Build Detox APK
         working-directory: frontend-mobile
-        run: bunx detox build --configuration android.emu.debug
+        # Use release configuration to avoid expo-dev-menu issues and reduce build complexity
+        run: bunx detox build --configuration android.emu.release
         env:
           RCT_NO_LAUNCH_PACKAGER: 1
           # Increase Java heap to prevent OOM during Android build
@@ -405,7 +408,7 @@ jobs:
           disable-animations: true
           script: |
             cd frontend-mobile
-            BACKEND_URL=http://localhost:8081 bunx detox test --configuration android.emu.debug --headless
+            BACKEND_URL=http://localhost:8081 bunx detox test --configuration android.emu.release --headless
 
       - name: Upload Android E2E test artifacts
         uses: actions/upload-artifact@v4
