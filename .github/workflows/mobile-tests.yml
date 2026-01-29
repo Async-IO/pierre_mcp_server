@@ -266,9 +266,11 @@ jobs:
           brew tap wix/brew
           brew install applesimutils
 
-      - name: Prebuild iOS
+      - name: Prebuild iOS (without expo-dev-client for E2E)
         working-directory: frontend-mobile
         run: bunx expo prebuild --platform ios --clean
+        env:
+          DETOX_E2E: 'true'
 
       - name: Build Detox
         working-directory: frontend-mobile
@@ -351,9 +353,11 @@ jobs:
         working-directory: frontend-mobile
         run: bunx expo install
 
-      - name: Prebuild Android
+      - name: Prebuild Android (without expo-dev-client for E2E)
         working-directory: frontend-mobile
         run: bunx expo prebuild --platform android --clean
+        env:
+          DETOX_E2E: 'true'
 
       - name: Create data directory
         run: mkdir -p data

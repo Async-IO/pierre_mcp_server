@@ -134,6 +134,7 @@ export default [
     ignores: [
       'node_modules/',
       '.expo/',
+      'app.config.js',
       'babel.config.js',
       'metro.config.js',
       'jest.config.js',
