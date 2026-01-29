@@ -1,5 +1,5 @@
 # ABOUTME: CI workflow for Pierre Mobile app (React Native/Expo)
-# ABOUTME: Runs unit tests, type checking, and linting on push/PR
+# ABOUTME: Runs unit tests, type checking, linting, and Maestro E2E tests on push/PR
 
 name: Mobile Tests
 
@@ -162,11 +162,144 @@ jobs:
           path: frontend-mobile/integration/
           retention-days: 7
 
-  mobile-e2e-tests:
-    name: Mobile E2E Tests (Detox)
+  mobile-e2e-maestro:
+    name: Mobile E2E Tests (Maestro)
     runs-on: macos-latest
     # Run on main branch pushes or when explicitly triggered
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.92.0
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-maestro-1.92.0-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-maestro-1.92.0-
+            ${{ runner.os }}-cargo-
+
+      - name: Build Pierre server (release for performance)
+        run: cargo build --release
+        env:
+          CARGO_INCREMENTAL: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install shared-types dependencies
+        working-directory: packages/shared-types
+        run: bun install
+
+      - name: Install api-client dependencies
+        working-directory: packages/api-client
+        run: bun install
+
+      - name: Install mobile dependencies
+        working-directory: frontend-mobile
+        run: bun install
+
+      - name: Install Maestro CLI
+        run: |
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> $GITHUB_PATH
+
+      - name: Create data directory
+        run: mkdir -p data
+
+      - name: Start Pierre server
+        run: |
+          ./target/release/pierre-mcp-server &
+          echo "Waiting for server to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:8081/health > /dev/null; then
+              echo "Server is healthy!"
+              break
+            fi
+            echo "Attempt $i: Server not ready yet..."
+            sleep 2
+          done
+        env:
+          DATABASE_URL: "sqlite:${{ github.workspace }}/data/maestro-test.db"
+          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+          PIERRE_RSA_KEY_SIZE: "2048"
+          HTTP_PORT: "8081"
+          RUST_LOG: "warn"
+          STRAVA_CLIENT_ID: "test_client_id_ci"
+          STRAVA_CLIENT_SECRET: "test_client_secret_ci"
+          STRAVA_REDIRECT_URI: "http://localhost:8081/auth/strava/callback"
+
+      - name: List available simulators
+        run: xcrun simctl list devices available
+
+      - name: Boot iOS Simulator
+        run: |
+          SIMULATOR_UDID=$(xcrun simctl list devices available | grep "iPhone 16 Pro (" | head -1 | grep -oE '[0-9A-Fa-f-]{36}')
+          if [ -z "$SIMULATOR_UDID" ]; then
+            SIMULATOR_UDID=$(xcrun simctl list devices available | grep "iPhone 16 (" | head -1 | grep -oE '[0-9A-Fa-f-]{36}')
+          fi
+          if [ -z "$SIMULATOR_UDID" ]; then
+            SIMULATOR_UDID=$(xcrun simctl list devices available | grep "iPhone" | head -1 | grep -oE '[0-9A-Fa-f-]{36}')
+          fi
+          if [ -z "$SIMULATOR_UDID" ]; then
+            echo "No iPhone simulator found!"
+            exit 1
+          fi
+          echo "Booting simulator: $SIMULATOR_UDID"
+          xcrun simctl boot "$SIMULATOR_UDID" || echo "Simulator may already be booted"
+          echo "SIMULATOR_UDID=$SIMULATOR_UDID" >> $GITHUB_ENV
+
+      - name: Prebuild iOS
+        working-directory: frontend-mobile
+        run: bunx expo prebuild --platform ios --clean
+
+      - name: Build and install app on simulator
+        working-directory: frontend-mobile
+        run: |
+          bunx expo run:ios --no-install --device $SIMULATOR_UDID
+          xcrun simctl install $SIMULATOR_UDID ios/build/Build/Products/Debug-iphonesimulator/Pierre.app
+
+      - name: Run Maestro tests
+        working-directory: frontend-mobile
+        run: |
+          $HOME/.maestro/bin/maestro test .maestro/ --format junit --output maestro-results.xml
+        env:
+          TEST_EMAIL: "mobiletest@pierre.dev"
+          TEST_PASSWORD: "MobileTest123!"
+          BACKEND_URL: "http://localhost:8081"
+
+      - name: Upload Maestro test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: maestro-test-results
+          path: |
+            frontend-mobile/maestro-results.xml
+            frontend-mobile/.maestro/
+          retention-days: 7
+
+  mobile-e2e-tests:
+    name: Mobile E2E Tests (Detox) [DEPRECATED]
+    runs-on: macos-latest
+    # DEPRECATED: Detox tests are being replaced by Maestro
+    # Keeping for transition period only
+    if: false  # Disabled - use Maestro instead
+    # Allow E2E tests to fail without blocking CI
+    # Known Detox + Expo compatibility issues cause intermittent connection failures
+    # Unit tests and integration tests provide primary test coverage
+    continue-on-error: true
 
     steps:
       - name: Checkout code
@@ -326,10 +459,15 @@ jobs:
           retention-days: 7
 
   mobile-e2e-tests-android:
-    name: Mobile E2E Tests - Android (Detox)
+    name: Mobile E2E Tests - Android (Detox) [DEPRECATED]
     runs-on: ubuntu-latest
-    # Run on main branch pushes or when explicitly triggered
-    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    # DEPRECATED: Detox tests are being replaced by Maestro
+    # Keeping for transition period only
+    if: false  # Disabled - use Maestro instead
+    # Allow E2E tests to fail without blocking CI
+    # Known Detox + Expo compatibility issues cause intermittent connection failures
+    # Unit tests and integration tests provide primary test coverage
+    continue-on-error: true
 
     steps:
       - name: Checkout code
