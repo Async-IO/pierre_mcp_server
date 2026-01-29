@@ -14,6 +14,7 @@ export const coachesApi = {
   async getCoaches(options?: {
     category?: string;
     favorites_only?: boolean;
+    include_hidden?: boolean;
     limit?: number;
     offset?: number;
   }): Promise<{
@@ -27,6 +28,7 @@ export const coachesApi = {
     const params = new URLSearchParams();
     if (options?.category) params.append('category', options.category);
     if (options?.favorites_only) params.append('favorites_only', 'true');
+    if (options?.include_hidden) params.append('include_hidden', 'true');
     if (options?.limit) params.append('limit', options.limit.toString());
     if (options?.offset) params.append('offset', options.offset.toString());
     const queryString = params.toString();
@@ -83,6 +85,11 @@ export const coachesApi = {
 
   async getHiddenCoaches(): Promise<{ coaches: Coach[] }> {
     const response = await axios.get('/api/coaches/hidden');
+    return response.data;
+  },
+
+  async forkCoach(coachId: string): Promise<{ coach: Coach }> {
+    const response = await axios.post(`/api/coaches/${coachId}/fork`);
     return response.data;
   },
 
