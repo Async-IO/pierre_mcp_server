@@ -424,11 +424,9 @@ files = [
 [ci_continue_on_error_allowlist]
 # Workflow steps permitted to have continue-on-error: true
 # Format: "workflow_file:step_name" or "workflow_file:line_number"
-# LEAVE EMPTY - all continue-on-error: true should fail validation
 # Only add entries after explicit approval with documented justification
 allowed = [
-    # Example (DO NOT ADD without explicit approval):
-    # "ci.yml:Security Audit",  # Advisory-only, not a test
+    "ci.yml:123",  # Security Audit (cargo deny check) - advisory, not a test
 ]
 
 [js_test_skip_allowlist]

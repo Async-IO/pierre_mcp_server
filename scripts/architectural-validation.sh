@@ -448,25 +448,34 @@ print('\n'.join(allowed))
 # Note: grep -v pattern must match the file:line format from rg, not just the line content
 CI_CONTINUE_ON_ERROR_TOTAL=$(rg "continue-on-error:\s*true" .github/workflows/ -n 2>/dev/null | grep -v "#.*continue-on-error" | wc -l | tr -d ' ' || echo 0)
 
-# Count allowlisted entries
-CI_CONTINUE_ON_ERROR_ALLOWED=0
-if [ -n "$CI_COE_ALLOWLIST" ]; then
+# Filter out allowlisted entries
+CI_CONTINUE_ON_ERROR=$CI_CONTINUE_ON_ERROR_TOTAL
+if [ -n "$CI_COE_ALLOWLIST" ] && [ "$CI_CONTINUE_ON_ERROR_TOTAL" -gt 0 ]; then
+    # Build grep pattern to exclude allowlisted entries
+    EXCLUDE_PATTERN=""
     while IFS= read -r entry; do
         [ -z "$entry" ] && continue
-        # Entry format: "workflow.yml:step_name" or just workflow pattern
-        CI_CONTINUE_ON_ERROR_ALLOWED=$((CI_CONTINUE_ON_ERROR_ALLOWED + 1))
+        if [ -z "$EXCLUDE_PATTERN" ]; then
+            EXCLUDE_PATTERN="$entry"
+        else
+            EXCLUDE_PATTERN="$EXCLUDE_PATTERN|$entry"
+        fi
     done <<< "$CI_COE_ALLOWLIST"
-fi
 
-CI_CONTINUE_ON_ERROR=$((CI_CONTINUE_ON_ERROR_TOTAL - CI_CONTINUE_ON_ERROR_ALLOWED))
-# Since allowlist is empty, all are unauthorized
-CI_CONTINUE_ON_ERROR=$CI_CONTINUE_ON_ERROR_TOTAL
+    if [ -n "$EXCLUDE_PATTERN" ]; then
+        CI_CONTINUE_ON_ERROR=$(rg "continue-on-error:\s*true" .github/workflows/ -n 2>/dev/null | grep -v "#.*continue-on-error" | grep -v -E "$EXCLUDE_PATTERN" | wc -l | tr -d ' ' || echo 0)
+    fi
+fi
 
 if [ "$CI_CONTINUE_ON_ERROR" -gt 0 ]; then
     echo -e "${RED}❌ FORBIDDEN: Found $CI_CONTINUE_ON_ERROR 'continue-on-error: true' in CI workflows${NC}"
     echo -e "${RED}All test jobs must fail the build when tests fail.${NC}"
     echo -e "${YELLOW}To allowlist (requires explicit approval), add to validation-patterns.toml [ci_continue_on_error_allowlist]${NC}"
-    rg "continue-on-error:\s*true" .github/workflows/ -n | grep -v "#.*continue-on-error" | head -5
+    if [ -n "$EXCLUDE_PATTERN" ]; then
+        rg "continue-on-error:\s*true" .github/workflows/ -n | grep -v "#.*continue-on-error" | grep -v -E "$EXCLUDE_PATTERN" | head -5
+    else
+        rg "continue-on-error:\s*true" .github/workflows/ -n | grep -v "#.*continue-on-error" | head -5
+    fi
     fail_validation "Remove continue-on-error: true from test jobs"
 else
     pass_validation "No unauthorized continue-on-error: true in CI workflows"
