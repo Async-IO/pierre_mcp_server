@@ -1340,10 +1340,10 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
           />
         )}
 
-        {/* Input Area - liquid style with violet accent */}
-        <View className="absolute bottom-0 left-0 right-0 px-4 py-2" style={{ backgroundColor: 'rgba(15, 15, 26, 0.85)' }}>
+        {/* Input Area - liquid style with violet accent, transparent background */}
+        <View className="absolute bottom-0 left-0 right-0 px-4 py-2">
           <View
-            className="flex-row items-end rounded-2xl px-3 py-1 min-h-[40px] max-h-[100px]"
+            className="flex-row items-center rounded-full px-3 min-h-[36px] max-h-[100px]"
             style={{ backgroundColor: 'rgba(30, 27, 45, 0.95)', borderWidth: 1, borderColor: 'rgba(139, 92, 246, 0.4)' }}
           >
             {/* Paperclip icon per Stitch spec */}
