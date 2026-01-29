@@ -164,7 +164,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
   const displayName = user?.display_name || user?.email?.split('@')[0] || 'Athlete';
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background.primary }}>
+    <View style={{ flex: 1, backgroundColor: colors.background.primary }} testID="settings-screen">
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
@@ -175,7 +175,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
         showsVerticalScrollIndicator={false}
       >
         {/* Profile Header with gradient-bordered avatar */}
-        <View style={{ alignItems: 'center', paddingHorizontal: 16, paddingVertical: 24 }}>
+        <View style={{ alignItems: 'center', paddingHorizontal: 16, paddingVertical: 24 }} testID="settings-profile-section">
           {/* Gradient-bordered Avatar */}
           <LinearGradient
             colors={[colors.pierre.violet, colors.pierre.cyan]}
@@ -227,12 +227,13 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
         </View>
 
         {/* Data Providers Section - navigates to Connections screen */}
-        <View style={{ paddingHorizontal: 16, marginBottom: 24 }}>
+        <View style={{ paddingHorizontal: 16, marginBottom: 24 }} testID="settings-data-section">
           <Text style={{ fontSize: 18, fontWeight: '600', color: '#ffffff', marginBottom: 12 }}>Data</Text>
           <View style={glassCardStyle}>
             <TouchableOpacity
               style={settingsRowStyle}
               onPress={() => navigation.navigate('Connections')}
+              testID="settings-data-providers-button"
             >
               <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.background.secondary, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
                 <Feather name="link" size={20} color={colors.text.secondary} />
@@ -249,7 +250,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
         </View>
 
         {/* Account Settings Section */}
-        <View style={{ paddingHorizontal: 16, marginBottom: 24 }}>
+        <View style={{ paddingHorizontal: 16, marginBottom: 24 }} testID="settings-account-section">
           <Text style={{ fontSize: 18, fontWeight: '600', color: '#ffffff', marginBottom: 12 }}>Account</Text>
           <View style={glassCardStyle}>
             <TouchableOpacity style={[settingsRowStyle, { borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.05)' }]}>
@@ -335,6 +336,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
           <TouchableOpacity
             style={[glassCardStyle, { borderColor: 'rgba(255, 107, 107, 0.3)', paddingVertical: 16, alignItems: 'center' }]}
             onPress={handleLogout}
+            testID="settings-logout-button"
           >
             <Text style={{ fontSize: 16, fontWeight: '600', color: colors.pierre.red }}>Log Out</Text>
           </TouchableOpacity>
