@@ -359,7 +359,7 @@ async fn test_deactivate_api_key_not_found() {
 }
 
 // ============================================================================
-// GET /api/keys/usage - Get Usage Statistics Tests
+// GET /api/keys/:key_id/usage - Get Usage Statistics Tests
 // ============================================================================
 
 #[tokio::test]
@@ -367,13 +367,38 @@ async fn test_get_api_key_usage_success() {
     let setup = ApiKeyTestSetup::new().await.expect("Setup failed");
     let routes = setup.routes();
 
-    let response = AxumTestRequest::get("/api/keys/usage")
+    // First create an API key
+    let create_request = json!({
+        "name": "Usage Test Key",
+        "description": "Key for usage testing",
+        "rate_limit_requests": 1000
+    });
+
+    let create_response = AxumTestRequest::post("/api/keys")
+        .header("authorization", &setup.auth_header())
+        .json(&create_request)
+        .send(routes.clone())
+        .await;
+
+    assert_eq!(create_response.status(), 201);
+    let create_body: serde_json::Value = create_response.json();
+    let key_id = create_body["key_info"]["id"]
+        .as_str()
+        .expect("key id should exist");
+
+    // Now query usage with required date parameters
+    let usage_url = format!(
+        "/api/keys/{}/usage?start_date=2024-01-01T00:00:00Z&end_date=2024-12-31T23:59:59Z",
+        key_id
+    );
+
+    let response = AxumTestRequest::get(&usage_url)
         .header("authorization", &setup.auth_header())
         .send(routes)
         .await;
 
-    // This endpoint is currently a stub, so it should return an error
-    assert_eq!(response.status(), 500);
+    // Should return 200 with usage stats
+    assert_eq!(response.status(), 200);
 }
 
 #[tokio::test]
@@ -381,7 +406,30 @@ async fn test_get_api_key_usage_missing_auth() {
     let setup = ApiKeyTestSetup::new().await.expect("Setup failed");
     let routes = setup.routes();
 
-    let response = AxumTestRequest::get("/api/keys/usage").send(routes).await;
+    // Create a key first to get a valid key_id
+    let create_request = json!({
+        "name": "Auth Test Key",
+        "description": "Key for auth testing",
+        "rate_limit_requests": 1000
+    });
+
+    let create_response = AxumTestRequest::post("/api/keys")
+        .header("authorization", &setup.auth_header())
+        .json(&create_request)
+        .send(routes.clone())
+        .await;
+
+    let create_body: serde_json::Value = create_response.json();
+    let key_id = create_body["key_info"]["id"]
+        .as_str()
+        .expect("key id should exist");
+
+    let usage_url = format!(
+        "/api/keys/{}/usage?start_date=2024-01-01T00:00:00Z&end_date=2024-12-31T23:59:59Z",
+        key_id
+    );
+
+    let response = AxumTestRequest::get(&usage_url).send(routes).await;
 
     assert_eq!(response.status(), 401);
 }
@@ -391,7 +439,30 @@ async fn test_get_api_key_usage_invalid_auth() {
     let setup = ApiKeyTestSetup::new().await.expect("Setup failed");
     let routes = setup.routes();
 
-    let response = AxumTestRequest::get("/api/keys/usage")
+    // Create a key first to get a valid key_id
+    let create_request = json!({
+        "name": "Invalid Auth Test Key",
+        "description": "Key for invalid auth testing",
+        "rate_limit_requests": 1000
+    });
+
+    let create_response = AxumTestRequest::post("/api/keys")
+        .header("authorization", &setup.auth_header())
+        .json(&create_request)
+        .send(routes.clone())
+        .await;
+
+    let create_body: serde_json::Value = create_response.json();
+    let key_id = create_body["key_info"]["id"]
+        .as_str()
+        .expect("key id should exist");
+
+    let usage_url = format!(
+        "/api/keys/{}/usage?start_date=2024-01-01T00:00:00Z&end_date=2024-12-31T23:59:59Z",
+        key_id
+    );
+
+    let response = AxumTestRequest::get(&usage_url)
         .header("authorization", "Bearer invalid_token")
         .send(routes)
         .await;

@@ -11,17 +11,28 @@
 
 use crate::{
     api_key_routes::ApiKeyRoutes as ApiKeyService, api_keys::CreateApiKeyRequestSimple,
-    auth::AuthResult, errors::AppError, mcp::resources::ServerResources,
-    security::cookies::get_cookie_value,
+    auth::AuthResult, database_plugins::DatabaseProvider, errors::AppError,
+    mcp::resources::ServerResources, security::cookies::get_cookie_value,
 };
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{delete, get, post},
     Json, Router,
 };
-use std::{future, sync::Arc};
+use chrono::{DateTime, Utc};
+use serde::Deserialize;
+use std::sync::Arc;
+
+/// Query parameters for API key usage statistics
+#[derive(Debug, Deserialize)]
+pub struct UsageQuery {
+    /// Start date for usage statistics (ISO 8601 format)
+    pub start_date: DateTime<Utc>,
+    /// End date for usage statistics (ISO 8601 format)
+    pub end_date: DateTime<Utc>,
+}
 
 /// API key management routes
 pub struct ApiKeyRoutes;
@@ -33,7 +44,7 @@ impl ApiKeyRoutes {
             .route("/api/keys", post(Self::handle_create_api_key))
             .route("/api/keys", get(Self::handle_list_api_keys))
             .route("/api/keys/:key_id", delete(Self::handle_deactivate_api_key))
-            .route("/api/keys/usage", get(Self::handle_get_usage))
+            .route("/api/keys/:key_id/usage", get(Self::handle_get_usage))
             .with_state(resources)
     }
 
@@ -121,16 +132,19 @@ impl ApiKeyRoutes {
     /// Handle getting API key usage statistics
     async fn handle_get_usage(
         State(resources): State<Arc<ServerResources>>,
+        Path(key_id): Path<String>,
+        Query(query): Query<UsageQuery>,
         headers: HeaderMap,
     ) -> Result<Response, AppError> {
-        // Authenticate user from JWT token (result unused - just validates auth)
+        // Authenticate user from JWT token
         Self::authenticate(&headers, &resources).await?;
 
-        // Note: get_api_key_usage requires api_key_id, start_date, end_date parameters
-        // This endpoint needs query parameter support - stub for now
-        future::ready(Err(AppError::internal(
-            "API key usage endpoint requires query parameter implementation",
-        )))
-        .await
+        let stats = resources
+            .database
+            .get_api_key_usage_stats(&key_id, query.start_date, query.end_date)
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to get API key usage: {e}")))?;
+
+        Ok((StatusCode::OK, Json(stats)).into_response())
     }
 }
