@@ -165,8 +165,8 @@ jobs:
   mobile-e2e-maestro:
     name: Mobile E2E Tests (Maestro)
     runs-on: macos-latest
-    # Run on main branch pushes or when explicitly triggered
-    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    # Run on main, claude/* branches, or when explicitly triggered
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/claude/') || github.event_name == 'workflow_dispatch'
     timeout-minutes: 45
 
     steps:
