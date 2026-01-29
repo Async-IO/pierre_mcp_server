@@ -2,7 +2,9 @@
   "name": "pierre-mobile",
   "version": "1.0.0",
   "main": "index.ts",
+  "packageManager": "bun@1.1.0",
   "scripts": {
+    "preinstall": "node -e \"if(!process.env.npm_execpath || !process.env.npm_execpath.includes('bun')) { console.error('\\n\\x1b[31mERROR: Use bun, not npm/yarn!\\x1b[0m\\nRun: bun install\\n'); process.exit(1); }\"",
     "start": "expo start --port 8082",
     "tunnel": "../bin/start-tunnel.sh",
     "tunnel:stop": "pkill -f 'cloudflared tunnel' && echo 'Tunnel stopped' || echo 'No tunnel running'",

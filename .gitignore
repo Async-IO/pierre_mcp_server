@@ -89,9 +89,12 @@ GEMINI.md
 
 # Node.js dependencies
 node_modules/
+
+# Package manager lock files - ONLY bun.lock is allowed (enforces bun usage)
 package-lock.json
-!frontend-mobile/package-lock.json
-# Note: sdk uses Bun (bun.lock is tracked for reproducible CI builds)
+yarn.lock
+pnpm-lock.yaml
+# Note: bun.lock files are tracked for reproducible CI builds
 
 # MCP Validator (install locally, don't commit)
 /validator/

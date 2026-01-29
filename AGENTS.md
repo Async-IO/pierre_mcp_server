@@ -14,6 +14,37 @@
 
 ### Starting a new project
 
+## Package Manager: bun ONLY
+
+**CRITICAL: This project uses `bun` exclusively. NEVER use `npm`, `yarn`, or `pnpm`.**
+
+Using npm/yarn will corrupt the project by creating conflicting lock files and inconsistent `node_modules/`.
+
+### Commands
+| Task | Command |
+|------|---------|
+| Install dependencies | `bun install` |
+| Add a package | `bun add <package>` |
+| Add dev dependency | `bun add -d <package>` |
+| Run scripts | `bun run <script>` |
+| Run tests | `bun test` |
+
+### Enforcement
+- All `package.json` files have a `preinstall` script that rejects npm/yarn
+- `.gitignore` blocks `package-lock.json`, `yarn.lock`, and `pnpm-lock.yaml`
+- CI workflows use `bun install --frozen-lockfile`
+
+### If You See Corruption
+If you accidentally ran npm and see both `bun.lock` and `package-lock.json`:
+```bash
+# Remove npm artifacts
+rm -rf node_modules package-lock.json
+rm -rf */node_modules */package-lock.json
+
+# Reinstall with bun
+bun install
+```
+
 ## Development Quick Start
 
 ### Server Management Scripts
