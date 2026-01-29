@@ -139,6 +139,7 @@ export default [
       'metro.config.js',
       'jest.config.js',
       'jest.setup.js',
+      'react-native.config.js',
       'tailwind.config.js',
       '.detoxrc.js',
       'e2e/',

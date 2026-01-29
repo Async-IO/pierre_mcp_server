@@ -281,7 +281,10 @@ jobs:
           sed -i '' '/expo-dev-launcher/d' Podfile
           sed -i '' '/expo-dev-menu/d' Podfile
           # Reinstall pods without expo-dev-client
-          pod install
+          # DETOX_E2E tells react-native.config.js to exclude these packages
+          DETOX_E2E=true pod install
+        env:
+          DETOX_E2E: 'true'
 
       - name: Build Detox
         working-directory: frontend-mobile
@@ -289,6 +292,7 @@ jobs:
         run: bunx detox build --configuration ios.sim.release
         env:
           RCT_NO_LAUNCH_PACKAGER: 1
+          DETOX_E2E: 'true'
 
       - name: Run Detox E2E tests
         working-directory: frontend-mobile
@@ -297,6 +301,7 @@ jobs:
         env:
           RCT_NO_LAUNCH_PACKAGER: 1
           BACKEND_URL: "http://localhost:8081"
+          DETOX_E2E: 'true'
 
       - name: Upload E2E test artifacts
         uses: actions/upload-artifact@v4
@@ -420,6 +425,7 @@ jobs:
         run: bunx detox build --configuration android.emu.release
         env:
           RCT_NO_LAUNCH_PACKAGER: 1
+          DETOX_E2E: 'true'
           # Increase Java heap to prevent OOM during Android build
           GRADLE_OPTS: "-Xmx4g -XX:+UseParallelGC"
 
