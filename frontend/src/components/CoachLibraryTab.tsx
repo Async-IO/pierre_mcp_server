@@ -14,6 +14,24 @@ import { clsx } from 'clsx';
 // Coach category options
 const COACH_CATEGORIES = ['Training', 'Nutrition', 'Recovery', 'Recipes', 'Mobility', 'Custom'];
 
+// Source filter options (user-created vs system coaches)
+type CoachSource = 'all' | 'user' | 'system';
+const SOURCE_FILTERS: Array<{ key: CoachSource; label: string }> = [
+  { key: 'all', label: 'All Sources' },
+  { key: 'user', label: 'My Coaches' },
+  { key: 'system', label: 'System' },
+];
+
+// Category emoji icons matching mobile
+const CATEGORY_EMOJIS: Record<string, string> = {
+  Training: '🏃',
+  Nutrition: '🥗',
+  Recovery: '😴',
+  Recipes: '👨‍🍳',
+  Mobility: '🧘',
+  Custom: '⚙️',
+};
+
 // Category colors for visual differentiation (matching ASY-35 specs)
 const CATEGORY_COLORS: Record<string, string> = {
   Training: 'bg-pierre-activity/10 text-pierre-activity border-pierre-activity/20',
@@ -65,14 +83,25 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
   const [formData, setFormData] = useState<CoachFormData>(defaultFormData);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [selectedSource, setSelectedSource] = useState<CoachSource>('all');
+  const [showHidden, setShowHidden] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [actionMenuCoach, setActionMenuCoach] = useState<Coach | null>(null);
+  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
 
-  // Fetch user's coaches (personal coaches only, not system)
+  // Fetch all coaches (including hidden) for client-side filtering
   const { data: coachesData, isLoading: coachesLoading } = useQuery({
-    queryKey: ['user-coaches', categoryFilter, favoritesOnly],
+    queryKey: ['user-coaches', 'include-hidden'],
     queryFn: () => apiService.getCoaches({
-      category: categoryFilter || undefined,
-      favorites_only: favoritesOnly || undefined,
+      include_hidden: true,
     }),
+  });
+
+  // Fetch hidden coaches list to mark them
+  const { data: hiddenData } = useQuery({
+    queryKey: ['hidden-coaches'],
+    queryFn: () => apiService.getHiddenCoaches(),
   });
 
   // Create mutation
@@ -124,6 +153,35 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
     },
   });
 
+  // Hide coach mutation
+  const hideMutation = useMutation({
+    mutationFn: (id: string) => apiService.hideCoach(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
+      queryClient.invalidateQueries({ queryKey: ['hidden-coaches'] });
+      setActionMenuCoach(null);
+    },
+  });
+
+  // Show coach mutation
+  const showMutation = useMutation({
+    mutationFn: (id: string) => apiService.showCoach(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
+      queryClient.invalidateQueries({ queryKey: ['hidden-coaches'] });
+      setActionMenuCoach(null);
+    },
+  });
+
+  // Fork coach mutation
+  const forkMutation = useMutation({
+    mutationFn: (id: string) => apiService.forkCoach(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
+      setActionMenuCoach(null);
+    },
+  });
+
   // Load form data when editing
   useEffect(() => {
     if (isEditing && selectedCoach) {
@@ -157,8 +215,80 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
     favoriteMutation.mutate(coachId);
   };
 
-  // Filter to only personal coaches (not system coaches)
-  const personalCoaches = (coachesData?.coaches || []).filter(coach => !coach.is_system);
+  const handleHideCoach = (coach: Coach) => {
+    hideMutation.mutate(coach.id);
+  };
+
+  const handleShowCoach = (coach: Coach) => {
+    showMutation.mutate(coach.id);
+  };
+
+  const handleForkCoach = (coach: Coach) => {
+    if (!coach.is_system) return;
+    if (confirm(`Create your own copy of "${coach.title}"? You can customize the forked coach however you like.`)) {
+      forkMutation.mutate(coach.id);
+    }
+  };
+
+  const handleRename = (coach: Coach) => {
+    setRenameValue(coach.title);
+    setIsRenameDialogOpen(true);
+  };
+
+  const handleRenameSubmit = () => {
+    if (actionMenuCoach && renameValue.trim()) {
+      updateMutation.mutate({
+        id: actionMenuCoach.id,
+        data: { ...formData, title: renameValue.trim() },
+      });
+      setIsRenameDialogOpen(false);
+      setActionMenuCoach(null);
+    }
+  };
+
+  const handleContextMenu = (e: React.MouseEvent, coach: Coach) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setActionMenuCoach(coach);
+  };
+
+  const closeActionMenu = () => {
+    setActionMenuCoach(null);
+  };
+
+  // Build set of hidden coach IDs for quick lookup
+  const hiddenIds = new Set((hiddenData?.coaches || []).map(c => c.id));
+
+  // Apply client-side filtering based on all filter states
+  const filteredCoaches = (coachesData?.coaches || [])
+    // Mark coaches as hidden
+    .map(coach => ({ ...coach, is_hidden: hiddenIds.has(coach.id) }))
+    // Filter by hidden state
+    .filter(coach => showHidden || !coach.is_hidden)
+    // Filter by source (user vs system)
+    .filter(coach => {
+      if (selectedSource === 'user') return !coach.is_system;
+      if (selectedSource === 'system') return coach.is_system;
+      return true;
+    })
+    // Filter by category
+    .filter(coach => !categoryFilter || coach.category === categoryFilter)
+    // Filter by favorites
+    .filter(coach => !favoritesOnly || coach.is_favorite)
+    // Filter by search query
+    .filter(coach => {
+      if (!searchQuery.trim()) return true;
+      const query = searchQuery.toLowerCase();
+      return (
+        coach.title.toLowerCase().includes(query) ||
+        (coach.description || '').toLowerCase().includes(query)
+      );
+    })
+    // Sort: favorites first, then by use_count
+    .sort((a, b) => {
+      if (a.is_favorite !== b.is_favorite) return a.is_favorite ? -1 : 1;
+      return b.use_count - a.use_count;
+    });
 
   // Token count estimation (same formula as mobile: text.length / 4)
   const estimateTokenCount = (text: string): number => {
@@ -180,7 +310,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
             {onBack && (
               <button
                 onClick={onBack}
-                className="flex items-center gap-2 text-pierre-gray-600 hover:text-pierre-violet transition-colors"
+                className="flex items-center gap-2 text-zinc-400 hover:text-pierre-violet transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -189,24 +319,45 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
               </button>
             )}
             <div>
-              <h2 className="text-2xl font-semibold text-pierre-gray-900">My Coaches</h2>
-              <p className="text-pierre-gray-600 mt-1">
+              <h2 className="text-2xl font-semibold text-white">My Coaches</h2>
+              <p className="text-zinc-400 mt-1">
                 Create custom AI personas to get specialized fitness coaching.
               </p>
             </div>
           </div>
-          <Button
-            onClick={() => {
-              setFormData(defaultFormData);
-              setIsCreating(true);
-            }}
-            className="flex items-center gap-2"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Create Coach
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Show hidden toggle */}
+            <button
+              onClick={() => setShowHidden(!showHidden)}
+              className={clsx(
+                'p-2 rounded-lg transition-colors',
+                showHidden
+                  ? 'bg-pierre-violet/20 text-pierre-violet'
+                  : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
+              )}
+              title={showHidden ? 'Hide hidden coaches' : 'Show hidden coaches'}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {showHidden ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                )}
+              </svg>
+            </button>
+            <Button
+              onClick={() => {
+                setFormData(defaultFormData);
+                setIsCreating(true);
+              }}
+              className="flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Create Coach
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -219,7 +370,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                 'px-3 py-1.5 text-sm font-medium rounded-full transition-colors whitespace-nowrap',
                 categoryFilter === null
                   ? 'bg-pierre-violet text-white'
-                  : 'bg-pierre-gray-100 text-pierre-gray-600 hover:bg-pierre-gray-200'
+                  : 'bg-white/5 text-zinc-400 hover:bg-white/10'
               )}
             >
               All
@@ -232,7 +383,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                   'px-3 py-1.5 text-sm font-medium rounded-full transition-colors whitespace-nowrap',
                   categoryFilter === cat
                     ? 'bg-pierre-violet text-white'
-                    : 'bg-pierre-gray-100 text-pierre-gray-600 hover:bg-pierre-gray-200'
+                    : 'bg-white/5 text-zinc-400 hover:bg-white/10'
                 )}
               >
                 {cat}
@@ -246,8 +397,8 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
             className={clsx(
               'flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-full transition-colors',
               favoritesOnly
-                ? 'bg-pierre-yellow-100 text-pierre-yellow-700'
-                : 'bg-pierre-gray-100 text-pierre-gray-600 hover:bg-pierre-gray-200'
+                ? 'bg-pierre-yellow-500/20 text-pierre-yellow-400'
+                : 'bg-white/5 text-zinc-400 hover:bg-white/10'
             )}
           >
             <svg
@@ -266,102 +417,367 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
           </button>
         </div>
 
+        {/* Source filter (All Sources / My Coaches / System) */}
+        <div className="flex justify-center items-center gap-3">
+          {SOURCE_FILTERS.map((filter) => (
+            <button
+              key={filter.key}
+              onClick={() => setSelectedSource(filter.key)}
+              className={clsx(
+                'px-3 py-1.5 text-xs font-medium rounded-full transition-colors border',
+                selectedSource === filter.key
+                  ? 'bg-pierre-violet/20 text-pierre-violet border-pierre-violet'
+                  : 'text-zinc-400 border-transparent hover:text-zinc-300'
+              )}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+
         {/* Coaches Grid */}
         {coachesLoading ? (
           <div className="flex justify-center py-12">
             <div className="pierre-spinner w-8 h-8"></div>
           </div>
-        ) : personalCoaches.length === 0 ? (
-          <Card className="text-center py-12">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-pierre-gray-100 flex items-center justify-center">
-              <svg className="w-8 h-8 text-pierre-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        ) : filteredCoaches.length === 0 ? (
+          <Card variant="dark" className="text-center py-12">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/5 flex items-center justify-center">
+              <svg className="w-8 h-8 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <h3 className="text-lg font-medium text-pierre-gray-900 mb-2">
-              {favoritesOnly ? 'No Favorite Coaches' : 'No Coaches Yet'}
+            <h3 className="text-lg font-medium text-white mb-2">
+              {favoritesOnly ? 'No Favorite Coaches' :
+               selectedSource === 'user' ? 'No User-Created Coaches' :
+               selectedSource === 'system' ? 'No System Coaches' :
+               categoryFilter ? `No ${categoryFilter} Coaches` :
+               'No Coaches Yet'}
             </h3>
-            <p className="text-pierre-gray-600 mb-4">
+            <p className="text-zinc-400 mb-4">
               {favoritesOnly
                 ? 'Star some coaches to see them here.'
-                : 'Create your first coach to customize how Pierre helps you.'}
+                : (coachesData?.coaches || []).length === 0
+                ? 'Create your first coach to customize how Pierre helps you.'
+                : 'Try adjusting your filters.'}
             </p>
-            {!favoritesOnly && (
+            {!favoritesOnly && (coachesData?.coaches || []).length === 0 && (
               <Button onClick={() => setIsCreating(true)}>Create Your First Coach</Button>
             )}
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {personalCoaches.map((coach) => (
-              <div
-                key={coach.id}
-                className="cursor-pointer hover:shadow-md transition-shadow border-l-4 card"
-                style={{ borderLeftColor: CATEGORY_BORDER_COLORS[coach.category] || CATEGORY_BORDER_COLORS.Custom }}
-                onClick={() => setSelectedCoach(coach)}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-pierre-gray-900 truncate">{coach.title}</h3>
-                    <span className={clsx(
-                      'inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded-full border',
-                      CATEGORY_COLORS[coach.category] || CATEGORY_COLORS.Custom
-                    )}>
-                      {coach.category}
-                    </span>
-                  </div>
-                  <button
-                    onClick={(e) => handleToggleFavorite(e, coach.id)}
-                    className="text-pierre-gray-400 hover:text-pierre-yellow-500 transition-colors p-1"
-                    title={coach.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
-                  >
-                    <svg
-                      className={clsx('w-5 h-5', coach.is_favorite ? 'fill-pierre-yellow-400 text-pierre-yellow-400' : 'fill-none')}
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-20">
+            {filteredCoaches.map((coach) => {
+              const isHidden = coach.is_hidden;
+              return (
+                <div
+                  key={coach.id}
+                  className={clsx(
+                    'cursor-pointer hover:shadow-md transition-all border-l-4 bg-[#151520] rounded-xl p-4 border border-white/10',
+                    isHidden && 'opacity-60'
+                  )}
+                  style={{ borderLeftColor: CATEGORY_BORDER_COLORS[coach.category] || CATEGORY_BORDER_COLORS.Custom }}
+                  onClick={() => setSelectedCoach(coach)}
+                  onContextMenu={(e) => handleContextMenu(e, coach)}
+                >
+                  <div className="flex items-start gap-3">
+                    {/* Category Emoji Avatar */}
+                    <div
+                      className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 text-xl"
+                      style={{ backgroundColor: `${CATEGORY_BORDER_COLORS[coach.category] || CATEGORY_BORDER_COLORS.Custom}20` }}
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
-                      />
-                    </svg>
-                  </button>
-                </div>
-                {coach.description && (
-                  <p className="text-sm text-pierre-gray-600 line-clamp-2 mb-3">{coach.description}</p>
-                )}
-                <div className="flex items-center gap-4 text-xs text-pierre-gray-500">
-                  <span className="flex items-center gap-1" title="Token count and context usage">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                    </svg>
-                    ~{coach.token_count.toLocaleString()} tokens ({getContextPercentage(coach.token_count)}%)
-                  </span>
-                  <span className="flex items-center gap-1" title="Times used">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                    {coach.use_count} uses
-                  </span>
-                </div>
-                {coach.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-3">
-                    {coach.tags.slice(0, 3).map((tag) => (
-                      <span key={tag} className="px-2 py-0.5 text-xs bg-pierre-gray-100 text-pierre-gray-600 rounded">
-                        {tag}
-                      </span>
-                    ))}
-                    {coach.tags.length > 3 && (
-                      <span className="px-2 py-0.5 text-xs bg-pierre-gray-100 text-pierre-gray-500 rounded">
-                        +{coach.tags.length - 3}
-                      </span>
-                    )}
+                      {CATEGORY_EMOJIS[coach.category] || CATEGORY_EMOJIS.Custom}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      {/* Title and badges */}
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className={clsx('font-semibold truncate', isHidden ? 'text-zinc-500' : 'text-white')}>
+                          {coach.title}
+                        </h3>
+                        <span className={clsx(
+                          'px-2 py-0.5 text-xs font-medium rounded-full border flex-shrink-0',
+                          CATEGORY_COLORS[coach.category] || CATEGORY_COLORS.Custom
+                        )}>
+                          {coach.category}
+                        </span>
+                        {coach.is_system && (
+                          <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-zinc-700/50 text-zinc-400 flex-shrink-0">
+                            System
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Star rating (use count as proxy) and favorite button */}
+                      <div className="flex items-center gap-1 mb-1">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <svg
+                            key={star}
+                            className={clsx(
+                              'w-3 h-3',
+                              coach.use_count >= star * 2 ? 'text-pierre-yellow-500 fill-pierre-yellow-500' : 'text-zinc-600 fill-none'
+                            )}
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                          </svg>
+                        ))}
+                        <button
+                          onClick={(e) => handleToggleFavorite(e, coach.id)}
+                          className="ml-2 p-0.5 text-zinc-500 hover:text-pierre-violet transition-colors"
+                          title={coach.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
+                        >
+                          <svg className="w-4 h-4" fill={coach.is_favorite ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                          </svg>
+                        </button>
+                      </div>
+
+                      {/* Description */}
+                      {coach.description && (
+                        <p className={clsx('text-sm line-clamp-2', isHidden ? 'text-zinc-600' : 'text-zinc-400')}>
+                          {coach.description}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Chat button with violet glow */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedCoach(coach);
+                      }}
+                      className="px-4 py-2 rounded-full text-sm font-semibold text-white flex-shrink-0"
+                      style={{
+                        backgroundColor: '#8B5CF6',
+                        boxShadow: '0 0 12px rgba(139, 92, 246, 0.4)',
+                      }}
+                    >
+                      Chat
+                    </button>
                   </div>
-                )}
+
+                  {/* Action row for system coaches and hidden coaches */}
+                  {(coach.is_system || isHidden) && (
+                    <div className="flex items-center justify-end mt-3 pt-2 border-t border-white/5 gap-2">
+                      {/* Fork button for system coaches */}
+                      {coach.is_system && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleForkCoach(coach);
+                          }}
+                          className="flex items-center gap-1 px-2 py-1 rounded text-xs text-zinc-500 hover:text-zinc-300 bg-white/5 hover:bg-white/10 transition-colors"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                          Fork
+                        </button>
+                      )}
+                      {/* Hide/Show button */}
+                      {coach.is_system && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isHidden) {
+                              handleShowCoach(coach);
+                            } else {
+                              handleHideCoach(coach);
+                            }
+                          }}
+                          className="flex items-center gap-1 px-2 py-1 rounded text-xs text-zinc-500 hover:text-zinc-300 bg-white/5 hover:bg-white/10 transition-colors"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {isHidden ? (
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            ) : (
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                            )}
+                          </svg>
+                          {isHidden ? 'Show' : 'Hide'}
+                        </button>
+                      )}
+                      {/* Hidden indicator for non-system coaches */}
+                      {isHidden && !coach.is_system && (
+                        <span className="flex items-center gap-1 text-xs text-zinc-500">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                          </svg>
+                          Hidden
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Floating Search Bar */}
+        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 w-full max-w-md px-4">
+          <div className="flex items-center gap-2 px-4 h-10 rounded-full bg-[#1E1B2D]/95 border border-pierre-violet/40 shadow-lg shadow-black/20">
+            <svg className="w-5 h-5 text-pierre-violet" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search coaches..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1 bg-transparent text-white placeholder-zinc-500 outline-none text-sm"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="text-zinc-500 hover:text-zinc-300">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Context Menu Modal */}
+        {actionMenuCoach && (
+          <div
+            className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center"
+            onClick={closeActionMenu}
+          >
+            <div
+              className="bg-[#1E1B2D] rounded-xl p-2 min-w-[220px] shadow-xl border border-white/10"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Favorite toggle */}
+              <button
+                onClick={() => {
+                  favoriteMutation.mutate(actionMenuCoach.id);
+                  closeActionMenu();
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2 text-left text-white hover:bg-white/5 rounded-lg transition-colors"
+              >
+                <svg
+                  className={clsx('w-5 h-5', actionMenuCoach.is_favorite ? 'text-pierre-yellow-500' : '')}
+                  fill={actionMenuCoach.is_favorite ? 'currentColor' : 'none'}
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                </svg>
+                {actionMenuCoach.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
+              </button>
+
+              {/* Hide/Show for system coaches */}
+              {actionMenuCoach.is_system && (
+                <button
+                  onClick={() => {
+                    if (actionMenuCoach.is_hidden) {
+                      handleShowCoach(actionMenuCoach);
+                    } else {
+                      handleHideCoach(actionMenuCoach);
+                    }
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-left text-white hover:bg-white/5 rounded-lg transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    {actionMenuCoach.is_hidden ? (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    ) : (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                    )}
+                  </svg>
+                  {actionMenuCoach.is_hidden ? 'Show coach' : 'Hide coach'}
+                </button>
+              )}
+
+              {/* Fork for system coaches */}
+              {actionMenuCoach.is_system && (
+                <button
+                  onClick={() => handleForkCoach(actionMenuCoach)}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-left text-white hover:bg-white/5 rounded-lg transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  Fork (create my copy)
+                </button>
+              )}
+
+              {/* Rename for user coaches */}
+              {!actionMenuCoach.is_system && (
+                <button
+                  onClick={() => handleRename(actionMenuCoach)}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-left text-white hover:bg-white/5 rounded-lg transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  Rename
+                </button>
+              )}
+
+              {/* Delete for user coaches */}
+              {!actionMenuCoach.is_system && (
+                <button
+                  onClick={() => {
+                    if (confirm(`Delete coach "${actionMenuCoach.title}"? This cannot be undone.`)) {
+                      deleteMutation.mutate(actionMenuCoach.id);
+                      closeActionMenu();
+                    }
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-left text-pierre-red-500 hover:bg-white/5 rounded-lg transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Delete
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Rename Dialog */}
+        {isRenameDialogOpen && actionMenuCoach && (
+          <div
+            className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center"
+            onClick={() => {
+              setIsRenameDialogOpen(false);
+              setActionMenuCoach(null);
+            }}
+          >
+            <div
+              className="bg-[#1E1B2D] rounded-xl p-6 w-full max-w-md shadow-xl border border-white/10"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-semibold text-white mb-4">Rename Coach</h3>
+              <input
+                type="text"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:ring-2 focus:ring-pierre-violet focus:border-transparent mb-4"
+                placeholder="Enter new name"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleRenameSubmit();
+                  }
+                }}
+              />
+              <div className="flex justify-end gap-3">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setIsRenameDialogOpen(false);
+                    setActionMenuCoach(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleRenameSubmit}>Save</Button>
               </div>
-            ))}
+            </div>
           </div>
         )}
       </div>
@@ -374,9 +790,9 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
 
     return (
       <div className="max-w-2xl mx-auto">
-        <Card>
+        <Card variant="dark">
           {/* Card header with integrated back button - industry standard pattern */}
-          <div className="flex items-center gap-3 pb-4 mb-6 border-b border-pierre-gray-100">
+          <div className="flex items-center gap-3 pb-4 mb-6 border-b border-white/10">
             <button
               onClick={() => {
                 setIsCreating(false);
@@ -384,14 +800,14 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                 setFormData(defaultFormData);
                 setSelectedCoach(null);
               }}
-              className="p-1.5 rounded-lg text-pierre-gray-500 hover:text-pierre-violet hover:bg-pierre-gray-100 transition-colors"
+              className="p-1.5 rounded-lg text-zinc-500 hover:text-pierre-violet hover:bg-white/5 transition-colors"
               title="Back to coaches"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <h2 className="text-xl font-semibold text-pierre-gray-900">
+            <h2 className="text-xl font-semibold text-white">
               {isCreating ? 'Create Coach' : `Edit "${selectedCoach?.title}"`}
             </h2>
           </div>
@@ -399,14 +815,14 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Title */}
             <div>
-              <label className="block text-sm font-medium text-pierre-gray-700 mb-1">
+              <label className="block text-sm font-medium text-zinc-300 mb-1">
                 Title <span className="text-pierre-red-500">*</span>
               </label>
               <input
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="w-full px-3 py-2 border border-pierre-gray-300 rounded-lg focus:ring-2 focus:ring-pierre-violet focus:border-transparent"
+                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:ring-2 focus:ring-pierre-violet focus:border-transparent"
                 placeholder="e.g., Marathon Training Coach"
                 maxLength={100}
                 required
@@ -415,55 +831,55 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
 
             {/* Category */}
             <div>
-              <label className="block text-sm font-medium text-pierre-gray-700 mb-1">
+              <label className="block text-sm font-medium text-zinc-300 mb-1">
                 Category
               </label>
               <select
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                className="w-full px-3 py-2 border border-pierre-gray-300 rounded-lg focus:ring-2 focus:ring-pierre-violet focus:border-transparent"
+                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-pierre-violet focus:border-transparent"
               >
                 {COACH_CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
+                  <option key={cat} value={cat} className="bg-[#151520]">{cat}</option>
                 ))}
               </select>
             </div>
 
             {/* Description */}
             <div>
-              <label className="block text-sm font-medium text-pierre-gray-700 mb-1">
+              <label className="block text-sm font-medium text-zinc-300 mb-1">
                 Description
               </label>
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-3 py-2 border border-pierre-gray-300 rounded-lg focus:ring-2 focus:ring-pierre-violet focus:border-transparent"
+                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:ring-2 focus:ring-pierre-violet focus:border-transparent"
                 rows={2}
                 maxLength={500}
                 placeholder="Brief description of the coach's specialty..."
               />
-              <p className="mt-1 text-xs text-pierre-gray-500 text-right">
+              <p className="mt-1 text-xs text-zinc-500 text-right">
                 {formData.description.length}/500
               </p>
             </div>
 
             {/* System Prompt */}
             <div>
-              <label className="block text-sm font-medium text-pierre-gray-700 mb-1">
+              <label className="block text-sm font-medium text-zinc-300 mb-1">
                 System Prompt <span className="text-pierre-red-500">*</span>
               </label>
               <textarea
                 value={formData.system_prompt}
                 onChange={(e) => setFormData({ ...formData, system_prompt: e.target.value })}
-                className="w-full px-3 py-2 border border-pierre-gray-300 rounded-lg focus:ring-2 focus:ring-pierre-violet focus:border-transparent font-mono text-sm"
+                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:ring-2 focus:ring-pierre-violet focus:border-transparent font-mono text-sm"
                 rows={8}
                 maxLength={4000}
                 placeholder="You are Pierre, an expert coach with deep knowledge of..."
                 required
               />
-              <div className="mt-1 flex items-center justify-between text-xs text-pierre-gray-500">
+              <div className="mt-1 flex items-center justify-between text-xs text-zinc-500">
                 <span>
-                  📊 ~{tokenCount.toLocaleString()} tokens ({getContextPercentage(tokenCount)}% context)
+                  ~{tokenCount.toLocaleString()} tokens ({getContextPercentage(tokenCount)}% context)
                 </span>
                 <span>{formData.system_prompt.length}/4000</span>
               </div>
@@ -471,14 +887,14 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
 
             {/* Tags */}
             <div>
-              <label className="block text-sm font-medium text-pierre-gray-700 mb-1">
+              <label className="block text-sm font-medium text-zinc-300 mb-1">
                 Tags
               </label>
               <input
                 type="text"
                 value={formData.tags}
                 onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-                className="w-full px-3 py-2 border border-pierre-gray-300 rounded-lg focus:ring-2 focus:ring-pierre-violet focus:border-transparent"
+                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:ring-2 focus:ring-pierre-violet focus:border-transparent"
                 placeholder="marathon, endurance, beginner (comma-separated)"
               />
             </div>
@@ -525,20 +941,20 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
   return (
     <div className="max-w-3xl mx-auto">
       {/* Coach Details Card */}
-      <Card>
+      <Card variant="dark">
         {/* Card header with integrated back button - industry standard pattern */}
-        <div className="flex items-center justify-between pb-4 mb-6 border-b border-pierre-gray-100">
+        <div className="flex items-center justify-between pb-4 mb-6 border-b border-white/10">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSelectedCoach(null)}
-              className="p-1.5 rounded-lg text-pierre-gray-500 hover:text-pierre-violet hover:bg-pierre-gray-100 transition-colors"
+              className="p-1.5 rounded-lg text-zinc-500 hover:text-pierre-violet hover:bg-white/5 transition-colors"
               title="Back to coaches"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <h2 className="text-2xl font-semibold text-pierre-gray-900">{selectedCoach.title}</h2>
+            <h2 className="text-2xl font-semibold text-white">{selectedCoach.title}</h2>
             <span className={clsx(
               'px-2 py-1 text-xs font-medium rounded-full border',
               CATEGORY_COLORS[selectedCoach.category] || CATEGORY_COLORS.Custom
@@ -547,7 +963,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
             </span>
             <button
               onClick={(e) => handleToggleFavorite(e, selectedCoach.id)}
-              className="text-pierre-gray-400 hover:text-pierre-yellow-500 transition-colors"
+              className="text-zinc-500 hover:text-pierre-yellow-500 transition-colors"
               title={selectedCoach.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
             >
               <svg
@@ -586,28 +1002,28 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
 
         {/* Description */}
         {selectedCoach.description && (
-          <p className="text-pierre-gray-600 mb-6">{selectedCoach.description}</p>
+          <p className="text-zinc-400 mb-6">{selectedCoach.description}</p>
         )}
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-6 p-4 bg-pierre-gray-50 rounded-lg">
+        <div className="grid grid-cols-3 gap-4 mb-6 p-4 bg-white/5 rounded-lg">
           <div className="text-center">
             <div className="text-2xl font-bold text-pierre-violet">
               ~{selectedCoach.token_count.toLocaleString()}
             </div>
-            <div className="text-xs text-pierre-gray-500">
+            <div className="text-xs text-zinc-500">
               Tokens ({getContextPercentage(selectedCoach.token_count)}% context)
             </div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-pierre-activity">{selectedCoach.use_count}</div>
-            <div className="text-xs text-pierre-gray-500">Uses</div>
+            <div className="text-xs text-zinc-500">Uses</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-pierre-nutrition">
               {selectedCoach.is_favorite ? '★' : '☆'}
             </div>
-            <div className="text-xs text-pierre-gray-500">
+            <div className="text-xs text-zinc-500">
               {selectedCoach.is_favorite ? 'Favorite' : 'Not Favorite'}
             </div>
           </div>
@@ -615,8 +1031,8 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
 
         {/* System Prompt */}
         <div className="mb-6">
-          <h3 className="text-sm font-medium text-pierre-gray-700 mb-2">System Prompt</h3>
-          <div className="p-4 bg-pierre-gray-50 rounded-lg font-mono text-sm text-pierre-gray-800 whitespace-pre-wrap max-h-48 overflow-y-auto">
+          <h3 className="text-sm font-medium text-zinc-300 mb-2">System Prompt</h3>
+          <div className="p-4 bg-white/5 rounded-lg font-mono text-sm text-zinc-300 whitespace-pre-wrap max-h-48 overflow-y-auto">
             {selectedCoach.system_prompt}
           </div>
         </div>
@@ -624,10 +1040,10 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
         {/* Tags */}
         {selectedCoach.tags.length > 0 && (
           <div className="mb-6">
-            <h3 className="text-sm font-medium text-pierre-gray-700 mb-2">Tags</h3>
+            <h3 className="text-sm font-medium text-zinc-300 mb-2">Tags</h3>
             <div className="flex flex-wrap gap-2">
               {selectedCoach.tags.map((tag) => (
-                <span key={tag} className="px-3 py-1 text-sm bg-pierre-gray-100 text-pierre-gray-700 rounded-full">
+                <span key={tag} className="px-3 py-1 text-sm bg-white/5 text-zinc-300 rounded-full">
                   {tag}
                 </span>
               ))}
@@ -636,7 +1052,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
         )}
 
         {/* Timestamps */}
-        <div className="grid grid-cols-2 gap-4 text-sm text-pierre-gray-500 pt-4 border-t">
+        <div className="grid grid-cols-2 gap-4 text-sm text-zinc-500 pt-4 border-t border-white/10">
           <div>
             <span className="font-medium">Created:</span>{' '}
             {new Date(selectedCoach.created_at).toLocaleString()}

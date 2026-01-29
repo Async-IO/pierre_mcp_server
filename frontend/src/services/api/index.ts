@@ -145,6 +145,7 @@ export const apiService = {
   hideCoach: pierreApi.coaches.hide.bind(pierreApi.coaches),
   showCoach: pierreApi.coaches.show.bind(pierreApi.coaches),
   getHiddenCoaches: pierreApi.coaches.getHidden.bind(pierreApi.coaches),
+  forkCoach: pierreApi.coaches.fork.bind(pierreApi.coaches),
   getCoachVersions: pierreApi.coaches.getVersions.bind(pierreApi.coaches),
   getCoachVersion: pierreApi.coaches.getVersion.bind(pierreApi.coaches),
   revertCoachToVersion: pierreApi.coaches.revertToVersion.bind(pierreApi.coaches),
