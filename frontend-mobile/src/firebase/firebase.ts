@@ -101,6 +101,24 @@ export function getFirebaseAuth(): Auth | null {
 }
 
 /**
+ * Build Google OAuth config with only the defined client IDs
+ * expo-auth-session throws if iosClientId is passed but undefined on iOS
+ */
+function buildGoogleOAuthConfig(): Record<string, string> {
+  const config: Record<string, string> = {};
+  if (googleClientIds.iosClientId) {
+    config.iosClientId = googleClientIds.iosClientId;
+  }
+  if (googleClientIds.androidClientId) {
+    config.androidClientId = googleClientIds.androidClientId;
+  }
+  if (googleClientIds.webClientId) {
+    config.webClientId = googleClientIds.webClientId;
+  }
+  return config;
+}
+
+/**
  * Hook to get Google auth request for expo-auth-session
  * This should be called at the top level of a component (unconditionally)
  * Returns null values when Firebase is not enabled
@@ -109,10 +127,9 @@ export function useGoogleAuth() {
   // Always call the hook unconditionally (React Rules of Hooks requirement)
   // webClientId is used with the Expo auth proxy (https://auth.expo.io/@owner/slug)
   // iosClientId/androidClientId are used for native redirects in standalone builds
+  // Only include client IDs that are actually configured (prevents expo-auth-session errors)
   const [request, response, promptAsync] = Google.useAuthRequest({
-    iosClientId: googleClientIds.iosClientId,
-    androidClientId: googleClientIds.androidClientId,
-    webClientId: googleClientIds.webClientId,
+    ...buildGoogleOAuthConfig(),
     scopes: ['email', 'profile'],
   });
 
