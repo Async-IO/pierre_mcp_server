@@ -167,10 +167,6 @@ jobs:
     runs-on: macos-latest
     # Run on main branch pushes or when explicitly triggered
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
-    # Allow E2E tests to fail without blocking CI
-    # Known Detox + Expo compatibility issues cause intermittent connection failures
-    # Unit tests and integration tests provide primary test coverage
-    continue-on-error: true
 
     steps:
       - name: Checkout code
@@ -334,10 +330,6 @@ jobs:
     runs-on: ubuntu-latest
     # Run on main branch pushes or when explicitly triggered
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
-    # Allow E2E tests to fail without blocking CI
-    # Known Detox + Expo compatibility issues cause intermittent connection failures
-    # Unit tests and integration tests provide primary test coverage
-    continue-on-error: true
 
     steps:
       - name: Checkout code
