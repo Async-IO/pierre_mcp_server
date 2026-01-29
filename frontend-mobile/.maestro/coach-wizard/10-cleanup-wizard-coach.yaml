@@ -1,0 +1,39 @@
+# ABOUTME: Cleanup - delete the coach created in wizard flow test
+# ABOUTME: Converted from coach-wizard.test.js "cleanup" test
+
+appId: com.asyncio.pierre
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to coach library
+- runFlow:
+    file: ../helpers/navigate-to-coaches.yaml
+
+# Find and delete the test coach
+- assertVisible:
+    text: "E2E Wizard Coach"
+    timeout: 5000
+
+- longPressOn: "E2E Wizard Coach"
+
+- assertVisible:
+    text: "Delete"
+    timeout: 3000
+
+- tapOn: "Delete"
+
+# Confirm deletion
+- assertVisible:
+    text: "Delete"
+    timeout: 3000
+- tapOn: "Delete"
+
+# Verify coach is deleted
+- assertNotVisible:
+    text: "E2E Wizard Coach"
+    timeout: 5000
