@@ -165,7 +165,7 @@ jobs:
   mobile-e2e-tests:
     name: Mobile E2E Tests (Detox)
     runs-on: macos-latest
-    continue-on-error: true  # E2E tests may fail without backend server in CI
+    timeout-minutes: 45
     # Run on main branch pushes or when explicitly triggered
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
 
@@ -177,16 +177,73 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.92.0
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-e2e-1.92.0-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-e2e-1.92.0-
+            ${{ runner.os }}-cargo-
+
+      - name: Build Pierre server
+        working-directory: ${{ github.workspace }}
+        run: cargo build --release
+        env:
+          CARGO_INCREMENTAL: 0
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+
+      - name: Install shared-types dependencies
+        working-directory: ${{ github.workspace }}/packages/shared-types
+        run: bun install
+
+      - name: Install api-client dependencies
+        working-directory: ${{ github.workspace }}/packages/api-client
+        run: bun install
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
       - name: Setup Expo
         run: bunx expo install
+
+      - name: Create data directory
+        working-directory: ${{ github.workspace }}
+        run: mkdir -p data
+
+      - name: Start Pierre server
+        working-directory: ${{ github.workspace }}
+        run: |
+          ./target/release/pierre-mcp-server &
+          echo "Waiting for server to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:8081/health > /dev/null; then
+              echo "Server is healthy!"
+              break
+            fi
+            echo "Attempt $i: Server not ready yet..."
+            sleep 2
+          done
+        env:
+          DATABASE_URL: "sqlite:${{ github.workspace }}/data/e2e-test.db"
+          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+          PIERRE_RSA_KEY_SIZE: "2048"
+          HTTP_PORT: "8081"
+          RUST_LOG: "warn"
+          STRAVA_CLIENT_ID: "test_client_id_ci"
+          STRAVA_CLIENT_SECRET: "test_client_secret_ci"
+          STRAVA_REDIRECT_URI: "http://localhost:8081/auth/strava/callback"
 
       - name: List available simulators
         run: xcrun simctl list devices available
@@ -227,6 +284,7 @@ jobs:
         run: bunx detox test --configuration ios.sim.debug --headless
         env:
           RCT_NO_LAUNCH_PACKAGER: 1
+          EXPO_PUBLIC_API_URL: "http://localhost:8081"
 
       - name: Upload E2E test artifacts
         uses: actions/upload-artifact@v4
@@ -239,7 +297,7 @@ jobs:
   mobile-e2e-tests-android:
     name: Mobile E2E Tests - Android (Detox)
     runs-on: ubuntu-latest
-    continue-on-error: true  # E2E tests may fail without backend server in CI
+    timeout-minutes: 45
     # Run on main branch pushes or when explicitly triggered
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
 
@@ -257,16 +315,50 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.92.0
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-android-e2e-1.92.0-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-android-e2e-1.92.0-
+            ${{ runner.os }}-cargo-
+
+      - name: Build Pierre server
+        working-directory: ${{ github.workspace }}
+        run: cargo build --release
+        env:
+          CARGO_INCREMENTAL: 0
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+
+      - name: Install shared-types dependencies
+        working-directory: ${{ github.workspace }}/packages/shared-types
+        run: bun install
+
+      - name: Install api-client dependencies
+        working-directory: ${{ github.workspace }}/packages/api-client
+        run: bun install
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
       - name: Setup Expo
         run: bunx expo install
+
+      - name: Create data directory
+        working-directory: ${{ github.workspace }}
+        run: mkdir -p data
 
       - name: Prebuild Android
         run: bunx expo prebuild --platform android --clean
@@ -284,6 +376,15 @@ jobs:
 
       - name: Run Android E2E tests
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          DATABASE_URL: "sqlite:${{ github.workspace }}/data/android-e2e-test.db"
+          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+          PIERRE_RSA_KEY_SIZE: "2048"
+          HTTP_PORT: "8081"
+          RUST_LOG: "warn"
+          STRAVA_CLIENT_ID: "test_client_id_ci"
+          STRAVA_CLIENT_SECRET: "test_client_secret_ci"
+          STRAVA_REDIRECT_URI: "http://localhost:8081/auth/strava/callback"
         with:
           api-level: 33
           target: google_apis
@@ -294,8 +395,19 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
+            # Start Pierre server in background
+            ./target/release/pierre-mcp-server &
+            echo "Waiting for server to start..."
+            for i in {1..30}; do
+              if curl -s http://localhost:8081/health > /dev/null; then
+                echo "Server is healthy!"
+                break
+              fi
+              echo "Attempt $i: Server not ready yet..."
+              sleep 2
+            done
             cd frontend-mobile
-            bunx detox test --configuration android.emu.debug --headless
+            EXPO_PUBLIC_API_URL=http://localhost:8081 bunx detox test --configuration android.emu.debug --headless
 
       - name: Upload Android E2E test artifacts
         uses: actions/upload-artifact@v4
