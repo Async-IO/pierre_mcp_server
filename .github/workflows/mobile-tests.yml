@@ -210,6 +210,19 @@ jobs:
         working-directory: frontend-mobile
         run: bun install --frozen-lockfile
 
+      - name: Remove expo-dev-client packages for E2E
+        working-directory: frontend-mobile
+        run: |
+          # Completely remove expo-dev-client and related packages
+          # These packages interfere with Detox's WebSocket communication
+          echo "Removing expo-dev-client packages..."
+          bun remove expo-dev-client expo-dev-launcher expo-dev-menu expo-dev-menu-interface || true
+          # Clean node_modules to ensure no remnants
+          rm -rf node_modules/.cache
+          # Verify removal
+          echo "Verifying removal..."
+          ! grep -r "expo-dev-client" node_modules/.package-lock.json 2>/dev/null || echo "Warning: expo-dev-client may still be in dependencies"
+
       - name: Setup Expo
         working-directory: frontend-mobile
         run: bunx expo install
@@ -272,17 +285,18 @@ jobs:
         env:
           DETOX_E2E: 'true'
 
-      - name: Remove expo-dev-client from iOS build
+      - name: Verify no expo-dev-client in iOS build
         working-directory: frontend-mobile/ios
         run: |
-          # Remove expo-dev-client pods from Podfile to prevent autolinking
-          # expo-dev-client interferes with Detox's WebSocket communication
-          sed -i '' '/expo-dev-client/d' Podfile
-          sed -i '' '/expo-dev-launcher/d' Podfile
-          sed -i '' '/expo-dev-menu/d' Podfile
-          # Reinstall pods without expo-dev-client
-          # DETOX_E2E tells react-native.config.js to exclude these packages
-          DETOX_E2E=true pod install
+          # Verify expo-dev-client is not in Podfile
+          if grep -q "expo-dev-client\|expo-dev-launcher\|expo-dev-menu" Podfile 2>/dev/null; then
+            echo "ERROR: expo-dev-client found in Podfile!"
+            grep "expo-dev" Podfile
+            exit 1
+          fi
+          echo "Verified: No expo-dev-client in Podfile"
+          # Run pod install to ensure clean state
+          pod install
         env:
           DETOX_E2E: 'true'
 
@@ -365,6 +379,19 @@ jobs:
         working-directory: frontend-mobile
         run: bun install --frozen-lockfile
 
+      - name: Remove expo-dev-client packages for E2E
+        working-directory: frontend-mobile
+        run: |
+          # Completely remove expo-dev-client and related packages
+          # These packages interfere with Detox's WebSocket communication
+          echo "Removing expo-dev-client packages..."
+          bun remove expo-dev-client expo-dev-launcher expo-dev-menu expo-dev-menu-interface || true
+          # Clean node_modules to ensure no remnants
+          rm -rf node_modules/.cache
+          # Verify removal
+          echo "Verifying removal..."
+          ! grep -r "expo-dev-client" node_modules/.package-lock.json 2>/dev/null || echo "Warning: expo-dev-client may still be in dependencies"
+
       - name: Setup Expo
         working-directory: frontend-mobile
         run: bunx expo install
@@ -375,18 +402,31 @@ jobs:
         env:
           DETOX_E2E: 'true'
 
-      - name: Remove expo-dev-client from Android build
+      - name: Verify no expo-dev-client in Android build
         working-directory: frontend-mobile/android
         run: |
-          # Remove expo-dev-client from settings.gradle to prevent autolinking
-          # expo-dev-client interferes with Detox's communication
-          sed -i '/expo-dev-client/d' settings.gradle
-          sed -i '/expo-dev-launcher/d' settings.gradle
-          sed -i '/expo-dev-menu/d' settings.gradle
-          # Remove from app/build.gradle if present
-          sed -i '/expo-dev-client/d' app/build.gradle || true
-          sed -i '/expo-dev-launcher/d' app/build.gradle || true
-          sed -i '/expo-dev-menu/d' app/build.gradle || true
+          # Verify expo-dev-client is not in settings.gradle
+          if grep -q "expo-dev-client\|expo-dev-launcher\|expo-dev-menu" settings.gradle 2>/dev/null; then
+            echo "ERROR: expo-dev-client found in settings.gradle!"
+            grep "expo-dev" settings.gradle
+            exit 1
+          fi
+          echo "Verified: No expo-dev-client in Android build"
+        env:
+          DETOX_E2E: 'true'
+
+      - name: Free disk space for Android build
+        run: |
+          # Free up disk space to prevent "No space left on device" errors
+          echo "Disk space before cleanup:"
+          df -h
+          # Remove unnecessary large directories
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android/sdk/ndk
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          echo "Disk space after cleanup:"
+          df -h
 
       - name: Create data directory
         run: mkdir -p data
