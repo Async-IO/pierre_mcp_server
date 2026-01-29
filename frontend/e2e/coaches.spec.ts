@@ -1216,7 +1216,8 @@ test.describe('User Coaches - Chat Interface', () => {
     await expect(page.getByText('My Custom Coach')).toBeVisible({ timeout: 10000 });
 
     // Verify filter buttons exist and can be clicked without errors
-    const allFilter = page.getByRole('button', { name: 'All' });
+    // Use { exact: true } for 'All' to avoid matching 'All Sources'
+    const allFilter = page.getByRole('button', { name: 'All', exact: true });
     const trainingFilter = page.getByRole('button', { name: /Training/i });
     const nutritionFilter = page.getByRole('button', { name: /Nutrition/i });
 
