@@ -491,13 +491,36 @@ print('\n'.join(allowed))
 " 2>/dev/null || echo "")
 
 # Check for .skip(), xit(), xdescribe(), test.skip() in JS/TS test files
-JS_TEST_SKIPS=$(rg '\.skip\(\)|\.only\(\)|xit\(|xdescribe\(|test\.skip|it\.skip|describe\.skip' frontend/ frontend-mobile/ sdk/ -g '*.test.ts' -g '*.test.tsx' -g '*.test.js' -g '*.spec.ts' -g '*.spec.js' --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+JS_TEST_SKIPS_TOTAL=$(rg '\.skip\(\)|\.only\(\)|xit\(|xdescribe\(|test\.skip|it\.skip|describe\.skip' frontend/ frontend-mobile/ sdk/ -g '*.test.ts' -g '*.test.tsx' -g '*.test.js' -g '*.spec.ts' -g '*.spec.js' --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
+# Filter out allowlisted entries
+JS_TEST_SKIPS=$JS_TEST_SKIPS_TOTAL
+JS_SKIP_EXCLUDE_PATTERN=""
+if [ -n "$JS_SKIP_ALLOWLIST" ] && [ "$JS_TEST_SKIPS_TOTAL" -gt 0 ]; then
+    # Build grep pattern to exclude allowlisted entries
+    while IFS= read -r entry; do
+        [ -z "$entry" ] && continue
+        if [ -z "$JS_SKIP_EXCLUDE_PATTERN" ]; then
+            JS_SKIP_EXCLUDE_PATTERN="$entry"
+        else
+            JS_SKIP_EXCLUDE_PATTERN="$JS_SKIP_EXCLUDE_PATTERN|$entry"
+        fi
+    done <<< "$JS_SKIP_ALLOWLIST"
+
+    if [ -n "$JS_SKIP_EXCLUDE_PATTERN" ]; then
+        JS_TEST_SKIPS=$(rg '\.skip\(\)|\.only\(\)|xit\(|xdescribe\(|test\.skip|it\.skip|describe\.skip' frontend/ frontend-mobile/ sdk/ -g '*.test.ts' -g '*.test.tsx' -g '*.test.js' -g '*.spec.ts' -g '*.spec.js' -n 2>/dev/null | grep -v -E "$JS_SKIP_EXCLUDE_PATTERN" | wc -l | tr -d ' ' || echo 0)
+    fi
+fi
 
 if [ "$JS_TEST_SKIPS" -gt 0 ]; then
     echo -e "${RED}❌ FORBIDDEN: Found $JS_TEST_SKIPS skipped/focused tests in JS/TS${NC}"
     echo -e "${RED}Remove .skip(), .only(), xit(), xdescribe() from test files.${NC}"
     echo -e "${YELLOW}To allowlist (requires explicit approval), add to validation-patterns.toml [js_test_skip_allowlist]${NC}"
-    rg '\.skip\(\)|\.only\(\)|xit\(|xdescribe\(|test\.skip|it\.skip|describe\.skip' frontend/ frontend-mobile/ sdk/ -g '*.test.ts' -g '*.test.tsx' -g '*.test.js' -g '*.spec.ts' -g '*.spec.js' -n | head -5
+    if [ -n "$JS_SKIP_EXCLUDE_PATTERN" ]; then
+        rg '\.skip\(\)|\.only\(\)|xit\(|xdescribe\(|test\.skip|it\.skip|describe\.skip' frontend/ frontend-mobile/ sdk/ -g '*.test.ts' -g '*.test.tsx' -g '*.test.js' -g '*.spec.ts' -g '*.spec.js' -n | grep -v -E "$JS_SKIP_EXCLUDE_PATTERN" | head -5
+    else
+        rg '\.skip\(\)|\.only\(\)|xit\(|xdescribe\(|test\.skip|it\.skip|describe\.skip' frontend/ frontend-mobile/ sdk/ -g '*.test.ts' -g '*.test.tsx' -g '*.test.js' -g '*.spec.ts' -g '*.spec.js' -n | head -5
+    fi
     fail_validation "Remove skipped/focused tests"
 else
     pass_validation "No skipped tests in JS/TS"

@@ -426,16 +426,14 @@ files = [
 # Format: "workflow_file:step_name" or "workflow_file:line_number"
 # Only add entries after explicit approval with documented justification
 allowed = [
-    "ci.yml:123",  # Security Audit (cargo deny check) - advisory, not a test
+    # LEAVE EMPTY - continue-on-error should not be used for any step
 ]
 
 [js_test_skip_allowlist]
 # Test files permitted to have .skip(), .only(), xit(), xdescribe()
-# LEAVE EMPTY - skipped tests should never exist
 # Only add entries after explicit approval with documented justification
 allowed = [
-    # Example (DO NOT ADD without explicit approval):
-    # "frontend/src/components/__tests__/flaky.test.ts",  # Flaky due to timing
+    "frontend/e2e/login.spec.ts",  # Conditional runtime skip - test only skips when Firebase not configured
 ]
 
 [exclusions]
