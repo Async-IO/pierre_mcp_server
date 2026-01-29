@@ -231,6 +231,22 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-postgres-1.92.0-v2-${{ hashFiles('**/Cargo.lock', 'migrations/**') }}
 
+      - name: Setup Node.js (for SDK E2E tests runtime)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Bun (for SDK build)
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Build MCP SDK (required for E2E tests)
+        working-directory: sdk
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+
       - name: Wait for PostgreSQL
         run: |
           echo "🐘 Waiting for PostgreSQL to be ready..."

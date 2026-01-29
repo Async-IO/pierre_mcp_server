@@ -911,8 +911,8 @@ async function setupUserCoachesMocks(page: Page) {
   // Set up base dashboard mocks for non-admin user
   await setupDashboardMocks(page, { role: 'user' });
 
-  // Mock user coaches endpoint
-  await page.route('**/api/coaches', async (route) => {
+  // Mock user coaches endpoint (use regex to match URLs with query params like ?include_hidden=true)
+  await page.route(/\/api\/coaches(\?.*)?$/, async (route) => {
     if (route.request().method() === 'GET') {
       await route.fulfill({
         status: 200,

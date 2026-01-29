@@ -389,6 +389,8 @@ jobs:
         run: bunx detox build --configuration android.emu.debug
         env:
           RCT_NO_LAUNCH_PACKAGER: 1
+          # Increase Java heap to prevent OOM during Android build
+          GRADLE_OPTS: "-Xmx4g -XX:+UseParallelGC"
 
       - name: Run Android E2E tests
         uses: reactivecircus/android-emulator-runner@v2
