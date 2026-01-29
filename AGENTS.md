@@ -45,6 +45,32 @@ rm -rf */node_modules */package-lock.json
 bun install
 ```
 
+## Git Workflow: NO Pull Requests
+
+**CRITICAL: NEVER create Pull Requests. ChefFamille manages all merges locally.**
+
+### Rules
+- **NEVER use `gh pr create`** or any PR creation command
+- **NEVER suggest creating a PR** - just push to the feature branch
+- Feature branches are merged via **squash merge from ChefFamille's local machine**
+
+### Workflow for Features
+1. Create feature branch: `git checkout -b feature/my-feature`
+2. Make commits, push to remote: `git push -u origin feature/my-feature`
+3. **STOP HERE** - Tell ChefFamille the branch is ready
+4. ChefFamille will squash merge locally:
+   ```bash
+   git checkout main
+   git fetch origin
+   git merge --squash origin/feature/my-feature
+   git commit
+   git push
+   ```
+
+### Bug Fixes
+- Bug fixes go directly to `main` branch (no feature branch needed)
+- Commit and push directly: `git push origin main`
+
 ## Development Quick Start
 
 ### Server Management Scripts
