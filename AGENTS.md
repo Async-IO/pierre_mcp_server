@@ -291,31 +291,6 @@ direnv allow
 ### After Running Setup
 If the script generated a new token, you may need to **restart the Claude Code session** for the built-in MCP client to pick up the new `PIERRE_JWT_TOKEN` environment variable.
 
-## Linear Session Tracking
-
-Sessions are tracked via Linear issues for persistent memory across Claude Code sessions.
-
-### Automatic Setup
-- **SessionStart hook** runs `./scripts/linear-session-init.sh` automatically
-- Creates or resumes a session issue with the `claude-session` label
-- Outputs: `📋 Linear Session RESUMED: ASY-XXX (branch) - <url>`
-
-### Using the `/session` Skill
-Use the session skill to update the Linear issue with meaningful content:
-
-| Command | Purpose |
-|---------|---------|
-| `/session` | Show current session status |
-| `/session update <notes>` | Add work log entry |
-| `/session decision <text>` | Document a key decision |
-| `/session link <issue-id>` | Link related issue to session |
-| `/session end` | Add end-of-session summary |
-
-### Best Practices
-- Run `/session update` after completing significant tasks
-- Run `/session decision` for architectural choices
-- Run `/session end` before ending with incomplete work
-
 ## Claude Code for Web - Special Instructions
 
 **⚠️ MANDATORY - Run these at the START OF EVERY SESSION:**

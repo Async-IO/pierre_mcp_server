@@ -13,10 +13,6 @@
           },
           {
             "type": "command",
-            "command": "bash ./scripts/linear-session-init.sh"
-          },
-          {
-            "type": "command",
             "command": "echo 'PORT ALLOCATION: 8081=Pierre Server, 8082=Expo/Metro. Use bun start for mobile dev.'"
           },
           {
