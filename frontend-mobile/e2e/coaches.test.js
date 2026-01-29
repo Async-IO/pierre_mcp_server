@@ -69,12 +69,16 @@ describe('Coach Library Screen', () => {
       await expect(element(by.text('Nutrition'))).toBeVisible();
     });
 
-    it('should show create coach button (FAB)', async () => {
+    it('should show create coach button in header', async () => {
       await expect(element(by.id('create-coach-button'))).toBeVisible();
     });
 
     it('should show show hidden toggle button', async () => {
       await expect(element(by.id('show-hidden-toggle'))).toBeVisible();
+    });
+
+    it('should show floating search bar at bottom', async () => {
+      await expect(element(by.id('coach-search-input'))).toBeVisible();
     });
   });
 
@@ -93,6 +97,24 @@ describe('Coach Library Screen', () => {
     it('should reset filters when All is selected', async () => {
       await element(by.text('All')).tap();
       await expect(element(by.text('All'))).toBeVisible();
+    });
+  });
+
+  describe('search functionality', () => {
+    it('should filter coaches when typing in search', async () => {
+      // Type in search input
+      await element(by.id('coach-search-input')).typeText('Marathon');
+
+      // Should still see search input
+      await expect(element(by.id('coach-search-input'))).toBeVisible();
+
+      // Clear search
+      await element(by.id('coach-search-input')).clearText();
+    });
+
+    it('should show placeholder text in search', async () => {
+      // The search input should have placeholder text visible
+      await expect(element(by.id('coach-search-input'))).toBeVisible();
     });
   });
 

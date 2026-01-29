@@ -12,6 +12,7 @@ import {
   Alert,
   Modal,
   RefreshControl,
+  TextInput,
   type ViewStyle,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -57,22 +58,13 @@ const COACH_CATEGORY_COLORS: Record<string, string> = {
   custom: '#8B5CF6',    // Violet per Stitch spec
 };
 
-// FAB shadow style with violet glow per Stitch spec
-const fabStyle: ViewStyle = {
-  position: 'absolute',
-  bottom: spacing.xl,
-  right: spacing.lg,
-  width: 56,
-  height: 56,
-  borderRadius: 28,
-  backgroundColor: colors.pierre.violet,
-  alignItems: 'center',
-  justifyContent: 'center',
-  shadowColor: colors.pierre.violet,
-  shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 0.4,
-  shadowRadius: 12,
-  elevation: 8,
+// Search container shadow style
+const searchContainerShadow: ViewStyle = {
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.25,
+  shadowRadius: 4,
+  elevation: 4,
 };
 
 // Action menu shadow style
@@ -96,6 +88,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
   const [selectedSource, setSelectedSource] = useState<CoachSource>('all');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [actionMenuVisible, setActionMenuVisible] = useState(false);
@@ -144,7 +137,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
     }
   }, [isAuthenticated]);
 
-  // Apply filters whenever coaches, category, source, favorites, or showHidden changes
+  // Apply filters whenever coaches, category, source, favorites, showHidden, or searchQuery changes
   React.useEffect(() => {
     let filtered = [...coaches];
 
@@ -170,8 +163,17 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
       filtered = filtered.filter((coach) => coach.is_favorite);
     }
 
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((coach) =>
+        coach.title.toLowerCase().includes(query) ||
+        (coach.description || '').toLowerCase().includes(query)
+      );
+    }
+
     setFilteredCoaches(filtered);
-  }, [coaches, selectedCategory, selectedSource, showFavoritesOnly, showHidden]);
+  }, [coaches, selectedCategory, selectedSource, showFavoritesOnly, showHidden, searchQuery]);
 
   useFocusEffect(
     useCallback(() => {
@@ -581,17 +583,10 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
 
   return (
     <SafeAreaView className="flex-1 bg-background-primary" testID="coach-library-screen">
-      {/* Header with bold title and search icon per Stitch spec */}
+      {/* Header with bold title and action buttons - + button in top right like Chat tab */}
       <View className="flex-row items-center px-4 py-3 border-b border-border-subtle">
         <Text className="flex-1 text-xl font-bold text-white">Coaches</Text>
         <View className="flex-row items-center gap-2">
-          <TouchableOpacity
-            className="w-10 h-10 items-center justify-center"
-            onPress={() => navigation.navigate('Store')}
-            testID="search-button"
-          >
-            <Feather name="search" size={22} color={colors.text.primary} />
-          </TouchableOpacity>
           <TouchableOpacity
             className={`w-10 h-10 items-center justify-center rounded-full ${showFavoritesOnly ? 'bg-pierre-violet/20' : ''}`}
             onPress={() => setShowFavoritesOnly(!showFavoritesOnly)}
@@ -615,6 +610,14 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
               size={20}
               color={showHidden ? colors.pierre.violet : colors.text.tertiary}
             />
+          </TouchableOpacity>
+          {/* Create coach button - matches Chat tab style */}
+          <TouchableOpacity
+            className="w-10 h-10 items-center justify-center bg-background-tertiary rounded-lg"
+            onPress={handleCreateCoach}
+            testID="create-coach-button"
+          >
+            <Text className="text-2xl text-text-primary font-light">+</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -667,10 +670,39 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
         />
       )}
 
-      {/* Floating Action Button */}
-      <TouchableOpacity style={fabStyle} onPress={handleCreateCoach} testID="create-coach-button">
-        <Text className="text-3xl text-text-primary -mt-0.5">+</Text>
-      </TouchableOpacity>
+      {/* Floating Bottom Search Bar - liquid style above tab bar */}
+      <View
+        className="absolute left-4 right-4 flex-row items-center"
+        style={{ bottom: 8 }}
+      >
+        <View
+          className="flex-1 flex-row items-center rounded-full px-4"
+          style={[
+            {
+              height: 36,
+              backgroundColor: 'rgba(30, 27, 45, 0.95)',
+              borderWidth: 1,
+              borderColor: 'rgba(139, 92, 246, 0.4)',
+            },
+            searchContainerShadow,
+          ]}
+        >
+          <Feather name="search" size={18} color={colors.pierre.violet} style={{ marginRight: 8 }} />
+          <TextInput
+            className="flex-1 text-base text-text-primary"
+            placeholder="Search coaches..."
+            placeholderTextColor={colors.text.secondary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            testID="coach-search-input"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Feather name="x" size={18} color={colors.text.secondary} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
 
       {/* Action Menu Modal */}
       <Modal

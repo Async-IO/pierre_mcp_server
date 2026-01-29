@@ -52,7 +52,13 @@ export type SocialStackParamList = {
   AdaptedInsight: { adaptedInsight: AdaptedInsight };
   ShareInsight: { activityId?: string } | undefined;
   SocialSettings: undefined;
-  ActivityDetail: { activityId?: string } | undefined;
+  ActivityDetail: {
+    activityId: string;
+    activityTitle?: string;
+    activityType?: string;
+    activityDate?: string;
+    insightContent?: string;
+  };
 };
 
 export type CoachesStackParamList = {
@@ -182,8 +188,8 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
     HomeTab: { icon: 'home', label: 'Home' },
     ChatTab: { icon: 'message-circle', label: 'Chat' },
     CoachesTab: { icon: 'award', label: 'Coaches' },
-    SocialTab: { icon: 'activity', label: 'Activity' },
-    SettingsTab: { icon: 'user', label: 'Profile' },
+    SocialTab: { icon: 'zap', label: 'Insights' },
+    SettingsTab: { icon: 'settings', label: 'Settings' },
   };
 
   return (

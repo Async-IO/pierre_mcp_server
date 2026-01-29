@@ -10,7 +10,6 @@ import {
   Alert,
   Modal,
   ActivityIndicator,
-  Switch,
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -60,13 +59,6 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
-
-  // Mock user stats - in production would come from API
-  const [userStats] = useState({
-    totalActivities: 127,
-    activeDays: 89,
-    currentStreak: 12,
-  });
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -169,45 +161,59 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
     );
   };
 
-  const isProviderConnected = (provider: string): boolean => {
-    return connectedProviders.some(p => p.provider === provider && p.connected);
-  };
-
   const displayName = user?.display_name || user?.email?.split('@')[0] || 'Athlete';
 
   return (
-    <View className="flex-1 bg-pierre-dark">
+    <View style={{ flex: 1, backgroundColor: colors.background.primary }} testID="settings-screen">
       <ScrollView
-        className="flex-1"
+        style={{ flex: 1 }}
         contentContainerStyle={{
           paddingTop: insets.top + spacing.sm,
           paddingBottom: 100,
+          paddingHorizontal: spacing.md,
         }}
         showsVerticalScrollIndicator={false}
       >
         {/* Profile Header with gradient-bordered avatar */}
-        <View className="items-center px-4 py-6">
+        <View style={{ alignItems: 'center', paddingHorizontal: 16, paddingVertical: 24 }} testID="settings-profile-section">
           {/* Gradient-bordered Avatar */}
           <LinearGradient
             colors={[colors.pierre.violet, colors.pierre.cyan]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            className="w-28 h-28 rounded-full items-center justify-center mb-4 p-1"
+            style={{
+              width: 112,
+              height: 112,
+              borderRadius: 56,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 16,
+              padding: 4,
+            }}
           >
-            <View className="w-full h-full rounded-full bg-pierre-dark items-center justify-center">
-              <Text className="text-4xl font-bold text-white">
+            <View style={{
+              width: '100%',
+              height: '100%',
+              borderRadius: 56,
+              backgroundColor: colors.background.primary,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <Text style={{ fontSize: 36, fontWeight: 'bold', color: '#ffffff' }}>
                 {displayName[0]?.toUpperCase() || 'U'}
               </Text>
             </View>
           </LinearGradient>
 
-          <Text className="text-2xl font-bold text-white mb-1">{displayName}</Text>
-          <Text className="text-base text-zinc-500 mb-4">{user?.email}</Text>
+          <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#ffffff', marginBottom: 4 }}>{displayName}</Text>
+          <Text style={{ fontSize: 16, color: colors.text.tertiary, marginBottom: 16 }}>{user?.email}</Text>
 
           {/* Edit Profile Button with violet glow */}
           <TouchableOpacity
-            className="px-6 py-2.5 rounded-full"
             style={{
+              paddingHorizontal: 24,
+              paddingVertical: 10,
+              borderRadius: 9999,
               backgroundColor: colors.pierre.violet,
               shadowColor: colors.pierre.violet,
               shadowOffset: { width: 0, height: 0 },
@@ -216,243 +222,123 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
               elevation: 6,
             }}
           >
-            <Text className="text-sm font-semibold text-white">Edit Profile</Text>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: '#ffffff' }}>Edit Profile</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Stats Cards - horizontal with cyan accents */}
-        <View className="flex-row px-4 gap-3 mb-6">
-          <View style={glassCardStyle} className="flex-1 p-4 items-center">
-            <Text className="text-2xl font-bold text-pierre-cyan">{userStats.totalActivities}</Text>
-            <Text className="text-xs text-zinc-500 mt-1">Total Activities</Text>
-          </View>
-          <View style={glassCardStyle} className="flex-1 p-4 items-center">
-            <Text className="text-2xl font-bold text-pierre-cyan">{userStats.activeDays}</Text>
-            <Text className="text-xs text-zinc-500 mt-1">Active Days</Text>
-          </View>
-          <View style={glassCardStyle} className="flex-1 p-4 items-center">
-            <Text className="text-2xl font-bold text-pierre-cyan">{userStats.currentStreak}</Text>
-            <Text className="text-xs text-zinc-500 mt-1">Day Streak</Text>
-          </View>
-        </View>
-
-        {/* Connected Services Section */}
-        <View className="px-4 mb-6">
-          <Text className="text-lg font-semibold text-white mb-3">Connected Services</Text>
+        {/* Data Providers Section - navigates to Connections screen */}
+        <View style={{ paddingHorizontal: 16, marginBottom: 24 }} testID="settings-data-section">
+          <Text style={{ fontSize: 18, fontWeight: '600', color: '#ffffff', marginBottom: 12 }}>Data</Text>
           <View style={glassCardStyle}>
-            {/* Strava */}
-            <View style={settingsRowStyle} className="border-b border-white/5">
-              <View className="w-10 h-10 rounded-xl items-center justify-center mr-3" style={{ backgroundColor: '#FC4C0220' }}>
-                <Text className="text-lg">🏃</Text>
+            <TouchableOpacity
+              style={settingsRowStyle}
+              onPress={() => navigation.navigate('Connections')}
+              testID="settings-data-providers-button"
+            >
+              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.background.secondary, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                <Feather name="link" size={20} color={colors.text.secondary} />
               </View>
-              <View className="flex-1">
-                <Text className="text-base font-medium text-white">Strava</Text>
-                <View className="flex-row items-center mt-0.5">
-                  <View
-                    className="px-2 py-0.5 rounded-full mr-2"
-                    style={{
-                      backgroundColor: isProviderConnected('strava') ? 'rgba(74, 222, 128, 0.2)' : 'rgba(113, 113, 122, 0.2)',
-                    }}
-                  >
-                    <Text
-                      className="text-xs font-medium"
-                      style={{ color: isProviderConnected('strava') ? colors.pierre.activity : colors.text.tertiary }}
-                    >
-                      {isProviderConnected('strava') ? 'Connected' : 'Disconnected'}
-                    </Text>
-                  </View>
-                </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, color: '#ffffff' }}>Data Providers</Text>
+                <Text style={{ fontSize: 14, color: colors.text.tertiary }}>
+                  {connectedProviders.filter(p => p.connected).length} connected
+                </Text>
               </View>
-              <Switch
-                value={isProviderConnected('strava')}
-                trackColor={{ false: '#3f3f46', true: colors.pierre.activity }}
-                thumbColor="#ffffff"
-                onValueChange={() => navigation.navigate('Connections')}
-              />
-            </View>
-
-            {/* Garmin */}
-            <View style={settingsRowStyle} className="border-b border-white/5">
-              <View className="w-10 h-10 rounded-xl items-center justify-center mr-3" style={{ backgroundColor: '#007CC320' }}>
-                <Text className="text-lg">⌚</Text>
-              </View>
-              <View className="flex-1">
-                <Text className="text-base font-medium text-white">Garmin</Text>
-                <View className="flex-row items-center mt-0.5">
-                  <View
-                    className="px-2 py-0.5 rounded-full mr-2"
-                    style={{
-                      backgroundColor: isProviderConnected('garmin') ? 'rgba(74, 222, 128, 0.2)' : 'rgba(113, 113, 122, 0.2)',
-                    }}
-                  >
-                    <Text
-                      className="text-xs font-medium"
-                      style={{ color: isProviderConnected('garmin') ? colors.pierre.activity : colors.text.tertiary }}
-                    >
-                      {isProviderConnected('garmin') ? 'Connected' : 'Disconnected'}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-              <Switch
-                value={isProviderConnected('garmin')}
-                trackColor={{ false: '#3f3f46', true: colors.pierre.activity }}
-                thumbColor="#ffffff"
-                onValueChange={() => navigation.navigate('Connections')}
-              />
-            </View>
-
-            {/* Apple Health */}
-            <View style={settingsRowStyle}>
-              <View className="w-10 h-10 rounded-xl items-center justify-center mr-3" style={{ backgroundColor: '#FF375F20' }}>
-                <Text className="text-lg">❤️</Text>
-              </View>
-              <View className="flex-1">
-                <Text className="text-base font-medium text-white">Apple Health</Text>
-                <View className="flex-row items-center mt-0.5">
-                  <View className="px-2 py-0.5 rounded-full mr-2" style={{ backgroundColor: 'rgba(113, 113, 122, 0.2)' }}>
-                    <Text className="text-xs font-medium" style={{ color: colors.text.tertiary }}>Disconnected</Text>
-                  </View>
-                </View>
-              </View>
-              <Switch
-                value={false}
-                trackColor={{ false: '#3f3f46', true: colors.pierre.activity }}
-                thumbColor="#ffffff"
-              />
-            </View>
+              <Feather name="chevron-right" size={20} color={colors.text.tertiary} />
+            </TouchableOpacity>
           </View>
         </View>
 
         {/* Account Settings Section */}
-        <View className="px-4 mb-6">
-          <Text className="text-lg font-semibold text-white mb-3">Account</Text>
+        <View style={{ paddingHorizontal: 16, marginBottom: 24 }} testID="settings-account-section">
+          <Text style={{ fontSize: 18, fontWeight: '600', color: '#ffffff', marginBottom: 12 }}>Account</Text>
           <View style={glassCardStyle}>
-            <TouchableOpacity style={settingsRowStyle} className="border-b border-white/5">
-              <View className="w-10 h-10 rounded-xl bg-pierre-slate items-center justify-center mr-3">
+            <TouchableOpacity style={[settingsRowStyle, { borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.05)' }]}>
+              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.background.secondary, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
                 <Feather name="user" size={20} color={colors.text.secondary} />
               </View>
-              <Text className="flex-1 text-base text-white">Personal Information</Text>
+              <Text style={{ flex: 1, fontSize: 16, color: '#ffffff' }}>Personal Information</Text>
               <Feather name="chevron-right" size={20} color={colors.text.tertiary} />
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={settingsRowStyle}
-              className="border-b border-white/5"
+              style={[settingsRowStyle, { borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.05)' }]}
               onPress={() => setShowChangePassword(true)}
             >
-              <View className="w-10 h-10 rounded-xl bg-pierre-slate items-center justify-center mr-3">
+              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.background.secondary, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
                 <Feather name="lock" size={20} color={colors.text.secondary} />
               </View>
-              <Text className="flex-1 text-base text-white">Change Password</Text>
+              <Text style={{ flex: 1, fontSize: 16, color: '#ffffff' }}>Change Password</Text>
               <Feather name="chevron-right" size={20} color={colors.text.tertiary} />
             </TouchableOpacity>
 
             <TouchableOpacity style={settingsRowStyle} onPress={() => setShowCreateToken(true)}>
-              <View className="w-10 h-10 rounded-xl bg-pierre-slate items-center justify-center mr-3">
+              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.background.secondary, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
                 <Feather name="key" size={20} color={colors.text.secondary} />
               </View>
-              <View className="flex-1">
-                <Text className="text-base text-white">MCP Tokens</Text>
-                <Text className="text-sm text-zinc-500">{tokens.length} active</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, color: '#ffffff' }}>MCP Tokens</Text>
+                <Text style={{ fontSize: 14, color: colors.text.tertiary }}>{tokens.length} active</Text>
               </View>
               <Feather name="chevron-right" size={20} color={colors.text.tertiary} />
             </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Notifications Section */}
-        <View className="px-4 mb-6">
-          <Text className="text-lg font-semibold text-white mb-3">Notifications</Text>
-          <View style={glassCardStyle}>
-            <View style={settingsRowStyle} className="border-b border-white/5">
-              <View className="w-10 h-10 rounded-xl bg-pierre-slate items-center justify-center mr-3">
-                <Feather name="bell" size={20} color={colors.text.secondary} />
-              </View>
-              <Text className="flex-1 text-base text-white">Push Notifications</Text>
-              <Switch
-                value={true}
-                trackColor={{ false: '#3f3f46', true: colors.pierre.violet }}
-                thumbColor="#ffffff"
-              />
-            </View>
-
-            <View style={settingsRowStyle}>
-              <View className="w-10 h-10 rounded-xl bg-pierre-slate items-center justify-center mr-3">
-                <Feather name="mail" size={20} color={colors.text.secondary} />
-              </View>
-              <Text className="flex-1 text-base text-white">Email Updates</Text>
-              <Switch
-                value={false}
-                trackColor={{ false: '#3f3f46', true: colors.pierre.violet }}
-                thumbColor="#ffffff"
-              />
-            </View>
           </View>
         </View>
 
         {/* Privacy Section */}
-        <View className="px-4 mb-6">
-          <Text className="text-lg font-semibold text-white mb-3">Privacy</Text>
+        <View style={{ paddingHorizontal: 16, marginBottom: 24 }}>
+          <Text style={{ fontSize: 18, fontWeight: '600', color: '#ffffff', marginBottom: 12 }}>Privacy</Text>
           <View style={glassCardStyle}>
-            <TouchableOpacity style={settingsRowStyle} className="border-b border-white/5">
-              <View className="w-10 h-10 rounded-xl bg-pierre-slate items-center justify-center mr-3">
+            <TouchableOpacity style={settingsRowStyle}>
+              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.background.secondary, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
                 <Feather name="shield" size={20} color={colors.text.secondary} />
               </View>
-              <Text className="flex-1 text-base text-white">Privacy Settings</Text>
-              <Feather name="chevron-right" size={20} color={colors.text.tertiary} />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={settingsRowStyle}>
-              <View className="w-10 h-10 rounded-xl bg-pierre-slate items-center justify-center mr-3">
-                <Feather name="download" size={20} color={colors.text.secondary} />
-              </View>
-              <Text className="flex-1 text-base text-white">Export Data</Text>
+              <Text style={{ flex: 1, fontSize: 16, color: '#ffffff' }}>Privacy Settings</Text>
               <Feather name="chevron-right" size={20} color={colors.text.tertiary} />
             </TouchableOpacity>
           </View>
         </View>
 
         {/* About Section */}
-        <View className="px-4 mb-6">
-          <Text className="text-lg font-semibold text-white mb-3">About</Text>
+        <View style={{ paddingHorizontal: 16, marginBottom: 24 }}>
+          <Text style={{ fontSize: 18, fontWeight: '600', color: '#ffffff', marginBottom: 12 }}>About</Text>
           <View style={glassCardStyle}>
-            <TouchableOpacity style={settingsRowStyle} className="border-b border-white/5">
-              <View className="w-10 h-10 rounded-xl bg-pierre-slate items-center justify-center mr-3">
+            <TouchableOpacity style={[settingsRowStyle, { borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.05)' }]}>
+              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.background.secondary, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
                 <Feather name="info" size={20} color={colors.text.secondary} />
               </View>
-              <View className="flex-1">
-                <Text className="text-base text-white">Version</Text>
-                <Text className="text-sm text-zinc-500">1.0.0</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, color: '#ffffff' }}>Version</Text>
+                <Text style={{ fontSize: 14, color: colors.text.tertiary }}>1.0.0</Text>
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity style={settingsRowStyle} className="border-b border-white/5">
-              <View className="w-10 h-10 rounded-xl bg-pierre-slate items-center justify-center mr-3">
+            <TouchableOpacity style={[settingsRowStyle, { borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.05)' }]}>
+              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.background.secondary, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
                 <Feather name="help-circle" size={20} color={colors.text.secondary} />
               </View>
-              <Text className="flex-1 text-base text-white">Help Center</Text>
+              <Text style={{ flex: 1, fontSize: 16, color: '#ffffff' }}>Help Center</Text>
               <Feather name="chevron-right" size={20} color={colors.text.tertiary} />
             </TouchableOpacity>
 
             <TouchableOpacity style={settingsRowStyle}>
-              <View className="w-10 h-10 rounded-xl bg-pierre-slate items-center justify-center mr-3">
+              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.background.secondary, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
                 <Feather name="file-text" size={20} color={colors.text.secondary} />
               </View>
-              <Text className="flex-1 text-base text-white">Terms & Privacy</Text>
+              <Text style={{ flex: 1, fontSize: 16, color: '#ffffff' }}>Terms & Privacy</Text>
               <Feather name="chevron-right" size={20} color={colors.text.tertiary} />
             </TouchableOpacity>
           </View>
         </View>
 
         {/* Log Out Button - soft red */}
-        <View className="px-4 mb-6">
+        <View style={{ paddingHorizontal: 16, marginBottom: 24 }}>
           <TouchableOpacity
-            style={[glassCardStyle, { borderColor: 'rgba(255, 107, 107, 0.3)' }]}
-            className="py-4 items-center"
+            style={[glassCardStyle, { borderColor: 'rgba(255, 107, 107, 0.3)', paddingVertical: 16, alignItems: 'center' }]}
             onPress={handleLogout}
+            testID="settings-logout-button"
           >
-            <Text className="text-base font-semibold" style={{ color: colors.pierre.red }}>Log Out</Text>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: colors.pierre.red }}>Log Out</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

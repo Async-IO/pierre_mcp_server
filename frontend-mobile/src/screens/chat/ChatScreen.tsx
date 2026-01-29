@@ -623,19 +623,6 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     }
   };
 
-  const handlePromptSelect = async (prompt: string) => {
-    if (isSending) return;
-
-    // Check if any provider is connected
-    if (!hasConnectedProvider()) {
-      setPendingPrompt(prompt);
-      setProviderModalVisible(true);
-      return;
-    }
-
-    await sendPromptMessage(prompt);
-  };
-
   const handleCoachSelect = async (coach: Coach) => {
     if (isSending) return;
 
@@ -1262,30 +1249,9 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       {/* Coach conversation starter */}
       {isCoachConversation && (
         <View className="w-full items-center px-4 mb-6">
-          <Text className="text-base text-text-secondary text-center mb-6 leading-6">
-            Your coach is ready. Start the conversation by typing a message or try one of these:
+          <Text className="text-base text-text-secondary text-center leading-6">
+            Your coach is ready. Start the conversation by typing a message below.
           </Text>
-          <TouchableOpacity
-            className="bg-background-secondary rounded-lg p-2 mb-1 border border-border-subtle w-full max-w-[400px]"
-            onPress={() => handlePromptSelect("Let's get started!")}
-            activeOpacity={0.6}
-          >
-            <Text className="text-sm text-text-primary leading-5">Let's get started!</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            className="bg-background-secondary rounded-lg p-2 mb-1 border border-border-subtle w-full max-w-[400px]"
-            onPress={() => handlePromptSelect("What can you help me with?")}
-            activeOpacity={0.6}
-          >
-            <Text className="text-sm text-text-primary leading-5">What can you help me with?</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            className="bg-background-secondary rounded-lg p-2 mb-1 border border-border-subtle w-full max-w-[400px]"
-            onPress={() => handlePromptSelect("Give me today's plan")}
-            activeOpacity={0.6}
-          >
-            <Text className="text-sm text-text-primary leading-5">Give me today's plan</Text>
-          </TouchableOpacity>
         </View>
       )}
 
@@ -1374,53 +1340,12 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
           />
         )}
 
-        {/* Input Area with Suggestion Chips per Stitch spec */}
-        <View className="absolute bottom-0 left-0 right-0 px-4 py-2 bg-background-primary">
-          {/* Suggestion Chips - show when no messages */}
-          {(messages?.length ?? 0) === 0 && !isSending && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              className="mb-2"
-              contentContainerStyle={{ gap: 8 }}
-            >
-              <TouchableOpacity
-                className="px-4 py-2 rounded-full"
-                style={{
-                  backgroundColor: 'rgba(139, 92, 246, 0.15)',
-                  borderWidth: 1,
-                  borderColor: 'rgba(139, 92, 246, 0.3)',
-                }}
-                onPress={() => handlePromptSelect('Analyze my last run')}
-              >
-                <Text className="text-sm text-pierre-violet">Analyze my last run</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                className="px-4 py-2 rounded-full"
-                style={{
-                  backgroundColor: 'rgba(139, 92, 246, 0.15)',
-                  borderWidth: 1,
-                  borderColor: 'rgba(139, 92, 246, 0.3)',
-                }}
-                onPress={() => handlePromptSelect('Weekly summary')}
-              >
-                <Text className="text-sm text-pierre-violet">Weekly summary</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                className="px-4 py-2 rounded-full"
-                style={{
-                  backgroundColor: 'rgba(139, 92, 246, 0.15)',
-                  borderWidth: 1,
-                  borderColor: 'rgba(139, 92, 246, 0.3)',
-                }}
-                onPress={() => handlePromptSelect('Training advice')}
-              >
-                <Text className="text-sm text-pierre-violet">Training advice</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          )}
-
-          <View className="flex-row items-end bg-background-secondary rounded-2xl border border-border-default px-3 py-1 min-h-[48px] max-h-[120px]">
+        {/* Input Area - liquid style with violet accent, transparent background */}
+        <View className="absolute bottom-0 left-0 right-0 px-4 py-2">
+          <View
+            className="flex-row items-center rounded-full px-3 min-h-[36px] max-h-[100px]"
+            style={{ backgroundColor: 'rgba(30, 27, 45, 0.95)', borderWidth: 1, borderColor: 'rgba(139, 92, 246, 0.4)' }}
+          >
             {/* Paperclip icon per Stitch spec */}
             <TouchableOpacity className="w-8 h-8 items-center justify-center mr-1">
               <Ionicons name="attach-outline" size={22} color={colors.text.tertiary} />
