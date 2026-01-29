@@ -272,6 +272,17 @@ jobs:
         env:
           DETOX_E2E: 'true'
 
+      - name: Remove expo-dev-client from iOS build
+        working-directory: frontend-mobile/ios
+        run: |
+          # Remove expo-dev-client pods from Podfile to prevent autolinking
+          # expo-dev-client interferes with Detox's WebSocket communication
+          sed -i '' '/expo-dev-client/d' Podfile
+          sed -i '' '/expo-dev-launcher/d' Podfile
+          sed -i '' '/expo-dev-menu/d' Podfile
+          # Reinstall pods without expo-dev-client
+          pod install
+
       - name: Build Detox
         working-directory: frontend-mobile
         # Use release configuration to avoid expo-dev-client polling in CI
@@ -359,6 +370,19 @@ jobs:
         env:
           DETOX_E2E: 'true'
 
+      - name: Remove expo-dev-client from Android build
+        working-directory: frontend-mobile/android
+        run: |
+          # Remove expo-dev-client from settings.gradle to prevent autolinking
+          # expo-dev-client interferes with Detox's communication
+          sed -i '/expo-dev-client/d' settings.gradle
+          sed -i '/expo-dev-launcher/d' settings.gradle
+          sed -i '/expo-dev-menu/d' settings.gradle
+          # Remove from app/build.gradle if present
+          sed -i '/expo-dev-client/d' app/build.gradle || true
+          sed -i '/expo-dev-launcher/d' app/build.gradle || true
+          sed -i '/expo-dev-menu/d' app/build.gradle || true
+
       - name: Create data directory
         run: mkdir -p data
 
@@ -405,14 +429,13 @@ jobs:
           api-level: 33
           target: google_apis
           arch: x86_64
-          profile: Pixel 6
-          avd-name: Pixel_6_API_33
+          avd-name: detox_test_emulator
           force-avd-creation: true
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
             cd frontend-mobile
-            BACKEND_URL=http://localhost:8081 bunx detox test --configuration android.emu.release --headless
+            DETOX_AVD_NAME=detox_test_emulator BACKEND_URL=http://localhost:8081 bunx detox test --configuration android.emu.release --headless
 
       - name: Upload Android E2E test artifacts
         uses: actions/upload-artifact@v4

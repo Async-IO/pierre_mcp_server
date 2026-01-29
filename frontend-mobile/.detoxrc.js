@@ -46,7 +46,8 @@ module.exports = {
     emulator: {
       type: 'android.emulator',
       device: {
-        avdName: 'Pixel_6_API_33'
+        // Use avdName from CI environment or default for local development
+        avdName: process.env.DETOX_AVD_NAME || 'Pixel_6_API_33'
       }
     },
     attached: {
