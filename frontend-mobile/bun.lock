@@ -8,7 +8,6 @@
         "@pierre/api-client": "file:../packages/api-client",
         "@pierre/shared-types": "file:../packages/shared-types",
         "@react-native-async-storage/async-storage": "^2.2.0",
-        "@react-native-voice/voice": "^3.2.4",
         "@react-navigation/bottom-tabs": "^7.10.1",
         "@react-navigation/drawer": "^7.7.10",
         "@react-navigation/native": "^7.1.26",
@@ -23,6 +22,7 @@
         "expo-haptics": "^15.0.8",
         "expo-linear-gradient": "^15.0.8",
         "expo-secure-store": "^15.0.8",
+        "expo-speech-recognition": "^3.1.0",
         "expo-status-bar": "~3.0.9",
         "expo-web-browser": "^15.0.10",
         "firebase": "^12.7.0",
@@ -55,6 +55,7 @@
         "jest": "^29.7.0",
         "jest-circus": "^29.7.0",
         "jest-expo": "^54.0.16",
+        "set-function-length": "^1.2.2",
         "typescript": "~5.9.2",
       },
     },
@@ -526,8 +527,6 @@
     "@protobufjs/utf8": ["@protobufjs/utf8@1.1.0", "", {}, ""],
 
     "@react-native-async-storage/async-storage": ["@react-native-async-storage/async-storage@2.2.0", "", { "dependencies": { "merge-options": "^3.0.4" }, "peerDependencies": { "react-native": "^0.0.0-0 || >=0.65 <1.0" } }, ""],
-
-    "@react-native-voice/voice": ["@react-native-voice/voice@3.2.4", "", { "dependencies": { "@expo/config-plugins": "^2.0.0", "invariant": "^2.2.4" }, "peerDependencies": { "react-native": ">= 0.60.2" } }, ""],
 
     "@react-native/assets-registry": ["@react-native/assets-registry@0.81.5", "", {}, ""],
 
@@ -1074,6 +1073,8 @@
     "expo-secure-store": ["expo-secure-store@15.0.8", "", { "peerDependencies": { "expo": "*" } }, ""],
 
     "expo-server": ["expo-server@1.0.5", "", {}, ""],
+
+    "expo-speech-recognition": ["expo-speech-recognition@3.1.0", "", { "peerDependencies": { "expo": "*", "react": "*", "react-native": "*" } }, "sha512-DgCvY42hbhGDxDKJD0WjgjZboPOXY58JNNQ+zaBQmB+3M2PR2tS8ZTP/yIwslbe30Cnw8yf5JBxrqkZFiLmewQ=="],
 
     "expo-status-bar": ["expo-status-bar@3.0.9", "", { "dependencies": { "react-native-is-edge-to-edge": "^1.2.1" }, "peerDependencies": { "react": "*", "react-native": "*" } }, ""],
 

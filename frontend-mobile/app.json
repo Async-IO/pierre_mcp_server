@@ -52,6 +52,14 @@
             "useFrameworks": "static"
           }
         }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Pierre needs microphone access to capture your voice for speech-to-text transcription.",
+          "speechRecognitionPermission": "Pierre uses speech recognition to transcribe your voice messages into text queries.",
+          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
+        }
       ]
     ]
   }

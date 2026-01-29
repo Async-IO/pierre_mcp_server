@@ -1,31 +1,21 @@
 // ABOUTME: Custom hook for speech-to-text voice input functionality
-// ABOUTME: Wraps @react-native-voice/voice with state management and error handling
+// ABOUTME: Wraps expo-speech-recognition with state management and error handling
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Platform } from 'react-native';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
+import {
+  ExpoSpeechRecognitionModule,
+  useSpeechRecognitionEvent,
+} from 'expo-speech-recognition';
+import type {
+  ExpoSpeechRecognitionErrorCode,
+  ExpoSpeechRecognitionErrorEvent,
+  ExpoSpeechRecognitionResultEvent,
+} from 'expo-speech-recognition';
 
-// Conditionally import Voice - it's not available in Expo Go
-// The native module only exists in development builds
+// Check if running in Expo Go (native module won't be available)
 const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
-
-// Dynamic import types for Voice module
-type VoiceModule = typeof import('@react-native-voice/voice').default;
-type SpeechResultsEvent = import('@react-native-voice/voice').SpeechResultsEvent;
-type SpeechErrorEvent = import('@react-native-voice/voice').SpeechErrorEvent;
-type SpeechStartEvent = import('@react-native-voice/voice').SpeechStartEvent;
-type SpeechEndEvent = import('@react-native-voice/voice').SpeechEndEvent;
-
-// Only import Voice in development builds, not Expo Go
-let Voice: VoiceModule | null = null;
-if (!isExpoGo) {
-  try {
-    Voice = require('@react-native-voice/voice').default;
-  } catch {
-    // Voice module not available - running in Expo Go or native module not linked
-    Voice = null;
-  }
-}
 
 // Voice recognition error types for consumer handling
 export type VoiceErrorType =
@@ -60,28 +50,20 @@ interface UseVoiceInputResult extends VoiceInputState {
 // Timeout duration for voice input (30 seconds)
 const VOICE_TIMEOUT_MS = 30000;
 
-// Parse Voice error codes into typed errors
-function parseVoiceError(event: SpeechErrorEvent): VoiceError {
-  const code = event.error?.code;
-  const message = event.error?.message || 'Speech recognition failed';
-
-  // Common error codes from @react-native-voice/voice
-  // iOS: https://developer.apple.com/documentation/speech/sfspeechrecognitiontask
-  // Android: https://developer.android.com/reference/android/speech/SpeechRecognizer
+// Map expo-speech-recognition error codes to our typed errors
+function mapErrorCode(code: ExpoSpeechRecognitionErrorCode, message: string): VoiceError {
   switch (code) {
-    case '5': // iOS: Access denied / Android: ERROR_CLIENT
-    case 'recognition_fail':
+    case 'not-allowed':
       return { type: 'permission_denied', message: 'Microphone access denied' };
-    case '7': // iOS: No match / Android: ERROR_NO_MATCH
-    case 'no_match':
+    case 'no-speech':
+    case 'speech-timeout':
       return { type: 'no_speech', message: "Didn't catch that. Try again." };
-    case '2': // Android: ERROR_NETWORK
-    case '9': // Android: ERROR_INSUFFICIENT_PERMISSIONS
     case 'network':
       return { type: 'network_error', message: 'Network error. Please try again.' };
-    case '6': // Android: ERROR_SPEECH_TIMEOUT
-    case 'timeout':
-      return { type: 'timeout', message: 'Voice input timed out' };
+    case 'service-not-allowed':
+      return { type: 'not_available', message: 'Speech recognition is not available.' };
+    case 'aborted':
+      return { type: 'timeout', message: 'Voice input was cancelled.' };
     default:
       return { type: 'unknown', message };
   }
@@ -93,7 +75,7 @@ export function useVoiceInput(): UseVoiceInputResult {
     transcript: '',
     partialTranscript: '',
     error: null,
-    isAvailable: false,
+    isAvailable: !isExpoGo, // Assume available if not in Expo Go; will verify on mount
   });
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -106,9 +88,9 @@ export function useVoiceInput(): UseVoiceInputResult {
     }
   }, []);
 
+  // Check availability on mount
   useEffect(() => {
-    // If Voice module is not available (Expo Go), mark as unavailable and skip setup
-    if (!Voice) {
+    if (isExpoGo) {
       setState((prev) => ({
         ...prev,
         isAvailable: false,
@@ -116,81 +98,67 @@ export function useVoiceInput(): UseVoiceInputResult {
       return;
     }
 
-    // Check if voice recognition is available on this device
-    Voice.isAvailable().then((available) => {
-      // Voice.isAvailable() returns number (0/1) on some platforms, boolean on others
-      const voiceAvailable = Boolean(available);
-      setState((prev) => ({
-        ...prev,
-        isAvailable: voiceAvailable,
-      }));
+    // Check if speech recognition is available (synchronous call)
+    const available = ExpoSpeechRecognitionModule.isRecognitionAvailable();
+    setState((prev) => ({
+      ...prev,
+      isAvailable: available,
+    }));
+  }, []);
+
+  // Handle speech start event
+  useSpeechRecognitionEvent('start', () => {
+    setState((prev) => ({ ...prev, isListening: true, error: null }));
+  });
+
+  // Handle speech end event
+  useSpeechRecognitionEvent('end', () => {
+    clearTimeoutRef();
+    setState((prev) => {
+      // Check if we got no transcript at all - that's a "no speech" error
+      if (!prev.transcript && !prev.partialTranscript) {
+        return {
+          ...prev,
+          isListening: false,
+          error: { type: 'no_speech', message: "Didn't catch that. Try again." },
+        };
+      }
+      return { ...prev, isListening: false };
     });
+  });
 
-    // Set up event listeners
-    const onSpeechStart = (_event: SpeechStartEvent) => {
-      setState((prev) => ({ ...prev, isListening: true, error: null }));
-    };
-
-    const onSpeechEnd = (_event: SpeechEndEvent) => {
-      clearTimeoutRef();
-      setState((prev) => {
-        // Check if we got no transcript at all - that's a "no speech" error
-        if (!prev.transcript && !prev.partialTranscript) {
-          return {
-            ...prev,
-            isListening: false,
-            error: { type: 'no_speech', message: "Didn't catch that. Try again." },
-          };
-        }
-        return { ...prev, isListening: false };
-      });
-    };
-
-    const onSpeechResults = (event: SpeechResultsEvent) => {
-      clearTimeoutRef();
-      const results = event.value;
-      if (results && results.length > 0) {
+  // Handle speech results
+  useSpeechRecognitionEvent('result', (event: ExpoSpeechRecognitionResultEvent) => {
+    const results = event.results;
+    if (results && results.length > 0) {
+      const transcript = results[0].transcript;
+      if (event.isFinal) {
+        clearTimeoutRef();
         setState((prev) => ({
           ...prev,
-          transcript: results[0],
+          transcript,
           partialTranscript: '',
         }));
+      } else {
+        setState((prev) => ({ ...prev, partialTranscript: transcript }));
       }
-    };
+    }
+  });
 
-    const onSpeechPartialResults = (event: SpeechResultsEvent) => {
-      const results = event.value;
-      if (results && results.length > 0) {
-        setState((prev) => ({ ...prev, partialTranscript: results[0] }));
-      }
-    };
-
-    const onSpeechError = (event: SpeechErrorEvent) => {
-      clearTimeoutRef();
-      const voiceError = parseVoiceError(event);
-      setState((prev) => ({
-        ...prev,
-        isListening: false,
-        error: voiceError,
-      }));
-    };
-
-    Voice.onSpeechStart = onSpeechStart;
-    Voice.onSpeechEnd = onSpeechEnd;
-    Voice.onSpeechResults = onSpeechResults;
-    Voice.onSpeechPartialResults = onSpeechPartialResults;
-    Voice.onSpeechError = onSpeechError;
-
-    // Cleanup on unmount
-    return () => {
-      clearTimeoutRef();
-      Voice.destroy().then(Voice.removeAllListeners);
-    };
-  }, [clearTimeoutRef]);
+  // Handle errors
+  useSpeechRecognitionEvent('error', (event: ExpoSpeechRecognitionErrorEvent) => {
+    clearTimeoutRef();
+    const voiceError = mapErrorCode(event.error, event.message);
+    setState((prev) => ({
+      ...prev,
+      isListening: false,
+      error: voiceError,
+    }));
+  });
 
   const startListening = useCallback(async () => {
-    // Check if Voice module is available (not in Expo Go)
-    if (!Voice || !state.isAvailable) {
+    // Check if running in Expo Go
+    if (isExpoGo || !state.isAvailable) {
       setState((prev) => ({
         ...prev,
         error: { type: 'not_available', message: 'Speech recognition is not available on this device.' },
@@ -207,22 +175,35 @@ export function useVoiceInput(): UseVoiceInputResult {
         error: null,
       }));
 
+      // Request permissions first
+      const permissionResult = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!permissionResult.granted) {
+        setState((prev) => ({
+          ...prev,
+          error: { type: 'permission_denied', message: 'Microphone permission denied.' },
+        }));
+        return;
+      }
+
       // Use device locale, defaulting to en-US
       const locale = Platform.OS === 'ios' ? 'en-US' : 'en-US';
-      await Voice.start(locale);
+
+      // Start recognition with options
+      ExpoSpeechRecognitionModule.start({
+        lang: locale,
+        interimResults: true,
+        maxAlternatives: 1,
+        continuous: false, // Stop after first utterance
+      });
 
       // Set up timeout to auto-stop after VOICE_TIMEOUT_MS
-      timeoutRef.current = setTimeout(async () => {
-        try {
-          await Voice.stop();
-          setState((prev) => ({
-            ...prev,
-            isListening: false,
-            error: { type: 'timeout', message: 'Voice input timed out. Try again.' },
-          }));
-        } catch {
-          // Ignore stop errors during timeout
-        }
+      timeoutRef.current = setTimeout(() => {
+        ExpoSpeechRecognitionModule.stop();
+        setState((prev) => ({
+          ...prev,
+          isListening: false,
+          error: { type: 'timeout', message: 'Voice input timed out. Try again.' },
+        }));
       }, VOICE_TIMEOUT_MS);
     } catch (error) {
       const errorMessage =
@@ -244,9 +225,9 @@ export function useVoiceInput(): UseVoiceInputResult {
 
   const stopListening = useCallback(async () => {
     clearTimeoutRef();
-    if (!Voice) return;
+    if (isExpoGo) return;
     try {
-      await Voice.stop();
+      ExpoSpeechRecognitionModule.stop();
     } catch (error) {
       console.error('Failed to stop voice recognition:', error);
     }
@@ -254,9 +235,9 @@ export function useVoiceInput(): UseVoiceInputResult {
 
   const cancelListening = useCallback(async () => {
     clearTimeoutRef();
-    if (!Voice) return;
+    if (isExpoGo) return;
     try {
-      await Voice.cancel();
+      ExpoSpeechRecognitionModule.abort();
       setState((prev) => ({
         ...prev,
         isListening: false,

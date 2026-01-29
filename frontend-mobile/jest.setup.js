@@ -53,26 +53,35 @@ jest.mock('expo-haptics', () => ({
   },
 }));
 
-// Mock @react-native-voice/voice
-jest.mock('@react-native-voice/voice', () => {
-  const mockVoice = {
-    isAvailable: jest.fn(() => Promise.resolve(1)),
-    start: jest.fn(() => Promise.resolve()),
-    stop: jest.fn(() => Promise.resolve()),
-    cancel: jest.fn(() => Promise.resolve()),
-    destroy: jest.fn(() => Promise.resolve()),
-    removeAllListeners: jest.fn(),
-    onSpeechStart: null,
-    onSpeechEnd: null,
-    onSpeechResults: null,
-    onSpeechPartialResults: null,
-    onSpeechError: null,
-  };
-  return {
-    __esModule: true,
-    default: mockVoice,
-  };
-});
+// Mock expo-speech-recognition
+const mockEventListeners = {};
+jest.mock('expo-speech-recognition', () => ({
+  ExpoSpeechRecognitionModule: {
+    isRecognitionAvailable: jest.fn(() => true),
+    start: jest.fn(),
+    stop: jest.fn(),
+    abort: jest.fn(),
+    requestPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true })),
+    getPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true })),
+    addListener: jest.fn((eventName, listener) => {
+      mockEventListeners[eventName] = listener;
+      return { remove: jest.fn() };
+    }),
+  },
+  useSpeechRecognitionEvent: jest.fn((eventName, listener) => {
+    mockEventListeners[eventName] = listener;
+  }),
+  // Export for tests to trigger events
+  __mockEventListeners: mockEventListeners,
+  __triggerEvent: (eventName, data) => {
+    if (mockEventListeners[eventName]) {
+      mockEventListeners[eventName](data);
+    }
+  },
+  __clearMockListeners: () => {
+    Object.keys(mockEventListeners).forEach(key => delete mockEventListeners[key]);
+  },
+}));
 
 // Mock react-native-toast-message
 jest.mock('react-native-toast-message', () => {
