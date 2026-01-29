@@ -763,6 +763,24 @@ Run `cargo test` (all tests) ONLY when:
 - If the logs are supposed to contain errors, capture and test it.
 - NO EXCEPTIONS POLICY: Under no circumstances should you mark any test type as "not applicable". Every project, regardless of size or complexity, MUST have unit tests, integration tests, AND end-to-end tests. If you believe a test type doesn't apply, you need the human to say exactly "I AUTHORIZE YOU TO SKIP WRITING TESTS THIS TIME"
 
+## Test Integrity: No Skipping, No Ignoring
+
+**CRITICAL: All tests must run and pass. No exceptions.**
+
+### Forbidden Patterns
+- **Rust**: NEVER use `#[ignore]` attribute on tests
+- **JavaScript/TypeScript**: NEVER use `.skip()`, `xit()`, `xdescribe()`, or `test.skip()`
+- **CI Workflows**: NEVER use `continue-on-error: true` on test jobs
+- **Any language**: NEVER comment out tests to make CI pass
+
+### If a Test Fails
+1. **Fix the code** - not the test
+2. **Fix the test** - only if the test itself is wrong
+3. **Ask for help** - if you're stuck, don't skip
+
+### Rationale
+Skipped/ignored tests become forgotten tech debt. A red CI that gets ignored is worse than no CI at all.
+
 # RUST IDIOMATIC CODE GENERATION
 
 ## Memory Management and Ownership
