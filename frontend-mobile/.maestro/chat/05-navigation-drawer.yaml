@@ -1,0 +1,20 @@
+# ABOUTME: Test opening navigation drawer from chat
+# ABOUTME: Converted from chat.test.js "should open navigation drawer"
+
+appId: com.asyncio.pierre
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Test: should open navigation drawer
+- tapOn:
+    id: "menu-button"
+
+# Should see drawer content
+- assertVisible:
+    text: "Recent Conversations"
+    timeout: 3000
