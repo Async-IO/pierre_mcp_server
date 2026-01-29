@@ -2648,4 +2648,12 @@ impl DatabaseProvider for Database {
             }
         }
     }
+
+    async fn user_has_synthetic_activities(&self, user_id: Uuid) -> AppResult<bool> {
+        match self {
+            Self::SQLite(db) => db.user_has_synthetic_activities_impl(user_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.user_has_synthetic_activities(user_id).await,
+        }
+    }
 }

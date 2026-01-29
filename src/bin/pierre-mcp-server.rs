@@ -14,6 +14,8 @@
 
 use anyhow::Result;
 use clap::{error::ErrorKind, Parser};
+#[cfg(feature = "provider-synthetic")]
+use pierre_mcp_server::providers::set_synthetic_database_pool;
 use pierre_mcp_server::{
     auth::AuthManager,
     cache::factory::Cache,
@@ -412,6 +414,13 @@ async fn create_server(
         None, // Generate new JWKS manager for production
     )
     .await;
+
+    // Initialize synthetic provider database pool for non-OAuth activity access
+    #[cfg(feature = "provider-synthetic")]
+    if let Some(pool) = resources_instance.database.sqlite_pool() {
+        set_synthetic_database_pool(Arc::new(pool.clone()));
+        info!("Synthetic provider database pool initialized");
+    }
 
     // Wrap in Arc for plugin executor initialization
     let resources_arc = Arc::new(resources_instance.clone());

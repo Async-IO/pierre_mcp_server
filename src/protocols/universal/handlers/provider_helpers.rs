@@ -183,7 +183,8 @@ pub fn get_provider_oauth_config(provider_name: &str) -> OAuthProviderConfig {
 ///
 /// This is a provider-agnostic activity fetcher that handles:
 /// - Provider validation
-/// - OAuth token retrieval and validation
+/// - OAuth token retrieval and validation (for OAuth providers)
+/// - Non-OAuth provider support (like synthetic)
 /// - Provider creation and credential setup
 /// - Activity fetching with optional limit
 ///
@@ -191,7 +192,7 @@ pub fn get_provider_oauth_config(provider_name: &str) -> OAuthProviderConfig {
 /// * `executor` - The universal tool executor with server resources
 /// * `user_uuid` - User identifier
 /// * `tenant_id` - Optional tenant identifier for multi-tenant isolation
-/// * `provider_name` - Name of the provider (e.g., "strava", "garmin")
+/// * `provider_name` - Name of the provider (e.g., "strava", "garmin", "synthetic")
 /// * `limit` - Optional limit on number of activities to fetch
 ///
 /// # Errors
@@ -225,7 +226,64 @@ pub async fn fetch_provider_activities(
         });
     }
 
-    // Get valid OAuth token for the provider
+    // Check if provider requires OAuth
+    let requires_oauth = executor
+        .resources
+        .provider_registry
+        .requires_oauth(provider_name);
+
+    // For non-OAuth providers (like synthetic), create provider with user context directly
+    if !requires_oauth {
+        debug!(
+            provider = provider_name,
+            user_id = %user_uuid,
+            "Creating non-OAuth provider with direct user context"
+        );
+
+        let provider = executor
+            .resources
+            .provider_registry
+            .create_provider(provider_name)
+            .map_err(|e| UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!("Failed to create {provider_name} provider: {e}")),
+                metadata: None,
+            })?;
+
+        // For synthetic provider, pass user context via credentials
+        // Format: "user_id:tenant_id" in access_token field
+        if let Some(tid) = tenant_id {
+            let synthetic_token = format!("{user_uuid}:{tid}");
+            let credentials = OAuth2Credentials {
+                client_id: String::new(),
+                client_secret: String::new(),
+                access_token: Some(synthetic_token),
+                refresh_token: None,
+                expires_at: None,
+                scopes: vec![],
+            };
+
+            if let Err(e) = provider.set_credentials(credentials).await {
+                debug!(error = %e, "Failed to set synthetic provider credentials (non-fatal)");
+            }
+        }
+
+        // Fetch activities
+        return match provider.get_activities(limit, None).await {
+            Ok(activities) => Ok(activities),
+            Err(e) => Err(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!(
+                    "Failed to fetch activities from {provider_name}: {e}"
+                )),
+                metadata: None,
+            }),
+        };
+    }
+
+    // For OAuth providers, get valid token first
     match executor
         .auth_service
         .get_valid_token(user_uuid, provider_name, tenant_id)

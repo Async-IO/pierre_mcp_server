@@ -47,8 +47,37 @@ use rand_chacha::ChaCha8Rng;
 use std::cmp::Reverse;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, OnceLock, RwLock};
 use tracing::instrument;
+
+/// Global database pool for synthetic provider to read activities from database
+///
+/// The synthetic provider can optionally read activities from the `synthetic_activities`
+/// table instead of in-memory data. This pool is set at server startup when the
+/// synthetic provider feature is enabled.
+static SYNTHETIC_DATABASE_POOL: OnceLock<Arc<sqlx::Pool<sqlx::Sqlite>>> = OnceLock::new();
+
+/// Set the database pool for synthetic provider database access
+///
+/// This should be called once at server startup to provide the synthetic provider
+/// with access to the `synthetic_activities` table.
+///
+/// # Arguments
+/// * `pool` - Arc-wrapped `SQLite` pool for database access
+pub fn set_synthetic_database_pool(pool: Arc<sqlx::Pool<sqlx::Sqlite>>) {
+    let result = SYNTHETIC_DATABASE_POOL.set(pool);
+    if result.is_err() {
+        tracing::warn!("Synthetic database pool already initialized, ignoring duplicate set");
+    }
+}
+
+/// Get the database pool for synthetic provider
+///
+/// Returns `None` if the pool hasn't been set (synthetic provider not using database mode).
+#[must_use]
+pub fn get_synthetic_database_pool() -> Option<Arc<sqlx::Pool<sqlx::Sqlite>>> {
+    SYNTHETIC_DATABASE_POOL.get().cloned()
+}
 
 /// Global test seed for synthetic provider factory
 ///

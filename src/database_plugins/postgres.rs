@@ -6041,6 +6041,17 @@ impl DatabaseProvider for PostgresDatabase {
     async fn count_enabled_tools(&self, _tenant_id: Uuid) -> AppResult<usize> {
         Err(AppError::internal("Tool selection requires SQLite backend"))
     }
+
+    async fn user_has_synthetic_activities(&self, user_id: Uuid) -> AppResult<bool> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM synthetic_activities WHERE user_id = $1 LIMIT 1",
+        )
+        .bind(user_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(count > 0)
+    }
 }
 
 impl PostgresDatabase {
