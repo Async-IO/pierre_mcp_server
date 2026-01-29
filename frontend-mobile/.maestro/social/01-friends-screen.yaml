@@ -1,0 +1,39 @@
+# ABOUTME: Test Friends screen functionality
+# ABOUTME: Converted from social.test.js "Friends Screen" tests
+
+appId: com.asyncio.pierre
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Friends via drawer
+- tapOn:
+    id: "drawer-toggle"
+- assertVisible:
+    text: "Friends"
+    timeout: 5000
+- tapOn: "Friends"
+- assertVisible:
+    id: "friends-screen"
+    timeout: 5000
+
+# Test: should display Friends screen header
+- assertVisible: "Friends"
+
+# Test: should show empty state or friends list
+- runFlow:
+    when:
+      visible: "No Friends Yet"
+    commands:
+      - assertVisible: "No Friends Yet"
+
+- runFlow:
+    when:
+      notVisible: "No Friends Yet"
+    commands:
+      - assertVisible:
+          id: "friends-search-input"

@@ -1,0 +1,39 @@
+# ABOUTME: Test Social Settings toggle and save functionality
+# ABOUTME: Converted from social.test.js "Social Settings Screen" interaction tests
+
+appId: com.asyncio.pierre
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Social Settings
+- tapOn:
+    id: "drawer-toggle"
+- tapOn: "Social Settings"
+- assertVisible:
+    id: "social-settings-screen"
+    timeout: 5000
+
+# Test: should toggle discoverable setting
+- tapOn:
+    id: "discoverable-switch"
+
+# Save button should appear
+- assertVisible:
+    text: "Save"
+    timeout: 3000
+
+# Test: should change default visibility
+- tapOn: "Public"
+
+# Test: should save settings changes
+- tapOn: "Save"
+
+# Should show success or button should disappear
+- assertNotVisible:
+    text: "Save"
+    timeout: 5000

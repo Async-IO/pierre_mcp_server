@@ -1,0 +1,50 @@
+# ABOUTME: Test Social Feed screen functionality
+# ABOUTME: Converted from social.test.js "Social Feed Screen" tests
+
+appId: com.asyncio.pierre
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Feed via drawer
+- tapOn:
+    id: "drawer-toggle"
+- assertVisible:
+    text: "Feed"
+    timeout: 5000
+- tapOn: "Feed"
+- assertVisible:
+    id: "social-feed-screen"
+    timeout: 5000
+
+# Test: should display Feed screen header
+- assertVisible: "Feed"
+
+# Test: should show empty state or feed items
+- runFlow:
+    when:
+      visible: "No Insights Yet"
+    commands:
+      - assertVisible: "No Insights Yet"
+
+- runFlow:
+    when:
+      notVisible: "No Insights Yet"
+    commands:
+      - assertVisible:
+          id: "feed-list"
+
+# Test: should navigate to Share Insight
+- tapOn:
+    id: "share-insight-button"
+- assertVisible:
+    id: "share-insight-screen"
+    timeout: 5000
+- assertVisible: "Share Insight"
+
+# Go back
+- back

@@ -1,0 +1,40 @@
+# ABOUTME: Test Search Friends functionality
+# ABOUTME: Converted from social.test.js "Friends Screen" search tests
+
+appId: com.asyncio.pierre
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Friends
+- tapOn:
+    id: "drawer-toggle"
+- tapOn: "Friends"
+- assertVisible:
+    id: "friends-screen"
+    timeout: 5000
+
+# Test: should navigate to Search Friends
+- assertVisible:
+    id: "search-friends-button"
+    timeout: 5000
+- tapOn:
+    id: "search-friends-button"
+- assertVisible:
+    id: "search-friends-screen"
+    timeout: 5000
+- assertVisible: "Search Friends"
+
+# Test: should search for users
+- tapOn:
+    id: "user-search-input"
+- inputText: "test"
+
+# Wait for results
+- assertVisible:
+    id: "search-results-list"
+    timeout: 5000
