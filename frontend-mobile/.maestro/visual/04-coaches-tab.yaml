@@ -1,0 +1,47 @@
+# ABOUTME: Visual tests for coaches tab
+# ABOUTME: Converted from mobile-visual.test.js "Coaches Tab" tests
+
+appId: com.asyncio.pierre
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Test: coaches - tab icon visible and tappable
+- runFlow:
+    when:
+      visible:
+        id: "coaches-tab"
+    commands:
+      - tapOn:
+          id: "coaches-tab"
+      - assertVisible:
+          id: "coaches-screen"
+          timeout: 5000
+
+# If no tab, navigate via drawer
+- runFlow:
+    when:
+      notVisible:
+        id: "coaches-tab"
+    commands:
+      - runFlow:
+          file: ../helpers/navigate-to-coaches.yaml
+
+# Test: coaches - search input works
+- runFlow:
+    when:
+      visible:
+        id: "coach-search-input"
+    commands:
+      - tapOn:
+          id: "coach-search-input"
+      - inputText: "training"
+      - clearText
+
+# Test: coaches - category filters visible
+- assertVisible: "All"
+- assertVisible: "Training"

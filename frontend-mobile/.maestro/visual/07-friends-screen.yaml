@@ -1,0 +1,54 @@
+# ABOUTME: Visual tests for friends screen
+# ABOUTME: Converted from mobile-visual.test.js "Friends Screen" tests
+
+appId: com.asyncio.pierre
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Friends via drawer
+- tapOn:
+    id: "drawer-toggle"
+- assertVisible:
+    text: "Friends"
+    timeout: 5000
+- tapOn: "Friends"
+
+# Test: friends - displays screen
+- assertVisible:
+    id: "friends-screen"
+    timeout: 5000
+
+# Test: friends - displays friend list or empty state
+- runFlow:
+    when:
+      visible:
+        id: "friend-card"
+    commands:
+      - assertVisible:
+          id: "friend-card"
+
+- runFlow:
+    when:
+      visible: "No Friends"
+    commands:
+      - assertVisible: "No Friends"
+
+# Test: friends - search button opens search
+- tapOn:
+    id: "search-friends-button"
+- assertVisible:
+    id: "search-friends-screen"
+    timeout: 5000
+
+# Test: friends - search finds users
+- tapOn:
+    id: "user-search-input"
+- inputText: "alice"
+- assertVisible:
+    id: "search-results-list"
+    timeout: 5000

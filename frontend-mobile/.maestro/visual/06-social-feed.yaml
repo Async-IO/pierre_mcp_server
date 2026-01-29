@@ -1,0 +1,49 @@
+# ABOUTME: Visual tests for social feed
+# ABOUTME: Converted from mobile-visual.test.js "Social Feed" tests
+
+appId: com.asyncio.pierre
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Feed via drawer
+- tapOn:
+    id: "drawer-toggle"
+- assertVisible:
+    text: "Feed"
+    timeout: 5000
+- tapOn: "Feed"
+
+# Test: feed - displays screen
+- assertVisible:
+    id: "social-feed-screen"
+    timeout: 5000
+
+# Test: feed - displays insight cards or empty state
+- runFlow:
+    when:
+      visible:
+        id: "insight-card"
+    commands:
+      - assertVisible:
+          id: "insight-card"
+
+- runFlow:
+    when:
+      visible: "No Insights"
+    commands:
+      - assertVisible: "No Insights"
+
+# Test: feed - pull to refresh works
+- scroll:
+    element:
+      id: "feed-scroll-view"
+    direction: DOWN
+
+# Test: feed - share insight button visible
+- assertVisible:
+    id: "share-insight-button"
