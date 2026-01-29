@@ -429,6 +429,72 @@ else
 fi
 
 # ============================================================================
+# TEST INTEGRITY VALIDATION (No Skipping, No Ignoring)
+# ============================================================================
+
+echo ""
+echo -e "${BLUE}==== Test Integrity Validation ====${NC}"
+
+# Parse CI continue-on-error allowlist from TOML
+CI_COE_ALLOWLIST=$(python3 -c "
+import tomllib
+with open('$SCRIPT_DIR/validation-patterns.toml', 'rb') as f:
+    config = tomllib.load(f)
+allowed = config.get('ci_continue_on_error_allowlist', {}).get('allowed', [])
+print('\n'.join(allowed))
+" 2>/dev/null || echo "")
+
+# Check for continue-on-error: true in CI workflows (excluding commented lines)
+# Note: grep -v pattern must match the file:line format from rg, not just the line content
+CI_CONTINUE_ON_ERROR_TOTAL=$(rg "continue-on-error:\s*true" .github/workflows/ -n 2>/dev/null | grep -v "#.*continue-on-error" | wc -l | tr -d ' ' || echo 0)
+
+# Count allowlisted entries
+CI_CONTINUE_ON_ERROR_ALLOWED=0
+if [ -n "$CI_COE_ALLOWLIST" ]; then
+    while IFS= read -r entry; do
+        [ -z "$entry" ] && continue
+        # Entry format: "workflow.yml:step_name" or just workflow pattern
+        CI_CONTINUE_ON_ERROR_ALLOWED=$((CI_CONTINUE_ON_ERROR_ALLOWED + 1))
+    done <<< "$CI_COE_ALLOWLIST"
+fi
+
+CI_CONTINUE_ON_ERROR=$((CI_CONTINUE_ON_ERROR_TOTAL - CI_CONTINUE_ON_ERROR_ALLOWED))
+# Since allowlist is empty, all are unauthorized
+CI_CONTINUE_ON_ERROR=$CI_CONTINUE_ON_ERROR_TOTAL
+
+if [ "$CI_CONTINUE_ON_ERROR" -gt 0 ]; then
+    echo -e "${RED}❌ FORBIDDEN: Found $CI_CONTINUE_ON_ERROR 'continue-on-error: true' in CI workflows${NC}"
+    echo -e "${RED}All test jobs must fail the build when tests fail.${NC}"
+    echo -e "${YELLOW}To allowlist (requires explicit approval), add to validation-patterns.toml [ci_continue_on_error_allowlist]${NC}"
+    rg "continue-on-error:\s*true" .github/workflows/ -n | grep -v "#.*continue-on-error" | head -5
+    fail_validation "Remove continue-on-error: true from test jobs"
+else
+    pass_validation "No unauthorized continue-on-error: true in CI workflows"
+fi
+
+# Parse JS test skip allowlist from TOML
+JS_SKIP_ALLOWLIST=$(python3 -c "
+import tomllib
+with open('$SCRIPT_DIR/validation-patterns.toml', 'rb') as f:
+    config = tomllib.load(f)
+allowed = config.get('js_test_skip_allowlist', {}).get('allowed', [])
+print('\n'.join(allowed))
+" 2>/dev/null || echo "")
+
+# Check for .skip(), xit(), xdescribe(), test.skip() in JS/TS test files
+JS_TEST_SKIPS=$(rg '\.skip\(\)|\.only\(\)|xit\(|xdescribe\(|test\.skip|it\.skip|describe\.skip' frontend/ frontend-mobile/ sdk/ -g '*.test.ts' -g '*.test.tsx' -g '*.test.js' -g '*.spec.ts' -g '*.spec.js' --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
+if [ "$JS_TEST_SKIPS" -gt 0 ]; then
+    echo -e "${RED}❌ FORBIDDEN: Found $JS_TEST_SKIPS skipped/focused tests in JS/TS${NC}"
+    echo -e "${RED}Remove .skip(), .only(), xit(), xdescribe() from test files.${NC}"
+    echo -e "${YELLOW}To allowlist (requires explicit approval), add to validation-patterns.toml [js_test_skip_allowlist]${NC}"
+    rg '\.skip\(\)|\.only\(\)|xit\(|xdescribe\(|test\.skip|it\.skip|describe\.skip' frontend/ frontend-mobile/ sdk/ -g '*.test.ts' -g '*.test.tsx' -g '*.test.js' -g '*.spec.ts' -g '*.spec.js' -n | head -5
+    fail_validation "Remove skipped/focused tests"
+else
+    pass_validation "No skipped tests in JS/TS"
+fi
+
+# ============================================================================
 # LEGACY FUNCTION DETECTION (UX Anti-Patterns)
 # ============================================================================
 
@@ -669,6 +735,22 @@ if [ "$IGNORED_DOCTESTS" -eq 0 ]; then
 else
     FIRST_DOCTEST=$(get_first_location 'rg "///\s*\`\`\`(rust,\s*)?ignore" src/ -n')
     printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_DOCTEST"
+fi
+
+printf "│ %-35s │ %5d │ " "CI continue-on-error: true" "$CI_CONTINUE_ON_ERROR"
+if [ "$CI_CONTINUE_ON_ERROR" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "Tests fail the build"
+else
+    FIRST_COE=$(rg "continue-on-error:\s*true" .github/workflows/ -n 2>/dev/null | grep -v "^\s*#" | head -1 | cut -d: -f1-2)
+    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$(truncate_text "$FIRST_COE" 37)"
+fi
+
+printf "│ %-35s │ %5d │ " "JS/TS skipped tests" "$JS_TEST_SKIPS"
+if [ "$JS_TEST_SKIPS" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "All JS/TS tests run"
+else
+    FIRST_SKIP=$(rg '\.skip\(\)|\.only\(\)|xit\(|xdescribe\(' frontend/ frontend-mobile/ sdk/ -g '*.test.*' -n 2>/dev/null | head -1 | cut -d: -f1-2)
+    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$(truncate_text "$FIRST_SKIP" 37)"
 fi
 
 printf "│ %-35s │ %5d │ " "Backup files" "${BACKUP_FILES:-0}"

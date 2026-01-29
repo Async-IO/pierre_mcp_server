@@ -421,6 +421,25 @@ files = [
     "llm_openai_compatible_test.rs",   # Requires running Ollama server for API tests
 ]
 
+[ci_continue_on_error_allowlist]
+# Workflow steps permitted to have continue-on-error: true
+# Format: "workflow_file:step_name" or "workflow_file:line_number"
+# LEAVE EMPTY - all continue-on-error: true should fail validation
+# Only add entries after explicit approval with documented justification
+allowed = [
+    # Example (DO NOT ADD without explicit approval):
+    # "ci.yml:Security Audit",  # Advisory-only, not a test
+]
+
+[js_test_skip_allowlist]
+# Test files permitted to have .skip(), .only(), xit(), xdescribe()
+# LEAVE EMPTY - skipped tests should never exist
+# Only add entries after explicit approval with documented justification
+allowed = [
+    # Example (DO NOT ADD without explicit approval):
+    # "frontend/src/components/__tests__/flaky.test.ts",  # Flaky due to timing
+]
+
 [exclusions]
 # Files where some patterns might be legitimate
 test_files = ["tests/**", "**/*_test.rs", "**/test_*.rs"]
