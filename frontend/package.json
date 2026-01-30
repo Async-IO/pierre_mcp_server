@@ -42,8 +42,9 @@
     "react-resizable-panels": "^4.3.0"
   },
   "devDependencies": {
-    "@pierre/eslint-config": "*",
+    "@axe-core/playwright": "^4.11.0",
     "@eslint/js": "^9.25.0",
+    "@pierre/eslint-config": "*",
     "@playwright/test": "^1.57.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",

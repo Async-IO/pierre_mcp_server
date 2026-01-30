@@ -102,6 +102,19 @@ const endpoints = {
   coaches: '/api/coaches',
   connections: '/api/connections',
   adminSetupStatus: '/admin/setup/status',
+  // Activity endpoints
+  activities: '/api/activities',
+  activitiesSync: '/api/activities/sync',
+  activitiesStats: '/api/activities/stats',
+  // Social endpoints
+  socialFriends: '/api/social/friends',
+  socialFeed: '/api/social/feed',
+  socialSettings: '/api/social/settings',
+  socialSearch: '/api/social/search',
+  socialFriendRequests: '/api/social/friend-requests',
+  socialFollow: '/api/social/follow',
+  socialInsights: '/api/social/insights',
+  socialBlocked: '/api/social/blocked',
 };
 
 module.exports = {
