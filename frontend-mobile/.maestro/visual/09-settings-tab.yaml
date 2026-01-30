@@ -28,8 +28,9 @@ appId: com.asyncio.pierre
       - tapOn: "Settings"
 
 # Test: settings - displays screen
-- assertVisible:
-    id: "settings-screen"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
     timeout: 5000
 
 # Test: settings - displays profile section

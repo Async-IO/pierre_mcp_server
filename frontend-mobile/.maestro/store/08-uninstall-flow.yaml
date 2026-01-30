@@ -22,8 +22,9 @@ appId: com.asyncio.pierre
     commands:
       - tapOn:
           id: "coach-card-0"
-      - assertVisible:
-          id: "store-coach-detail-screen"
+      - extendedWaitUntil:
+          visible:
+            id: "store-coach-detail-screen"
           timeout: 5000
 
       # Check if Uninstall is available
@@ -35,24 +36,27 @@ appId: com.asyncio.pierre
             - tapOn: "Uninstall"
 
             # Confirm uninstall in alert
-            - assertVisible:
-                text: "Uninstall Coach?"
+            - extendedWaitUntil:
+                visible:
+                  text: "Uninstall Coach?"
                 timeout: 3000
 
             # Tap the Uninstall button in the dialog
             - tapOn: "Uninstall"
 
             # Should show confirmation
-            - assertVisible:
-                text: "Uninstalled"
+            - extendedWaitUntil:
+                visible:
+                  text: "Uninstalled"
                 timeout: 5000
 
             # Dismiss alert
             - tapOn: "OK"
 
             # Should now show Install button
-            - assertVisible:
-                text: "Install Coach"
+            - extendedWaitUntil:
+                visible:
+                  text: "Install Coach"
                 timeout: 5000
 
       # Navigate back

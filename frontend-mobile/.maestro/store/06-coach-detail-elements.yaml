@@ -22,8 +22,9 @@ appId: com.asyncio.pierre
     commands:
       - tapOn:
           id: "coach-card-0"
-      - assertVisible:
-          id: "store-coach-detail-screen"
+      - extendedWaitUntil:
+          visible:
+            id: "store-coach-detail-screen"
           timeout: 5000
 
       # Test: should show coach title

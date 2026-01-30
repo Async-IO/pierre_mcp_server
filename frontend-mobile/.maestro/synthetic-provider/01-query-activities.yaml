@@ -22,8 +22,9 @@ appId: com.asyncio.pierre
     id: "send-button"
 
 # Wait for response
-- assertNotVisible:
-    text: "Pierre is thinking..."
+- extendedWaitUntil:
+    notVisible:
+      text: "Pierre is thinking..."
     timeout: 30000
 
 # Response should be received

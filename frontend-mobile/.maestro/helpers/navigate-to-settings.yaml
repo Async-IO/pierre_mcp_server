@@ -8,6 +8,7 @@ appId: com.asyncio.pierre
 - tapOn: "Settings"
 
 # Wait for settings screen to load
-- assertVisible:
-    id: "settings-screen"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
     timeout: 5000

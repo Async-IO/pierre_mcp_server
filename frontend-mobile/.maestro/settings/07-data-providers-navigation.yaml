@@ -19,14 +19,16 @@ appId: com.asyncio.pierre
     id: "settings-data-providers-button"
 
 # Should navigate to Connections screen
-- assertVisible:
-    text: "Connections"
+- extendedWaitUntil:
+    visible:
+      text: "Connections"
     timeout: 5000
 
 # Navigate back
 - back
 
 # Should be back on settings
-- assertVisible:
-    id: "settings-screen"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
     timeout: 5000

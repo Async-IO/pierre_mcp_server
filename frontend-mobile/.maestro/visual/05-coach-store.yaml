@@ -13,14 +13,16 @@ appId: com.asyncio.pierre
 # Navigate to store via drawer
 - tapOn:
     id: "drawer-toggle"
-- assertVisible:
-    text: "Store"
+- extendedWaitUntil:
+    visible:
+      text: "Store"
     timeout: 5000
 - tapOn: "Store"
 
 # Test: store - displays coach grid
-- assertVisible:
-    id: "store-screen"
+- extendedWaitUntil:
+    visible:
+      id: "store-screen"
     timeout: 5000
 
 # Test: store - category tabs filter content

@@ -21,8 +21,9 @@ appId: com.asyncio.pierre
 - inputText: "training"
 
 # Wait for search results
-- assertVisible:
-    id: "coach-list"
+- extendedWaitUntil:
+    visible:
+      id: "coach-list"
     timeout: 5000
 
 # Test: should clear search
@@ -31,6 +32,7 @@ appId: com.asyncio.pierre
 - clearText
 
 # Should show all coaches again
-- assertVisible:
-    id: "coach-list"
+- extendedWaitUntil:
+    visible:
+      id: "coach-list"
     timeout: 5000

@@ -14,8 +14,9 @@ appId: com.asyncio.pierre
 - tapOn:
     id: "drawer-toggle"
 - tapOn: "Feed"
-- assertVisible:
-    id: "social-feed-screen"
+- extendedWaitUntil:
+    visible:
+      id: "social-feed-screen"
     timeout: 5000
 
 # Test: should show Adapt to My Training button on feed items
@@ -29,8 +30,9 @@ appId: com.asyncio.pierre
       # Test: should navigate to adapt screen when tapping Adapt button
       - tapOn:
           id: "adapt-button"
-      - assertVisible:
-          id: "adapt-insight-screen"
+      - extendedWaitUntil:
+          visible:
+            id: "adapt-insight-screen"
           timeout: 5000
       - assertVisible: "Adapted for You"
 

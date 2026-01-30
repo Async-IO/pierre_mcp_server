@@ -22,10 +22,12 @@ appId: com.asyncio.pierre
     id: "send-button"
 
 # Wait for response (Pierre thinking indicator should appear then disappear)
-- assertVisible:
-    text: "Pierre is thinking..."
+- extendedWaitUntil:
+    visible:
+      text: "Pierre is thinking..."
     timeout: 5000
 
-- assertNotVisible:
-    text: "Pierre is thinking..."
+- extendedWaitUntil:
+    notVisible:
+      text: "Pierre is thinking..."
     timeout: 30000

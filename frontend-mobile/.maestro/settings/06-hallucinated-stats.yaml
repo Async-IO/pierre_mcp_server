@@ -16,14 +16,17 @@ appId: com.asyncio.pierre
     file: ../helpers/navigate-to-settings.yaml
 
 # Test: should NOT show hardcoded user stats (activities, hours, insights)
-- assertNotVisible:
-    text: "127"
+- extendedWaitUntil:
+    notVisible:
+      text: "127"
     timeout: 2000
 
-- assertNotVisible:
-    text: "89"
+- extendedWaitUntil:
+    notVisible:
+      text: "89"
     timeout: 2000
 
-- assertNotVisible:
-    text: "12"
+- extendedWaitUntil:
+    notVisible:
+      text: "12"
     timeout: 2000

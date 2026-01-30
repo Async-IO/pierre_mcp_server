@@ -13,12 +13,14 @@ appId: com.asyncio.pierre
 # Navigate to Feed via drawer
 - tapOn:
     id: "drawer-toggle"
-- assertVisible:
-    text: "Feed"
+- extendedWaitUntil:
+    visible:
+      text: "Feed"
     timeout: 5000
 - tapOn: "Feed"
-- assertVisible:
-    id: "social-feed-screen"
+- extendedWaitUntil:
+    visible:
+      id: "social-feed-screen"
     timeout: 5000
 
 # Test: should display Feed screen header
@@ -41,8 +43,9 @@ appId: com.asyncio.pierre
 # Test: should navigate to Share Insight
 - tapOn:
     id: "share-insight-button"
-- assertVisible:
-    id: "share-insight-screen"
+- extendedWaitUntil:
+    visible:
+      id: "share-insight-screen"
     timeout: 5000
 - assertVisible: "Share Insight"
 

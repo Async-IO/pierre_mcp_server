@@ -24,8 +24,9 @@ appId: com.asyncio.pierre
 - hideKeyboard
 
 # Wait for login button to be visible and tap
-- assertVisible:
-    id: "login-button"
+- extendedWaitUntil:
+    visible:
+      id: "login-button"
     timeout: 5000
 
 - tapOn:
@@ -33,11 +34,13 @@ appId: com.asyncio.pierre
 
 # After successful login, should navigate away from login screen
 # Using longer timeout since login involves API call
-- assertNotVisible:
-    id: "login-screen"
+- extendedWaitUntil:
+    notVisible:
+      id: "login-screen"
     timeout: 15000
 
 # Verify we're on the chat screen
-- assertVisible:
-    id: "chat-screen"
+- extendedWaitUntil:
+    visible:
+      id: "chat-screen"
     timeout: 5000

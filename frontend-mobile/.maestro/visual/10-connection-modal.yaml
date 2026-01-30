@@ -26,8 +26,9 @@ appId: com.asyncio.pierre
     commands:
       - tapOn: "Settings"
 
-- assertVisible:
-    id: "settings-screen"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
     timeout: 5000
 
 # Test: connections - opens from settings

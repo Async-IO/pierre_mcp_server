@@ -8,6 +8,7 @@ appId: com.asyncio.pierre
 # Usage: Copy and modify the assertNotVisible command for your specific element
 
 # Example: Assert "Export Data" is NOT visible
-- assertNotVisible:
-    text: ${ELEMENT_TEXT}
+- extendedWaitUntil:
+    notVisible:
+      text: ${ELEMENT_TEXT}
     timeout: 2000

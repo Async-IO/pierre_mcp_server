@@ -8,6 +8,7 @@ appId: com.asyncio.pierre
 - launchApp
 
 # Wait for the app to be ready (login screen should appear)
-- assertVisible:
-    id: "login-screen"
+- extendedWaitUntil:
+    visible:
+      id: "login-screen"
     timeout: 10000

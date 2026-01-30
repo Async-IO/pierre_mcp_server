@@ -13,14 +13,16 @@ appId: com.asyncio.pierre
 # Navigate to Feed via drawer
 - tapOn:
     id: "drawer-toggle"
-- assertVisible:
-    text: "Feed"
+- extendedWaitUntil:
+    visible:
+      text: "Feed"
     timeout: 5000
 - tapOn: "Feed"
 
 # Test: feed - displays screen
-- assertVisible:
-    id: "social-feed-screen"
+- extendedWaitUntil:
+    visible:
+      id: "social-feed-screen"
     timeout: 5000
 
 # Test: feed - displays insight cards or empty state

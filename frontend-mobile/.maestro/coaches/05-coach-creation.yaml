@@ -19,8 +19,9 @@ appId: com.asyncio.pierre
     id: "create-coach-button"
 
 # Should see coach editor screen
-- assertVisible:
-    text: "Create Coach"
+- extendedWaitUntil:
+    visible:
+      text: "Create Coach"
     timeout: 5000
 
 # Navigate back

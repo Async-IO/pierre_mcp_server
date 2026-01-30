@@ -13,12 +13,14 @@ appId: com.asyncio.pierre
 # Navigate to Friends via drawer
 - tapOn:
     id: "drawer-toggle"
-- assertVisible:
-    text: "Friends"
+- extendedWaitUntil:
+    visible:
+      text: "Friends"
     timeout: 5000
 - tapOn: "Friends"
-- assertVisible:
-    id: "friends-screen"
+- extendedWaitUntil:
+    visible:
+      id: "friends-screen"
     timeout: 5000
 
 # Test: should display Friends screen header

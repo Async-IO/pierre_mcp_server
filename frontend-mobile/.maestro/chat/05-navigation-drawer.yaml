@@ -15,6 +15,7 @@ appId: com.asyncio.pierre
     id: "menu-button"
 
 # Should see drawer content
-- assertVisible:
-    text: "Recent Conversations"
+- extendedWaitUntil:
+    visible:
+      text: "Recent Conversations"
     timeout: 3000

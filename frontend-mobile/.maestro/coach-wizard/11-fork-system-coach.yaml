@@ -27,8 +27,9 @@ appId: com.asyncio.pierre
       - longPressOn:
           id: "coach-card"
       # Should see Fork option in action menu
-      - assertVisible:
-          text: "Fork"
+      - extendedWaitUntil:
+          visible:
+            text: "Fork"
           timeout: 3000
       # Dismiss the menu
       - tapOn:

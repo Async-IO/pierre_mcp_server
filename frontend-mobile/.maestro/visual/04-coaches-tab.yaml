@@ -18,8 +18,9 @@ appId: com.asyncio.pierre
     commands:
       - tapOn:
           id: "coaches-tab"
-      - assertVisible:
-          id: "coaches-screen"
+      - extendedWaitUntil:
+          visible:
+            id: "coaches-screen"
           timeout: 5000
 
 # If no tab, navigate via drawer

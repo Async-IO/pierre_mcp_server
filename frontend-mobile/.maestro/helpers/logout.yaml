@@ -27,6 +27,7 @@ appId: com.asyncio.pierre
       - tapOn: "Log Out"
 
 # Verify we're back on login screen
-- assertVisible:
-    id: "login-screen"
+- extendedWaitUntil:
+    visible:
+      id: "login-screen"
     timeout: 5000

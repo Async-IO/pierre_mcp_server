@@ -17,8 +17,9 @@ appId: com.asyncio.pierre
 # Open wizard
 - tapOn:
     id: "create-coach-button"
-- assertVisible:
-    id: "coach-wizard-screen"
+- extendedWaitUntil:
+    visible:
+      id: "coach-wizard-screen"
     timeout: 5000
 
 # Fill required field first

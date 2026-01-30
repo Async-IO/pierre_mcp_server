@@ -14,15 +14,17 @@ appId: com.asyncio.pierre
 - tapOn:
     id: "drawer-toggle"
 - tapOn: "Feed"
-- assertVisible:
-    id: "social-feed-screen"
+- extendedWaitUntil:
+    visible:
+      id: "social-feed-screen"
     timeout: 5000
 
 # Test: share - opens from feed
 - tapOn:
     id: "share-insight-button"
-- assertVisible:
-    id: "share-insight-screen"
+- extendedWaitUntil:
+    visible:
+      id: "share-insight-screen"
     timeout: 5000
 
 # Test: share - displays visibility options

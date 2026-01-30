@@ -15,28 +15,32 @@ appId: com.asyncio.pierre
     file: ../helpers/navigate-to-coaches.yaml
 
 # Find the test coach
-- assertVisible:
-    text: "E2E Test Coach"
+- extendedWaitUntil:
+    visible:
+      text: "E2E Test Coach"
     timeout: 5000
 
 # Long press to show action menu
 - longPressOn: "E2E Test Coach"
 
 # Wait for Delete option
-- assertVisible:
-    text: "Delete"
+- extendedWaitUntil:
+    visible:
+      text: "Delete"
     timeout: 3000
 
 # Tap Delete
 - tapOn: "Delete"
 
 # Confirm deletion in dialog
-- assertVisible:
-    text: "Delete"
+- extendedWaitUntil:
+    visible:
+      text: "Delete"
     timeout: 3000
 - tapOn: "Delete"
 
 # Verify coach is deleted
-- assertNotVisible:
-    text: "E2E Test Coach"
+- extendedWaitUntil:
+    notVisible:
+      text: "E2E Test Coach"
     timeout: 5000

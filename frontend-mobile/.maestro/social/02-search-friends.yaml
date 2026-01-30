@@ -14,18 +14,21 @@ appId: com.asyncio.pierre
 - tapOn:
     id: "drawer-toggle"
 - tapOn: "Friends"
-- assertVisible:
-    id: "friends-screen"
+- extendedWaitUntil:
+    visible:
+      id: "friends-screen"
     timeout: 5000
 
 # Test: should navigate to Search Friends
-- assertVisible:
-    id: "search-friends-button"
+- extendedWaitUntil:
+    visible:
+      id: "search-friends-button"
     timeout: 5000
 - tapOn:
     id: "search-friends-button"
-- assertVisible:
-    id: "search-friends-screen"
+- extendedWaitUntil:
+    visible:
+      id: "search-friends-screen"
     timeout: 5000
 - assertVisible: "Search Friends"
 
@@ -35,6 +38,7 @@ appId: com.asyncio.pierre
 - inputText: "test"
 
 # Wait for results
-- assertVisible:
-    id: "search-results-list"
+- extendedWaitUntil:
+    visible:
+      id: "search-results-list"
     timeout: 5000

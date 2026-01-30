@@ -15,8 +15,9 @@ appId: com.asyncio.pierre
     file: ../helpers/navigate-to-discover.yaml
 
 # Ensure coaches are loaded
-- assertVisible:
-    id: "coach-list"
+- extendedWaitUntil:
+    visible:
+      id: "coach-list"
     timeout: 5000
 
 # Try to find any coach card and tap it
@@ -30,8 +31,9 @@ appId: com.asyncio.pierre
           id: "coach-card-0"
 
       # Should see coach detail screen
-      - assertVisible:
-          id: "store-coach-detail-screen"
+      - extendedWaitUntil:
+          visible:
+            id: "store-coach-detail-screen"
           timeout: 5000
 
       # Verify detail elements

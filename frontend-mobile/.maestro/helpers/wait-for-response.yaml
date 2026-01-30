@@ -5,11 +5,13 @@ appId: com.asyncio.pierre
 
 ---
 # Wait for thinking indicator to appear
-- assertVisible:
-    text: "Pierre is thinking..."
+- extendedWaitUntil:
+    visible:
+      text: "Pierre is thinking..."
     timeout: 5000
 
 # Wait for thinking indicator to disappear (response received)
-- assertNotVisible:
-    text: "Pierre is thinking..."
+- extendedWaitUntil:
+    notVisible:
+      text: "Pierre is thinking..."
     timeout: 30000

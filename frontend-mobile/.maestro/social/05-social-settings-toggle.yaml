@@ -14,8 +14,9 @@ appId: com.asyncio.pierre
 - tapOn:
     id: "drawer-toggle"
 - tapOn: "Social Settings"
-- assertVisible:
-    id: "social-settings-screen"
+- extendedWaitUntil:
+    visible:
+      id: "social-settings-screen"
     timeout: 5000
 
 # Test: should toggle discoverable setting
@@ -23,8 +24,9 @@ appId: com.asyncio.pierre
     id: "discoverable-switch"
 
 # Save button should appear
-- assertVisible:
-    text: "Save"
+- extendedWaitUntil:
+    visible:
+      text: "Save"
     timeout: 3000
 
 # Test: should change default visibility
@@ -34,6 +36,7 @@ appId: com.asyncio.pierre
 - tapOn: "Save"
 
 # Should show success or button should disappear
-- assertNotVisible:
-    text: "Save"
+- extendedWaitUntil:
+    notVisible:
+      text: "Save"
     timeout: 5000

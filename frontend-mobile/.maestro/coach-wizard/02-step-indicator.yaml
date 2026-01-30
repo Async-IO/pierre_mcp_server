@@ -18,8 +18,9 @@ appId: com.asyncio.pierre
 - tapOn:
     id: "create-coach-button"
 
-- assertVisible:
-    id: "step-indicator"
+- extendedWaitUntil:
+    visible:
+      id: "step-indicator"
     timeout: 5000
 
 # Check that step dots are visible

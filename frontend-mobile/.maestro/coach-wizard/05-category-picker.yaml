@@ -17,8 +17,9 @@ appId: com.asyncio.pierre
 # Open wizard
 - tapOn:
     id: "create-coach-button"
-- assertVisible:
-    id: "coach-wizard-screen"
+- extendedWaitUntil:
+    visible:
+      id: "coach-wizard-screen"
     timeout: 5000
 
 # Go to category step
@@ -28,8 +29,9 @@ appId: com.asyncio.pierre
 - tapOn:
     id: "next-button"
 
-- assertVisible:
-    id: "category-picker"
+- extendedWaitUntil:
+    visible:
+      id: "category-picker"
     timeout: 3000
 
 # Tap category picker
@@ -37,8 +39,9 @@ appId: com.asyncio.pierre
     id: "category-picker"
 
 # Should show action sheet with category options
-- assertVisible:
-    text: "Training"
+- extendedWaitUntil:
+    visible:
+      text: "Training"
     timeout: 3000
 
 # Select Training category

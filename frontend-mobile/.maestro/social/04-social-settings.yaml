@@ -13,12 +13,14 @@ appId: com.asyncio.pierre
 # Navigate to Social Settings via drawer
 - tapOn:
     id: "drawer-toggle"
-- assertVisible:
-    text: "Social Settings"
+- extendedWaitUntil:
+    visible:
+      text: "Social Settings"
     timeout: 5000
 - tapOn: "Social Settings"
-- assertVisible:
-    id: "social-settings-screen"
+- extendedWaitUntil:
+    visible:
+      id: "social-settings-screen"
     timeout: 5000
 
 # Test: should display Social Settings header

@@ -16,16 +16,18 @@ appId: com.asyncio.pierre
 
 # Look for E2E Test Coach (created in previous test)
 # If not present, the test will fail gracefully
-- assertVisible:
-    text: "E2E Test Coach"
+- extendedWaitUntil:
+    visible:
+      text: "E2E Test Coach"
     timeout: 5000
 
 # Long press on the coach card
 - longPressOn: "E2E Test Coach"
 
 # Should see action menu with options
-- assertVisible:
-    text: "Add to favorites"
+- extendedWaitUntil:
+    visible:
+      text: "Add to favorites"
     timeout: 3000
 
 # Close menu by tapping coach library screen

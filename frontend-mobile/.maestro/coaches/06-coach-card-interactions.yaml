@@ -18,8 +18,9 @@ appId: com.asyncio.pierre
 - tapOn:
     id: "create-coach-button"
 
-- assertVisible:
-    id: "coach-title-input"
+- extendedWaitUntil:
+    visible:
+      id: "coach-title-input"
     timeout: 5000
 
 - tapOn:
@@ -34,19 +35,22 @@ appId: com.asyncio.pierre
     id: "save-coach-button"
 
 # Wait to return to library
-- assertVisible:
-    id: "coach-library-screen"
+- extendedWaitUntil:
+    visible:
+      id: "coach-library-screen"
     timeout: 5000
 
 # Find and tap the coach card
-- assertVisible:
-    text: "E2E Test Coach"
+- extendedWaitUntil:
+    visible:
+      text: "E2E Test Coach"
     timeout: 5000
 - tapOn: "E2E Test Coach"
 
 # Should see coach editor
-- assertVisible:
-    text: "Edit Coach"
+- extendedWaitUntil:
+    visible:
+      text: "Edit Coach"
     timeout: 5000
 
 # Navigate back

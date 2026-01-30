@@ -9,12 +9,14 @@ appId: com.asyncio.pierre
     id: "menu-button"
 
 # Wait for drawer to open and tap Social
-- assertVisible:
-    text: "Social"
+- extendedWaitUntil:
+    visible:
+      text: "Social"
     timeout: 3000
 - tapOn: "Social"
 
 # Wait for social screen to load
-- assertVisible:
-    id: "social-screen"
+- extendedWaitUntil:
+    visible:
+      id: "social-screen"
     timeout: 5000

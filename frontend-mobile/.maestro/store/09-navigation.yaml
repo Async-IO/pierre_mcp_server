@@ -19,8 +19,9 @@ appId: com.asyncio.pierre
     id: "menu-button"
 
 # Drawer should be visible
-- assertVisible:
-    text: "Discover"
+- extendedWaitUntil:
+    visible:
+      text: "Discover"
     timeout: 3000
 
 # Close drawer by tapping Discover
@@ -30,14 +31,16 @@ appId: com.asyncio.pierre
 - tapOn:
     id: "menu-button"
 
-- assertVisible:
-    text: "My Coaches"
+- extendedWaitUntil:
+    visible:
+      text: "My Coaches"
     timeout: 3000
 - tapOn: "My Coaches"
 
 # Should see coach library
-- assertVisible:
-    id: "coach-library-screen"
+- extendedWaitUntil:
+    visible:
+      id: "coach-library-screen"
     timeout: 5000
 
 # Navigate back to store
@@ -45,6 +48,7 @@ appId: com.asyncio.pierre
     id: "menu-button"
 - tapOn: "Discover"
 
-- assertVisible:
-    id: "store-screen"
+- extendedWaitUntil:
+    visible:
+      id: "store-screen"
     timeout: 5000

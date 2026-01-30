@@ -5,8 +5,9 @@ appId: com.asyncio.pierre
 
 ---
 # Wait for login screen to be visible
-- assertVisible:
-    id: "login-screen"
+- extendedWaitUntil:
+    visible:
+      id: "login-screen"
     timeout: 10000
 
 # Clear any pre-filled values and enter test credentials
@@ -24,13 +25,15 @@ appId: com.asyncio.pierre
 - hideKeyboard
 
 # Wait for login button to be visible and tap
-- assertVisible:
-    id: "login-button"
+- extendedWaitUntil:
+    visible:
+      id: "login-button"
     timeout: 5000
 - tapOn:
     id: "login-button"
 
 # Wait for successful login (chat screen should appear)
-- assertVisible:
-    id: "chat-screen"
+- extendedWaitUntil:
+    visible:
+      id: "chat-screen"
     timeout: 15000

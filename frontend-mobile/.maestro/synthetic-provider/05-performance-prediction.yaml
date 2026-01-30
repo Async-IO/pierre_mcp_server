@@ -22,8 +22,9 @@ appId: com.asyncio.pierre
     id: "send-button"
 
 # Wait for response (longer timeout for complex prediction)
-- assertNotVisible:
-    text: "Pierre is thinking..."
+- extendedWaitUntil:
+    notVisible:
+      text: "Pierre is thinking..."
     timeout: 45000
 
 - assertVisible:

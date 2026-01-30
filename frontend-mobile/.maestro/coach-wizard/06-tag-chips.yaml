@@ -17,8 +17,9 @@ appId: com.asyncio.pierre
 # Open wizard
 - tapOn:
     id: "create-coach-button"
-- assertVisible:
-    id: "coach-wizard-screen"
+- extendedWaitUntil:
+    visible:
+      id: "coach-wizard-screen"
     timeout: 5000
 
 # Go to category step
@@ -28,8 +29,9 @@ appId: com.asyncio.pierre
 - tapOn:
     id: "next-button"
 
-- assertVisible:
-    id: "tag-input"
+- extendedWaitUntil:
+    visible:
+      id: "tag-input"
     timeout: 3000
 
 # Test: should add tag when input is submitted
@@ -48,8 +50,9 @@ appId: com.asyncio.pierre
     id: "remove-tag-intervals"
 
 # Tag should be gone
-- assertNotVisible:
-    id: "tag-chip-intervals"
+- extendedWaitUntil:
+    notVisible:
+      id: "tag-chip-intervals"
     timeout: 2000
 
 - back

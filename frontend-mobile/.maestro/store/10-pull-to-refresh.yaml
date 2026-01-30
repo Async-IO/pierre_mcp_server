@@ -27,6 +27,7 @@ appId: com.asyncio.pierre
     direction: UP
 
 # Wait for refresh to complete
-- assertVisible:
-    id: "coach-list"
+- extendedWaitUntil:
+    visible:
+      id: "coach-list"
     timeout: 5000
