@@ -457,17 +457,19 @@ jobs:
           # Set API URL for the embedded bundle (10.0.2.2 is Android emulator's host)
           export EXPO_PUBLIC_API_URL="http://10.0.2.2:8081"
 
-          # Bundle JavaScript first, then build the APK
+          # Bundle JavaScript first using metro config, then build the APK
           cd android
 
           # Create the JS bundle manually for debug build
+          # Use --config to pick up the custom metro.config.js with monorepo settings
           mkdir -p app/src/main/assets
           npx react-native bundle \
             --platform android \
             --dev false \
             --entry-file ../index.ts \
             --bundle-output app/src/main/assets/index.android.bundle \
-            --assets-dest app/src/main/res
+            --assets-dest app/src/main/res \
+            --config ../metro.config.js
 
           # Now build the debug APK (bundle is pre-created)
           ./gradlew assembleDebug
