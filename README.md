@@ -16,7 +16,7 @@ Pierre Fitness Platform connects AI assistants to fitness data from Strava, Garm
 
 Sports science-based fitness analysis including training load management, race predictions, sleep and recovery scoring, nutrition planning, and pattern detection.
 
-See [Intelligence Methodology](book/src/intelligence-methodology.md) and [Nutrition Methodology](book/src/nutrition-methodology.md) for details.
+See [Intelligence Methodology](https://async-io.github.io/pierre_mcp_server/intelligence-methodology.html), [Nutrition Methodology](https://async-io.github.io/pierre_mcp_server/nutrition-methodology.html), and [Mobility Methodology](https://async-io.github.io/pierre_mcp_server/mobility-methodology.html) for details.
 
 ## Features
 
@@ -46,7 +46,7 @@ cargo build --release                                                    # all p
 cargo build --release --no-default-features --features "sqlite,provider-strava"  # strava only
 ```
 
-See [Pluggable Provider Architecture](book/src/tutorial/chapter-17.5-pluggable-providers.md).
+See [Build Configuration](https://async-io.github.io/pierre_mcp_server/build.html) for provider architecture details.
 
 ## Modular Architecture
 
@@ -81,7 +81,7 @@ cargo build --release --no-default-features --features "postgresql,server-saas-f
 | **Clients** | `client-web`, `client-admin`, `client-mobile` | Route groups |
 | **Tools** | `tools-fitness-core`, `tools-wellness`, `tools-all` | MCP tool categories |
 
-See [Build Configuration](book/src/build.md) for detailed feature documentation.
+See [Build Configuration](https://async-io.github.io/pierre_mcp_server/build.html) for detailed feature documentation.
 
 ## What You Can Ask
 
@@ -91,7 +91,7 @@ See [Build Configuration](book/src/build.md) for detailed feature documentation.
 - "Analyze this meal: 150g chicken, 200g rice, 100g broccoli"
 - "What's my predicted marathon time based on recent runs?"
 
-See [Tools Reference](book/src/tools-reference.md) for the 53 available MCP tools.
+See [Tools Reference](https://async-io.github.io/pierre_mcp_server/tools-reference.html) for the 53 available MCP tools.
 
 ## Quick Start
 
@@ -111,7 +111,7 @@ This single command:
 - Starts Pierre server (8081), web frontend (3000), Expo mobile (8082)
 - Displays all credentials, tokens, and log file paths
 
-See [Getting Started](book/src/getting-started.md) for detailed setup.
+See [Getting Started](https://async-io.github.io/pierre_mcp_server/getting-started.html) for detailed setup.
 
 ## MCP Client Configuration
 
@@ -146,7 +146,7 @@ The SDK handles OAuth 2.0 authentication automatically. See [SDK Documentation](
 | **Configuration** | 6 | User settings, training zones, profiles |
 | **Fitness Config** | 4 | Fitness parameters, thresholds |
 
-Full tool reference: [book/src/tools-reference.md](book/src/tools-reference.md)
+Full tool reference: [Tools Reference](https://async-io.github.io/pierre_mcp_server/tools-reference.html)
 
 ## Server Management
 
@@ -216,7 +216,7 @@ bun start   # Start Expo development server
 bun run ios # Run on iOS Simulator
 ```
 
-See [Mobile App README](frontend-mobile/README.md) and [Mobile Development Guide](book/src/mobile-development.md).
+See [Mobile App README](frontend-mobile/README.md) and [Mobile Development Guide](https://async-io.github.io/pierre_mcp_server/mobile-development.html).
 
 ## AI Coaches
 
@@ -259,28 +259,29 @@ This creates the 9 default AI coaching personas if they don't already exist.
 ## Documentation
 
 ### Reference
-- [Getting Started](book/src/getting-started.md) - installation, configuration, first run
-- [Architecture](book/src/architecture.md) - system design, components, request flow
-- [Protocols](book/src/protocols.md) - MCP, OAuth2, A2A, REST
-- [Authentication](book/src/authentication.md) - JWT, API keys, OAuth2 flows
-- [Configuration](book/src/configuration.md) - environment variables, algorithms
+- [Getting Started](https://async-io.github.io/pierre_mcp_server/getting-started.html) - installation, configuration, first run
+- [Architecture](https://async-io.github.io/pierre_mcp_server/architecture.html) - system design, components, request flow
+- [Protocols](https://async-io.github.io/pierre_mcp_server/protocols.html) - MCP, OAuth2, A2A, REST
+- [Authentication](https://async-io.github.io/pierre_mcp_server/authentication.html) - JWT, API keys, OAuth2 flows
+- [Configuration](https://async-io.github.io/pierre_mcp_server/configuration.html) - environment variables, algorithms
 
 ### Development
-- [Development Guide](book/src/development.md) - workflow, dashboard, testing
+- [Development Guide](https://async-io.github.io/pierre_mcp_server/development.html) - workflow, dashboard, testing
 - [Scripts Reference](scripts/README.md) - 30+ development scripts
-- [CI/CD](book/src/ci-cd.md) - GitHub Actions, pipelines
-- [Release Guide](book/src/release_how_to.md) - releasing server and SDK to npm
-- [Contributing](book/src/contributing.md) - code standards, PR workflow
+- [CI/CD](https://async-io.github.io/pierre_mcp_server/ci-cd.html) - GitHub Actions, pipelines
+- [Release Guide](https://async-io.github.io/pierre_mcp_server/release_how_to.html) - releasing server and SDK to npm
+- [Contributing](CONTRIBUTING.md) - code standards, PR workflow
 
 ### Components
 - [SDK](sdk/README.md) - TypeScript client for MCP integration
 - [Frontend](frontend/README.md) - React dashboard
 - [Mobile](frontend-mobile/README.md) - React Native mobile app
-- [Mobile Development](book/src/mobile-development.md) - mobile dev setup guide
+- [Mobile Development](https://async-io.github.io/pierre_mcp_server/mobile-development.html) - mobile dev setup guide
 
 ### Methodology
-- [Intelligence](book/src/intelligence-methodology.md) - sports science formulas
-- [Nutrition](book/src/nutrition-methodology.md) - dietary calculations
+- [Intelligence](https://async-io.github.io/pierre_mcp_server/intelligence-methodology.html) - sports science formulas
+- [Nutrition](https://async-io.github.io/pierre_mcp_server/nutrition-methodology.html) - dietary calculations
+- [Mobility](https://async-io.github.io/pierre_mcp_server/mobility-methodology.html) - stretching and yoga sequences
 
 ## Testing
 
@@ -290,7 +291,7 @@ cargo test                        # all tests
 ./scripts/pre-push-validate.sh    # tiered validation before push
 ```
 
-See [Testing Documentation](book/src/testing.md).
+See [Testing Documentation](https://async-io.github.io/pierre_mcp_server/testing.html).
 
 ## Development Workflow
 
@@ -327,7 +328,7 @@ The pre-push hook blocks pushes without a valid marker. This decouples test exec
 
 ## Contributing
 
-See [Contributing Guide](book/src/contributing.md).
+See [Contributing Guide](CONTRIBUTING.md).
 
 ## License
 
