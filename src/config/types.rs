@@ -152,6 +152,54 @@ impl LlmProviderType {
     }
 }
 
+impl LlmProviderType {
+    /// Environment variable for enabling fallback
+    pub const FALLBACK_ENABLED_ENV_VAR: &'static str = "PIERRE_LLM_FALLBACK_ENABLED";
+
+    /// Environment variable for fallback provider selection
+    pub const FALLBACK_PROVIDER_ENV_VAR: &'static str = "PIERRE_LLM_PROVIDER_FALLBACK";
+
+    /// Environment variable for fallback wait time in seconds
+    pub const FALLBACK_WAIT_SECS_ENV_VAR: &'static str = "PIERRE_LLM_FALLBACK_WAIT_SECS";
+
+    /// Default wait time before attempting fallback (10 seconds, matches Gemini retry)
+    pub const DEFAULT_FALLBACK_WAIT_SECS: u64 = 10;
+
+    /// Check if fallback is enabled from environment
+    ///
+    /// Reads `PIERRE_LLM_FALLBACK_ENABLED` - returns true only if set to "true" or "1".
+    /// Disabled by default.
+    #[must_use]
+    pub fn is_fallback_enabled() -> bool {
+        env::var(Self::FALLBACK_ENABLED_ENV_VAR)
+            .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+            .unwrap_or(false)
+    }
+
+    /// Get fallback provider from environment
+    ///
+    /// Reads `PIERRE_LLM_PROVIDER_FALLBACK` - returns None if not set.
+    /// Must be explicitly configured.
+    #[must_use]
+    pub fn fallback_provider_from_env() -> Option<Self> {
+        env::var(Self::FALLBACK_PROVIDER_ENV_VAR)
+            .ok()
+            .filter(|s| !s.is_empty())
+            .map(|s| Self::from_str_or_default(&s))
+    }
+
+    /// Get fallback wait time in seconds from environment
+    ///
+    /// Reads `PIERRE_LLM_FALLBACK_WAIT_SECS` - defaults to 10 seconds.
+    #[must_use]
+    pub fn fallback_wait_secs() -> u64 {
+        env::var(Self::FALLBACK_WAIT_SECS_ENV_VAR)
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(Self::DEFAULT_FALLBACK_WAIT_SECS)
+    }
+}
+
 impl Display for LlmProviderType {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {

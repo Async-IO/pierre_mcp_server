@@ -47,9 +47,6 @@ use uuid::Uuid;
 /// Maximum number of tool call iterations before forcing a text response
 const MAX_TOOL_ITERATIONS: usize = 10;
 
-/// Default model to use when LLM provider is not configured
-const DEFAULT_FALLBACK_MODEL: &str = "llama-3.3-70b-versatile";
-
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -329,8 +326,8 @@ impl ChatRoutes {
     }
 
     /// Get LLM provider based on `PIERRE_LLM_PROVIDER` environment variable
-    fn get_llm_provider() -> Result<ChatProvider, AppError> {
-        ChatProvider::from_env()
+    async fn get_llm_provider() -> Result<ChatProvider, AppError> {
+        ChatProvider::from_env().await
     }
 
     /// Build LLM messages from conversation history and optional system prompt
@@ -749,13 +746,13 @@ impl ChatRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
 
-        // Use provider's default model only if none specified (defers LLM init)
-        let model = request.model.clone().unwrap_or_else(|| {
-            Self::get_llm_provider().map_or_else(
-                |_| DEFAULT_FALLBACK_MODEL.to_owned(),
-                |p| p.default_model().to_owned(),
-            )
-        });
+        // Use provider's default model if none specified
+        let model = if let Some(m) = request.model.clone() {
+            m
+        } else {
+            let provider = Self::get_llm_provider().await?;
+            provider.default_model().to_owned()
+        };
 
         let conv = resources
             .database
@@ -993,7 +990,7 @@ impl ChatRoutes {
         let tools = Self::build_mcp_tools();
 
         // Get LLM provider
-        let provider = Self::get_llm_provider()?;
+        let provider = Self::get_llm_provider().await?;
 
         // Create MCP executor for tool calls
         let executor = UniversalExecutor::new(resources.clone()); // Arc clone for executor creation
@@ -1106,7 +1103,7 @@ impl ChatRoutes {
         let llm_messages = Self::build_llm_messages(Some(system_prompt_text.as_str()), &history);
 
         // Get LLM streaming response
-        let provider = Self::get_llm_provider()?;
+        let provider = Self::get_llm_provider().await?;
         let llm_request = ChatRequest::new(llm_messages)
             .with_model(&conv.model)
             .with_streaming();

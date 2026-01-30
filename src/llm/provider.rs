@@ -22,7 +22,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), pierre_mcp_server::errors::AppError> {
-//!     let provider = ChatProvider::from_env()?;
+//!     let provider = ChatProvider::from_env().await?;
 //!     let request = ChatRequest::new(vec![
 //!         ChatMessage::user("Hello!"),
 //!     ]);
@@ -33,6 +33,8 @@
 //! ```
 
 use std::fmt;
+use std::time::Duration;
+use tokio::time::sleep;
 use tracing::{debug, info};
 use uuid::Uuid;
 
@@ -68,11 +70,15 @@ impl ChatProvider {
     /// - `gemini`: Creates `GeminiProvider` (requires `GEMINI_API_KEY`)
     /// - `local`/`ollama`/`vllm`/`localai`: Creates `OpenAiCompatibleProvider`
     ///
+    /// When `PIERRE_LLM_FALLBACK_ENABLED=true`, if the primary provider fails,
+    /// attempts to use the fallback provider specified by `PIERRE_LLM_PROVIDER_FALLBACK`.
+    ///
     /// # Errors
     ///
     /// Returns an error if the required API key environment variable is missing
-    /// (for cloud providers) or if the local server cannot be reached.
-    pub fn from_env() -> Result<Self, AppError> {
+    /// (for cloud providers) or if the local server cannot be reached, and
+    /// fallback is disabled or also fails.
+    pub async fn from_env() -> Result<Self, AppError> {
         let provider_type = LlmProviderType::from_env();
 
         info!(
@@ -81,19 +87,66 @@ impl ChatProvider {
             LlmProviderType::ENV_VAR
         );
 
-        let provider = match provider_type {
-            LlmProviderType::Groq => Self::groq()?,
-            LlmProviderType::Gemini => Self::gemini()?,
-            LlmProviderType::Local => Self::local()?,
+        match Self::create_provider(provider_type) {
+            Ok(provider) => {
+                debug!(
+                    "Provider {} initialized with model: {}",
+                    provider.display_name(),
+                    provider.default_model()
+                );
+                Ok(provider)
+            }
+            Err(primary_error) => Self::try_fallback(provider_type, primary_error).await,
+        }
+    }
+
+    /// Attempt to initialize a fallback provider after primary fails
+    async fn try_fallback(
+        primary_type: LlmProviderType,
+        primary_error: AppError,
+    ) -> Result<Self, AppError> {
+        let fallback_enabled = LlmProviderType::is_fallback_enabled();
+        let fallback_provider = LlmProviderType::fallback_provider_from_env();
+
+        let Some(fallback) = fallback_provider else {
+            return Err(primary_error);
         };
 
-        debug!(
-            "Provider {} initialized with model: {}",
-            provider.display_name(),
-            provider.default_model()
+        if !fallback_enabled || fallback == primary_type {
+            return Err(primary_error);
+        }
+
+        let wait_secs = LlmProviderType::fallback_wait_secs();
+        info!(
+            "Primary provider {} failed, waiting {}s before fallback to {}",
+            primary_type, wait_secs, fallback
         );
 
-        Ok(provider)
+        sleep(Duration::from_secs(wait_secs)).await;
+
+        match Self::create_provider(fallback) {
+            Ok(provider) => {
+                info!(
+                    "Fallback provider {} initialized with model: {}",
+                    provider.display_name(),
+                    provider.default_model()
+                );
+                Ok(provider)
+            }
+            Err(fallback_error) => Err(AppError::config(format!(
+                "Both primary ({primary_type}) and fallback ({fallback}) providers failed. \
+                Primary: {primary_error}. Fallback: {fallback_error}"
+            ))),
+        }
+    }
+
+    /// Create a provider for a specific type
+    fn create_provider(provider_type: LlmProviderType) -> Result<Self, AppError> {
+        match provider_type {
+            LlmProviderType::Groq => Self::groq(),
+            LlmProviderType::Gemini => Self::gemini(),
+            LlmProviderType::Local => Self::local(),
+        }
     }
 
     /// Create a Gemini provider explicitly

@@ -853,7 +853,7 @@ impl CoachesRoutes {
         ];
 
         // Get LLM provider and generate
-        let provider = ChatProvider::from_env()?;
+        let provider = ChatProvider::from_env().await?;
         let request = ChatRequest::new(llm_messages);
         let response = provider.complete(&request).await?;
 
