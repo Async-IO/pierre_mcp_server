@@ -465,7 +465,7 @@ jobs:
           npx react-native bundle \
             --platform android \
             --dev false \
-            --entry-file ../index.js \
+            --entry-file ../index.ts \
             --bundle-output app/src/main/assets/index.android.bundle \
             --assets-dest app/src/main/res
 
