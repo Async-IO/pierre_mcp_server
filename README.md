@@ -47,7 +47,7 @@ cargo build --release                                                    # all p
 cargo build --release --no-default-features --features "sqlite,provider-strava"  # strava only
 ```
 
-See [Pluggable Provider Architecture](book/src/tutorial/chapter-17.5-pluggable-providers.md).
+See [Pluggable Provider Architecture](book/src/build.md#pluggable-providers).
 
 ## Modular Architecture
 
@@ -271,7 +271,7 @@ This creates the 9 default AI coaching personas if they don't already exist.
 - [Scripts Reference](scripts/README.md) - 30+ development scripts
 - [CI/CD](book/src/ci-cd.md) - GitHub Actions, pipelines
 - [Release Guide](book/src/release_how_to.md) - releasing server and SDK to npm
-- [Contributing](book/src/contributing.md) - code standards, PR workflow
+- [Contributing](CONTRIBUTING.md) - code standards, PR workflow
 
 ### Components
 - [SDK](sdk/README.md) - TypeScript client for MCP integration
@@ -328,7 +328,7 @@ The pre-push hook blocks pushes without a valid marker. This decouples test exec
 
 ## Contributing
 
-See [Contributing Guide](book/src/contributing.md).
+See [Contributing Guide](CONTRIBUTING.md).
 
 ## License
 
