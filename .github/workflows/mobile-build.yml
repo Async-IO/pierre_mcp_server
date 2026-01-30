@@ -1,0 +1,165 @@
+# ABOUTME: Builds iOS and Android apps for Maestro E2E testing
+# ABOUTME: Caches built artifacts to speed up subsequent test runs
+
+name: Mobile Build
+
+on:
+  push:
+    branches: [ "main", "claude/*" ]
+    paths:
+      # Only rebuild when native code changes
+      - 'frontend-mobile/app.json'
+      - 'frontend-mobile/package.json'
+      - 'frontend-mobile/ios/**'
+      - 'frontend-mobile/android/**'
+      - 'frontend-mobile/src/native/**'
+      - '.github/workflows/mobile-build.yml'
+  workflow_dispatch:  # Allow manual triggering
+
+concurrency:
+  group: mobile-build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-ios:
+    name: Build iOS App
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install shared-types dependencies
+        working-directory: packages/shared-types
+        run: bun install
+
+      - name: Install api-client dependencies
+        working-directory: packages/api-client
+        run: bun install
+
+      - name: Install mobile dependencies
+        working-directory: frontend-mobile
+        run: bun install
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: frontend-mobile/ios/Pods
+          key: ${{ runner.os }}-pods-${{ hashFiles('frontend-mobile/ios/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pods-
+
+      - name: List available simulators
+        run: xcrun simctl list devices available
+
+      - name: Boot iOS Simulator
+        run: |
+          SIMULATOR_UDID=$(xcrun simctl list devices available | grep "iPhone 16 Pro (" | head -1 | grep -oE '[0-9A-Fa-f-]{36}')
+          if [ -z "$SIMULATOR_UDID" ]; then
+            SIMULATOR_UDID=$(xcrun simctl list devices available | grep "iPhone 16 (" | head -1 | grep -oE '[0-9A-Fa-f-]{36}')
+          fi
+          if [ -z "$SIMULATOR_UDID" ]; then
+            SIMULATOR_UDID=$(xcrun simctl list devices available | grep "iPhone" | head -1 | grep -oE '[0-9A-Fa-f-]{36}')
+          fi
+          if [ -z "$SIMULATOR_UDID" ]; then
+            echo "No iPhone simulator found!"
+            exit 1
+          fi
+          echo "Booting simulator: $SIMULATOR_UDID"
+          xcrun simctl boot "$SIMULATOR_UDID" || echo "Simulator may already be booted"
+          echo "SIMULATOR_UDID=$SIMULATOR_UDID" >> $GITHUB_ENV
+
+      - name: Prebuild iOS
+        working-directory: frontend-mobile
+        run: bunx expo prebuild --platform ios --clean
+
+      - name: Build iOS app
+        working-directory: frontend-mobile
+        run: |
+          bunx expo run:ios --no-install --device $SIMULATOR_UDID
+          # Create a tarball of the built app for faster upload/download
+          tar -czf ios-app.tar.gz -C ios/build/Build/Products/Debug-iphonesimulator Pierre.app
+
+      - name: Upload iOS app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-app
+          path: frontend-mobile/ios-app.tar.gz
+          retention-days: 7
+
+  build-android:
+    name: Build Android App
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install shared-types dependencies
+        working-directory: packages/shared-types
+        run: bun install
+
+      - name: Install api-client dependencies
+        working-directory: packages/api-client
+        run: bun install
+
+      - name: Install mobile dependencies
+        working-directory: frontend-mobile
+        run: bun install
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('frontend-mobile/android/gradle/wrapper/gradle-wrapper.properties', 'frontend-mobile/android/build.gradle', 'frontend-mobile/android/app/build.gradle') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android/sdk/ndk
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+
+      - name: Prebuild Android
+        working-directory: frontend-mobile
+        run: bunx expo prebuild --platform android --clean
+
+      - name: Build Android APK
+        working-directory: frontend-mobile
+        run: |
+          cd android
+          ./gradlew assembleDebug
+        env:
+          GRADLE_OPTS: "-Xmx4g -XX:+UseParallelGC"
+
+      - name: Upload Android APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: frontend-mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7

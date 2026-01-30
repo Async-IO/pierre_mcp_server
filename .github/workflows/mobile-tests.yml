@@ -167,7 +167,7 @@ jobs:
     runs-on: macos-latest
     # Run on main, claude/* branches, or when explicitly triggered
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/claude/') || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 60
+    timeout-minutes: 45
 
     steps:
       - name: Checkout code
@@ -261,15 +261,46 @@ jobs:
           xcrun simctl boot "$SIMULATOR_UDID" || echo "Simulator may already be booted"
           echo "SIMULATOR_UDID=$SIMULATOR_UDID" >> $GITHUB_ENV
 
+      # Cache the built iOS app to avoid rebuilding every time
+      - name: Cache iOS app build
+        id: ios-app-cache
+        uses: actions/cache@v4
+        with:
+          path: frontend-mobile/ios-app-cache
+          key: ios-app-${{ runner.os }}-${{ hashFiles('frontend-mobile/app.json', 'frontend-mobile/package.json', 'frontend-mobile/ios/**', 'frontend-mobile/src/**') }}
+
+      - name: Restore cached iOS app
+        if: steps.ios-app-cache.outputs.cache-hit == 'true'
+        run: |
+          echo "Cache hit! Restoring iOS app..."
+          cd frontend-mobile
+          tar -xzf ios-app-cache/Pierre.app.tar.gz -C /tmp
+          xcrun simctl install $SIMULATOR_UDID /tmp/Pierre.app
+          echo "IOS_APP_CACHED=true" >> $GITHUB_ENV
+
+      - name: Cache CocoaPods
+        if: steps.ios-app-cache.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: frontend-mobile/ios/Pods
+          key: ${{ runner.os }}-pods-${{ hashFiles('frontend-mobile/ios/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pods-
+
       - name: Prebuild iOS
+        if: steps.ios-app-cache.outputs.cache-hit != 'true'
         working-directory: frontend-mobile
         run: bunx expo prebuild --platform ios --clean
 
       - name: Build and install app on simulator
+        if: steps.ios-app-cache.outputs.cache-hit != 'true'
         working-directory: frontend-mobile
         run: |
           bunx expo run:ios --no-install --device $SIMULATOR_UDID
           xcrun simctl install $SIMULATOR_UDID ios/build/Build/Products/Debug-iphonesimulator/Pierre.app
+          # Cache the built app for next time
+          mkdir -p ios-app-cache
+          tar -czf ios-app-cache/Pierre.app.tar.gz -C ios/build/Build/Products/Debug-iphonesimulator Pierre.app
 
       - name: Run Maestro tests
         working-directory: frontend-mobile
