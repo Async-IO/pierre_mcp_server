@@ -124,11 +124,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   const loadProviderStatus = useCallback(async () => {
     if (!isAuthenticated) return;
     try {
-<<<<<<< HEAD
-      const response = await apiService.getProvidersStatus();
-=======
-      const response = await oauthApi.getStatus();
->>>>>>> origin/claude/remove-legacy-api-WaGCu
+      const response = await oauthApi.getProvidersStatus();
       setConnectedProviders(response.providers || []);
     } catch (error) {
       console.error('Failed to load provider status:', error);

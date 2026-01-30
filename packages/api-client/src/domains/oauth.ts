@@ -98,6 +98,13 @@ export function createOAuthApi(axios: AxiosInstance, getBaseUrl: () => string) {
 >>>>>>> origin/claude/remove-legacy-api-WaGCu
     },
 
+    /**
+     * Disconnect a provider by deleting stored OAuth tokens.
+     */
+    async disconnectProvider(provider: string): Promise<void> {
+      await axios.delete(ENDPOINTS.OAUTH.DISCONNECT(provider));
+    },
+
     // Aliases for backward compatibility
     getOAuthStatus() {
       return this.getStatus();

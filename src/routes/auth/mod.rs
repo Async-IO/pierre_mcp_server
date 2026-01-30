@@ -1270,7 +1270,7 @@ impl AuthRoutes {
     /// Create all authentication routes (Axum)
     pub fn routes(resources: Arc<ServerResources>) -> Router {
         use axum::{
-            routing::{get, post, put},
+            routing::{delete, get, post, put},
             Router,
         };
 
@@ -1298,6 +1298,11 @@ impl AuthRoutes {
             .route(
                 "/api/oauth/mobile/init/:provider",
                 get(Self::handle_mobile_oauth_init),
+            )
+            // Disconnect a provider (requires auth)
+            .route(
+                "/api/oauth/providers/:provider/disconnect",
+                delete(Self::handle_disconnect_provider_rest),
             )
             .with_state(resources)
     }
@@ -2328,6 +2333,40 @@ impl AuthRoutes {
             })),
         )
             .into_response())
+    }
+
+    /// REST endpoint to disconnect a provider
+    ///
+    /// DELETE /api/oauth/providers/:provider/disconnect
+    ///
+    /// Disconnects a fitness provider (e.g., Strava, Fitbit) by deleting the stored OAuth tokens.
+    /// Requires valid JWT authentication via cookie or Authorization header.
+    async fn handle_disconnect_provider_rest(
+        State(resources): State<Arc<ServerResources>>,
+        Path(provider): Path<String>,
+        headers: HeaderMap,
+    ) -> Result<Response, AppError> {
+        // Authenticate using middleware (supports both cookies and Authorization header)
+        let auth_result = resources
+            .auth_middleware
+            .authenticate_request_with_headers(&headers)
+            .await?;
+
+        let user_id = auth_result.user_id;
+        info!("Disconnecting provider {} for user {}", provider, user_id);
+
+        // Create OAuthService instance and call existing disconnect logic
+        let server_context = ServerContext::from(resources.as_ref());
+        let oauth_service = OAuthService::new(
+            server_context.data().clone(),
+            server_context.config().clone(),
+            server_context.notification().clone(),
+        );
+        oauth_service
+            .disconnect_provider(user_id, &provider)
+            .await?;
+
+        Ok(StatusCode::NO_CONTENT.into_response())
     }
 
     /// Categorize OAuth errors for better user messaging

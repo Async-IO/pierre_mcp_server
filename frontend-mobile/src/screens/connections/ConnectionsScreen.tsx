@@ -36,18 +36,8 @@ export function ConnectionsScreen({ navigation }: ConnectionsScreenProps) {
   const loadConnectionStatus = useCallback(async () => {
     try {
       setIsLoading(true);
-<<<<<<< HEAD
-      const response = await apiService.getProvidersStatus();
+      const response = await oauthApi.getProvidersStatus();
       setProviders(response.providers || []);
-=======
-      const response = await oauthApi.getStatus();
-      const statusMap = new Map<string, ProviderStatus>();
-      const providers = response.providers || [];
-      providers.forEach((status: ProviderStatus) => {
-        statusMap.set(status.provider, status);
-      });
-      setProviderStatuses(statusMap);
->>>>>>> origin/claude/remove-legacy-api-WaGCu
     } catch (error) {
       console.error('Failed to load connection status:', error);
       // Don't show alert on auth errors - screen will reload when auth is ready
@@ -111,7 +101,7 @@ export function ConnectionsScreen({ navigation }: ConnectionsScreenProps) {
     }
   };
 
-  const handleDisconnect = (providerId: string, providerName: string) => {
+  const handleDisconnect = async (providerId: string, providerName: string) => {
     Alert.alert(
       `Disconnect ${providerName}`,
       `Are you sure you want to disconnect ${providerName}? You will need to reconnect to sync new data.`,
@@ -121,8 +111,14 @@ export function ConnectionsScreen({ navigation }: ConnectionsScreenProps) {
           text: 'Disconnect',
           style: 'destructive',
           onPress: async () => {
-            // TODO: Implement disconnect API call
-            Alert.alert('Info', 'Disconnect functionality coming soon');
+            try {
+              await oauthApi.disconnectProvider(providerId);
+              await loadConnectionStatus();
+              Alert.alert('Success', `${providerName} has been disconnected.`);
+            } catch (error) {
+              console.error('Failed to disconnect provider:', error);
+              Alert.alert('Error', `Failed to disconnect ${providerName}. Please try again.`);
+            }
           },
         },
       ]
