@@ -568,7 +568,7 @@ Required tools:
 - `cargo test` - Rust test runner
 - `ripgrep` (rg) - Code search
 - `python3` - Pattern validation script
-- Research papers (docs/intelligence-methodology.md)
+- Research papers (book/src/intelligence-methodology.md)
 
 ## Notes
 

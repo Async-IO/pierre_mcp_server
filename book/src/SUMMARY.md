@@ -1,9 +1,6 @@
-<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
-<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
-
 # Summary
 
-[Introduction](readme.md)
+[Introduction](introduction.md)
 
 # Getting Started
 
@@ -23,7 +20,7 @@
 - [Intelligence Methodology](intelligence-methodology.md)
 - [Nutrition Methodology](nutrition-methodology.md)
 - [Mobility Methodology](mobility-methodology.md)
-- [Sleep & Recovery Methodology](sleep-recovery-methodology.md)
+- [Sleep & Recovery](sleep-recovery-methodology.md)
 
 # API Reference
 
@@ -39,9 +36,7 @@
 - [Tool Development](tool-development.md)
 - [Build](build.md)
 - [Testing](testing.md)
-- [Testing Strategy](testing-strategy.md)
 - [CI/CD](ci-cd.md)
 - [Mobile Development](mobile-development.md)
 - [Provider Registration](provider-registration-guide.md)
 - [Release Process](release_how_to.md)
-- [Contributing](contributing.md)

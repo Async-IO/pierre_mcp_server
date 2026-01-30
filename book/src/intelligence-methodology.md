@@ -2982,6 +2982,7 @@ Where:
 
 **input/output specification for recovery score**:
 
+```text
 Inputs:
   Tsb: f64                 // Training Stress Balance, typically [-30, +30]
   Sleep_quality: f64       // Sleep quality score [0, 100]
@@ -2997,6 +2998,7 @@ Outputs:
 
 Precision: IEEE 754 double precision (f64)
 Tolerance: ±2.0 for overall score due to piecewise function boundaries and component weighting
+```
 
 **validation examples for recovery score**:
 

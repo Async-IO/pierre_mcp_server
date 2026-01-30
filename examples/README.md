@@ -388,9 +388,9 @@ Pierre's MCP implementation follows the [official MCP specification](https://spe
 ## Learn More
 
 - **A2A Specification**: [github.com/google/A2A](https://github.com/google/A2A)
-- **Pierre A2A Documentation**: [docs/tutorial/chapter-18-a2a-protocol.md](../docs/tutorial/chapter-18-a2a-protocol.md)
+- **Pierre A2A Documentation**: [book/src/protocols.md](../book/src/protocols.md)
 - **MCP Specification**: [modelcontextprotocol.io](https://modelcontextprotocol.io)
-- **Pierre MCP Documentation**: [docs/tutorial/chapter-01-introduction.md](../docs/tutorial/chapter-01-introduction.md)
+- **Pierre MCP Documentation**: [book/src/architecture.md](../book/src/architecture.md)
 
 ---
 

@@ -4,7 +4,7 @@ Thank you for your interest in contributing! This guide covers everything you ne
 
 ## New Contributor Quick Start
 
-**Prerequisites**: Complete the [Getting Started Guide](docs/getting-started.md) first to set up your development environment.
+**Prerequisites**: Complete the [Getting Started Guide](book/src/getting-started.md) first to set up your development environment.
 
 ### Step 1: Fork and Setup
 ```bash
@@ -95,8 +95,8 @@ Ready to contribute - create a pull request from your branch.
 ## Development Setup
 
 ### Easy
-- **Fix documentation typos** - Look for typos in `README.md` or `docs/`
-- **Add API examples** - Add curl examples to `docs/developer-guide/14-api-reference.md`
+- **Fix documentation typos** - Look for typos in `README.md` or `book/src/`
+- **Add API examples** - Add curl examples to `book/src/developer-guide/14-api-reference.md`
 - **Improve error messages** - Make error messages more helpful in `src/errors.rs`
 
 ### Medium
@@ -123,7 +123,7 @@ cargo run --bin pierre-mcp-server
 ### Full Development Setup (Advanced)
 **Additional**: PostgreSQL, Redis, Strava API credentials
 ```bash
-# See docs/getting-started.md for complete setup
+# See book/src/getting-started.md for complete setup
 ```
 
 ### Frontend Development (Optional)
@@ -235,7 +235,7 @@ cargo test --test <test_file> <pattern> -- --nocapture
 ./scripts/lint-and-test.sh
 ```
 
-See [docs/testing-strategy.md](docs/testing-strategy.md) for complete testing guide.
+See [Testing Guide](book/src/testing.md) for complete testing documentation.
 
 ### Before Starting Work
 1. **Check existing issues** - Avoid duplicate work
@@ -312,6 +312,48 @@ Pierre is designed to be modular and extensible:
 - **Multi-Tenant**: Single deployment can serve multiple clients
 - **AI Ready**: Built for LLM and AI agent integration
 
+## Adding New Features
+
+### New Fitness Provider
+
+1. Implement `FitnessProvider` trait in `src/providers/`:
+```rust
+pub struct NewProvider {
+    config: ProviderConfig,
+    credentials: Option<OAuth2Credentials>,
+}
+
+#[async_trait]
+impl FitnessProvider for NewProvider {
+    fn name(&self) -> &'static str { "new_provider" }
+    // ... implement other methods
+}
+```
+
+2. Register in `src/providers/registry.rs`
+3. Add OAuth configuration in `src/oauth/`
+4. Add tests
+
+### New MCP Tool
+
+1. Define tool in `src/protocols/universal/tool_registry.rs`
+2. Implement handler in `src/protocols/universal/handlers/`
+3. Register in tool executor
+4. Add unit + integration tests
+5. Regenerate SDK types:
+```bash
+cd sdk && npm run generate-types
+```
+
+### New Database Backend
+
+1. Implement repository traits in `src/database_plugins/`
+2. Add to factory in `src/database_plugins/factory.rs`
+3. Add migration support
+4. Add comprehensive tests
+
+See `src/database/repositories/mod.rs` for the 13 repository traits to implement.
+
 ## Recognition
 
 Contributors are recognized through:
@@ -323,7 +365,7 @@ Contributors are recognized through:
 ## Getting Help
 
 ### When You're Stuck
-1. **Check existing docs** - [docs/getting-started.md](docs/getting-started.md)
+1. **Check existing docs** - [book/src/getting-started.md](book/src/getting-started.md)
 2. **Search closed issues** - Someone may have had the same problem
 3. **Enable debug logging** - `RUST_LOG=debug cargo run --bin pierre-mcp-server`
 4. **Ask in GitHub Discussions** - We're friendly and responsive!

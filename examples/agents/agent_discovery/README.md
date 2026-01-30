@@ -149,5 +149,5 @@ This example demonstrates the following A2A specification requirements:
 ## Learn More
 
 - [A2A Protocol Specification](https://github.com/google/A2A)
-- [Pierre A2A Documentation](../../../docs/tutorial/chapter-18-a2a-protocol.md)
+- [Pierre A2A Documentation](../../../book/src/protocols.md)
 - [Agent Card Design](../../../src/a2a/agent_card.rs)

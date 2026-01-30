@@ -140,7 +140,7 @@ cargo run --bin pierre-cli -- token revoke <token_id>
 
 | Guide | Description |
 |-------|-------------|
-| [Tool Development](../docs/tool-development.md) | How to create new MCP tools using the pluggable architecture |
+| [Tool Development](book/src/tool-development.md) | How to create new MCP tools using the pluggable architecture |
 
 ## Port Allocation (CRITICAL)
 

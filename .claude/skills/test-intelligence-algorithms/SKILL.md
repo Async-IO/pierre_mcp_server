@@ -199,7 +199,7 @@ Adult male (70kg, 30yo):
 - `tests/intelligence_tools_advanced_test.rs` - Advanced scenarios
 - `src/intelligence/algorithms/` - Algorithm implementations
 - `src/intelligence/physiological_constants.rs` - Bounds and constants
-- `docs/intelligence-methodology.md` - Research documentation
+- `book/src/intelligence-methodology.md` - Research documentation
 
 ## Related Skills
 - `run-full-test-suite` - Full test execution
