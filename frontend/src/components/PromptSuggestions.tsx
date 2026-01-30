@@ -242,7 +242,7 @@ function CoachesSection({
             onClick={onToggleShowHidden}
             className={`ml-auto flex items-center gap-1.5 px-2 py-1 text-xs rounded-lg transition-colors ${
               showHidden
-                ? 'bg-pierre-violet/20 text-pierre-violet'
+                ? 'bg-pierre-violet/20 text-pierre-violet-light'
                 : 'bg-white/10 text-zinc-400 hover:bg-white/15 hover:text-zinc-300'
             }`}
             title={showHidden ? 'Hide hidden coaches' : 'Show hidden coaches'}
@@ -432,7 +432,7 @@ const CoachCard = memo(function CoachCard({
         )}
         <div className="flex items-center gap-2 mt-1 text-xs text-zinc-500">
           {coach.is_system && (
-            <span className="bg-pierre-violet/20 text-pierre-violet px-1.5 py-0.5 rounded">
+            <span className="bg-pierre-violet/20 text-pierre-violet-light px-1.5 py-0.5 rounded">
               System
             </span>
           )}
@@ -511,7 +511,7 @@ function getCategoryBadgeClass(category: string): string {
     recovery: 'bg-indigo-500/20 text-indigo-400',
     recipes: 'bg-orange-500/20 text-orange-400',
     mobility: 'bg-pink-500/20 text-pink-400',
-    analysis: 'bg-pierre-violet/20 text-pierre-violet',
+    analysis: 'bg-pierre-violet/20 text-pierre-violet-light',
     custom: 'bg-white/10 text-zinc-400',
   };
   return classes[category.toLowerCase()] || classes.custom;

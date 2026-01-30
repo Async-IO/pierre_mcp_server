@@ -107,7 +107,7 @@ export const Tabs: React.FC<TabsProps> = ({
                   tab.id === activeTab
                     ? variant === 'pills'
                       ? 'bg-white/20 text-white'
-                      : 'bg-pierre-violet/10 text-pierre-violet'
+                      : 'bg-pierre-violet/10 text-pierre-violet-light'
                     : 'bg-pierre-gray-200 text-pierre-gray-600'
                 }
               `}

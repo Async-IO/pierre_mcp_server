@@ -427,8 +427,9 @@ export default function AdminConfiguration() {
           {/* Search input */}
           <div className="relative">
             <Input
-              type="text"
+              type="search"
               placeholder="Search parameters"
+              aria-label="Search parameters"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full max-w-md"
@@ -439,7 +440,7 @@ export default function AdminConfiguration() {
                 onClick={() => setSearchQuery('')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>

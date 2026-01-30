@@ -216,7 +216,7 @@ export default function Register({ onNavigateToLogin, onRegistrationSuccess }: R
                 <button
                   type="button"
                   onClick={onNavigateToLogin}
-                  className="text-sm text-pierre-violet hover:text-pierre-violet/80 font-medium transition-colors"
+                  className="text-sm text-pierre-violet-light hover:text-pierre-cyan-light font-medium transition-colors"
                 >
                   Already have an account? Sign in
                 </button>

@@ -12,9 +12,16 @@ import { createWebAdapter } from '@pierre/api-client/adapters/web';
 // In production, use VITE_API_BASE_URL environment variable
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
+// Get base URL, falling back to localhost for test environments
+const getBaseURL = () => {
+  if (API_BASE_URL) return API_BASE_URL;
+  if (typeof window !== 'undefined') return window.location.origin;
+  return 'http://localhost:8081';
+};
+
 // Create Pierre API instance using shared package
 const webAdapter = createWebAdapter({
-  baseURL: API_BASE_URL || window.location.origin,
+  baseURL: getBaseURL(),
 });
 export const pierreApi: PierreApiService = createPierreApi(webAdapter);
 

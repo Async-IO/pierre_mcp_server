@@ -29,7 +29,7 @@ const INSIGHT_TYPE_CONFIG: Record<InsightType, { icon: string; color: string; la
   training_tip: { icon: '⚡', color: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30', label: 'Training Tip' },
   recovery: { icon: '🌙', color: 'bg-violet-500/20 text-violet-400 border-violet-500/30', label: 'Recovery' },
   motivation: { icon: '☀️', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30', label: 'Motivation' },
-  coaching_insight: { icon: '🎯', color: 'bg-pierre-violet/20 text-pierre-violet border-pierre-violet/30', label: 'Coaching Insight' },
+  coaching_insight: { icon: '🎯', color: 'bg-pierre-violet/20 text-pierre-violet-light border-pierre-violet/30', label: 'Coaching Insight' },
 };
 
 export default function SuggestionCard({ suggestion, onShare, isSelected = false }: SuggestionCardProps) {

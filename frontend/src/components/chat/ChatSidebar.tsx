@@ -67,8 +67,9 @@ export default function ChatSidebar({
           disabled={isCreatingConversation}
           className="w-8 h-8 flex items-center justify-center rounded-lg bg-pierre-violet text-white hover:bg-pierre-violet/80 transition-colors disabled:opacity-50 shadow-glow-sm"
           title="New chat"
+          aria-label="New chat"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-4 h-4" aria-hidden="true" />
         </button>
       </div>
 
@@ -88,7 +89,7 @@ export default function ChatSidebar({
               : 'text-zinc-400 hover:text-white hover:bg-white/5'
           )}
         >
-          <MessageCircle className="w-5 h-5" />
+          <MessageCircle className="w-5 h-5" aria-hidden="true" />
           <span className="text-sm font-medium">Chat</span>
           {!selectedConversation && !showMyCoachesPanel && !showStorePanel && (
             <div className="ml-auto w-1.5 h-1.5 rounded-full bg-pierre-violet shadow-glow" />
@@ -107,7 +108,7 @@ export default function ChatSidebar({
               : 'text-zinc-400 hover:text-white hover:bg-white/5'
           )}
         >
-          <Users className="w-5 h-5" />
+          <Users className="w-5 h-5" aria-hidden="true" />
           <span className="text-sm font-medium">My Coaches</span>
           {showMyCoachesPanel && (
             <div className="ml-auto w-1.5 h-1.5 rounded-full bg-pierre-violet shadow-glow" />
@@ -126,7 +127,7 @@ export default function ChatSidebar({
               : 'text-zinc-400 hover:text-white hover:bg-white/5'
           )}
         >
-          <Compass className="w-5 h-5" />
+          <Compass className="w-5 h-5" aria-hidden="true" />
           <span className="text-sm font-medium">Discover</span>
           {showStorePanel && (
             <div className="ml-auto w-1.5 h-1.5 rounded-full bg-pierre-violet shadow-glow" />
@@ -141,7 +142,7 @@ export default function ChatSidebar({
 
       {/* Recent Conversations Header */}
       <div className="px-6 pb-2">
-        <h3 className="text-[11px] font-bold text-zinc-500 tracking-[0.15em] uppercase">Recent Conversations</h3>
+        <h3 className="text-[11px] font-bold text-zinc-300 tracking-[0.15em] uppercase">Recent Conversations</h3>
       </div>
 
       {/* Conversation List - Scrollable */}
@@ -193,7 +194,7 @@ export default function ChatSidebar({
             </p>
           </div>
           {/* Settings Icon */}
-          <Settings className="w-5 h-5 text-zinc-400 group-hover:text-white transition-all group-hover:rotate-90 duration-500" />
+          <Settings className="w-5 h-5 text-zinc-400 group-hover:text-white transition-all group-hover:rotate-90 duration-500" aria-hidden="true" />
         </button>
       </div>
     </div>

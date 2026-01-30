@@ -102,7 +102,7 @@ export default function A2AClientList({ onCreateClient }: A2AClientListProps) {
       case 'professional':
         return 'bg-pierre-activity/20 text-pierre-activity border border-pierre-activity/30';
       case 'enterprise':
-        return 'bg-pierre-violet/20 text-pierre-violet border border-pierre-violet/30';
+        return 'bg-pierre-violet/20 text-pierre-violet-light border border-pierre-violet/30';
       default:
         return 'bg-white/10 text-zinc-400 border border-white/10';
     }
@@ -112,7 +112,7 @@ export default function A2AClientList({ onCreateClient }: A2AClientListProps) {
     const colorMap: { [key: string]: string } = {
       'fitness-data-analysis': 'bg-pierre-cyan/20 text-pierre-cyan border border-pierre-cyan/30',
       'activity-intelligence': 'bg-pierre-activity/20 text-pierre-activity border border-pierre-activity/30',
-      'goal-management': 'bg-pierre-violet/20 text-pierre-violet border border-pierre-violet/30',
+      'goal-management': 'bg-pierre-violet/20 text-pierre-violet-light border border-pierre-violet/30',
       'performance-prediction': 'bg-pierre-nutrition/20 text-pierre-nutrition border border-pierre-nutrition/30',
       'training-analytics': 'bg-pierre-cyan/20 text-pierre-cyan border border-pierre-cyan/30',
       'provider-integration': 'bg-pierre-recovery/20 text-pierre-recovery border border-pierre-recovery/30',

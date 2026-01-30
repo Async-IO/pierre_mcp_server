@@ -218,7 +218,7 @@ export default function AdminSettings() {
           <h2 className="text-lg font-semibold text-white">Social Insights Configuration</h2>
           <button
             onClick={() => setShowSocialInsightsConfig(!showSocialInsightsConfig)}
-            className="text-sm text-pierre-violet hover:text-pierre-violet/80 transition-colors"
+            className="text-sm text-pierre-violet-light hover:text-pierre-cyan-light transition-colors"
           >
             {showSocialInsightsConfig ? 'Hide Details' : 'Show Details'}
           </button>

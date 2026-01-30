@@ -202,7 +202,9 @@ describe('FriendsTab', () => {
       expect(socialApi.getPendingFriendRequests).toHaveBeenCalled();
     });
 
-    expect(screen.getByText('Received Requests (1)')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Received Requests (1)')).toBeInTheDocument();
+    });
   });
 
   it('should accept a friend request', async () => {
