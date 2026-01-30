@@ -1,6 +1,34 @@
 # Pierre MCP Server - Development Environment
 # Copy this to .envrc for local development settings
-
+#
+# Setup:
+#   cp .envrc.example .envrc
+#   # Edit values below
+#   direnv allow  # or: source .envrc
+#
+# ============================================================================
+# ENVIRONMENT VARIABLE CATEGORIES
+# ============================================================================
+#
+# Category          | Variables                                    | Required By
+# ------------------|----------------------------------------------|------------------
+# 1. CRITICAL       | DATABASE_URL, PIERRE_MASTER_ENCRYPTION_KEY   | All server scripts
+# 2. Provider OAuth | PIERRE_*_CLIENT_ID/SECRET                    | Based on PIERRE_DEFAULT_PROVIDER
+# 3. Server Config  | HTTP_PORT, RUST_LOG, JWT_EXPIRY_HOURS        | Defaults provided
+# 4. Database Pool  | POSTGRES_*, SQLX_*                           | PostgreSQL only
+# 5. Features       | PIERRE_*_ALGORITHM, FITNESS_*, CACHE_*, etc. | All optional
+# 6. Development    | OAUTH_DEFAULT_*, ADMIN_EMAIL/PASSWORD        | Dev/test scripts
+# 7. Frontend       | VITE_BACKEND_URL                             | start-frontend.sh
+# 8. Mobile         | EXPO_PUBLIC_API_URL                          | Mobile app
+#
+# Scripts will FAIL FAST if:
+#   - .envrc is missing
+#   - CRITICAL variables (DATABASE_URL, PIERRE_MASTER_ENCRYPTION_KEY) are unset
+#
+# Generate encryption key: openssl rand -base64 32
+#
+# Full documentation: book/src/environment.md
+#
 # ============================================================================
 # PROVIDER CONFIGURATION - Pluggable Provider Architecture (Phase 1)
 # ============================================================================

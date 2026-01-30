@@ -29,7 +29,13 @@ if [ -f "$ENVRC_PATH" ]; then
 else
     echo -e "${RED}ERROR: .envrc not found at ${ENVRC_PATH}${NC}"
     echo -e "${RED}Please create .envrc with required environment variables${NC}"
+    echo -e "${RED}Run: cp .envrc.example .envrc${NC}"
     exit 1
+fi
+
+# Validate critical environment variables for frontend
+if [ -z "$VITE_BACKEND_URL" ]; then
+    echo -e "${RED}WARNING: VITE_BACKEND_URL not set, using default: http://localhost:8081${NC}"
 fi
 
 # Check frontend directory exists
@@ -43,7 +49,7 @@ cd "$FRONTEND_DIR"
 # Check if node_modules exists
 if [ ! -d "node_modules" ]; then
     echo -e "${BLUE}Installing dependencies...${NC}"
-    npm install
+    bun install
 fi
 
 # Set default VITE_BACKEND_URL if not set
@@ -53,4 +59,4 @@ echo -e "${BLUE}Starting Vite dev server...${NC}"
 echo -e "Backend URL: ${VITE_BACKEND_URL}"
 echo ""
 
-npm run dev
+bun run dev

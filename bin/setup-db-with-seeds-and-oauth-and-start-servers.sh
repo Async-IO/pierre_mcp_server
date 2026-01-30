@@ -57,11 +57,29 @@ echo ""
 # Load environment
 if [ ! -f "$PROJECT_ROOT/.envrc" ]; then
     echo -e "${RED}ERROR: .envrc not found. Copy from .envrc.example and configure.${NC}"
+    echo -e "${RED}Run: cp .envrc.example .envrc${NC}"
     exit 1
 fi
 set -a
 source "$PROJECT_ROOT/.envrc"
 set +a
+
+# Validate critical environment variables
+MISSING_VARS=()
+[ -z "$DATABASE_URL" ] && MISSING_VARS+=("DATABASE_URL")
+[ -z "$PIERRE_MASTER_ENCRYPTION_KEY" ] && MISSING_VARS+=("PIERRE_MASTER_ENCRYPTION_KEY")
+
+if [ ${#MISSING_VARS[@]} -ne 0 ]; then
+    echo -e "${RED}ERROR: Missing required environment variables:${NC}"
+    for var in "${MISSING_VARS[@]}"; do
+        echo -e "${RED}  - $var${NC}"
+    done
+    echo -e "${RED}Please check your .envrc file${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}Environment validated successfully${NC}"
+echo ""
 
 # Admin credentials from .envrc (with fallback defaults)
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.com}"

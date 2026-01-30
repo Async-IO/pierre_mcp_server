@@ -31,6 +31,14 @@ if ! command -v cloudflared &> /dev/null; then
     exit 1
 fi
 
+# Warn if .envrc doesn't exist (tunnel will create it, but it needs other vars)
+ENVRC_FILE="$PROJECT_ROOT/.envrc"
+if [[ ! -f "$ENVRC_FILE" ]]; then
+    echo -e "\033[0;33m[WARN]\033[0m .envrc not found at $ENVRC_FILE"
+    echo "The tunnel will create it with BASE_URL, but you need other variables."
+    echo "Consider running: cp .envrc.example .envrc"
+fi
+
 # Check if Pierre server is running on port 8081
 if ! curl -s http://localhost:8081/health > /dev/null 2>&1; then
     echo -e "\033[0;33m[WARN]\033[0m Pierre server not running on port 8081."

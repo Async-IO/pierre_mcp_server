@@ -2,6 +2,37 @@
 
 Day-to-day scripts for running Pierre development environment.
 
+## Prerequisites
+
+All scripts require `.envrc` to be configured. Copy from example and edit:
+
+```bash
+cp .envrc.example .envrc
+# Edit .envrc with your settings, then:
+direnv allow  # or: source .envrc
+```
+
+### Required Environment Variables
+
+Scripts will fail fast if these are missing:
+
+| Variable | Description | Category |
+|----------|-------------|----------|
+| `DATABASE_URL` | Database connection string | **CRITICAL** |
+| `PIERRE_MASTER_ENCRYPTION_KEY` | Master encryption key (base64) | **CRITICAL** |
+
+Generate the encryption key with: `openssl rand -base64 32`
+
+### Provider OAuth Variables (based on `PIERRE_DEFAULT_PROVIDER`)
+
+| Provider | Required Variables |
+|----------|-------------------|
+| `strava` | `PIERRE_STRAVA_CLIENT_ID`, `PIERRE_STRAVA_CLIENT_SECRET` |
+| `garmin` | `PIERRE_GARMIN_CLIENT_ID`, `PIERRE_GARMIN_CLIENT_SECRET` |
+| `synthetic` | None (works out of the box) |
+
+See `book/src/environment.md` for the complete variable reference.
+
 ## Quick Start
 
 ```bash
