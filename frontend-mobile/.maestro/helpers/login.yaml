@@ -1,7 +1,7 @@
 # ABOUTME: Helper flow to perform login with test credentials
 # ABOUTME: Logs in using mobiletest@pierre.dev / MobileTest123! and waits for chat screen
 
-appId: com.asyncio.pierre
+appId: com.pierre.fitness
 
 ---
 # Wait for login screen to be visible using text (more reliable on Android)

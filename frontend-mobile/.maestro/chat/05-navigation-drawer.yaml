@@ -1,7 +1,7 @@
 # ABOUTME: Test opening navigation drawer from chat
 # ABOUTME: Converted from chat.test.js "should open navigation drawer"
 
-appId: com.asyncio.pierre
+appId: com.pierre.fitness
 
 ---
 # Launch and login

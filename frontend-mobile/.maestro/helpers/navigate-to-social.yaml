@@ -1,7 +1,7 @@
 # ABOUTME: Helper flow to navigate from any screen to Social/Activity
 # ABOUTME: Uses bottom tab navigation to reach the Social Feed screen
 
-appId: com.asyncio.pierre
+appId: com.pierre.fitness
 
 ---
 # Tap the Social tab using text selector (more reliable on Android)

@@ -1,7 +1,7 @@
 # ABOUTME: Helper flow to log out of the application
 # ABOUTME: Navigates to Settings and taps the logout button
 
-appId: com.asyncio.pierre
+appId: com.pierre.fitness
 
 ---
 # Navigate to Settings

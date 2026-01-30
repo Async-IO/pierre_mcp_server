@@ -1,7 +1,7 @@
 # ABOUTME: Test sort options in Discover screen
 # ABOUTME: Converted from store.test.js "sort options" tests
 
-appId: com.asyncio.pierre
+appId: com.pierre.fitness
 
 ---
 # Launch and login

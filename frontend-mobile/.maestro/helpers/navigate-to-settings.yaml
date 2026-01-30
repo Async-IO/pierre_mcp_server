@@ -1,7 +1,7 @@
 # ABOUTME: Helper flow to navigate from any screen to Settings
 # ABOUTME: Uses bottom tab navigation to reach the Settings screen
 
-appId: com.asyncio.pierre
+appId: com.pierre.fitness
 
 ---
 # Tap the Settings tab using text selector (more reliable on Android)

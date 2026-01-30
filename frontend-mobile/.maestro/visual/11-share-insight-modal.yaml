@@ -1,7 +1,7 @@
 # ABOUTME: Visual tests for share insight modal
 # ABOUTME: Converted from mobile-visual.test.js "Share Insight Modal" tests
 
-appId: com.asyncio.pierre
+appId: com.pierre.fitness
 
 ---
 # Launch and login

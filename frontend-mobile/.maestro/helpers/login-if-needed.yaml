@@ -1,7 +1,7 @@
 # ABOUTME: Conditional login helper that only logs in if not already authenticated
 # ABOUTME: Checks for login screen and performs login if visible, otherwise skips
 
-appId: com.asyncio.pierre
+appId: com.pierre.fitness
 
 ---
 # Check if we're on login screen (using text selector for reliability)

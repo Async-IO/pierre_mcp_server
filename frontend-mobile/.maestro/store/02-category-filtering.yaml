@@ -1,7 +1,7 @@
 # ABOUTME: Test category filtering in Discover screen
 # ABOUTME: Converted from store.test.js "category filtering" tests
 
-appId: com.asyncio.pierre
+appId: com.pierre.fitness
 
 ---
 # Launch and login

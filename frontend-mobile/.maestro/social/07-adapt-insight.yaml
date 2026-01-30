@@ -1,7 +1,7 @@
 # ABOUTME: Test Adapt Insight flow
 # ABOUTME: Converted from social.test.js "Adapt Insight Flow" tests
 
-appId: com.asyncio.pierre
+appId: com.pierre.fitness
 
 ---
 # Launch and login

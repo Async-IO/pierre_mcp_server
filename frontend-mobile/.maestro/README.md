@@ -80,7 +80,7 @@ These are configured in `config.yaml` as environment variables.
 ### Basic Test Structure
 
 ```yaml
-appId: com.asyncio.pierre
+appId: com.pierre.fitness
 
 ---
 # Import helpers at the start

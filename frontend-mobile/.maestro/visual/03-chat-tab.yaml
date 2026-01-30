@@ -1,7 +1,7 @@
 # ABOUTME: Visual tests for chat tab
 # ABOUTME: Converted from mobile-visual.test.js "Chat Tab" tests
 
-appId: com.asyncio.pierre
+appId: com.pierre.fitness
 
 ---
 # Launch and login

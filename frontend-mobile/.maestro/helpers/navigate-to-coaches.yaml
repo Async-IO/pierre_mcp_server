@@ -1,7 +1,7 @@
 # ABOUTME: Helper flow to navigate from any screen to My Coaches
 # ABOUTME: Uses bottom tab navigation to reach the Coach Library screen
 
-appId: com.asyncio.pierre
+appId: com.pierre.fitness
 
 ---
 # Tap the Coaches tab using text selector (more reliable on Android)

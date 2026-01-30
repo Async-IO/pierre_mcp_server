@@ -1,7 +1,7 @@
 # ABOUTME: Test send button enables when text is entered
 # ABOUTME: Converted from chat.test.js "should enable send button when text is entered"
 
-appId: com.asyncio.pierre
+appId: com.pierre.fitness
 
 ---
 # Launch and login

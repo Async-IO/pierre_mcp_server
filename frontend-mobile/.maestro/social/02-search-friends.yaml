@@ -1,7 +1,7 @@
 # ABOUTME: Test Search Friends functionality
 # ABOUTME: Converted from social.test.js "Friends Screen" search tests
 
-appId: com.asyncio.pierre
+appId: com.pierre.fitness
 
 ---
 # Launch and login

@@ -1,7 +1,7 @@
 # ABOUTME: Test navigation to Connections screen via Data Providers
 # ABOUTME: Converted from settings.test.js "Data Providers navigation"
 
-appId: com.asyncio.pierre
+appId: com.pierre.fitness
 
 ---
 # Launch and login

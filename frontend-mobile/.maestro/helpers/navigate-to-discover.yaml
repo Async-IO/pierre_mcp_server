@@ -1,7 +1,7 @@
 # ABOUTME: Helper flow to navigate from any screen to Discover (Store)
 # ABOUTME: Uses bottom tab navigation then navigates to Store screen
 
-appId: com.asyncio.pierre
+appId: com.pierre.fitness
 
 ---
 # Tap the Coaches tab using text selector (more reliable on Android)

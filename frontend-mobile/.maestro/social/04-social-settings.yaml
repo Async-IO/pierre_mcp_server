@@ -1,7 +1,7 @@
 # ABOUTME: Test Social Settings screen functionality
 # ABOUTME: Converted from social.test.js "Social Settings Screen" tests
 
-appId: com.asyncio.pierre
+appId: com.pierre.fitness
 
 ---
 # Launch and login

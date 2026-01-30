@@ -1,7 +1,7 @@
 # ABOUTME: Test navigation to coach detail from Discover
 # ABOUTME: Converted from store.test.js "coach detail navigation" tests
 
-appId: com.asyncio.pierre
+appId: com.pierre.fitness
 
 ---
 # Launch and login

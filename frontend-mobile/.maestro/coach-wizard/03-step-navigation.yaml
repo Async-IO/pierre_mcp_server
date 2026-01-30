@@ -1,7 +1,7 @@
 # ABOUTME: Test wizard step navigation (Next/Back buttons)
 # ABOUTME: Converted from coach-wizard.test.js "step navigation" tests
 
-appId: com.asyncio.pierre
+appId: com.pierre.fitness
 
 ---
 # Launch and login
