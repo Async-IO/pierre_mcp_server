@@ -219,6 +219,13 @@ jobs:
       - name: Create data directory
         run: mkdir -p data
 
+      - name: Seed database with test user
+        run: |
+          ./target/release/seed-demo-data
+        env:
+          DATABASE_URL: "sqlite:${{ github.workspace }}/data/maestro-test.db"
+          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+
       - name: Start Pierre server
         run: |
           ./target/release/pierre-mcp-server &
@@ -381,6 +388,16 @@ jobs:
           curl -Ls "https://get.maestro.mobile.dev" | bash
           echo "$HOME/.maestro/bin" >> $GITHUB_PATH
 
+      - name: Create data directory
+        run: mkdir -p data
+
+      - name: Seed database with test user
+        run: |
+          ./target/release/seed-demo-data
+        env:
+          DATABASE_URL: "sqlite:${{ github.workspace }}/data/maestro-android-test.db"
+          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+
       - name: Free disk space for Android build
         run: |
           echo "Disk space before cleanup:"
@@ -401,9 +418,6 @@ jobs:
           rm -rf target
           echo "Disk space after cleanup:"
           df -h
-
-      - name: Create data directory
-        run: mkdir -p data
 
       - name: Start Pierre server
         run: |
