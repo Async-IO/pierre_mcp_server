@@ -558,30 +558,33 @@ impl ApiKeyManager {
             let is_rate_limited = current_usage >= limit;
 
             // Calculate reset time (beginning of next month)
+            // Must set day to 1 BEFORE changing month to avoid invalid dates
+            // (e.g., Jan 29 -> Feb 29 fails in non-leap years)
             let now = Utc::now();
-            let next_month = if now.month() == 12 {
-                now.with_year(now.year() + 1)
+            let first_of_current = now
+                .with_day(1)
+                .and_then(|dt| dt.with_hour(0))
+                .and_then(|dt| dt.with_minute(0))
+                .and_then(|dt| dt.with_second(0))
+                .and_then(|dt| dt.with_nanosecond(0))
+                .unwrap_or(now);
+
+            let reset_at = if now.month() == 12 {
+                first_of_current
+                    .with_year(now.year() + 1)
                     .and_then(|dt| dt.with_month(1))
                     .unwrap_or_else(|| {
                         warn!("Failed to calculate next year/January, using 30-day default");
                         now + chrono::Duration::days(30)
                     })
             } else {
-                now.with_month(now.month() + 1).unwrap_or_else(|| {
-                    warn!("Failed to increment month, using fallback");
-                    now + chrono::Duration::days(30)
-                })
+                first_of_current
+                    .with_month(now.month() + 1)
+                    .unwrap_or_else(|| {
+                        warn!("Failed to increment month, using fallback");
+                        now + chrono::Duration::days(30)
+                    })
             };
-
-            let reset_at = next_month
-                .with_day(1)
-                .and_then(|dt| dt.with_hour(0))
-                .and_then(|dt| dt.with_minute(0))
-                .and_then(|dt| dt.with_second(0))
-                .unwrap_or_else(|| {
-                    warn!("Failed to set reset time components, using beginning of next month");
-                    next_month
-                });
 
             RateLimitStatus {
                 is_rate_limited,
