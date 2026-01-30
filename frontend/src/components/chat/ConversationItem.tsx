@@ -68,7 +68,7 @@ const ConversationItem = memo(function ConversationItem({
       )}
     >
       <div className="text-zinc-500 group-hover:text-zinc-300 transition-colors flex-shrink-0">
-        <History className="w-4 h-4" />
+        <History className="w-4 h-4" aria-hidden="true" />
       </div>
       <div className="flex-1 min-w-0">
         {isEditing ? (
@@ -95,17 +95,19 @@ const ConversationItem = memo(function ConversationItem({
       <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           onClick={onStartRename}
-          className="p-1 text-zinc-500 hover:text-pierre-violet transition-colors"
+          className="p-2.5 rounded transition-colors text-zinc-500 hover:text-pierre-violet hover:bg-white/10"
           title="Rename"
+          aria-label="Rename conversation"
         >
-          <Pencil className="w-3.5 h-3.5" />
+          <Pencil className="w-4 h-4" aria-hidden="true" />
         </button>
         <button
           onClick={onDelete}
-          className="p-1 text-zinc-500 hover:text-pierre-red-500 transition-colors"
+          className="p-2.5 rounded transition-colors text-zinc-500 hover:text-pierre-red-500 hover:bg-white/10"
           title="Delete"
+          aria-label="Delete conversation"
         >
-          <Trash2 className="w-3.5 h-3.5" />
+          <Trash2 className="w-4 h-4" aria-hidden="true" />
         </button>
       </div>
     </button>

@@ -92,9 +92,9 @@
   }
 
   .btn-sm {
-    @apply px-4 py-2 text-xs;
+    @apply px-4 py-2.5 text-xs;
   }
-  
+
   .btn-lg {
     @apply px-8 py-4 text-base;
   }

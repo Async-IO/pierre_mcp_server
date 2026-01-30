@@ -272,10 +272,7 @@ test.describe('Admin Dashboard Accessibility', () => {
   });
 
   test.describe('Color Contrast', () => {
-    test('should document color contrast issues for design review', async ({ page }) => {
-      // NOTE: This test documents color contrast issues but does not fail CI
-      // Color contrast requires design work to fix (color palette changes)
-      // Violations are logged for design team review
+    test('should have sufficient color contrast throughout dashboard', async ({ page }) => {
       const accessibilityScanResults = await new AxeBuilder({ page })
         .withTags(['cat.color'])
         .disableRules(['color-contrast-enhanced'])
@@ -285,18 +282,17 @@ test.describe('Admin Dashboard Accessibility', () => {
         (v) => v.id.includes('contrast')
       );
 
-      // Log violations for design team awareness
+      // Log any violations for debugging
       if (contrastViolations.length > 0) {
         console.log(`Dashboard color contrast violations: ${contrastViolations.length}`);
-        console.log('Elements with insufficient contrast:');
         for (const violation of contrastViolations) {
           for (const node of violation.nodes) {
             console.log(`  - ${node.html}`);
           }
         }
       }
-      // Document-only: verify test ran without errors
-      expect(accessibilityScanResults).toBeDefined();
+
+      expect(contrastViolations).toEqual([]);
     });
   });
 

@@ -134,32 +134,27 @@ test.describe('Auth Forms Accessibility', () => {
       expect(headings.h1Count).toBeGreaterThanOrEqual(1);
     });
 
-    test('should document color contrast issues for design review', async ({ page }) => {
-      // NOTE: This test documents color contrast issues but does not fail CI
-      // Color contrast requires design work to fix (color palette changes)
-      // Violations are logged for design team review
+    test('should have sufficient color contrast', async ({ page }) => {
       const accessibilityScanResults = await new AxeBuilder({ page })
         .withTags(['cat.color'])
         .disableRules(['color-contrast-enhanced'])
         .analyze();
 
-      // Filter for contrast-related violations
       const contrastViolations = accessibilityScanResults.violations.filter(
         (v) => v.id.includes('contrast')
       );
 
-      // Log violations for design team awareness
+      // Log any violations for debugging
       if (contrastViolations.length > 0) {
         console.log(`Login page color contrast violations: ${contrastViolations.length}`);
-        console.log('Elements with insufficient contrast:');
         for (const violation of contrastViolations) {
           for (const node of violation.nodes) {
             console.log(`  - ${node.html}`);
           }
         }
       }
-      // Document-only: verify test ran without errors
-      expect(accessibilityScanResults).toBeDefined();
+
+      expect(contrastViolations).toEqual([]);
     });
 
     test('should support form submission with Enter key', async ({ page }) => {

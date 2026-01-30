@@ -73,9 +73,7 @@ test.describe('Store Pages Accessibility', () => {
       expect.soft(accessibilityScanResults.violations).toEqual([]);
     });
 
-    test('should document color contrast issues for design review', async ({ page }) => {
-      // NOTE: This test documents color contrast issues but does not fail CI
-      // Color contrast requires design work to fix (color palette changes)
+    test('should have sufficient color contrast for all text', async ({ page }) => {
       await navigateToTab(page, 'Coaches');
       await page.waitForTimeout(500);
 
@@ -88,18 +86,17 @@ test.describe('Store Pages Accessibility', () => {
         (v) => v.id.includes('contrast')
       );
 
-      // Log violations for design team awareness
+      // Log any violations for debugging
       if (contrastViolations.length > 0) {
         console.log(`Store color contrast violations: ${contrastViolations.length}`);
-        console.log('Elements with insufficient contrast:');
         for (const violation of contrastViolations) {
           for (const node of violation.nodes) {
             console.log(`  - ${node.html}`);
           }
         }
       }
-      // Document-only: verify test ran without errors
-      expect(accessibilityScanResults).toBeDefined();
+
+      expect(contrastViolations).toEqual([]);
     });
 
     test('should have visible focus indicators on coach cards', async ({ page }) => {
@@ -374,9 +371,7 @@ test.describe('Store Pages Accessibility', () => {
       }
     });
 
-    test('should document icons needing accessibility attributes', async ({ page }) => {
-      // NOTE: This test documents icons without proper ARIA attributes
-      // Some icons are in third-party libraries or dynamically generated
+    test('should have accessible icons', async ({ page }) => {
       await navigateToTab(page, 'Coaches');
       await page.waitForTimeout(500);
 
@@ -385,12 +380,10 @@ test.describe('Store Pages Accessibility', () => {
       const inaccessibleIcons: string[] = [];
 
       for (const icon of await icons.all()) {
-        // Decorative icons should be hidden
         const ariaHidden = await icon.getAttribute('aria-hidden');
         const ariaLabel = await icon.getAttribute('aria-label');
         const role = await icon.getAttribute('role');
 
-        // Either hidden or has accessible name
         const isAccessible = ariaHidden === 'true' || ariaLabel || role === 'img';
         if (!isAccessible) {
           inaccessibleCount++;
@@ -399,16 +392,15 @@ test.describe('Store Pages Accessibility', () => {
         }
       }
 
-      // Log for awareness
+      // Log any inaccessible icons for debugging
       if (inaccessibleCount > 0) {
         console.log(`${inaccessibleCount} icons need aria-hidden or aria-label`);
-        console.log('Icons needing attention (first 5):');
         for (const html of inaccessibleIcons.slice(0, 5)) {
           console.log(`  - ${html}`);
         }
       }
-      // Document-only: verify test ran without errors
-      expect(icons).toBeDefined();
+
+      expect(inaccessibleCount).toBe(0);
     });
   });
 
@@ -437,9 +429,7 @@ test.describe('Store Pages Accessibility', () => {
   });
 
   test.describe('Responsive Accessibility', () => {
-    test('should document mobile viewport accessibility issues', async ({ page }) => {
-      // NOTE: This test documents mobile-specific a11y issues
-      // Mobile layouts may have unique challenges requiring dedicated fixes
+    test('should maintain accessibility at mobile viewport', async ({ page }) => {
       await page.setViewportSize({ width: 375, height: 667 });
 
       await navigateToTab(page, 'Coaches');
@@ -447,23 +437,21 @@ test.describe('Store Pages Accessibility', () => {
 
       const accessibilityScanResults = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa'])
-        .disableRules(['color-contrast'])
+        .disableRules(['color-contrast-enhanced'])
         .analyze();
 
-      // Log violations for awareness
+      // Log any violations for debugging
       if (accessibilityScanResults.violations.length > 0) {
         console.log(`Mobile a11y violations found: ${accessibilityScanResults.violations.length}`);
         for (const violation of accessibilityScanResults.violations) {
           console.log(`  - ${violation.id}: ${violation.help}`);
         }
       }
-      // Document-only: verify test ran without errors
-      expect(accessibilityScanResults).toBeDefined();
+
+      expect(accessibilityScanResults.violations).toEqual([]);
     });
 
-    test('should document touch target size issues', async ({ page }) => {
-      // NOTE: This test documents touch target size issues
-      // WCAG 2.1 recommends 44x44px minimum for touch targets
+    test('should have touch-friendly target sizes on mobile', async ({ page }) => {
       await page.setViewportSize({ width: 375, height: 667 });
 
       await navigateToTab(page, 'Coaches');
@@ -473,7 +461,8 @@ test.describe('Store Pages Accessibility', () => {
       const buttonCount = await buttons.count();
 
       let undersizedCount = 0;
-      for (let i = 0; i < Math.min(buttonCount, 5); i++) {
+      const undersizedButtons: string[] = [];
+      for (let i = 0; i < Math.min(buttonCount, 10); i++) {
         const button = buttons.nth(i);
         const box = await button.boundingBox();
 
@@ -481,18 +470,21 @@ test.describe('Store Pages Accessibility', () => {
           // Minimum touch target size (44x44px recommended by WCAG 2.1)
           if (box.width < 44 || box.height < 44) {
             undersizedCount++;
-            console.log(`Touch target undersized: ${box.width}x${box.height}px`);
+            const text = await button.textContent();
+            undersizedButtons.push(`${text?.trim() || 'unnamed'}: ${box.width}x${box.height}px`);
           }
         }
       }
 
-      // Log for awareness
+      // Log any undersized buttons for debugging
       if (undersizedCount > 0) {
         console.log(`${undersizedCount} buttons have undersized touch targets`);
-        console.log('Consider adding min-w-[44px] min-h-[44px] to affected buttons');
+        for (const btn of undersizedButtons) {
+          console.log(`  - ${btn}`);
+        }
       }
-      // Document-only: verify test ran without errors
-      expect(buttons).toBeDefined();
+
+      expect(undersizedCount).toBe(0);
     });
   });
 });

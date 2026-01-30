@@ -284,7 +284,7 @@ export default function Login({ onNavigateToRegister }: LoginProps) {
                   <button
                     type="button"
                     onClick={onNavigateToRegister}
-                    className="text-sm text-pierre-violet hover:text-pierre-violet/80 font-medium transition-colors"
+                    className="text-sm text-pierre-violet-light hover:text-pierre-cyan-light font-medium transition-colors"
                   >
                     Don&apos;t have an account? Create one
                   </button>
