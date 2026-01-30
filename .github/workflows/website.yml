@@ -1,5 +1,5 @@
 # ABOUTME: GitHub Actions workflow for deploying the Pierre website to GitHub Pages
-# ABOUTME: Builds Astro landing page and mdBook documentation, deploys to GitHub Pages
+# ABOUTME: Builds Astro landing page and deploys to GitHub Pages
 
 name: Deploy Website
 
@@ -9,7 +9,6 @@ on:
       - main
     paths:
       - 'website/**'
-      - 'docs/**'
   workflow_dispatch:
 
 permissions:
@@ -33,11 +32,6 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Setup mdBook
-        uses: peaceiris/actions-mdbook@v2
-        with:
-          mdbook-version: 'latest'
-
       - name: Install website dependencies
         working-directory: website
         run: bun install
@@ -45,19 +39,6 @@ jobs:
       - name: Build Astro landing page
         working-directory: website
         run: bun run build
-
-      - name: Build mdBook documentation
-        working-directory: docs
-        run: mdbook build
-
-      - name: Combine outputs
-        run: |
-          # Move mdBook output to website dist under /documentation/
-          mkdir -p website/dist/documentation
-          cp -r documentation-build/* website/dist/documentation/
-          echo "Combined website and documentation:"
-          ls -la website/dist/
-          ls -la website/dist/documentation/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
