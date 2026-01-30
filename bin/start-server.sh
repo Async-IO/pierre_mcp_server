@@ -29,8 +29,25 @@ if [ -f "$ENVRC_PATH" ]; then
 else
     echo -e "${RED}ERROR: .envrc not found at ${ENVRC_PATH}${NC}"
     echo -e "${RED}Please create .envrc with required environment variables${NC}"
+    echo -e "${RED}Run: cp .envrc.example .envrc${NC}"
     exit 1
 fi
+
+# Validate critical environment variables
+MISSING_VARS=()
+[ -z "$DATABASE_URL" ] && MISSING_VARS+=("DATABASE_URL")
+[ -z "$PIERRE_MASTER_ENCRYPTION_KEY" ] && MISSING_VARS+=("PIERRE_MASTER_ENCRYPTION_KEY")
+
+if [ ${#MISSING_VARS[@]} -ne 0 ]; then
+    echo -e "${RED}ERROR: Missing required environment variables:${NC}"
+    for var in "${MISSING_VARS[@]}"; do
+        echo -e "${RED}  - $var${NC}"
+    done
+    echo -e "${RED}Please check your .envrc file${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}Environment validated successfully${NC}"
 
 # Ensure data directory exists
 mkdir -p "$PROJECT_ROOT/data"
