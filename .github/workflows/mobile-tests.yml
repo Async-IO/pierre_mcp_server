@@ -385,6 +385,8 @@ jobs:
         run: |
           echo "Disk space before cleanup:"
           df -h
+          # Preserve Pierre server binary before cleanup
+          cp ./target/release/pierre-mcp-server /tmp/pierre-mcp-server
           # Remove large packages not needed for Android/mobile testing
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /usr/local/lib/android/sdk/ndk
@@ -395,7 +397,7 @@ jobs:
           sudo rm -rf /usr/local/.ghcup
           sudo rm -rf /opt/microsoft/msedge
           sudo rm -rf /opt/google/chrome
-          # Clean up Rust target directory after build (not needed anymore)
+          # Clean up Rust target directory (binary preserved above)
           rm -rf target
           echo "Disk space after cleanup:"
           df -h
@@ -405,7 +407,7 @@ jobs:
 
       - name: Start Pierre server
         run: |
-          ./target/release/pierre-mcp-server &
+          /tmp/pierre-mcp-server &
           echo "Waiting for server to start..."
           for i in {1..30}; do
             if curl -s http://localhost:8081/health > /dev/null; then
