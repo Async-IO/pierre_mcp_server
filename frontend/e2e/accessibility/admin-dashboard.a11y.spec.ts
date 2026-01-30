@@ -123,7 +123,8 @@ test.describe('Admin Dashboard Accessibility', () => {
   test.describe('Data Tables', () => {
     test('should have accessible table structure', async ({ page }) => {
       // Navigate to a page with tables (e.g., users, tokens)
-      const usersButton = page.getByRole('button', { name: /users/i });
+      // Use sidebar navigation button specifically to avoid ambiguity with other Users buttons
+      const usersButton = page.getByRole('list').getByRole('button', { name: /users/i });
       if ((await usersButton.count()) > 0) {
         await usersButton.click();
         await page.waitForTimeout(500);
@@ -322,8 +323,6 @@ test.describe('Admin Dashboard Accessibility', () => {
     });
 
     test('should update page title on navigation', async ({ page }) => {
-      const initialTitle = await page.title();
-
       // Navigate to a different tab
       const tabButton = page.locator('button').filter({ hasText: /users|tokens|analytics/i }).first();
 
@@ -331,7 +330,7 @@ test.describe('Admin Dashboard Accessibility', () => {
         await tabButton.click();
         await page.waitForTimeout(500);
 
-        // Title may or may not change, but should still be descriptive
+        // Title should still be descriptive after navigation
         const newTitle = await page.title();
         expect(newTitle.length).toBeGreaterThan(0);
       }
