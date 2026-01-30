@@ -3,7 +3,7 @@
 
 /**
  * Pre-defined test users for integration tests.
- * These users are created via the admin-setup binary.
+ * These users are created via the pierre-cli binary.
  */
 const testUsers = {
   admin: {

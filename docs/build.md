@@ -524,6 +524,6 @@ allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 - No runtime config file parsing
 - 12-factor app compliance
 
-**auth-setup binary** (lines 19-21): Commented out, replaced by admin-setup
+**auth-setup binary** (lines 19-21): Commented out, replaced by pierre-cli
 - Migration: Consolidated authentication setup into admin CLI tool
-- Maintains backward compatibility via admin-setup commands
+- Maintains backward compatibility via pierre-cli commands

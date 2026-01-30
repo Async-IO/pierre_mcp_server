@@ -38,7 +38,7 @@ async fn test_jwt_secret_persistence_across_restarts() -> Result<()> {
     // Initialize JWKS manager for RS256 admin token signing (shared across "restarts")
     let jwks_manager = common::get_shared_test_jwks();
 
-    // Step 1: First initialization - simulate admin-setup
+    // Step 1: First initialization - simulate pierre-cli
     let jwt_secret_1 = {
         let (mut key_manager, database_key) = KeyManager::bootstrap()?;
         #[cfg(feature = "postgresql")]
@@ -52,7 +52,7 @@ async fn test_jwt_secret_persistence_across_restarts() -> Result<()> {
         let mut database = Database::new(&db_url, database_key.to_vec()).await?;
         key_manager.complete_initialization(&mut database).await?;
 
-        // Get/create JWT secret (simulating admin-setup)
+        // Get/create JWT secret (simulating pierre-cli)
         let jwt_secret = database
             .get_or_create_system_secret("admin_jwt_secret")
             .await?;

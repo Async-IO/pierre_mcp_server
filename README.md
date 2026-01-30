@@ -189,7 +189,7 @@ Web-based dashboard for users and administrators at `http://localhost:5173`.
 ### First Admin Setup
 
 ```bash
-cargo run --bin admin-setup -- create-admin-user \
+cargo run --bin pierre-cli -- user create \
   --email admin@example.com \
   --password SecurePassword123 \
   --super-admin

@@ -117,7 +117,7 @@ This script automatically:
 
 ```bash
 # Generate new 7-day token
-cargo run --bin admin-setup -- generate-token --service claude_code --expires-days 7
+cargo run --bin pierre-cli -- token generate --service claude_code --expires-days 7
 
 # Update .envrc
 export PIERRE_JWT_TOKEN="<paste_token_here>"
@@ -344,29 +344,29 @@ export VITE_BACKEND_URL="http://localhost:8081"
 
 ## Admin Tools
 
-### admin-setup Binary
+### pierre-cli Binary
 
 ```bash
 # Create admin user for frontend login
-cargo run --bin admin-setup -- create-admin-user \
+cargo run --bin pierre-cli -- user create \
   --email admin@example.com \
   --password SecurePassword123
 
 # Generate API token for a service
-cargo run --bin admin-setup -- generate-token \
+cargo run --bin pierre-cli -- token generate \
   --service my_service \
   --expires-days 30
 
 # Generate super admin token (no expiry, all permissions)
-cargo run --bin admin-setup -- generate-token \
+cargo run --bin pierre-cli -- token generate \
   --service admin_console \
   --super-admin
 
 # List all admin tokens
-cargo run --bin admin-setup -- list-tokens --detailed
+cargo run --bin pierre-cli -- token list --detailed
 
 # Revoke a token
-cargo run --bin admin-setup -- revoke-token <token_id>
+cargo run --bin pierre-cli -- token revoke <token_id>
 ```
 
 ### Complete User Workflow

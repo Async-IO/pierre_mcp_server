@@ -35,9 +35,12 @@ src/
 ├── lib.rs                          # public api and module declarations
 ├── bin/                            # executable binaries
 │   ├── pierre-mcp-server.rs        # main mcp server binary
-│   ├── admin_setup.rs              # admin cli tool (token generation)
-│   ├── diagnose_weather_api.rs     # weather api diagnostics
-│   └── serve_docs.rs               # documentation server
+│   ├── pierre_cli/                 # pierre cli tool (user/token management)
+│   ├── seed_coaches.rs             # coach data seeder
+│   ├── seed_demo_data.rs           # demo data seeder
+│   ├── seed_mobility.rs            # mobility data seeder
+│   ├── seed_social.rs              # social data seeder
+│   └── seed_synthetic_activities.rs # synthetic activities seeder
 ├── protocols/                      # protocol implementations
 │   ├── mod.rs                      # protocol router
 │   ├── converter.rs                # protocol-agnostic converters
@@ -879,17 +882,17 @@ curl http://localhost:8081/health
 ### admin cli tool
 ```bash
 # create admin user
-cargo run --bin admin-setup -- create-admin-user \
+cargo run --bin pierre-cli -- user create \
   --email admin@example.com \
   --password SecurePass123!
 
 # generate jwt token
-cargo run --bin admin-setup -- generate-token \
+cargo run --bin pierre-cli -- token generate \
   --service my-service \
   --expires-days 30
 
 # list active tokens
-cargo run --bin admin-setup -- list-tokens --detailed
+cargo run --bin pierre-cli -- token list --detailed
 ```
 
 ## security

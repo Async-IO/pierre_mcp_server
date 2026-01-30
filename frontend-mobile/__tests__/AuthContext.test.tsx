@@ -187,7 +187,10 @@ describe('AuthContext', () => {
         expect(getByTestId('authenticated').children[0]).toBe('authenticated');
       });
 
-      expect(authApi.login).toHaveBeenCalledWith('test@example.com', 'password123');
+      expect(authApi.login).toHaveBeenCalledWith({
+        email: 'test@example.com',
+        password: 'password123',
+      });
       expect(authApi.storeAuth).toHaveBeenCalledWith('jwt-token', 'csrf-token', mockUser);
     });
   });
@@ -249,11 +252,11 @@ describe('AuthContext', () => {
         fireEvent.press(getByTestId('register-btn'));
       });
 
-      expect(authApi.register).toHaveBeenCalledWith(
-        'new@example.com',
-        'password123',
-        'New User'
-      );
+      expect(authApi.register).toHaveBeenCalledWith({
+        email: 'new@example.com',
+        password: 'password123',
+        display_name: 'New User',
+      });
     });
   });
 

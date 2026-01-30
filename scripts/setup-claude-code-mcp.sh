@@ -137,7 +137,7 @@ if [ "$TOKEN_VALID" = false ]; then
     echo -e "${BLUE}Step 4: Generating new JWT token...${NC}"
 
     # Generate 7-day token (with timeout to prevent hanging)
-    TOKEN_OUTPUT=$(timeout 60 cargo run --bin admin-setup -- generate-token --service claude_code --expires-days 7 2>&1) || true
+    TOKEN_OUTPUT=$(timeout 60 cargo run --bin pierre-cli -- token generate --service claude_code --expires-days 7 2>&1) || true
 
     # Extract token from output
     NEW_TOKEN=$(echo "$TOKEN_OUTPUT" | grep -o 'eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*' | head -1)
@@ -148,7 +148,7 @@ if [ "$TOKEN_VALID" = false ]; then
         echo "$TOKEN_OUTPUT" | grep -i "error\|failed" | head -3
         echo ""
         echo -e "${YELLOW}  Manual workaround:${NC}"
-        echo -e "${YELLOW}  1. Generate token manually: cargo run --bin admin-setup -- generate-token --service claude_code --expires-days 7${NC}"
+        echo -e "${YELLOW}  1. Generate token manually: cargo run --bin pierre-cli -- token generate --service claude_code --expires-days 7${NC}"
         echo -e "${YELLOW}  2. Update .envrc with the token${NC}"
         echo -e "${YELLOW}  3. Run: direnv allow${NC}"
         echo ""

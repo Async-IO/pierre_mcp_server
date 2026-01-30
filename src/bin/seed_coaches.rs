@@ -371,7 +371,7 @@ async fn find_admin_user(pool: &SqlitePool) -> Result<AdminUser> {
 
     let Some(row) = row else {
         anyhow::bail!(
-            "No admin user found. Run 'cargo run --bin admin-setup -- create-admin-user' first."
+            "No admin user found. Run 'cargo run --bin pierre-cli -- user create' first."
         );
     };
 

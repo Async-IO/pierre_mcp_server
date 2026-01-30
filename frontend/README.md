@@ -81,7 +81,7 @@ The first admin user must be created via CLI before the dashboard can be used:
 
 ```bash
 # From repository root
-cargo run --bin admin-setup -- create-admin-user \
+cargo run --bin pierre-cli -- user create \
   --email admin@example.com \
   --password SecurePassword123 \
   --name "Admin User" \

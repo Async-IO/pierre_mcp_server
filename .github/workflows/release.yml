@@ -256,7 +256,7 @@ jobs:
         if: matrix.os != 'windows-latest'
         run: |
           strip target/${{ matrix.target }}/release/pierre-mcp-server || true
-          strip target/${{ matrix.target }}/release/admin-setup || true
+          strip target/${{ matrix.target }}/release/pierre-cli || true
 
       - name: Create package directory structure (Unix)
         if: matrix.os != 'windows-latest'
@@ -267,7 +267,7 @@ jobs:
 
           # Copy binaries
           cp target/${{ matrix.target }}/release/pierre-mcp-server "dist/${PACKAGE_NAME}/bin/"
-          cp target/${{ matrix.target }}/release/admin-setup "dist/${PACKAGE_NAME}/bin/"
+          cp target/${{ matrix.target }}/release/pierre-cli "dist/${PACKAGE_NAME}/bin/"
 
           # Copy documentation
           cp README.md "dist/${PACKAGE_NAME}/"
@@ -286,7 +286,7 @@ jobs:
              pierre-mcp-server --version
 
           3. Set up admin user:
-             admin-setup create-admin-user --email admin@example.com --password YourSecurePassword
+             pierre-cli user create --email admin@example.com --password YourSecurePassword
 
           4. Run the server:
              pierre-mcp-server
@@ -307,7 +307,7 @@ jobs:
 
           # Copy binaries
           Copy-Item "target\${{ matrix.target }}\release\pierre-mcp-server.exe" "dist\${PACKAGE_NAME}\bin\"
-          Copy-Item "target\${{ matrix.target }}\release\admin-setup.exe" "dist\${PACKAGE_NAME}\bin\"
+          Copy-Item "target\${{ matrix.target }}\release\pierre-cli.exe" "dist\${PACKAGE_NAME}\bin\"
 
           # Copy documentation
           Copy-Item "README.md" "dist\${PACKAGE_NAME}\"
@@ -325,7 +325,7 @@ jobs:
              bin\pierre-mcp-server.exe --version
 
           3. Set up admin user:
-             bin\admin-setup.exe create-admin-user --email admin@example.com --password YourSecurePassword
+             bin\pierre-cli.exe user create --email admin@example.com --password YourSecurePassword
 
           4. Run the server:
              bin\pierre-mcp-server.exe

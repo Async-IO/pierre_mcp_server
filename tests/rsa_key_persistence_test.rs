@@ -81,7 +81,7 @@ async fn test_rsa_keypair_persistence() -> Result<()> {
 async fn test_jwks_manager_loads_from_database() -> Result<()> {
     let database = create_rsa_test_database().await?;
 
-    // Create and save a key (simulates CLI admin-setup)
+    // Create and save a key (simulates CLI pierre-cli)
     let mut original_jwks = JwksManager::new();
     let kid = format!("cli_key_{}", Utc::now().format("%Y%m%d_%H%M%S"));
     original_jwks.generate_rsa_key_pair_with_size(&kid, 2048)?;
@@ -113,7 +113,7 @@ async fn test_jwks_manager_loads_from_database() -> Result<()> {
 async fn test_cli_generated_admin_token_valid_on_server() -> Result<()> {
     let database = create_rsa_test_database().await?;
 
-    // === CLI SIDE (admin-setup) ===
+    // === CLI SIDE (pierre-cli) ===
     // CLI generates key and saves to database
     let mut cli_jwks = JwksManager::new();
     let kid = format!("admin_key_{}", Utc::now().format("%Y%m%d_%H%M%S"));

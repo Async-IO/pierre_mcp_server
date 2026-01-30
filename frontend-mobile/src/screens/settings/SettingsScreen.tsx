@@ -1,7 +1,7 @@
 // ABOUTME: Profile & Settings screen with Stitch UX design
 // ABOUTME: Shows profile header, stats, connected services, and settings sections
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import { colors, spacing, borderRadius } from '../../constants/theme';
@@ -63,9 +64,17 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
   useEffect(() => {
     if (isAuthenticated) {
       loadTokens();
-      loadProviderStatus();
     }
   }, [isAuthenticated]);
+
+  // Reload provider status when screen comes into focus (e.g., after OAuth connection)
+  useFocusEffect(
+    useCallback(() => {
+      if (isAuthenticated) {
+        loadProviderStatus();
+      }
+    }, [isAuthenticated])
+  );
 
   const loadTokens = async () => {
     try {

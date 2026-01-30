@@ -80,7 +80,7 @@ export OAUTH_DEFAULT_PASSWORD="userpass123"
 
 ### Generate Admin Token
 ```bash
-cargo run --bin admin-setup -- generate-token --service claude_test --expires-days 7
+cargo run --bin pierre-cli -- token generate --service claude_test --expires-days 7
 ```
 
 ### Use Admin Token in API Calls
@@ -299,7 +299,7 @@ lsof -i :8081
 ### Token expired
 ```bash
 # Generate new admin token
-cargo run --bin admin-setup -- generate-token --service test --expires-days 7
+cargo run --bin pierre-cli -- token generate --service test --expires-days 7
 ```
 
 ### Missing .envrc

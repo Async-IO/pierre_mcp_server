@@ -92,7 +92,7 @@ echo "    Database cleared"
 
 # Step 3: Build binaries
 print_step 3 "Building server binaries..."
-cargo build --release --bin pierre-mcp-server --bin admin-setup --bin seed-coaches --bin seed-demo-data --bin seed-social --bin seed-mobility 2>&1 | tail -3
+cargo build --release --bin pierre-mcp-server --bin pierre-cli --bin seed-coaches --bin seed-demo-data --bin seed-social --bin seed-mobility 2>&1 | tail -3
 echo "    Build complete"
 
 # Step 4: Run migrations and seeders
@@ -105,7 +105,7 @@ sleep 3
 
 # Create admin user
 echo "    Creating admin user..."
-./target/release/admin-setup create-admin-user \
+./target/release/pierre-cli user create \
     --email "$ADMIN_EMAIL" \
     --password "$ADMIN_PASSWORD" 2>&1 | grep -E "(Created|already exists)" || true
 

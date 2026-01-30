@@ -111,7 +111,7 @@ If the server requires authentication:
 
 ```bash
 # Generate a JWT token first
-cargo run --bin admin-setup -- generate-token --service type_gen --expires-days 1
+cargo run --bin pierre-cli -- token generate --service type_gen --expires-days 1
 
 # Use the token
 export PIERRE_JWT_TOKEN="your_jwt_token_here"
@@ -159,7 +159,7 @@ cargo run --bin pierre-mcp-server
 **Solution**:
 ```bash
 # Generate token
-cargo run --bin admin-setup -- generate-token --service type_gen
+cargo run --bin pierre-cli -- token generate --service type_gen
 
 # Export and retry
 export PIERRE_JWT_TOKEN="your_token"

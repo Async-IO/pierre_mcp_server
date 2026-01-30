@@ -2,7 +2,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 // ABOUTME: Database setup utilities for integration tests.
-// ABOUTME: Handles test user creation and database cleanup via admin-setup binary.
+// ABOUTME: Handles test user creation and database cleanup via pierre-cli binary.
 
 import { execSync } from 'child_process';
 import path from 'path';
@@ -27,7 +27,7 @@ export interface CreateUserResult {
 }
 
 /**
- * Environment variables required for running admin-setup commands.
+ * Environment variables required for running pierre-cli commands.
  * Uses CI environment variables if set, otherwise falls back to defaults.
  */
 function getAdminSetupEnv(): NodeJS.ProcessEnv {
@@ -44,18 +44,18 @@ function getAdminSetupEnv(): NodeJS.ProcessEnv {
 }
 
 /**
- * Get the admin-setup command, using release binary if available (faster in CI).
+ * Get the pierre-cli command, using release binary if available (faster in CI).
  */
 function getAdminSetupCommand(): string {
-  const releaseBinary = path.join(PROJECT_ROOT, 'target', 'release', 'admin-setup');
+  const releaseBinary = path.join(PROJECT_ROOT, 'target', 'release', 'pierre-cli');
   if (fs.existsSync(releaseBinary)) {
     return releaseBinary;
   }
-  return 'cargo run --release --bin admin-setup --';
+  return 'cargo run --release --bin pierre-cli --';
 }
 
 /**
- * Create an admin user using the admin-setup binary.
+ * Create an admin user using the pierre-cli binary.
  * This is the primary method for seeding test users.
  */
 export async function createTestAdminUser(user: TestUser): Promise<CreateUserResult> {
@@ -103,7 +103,7 @@ export async function createTestAdminUser(user: TestUser): Promise<CreateUserRes
 }
 
 /**
- * Generate an API token for a service using admin-setup.
+ * Generate an API token for a service using pierre-cli.
  */
 export async function generateApiToken(
   service: string,

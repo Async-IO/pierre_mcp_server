@@ -25,7 +25,7 @@ export interface OAuthProvider extends ProviderStatus {
 
 export interface OAuthStatusResponse {
   providers: ProviderStatus[];
-  metadata: ApiMetadata;
+  metadata?: ApiMetadata;
 }
 
 export interface MobileOAuthInitResponse {
@@ -42,10 +42,12 @@ export function createOAuthApi(axios: AxiosInstance, getBaseUrl: () => string) {
   return {
     /**
      * Get the connection status of all OAuth providers.
+     * Note: Backend returns array directly, we wrap it for consistency with type.
      */
     async getStatus(): Promise<OAuthStatusResponse> {
-      const response = await axios.get<OAuthStatusResponse>(ENDPOINTS.OAUTH.STATUS);
-      return response.data;
+      const response = await axios.get<ProviderStatus[]>(ENDPOINTS.OAUTH.STATUS);
+      // Backend returns array directly, wrap for consistency
+      return { providers: response.data };
     },
 
     /**

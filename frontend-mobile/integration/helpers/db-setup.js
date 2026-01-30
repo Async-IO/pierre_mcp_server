@@ -10,7 +10,7 @@ const DB_PATH = path.join(PROJECT_ROOT, 'data', 'mobile-integration-test.db');
 const BACKEND_URL = process.env.BACKEND_URL || process.env.PIERRE_API_URL || 'http://localhost:8081';
 
 /**
- * Environment variables required for running admin-setup commands (fallback).
+ * Environment variables required for running pierre-cli commands (fallback).
  * Uses CI environment variables if set, otherwise falls back to defaults.
  *
  * @returns {NodeJS.ProcessEnv}
@@ -34,7 +34,7 @@ function getAdminSetupEnv() {
 }
 
 /**
- * Get the admin-setup command, using release binary if available (faster in CI).
+ * Get the pierre-cli command, using release binary if available (faster in CI).
  *
  * @returns {string|null}
  */
@@ -43,12 +43,12 @@ function getAdminSetupBinary() {
     PROJECT_ROOT,
     'target',
     'release',
-    'admin-setup'
+    'pierre-cli'
   );
   if (fs.existsSync(releaseBinary)) {
     return releaseBinary;
   }
-  const debugBinary = path.join(PROJECT_ROOT, 'target', 'debug', 'admin-setup');
+  const debugBinary = path.join(PROJECT_ROOT, 'target', 'debug', 'pierre-cli');
   if (fs.existsSync(debugBinary)) {
     return debugBinary;
   }
@@ -132,7 +132,7 @@ async function createTestAdminUserViaAPI(user) {
 }
 
 /**
- * Create an admin user using the admin-setup binary (fallback).
+ * Create an admin user using the pierre-cli binary (fallback).
  *
  * @param {{email: string, password: string, role?: string}} user - User to create
  * @returns {Promise<{success: boolean, error?: string}>}
@@ -143,7 +143,7 @@ async function createTestAdminUserViaBinary(user) {
 
     if (!adminSetup) {
       console.log('[DB Setup] No pre-built binary found, skipping binary method');
-      return { success: false, error: 'No admin-setup binary available' };
+      return { success: false, error: 'No pierre-cli binary available' };
     }
 
     // Security: Validate email format to prevent command injection

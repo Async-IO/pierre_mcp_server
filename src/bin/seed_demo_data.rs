@@ -25,7 +25,6 @@
 //! ```
 
 use anyhow::Result;
-use bcrypt::{hash, DEFAULT_COST};
 use chrono::{DateTime, Datelike, Duration, Timelike, Utc, Weekday};
 use clap::Parser;
 use rand::rngs::StdRng;
@@ -53,6 +52,10 @@ struct SeedArgs {
     /// Database URL override
     #[arg(long)]
     database_url: Option<String>,
+
+    /// Server URL for API calls (default: http://localhost:8081)
+    #[arg(long)]
+    server_url: Option<String>,
 
     /// Reset usage data before seeding (keeps users and API keys)
     #[arg(long)]
@@ -560,15 +563,26 @@ async fn main() -> Result<()> {
     let admin_user = find_admin_user(&pool, args.admin_email.as_deref()).await?;
     info!("Using admin user: {} ({})", admin_user.1, admin_user.0);
 
+    // Get server URL for API calls
+    let server_url = args
+        .server_url
+        .or_else(|| {
+            env::var("HTTP_PORT")
+                .ok()
+                .map(|p| format!("http://localhost:{p}"))
+        })
+        .unwrap_or_else(|| "http://localhost:8081".to_string());
+    info!("Using server URL: {}", server_url);
+
     // Reset if requested
     if args.reset {
         info!("Resetting usage data...");
         reset_usage_data(&pool).await?;
     }
 
-    // Seed demo users
-    info!("Step 1: Creating demo users...");
-    let user_ids = seed_demo_users(&pool).await?;
+    // Seed demo users via registration API (creates proper tenants)
+    info!("Step 1: Creating demo users via registration API...");
+    let user_ids = seed_demo_users(&pool, &server_url).await?;
     info!("  Created/found {} demo users", user_ids.len());
 
     // Seed API keys (assign to admin + demo users)
@@ -614,7 +628,7 @@ async fn find_admin_user(pool: &SqlitePool, email: Option<&str>) -> Result<(Uuid
 
     let Some(row) = row else {
         anyhow::bail!(
-            "No admin user found. Run 'cargo run --bin admin-setup -- create-admin-user' first."
+            "No admin user found. Run 'cargo run --bin pierre-cli -- user create' first."
         );
     };
 
@@ -634,21 +648,14 @@ async fn reset_usage_data(pool: &SqlitePool) -> Result<()> {
     Ok(())
 }
 
-/// Seed demo users with proper bcrypt password hashes for login
-async fn seed_demo_users(pool: &SqlitePool) -> Result<Vec<Uuid>> {
+/// Seed demo users via the registration API (creates user + tenant properly)
+async fn seed_demo_users(pool: &SqlitePool, server_url: &str) -> Result<Vec<Uuid>> {
     let demo_users = get_demo_users();
     let mut user_ids = Vec::new();
-    let mut rng = StdRng::from_entropy();
-
-    // Use lower bcrypt cost in debug builds for faster seeding (cost 4 vs 12)
-    let bcrypt_cost = if cfg!(debug_assertions) {
-        4
-    } else {
-        DEFAULT_COST
-    };
+    let client = reqwest::Client::new();
 
     for user in &demo_users {
-        // Check if exists
+        // Check if user already exists
         let existing: Option<(String,)> = sqlx::query_as("SELECT id FROM users WHERE email = ?")
             .bind(user.email)
             .fetch_optional(pool)
@@ -659,31 +666,44 @@ async fn seed_demo_users(pool: &SqlitePool) -> Result<Vec<Uuid>> {
             info!("  Found existing user: {}", user.email);
             id
         } else {
-            let id = Uuid::new_v4();
-            let is_active = i32::from(user.status != "suspended");
-            let days_ago: i64 = rng.gen_range(10..60);
-            let created_at = (Utc::now() - Duration::days(days_ago)).to_rfc3339();
-            let last_active = Utc::now().to_rfc3339();
-
-            // Use custom password if provided, otherwise default
+            // Use the registration API to create user with proper tenant
             let password = user.password.unwrap_or(DEMO_USER_PASSWORD);
-            let password_hash = hash(password, bcrypt_cost)?;
+            let register_request = serde_json::json!({
+                "email": user.email,
+                "password": password,
+                "display_name": user.display_name
+            });
 
-            sqlx::query(
-                "INSERT INTO users (id, email, display_name, password_hash, tier, is_active, user_status, is_admin, created_at, last_active) \
-                 VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)"
-            )
-            .bind(id.to_string())
-            .bind(user.email)
-            .bind(user.display_name)
-            .bind(&password_hash)
-            .bind(user.tier)
-            .bind(is_active)
-            .bind(user.status)
-            .bind(&created_at)
-            .bind(&last_active)
-            .execute(pool)
-            .await?;
+            let response = client
+                .post(format!("{server_url}/api/auth/register"))
+                .json(&register_request)
+                .send()
+                .await?;
+
+            if !response.status().is_success() {
+                let error_text = response.text().await.unwrap_or_default();
+                anyhow::bail!("Failed to register user {}: {}", user.email, error_text);
+            }
+
+            let register_response: serde_json::Value = response.json().await?;
+            let user_id_str = register_response["user_id"]
+                .as_str()
+                .ok_or_else(|| anyhow::anyhow!("No user_id in registration response"))?;
+            let id = Uuid::parse_str(user_id_str)?;
+
+            // Update tier and status if different from defaults (starter/active)
+            if user.tier != "starter" || user.status != "active" {
+                let is_active = i32::from(user.status != "suspended");
+                sqlx::query(
+                    "UPDATE users SET tier = ?, user_status = ?, is_active = ? WHERE id = ?",
+                )
+                .bind(user.tier)
+                .bind(user.status)
+                .bind(is_active)
+                .bind(id.to_string())
+                .execute(pool)
+                .await?;
+            }
 
             info!("  Created user: {} ({})", user.email, user.status);
             id

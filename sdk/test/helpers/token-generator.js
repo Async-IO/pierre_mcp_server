@@ -60,7 +60,7 @@ function generateTestToken(userId, email, expiresIn = 3600) {
 }
 
 /**
- * Create a test user via admin-setup and return user ID
+ * Create a test user via pierre-cli and return user ID
  */
 async function createTestUser(options = {}) {
     const email = options.email || `test-${Date.now()}@example.com`;
@@ -68,12 +68,12 @@ async function createTestUser(options = {}) {
     const name = options.name || 'Test User';
 
     const projectRoot = path.join(__dirname, '../../..');
-    const binaryPath = path.join(projectRoot, 'target/debug/admin-setup');
+    const binaryPath = path.join(projectRoot, 'target/debug/pierre-cli');
 
     // Check if binary exists, build if not
     if (!fs.existsSync(binaryPath)) {
-        console.log('Building admin-setup binary...');
-        await runCommand('cargo', ['build', '--bin', 'admin-setup'], { cwd: projectRoot });
+        console.log('Building pierre-cli binary...');
+        await runCommand('cargo', ['build', '--bin', 'pierre-cli'], { cwd: projectRoot });
     }
 
     const env = {
@@ -95,7 +95,7 @@ async function createTestUser(options = {}) {
         { env, cwd: projectRoot }
     );
 
-    // Extract user ID from output (admin-setup should print it)
+    // Extract user ID from output (pierre-cli should print it)
     // If not, generate a UUID for testing
     const uuidMatch = output.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
     const userId = uuidMatch ? uuidMatch[0] : crypto.randomUUID();

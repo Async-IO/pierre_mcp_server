@@ -24,8 +24,8 @@ bench = false
 # path = "src/bin/auth_setup.rs"
 
 [[bin]]
-name = "admin-setup"
-path = "src/bin/admin_setup.rs"
+name = "pierre-cli"
+path = "src/bin/pierre_cli/main.rs"
 bench = false
 
 [[bin]]

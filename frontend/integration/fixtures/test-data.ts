@@ -8,7 +8,7 @@ import type { TestUser } from '../helpers/db-setup';
 
 /**
  * Pre-defined test users for integration tests.
- * These users are created via the admin-setup binary.
+ * These users are created via the pierre-cli binary.
  */
 export const testUsers: Record<string, TestUser> = {
   admin: {

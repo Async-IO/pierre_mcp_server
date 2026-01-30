@@ -307,7 +307,7 @@ curl http://localhost:8081/health
 
 # 6. Test chat (requires authentication)
 # Create admin token first:
-cargo run --bin admin-setup -- generate-token --service test --expires-days 1
+cargo run --bin pierre-cli -- token generate --service test --expires-days 1
 ```
 
 ### Validation Checklist for Local LLM

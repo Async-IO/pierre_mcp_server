@@ -678,7 +678,7 @@ impl AuthManager {
                     Ok(SetupStatusResponse {
                         needs_setup: true,
                         admin_user_exists: false,
-                        message: Some("Run 'cargo run --bin admin-setup -- create-admin-user' to create default admin credentials".into()),
+                        message: Some("Run 'cargo run --bin pierre-cli -- user create' to create default admin credentials".into()),
                     })
                 }
             }

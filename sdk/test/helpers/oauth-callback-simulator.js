@@ -355,7 +355,7 @@ class SimpleOAuthSimulator {
    * This tests everything EXCEPT the exchangeCodeForTokens() path
    */
   async simulateWithAdminToken() {
-    // Generate token via admin-setup binary
+    // Generate token via pierre-cli binary
     const { generateTestToken } = require('./token-generator');
 
     const userId = crypto.randomUUID();

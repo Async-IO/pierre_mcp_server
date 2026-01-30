@@ -370,8 +370,8 @@ Usage: `npm run generate-types` (requires running server on port 8081)
 src/
 ├── bin/
 │   ├── pierre-mcp-server.rs     # main binary
-│   ├── admin_setup.rs           # admin cli tool (binary: admin-setup)
-│   └── diagnose_weather_api.rs  # weather api diagnostic tool
+│   ├── pierre_cli/              # pierre cli tool (binary: pierre-cli)
+│   └── seed_*.rs                # various data seeders
 ├── protocols/
 │   └── universal/             # shared business logic
 ├── mcp/                       # mcp protocol

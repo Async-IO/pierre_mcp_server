@@ -338,7 +338,7 @@ fn log_missing_admin_warning(auto_approve: bool) {
     };
     error!(
         "No admin user configured! Email/password login unavailable. \
-         Firebase/OAuth creates {oauth_behavior} users. Fix: cargo run --bin admin-setup -- create-admin-user --email admin@example.com --password <password>"
+         Firebase/OAuth creates {oauth_behavior} users. Fix: cargo run --bin pierre-cli -- user create --email admin@example.com --password <password>"
     );
 }
 

@@ -111,23 +111,23 @@ Default credentials after reset:
 - Password: `AdminPassword123`
 
 ### Admin User and Token Management
-The `admin-setup` binary manages admin users and API tokens:
+The `pierre-cli` binary manages admin users and API tokens:
 
 ```bash
 # Create admin user for frontend login
-RUST_LOG=info cargo run --bin admin-setup -- create-admin-user --email admin@example.com --password SecurePassword123
+RUST_LOG=info cargo run --bin pierre-cli -- user create --email admin@example.com --password SecurePassword123
 
 # Generate API token for a service
-RUST_LOG=info cargo run --bin admin-setup -- generate-token --service my_service --expires-days 30
+RUST_LOG=info cargo run --bin pierre-cli -- token generate --service my_service --expires-days 30
 
 # Generate super admin token (no expiry, all permissions)
-RUST_LOG=info cargo run --bin admin-setup -- generate-token --service admin_console --super-admin
+RUST_LOG=info cargo run --bin pierre-cli -- token generate --service admin_console --super-admin
 
 # List all admin tokens
-RUST_LOG=warn cargo run --bin admin-setup -- list-tokens --detailed
+RUST_LOG=warn cargo run --bin pierre-cli -- token list --detailed
 
 # Revoke a token
-cargo run --bin admin-setup -- revoke-token <token_id>
+cargo run --bin pierre-cli -- token revoke <token_id>
 ```
 
 ### OAuth Token Lifecycle
@@ -279,7 +279,7 @@ This script automatically:
 ### Manual Token Refresh (if needed)
 ```bash
 # Generate new 7-day token manually
-cargo run --bin admin-setup -- generate-token --service claude_code --expires-days 7
+cargo run --bin pierre-cli -- token generate --service claude_code --expires-days 7
 
 # Copy the token and update .envrc line:
 export PIERRE_JWT_TOKEN="<paste_token_here>"
