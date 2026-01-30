@@ -47,4 +47,4 @@ appId: com.asyncio.pierre
       - tapOn:
           id: "store-search-input"
       - inputText: "training"
-      - clearText
+      - eraseText

@@ -13,12 +13,12 @@ appId: com.asyncio.pierre
 # Clear any pre-filled values and enter test credentials
 - tapOn:
     id: "email-input"
-- clearText
+- eraseText
 - inputText: ${TEST_EMAIL}
 
 - tapOn:
     id: "password-input"
-- clearText
+- eraseText
 - inputText: ${TEST_PASSWORD}
 
 # Hide keyboard

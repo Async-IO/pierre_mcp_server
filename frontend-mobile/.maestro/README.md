@@ -110,7 +110,7 @@ appId: com.asyncio.pierre
 | `expect(element).not.toBeVisible()` | `- assertNotVisible: { id: "..." }` |
 | `device.launchApp()` | `- launchApp` |
 | `device.pressBack()` | `- back` |
-| `element.clearText()` | `- clearText` |
+| `element.clear()` (use eraseText) | `- eraseText` |
 | `element.longPress()` | `- longPressOn: { id: "..." }` |
 | `element.scroll()` | `- scroll` or `- scrollUntilVisible` |
 

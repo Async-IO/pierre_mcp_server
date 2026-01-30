@@ -11,11 +11,11 @@ appId: com.asyncio.pierre
 # Clear any pre-filled values
 - tapOn:
     id: "email-input"
-- clearText
+- eraseText
 
 - tapOn:
     id: "password-input"
-- clearText
+- eraseText
 
 # Hide keyboard
 - hideKeyboard

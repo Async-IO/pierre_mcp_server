@@ -42,4 +42,4 @@ appId: com.asyncio.pierre
       - tapOn:
           id: "message-input"
       - inputText: "Test message"
-      - clearText
+      - eraseText

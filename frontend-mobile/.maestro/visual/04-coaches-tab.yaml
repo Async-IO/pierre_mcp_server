@@ -41,7 +41,7 @@ appId: com.asyncio.pierre
       - tapOn:
           id: "coach-search-input"
       - inputText: "training"
-      - clearText
+      - eraseText
 
 # Test: coaches - category filters visible
 - assertVisible: "All"

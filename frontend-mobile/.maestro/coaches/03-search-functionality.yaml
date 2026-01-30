@@ -24,7 +24,7 @@ appId: com.asyncio.pierre
     id: "coach-search-input"
 
 # Clear search
-- clearText
+- eraseText
 
 # Test: should show placeholder text in search
 - assertVisible:

@@ -26,16 +26,16 @@ appId: com.asyncio.pierre
 - inputText: "TestPassword"
 - assertVisible:
     id: "password-input"
-- clearText
+- eraseText
 
 # Test: login - shows error for invalid credentials
 - tapOn:
     id: "email-input"
-- clearText
+- eraseText
 - inputText: "wrong@email.com"
 - tapOn:
     id: "password-input"
-- clearText
+- eraseText
 - inputText: "wrongpassword"
 - hideKeyboard
 - tapOn:

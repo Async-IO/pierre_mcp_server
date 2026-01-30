@@ -24,7 +24,7 @@ appId: com.asyncio.pierre
     id: "send-button"
 
 # Clear for next test
-- clearText
+- eraseText
 
 # Test: should keep voice button enabled with text in input
 - tapOn:

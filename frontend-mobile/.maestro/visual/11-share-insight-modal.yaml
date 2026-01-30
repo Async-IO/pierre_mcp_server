@@ -39,7 +39,7 @@ appId: com.asyncio.pierre
       - tapOn:
           id: "insight-content-input"
       - inputText: "Test caption"
-      - clearText
+      - eraseText
 
 # Test: share - publish button visible
 - assertVisible:
