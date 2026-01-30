@@ -11,8 +11,8 @@ const { homedir } = require('os');
 // Set CI environment to force encrypted file storage
 process.env.CI = 'true';
 
-// Import directly from secure-storage module (not exported from index.ts)
-const { createSecureStorage, EncryptedFileStorage } = require('../../dist/secure-storage.js');
+// Import from SDK main entry point (now exported)
+const { createSecureStorage, EncryptedFileStorage } = require('../../dist/index.js');
 
 const ENCRYPTED_FILE_PATH = join(homedir(), '.pierre-mcp-tokens.enc');
 const TIMEOUT = 15000;

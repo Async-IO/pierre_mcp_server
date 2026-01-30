@@ -128,3 +128,15 @@ export {
   type ValidatedToolResult,
   type ValidationStats,
 } from './response-validator';
+
+/**
+ * Export secure storage utilities for token management
+ *
+ * These provide encrypted file-based storage for OAuth tokens and credentials.
+ * The default storage location is ~/.pierre-mcp-tokens.enc
+ */
+export {
+  createSecureStorage,
+  EncryptedFileStorage,
+  type SecureTokenStorage,
+} from './secure-storage';
