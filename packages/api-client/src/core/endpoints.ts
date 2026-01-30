@@ -83,6 +83,12 @@ export const ENDPOINTS = {
     MOBILE_INIT: (provider: string) => `/api/oauth/mobile/init/${provider}`,
   },
 
+  // ==================== PROVIDERS ====================
+  PROVIDERS: {
+    /** Get all providers with connection status (OAuth and non-OAuth) */
+    STATUS: '/api/providers',
+  },
+
   // ==================== SOCIAL ====================
   SOCIAL: {
     /** List friends */

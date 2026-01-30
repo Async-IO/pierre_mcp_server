@@ -5,11 +5,16 @@
 // ABOUTME: Handles OAuth flow initiation and connection status
 
 import type { AxiosInstance } from 'axios';
-import type { ProviderStatus, ApiMetadata } from '@pierre/shared-types';
+import type {
+  ProviderStatus,
+  ExtendedProviderStatus,
+  ProvidersStatusResponse,
+  ApiMetadata,
+} from '@pierre/shared-types';
 import { ENDPOINTS } from '../core/endpoints';
 
 // Re-export for consumers
-export type { ProviderStatus };
+export type { ProviderStatus, ExtendedProviderStatus, ProvidersStatusResponse };
 
 // Extended provider status with additional OAuth details
 export interface OAuthProvider extends ProviderStatus {
@@ -74,6 +79,15 @@ export function createOAuthApi(axios: AxiosInstance, getBaseUrl: () => string) {
         : ENDPOINTS.OAUTH.MOBILE_INIT(provider);
 
       const response = await axios.get<MobileOAuthInitResponse>(url);
+      return response.data;
+    },
+
+    /**
+     * Get all providers (OAuth and non-OAuth) with connection status.
+     * Includes synthetic providers and other non-OAuth data sources.
+     */
+    async getProvidersStatus(): Promise<ProvidersStatusResponse> {
+      const response = await axios.get<ProvidersStatusResponse>(ENDPOINTS.PROVIDERS.STATUS);
       return response.data;
     },
 

@@ -64,7 +64,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useVoiceInput } from '../../hooks/useVoiceInput';
 import type { VoiceError } from '../../hooks/useVoiceInput';
 import { VoiceButton, PromptDialog } from '../../components/ui';
-import type { Conversation, Message, ProviderStatus, Coach } from '../../types';
+import type { Conversation, Message, ExtendedProviderStatus, Coach } from '../../types';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { ChatStackParamList } from '../../navigation/MainTabs';
 
@@ -88,6 +88,17 @@ const COACH_CATEGORY_ICONS: Record<string, string> = {
   custom: '⚙️',
 };
 
+const PROVIDER_ICONS: Record<string, string> = {
+  strava: '🚴',
+  fitbit: '⌚',
+  garmin: '⌚',
+  whoop: '💪',
+  coros: '🏃',
+  terra: '🌍',
+  synthetic: '🧪',
+  synthetic_sleep: '😴',
+};
+
 interface ChatScreenProps {
   navigation: NativeStackNavigationProp<ChatStackParamList>;
 }
@@ -104,7 +115,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   const [isSending, setIsSending] = useState(false);
   const [actionMenuVisible, setActionMenuVisible] = useState(false);
   const [providerModalVisible, setProviderModalVisible] = useState(false);
-  const [connectedProviders, setConnectedProviders] = useState<ProviderStatus[]>([]);
+  const [connectedProviders, setConnectedProviders] = useState<ExtendedProviderStatus[]>([]);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [messageFeedback, setMessageFeedback] = useState<Record<string, 'up' | 'down' | null>>({});
   const [coaches, setCoaches] = useState<Coach[]>([]);
@@ -147,7 +158,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
 
   const loadProviderStatus = async () => {
     try {
-      const response = await apiService.getOAuthStatus();
+      const response = await apiService.getProvidersStatus();
       setConnectedProviders(response.providers || []);
     } catch (error) {
       console.error('Failed to load provider status:', error);
@@ -1459,53 +1470,49 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
                 To analyze your fitness data, please connect a provider first.
               </Text>
 
-              <TouchableOpacity
-                className="flex-row items-center bg-background-secondary rounded-lg p-4 mb-2 border border-border-default"
-                onPress={() => handleConnectProvider('strava')}
-              >
-                <Text className="text-2xl mr-4">🚴</Text>
-                <Text className="text-base text-text-primary font-medium">Connect Strava</Text>
-              </TouchableOpacity>
+              {connectedProviders.map((provider) => {
+                const icon = PROVIDER_ICONS[provider.provider] || '🔗';
+                const isConnected = provider.connected;
+                const requiresOAuth = provider.requires_oauth;
+                const displayName = provider.display_name || provider.provider;
 
-              <TouchableOpacity
-                className="flex-row items-center bg-background-secondary rounded-lg p-4 mb-2 border border-border-default"
-                onPress={() => handleConnectProvider('fitbit')}
-              >
-                <Text className="text-2xl mr-4">⌚</Text>
-                <Text className="text-base text-text-primary font-medium">Connect Fitbit</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                className="flex-row items-center bg-background-secondary rounded-lg p-4 mb-2 border border-border-default"
-                onPress={() => handleConnectProvider('garmin')}
-              >
-                <Text className="text-2xl mr-4">⌚</Text>
-                <Text className="text-base text-text-primary font-medium">Connect Garmin</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                className="flex-row items-center bg-background-secondary rounded-lg p-4 mb-2 border border-border-default"
-                onPress={() => handleConnectProvider('whoop')}
-              >
-                <Text className="text-2xl mr-4">💪</Text>
-                <Text className="text-base text-text-primary font-medium">Connect WHOOP</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                className="flex-row items-center bg-background-secondary rounded-lg p-4 mb-2 border border-border-default"
-                onPress={() => handleConnectProvider('coros')}
-              >
-                <Text className="text-2xl mr-4">🏃</Text>
-                <Text className="text-base text-text-primary font-medium">Connect COROS</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                className="flex-row items-center bg-background-secondary rounded-lg p-4 mb-2 border border-border-default"
-                onPress={() => handleConnectProvider('terra')}
-              >
-                <Text className="text-2xl mr-4">🌍</Text>
-                <Text className="text-base text-text-primary font-medium">Connect Terra</Text>
-              </TouchableOpacity>
+                return (
+                  <TouchableOpacity
+                    key={provider.provider}
+                    className={`flex-row items-center bg-background-secondary rounded-lg p-4 mb-2 border ${
+                      isConnected ? 'border-accent-primary' : 'border-border-default'
+                    }`}
+                    onPress={() => {
+                      if (isConnected) {
+                        setProviderModalVisible(false);
+                        if (pendingPrompt) {
+                          const prompt = pendingPrompt;
+                          setPendingPrompt(null);
+                          sendPromptMessage(prompt);
+                        }
+                        if (pendingCoachAction) {
+                          const coachAction = pendingCoachAction;
+                          setPendingCoachAction(null);
+                          startCoachConversation(coachAction.coach);
+                        }
+                      } else if (requiresOAuth) {
+                        handleConnectProvider(provider.provider);
+                      }
+                    }}
+                    disabled={!isConnected && !requiresOAuth}
+                  >
+                    <Text className="text-2xl mr-4">{icon}</Text>
+                    <View className="flex-1">
+                      <Text className="text-base text-text-primary font-medium">
+                        {isConnected ? displayName : `Connect ${displayName}`}
+                      </Text>
+                      {isConnected && (
+                        <Text className="text-xs text-accent-primary">Connected ✓</Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
 
               <TouchableOpacity
                 className="items-center p-4 mt-1"

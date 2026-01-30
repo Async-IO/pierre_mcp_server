@@ -76,6 +76,20 @@ export interface ProviderStatus {
   last_sync: string | null;
 }
 
+/** Extended provider status from /api/providers endpoint */
+export interface ExtendedProviderStatus {
+  provider: string;
+  display_name: string;
+  requires_oauth: boolean;
+  connected: boolean;
+  capabilities: string[];
+}
+
+/** Response from /api/providers endpoint */
+export interface ProvidersStatusResponse {
+  providers: ExtendedProviderStatus[];
+}
+
 /** OAuth app credentials (user-provided) */
 export interface OAuthApp {
   provider: string;

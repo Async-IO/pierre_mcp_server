@@ -217,8 +217,9 @@ export function createLegacyApiService(adapter: PlatformAdapter) {
     getPromptSuggestions: api.coaches.getPromptSuggestions.bind(api.coaches),
     generateCoachFromConversation: api.coaches.generateFromConversation.bind(api.coaches),
 
-    // OAuth
+    // OAuth / Providers
     getOAuthStatus: api.oauth.getStatus.bind(api.oauth),
+    getProvidersStatus: api.oauth.getProvidersStatus.bind(api.oauth),
     getOAuthAuthorizeUrl: api.oauth.getAuthorizeUrl.bind(api.oauth),
     initMobileOAuth: api.oauth.initMobileOAuth.bind(api.oauth),
 

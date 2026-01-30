@@ -200,8 +200,9 @@ export function createLegacyApiService(adapter: PlatformAdapter) {
     getCoachVersionDiff: api.coaches.getVersionDiff.bind(api.coaches),
     getPromptSuggestions: api.coaches.getPromptSuggestions.bind(api.coaches),
 
-    // OAuth
+    // OAuth / Providers
     getOAuthStatus: api.oauth.getStatus.bind(api.oauth),
+    getProvidersStatus: api.oauth.getProvidersStatus.bind(api.oauth),
     getOAuthAuthorizeUrl: api.oauth.getAuthorizeUrl.bind(api.oauth),
     initMobileOAuth: api.oauth.initMobileOAuth.bind(api.oauth),
 

@@ -13,6 +13,8 @@ export type {
   RegisterResponse,
   FirebaseLoginResponse,
   ProviderStatus,
+  ExtendedProviderStatus,
+  ProvidersStatusResponse,
   OAuthApp,
   OAuthAppCredentials,
   OAuthProvider,

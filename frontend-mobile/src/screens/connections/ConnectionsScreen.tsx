@@ -18,7 +18,7 @@ import { colors, spacing } from '../../constants/theme';
 import { Card } from '../../components/ui';
 import { apiService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import type { ProviderStatus } from '../../types';
+import type { ExtendedProviderStatus } from '../../types';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
 import type { SettingsStackParamList } from '../../navigation/MainTabs';
@@ -27,68 +27,17 @@ interface ConnectionsScreenProps {
   navigation: NativeStackNavigationProp<SettingsStackParamList>;
 }
 
-interface ProviderConfig {
-  id: string;
-  name: string;
-  description: string;
-  color: string;
-  icon: string;
-}
-
-const PROVIDERS: ProviderConfig[] = [
-  {
-    id: 'strava',
-    name: 'Strava',
-    description: 'Running, cycling, and swimming activities',
-    color: colors.providers.strava,
-    icon: 'S',
-  },
-  {
-    id: 'garmin',
-    name: 'Garmin',
-    description: 'Activities and health metrics from Garmin devices',
-    color: colors.providers.garmin,
-    icon: 'G',
-  },
-  {
-    id: 'fitbit',
-    name: 'Fitbit',
-    description: 'Activity, sleep, and heart rate data',
-    color: colors.providers.fitbit,
-    icon: 'F',
-  },
-  {
-    id: 'whoop',
-    name: 'WHOOP',
-    description: 'Recovery, strain, and sleep metrics',
-    color: colors.providers.whoop,
-    icon: 'W',
-  },
-  {
-    id: 'terra',
-    name: 'Terra',
-    description: 'Aggregate data from multiple fitness platforms',
-    color: colors.providers.terra,
-    icon: 'T',
-  },
-];
-
 export function ConnectionsScreen({ navigation }: ConnectionsScreenProps) {
   const { isAuthenticated } = useAuth();
-  const [providerStatuses, setProviderStatuses] = useState<Map<string, ProviderStatus>>(new Map());
+  const [providers, setProviders] = useState<ExtendedProviderStatus[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
 
   const loadConnectionStatus = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await apiService.getOAuthStatus();
-      const statusMap = new Map<string, ProviderStatus>();
-      const providers = response.providers || [];
-      providers.forEach((status: ProviderStatus) => {
-        statusMap.set(status.provider, status);
-      });
-      setProviderStatuses(statusMap);
+      const response = await apiService.getProvidersStatus();
+      setProviders(response.providers || []);
     } catch (error) {
       console.error('Failed to load connection status:', error);
       // Don't show alert on auth errors - screen will reload when auth is ready
@@ -170,26 +119,42 @@ export function ConnectionsScreen({ navigation }: ConnectionsScreenProps) {
     );
   };
 
-  const renderProvider = (provider: ProviderConfig) => {
-    const status = providerStatuses.get(provider.id);
-    const isConnected = status?.connected || false;
-    const isConnecting = connectingProvider === provider.id;
+  // Provider display config (colors, icons, descriptions)
+  const getProviderConfig = (providerId: string) => {
+    const configs: Record<string, { color: string; icon: string; description: string }> = {
+      strava: { color: colors.providers.strava, icon: 'S', description: 'Running, cycling, and swimming activities' },
+      garmin: { color: colors.providers.garmin, icon: 'G', description: 'Activities and health metrics from Garmin devices' },
+      fitbit: { color: colors.providers.fitbit, icon: 'F', description: 'Activity, sleep, and heart rate data' },
+      whoop: { color: colors.providers.whoop, icon: 'W', description: 'Recovery, strain, and sleep metrics' },
+      terra: { color: colors.providers.terra, icon: 'T', description: 'Aggregate data from multiple fitness platforms' },
+      coros: { color: '#E91E63', icon: 'C', description: 'Training and performance data from COROS devices' },
+      synthetic: { color: '#9C27B0', icon: '🧪', description: 'Synthetic test data for development' },
+      synthetic_sleep: { color: '#673AB7', icon: '😴', description: 'Synthetic sleep data for development' },
+    };
+    return configs[providerId] || { color: '#607D8B', icon: '?', description: 'Fitness data provider' };
+  };
+
+  const renderProvider = (provider: ExtendedProviderStatus) => {
+    const config = getProviderConfig(provider.provider);
+    const isConnected = provider.connected;
+    const isConnecting = connectingProvider === provider.provider;
+    const requiresOAuth = provider.requires_oauth;
 
     return (
-      <Card key={provider.id} className="mb-3">
+      <Card key={provider.provider} className="mb-3">
         <View className="flex-row items-start mb-3">
           <View
             className="w-12 h-12 rounded-lg items-center justify-center mr-3"
-            style={{ backgroundColor: provider.color }}
+            style={{ backgroundColor: config.color }}
           >
-            <Text className="text-2xl font-bold text-text-primary">{provider.icon}</Text>
+            <Text className="text-2xl font-bold text-text-primary">{config.icon}</Text>
           </View>
           <View className="flex-1">
-            <Text className="text-lg font-semibold text-text-primary mb-0.5">{provider.name}</Text>
-            <Text className="text-sm text-text-secondary leading-5">{provider.description}</Text>
-            {isConnected && status?.last_sync && (
+            <Text className="text-lg font-semibold text-text-primary mb-0.5">{provider.display_name}</Text>
+            <Text className="text-sm text-text-secondary leading-5">{config.description}</Text>
+            {provider.capabilities.length > 0 && (
               <Text className="text-xs text-text-tertiary mt-1">
-                Last synced: {new Date(status.last_sync).toLocaleDateString()}
+                Capabilities: {provider.capabilities.join(', ')}
               </Text>
             )}
           </View>
@@ -201,18 +166,20 @@ export function ConnectionsScreen({ navigation }: ConnectionsScreenProps) {
               <View className="bg-success/20 px-2 py-1 rounded">
                 <Text className="text-sm text-success font-medium">Connected</Text>
               </View>
-              <TouchableOpacity
-                className="px-3 py-2"
-                onPress={() => handleDisconnect(provider.id, provider.name)}
-              >
-                <Text className="text-sm text-error font-medium">Disconnect</Text>
-              </TouchableOpacity>
+              {requiresOAuth && (
+                <TouchableOpacity
+                  className="px-3 py-2"
+                  onPress={() => handleDisconnect(provider.provider, provider.display_name)}
+                >
+                  <Text className="text-sm text-error font-medium">Disconnect</Text>
+                </TouchableOpacity>
+              )}
             </>
-          ) : (
+          ) : requiresOAuth ? (
             <TouchableOpacity
               className="flex-1 py-2 rounded-lg items-center"
-              style={{ backgroundColor: provider.color }}
-              onPress={() => handleConnect(provider.id, provider.name)}
+              style={{ backgroundColor: config.color }}
+              onPress={() => handleConnect(provider.provider, provider.display_name)}
               disabled={isConnecting}
             >
               {isConnecting ? (
@@ -221,6 +188,10 @@ export function ConnectionsScreen({ navigation }: ConnectionsScreenProps) {
                 <Text className="text-base font-semibold text-text-primary">Connect</Text>
               )}
             </TouchableOpacity>
+          ) : (
+            <View className="bg-background-tertiary px-2 py-1 rounded">
+              <Text className="text-sm text-text-tertiary font-medium">Not Available</Text>
+            </View>
           )}
         </View>
       </Card>
@@ -258,7 +229,7 @@ export function ConnectionsScreen({ navigation }: ConnectionsScreenProps) {
           </View>
         ) : (
           <View className="gap-3">
-            {PROVIDERS.map(renderProvider)}
+            {providers.map(renderProvider)}
           </View>
         )}
 

@@ -42,7 +42,7 @@ import { apiService } from '../services/api';
 import { colors, spacing, borderRadius } from '../constants/theme';
 import { Feather } from '@expo/vector-icons';
 import { PromptDialog } from '../components/ui';
-import type { Conversation, ProviderStatus, AdaptedInsight } from '../types';
+import type { Conversation, ExtendedProviderStatus, AdaptedInsight } from '../types';
 
 // Shadow styles for elevated elements (React Native requires style objects for shadows)
 const userButtonShadow: ViewStyle = {
@@ -94,7 +94,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   const [actionMenuVisible, setActionMenuVisible] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [providerModalVisible, setProviderModalVisible] = useState(false);
-  const [connectedProviders, setConnectedProviders] = useState<ProviderStatus[]>([]);
+  const [connectedProviders, setConnectedProviders] = useState<ExtendedProviderStatus[]>([]);
   const [renamePromptVisible, setRenamePromptVisible] = useState(false);
 
   const loadConversations = useCallback(async () => {
@@ -124,7 +124,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   const loadProviderStatus = useCallback(async () => {
     if (!isAuthenticated) return;
     try {
-      const response = await apiService.getOAuthStatus();
+      const response = await apiService.getProvidersStatus();
       setConnectedProviders(response.providers || []);
     } catch (error) {
       console.error('Failed to load provider status:', error);
@@ -447,49 +447,50 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
             </Text>
 
             <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
-              {[
-                { id: 'strava', name: 'Strava', icon: '🚴' },
-                { id: 'fitbit', name: 'Fitbit', icon: '⌚' },
-                { id: 'garmin', name: 'Garmin', icon: '⌚' },
-                { id: 'whoop', name: 'WHOOP', icon: '💪' },
-                { id: 'coros', name: 'COROS', icon: '🏃' },
-                { id: 'terra', name: 'Terra', icon: '🌍' },
-              ].map((provider) => {
-                const providers = Array.isArray(connectedProviders) ? connectedProviders : [];
-                const providerStatus = providers.find(
-                  (p) => p.provider === provider.id
-                );
-                const isAvailable = !!providerStatus;
-                const isConnected = providerStatus?.connected ?? false;
+              {connectedProviders.map((provider) => {
+                const PROVIDER_ICONS: Record<string, string> = {
+                  strava: '🚴',
+                  fitbit: '⌚',
+                  garmin: '⌚',
+                  whoop: '💪',
+                  coros: '🏃',
+                  terra: '🌍',
+                  synthetic: '🧪',
+                  synthetic_sleep: '😴',
+                };
+                const icon = PROVIDER_ICONS[provider.provider] || '🔗';
+                const displayName = provider.display_name || provider.provider;
+                const isConnected = provider.connected;
+                const requiresOAuth = provider.requires_oauth;
 
                 return (
                   <TouchableOpacity
-                    key={provider.id}
+                    key={provider.provider}
                     className={`flex-row items-center p-3 mb-2 rounded-lg border ${
                       isConnected
                         ? 'border-primary-500 bg-background-tertiary'
-                        : isAvailable
-                        ? 'border-border-default bg-background-secondary'
-                        : 'border-border-subtle bg-background-secondary opacity-50'
+                        : 'border-border-default bg-background-secondary'
                     }`}
-                    onPress={() => handleConnectProvider(provider.id)}
-                    disabled={!isAvailable}
+                    onPress={() => {
+                      if (!isConnected && requiresOAuth) {
+                        handleConnectProvider(provider.provider);
+                      } else if (isConnected) {
+                        setProviderModalVisible(false);
+                      }
+                    }}
+                    disabled={!isConnected && !requiresOAuth}
                   >
-                    <Text className={`text-2xl mr-3 ${!isAvailable ? 'opacity-50' : ''}`}>
-                      {provider.icon}
-                    </Text>
-                    <Text
-                      className={`flex-1 text-base font-medium ${
-                        isAvailable ? 'text-text-primary' : 'text-text-tertiary'
-                      }`}
-                    >
-                      {provider.name}
-                    </Text>
+                    <Text className="text-2xl mr-3">{icon}</Text>
+                    <View className="flex-1">
+                      <Text className="text-base font-medium text-text-primary">
+                        {displayName}
+                      </Text>
+                      {isConnected && (
+                        <Text className="text-xs text-primary-500">Connected</Text>
+                      )}
+                    </View>
                     {isConnected && (
                       <Text className="text-lg text-primary-500 font-semibold">✓</Text>
-                    )}
-                    {!isAvailable && (
-                      <Text className="text-xs text-text-tertiary italic">Coming soon</Text>
                     )}
                   </TouchableOpacity>
                 );
