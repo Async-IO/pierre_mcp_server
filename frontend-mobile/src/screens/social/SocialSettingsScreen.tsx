@@ -19,7 +19,7 @@ import type { ComponentProps } from 'react';
 import { colors, spacing, glassCard } from '../../constants/theme';
 
 type FeatherIconName = ComponentProps<typeof Feather>['name'];
-import { apiService } from '../../services/api';
+import { socialApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { UserSocialSettings } from '../../types';
 import type { SocialStackParamList } from '../../navigation/MainTabs';
@@ -81,7 +81,7 @@ export function SocialSettingsScreen() {
 
     try {
       setIsLoading(true);
-      const response = await apiService.getSocialSettings();
+      const response = await socialApi.getSocialSettings();
       setSettings(response.settings);
     } catch (error) {
       console.error('Failed to load social settings:', error);
@@ -122,7 +122,7 @@ export function SocialSettingsScreen() {
 
     try {
       setIsSaving(true);
-      await apiService.updateSocialSettings({
+      await socialApi.updateSocialSettings({
         discoverable: settings.discoverable,
         default_visibility: settings.default_visibility,
         notifications: settings.notifications,

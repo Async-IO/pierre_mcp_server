@@ -7,7 +7,7 @@
 import { useState, memo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { X, Users, Eye, EyeOff, Pencil, Trash2 } from 'lucide-react';
-import { apiService } from '../services/api';
+import { coachesApi } from '../services/api';
 import { Card } from './ui';
 import type { Coach } from '@pierre/shared-types';
 
@@ -27,7 +27,7 @@ export default function PromptSuggestions({ onSelectPrompt, onEditCoach, onDelet
     error,
   } = useQuery({
     queryKey: ['user-coaches'],
-    queryFn: () => apiService.getCoaches(),
+    queryFn: () => coachesApi.list(),
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     retry: 2,
   });
@@ -36,13 +36,13 @@ export default function PromptSuggestions({ onSelectPrompt, onEditCoach, onDelet
     data: hiddenCoachesData,
   } = useQuery({
     queryKey: ['hidden-coaches'],
-    queryFn: () => apiService.getHiddenCoaches(),
+    queryFn: () => coachesApi.getHidden(),
     staleTime: 5 * 60 * 1000,
     enabled: showHidden, // Only fetch when showing hidden coaches
   });
 
   const hideCoach = useMutation({
-    mutationFn: (coachId: string) => apiService.hideCoach(coachId),
+    mutationFn: (coachId: string) => coachesApi.hide(coachId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
       queryClient.invalidateQueries({ queryKey: ['hidden-coaches'] });
@@ -50,7 +50,7 @@ export default function PromptSuggestions({ onSelectPrompt, onEditCoach, onDelet
   });
 
   const showCoach = useMutation({
-    mutationFn: (coachId: string) => apiService.showCoach(coachId),
+    mutationFn: (coachId: string) => coachesApi.show(coachId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
       queryClient.invalidateQueries({ queryKey: ['hidden-coaches'] });
@@ -401,7 +401,7 @@ const CoachCard = memo(function CoachCard({
       <button
         type="button"
         onClick={() => {
-          apiService.recordCoachUsage(coach.id).catch(() => {
+          coachesApi.recordUsage(coach.id).catch(() => {
             // Silently ignore usage tracking errors
           });
           onSelectPrompt(

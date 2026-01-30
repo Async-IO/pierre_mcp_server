@@ -6,7 +6,7 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { adminApi } from '../services/api';
 import type { User } from '../types/api';
 import { Button, Card } from './ui';
 import { Badge } from './ui/Badge';
@@ -50,13 +50,13 @@ export default function UserDetailDrawer({
 
   const { data: rateLimit, isLoading: rateLimitLoading } = useQuery({
     queryKey: ['user-rate-limit', user?.id],
-    queryFn: () => user ? apiService.getUserRateLimit(user.id) : null,
+    queryFn: () => user ? adminApi.getUserRateLimit(user.id) : null,
     enabled: !!user && isOpen,
   });
 
   const { data: activity, isLoading: activityLoading } = useQuery({
     queryKey: ['user-activity', user?.id],
-    queryFn: () => user ? apiService.getUserActivity(user.id, 30) : null,
+    queryFn: () => user ? adminApi.getUserActivity(user.id, 30) : null,
     enabled: !!user && isOpen,
   });
 

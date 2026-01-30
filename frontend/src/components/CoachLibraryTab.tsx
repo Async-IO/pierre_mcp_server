@@ -6,7 +6,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { coachesApi } from '../services/api';
 import type { Coach } from '../types/api';
 import { Card, Button } from './ui';
 import { clsx } from 'clsx';
@@ -93,7 +93,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
   // Fetch all coaches (including hidden) for client-side filtering
   const { data: coachesData, isLoading: coachesLoading } = useQuery({
     queryKey: ['user-coaches', 'include-hidden'],
-    queryFn: () => apiService.getCoaches({
+    queryFn: () => coachesApi.list({
       include_hidden: true,
     }),
   });
@@ -101,12 +101,12 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
   // Fetch hidden coaches list to mark them
   const { data: hiddenData } = useQuery({
     queryKey: ['hidden-coaches'],
-    queryFn: () => apiService.getHiddenCoaches(),
+    queryFn: () => coachesApi.getHidden(),
   });
 
   // Create mutation
   const createMutation = useMutation({
-    mutationFn: (data: typeof formData) => apiService.createCoach({
+    mutationFn: (data: typeof formData) => coachesApi.create({
       title: data.title,
       description: data.description || undefined,
       system_prompt: data.system_prompt,
@@ -122,7 +122,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
 
   // Update mutation
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: typeof formData }) => apiService.updateCoach(id, {
+    mutationFn: ({ id, data }: { id: string; data: typeof formData }) => coachesApi.update(id, {
       title: data.title,
       description: data.description || undefined,
       system_prompt: data.system_prompt,
@@ -138,7 +138,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
 
   // Delete mutation
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => apiService.deleteCoach(id),
+    mutationFn: (id: string) => coachesApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
       setSelectedCoach(null);
@@ -147,7 +147,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
 
   // Toggle favorite mutation
   const favoriteMutation = useMutation({
-    mutationFn: (id: string) => apiService.toggleCoachFavorite(id),
+    mutationFn: (id: string) => coachesApi.toggleFavorite(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
     },
@@ -155,7 +155,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
 
   // Hide coach mutation
   const hideMutation = useMutation({
-    mutationFn: (id: string) => apiService.hideCoach(id),
+    mutationFn: (id: string) => coachesApi.hide(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
       queryClient.invalidateQueries({ queryKey: ['hidden-coaches'] });
@@ -165,7 +165,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
 
   // Show coach mutation
   const showMutation = useMutation({
-    mutationFn: (id: string) => apiService.showCoach(id),
+    mutationFn: (id: string) => coachesApi.show(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
       queryClient.invalidateQueries({ queryKey: ['hidden-coaches'] });
@@ -175,7 +175,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
 
   // Fork coach mutation
   const forkMutation = useMutation({
-    mutationFn: (id: string) => apiService.forkCoach(id),
+    mutationFn: (id: string) => coachesApi.fork(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
       setActionMenuCoach(null);

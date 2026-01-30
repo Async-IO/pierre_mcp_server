@@ -18,7 +18,7 @@ import {
 import { useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors, spacing } from '../../constants/theme';
-import { apiService } from '../../services/api';
+import { coachesApi } from '../../services/api';
 import type { CreateCoachRequest, UpdateCoachRequest } from '../../types';
 import type { CoachesStackParamList } from '../../navigation/MainTabs';
 
@@ -70,7 +70,7 @@ export function CoachEditorScreen({ navigation }: CoachEditorScreenProps) {
   const loadCoach = async (id: string) => {
     try {
       setIsLoading(true);
-      const coach = await apiService.getCoach(id);
+      const coach = await coachesApi.getCoach(id);
       setTitle(coach.title);
       setCategory(coach.category);
       setDescription(coach.description || '');
@@ -157,7 +157,7 @@ export function CoachEditorScreen({ navigation }: CoachEditorScreenProps) {
           description: description.trim() || undefined,
           system_prompt: systemPrompt.trim(),
         };
-        await apiService.updateCoach(coachId, updateData);
+        await coachesApi.updateCoach(coachId, updateData);
       } else {
         const createData: CreateCoachRequest = {
           title: title.trim(),
@@ -165,7 +165,7 @@ export function CoachEditorScreen({ navigation }: CoachEditorScreenProps) {
           description: description.trim() || undefined,
           system_prompt: systemPrompt.trim(),
         };
-        await apiService.createCoach(createData);
+        await coachesApi.createCoach(createData);
       }
 
       navigation.goBack();

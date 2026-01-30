@@ -9,7 +9,7 @@ import React, {
   useRef,
   type ReactNode,
 } from 'react';
-import { apiService } from '../services/api';
+import { chatApi } from '../services/api';
 
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
@@ -58,7 +58,7 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
     conversationIdRef.current = conversationId;
     setStatus('connecting');
 
-    const wsUrl = apiService.getWebSocketUrl(conversationId);
+    const wsUrl = chatApi.getWebSocketUrl(conversationId);
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {

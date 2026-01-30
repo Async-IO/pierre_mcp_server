@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { apiService } from '../../services/api';
+import { oauthApi } from '../../services/api';
 import { QUERY_KEYS } from '../../constants/queryKeys';
 
 interface OAuthNotification {
@@ -85,7 +85,7 @@ export function useOAuthHandler(): UseOAuthHandlerReturn {
 
     try {
       const providerId = providerName.toLowerCase();
-      const authUrl = await apiService.getOAuthAuthorizeUrl(providerId);
+      const authUrl = await oauthApi.getAuthorizeUrl(providerId);
       // Open OAuth in new tab to avoid security blocks from automated browser detection
       window.open(authUrl, '_blank');
       setConnectingProvider(null);

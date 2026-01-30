@@ -29,7 +29,7 @@ const mockUninstallStoreCoach = jest.fn();
 const mockGetInstalledCoaches = jest.fn();
 
 jest.mock('../src/services/api', () => ({
-  apiService: {
+  storeApi: {
     getStoreCoach: (...args: unknown[]) => mockGetStoreCoach(...args),
     installStoreCoach: (...args: unknown[]) => mockInstallStoreCoach(...args),
     uninstallStoreCoach: (...args: unknown[]) => mockUninstallStoreCoach(...args),

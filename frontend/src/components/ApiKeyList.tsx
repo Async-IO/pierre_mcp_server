@@ -7,7 +7,7 @@ import { format } from 'date-fns';
 import { Button, Card, CardHeader, Badge, StatusFilter, ConfirmDialog } from './ui';
 import type { StatusFilterValue } from './ui';
 import { useAuth } from '../hooks/useAuth';
-import { apiService } from '../services/api';
+import { adminApi } from '../services/api';
 import type { AdminToken } from '../types/api';
 
 interface ApiKeyListProps {
@@ -25,12 +25,12 @@ export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
   // Always fetch all tokens and filter client-side for accurate counts
   const { data: tokensResponse, isLoading, error } = useQuery({
     queryKey: ['admin-tokens', true],
-    queryFn: () => apiService.getAdminTokens({ include_inactive: true }),
+    queryFn: () => adminApi.getAdminTokens({ include_inactive: true }),
     enabled: isAuthenticated && user?.is_admin === true,
   });
 
   const revokeTokenMutation = useMutation({
-    mutationFn: (tokenId: string) => apiService.revokeAdminToken(tokenId),
+    mutationFn: (tokenId: string) => adminApi.revokeAdminToken(tokenId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-tokens'] });
       setSelectedTokens(new Set());

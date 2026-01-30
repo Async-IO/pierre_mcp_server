@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiService } from '../../services/api';
+import { coachesApi } from '../../services/api';
 import type { CoachFormData } from './types';
 import { Sparkles, RefreshCw, AlertCircle, MessageSquareText } from 'lucide-react';
 
@@ -43,7 +43,7 @@ export default function CreateCoachFromConversationModal({
 
   const generateMutation = useMutation({
     mutationFn: () =>
-      apiService.generateCoachFromConversation({
+      coachesApi.generateFromConversation({
         conversation_id: conversationId,
         max_messages: MAX_MESSAGES_ANALYZED,
       }),
@@ -67,7 +67,7 @@ export default function CreateCoachFromConversationModal({
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CoachFormData) => apiService.createCoach(data),
+    mutationFn: (data: CoachFormData) => coachesApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
       onSuccess();

@@ -15,7 +15,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
 import { colors, spacing } from '../../constants/theme';
 import { FloatingSearchBar } from '../../components/ui';
-import { apiService } from '../../services/api';
+import { socialApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { SearchUserCard } from '../../components/social/FriendCard';
 import type { DiscoverableUser } from '../../types';
@@ -42,7 +42,7 @@ export function SearchFriendsScreen() {
 
     try {
       setIsSearching(true);
-      const response = await apiService.searchUsers(searchQuery.trim(), 30);
+      const response = await socialApi.searchUsers(searchQuery.trim(), 30);
       setUsers(response.users);
       setHasSearched(true);
     } catch (error) {
@@ -73,7 +73,7 @@ export function SearchFriendsScreen() {
   const handleAddFriend = async (user: DiscoverableUser) => {
     try {
       setAddingIds(prev => new Set(prev).add(user.id));
-      await apiService.sendFriendRequest(user.id);
+      await socialApi.sendFriendRequest(user.id);
       // Update local state to show pending
       setUsers(prev =>
         prev.map(u =>

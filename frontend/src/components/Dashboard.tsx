@@ -4,7 +4,7 @@
 import { useState, lazy, Suspense, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
-import { apiService } from '../services/api';
+import { dashboardApi, adminApi, a2aApi } from '../services/api';
 import type { DashboardOverview, RateLimitOverview, User, AdminToken } from '../types/api';
 import type { AnalyticsData } from '../types/chart';
 import { useWebSocketContext } from '../hooks/useWebSocketContext';
@@ -73,32 +73,32 @@ export default function Dashboard() {
 
   const { data: overview, isLoading: overviewLoading, refetch: refetchOverview } = useQuery<DashboardOverview>({
     queryKey: ['dashboard-overview'],
-    queryFn: () => apiService.getDashboardOverview(),
+    queryFn: () => dashboardApi.getDashboardOverview(),
     enabled: isAdminUser,
   });
 
   const { data: rateLimits } = useQuery<RateLimitOverview[]>({
     queryKey: ['rate-limits'],
-    queryFn: () => apiService.getRateLimitOverview(),
+    queryFn: () => dashboardApi.getRateLimitOverview(),
     enabled: isAdminUser,
   });
 
   const { data: weeklyUsage } = useQuery<AnalyticsData>({
     queryKey: ['usage-analytics', 7],
-    queryFn: () => apiService.getUsageAnalytics(7),
+    queryFn: () => dashboardApi.getUsageAnalytics(7),
     enabled: isAdminUser,
   });
 
   const { data: a2aOverview } = useQuery({
     queryKey: ['a2a-dashboard-overview'],
-    queryFn: () => apiService.getA2ADashboardOverview(),
+    queryFn: () => a2aApi.getA2ADashboardOverview(),
     enabled: isAdminUser,
   });
 
   // Pending users badge - only fetch for admin users
   const { data: pendingUsers = [] } = useQuery<User[]>({
     queryKey: ['pending-users'],
-    queryFn: () => apiService.getPendingUsers(),
+    queryFn: () => adminApi.getPendingUsers(),
     staleTime: 30_000,
     retry: false,
     enabled: isAdminUser,
@@ -107,7 +107,7 @@ export default function Dashboard() {
   // Coach store stats for pending review badge
   const { data: storeStats } = useQuery({
     queryKey: ['admin-store-stats'],
-    queryFn: () => apiService.getStoreStats(),
+    queryFn: () => adminApi.getStoreStats(),
     staleTime: 30_000,
     retry: false,
     enabled: isAdminUser,

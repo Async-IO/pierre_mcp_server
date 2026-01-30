@@ -6,7 +6,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { adminApi } from '../services/api';
 import { Button, Card } from './ui';
 
 const REJECTION_REASONS = [
@@ -45,7 +45,7 @@ export default function CoachRejectionModal({
       coachId: string;
       rejectionReason: string;
       rejectionNotes?: string;
-    }) => apiService.rejectStoreCoach(coachId, rejectionReason, rejectionNotes),
+    }) => adminApi.rejectStoreCoach(coachId, rejectionReason, rejectionNotes),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-store-review-queue'] });
       queryClient.invalidateQueries({ queryKey: ['admin-store-stats'] });

@@ -10,10 +10,10 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import PromptSuggestions from '../PromptSuggestions';
 
-// Mock the api service - data must be inline due to vi.mock hoisting
+// Mock the coaches API - data must be inline due to vi.mock hoisting
 vi.mock('../../services/api', () => ({
-  apiService: {
-    getCoaches: vi.fn().mockResolvedValue({
+  coachesApi: {
+    list: vi.fn().mockResolvedValue({
       coaches: [
         {
           id: 'coach-1',
@@ -46,7 +46,7 @@ vi.mock('../../services/api', () => ({
       ],
       total: 2,
     }),
-    getHiddenCoaches: vi.fn().mockResolvedValue({
+    getHidden: vi.fn().mockResolvedValue({
       coaches: [
         {
           id: 'coach-3',
@@ -64,9 +64,9 @@ vi.mock('../../services/api', () => ({
         },
       ],
     }),
-    hideCoach: vi.fn().mockResolvedValue({ success: true, is_hidden: true }),
-    showCoach: vi.fn().mockResolvedValue({ success: true, is_hidden: false }),
-    recordCoachUsage: vi.fn().mockResolvedValue({ success: true }),
+    hide: vi.fn().mockResolvedValue({ success: true, is_hidden: true }),
+    show: vi.fn().mockResolvedValue({ success: true, is_hidden: false }),
+    recordUsage: vi.fn().mockResolvedValue({ success: true }),
   },
 }));
 
@@ -187,8 +187,8 @@ describe('PromptSuggestions Component', () => {
       expect(hideButtons[0]).toHaveAttribute('aria-label', 'Hide coach');
     });
 
-    it('should call hideCoach API when hide button is clicked', async () => {
-      const { apiService } = await import('../../services/api');
+    it('should call hide API when hide button is clicked', async () => {
+      const { coachesApi } = await import('../../services/api');
       const user = userEvent.setup();
 
       await act(async () => {
@@ -203,9 +203,9 @@ describe('PromptSuggestions Component', () => {
       const hideButtons = screen.getAllByTitle('Hide coach');
       await user.click(hideButtons[0]);
 
-      // hideCoach should be called with the coach ID
+      // hide should be called with the coach ID
       await waitFor(() => {
-        expect(apiService.hideCoach).toHaveBeenCalledWith('coach-2');
+        expect(coachesApi.hide).toHaveBeenCalledWith('coach-2');
       });
     });
   });

@@ -15,9 +15,9 @@ const mockCoach = {
   author_email: 'coach@example.com',
 };
 
-// Mock the API service
+// Mock the admin API
 vi.mock('../../services/api', () => ({
-  apiService: {
+  adminApi: {
     rejectStoreCoach: vi.fn().mockResolvedValue({
       success: true,
       message: 'Coach rejected',
@@ -27,7 +27,7 @@ vi.mock('../../services/api', () => ({
 }));
 
 import CoachRejectionModal from '../CoachRejectionModal';
-import { apiService } from '../../services/api';
+import { adminApi } from '../../services/api';
 
 const mockOnClose = vi.fn();
 const mockOnComplete = vi.fn();
@@ -157,7 +157,7 @@ describe('CoachRejectionModal', () => {
     await user.click(rejectButton);
 
     await waitFor(() => {
-      expect(apiService.rejectStoreCoach).toHaveBeenCalledWith(
+      expect(adminApi.rejectStoreCoach).toHaveBeenCalledWith(
         'coach-1',
         'quality_standards',
         undefined
@@ -184,7 +184,7 @@ describe('CoachRejectionModal', () => {
     await user.click(rejectButton);
 
     await waitFor(() => {
-      expect(apiService.rejectStoreCoach).toHaveBeenCalledWith(
+      expect(adminApi.rejectStoreCoach).toHaveBeenCalledWith(
         'coach-1',
         'other',
         'This coach needs more detail'
@@ -209,7 +209,7 @@ describe('CoachRejectionModal', () => {
 
   it('shows loading state during rejection', async () => {
     const user = userEvent.setup();
-    vi.mocked(apiService.rejectStoreCoach).mockImplementation(
+    vi.mocked(adminApi.rejectStoreCoach).mockImplementation(
       () => new Promise(() => {})
     );
 
@@ -228,7 +228,7 @@ describe('CoachRejectionModal', () => {
 
   it('shows error message on API failure', async () => {
     const user = userEvent.setup();
-    vi.mocked(apiService.rejectStoreCoach).mockRejectedValue(new Error('API Error'));
+    vi.mocked(adminApi.rejectStoreCoach).mockRejectedValue(new Error('API Error'));
 
     renderCoachRejectionModal();
 
@@ -259,7 +259,7 @@ describe('CoachRejectionModal', () => {
     await user.click(rejectButton);
 
     await waitFor(() => {
-      expect(apiService.rejectStoreCoach).toHaveBeenCalledWith(
+      expect(adminApi.rejectStoreCoach).toHaveBeenCalledWith(
         'coach-1',
         'other',
         'trimmed note'

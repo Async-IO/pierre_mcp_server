@@ -81,6 +81,8 @@ export const ENDPOINTS = {
     AUTHORIZE: (provider: string) => `/api/oauth/${provider}/authorize`,
     /** Initialize mobile OAuth flow */
     MOBILE_INIT: (provider: string) => `/api/oauth/mobile/init/${provider}`,
+    /** Disconnect provider (revoke tokens) */
+    DISCONNECT: (provider: string) => `/api/oauth/providers/${provider}/disconnect`,
   },
 
   // ==================== PROVIDERS ====================

@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { clsx } from 'clsx';
-import { apiService } from '../../services/api';
+import { socialApi } from '../../services/api';
 import { Card, Button } from '../ui';
 import ShareInsightModal from './ShareInsightModal';
 import AdaptInsightModal from './AdaptInsightModal';
@@ -105,7 +105,7 @@ export default function SocialFeedTab() {
   // Load coach suggestions
   const loadSuggestions = useCallback(async () => {
     try {
-      const response = await apiService.getInsightSuggestions({ limit: 3 });
+      const response = await socialApi.getInsightSuggestions({ limit: 3 });
       setSuggestions(response.suggestions as InsightSuggestion[]);
     } catch (error) {
       // Silently fail - suggestions are optional enhancement
@@ -121,7 +121,7 @@ export default function SocialFeedTab() {
         setIsLoading(true);
       }
 
-      const response = await apiService.getSocialFeed({ cursor: cursor ?? undefined, limit: 20 });
+      const response = await socialApi.getFeed({ cursor: cursor ?? undefined, limit: 20 });
 
       // Cast response items to FeedItem[] - API ensures fields are present
       const items = response.items as unknown as FeedItem[];
@@ -155,7 +155,7 @@ export default function SocialFeedTab() {
 
       if (item.user_reaction === reactionType) {
         // Remove reaction
-        await apiService.removeReaction(insightId);
+        await socialApi.removeReaction(insightId);
         setFeedItems(prev =>
           prev.map(i => {
             if (i.insight.id === insightId) {
@@ -174,7 +174,7 @@ export default function SocialFeedTab() {
         );
       } else {
         // Add or change reaction
-        await apiService.addReaction(insightId, reactionType);
+        await socialApi.addReaction(insightId, reactionType);
         setFeedItems(prev =>
           prev.map(i => {
             if (i.insight.id === insightId) {

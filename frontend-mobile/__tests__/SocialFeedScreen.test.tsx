@@ -37,7 +37,7 @@ const mockAddReaction = jest.fn();
 const mockRemoveReaction = jest.fn();
 
 jest.mock('../src/services/api', () => ({
-  apiService: {
+  socialApi: {
     getSocialFeed: (...args: unknown[]) => mockGetSocialFeed(...args),
     addReaction: (...args: unknown[]) => mockAddReaction(...args),
     removeReaction: (...args: unknown[]) => mockRemoveReaction(...args),

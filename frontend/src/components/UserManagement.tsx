@@ -3,7 +3,7 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { adminApi } from '../services/api';
 import type { User } from '../types/api';
 import { Button, Card, Badge } from './ui';
 import PendingUsersList from './PendingUsersList';
@@ -23,13 +23,13 @@ export default function UserManagement() {
   // Queries for different user types
   const { data: pendingUsers = [], isLoading: pendingLoading } = useQuery<User[]>({
     queryKey: ['pending-users'],
-    queryFn: () => apiService.getPendingUsers(),
+    queryFn: () => adminApi.getPendingUsers(),
     refetchInterval: 30000,
   });
 
   const { data: allUsers = [], isLoading: allUsersLoading } = useQuery<User[]>({
     queryKey: ['all-users'],
-    queryFn: () => apiService.getAllUsers(),
+    queryFn: () => adminApi.getAllUsers(),
     refetchInterval: 60000,
   });
 

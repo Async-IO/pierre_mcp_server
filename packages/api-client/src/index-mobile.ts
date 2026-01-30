@@ -150,6 +150,7 @@ export function createPierreApi(adapter: PlatformAdapter): PierreApiService {
   };
 }
 
+<<<<<<< HEAD
 /**
  * Legacy unified API service interface for backward compatibility.
  * Maps all domain methods to a flat object structure.
@@ -257,3 +258,5 @@ export function createLegacyApiService(adapter: PlatformAdapter) {
     validateLlmSettings: api.user.validateLlmSettings.bind(api.user),
   };
 }
+=======
+>>>>>>> origin/claude/remove-legacy-api-WaGCu

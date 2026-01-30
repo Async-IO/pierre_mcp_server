@@ -15,7 +15,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import { colors, spacing } from '../../constants/theme';
-import { apiService } from '../../services/api';
+import { coachesApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Coach } from '../../types';
 import type { CoachesStackParamList } from '../../navigation/MainTabs';
@@ -51,8 +51,8 @@ export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps)
       setIsLoading(true);
       // Load coaches and hidden coaches list in parallel
       const [coachesResponse, hiddenResponse] = await Promise.all([
-        apiService.listCoaches({ include_hidden: true }),
-        apiService.getHiddenCoaches(),
+        coachesApi.listCoaches({ include_hidden: true }),
+        coachesApi.getHiddenCoaches(),
       ]);
       const foundCoach = coachesResponse.coaches.find((c: { id: string }) => c.id === coachId);
       setCoach(foundCoach || null);
@@ -91,7 +91,7 @@ export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps)
           onPress: async () => {
             try {
               setIsDeleting(true);
-              await apiService.deleteCoach(coach.id);
+              await coachesApi.deleteCoach(coach.id);
               Alert.alert('Deleted', 'Coach has been deleted.');
               navigation.goBack();
             } catch (error) {
@@ -121,10 +121,10 @@ export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps)
     try {
       setIsTogglingHidden(true);
       if (isHidden) {
-        await apiService.showCoach(coach.id);
+        await coachesApi.show(coach.id);
         setIsHidden(false);
       } else {
-        await apiService.hideCoach(coach.id);
+        await coachesApi.hide(coach.id);
         setIsHidden(true);
       }
     } catch (error) {

@@ -5,7 +5,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 import React, { useState } from 'react';
-import { apiService } from '../services/api';
+import { authApi } from '../services/api';
 import { Button, Input } from './ui';
 
 // Pierre holistic node logo SVG (shared with Login)
@@ -86,7 +86,7 @@ export default function Register({ onNavigateToLogin, onRegistrationSuccess }: R
     setIsLoading(true);
 
     try {
-      const response = await apiService.register({ email, password, display_name: displayName || undefined });
+      const response = await authApi.register({ email, password, display_name: displayName || undefined });
       onRegistrationSuccess(response.message);
     } catch (err: unknown) {
       const apiError = err as { response?: { data?: { message?: string; error?: string } } };

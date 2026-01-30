@@ -3192,18 +3192,18 @@ impl DatabaseProvider for PostgresDatabase {
         .map_err(|e| AppError::database(format!("Failed to create tenant: {e}")))?;
 
         // Add the owner as an admin of the tenant
-        let tenant_user_id = Uuid::new_v4().to_string();
-        let now = chrono::Utc::now().to_rfc3339();
+        let tenant_user_id = Uuid::new_v4();
+        let now = chrono::Utc::now();
         sqlx::query(
             r"
             INSERT INTO tenant_users (id, tenant_id, user_id, role, invited_at, joined_at)
             VALUES ($1, $2, $3, 'owner', $4, $4)
             ",
         )
-        .bind(&tenant_user_id)
+        .bind(tenant_user_id)
         .bind(tenant.id)
         .bind(tenant.owner_user_id)
-        .bind(&now)
+        .bind(now)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to add owner to tenant: {e}")))?;

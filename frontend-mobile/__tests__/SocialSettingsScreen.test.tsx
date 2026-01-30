@@ -36,7 +36,7 @@ const mockGetSocialSettings = jest.fn();
 const mockUpdateSocialSettings = jest.fn();
 
 jest.mock('../src/services/api', () => ({
-  apiService: {
+  socialApi: {
     getSocialSettings: (...args: unknown[]) => mockGetSocialSettings(...args),
     updateSocialSettings: (...args: unknown[]) => mockUpdateSocialSettings(...args),
   },

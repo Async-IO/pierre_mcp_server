@@ -15,7 +15,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
 import { colors, spacing } from '../../constants/theme';
-import { apiService } from '../../services/api';
+import { socialApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { InsightCard } from '../../components/social/InsightCard';
 import type { FeedItem, ReactionType, InsightSuggestion } from '../../types';
@@ -41,7 +41,7 @@ export function SocialFeedScreen() {
   const loadSuggestions = useCallback(async () => {
     if (!isAuthenticated) return;
     try {
-      const response = await apiService.getInsightSuggestions({ limit: 3 });
+      const response = await socialApi.getInsightSuggestions({ limit: 3 });
       setSuggestions(response.suggestions);
     } catch (error) {
       // Silently fail - suggestions are optional enhancement
@@ -61,7 +61,7 @@ export function SocialFeedScreen() {
 
       // Load feed and suggestions in parallel
       const [feedResponse] = await Promise.all([
-        apiService.getSocialFeed({ limit: 20 }),
+        socialApi.getSocialFeed({ limit: 20 }),
         loadSuggestions(),
       ]);
       setFeedItems(feedResponse.items);
@@ -80,7 +80,7 @@ export function SocialFeedScreen() {
 
     try {
       setIsLoadingMore(true);
-      const response = await apiService.getSocialFeed({
+      const response = await socialApi.getSocialFeed({
         limit: 20,
         cursor: nextCursor,
       });
@@ -108,9 +108,9 @@ export function SocialFeedScreen() {
       const isRemoving = currentItem?.user_reaction === reactionType;
 
       if (isRemoving) {
-        await apiService.removeReaction(insightId, reactionType);
+        await socialApi.removeReaction(insightId, reactionType);
       } else {
-        await apiService.addReaction(insightId, reactionType);
+        await socialApi.addReaction(insightId, reactionType);
       }
 
       // Update local state optimistically
@@ -158,7 +158,7 @@ export function SocialFeedScreen() {
     try {
       setAdaptingIds(prev => new Set(prev).add(insightId));
 
-      const response = await apiService.adaptInsight(insightId);
+      const response = await socialApi.adaptInsight(insightId);
 
       // Update local state to show adapted
       setFeedItems(prev =>

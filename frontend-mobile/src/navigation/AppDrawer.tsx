@@ -38,7 +38,7 @@ import { AdaptedInsightScreen } from '../screens/social/AdaptedInsightScreen';
 import { AdaptedInsightsScreen } from '../screens/social/AdaptedInsightsScreen';
 import { SocialSettingsScreen } from '../screens/social/SocialSettingsScreen';
 import { useAuth } from '../contexts/AuthContext';
-import { apiService } from '../services/api';
+import { chatApi, oauthApi } from '../services/api';
 import { colors, spacing, borderRadius } from '../constants/theme';
 import { Feather } from '@expo/vector-icons';
 import { PromptDialog } from '../components/ui';
@@ -102,7 +102,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
 
     try {
       setIsLoadingConversations(true);
-      const response = await apiService.getConversations();
+      const response = await chatApi.getConversations();
       // Deduplicate by ID, sort by updated_at descending (most recent first), take top 10
       const seen = new Set<string>();
       const deduplicated = (response.conversations || []).filter((conv: { id: string }) => {
@@ -124,7 +124,11 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   const loadProviderStatus = useCallback(async () => {
     if (!isAuthenticated) return;
     try {
+<<<<<<< HEAD
       const response = await apiService.getProvidersStatus();
+=======
+      const response = await oauthApi.getStatus();
+>>>>>>> origin/claude/remove-legacy-api-WaGCu
       setConnectedProviders(response.providers || []);
     } catch (error) {
       console.error('Failed to load provider status:', error);
@@ -153,7 +157,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
     setProviderModalVisible(false);
     try {
       const returnUrl = getOAuthCallbackUrl();
-      const oauthResponse = await apiService.initMobileOAuth(provider, returnUrl);
+      const oauthResponse = await oauthApi.initMobileOAuth(provider, returnUrl);
       const result = await WebBrowser.openAuthSessionAsync(
         oauthResponse.authorization_url,
         returnUrl
@@ -203,7 +207,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
     if (!selectedConversation) return;
 
     try {
-      const updated = await apiService.updateConversation(selectedConversation.id, {
+      const updated = await chatApi.updateConversation(selectedConversation.id, {
         title: newTitle,
       });
       // Update conversation and move to top (most recently updated)
@@ -242,7 +246,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
           style: 'destructive',
           onPress: async () => {
             try {
-              await apiService.deleteConversation(selectedConversation.id);
+              await chatApi.deleteConversation(selectedConversation.id);
               setConversations(prev => prev.filter(c => c.id !== selectedConversation.id));
             } catch (error) {
               console.error('Failed to delete conversation:', error);

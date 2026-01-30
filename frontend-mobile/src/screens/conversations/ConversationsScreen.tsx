@@ -18,7 +18,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
 import { colors, spacing } from '../../constants/theme';
-import { apiService } from '../../services/api';
+import { chatApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { PromptDialog } from '../../components/ui';
 import type { Conversation } from '../../types';
@@ -68,7 +68,7 @@ export function ConversationsScreen({ navigation }: ConversationsScreenProps) {
 
     try {
       setIsLoading(true);
-      const response = await apiService.getConversations();
+      const response = await chatApi.getConversations();
       const seen = new Set<string>();
       const deduplicated = (response.conversations || []).filter((conv: { id: string }) => {
         if (seen.has(conv.id)) return false;
@@ -154,7 +154,7 @@ export function ConversationsScreen({ navigation }: ConversationsScreenProps) {
     if (!selectedConversation) return;
 
     try {
-      const updated = await apiService.updateConversation(selectedConversation.id, {
+      const updated = await chatApi.updateConversation(selectedConversation.id, {
         title: newTitle,
       });
       setConversations((prev) =>
@@ -186,7 +186,7 @@ export function ConversationsScreen({ navigation }: ConversationsScreenProps) {
           style: 'destructive',
           onPress: async () => {
             try {
-              await apiService.deleteConversation(selectedConversation.id);
+              await chatApi.deleteConversation(selectedConversation.id);
               setConversations((prev) => prev.filter((c) => c.id !== selectedConversation.id));
             } catch (error) {
               console.error('Failed to delete conversation:', error);

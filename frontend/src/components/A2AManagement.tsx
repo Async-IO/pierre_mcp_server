@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { a2aApi } from '../services/api';
 import type { A2ADashboardOverview } from '../types/api';
 import { Button, Card, Badge, StatusIndicator } from './ui';
 import A2AClientList from './A2AClientList';
@@ -14,12 +14,12 @@ export default function A2AManagement() {
 
   const { data: overview, isLoading: overviewLoading } = useQuery<A2ADashboardOverview>({
     queryKey: ['a2a-dashboard-overview'],
-    queryFn: () => apiService.getA2ADashboardOverview(),
+    queryFn: () => a2aApi.getA2ADashboardOverview(),
   });
 
   const { data: agentCard } = useQuery({
     queryKey: ['a2a-agent-card'],
-    queryFn: () => apiService.getA2AAgentCard(),
+    queryFn: () => a2aApi.getA2AAgentCard(),
   });
 
   const renderOverview = () => (

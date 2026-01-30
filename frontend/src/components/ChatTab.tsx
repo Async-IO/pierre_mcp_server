@@ -7,7 +7,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ConfirmDialog } from './ui';
-import { apiService } from '../services/api';
+import { chatApi, providersApi, coachesApi } from '../services/api';
 import PromptSuggestions from './PromptSuggestions';
 import { MessageCircle, Plus, Sparkles, PanelLeftClose, PanelLeft, History } from 'lucide-react';
 import { ShareChatMessageModal } from './social';
@@ -70,7 +70,7 @@ export default function ChatTab() {
   // Fetch provider status (includes both OAuth and non-OAuth providers like synthetic)
   const { data: providersData } = useQuery({
     queryKey: ['providers-status'],
-    queryFn: () => apiService.getProvidersStatus(),
+    queryFn: () => providersApi.getProvidersStatus(),
   });
 
   const hasConnectedProvider = providersData?.providers?.some(p => p.connected) ?? false;
@@ -78,7 +78,7 @@ export default function ChatTab() {
   // Fetch conversations list
   const { data: conversationsData, isLoading: conversationsLoading } = useQuery<{ conversations: Conversation[] }>({
     queryKey: ['chat-conversations'],
-    queryFn: () => apiService.getConversations(),
+    queryFn: () => chatApi.getConversations(),
   });
 
   const conversations = conversationsData?.conversations ?? [];
@@ -86,7 +86,7 @@ export default function ChatTab() {
   // Fetch messages for selected conversation
   const { data: messagesData, isLoading: messagesLoading } = useQuery<{ messages: Message[] }>({
     queryKey: ['chat-messages', selectedConversation],
-    queryFn: () => apiService.getConversationMessages(selectedConversation!),
+    queryFn: () => chatApi.getConversationMessages(selectedConversation!),
     enabled: !!selectedConversation,
   });
 
@@ -95,7 +95,7 @@ export default function ChatTab() {
     mutationFn: (systemPrompt) => {
       const now = new Date();
       const defaultTitle = `Chat ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
-      return apiService.createConversation({
+      return chatApi.createConversation({
         title: defaultTitle,
         system_prompt: systemPrompt || pendingSystemPrompt || undefined,
       });
@@ -109,7 +109,7 @@ export default function ChatTab() {
 
   const updateConversation = useMutation({
     mutationFn: ({ id, title }: { id: string; title: string }) =>
-      apiService.updateConversation(id, { title }),
+      chatApi.updateConversation(id, { title }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
       setEditingTitle(null);
@@ -118,7 +118,7 @@ export default function ChatTab() {
   });
 
   const deleteConversation = useMutation({
-    mutationFn: (id: string) => apiService.deleteConversation(id),
+    mutationFn: (id: string) => chatApi.deleteConversation(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
       setDeleteConfirmation(null);
@@ -129,7 +129,7 @@ export default function ChatTab() {
   });
 
   const createCoach = useMutation({
-    mutationFn: (data: CoachFormData) => apiService.createCoach(data),
+    mutationFn: (data: CoachFormData) => coachesApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
       setShowCoachModal(false);
@@ -138,7 +138,7 @@ export default function ChatTab() {
   });
 
   const updateCoach = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: CoachFormData }) => apiService.updateCoach(id, data),
+    mutationFn: ({ id, data }: { id: string; data: CoachFormData }) => coachesApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
       setShowCoachModal(false);
@@ -148,7 +148,7 @@ export default function ChatTab() {
   });
 
   const deleteCoach = useMutation({
-    mutationFn: (id: string) => apiService.deleteCoach(id),
+    mutationFn: (id: string) => coachesApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
       setCoachDeleteConfirmation(null);

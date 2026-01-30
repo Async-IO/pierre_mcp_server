@@ -18,7 +18,7 @@ import { Feather } from '@expo/vector-icons';
 import { colors, spacing, borderRadius } from '../../constants/theme';
 import { Input } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext';
-import { apiService } from '../../services/api';
+import { userApi, oauthApi } from '../../services/api';
 import type { McpToken, ProviderStatus } from '../../types';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { SettingsStackParamList } from '../../navigation/MainTabs';
@@ -69,7 +69,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
 
   const loadTokens = async () => {
     try {
-      const response = await apiService.getMcpTokens();
+      const response = await userApi.getMcpTokens();
       const tokenList = response.tokens || [];
       const seen = new Set<string>();
       const deduplicated = tokenList.filter((t: { id: string; is_revoked: boolean }) => {
@@ -86,7 +86,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
 
   const loadProviderStatus = async () => {
     try {
-      const response = await apiService.getOAuthStatus();
+      const response = await oauthApi.getStatus();
       setConnectedProviders(response.providers || []);
     } catch (error) {
       console.error('Failed to load provider status:', error);
@@ -101,7 +101,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
 
     try {
       setIsCreatingToken(true);
-      const token = await apiService.createMcpToken({
+      const token = await userApi.createMcpToken({
         name: newTokenName.trim(),
         expires_in_days: 365,
       });
@@ -133,7 +133,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
 
     try {
       setIsChangingPassword(true);
-      await apiService.changePassword(currentPassword, newPassword);
+      await userApi.changePassword(currentPassword, newPassword);
       Alert.alert('Success', 'Password changed successfully');
       setShowChangePassword(false);
       setCurrentPassword('');

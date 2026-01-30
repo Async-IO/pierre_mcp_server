@@ -10,10 +10,10 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import CoachLibraryTab from '../CoachLibraryTab';
 
-// Mock the api service
+// Mock the coaches API
 vi.mock('../../services/api', () => ({
-  apiService: {
-    getCoaches: vi.fn().mockResolvedValue({
+  coachesApi: {
+    list: vi.fn().mockResolvedValue({
       coaches: [
         {
           id: 'coach-1',
@@ -48,23 +48,23 @@ vi.mock('../../services/api', () => ({
       ],
       total: 2,
     }),
-    getHiddenCoaches: vi.fn().mockResolvedValue({
+    getHidden: vi.fn().mockResolvedValue({
       coaches: [],
     }),
-    createCoach: vi.fn().mockResolvedValue({
+    create: vi.fn().mockResolvedValue({
       id: 'coach-new',
       title: 'New Coach',
       token_count: 50,
     }),
-    updateCoach: vi.fn().mockResolvedValue({
+    update: vi.fn().mockResolvedValue({
       id: 'coach-1',
       title: 'Updated Coach',
     }),
-    deleteCoach: vi.fn().mockResolvedValue(undefined),
-    toggleCoachFavorite: vi.fn().mockResolvedValue({ is_favorite: true }),
-    hideCoach: vi.fn().mockResolvedValue({ success: true, is_hidden: true }),
-    showCoach: vi.fn().mockResolvedValue({ success: true, is_hidden: false }),
-    forkCoach: vi.fn().mockResolvedValue({
+    delete: vi.fn().mockResolvedValue(undefined),
+    toggleFavorite: vi.fn().mockResolvedValue({ is_favorite: true }),
+    hide: vi.fn().mockResolvedValue({ success: true, is_hidden: true }),
+    show: vi.fn().mockResolvedValue({ success: true, is_hidden: false }),
+    fork: vi.fn().mockResolvedValue({
       coach: {
         id: 'coach-forked',
         title: 'Forked Coach',

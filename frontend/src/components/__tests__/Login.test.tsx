@@ -7,18 +7,23 @@ import userEvent from '@testing-library/user-event'
 import Login from '../Login'
 import { AuthProvider } from '../../contexts/AuthContext'
 
-// Mock the API service
+// Mock the API service - AuthContext uses authApi, apiClient, adminApi
 vi.mock('../../services/api', () => ({
-  apiService: {
+  authApi: {
     login: vi.fn(),
     logout: vi.fn().mockResolvedValue(undefined),
+  },
+  adminApi: {
+    getSetupStatus: vi.fn().mockResolvedValue({ needs_setup: false, admin_exists: true }),
+    endImpersonation: vi.fn(),
+  },
+  apiClient: {
     getCsrfToken: vi.fn(),
     setCsrfToken: vi.fn(),
     clearCsrfToken: vi.fn(),
     getUser: vi.fn(),
     setUser: vi.fn(),
     clearUser: vi.fn(),
-    getSetupStatus: vi.fn().mockResolvedValue({ needs_setup: false, admin_exists: true }),
   }
 }))
 
@@ -82,10 +87,10 @@ describe('Login Component', () => {
 
   it('should show loading state during login', async () => {
     const user = userEvent.setup()
-    const { apiService } = await import('../../services/api')
+    const { authApi } = await import('../../services/api')
     
     // Make login hang to test loading state
-    vi.mocked(apiService.login).mockImplementation(() => new Promise(() => {}))
+    vi.mocked(authApi.login).mockImplementation(() => new Promise(() => {}))
     
     await renderLogin()
 
@@ -103,7 +108,7 @@ describe('Login Component', () => {
 
   it('should display error message on login failure', async () => {
     const user = userEvent.setup()
-    const { apiService } = await import('../../services/api')
+    const { authApi } = await import('../../services/api')
     
     const mockError = {
       response: {
@@ -113,7 +118,7 @@ describe('Login Component', () => {
       }
     }
     
-    vi.mocked(apiService.login).mockRejectedValue(mockError)
+    vi.mocked(authApi.login).mockRejectedValue(mockError)
     
     await renderLogin()
 
@@ -137,9 +142,9 @@ describe('Login Component', () => {
 
   it('should handle generic error when no specific error message', async () => {
     const user = userEvent.setup()
-    const { apiService } = await import('../../services/api')
+    const { authApi } = await import('../../services/api')
     
-    vi.mocked(apiService.login).mockRejectedValue(new Error('Network error'))
+    vi.mocked(authApi.login).mockRejectedValue(new Error('Network error'))
     
     await renderLogin()
 

@@ -16,7 +16,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
 import { colors, spacing } from '../../constants/theme';
-import { apiService } from '../../services/api';
+import { socialApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { FriendCard } from '../../components/social/FriendCard';
 import type { FriendWithInfo } from '../../types';
@@ -46,8 +46,8 @@ export function FriendsScreen() {
       }
 
       const [friendsResponse, pendingResponse] = await Promise.all([
-        apiService.listFriends(),
-        apiService.getPendingRequests(),
+        socialApi.listFriends(),
+        socialApi.getPendingRequests(),
       ]);
 
       setFriends(friendsResponse.friends);
@@ -84,7 +84,7 @@ export function FriendsScreen() {
   const handleRemoveFriend = async (friend: FriendWithInfo) => {
     try {
       setRemovingIds(prev => new Set(prev).add(friend.id));
-      await apiService.removeFriend(friend.id);
+      await socialApi.removeFriend(friend.id);
       setFriends(prev => prev.filter(f => f.id !== friend.id));
       setFilteredFriends(prev => prev.filter(f => f.id !== friend.id));
     } catch (error) {

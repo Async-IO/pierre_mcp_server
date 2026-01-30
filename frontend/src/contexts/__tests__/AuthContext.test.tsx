@@ -6,13 +6,18 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AuthProvider } from '../AuthContext'
 import { useAuth } from '../../hooks/useAuth'
-import { apiService } from '../../services/api'
+import { authApi, apiClient } from '../../services/api'
 
 // Mock the API service
 vi.mock('../../services/api', () => ({
-  apiService: {
+  authApi: {
     login: vi.fn(),
     logout: vi.fn().mockResolvedValue(undefined),
+  },
+  adminApi: {
+    endImpersonation: vi.fn(),
+  },
+  apiClient: {
     getCsrfToken: vi.fn(),
     setCsrfToken: vi.fn(),
     clearCsrfToken: vi.fn(),
@@ -84,7 +89,7 @@ describe('AuthContext', () => {
       expires_at: new Date(Date.now() + 86400000).toISOString()
     }
 
-    vi.mocked(apiService.login).mockResolvedValue(mockLoginResponse)
+    vi.mocked(authApi.login).mockResolvedValue(mockLoginResponse)
 
     renderWithAuth()
 
@@ -100,8 +105,8 @@ describe('AuthContext', () => {
     })
 
     expect(screen.getByTestId('user-email')).toHaveTextContent('test@example.com')
-    expect(apiService.login).toHaveBeenCalledWith({ email: 'test@example.com', password: 'password' })
-    expect(apiService.setCsrfToken).toHaveBeenCalledWith('csrf-test-token')
+    expect(authApi.login).toHaveBeenCalledWith({ email: 'test@example.com', password: 'password' })
+    expect(apiClient.setCsrfToken).toHaveBeenCalledWith('csrf-test-token')
   })
 
   it('should handle login failure gracefully', () => {
@@ -134,9 +139,9 @@ describe('AuthContext', () => {
       expect(screen.getByTestId('authenticated')).toHaveTextContent('Not Authenticated')
     })
 
-    expect(apiService.clearCsrfToken).toHaveBeenCalled()
-    expect(apiService.clearUser).toHaveBeenCalled()
-    expect(apiService.logout).toHaveBeenCalled()
+    expect(apiClient.clearCsrfToken).toHaveBeenCalled()
+    expect(apiClient.clearUser).toHaveBeenCalled()
+    expect(authApi.logout).toHaveBeenCalled()
     expect(screen.queryByTestId('user-email')).not.toBeInTheDocument()
   })
 
@@ -144,7 +149,7 @@ describe('AuthContext', () => {
     const user = userEvent.setup()
 
     // Make login hang to test loading state
-    vi.mocked(apiService.login).mockImplementation(() => new Promise(() => {}))
+    vi.mocked(authApi.login).mockImplementation(() => new Promise(() => {}))
 
     renderWithAuth()
 

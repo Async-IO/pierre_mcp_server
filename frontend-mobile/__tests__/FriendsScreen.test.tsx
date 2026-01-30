@@ -37,7 +37,7 @@ const mockGetPendingRequests = jest.fn();
 const mockRemoveFriend = jest.fn();
 
 jest.mock('../src/services/api', () => ({
-  apiService: {
+  socialApi: {
     listFriends: (...args: unknown[]) => mockListFriends(...args),
     getPendingRequests: (...args: unknown[]) => mockGetPendingRequests(...args),
     removeFriend: (...args: unknown[]) => mockRemoveFriend(...args),

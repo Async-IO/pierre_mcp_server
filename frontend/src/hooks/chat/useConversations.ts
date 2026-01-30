@@ -6,7 +6,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiService } from '../../services/api';
+import { chatApi } from '../../services/api';
 import { QUERY_KEYS } from '../../constants/queryKeys';
 import type { Conversation } from '@pierre/shared-types';
 
@@ -42,7 +42,7 @@ export function useConversations(options: UseConversationsOptions = {}) {
     isLoading: conversationsLoading,
   } = useQuery<ConversationListResponse>({
     queryKey: QUERY_KEYS.chat.conversations(),
-    queryFn: () => apiService.getConversations(),
+    queryFn: () => chatApi.getConversations(),
   });
 
   // Fetch messages for selected conversation
@@ -51,7 +51,7 @@ export function useConversations(options: UseConversationsOptions = {}) {
     isLoading: messagesLoading,
   } = useQuery<{ messages: Message[] }>({
     queryKey: QUERY_KEYS.chat.messages(selectedConversation),
-    queryFn: () => apiService.getConversationMessages(selectedConversation!),
+    queryFn: () => chatApi.getConversationMessages(selectedConversation!),
     enabled: !!selectedConversation,
   });
 
@@ -60,7 +60,7 @@ export function useConversations(options: UseConversationsOptions = {}) {
     mutationFn: (systemPrompt) => {
       const now = new Date();
       const defaultTitle = `Chat ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
-      return apiService.createConversation({
+      return chatApi.createConversation({
         title: defaultTitle,
         system_prompt: systemPrompt || pendingSystemPrompt || undefined,
       });
@@ -76,7 +76,7 @@ export function useConversations(options: UseConversationsOptions = {}) {
   // Update conversation mutation for renaming
   const updateConversation = useMutation({
     mutationFn: ({ id, title }: { id: string; title: string }) =>
-      apiService.updateConversation(id, { title }),
+      chatApi.updateConversation(id, { title }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.chat.conversations() });
       setEditingTitle(null);
@@ -86,7 +86,7 @@ export function useConversations(options: UseConversationsOptions = {}) {
 
   // Delete conversation mutation
   const deleteConversation = useMutation({
-    mutationFn: (id: string) => apiService.deleteConversation(id),
+    mutationFn: (id: string) => chatApi.deleteConversation(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.chat.conversations() });
       if (selectedConversation) {

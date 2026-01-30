@@ -5,11 +5,11 @@ import React from 'react';
 import { render, waitFor, act, fireEvent } from '@testing-library/react-native';
 import { Text, TouchableOpacity } from 'react-native';
 import { AuthProvider, useAuth } from '../src/contexts/AuthContext';
-import { apiService, onAuthFailure } from '../src/services/api';
+import { authApi, onAuthFailure } from '../src/services/api';
 
 // Mock the api service
 jest.mock('../src/services/api', () => ({
-  apiService: {
+  authApi: {
     initializeAuth: jest.fn(),
     getStoredUser: jest.fn(),
     login: jest.fn(),
@@ -70,7 +70,7 @@ describe('AuthContext', () => {
 
   describe('AuthProvider initialization', () => {
     it('should start in loading state', async () => {
-      (apiService.initializeAuth as jest.Mock).mockImplementation(
+      (authApi.initializeAuth as jest.Mock).mockImplementation(
         () => new Promise(() => {}) // Never resolves - simulates loading
       );
 
@@ -92,8 +92,8 @@ describe('AuthContext', () => {
         user_status: 'active',
       };
 
-      (apiService.initializeAuth as jest.Mock).mockResolvedValue(true);
-      (apiService.getStoredUser as jest.Mock).mockResolvedValue(mockUser);
+      (authApi.initializeAuth as jest.Mock).mockResolvedValue(true);
+      (authApi.getStoredUser as jest.Mock).mockResolvedValue(mockUser);
 
       const { getByTestId } = render(
         <AuthProvider>
@@ -110,7 +110,7 @@ describe('AuthContext', () => {
     });
 
     it('should initialize as unauthenticated if no token', async () => {
-      (apiService.initializeAuth as jest.Mock).mockResolvedValue(false);
+      (authApi.initializeAuth as jest.Mock).mockResolvedValue(false);
 
       const { getByTestId } = render(
         <AuthProvider>
@@ -127,7 +127,7 @@ describe('AuthContext', () => {
     });
 
     it('should handle initialization error gracefully', async () => {
-      (apiService.initializeAuth as jest.Mock).mockRejectedValue(new Error('Init failed'));
+      (authApi.initializeAuth as jest.Mock).mockRejectedValue(new Error('Init failed'));
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
       const { getByTestId } = render(
@@ -161,9 +161,9 @@ describe('AuthContext', () => {
         user: mockUser,
       };
 
-      (apiService.initializeAuth as jest.Mock).mockResolvedValue(false);
-      (apiService.login as jest.Mock).mockResolvedValue(mockLoginResponse);
-      (apiService.storeAuth as jest.Mock).mockResolvedValue(undefined);
+      (authApi.initializeAuth as jest.Mock).mockResolvedValue(false);
+      (authApi.login as jest.Mock).mockResolvedValue(mockLoginResponse);
+      (authApi.storeAuth as jest.Mock).mockResolvedValue(undefined);
 
       const { getByTestId } = render(
         <AuthProvider>
@@ -187,8 +187,8 @@ describe('AuthContext', () => {
         expect(getByTestId('authenticated').children[0]).toBe('authenticated');
       });
 
-      expect(apiService.login).toHaveBeenCalledWith('test@example.com', 'password123');
-      expect(apiService.storeAuth).toHaveBeenCalledWith('jwt-token', 'csrf-token', mockUser);
+      expect(authApi.login).toHaveBeenCalledWith('test@example.com', 'password123');
+      expect(authApi.storeAuth).toHaveBeenCalledWith('jwt-token', 'csrf-token', mockUser);
     });
   });
 
@@ -202,9 +202,9 @@ describe('AuthContext', () => {
         user_status: 'active',
       };
 
-      (apiService.initializeAuth as jest.Mock).mockResolvedValue(true);
-      (apiService.getStoredUser as jest.Mock).mockResolvedValue(mockUser);
-      (apiService.logout as jest.Mock).mockResolvedValue(undefined);
+      (authApi.initializeAuth as jest.Mock).mockResolvedValue(true);
+      (authApi.getStoredUser as jest.Mock).mockResolvedValue(mockUser);
+      (authApi.logout as jest.Mock).mockResolvedValue(undefined);
 
       const { getByTestId } = render(
         <AuthProvider>
@@ -225,14 +225,14 @@ describe('AuthContext', () => {
         expect(getByTestId('authenticated').children[0]).toBe('not-authenticated');
       });
 
-      expect(apiService.logout).toHaveBeenCalled();
+      expect(authApi.logout).toHaveBeenCalled();
     });
   });
 
   describe('register', () => {
     it('should call register API', async () => {
-      (apiService.initializeAuth as jest.Mock).mockResolvedValue(false);
-      (apiService.register as jest.Mock).mockResolvedValue({ success: true });
+      (authApi.initializeAuth as jest.Mock).mockResolvedValue(false);
+      (authApi.register as jest.Mock).mockResolvedValue({ success: true });
 
       const { getByTestId } = render(
         <AuthProvider>
@@ -249,7 +249,7 @@ describe('AuthContext', () => {
         fireEvent.press(getByTestId('register-btn'));
       });
 
-      expect(apiService.register).toHaveBeenCalledWith(
+      expect(authApi.register).toHaveBeenCalledWith(
         'new@example.com',
         'password123',
         'New User'
@@ -267,8 +267,8 @@ describe('AuthContext', () => {
         user_status: 'pending', // Not active
       };
 
-      (apiService.initializeAuth as jest.Mock).mockResolvedValue(true);
-      (apiService.getStoredUser as jest.Mock).mockResolvedValue(mockPendingUser);
+      (authApi.initializeAuth as jest.Mock).mockResolvedValue(true);
+      (authApi.getStoredUser as jest.Mock).mockResolvedValue(mockPendingUser);
 
       const { getByTestId } = render(
         <AuthProvider>
@@ -294,8 +294,8 @@ describe('AuthContext', () => {
         user_status: 'active',
       };
 
-      (apiService.initializeAuth as jest.Mock).mockResolvedValue(true);
-      (apiService.getStoredUser as jest.Mock).mockResolvedValue(mockActiveUser);
+      (authApi.initializeAuth as jest.Mock).mockResolvedValue(true);
+      (authApi.getStoredUser as jest.Mock).mockResolvedValue(mockActiveUser);
 
       const { getByTestId } = render(
         <AuthProvider>
@@ -313,7 +313,7 @@ describe('AuthContext', () => {
 
   describe('onAuthFailure listener', () => {
     it('should register auth failure listener on mount', async () => {
-      (apiService.initializeAuth as jest.Mock).mockResolvedValue(false);
+      (authApi.initializeAuth as jest.Mock).mockResolvedValue(false);
 
       render(
         <AuthProvider>

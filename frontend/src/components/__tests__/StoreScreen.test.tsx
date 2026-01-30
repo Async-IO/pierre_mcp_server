@@ -10,10 +10,10 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import StoreScreen from '../StoreScreen';
 
-// Mock the API service - define mock data inline to avoid hoisting issues
+// Mock the store API - define mock data inline to avoid hoisting issues
 vi.mock('../../services/api', () => ({
-  apiService: {
-    browseStoreCoaches: vi.fn().mockResolvedValue({
+  storeApi: {
+    browse: vi.fn().mockResolvedValue({
       coaches: [
         {
           id: 'coach-1',
@@ -58,7 +58,7 @@ vi.mock('../../services/api', () => ({
       total: 3,
       metadata: { timestamp: new Date().toISOString(), api_version: '1.0' },
     }),
-    searchStoreCoaches: vi.fn().mockResolvedValue({
+    search: vi.fn().mockResolvedValue({
       coaches: [
         {
           id: 'coach-1',
@@ -77,7 +77,7 @@ vi.mock('../../services/api', () => ({
       query: 'marathon',
       metadata: { timestamp: new Date().toISOString(), api_version: '1.0' },
     }),
-    getStoreCoach: vi.fn().mockResolvedValue({
+    get: vi.fn().mockResolvedValue({
       id: 'coach-1',
       title: 'Marathon Training Coach',
       description: 'A comprehensive marathon training program',
@@ -93,14 +93,14 @@ vi.mock('../../services/api', () => ({
       author_id: 'author-123',
       publish_status: 'published',
     }),
-    getStoreInstallations: vi.fn().mockResolvedValue({
+    getInstallations: vi.fn().mockResolvedValue({
       coaches: [],
       metadata: { timestamp: new Date().toISOString(), api_version: '1.0' },
     }),
   },
 }));
 
-import { apiService } from '../../services/api';
+import { storeApi } from '../../services/api';
 
 const mockOnNavigateToCoaches = vi.fn();
 
@@ -196,7 +196,7 @@ describe('StoreScreen', () => {
       renderStoreScreen();
 
       await waitFor(() => {
-        expect(apiService.browseStoreCoaches).toHaveBeenCalledWith(
+        expect(storeApi.browse).toHaveBeenCalledWith(
           expect.objectContaining({
             sort_by: 'popular',
           })
@@ -215,7 +215,7 @@ describe('StoreScreen', () => {
       await user.click(screen.getByRole('button', { name: 'Training' }));
 
       await waitFor(() => {
-        expect(apiService.browseStoreCoaches).toHaveBeenCalledWith(
+        expect(storeApi.browse).toHaveBeenCalledWith(
           expect.objectContaining({
             category: 'training',
           })
@@ -234,7 +234,7 @@ describe('StoreScreen', () => {
       await user.click(screen.getByRole('button', { name: 'Newest' }));
 
       await waitFor(() => {
-        expect(apiService.browseStoreCoaches).toHaveBeenCalledWith(
+        expect(storeApi.browse).toHaveBeenCalledWith(
           expect.objectContaining({
             sort_by: 'newest',
           })
@@ -253,7 +253,7 @@ describe('StoreScreen', () => {
 
       await waitFor(
         () => {
-          expect(apiService.searchStoreCoaches).toHaveBeenCalledWith('marathon', 50);
+          expect(storeApi.search).toHaveBeenCalledWith('marathon', 50);
         },
         { timeout: 1000 }
       );
@@ -304,7 +304,7 @@ describe('StoreScreen', () => {
 
   describe('empty state', () => {
     it('should show empty state when no coaches', async () => {
-      vi.mocked(apiService.browseStoreCoaches).mockResolvedValueOnce({
+      vi.mocked(storeApi.browse).mockResolvedValueOnce({
         coaches: [],
         total: 0,
         metadata: { timestamp: new Date().toISOString(), api_version: '1.0' },
@@ -318,7 +318,7 @@ describe('StoreScreen', () => {
     });
 
     it('should show search empty state when no search results', async () => {
-      vi.mocked(apiService.searchStoreCoaches).mockResolvedValueOnce({
+      vi.mocked(storeApi.search).mockResolvedValueOnce({
         coaches: [],
         query: 'nonexistent',
         metadata: { timestamp: new Date().toISOString(), api_version: '1.0' },

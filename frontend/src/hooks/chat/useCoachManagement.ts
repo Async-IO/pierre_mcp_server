@@ -6,7 +6,7 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiService } from '../../services/api';
+import { coachesApi } from '../../services/api';
 import { QUERY_KEYS } from '../../constants/queryKeys';
 
 interface Coach {
@@ -54,7 +54,7 @@ export function useCoachManagement(enabled: boolean = true) {
   // Fetch coaches
   const { data: coachesData, isLoading: coachesLoading } = useQuery({
     queryKey: QUERY_KEYS.coaches.list(),
-    queryFn: () => apiService.getCoaches(),
+    queryFn: () => coachesApi.list(),
     staleTime: 5 * 60 * 1000,
     enabled: enabled && showMyCoachesPanel,
   });
@@ -62,7 +62,7 @@ export function useCoachManagement(enabled: boolean = true) {
   // Fetch hidden coaches
   const { data: hiddenCoachesData } = useQuery({
     queryKey: QUERY_KEYS.coaches.hidden(),
-    queryFn: () => apiService.getHiddenCoaches(),
+    queryFn: () => coachesApi.getHidden(),
     staleTime: 5 * 60 * 1000,
     enabled: enabled && showMyCoachesPanel,
   });
@@ -89,7 +89,7 @@ export function useCoachManagement(enabled: boolean = true) {
 
   // Create coach mutation
   const createCoach = useMutation({
-    mutationFn: (data: CoachFormData) => apiService.createCoach(data),
+    mutationFn: (data: CoachFormData) => coachesApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.list() });
       setShowCoachModal(false);
@@ -100,7 +100,7 @@ export function useCoachManagement(enabled: boolean = true) {
   // Update coach mutation
   const updateCoach = useMutation({
     mutationFn: ({ id, data }: { id: string; data: CoachFormData }) =>
-      apiService.updateCoach(id, data),
+      coachesApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.list() });
       setShowCoachModal(false);
@@ -111,7 +111,7 @@ export function useCoachManagement(enabled: boolean = true) {
 
   // Delete coach mutation
   const deleteCoach = useMutation({
-    mutationFn: (id: string) => apiService.deleteCoach(id),
+    mutationFn: (id: string) => coachesApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.list() });
       setDeleteConfirmation(null);
@@ -120,7 +120,7 @@ export function useCoachManagement(enabled: boolean = true) {
 
   // Hide coach mutation
   const hideCoach = useMutation({
-    mutationFn: (coachId: string) => apiService.hideCoach(coachId),
+    mutationFn: (coachId: string) => coachesApi.hide(coachId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.list() });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.hidden() });
@@ -129,7 +129,7 @@ export function useCoachManagement(enabled: boolean = true) {
 
   // Show coach mutation
   const showCoach = useMutation({
-    mutationFn: (coachId: string) => apiService.showCoach(coachId),
+    mutationFn: (coachId: string) => coachesApi.show(coachId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.list() });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.hidden() });

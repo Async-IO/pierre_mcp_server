@@ -9,7 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { Button, Card, CardHeader, Badge, ConfirmDialog } from './ui';
 import { useAuth } from '../hooks/useAuth';
-import { apiService } from '../services/api';
+import { userApi } from '../services/api';
 import A2AClientList from './A2AClientList';
 import CreateA2AClient from './CreateA2AClient';
 
@@ -41,13 +41,13 @@ export default function MCPTokensTab() {
 
   const { data: tokensResponse, isLoading, error } = useQuery({
     queryKey: ['mcp-tokens'],
-    queryFn: () => apiService.getMcpTokens(),
+    queryFn: () => userApi.getMcpTokens(),
     enabled: isAuthenticated,
   });
 
   const createTokenMutation = useMutation({
     mutationFn: (data: { name: string; expires_in_days?: number }) =>
-      apiService.createMcpToken(data),
+      userApi.createMcpToken(data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['mcp-tokens'] });
       setCreatedToken({ token_value: data.token_value ?? '', name: data.name });
@@ -58,7 +58,7 @@ export default function MCPTokensTab() {
   });
 
   const revokeTokenMutation = useMutation({
-    mutationFn: (tokenId: string) => apiService.revokeMcpToken(tokenId),
+    mutationFn: (tokenId: string) => userApi.revokeMcpToken(tokenId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['mcp-tokens'] });
       setTokenToRevoke(null);

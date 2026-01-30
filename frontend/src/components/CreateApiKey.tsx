@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { adminApi } from '../services/api';
 import type { AdminPermission, CreateAdminTokenResponse } from '../types/api';
 
 interface CreateApiKeyProps {
@@ -56,7 +56,7 @@ export default function CreateApiKey({ onBack, onTokenCreated }: CreateApiKeyPro
       permissions?: string[];
       is_super_admin?: boolean;
       expires_in_days?: number;
-    }) => apiService.createAdminToken(data),
+    }) => adminApi.createAdminToken(data),
     onSuccess: (response) => {
       onTokenCreated(response);
     },

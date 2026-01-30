@@ -18,7 +18,7 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
 import { colors } from '../../constants/theme';
-import { apiService } from '../../services/api';
+import { socialApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { SuggestionCard } from '../../components/social';
 import type { InsightSuggestion, ShareVisibility } from '../../types';
@@ -55,7 +55,7 @@ export function ShareInsightScreen() {
   const fetchSuggestions = useCallback(async () => {
     try {
       setError(null);
-      const response = await apiService.getInsightSuggestions({
+      const response = await socialApi.getInsightSuggestions({
         limit: 10,
         activity_id: activityId,
       });
@@ -104,7 +104,7 @@ export function ShareInsightScreen() {
     try {
       setFlowState('submitting');
 
-      await apiService.shareFromActivity({
+      await socialApi.shareFromActivity({
         activity_id: selectedSuggestion.source_activity_id,
         insight_type: selectedSuggestion.insight_type,
         content: editedContent.trim(),

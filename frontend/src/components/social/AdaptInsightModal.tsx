@@ -5,7 +5,7 @@
 // ABOUTME: Shows the adapted personalized content from Pierre AI coach
 
 import { useState, useEffect } from 'react';
-import { apiService } from '../../services/api';
+import { socialApi } from '../../services/api';
 import { Button, Modal } from '../ui';
 
 interface AdaptedInsight {
@@ -51,7 +51,7 @@ export default function AdaptInsightModal({ insightId, onClose, onSuccess }: Ada
         setIsLoading(true);
         setError(null);
 
-        const response = await apiService.adaptInsight(insightId);
+        const response = await socialApi.adaptInsight(insightId);
         setAdaptedContent(response.adapted);
         setSourceInsight(response.source_insight);
       } catch (err) {

@@ -5,11 +5,11 @@ import React from 'react';
 import { render, waitFor, act, fireEvent } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 import { OAuthCredentialsSection } from '../src/components/OAuthCredentialsSection';
-import { apiService } from '../src/services/api';
+import { userApi } from '../src/services/api';
 
 // Mock the api service
 jest.mock('../src/services/api', () => ({
-  apiService: {
+  userApi: {
     getUserOAuthApps: jest.fn(),
     registerUserOAuthApp: jest.fn(),
     deleteUserOAuthApp: jest.fn(),
@@ -26,7 +26,7 @@ describe('OAuthCredentialsSection', () => {
 
   describe('initial render', () => {
     it('should show loading state initially', async () => {
-      (apiService.getUserOAuthApps as jest.Mock).mockImplementation(
+      (userApi.getUserOAuthApps as jest.Mock).mockImplementation(
         () => new Promise(() => {}) // Never resolves - simulates loading
       );
 
@@ -34,11 +34,11 @@ describe('OAuthCredentialsSection', () => {
 
       // Component shows ActivityIndicator during loading
       // We can verify the API was called
-      expect(apiService.getUserOAuthApps).toHaveBeenCalled();
+      expect(userApi.getUserOAuthApps).toHaveBeenCalled();
     });
 
     it('should show empty state when no OAuth apps configured', async () => {
-      (apiService.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: [] });
+      (userApi.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: [] });
 
       const { getByText } = render(<OAuthCredentialsSection />);
 
@@ -56,7 +56,7 @@ describe('OAuthCredentialsSection', () => {
           created_at: '2024-01-01T00:00:00Z',
         },
       ];
-      (apiService.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: mockApps });
+      (userApi.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: mockApps });
 
       const { getByText } = render(<OAuthCredentialsSection />);
 
@@ -76,7 +76,7 @@ describe('OAuthCredentialsSection', () => {
           created_at: '2024-01-01T00:00:00Z',
         },
       ];
-      (apiService.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: mockApps });
+      (userApi.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: mockApps });
 
       const { getByText } = render(<OAuthCredentialsSection />);
 
@@ -100,7 +100,7 @@ describe('OAuthCredentialsSection', () => {
           created_at: '2024-01-02T00:00:00Z',
         },
       ];
-      (apiService.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: mockApps });
+      (userApi.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: mockApps });
 
       const { getByText, getAllByText } = render(<OAuthCredentialsSection />);
 
@@ -114,7 +114,7 @@ describe('OAuthCredentialsSection', () => {
 
   describe('add button visibility', () => {
     it('should show add button when providers are available', async () => {
-      (apiService.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: [] });
+      (userApi.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: [] });
 
       const { getByText } = render(<OAuthCredentialsSection />);
 
@@ -131,7 +131,7 @@ describe('OAuthCredentialsSection', () => {
         { provider: 'whoop', client_id: '4', redirect_uri: '', created_at: '' },
         { provider: 'terra', client_id: '5', redirect_uri: '', created_at: '' },
       ];
-      (apiService.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: allProviders });
+      (userApi.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: allProviders });
 
       const { queryByText } = render(<OAuthCredentialsSection />);
 
@@ -143,7 +143,7 @@ describe('OAuthCredentialsSection', () => {
 
   describe('add modal', () => {
     it('should open add modal when add button is pressed', async () => {
-      (apiService.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: [] });
+      (userApi.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: [] });
 
       const { getByText } = render(<OAuthCredentialsSection />);
 
@@ -160,7 +160,7 @@ describe('OAuthCredentialsSection', () => {
     });
 
     it('should close modal when cancel is pressed', async () => {
-      (apiService.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: [] });
+      (userApi.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: [] });
 
       const { getByText, queryByText } = render(<OAuthCredentialsSection />);
 
@@ -182,7 +182,7 @@ describe('OAuthCredentialsSection', () => {
 
   describe('form validation', () => {
     it('should show error when saving without selecting provider', async () => {
-      (apiService.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: [] });
+      (userApi.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: [] });
 
       const { getByText } = render(<OAuthCredentialsSection />);
 
@@ -200,7 +200,7 @@ describe('OAuthCredentialsSection', () => {
     });
 
     it('should show error when saving without client ID', async () => {
-      (apiService.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: [] });
+      (userApi.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: [] });
 
       const { getByText, getByPlaceholderText } = render(<OAuthCredentialsSection />);
 
@@ -225,7 +225,7 @@ describe('OAuthCredentialsSection', () => {
     });
 
     it('should show error when saving without client secret', async () => {
-      (apiService.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: [] });
+      (userApi.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: [] });
 
       const { getByText, getByPlaceholderText } = render(<OAuthCredentialsSection />);
 
@@ -254,8 +254,8 @@ describe('OAuthCredentialsSection', () => {
 
   describe('save credentials', () => {
     it('should save credentials successfully', async () => {
-      (apiService.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: [] });
-      (apiService.registerUserOAuthApp as jest.Mock).mockResolvedValue({
+      (userApi.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: [] });
+      (userApi.registerUserOAuthApp as jest.Mock).mockResolvedValue({
         success: true,
         provider: 'strava',
         message: 'Credentials saved',
@@ -285,7 +285,7 @@ describe('OAuthCredentialsSection', () => {
         fireEvent.press(getByText('Save'));
       });
 
-      expect(apiService.registerUserOAuthApp).toHaveBeenCalledWith({
+      expect(userApi.registerUserOAuthApp).toHaveBeenCalledWith({
         provider: 'strava',
         client_id: 'my-client-id',
         client_secret: 'my-client-secret',
@@ -298,8 +298,8 @@ describe('OAuthCredentialsSection', () => {
     });
 
     it('should handle save error', async () => {
-      (apiService.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: [] });
-      (apiService.registerUserOAuthApp as jest.Mock).mockRejectedValue(
+      (userApi.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: [] });
+      (userApi.registerUserOAuthApp as jest.Mock).mockRejectedValue(
         new Error('Invalid credentials')
       );
 
@@ -343,7 +343,7 @@ describe('OAuthCredentialsSection', () => {
           created_at: '2024-01-01T00:00:00Z',
         },
       ];
-      (apiService.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: mockApps });
+      (userApi.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: mockApps });
 
       const { getByText } = render(<OAuthCredentialsSection />);
 
@@ -369,8 +369,8 @@ describe('OAuthCredentialsSection', () => {
           created_at: '2024-01-01T00:00:00Z',
         },
       ];
-      (apiService.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: mockApps });
-      (apiService.deleteUserOAuthApp as jest.Mock).mockResolvedValue(undefined);
+      (userApi.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: mockApps });
+      (userApi.deleteUserOAuthApp as jest.Mock).mockResolvedValue(undefined);
 
       // Capture the Alert.alert mock to simulate pressing "Remove"
       let deleteCallback: (() => void) | undefined;
@@ -396,7 +396,7 @@ describe('OAuthCredentialsSection', () => {
         });
       }
 
-      expect(apiService.deleteUserOAuthApp).toHaveBeenCalledWith('strava');
+      expect(userApi.deleteUserOAuthApp).toHaveBeenCalledWith('strava');
     });
 
     it('should not delete when cancel is pressed', async () => {
@@ -408,7 +408,7 @@ describe('OAuthCredentialsSection', () => {
           created_at: '2024-01-01T00:00:00Z',
         },
       ];
-      (apiService.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: mockApps });
+      (userApi.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: mockApps });
 
       // Capture the Alert.alert mock to verify Cancel doesn't call delete
       (Alert.alert as jest.Mock).mockImplementation((title, message, buttons) => {
@@ -423,7 +423,7 @@ describe('OAuthCredentialsSection', () => {
 
       fireEvent.press(getByText('Remove'));
 
-      expect(apiService.deleteUserOAuthApp).not.toHaveBeenCalled();
+      expect(userApi.deleteUserOAuthApp).not.toHaveBeenCalled();
     });
   });
 
@@ -437,7 +437,7 @@ describe('OAuthCredentialsSection', () => {
           created_at: '',
         },
       ];
-      (apiService.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: mockApps });
+      (userApi.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: mockApps });
 
       const { getByText, queryByText } = render(<OAuthCredentialsSection />);
 
@@ -461,7 +461,7 @@ describe('OAuthCredentialsSection', () => {
     });
 
     it('should update redirect URI when provider is selected', async () => {
-      (apiService.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: [] });
+      (userApi.getUserOAuthApps as jest.Mock).mockResolvedValue({ apps: [] });
 
       const { getByText } = render(<OAuthCredentialsSection />);
 
@@ -489,7 +489,7 @@ describe('OAuthCredentialsSection', () => {
   describe('error handling', () => {
     it('should handle API error when loading OAuth apps', async () => {
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-      (apiService.getUserOAuthApps as jest.Mock).mockRejectedValue(new Error('Network error'));
+      (userApi.getUserOAuthApps as jest.Mock).mockRejectedValue(new Error('Network error'));
 
       const { getByText } = render(<OAuthCredentialsSection />);
 

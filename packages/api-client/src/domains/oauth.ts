@@ -83,12 +83,19 @@ export function createOAuthApi(axios: AxiosInstance, getBaseUrl: () => string) {
     },
 
     /**
+<<<<<<< HEAD
      * Get all providers (OAuth and non-OAuth) with connection status.
      * Includes synthetic providers and other non-OAuth data sources.
      */
     async getProvidersStatus(): Promise<ProvidersStatusResponse> {
       const response = await axios.get<ProvidersStatusResponse>(ENDPOINTS.PROVIDERS.STATUS);
       return response.data;
+=======
+     * Disconnect a provider (revoke OAuth tokens).
+     */
+    async disconnectProvider(provider: string): Promise<void> {
+      await axios.delete(ENDPOINTS.OAUTH.DISCONNECT(provider));
+>>>>>>> origin/claude/remove-legacy-api-WaGCu
     },
 
     // Aliases for backward compatibility

@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { a2aApi } from '../services/api';
 import type { A2AClientRegistrationRequest, A2AClientCredentials } from '../types/api';
 import { Button, Card } from './ui';
 
@@ -64,7 +64,7 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
   const queryClient = useQueryClient();
 
   const createMutation = useMutation({
-    mutationFn: (data: A2AClientRegistrationRequest) => apiService.registerA2AClient(data),
+    mutationFn: (data: A2AClientRegistrationRequest) => a2aApi.registerA2AClient(data),
     onSuccess: (response: A2AClientCredentials) => {
       setCredentials(response);
       setShowCredentials(true);

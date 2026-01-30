@@ -6,7 +6,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { adminApi } from '../services/api';
 import { Card, Badge, Input, Button, Modal } from './ui';
 import { useAuth } from '../hooks/useAuth';
 
@@ -62,7 +62,7 @@ export default function ToolAvailability({ tenantId }: ToolAvailabilityProps) {
   // Fetch global disabled tools
   const { data: globalDisabled } = useQuery({
     queryKey: ['global-disabled-tools'],
-    queryFn: () => apiService.getGlobalDisabledTools(),
+    queryFn: () => adminApi.getGlobalDisabledTools(),
     retry: 1,
   });
 
@@ -73,7 +73,7 @@ export default function ToolAvailability({ tenantId }: ToolAvailabilityProps) {
     error,
   } = useQuery({
     queryKey: ['tenant-tools', effectiveTenantId],
-    queryFn: () => apiService.getTenantTools(effectiveTenantId),
+    queryFn: () => adminApi.getTenantTools(effectiveTenantId),
     retry: 1,
     enabled: !!effectiveTenantId,
   });
@@ -81,7 +81,7 @@ export default function ToolAvailability({ tenantId }: ToolAvailabilityProps) {
   // Fetch availability summary
   const { data: summaryData } = useQuery({
     queryKey: ['tool-availability-summary', effectiveTenantId],
-    queryFn: () => apiService.getToolAvailabilitySummary(effectiveTenantId),
+    queryFn: () => adminApi.getToolAvailabilitySummary(effectiveTenantId),
     retry: 1,
     enabled: !!effectiveTenantId,
   });
@@ -96,7 +96,7 @@ export default function ToolAvailability({ tenantId }: ToolAvailabilityProps) {
       toolName: string;
       isEnabled: boolean;
       reason?: string;
-    }) => apiService.setToolOverride(effectiveTenantId, toolName, isEnabled, reason),
+    }) => adminApi.setToolOverride(effectiveTenantId, toolName, isEnabled, reason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tenant-tools', effectiveTenantId] });
       queryClient.invalidateQueries({ queryKey: ['tool-availability-summary', effectiveTenantId] });
@@ -111,7 +111,7 @@ export default function ToolAvailability({ tenantId }: ToolAvailabilityProps) {
 
   // Remove override mutation
   const removeOverrideMutation = useMutation({
-    mutationFn: (toolName: string) => apiService.removeToolOverride(effectiveTenantId, toolName),
+    mutationFn: (toolName: string) => adminApi.removeToolOverride(effectiveTenantId, toolName),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tenant-tools', effectiveTenantId] });
       queryClient.invalidateQueries({ queryKey: ['tool-availability-summary', effectiveTenantId] });
@@ -202,7 +202,7 @@ export default function ToolAvailability({ tenantId }: ToolAvailabilityProps) {
 
     const toolsArray = Array.from(selectedTools);
     for (const toolName of toolsArray) {
-      await apiService.setToolOverride(
+      await adminApi.setToolOverride(
         effectiveTenantId,
         toolName,
         bulkAction === 'enable',

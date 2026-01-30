@@ -7,7 +7,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { clsx } from 'clsx';
-import { apiService } from '../services/api';
+import { storeApi } from '../services/api';
 import { ConfirmDialog } from './ui';
 
 // Coach category colors (dark theme)
@@ -34,14 +34,14 @@ export default function StoreCoachDetail({ coachId, onBack, onNavigateToLibrary 
   // Fetch coach details
   const { data: coach, isLoading, error } = useQuery({
     queryKey: ['store-coach', coachId],
-    queryFn: () => apiService.getStoreCoach(coachId),
+    queryFn: () => storeApi.get(coachId),
     staleTime: 60_000,
   });
 
   // Check if coach is installed
   const { data: installations } = useQuery({
     queryKey: ['store-installations'],
-    queryFn: () => apiService.getStoreInstallations(),
+    queryFn: () => storeApi.getInstallations(),
     staleTime: 30_000,
   });
 
@@ -49,7 +49,7 @@ export default function StoreCoachDetail({ coachId, onBack, onNavigateToLibrary 
 
   // Install mutation
   const installMutation = useMutation({
-    mutationFn: () => apiService.installStoreCoach(coachId),
+    mutationFn: () => storeApi.install(coachId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['store-installations'] });
       queryClient.invalidateQueries({ queryKey: ['store-coach', coachId] });
@@ -60,7 +60,7 @@ export default function StoreCoachDetail({ coachId, onBack, onNavigateToLibrary 
 
   // Uninstall mutation
   const uninstallMutation = useMutation({
-    mutationFn: () => apiService.uninstallStoreCoach(coachId),
+    mutationFn: () => storeApi.uninstall(coachId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['store-installations'] });
       queryClient.invalidateQueries({ queryKey: ['store-coach', coachId] });

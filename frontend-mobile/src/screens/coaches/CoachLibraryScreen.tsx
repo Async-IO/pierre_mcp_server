@@ -19,7 +19,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
 import { colors, spacing } from '../../constants/theme';
-import { apiService } from '../../services/api';
+import { coachesApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { PromptDialog, ScrollFadeContainer } from '../../components/ui';
 import type { Coach, CoachCategory } from '../../types';
@@ -108,8 +108,8 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
       // Always load all coaches (including hidden) and hidden list in parallel
       // We filter locally based on showHidden state to preserve local changes
       const [coachesResponse, hiddenResponse] = await Promise.all([
-        apiService.listCoaches({ include_hidden: true }),
-        apiService.getHiddenCoaches(),
+        coachesApi.list({ include_hidden: true }),
+        coachesApi.getHidden(),
       ]);
 
       // Create a set of hidden coach IDs for quick lookup
@@ -204,7 +204,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
     setActionMenuVisible(false);
 
     try {
-      const result = await apiService.toggleCoachFavorite(targetCoach.id);
+      const result = await coachesApi.toggleFavorite(targetCoach.id);
       setCoaches((prev) =>
         prev.map((c) =>
           c.id === targetCoach.id ? { ...c, is_favorite: result.is_favorite } : c
@@ -227,7 +227,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
     if (!selectedCoach) return;
 
     try {
-      const updated = await apiService.updateCoach(selectedCoach.id, {
+      const updated = await coachesApi.update(selectedCoach.id, {
         title: newTitle,
       });
       setCoaches((prev) =>
@@ -260,7 +260,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
           style: 'destructive',
           onPress: async () => {
             try {
-              await apiService.deleteCoach(selectedCoach.id);
+              await coachesApi.delete(selectedCoach.id);
               setCoaches((prev) => prev.filter((c) => c.id !== selectedCoach.id));
             } catch (error) {
               console.error('Failed to delete coach:', error);
@@ -278,7 +278,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
     setActionMenuVisible(false);
 
     try {
-      await apiService.hideCoach(targetCoach.id);
+      await coachesApi.hide(targetCoach.id);
       // Remove from list if not showing hidden coaches, otherwise update the flag
       if (showHidden) {
         setCoaches((prev) =>
@@ -299,7 +299,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
     setActionMenuVisible(false);
 
     try {
-      await apiService.showCoach(targetCoach.id);
+      await coachesApi.show(targetCoach.id);
       // Update main coaches list - add if not present, update if present
       setCoaches((prev) => {
         const exists = prev.some((c) => c.id === targetCoach.id);
@@ -329,7 +329,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
           text: 'Fork',
           onPress: async () => {
             try {
-              const result = await apiService.forkCoach(targetCoach.id);
+              const result = await coachesApi.fork(targetCoach.id);
               // Add the new forked coach to the list
               setCoaches((prev) => [result.coach, ...prev]);
               // Navigate to wizard to customize

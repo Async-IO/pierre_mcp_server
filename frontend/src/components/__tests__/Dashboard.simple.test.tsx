@@ -63,9 +63,9 @@ vi.mock('../../hooks/useWebSocketContext', () => ({
   })
 }));
 
-// Mock API with simple responses
+// Mock API with simple responses - Dashboard uses dashboardApi, adminApi, a2aApi
 vi.mock('../../services/api', () => ({
-  apiService: {
+  dashboardApi: {
     getDashboardOverview: vi.fn().mockResolvedValue({
       total_api_keys: 10,
       active_api_keys: 8,
@@ -74,15 +74,19 @@ vi.mock('../../services/api', () => ({
     }),
     getRateLimitOverview: vi.fn().mockResolvedValue([]),
     getUsageAnalytics: vi.fn().mockResolvedValue({ time_series: [] }),
+  },
+  adminApi: {
+    getPendingUsers: vi.fn().mockResolvedValue([
+      { id: '1', email: 'user@test.com' }
+    ])
+  },
+  a2aApi: {
     getA2ADashboardOverview: vi.fn().mockResolvedValue({
       total_clients: 3,
       active_clients: 2,
       requests_today: 100,
       requests_this_month: 3000
     }),
-    getPendingUsers: vi.fn().mockResolvedValue([
-      { id: '1', email: 'user@test.com' }
-    ])
   }
 }));
 

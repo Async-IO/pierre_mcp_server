@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { dashboardApi } from '../services/api';
 import type { ChartData, ChartOptions, AnalyticsData, TimeSeriesPoint, TopTool } from '../types/chart';
 import {
   Chart as ChartJS,
@@ -38,7 +38,7 @@ export default function UsageAnalytics() {
 
   const { data: analytics, isLoading } = useQuery<AnalyticsData>({
     queryKey: ['usage-analytics', timeRange],
-    queryFn: () => apiService.getUsageAnalytics(timeRange),
+    queryFn: () => dashboardApi.getUsageAnalytics(timeRange),
   });
 
   // Pierre Design System colors for charts

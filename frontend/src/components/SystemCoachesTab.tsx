@@ -6,7 +6,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { adminApi } from '../services/api';
 import type { Coach, User } from '../types/api';
 import { Card, Button } from './ui';
 import { clsx } from 'clsx';
@@ -60,26 +60,26 @@ export default function SystemCoachesTab() {
   // Fetch system coaches
   const { data: coachesData, isLoading: coachesLoading } = useQuery({
     queryKey: ['admin-system-coaches'],
-    queryFn: () => apiService.getSystemCoaches(),
+    queryFn: () => adminApi.getSystemCoaches(),
   });
 
   // Fetch all users for assignment
   const { data: usersData } = useQuery({
     queryKey: ['admin-all-users'],
-    queryFn: () => apiService.getAllUsers({ limit: 200 }),
+    queryFn: () => adminApi.getAllUsers({ limit: 200 }),
     enabled: showAssignModal,
   });
 
   // Fetch assignments for selected coach
   const { data: assignmentsData, refetch: refetchAssignments } = useQuery({
     queryKey: ['coach-assignments', selectedCoach?.id],
-    queryFn: () => selectedCoach ? apiService.getCoachAssignments(selectedCoach.id) : null,
+    queryFn: () => selectedCoach ? adminApi.getCoachAssignments(selectedCoach.id) : null,
     enabled: !!selectedCoach,
   });
 
   // Create mutation
   const createMutation = useMutation({
-    mutationFn: (data: typeof formData) => apiService.createSystemCoach({
+    mutationFn: (data: typeof formData) => adminApi.createSystemCoach({
       title: data.title,
       description: data.description || undefined,
       system_prompt: data.system_prompt,
@@ -96,7 +96,7 @@ export default function SystemCoachesTab() {
 
   // Update mutation
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: typeof formData }) => apiService.updateSystemCoach(id, {
+    mutationFn: ({ id, data }: { id: string; data: typeof formData }) => adminApi.updateSystemCoach(id, {
       title: data.title,
       description: data.description || undefined,
       system_prompt: data.system_prompt,
@@ -107,14 +107,14 @@ export default function SystemCoachesTab() {
       queryClient.invalidateQueries({ queryKey: ['admin-system-coaches'] });
       setIsEditing(false);
       if (selectedCoach) {
-        apiService.getSystemCoach(selectedCoach.id).then(setSelectedCoach);
+        adminApi.getSystemCoach(selectedCoach.id).then(setSelectedCoach);
       }
     },
   });
 
   // Delete mutation
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => apiService.deleteSystemCoach(id),
+    mutationFn: (id: string) => adminApi.deleteSystemCoach(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-system-coaches'] });
       setSelectedCoach(null);
@@ -124,7 +124,7 @@ export default function SystemCoachesTab() {
   // Assign mutation
   const assignMutation = useMutation({
     mutationFn: ({ coachId, userIds }: { coachId: string; userIds: string[] }) =>
-      apiService.assignCoachToUsers(coachId, userIds),
+      adminApi.assignCoachToUsers(coachId, userIds),
     onSuccess: () => {
       refetchAssignments();
       setShowAssignModal(false);
@@ -135,7 +135,7 @@ export default function SystemCoachesTab() {
   // Unassign mutation
   const unassignMutation = useMutation({
     mutationFn: ({ coachId, userIds }: { coachId: string; userIds: string[] }) =>
-      apiService.unassignCoachFromUsers(coachId, userIds),
+      adminApi.unassignCoachFromUsers(coachId, userIds),
     onSuccess: () => {
       refetchAssignments();
     },

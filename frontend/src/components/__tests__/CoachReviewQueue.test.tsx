@@ -48,9 +48,9 @@ const mockCoaches = [
   },
 ];
 
-// Mock the API service - mocked implementation is set in beforeEach
+// Mock the admin API - mocked implementation is set in beforeEach
 vi.mock('../../services/api', () => ({
-  apiService: {
+  adminApi: {
     getStoreReviewQueue: vi.fn(),
     approveStoreCoach: vi.fn(),
     rejectStoreCoach: vi.fn(),
@@ -58,7 +58,7 @@ vi.mock('../../services/api', () => ({
 }));
 
 import CoachReviewQueue from '../CoachReviewQueue';
-import { apiService } from '../../services/api';
+import { adminApi } from '../../services/api';
 
 function renderCoachReviewQueue() {
   const queryClient = new QueryClient({
@@ -78,17 +78,17 @@ function renderCoachReviewQueue() {
 describe('CoachReviewQueue', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(apiService.getStoreReviewQueue).mockResolvedValue({
+    vi.mocked(adminApi.getStoreReviewQueue).mockResolvedValue({
       coaches: mockCoaches,
       total: 2,
       metadata: { timestamp: new Date().toISOString(), api_version: '1.0' },
     });
-    vi.mocked(apiService.approveStoreCoach).mockResolvedValue({ success: true });
-    vi.mocked(apiService.rejectStoreCoach).mockResolvedValue({ success: true });
+    vi.mocked(adminApi.approveStoreCoach).mockResolvedValue({ success: true });
+    vi.mocked(adminApi.rejectStoreCoach).mockResolvedValue({ success: true });
   });
 
   it('displays loading spinner initially', () => {
-    vi.mocked(apiService.getStoreReviewQueue).mockImplementation(
+    vi.mocked(adminApi.getStoreReviewQueue).mockImplementation(
       () => new Promise(() => {})
     );
 
@@ -153,7 +153,7 @@ describe('CoachReviewQueue', () => {
   });
 
   it('shows empty state when no coaches pending', async () => {
-    vi.mocked(apiService.getStoreReviewQueue).mockResolvedValue({
+    vi.mocked(adminApi.getStoreReviewQueue).mockResolvedValue({
       coaches: [],
       total: 0,
       metadata: { timestamp: new Date().toISOString(), api_version: '1.0' },
@@ -170,7 +170,7 @@ describe('CoachReviewQueue', () => {
   });
 
   it('shows error state on API failure', async () => {
-    vi.mocked(apiService.getStoreReviewQueue).mockRejectedValue(
+    vi.mocked(adminApi.getStoreReviewQueue).mockRejectedValue(
       new Error('API Error')
     );
 

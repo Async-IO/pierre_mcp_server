@@ -3,7 +3,7 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { a2aApi } from '../services/api';
 import type { A2AClient, A2AUsageStats, A2ARateLimitStatus } from '../types/api';
 import { Button, Card, CardHeader, Badge, StatusIndicator, StatusFilter, ConfirmDialog } from './ui';
 import type { StatusFilterValue } from './ui';
@@ -50,23 +50,23 @@ export default function A2AClientList({ onCreateClient }: A2AClientListProps) {
 
   const { data: clients, isLoading, error } = useQuery<A2AClient[]>({
     queryKey: ['a2a-clients'],
-    queryFn: () => apiService.getA2AClients(),
+    queryFn: () => a2aApi.getA2AClients(),
   });
 
   const { data: clientUsage } = useQuery<A2AUsageStats | null>({
     queryKey: ['a2a-client-usage', selectedClient],
-    queryFn: () => selectedClient ? apiService.getA2AClientUsage(selectedClient) : Promise.resolve(null),
+    queryFn: () => selectedClient ? a2aApi.getA2AClientUsage(selectedClient) : Promise.resolve(null),
     enabled: !!selectedClient,
   });
 
   const { data: clientRateLimit } = useQuery<A2ARateLimitStatus | null>({
     queryKey: ['a2a-client-rate-limit', selectedClient],
-    queryFn: () => selectedClient ? apiService.getA2AClientRateLimit(selectedClient) : Promise.resolve(null),
+    queryFn: () => selectedClient ? a2aApi.getA2AClientRateLimit(selectedClient) : Promise.resolve(null),
     enabled: !!selectedClient,
   });
 
   const deactivateMutation = useMutation({
-    mutationFn: (clientId: string) => apiService.deactivateA2AClient(clientId),
+    mutationFn: (clientId: string) => a2aApi.deactivateA2AClient(clientId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['a2a-clients'] });
       setSelectedClient(null);

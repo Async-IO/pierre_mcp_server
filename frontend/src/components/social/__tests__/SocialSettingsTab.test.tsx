@@ -8,13 +8,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import SocialSettingsTab from '../SocialSettingsTab';
-import { apiService } from '../../../services/api';
+import { socialApi } from '../../../services/api';
 
 // Mock the API service
 vi.mock('../../../services/api', () => ({
-  apiService: {
-    getSocialSettings: vi.fn(),
-    updateSocialSettings: vi.fn(),
+  socialApi: {
+    getSettings: vi.fn(),
+    updateSettings: vi.fn(),
   },
 }));
 
@@ -38,8 +38,8 @@ const mockSettings = {
 describe('SocialSettingsTab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(apiService.getSocialSettings).mockResolvedValue(mockSettings);
-    vi.mocked(apiService.updateSocialSettings).mockResolvedValue(mockSettings);
+    vi.mocked(socialApi.getSettings).mockResolvedValue(mockSettings);
+    vi.mocked(socialApi.updateSettings).mockResolvedValue(mockSettings);
   });
 
   it('should render the Social Settings tab with title', async () => {
@@ -59,7 +59,7 @@ describe('SocialSettingsTab', () => {
       expect(screen.getByText('Discoverable')).toBeInTheDocument();
     });
 
-    expect(apiService.getSocialSettings).toHaveBeenCalled();
+    expect(socialApi.getSettings).toHaveBeenCalled();
   });
 
   it('should display privacy section with discoverable toggle', async () => {
@@ -133,7 +133,7 @@ describe('SocialSettingsTab', () => {
     fireEvent.click(saveButton);
 
     await waitFor(() => {
-      expect(apiService.updateSocialSettings).toHaveBeenCalled();
+      expect(socialApi.updateSettings).toHaveBeenCalled();
     });
   });
 

@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { useAuth } from '../hooks/useAuth';
-import { apiService } from '../services/api';
+import { userApi, apiClient } from '../services/api';
 import { Card, Button, Badge, ConfirmDialog } from './ui';
 import { clsx } from 'clsx';
 import A2AClientList from './A2AClientList';
@@ -124,20 +124,20 @@ export default function UserSettings() {
   // Fetch OAuth apps
   const { data: oauthAppsResponse, isLoading: isLoadingApps } = useQuery({
     queryKey: ['user-oauth-apps'],
-    queryFn: () => apiService.getUserOAuthApps(),
+    queryFn: () => userApi.getOAuthApps(),
   });
 
   // Fetch user stats
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['userStats'],
-    queryFn: () => apiService.getUserStats(),
+    queryFn: () => userApi.getStats(),
     staleTime: 30000,
   });
 
   // Fetch MCP tokens
   const { data: tokensResponse, isLoading: tokensLoading } = useQuery({
     queryKey: ['mcp-tokens'],
-    queryFn: () => apiService.getMcpTokens(),
+    queryFn: () => userApi.getMcpTokens(),
     enabled: isAuthenticated,
   });
 
@@ -148,7 +148,7 @@ export default function UserSettings() {
   // Register OAuth app mutation
   const registerMutation = useMutation({
     mutationFn: (data: { provider: string; client_id: string; client_secret: string; redirect_uri: string }) =>
-      apiService.registerUserOAuthApp(data),
+      userApi.registerOAuthApp(data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['user-oauth-apps'] });
       setCredentialMessage({ type: 'success', text: data.message });
@@ -165,7 +165,7 @@ export default function UserSettings() {
 
   // Delete OAuth app mutation
   const deleteMutation = useMutation({
-    mutationFn: (provider: string) => apiService.deleteUserOAuthApp(provider),
+    mutationFn: (provider: string) => userApi.deleteOAuthApp(provider),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-oauth-apps'] });
       setCredentialMessage({ type: 'success', text: 'Provider credentials removed' });
@@ -179,10 +179,10 @@ export default function UserSettings() {
 
   // Profile update mutation
   const profileMutation = useMutation({
-    mutationFn: (data: { display_name: string }) => apiService.updateProfile(data),
+    mutationFn: (data: { display_name: string }) => userApi.updateProfile(data),
     onSuccess: (response) => {
       setMessage({ type: 'success', text: response.message });
-      apiService.setUser(response.user);
+      apiClient.setUser(response.user);
       queryClient.invalidateQueries({ queryKey: ['user'] });
     },
     onError: (error: Error) => {
@@ -195,7 +195,7 @@ export default function UserSettings() {
 
   // Token mutations
   const createTokenMutation = useMutation({
-    mutationFn: (data: { name: string; expires_in_days?: number }) => apiService.createMcpToken(data),
+    mutationFn: (data: { name: string; expires_in_days?: number }) => userApi.createMcpToken(data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['mcp-tokens'] });
       setCreatedToken({ token_value: data.token_value ?? '', name: data.name });
@@ -206,7 +206,7 @@ export default function UserSettings() {
   });
 
   const revokeTokenMutation = useMutation({
-    mutationFn: (tokenId: string) => apiService.revokeMcpToken(tokenId),
+    mutationFn: (tokenId: string) => userApi.revokeMcpToken(tokenId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['mcp-tokens'] });
       setTokenToRevoke(null);

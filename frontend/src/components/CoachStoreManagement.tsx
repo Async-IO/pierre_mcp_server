@@ -6,7 +6,7 @@
 
 import { useState, lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { adminApi } from '../services/api';
 import { clsx } from 'clsx';
 
 // Lazy load tab content components
@@ -58,7 +58,7 @@ export default function CoachStoreManagement() {
   // Fetch store stats
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['admin-store-stats'],
-    queryFn: () => apiService.getStoreStats(),
+    queryFn: () => adminApi.getStoreStats(),
     staleTime: 30_000,
   });
 

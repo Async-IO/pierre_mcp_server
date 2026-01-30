@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 // ABOUTME: API service entry point using @pierre/api-client with mobile adapter
-// ABOUTME: Provides backward-compatible apiService interface for existing code
+// ABOUTME: Exports domain-based APIs for clean architecture
 
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   createMobileAdapter,
   createPierreApi,
-  createLegacyApiService,
   type PierreApiService,
 } from '@pierre/api-client';
 
@@ -53,11 +52,3 @@ export const oauthApi = api.oauth;
 export const socialApi = api.social;
 export const storeApi = api.store;
 export const userApi = api.user;
-
-/**
- * Unified API service with mobile-compatible method signatures.
- *
- * This provides backward compatibility with existing code that imports apiService.
- * New code should prefer importing specific domain APIs directly.
- */
-export const apiService = createLegacyApiService(adapter);

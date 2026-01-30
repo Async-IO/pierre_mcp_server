@@ -59,7 +59,7 @@ const providerModalContainerStyle: ViewStyle = {
   shadowRadius: 8,
   elevation: 8,
 };
-import { apiService } from '../../services/api';
+import { chatApi, coachesApi, oauthApi, socialApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useVoiceInput } from '../../hooks/useVoiceInput';
 import type { VoiceError } from '../../hooks/useVoiceInput';
@@ -158,7 +158,11 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
 
   const loadProviderStatus = async () => {
     try {
+<<<<<<< HEAD
       const response = await apiService.getProvidersStatus();
+=======
+      const response = await oauthApi.getStatus();
+>>>>>>> origin/claude/remove-legacy-api-WaGCu
       setConnectedProviders(response.providers || []);
     } catch (error) {
       console.error('Failed to load provider status:', error);
@@ -167,7 +171,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
 
   const loadCoaches = async () => {
     try {
-      const response = await apiService.listCoaches();
+      const response = await coachesApi.list();
       // Sort: favorites first, then by use_count descending
       const sorted = [...response.coaches].sort((a, b) => {
         if (a.is_favorite !== b.is_favorite) {
@@ -323,7 +327,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   const loadConversations = async () => {
     try {
       setIsLoading(true);
-      const response = await apiService.getConversations();
+      const response = await chatApi.getConversations();
       // Deduplicate by ID to prevent duplicate key warnings
       const seen = new Set<string>();
       const deduplicated = (response.conversations || []).filter((conv: { id: string }) => {
@@ -347,7 +351,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
 
   const loadMessages = async (conversationId: string) => {
     try {
-      const response = await apiService.getConversationMessages(conversationId);
+      const response = await chatApi.getConversationMessages(conversationId);
       setMessages(response.messages);
       setTimeout(() => scrollToBottom(), 100);
     } catch (error) {
@@ -370,7 +374,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
 
   const handleDeleteConversation = async (conversationId: string) => {
     try {
-      await apiService.deleteConversation(conversationId);
+      await chatApi.deleteConversation(conversationId);
       setConversations(prev => prev.filter(c => c.id !== conversationId));
       if (currentConversation?.id === conversationId) {
         setCurrentConversation(null);
@@ -391,7 +395,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     if (!renameConversationId) return;
 
     try {
-      const updated = await apiService.updateConversation(renameConversationId, {
+      const updated = await chatApi.updateConversation(renameConversationId, {
         title: newTitle,
       });
       // Update conversation and move to top (most recently updated)
@@ -484,7 +488,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
 
     setIsSharing(true);
     try {
-      await apiService.shareFromActivity({
+      await socialApi.shareFromActivity({
         content: shareToFeedContent,
         insight_type: 'coaching_insight',
         visibility: shareToFeedVisibility,
@@ -561,7 +565,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     let conversationId = currentConversation?.id;
     if (!conversationId) {
       try {
-        const conversation = await apiService.createConversation({
+        const conversation = await chatApi.createConversation({
           title: messageText.slice(0, 50),
         });
         if (!conversation || !conversation.id) {
@@ -591,7 +595,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     scrollToBottom();
 
     try {
-      const response = await apiService.sendMessage(conversationId, messageText);
+      const response = await chatApi.sendMessage(conversationId, messageText);
       // Replace optimistic user message and add assistant response with metadata
       // Defensive: only add messages if they have valid IDs
       setMessages(prev => {
@@ -653,10 +657,10 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       setIsSending(true);
 
       // Record usage (fire-and-forget)
-      apiService.recordCoachUsage(coach.id);
+      coachesApi.recordUsage(coach.id);
 
       // Create a new conversation with the coach's system prompt
-      const conversation = await apiService.createConversation({
+      const conversation = await chatApi.createConversation({
         title: `Chat with ${coach.title}`,
         system_prompt: coach.system_prompt,
       });
@@ -682,7 +686,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       setMessages([userMessage]);
 
       // Send message to API
-      const response = await apiService.sendMessage(conversation.id, initialMessage);
+      const response = await chatApi.sendMessage(conversation.id, initialMessage);
 
       // Update with actual messages from server
       setMessages(prev => {
@@ -715,7 +719,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     let conversationId = currentConversation?.id;
     if (!conversationId) {
       try {
-        const conversation = await apiService.createConversation({
+        const conversation = await chatApi.createConversation({
           title: prompt.slice(0, 50),
         });
         if (!conversation || !conversation.id) {
@@ -745,7 +749,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     scrollToBottom();
 
     try {
-      const response = await apiService.sendMessage(conversationId, prompt);
+      const response = await chatApi.sendMessage(conversationId, prompt);
       // Replace optimistic message with server's message and add assistant response with metadata
       // Defensive: only update/add messages if they have valid IDs
       setMessages(prev => {
@@ -798,7 +802,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       const returnUrl = getOAuthCallbackUrl();
 
       // Call the mobile OAuth init endpoint which returns the authorization URL
-      const oauthResponse = await apiService.initMobileOAuth(provider, returnUrl);
+      const oauthResponse = await oauthApi.initMobileOAuth(provider, returnUrl);
 
       // Open OAuth in an in-app browser (ASWebAuthenticationSession on iOS)
       // The returnUrl is watched for redirects to close the browser automatically

@@ -6,7 +6,7 @@
 
 import { useState, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { adminApi } from '../services/api';
 import { Card, Badge, Input, Button, Modal, Tabs } from './ui';
 
 // Lazy load ToolAvailability to reduce initial bundle size
@@ -130,21 +130,21 @@ export default function AdminConfiguration() {
   // Fetch configuration catalog
   const { data: catalogData, isLoading, error } = useQuery({
     queryKey: ['admin-config-catalog'],
-    queryFn: () => apiService.getConfigCatalog(),
+    queryFn: () => adminApi.getConfigCatalog(),
     retry: 1,
   });
 
   // Fetch audit history
   const { data: auditData, isLoading: auditLoading } = useQuery({
     queryKey: ['admin-config-audit'],
-    queryFn: () => apiService.getConfigAuditLog({ limit: 50 }),
+    queryFn: () => adminApi.getConfigAuditLog({ limit: 50 }),
     enabled: activeTab === 'history',
   });
 
   // Update configuration mutation
   const updateMutation = useMutation({
     mutationFn: ({ parameters, reason }: { parameters: Record<string, unknown>; reason?: string }) =>
-      apiService.updateConfig({ parameters, reason }),
+      adminApi.updateConfig({ parameters, reason }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-config-catalog'] });
       queryClient.invalidateQueries({ queryKey: ['admin-config-audit'] });
@@ -157,7 +157,7 @@ export default function AdminConfiguration() {
   // Reset configuration mutation
   const resetMutation = useMutation({
     mutationFn: ({ category, keys }: { category?: string; keys?: string[] }) =>
-      apiService.resetConfig({ category, parameters: keys }),
+      adminApi.resetConfig({ category, parameters: keys }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-config-catalog'] });
       queryClient.invalidateQueries({ queryKey: ['admin-config-audit'] });

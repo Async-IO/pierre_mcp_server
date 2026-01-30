@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { Button, Card, CardHeader, Badge } from './ui';
 import { useAuth } from '../hooks/useAuth';
-import { apiService } from '../services/api';
+import { adminApi } from '../services/api';
 import type { AdminToken, AdminTokenAudit, AdminTokenUsageStats, ProvisionedKey } from '../types/api';
 
 interface ApiKeyDetailsProps {
@@ -131,24 +131,24 @@ export default function ApiKeyDetails({ token, onBack, onTokenUpdated }: ApiKeyD
 
   const { data: auditData, isLoading: auditLoading } = useQuery({
     queryKey: ['admin-token-audit', token.id],
-    queryFn: () => apiService.getAdminTokenAudit(token.id),
+    queryFn: () => adminApi.getAdminTokenAudit(token.id),
     enabled: isAuthenticated,
   });
 
   const { data: usageStats, isLoading: statsLoading } = useQuery({
     queryKey: ['admin-token-usage-stats', token.id],
-    queryFn: () => apiService.getAdminTokenUsageStats(token.id),
+    queryFn: () => adminApi.getAdminTokenUsageStats(token.id),
     enabled: isAuthenticated,
   });
 
   const { data: provisionedKeys } = useQuery({
     queryKey: ['admin-token-provisioned-keys', token.id],
-    queryFn: () => apiService.getAdminTokenProvisionedKeys(token.id),
+    queryFn: () => adminApi.getAdminTokenProvisionedKeys(token.id),
     enabled: isAuthenticated,
   });
 
   const revokeTokenMutation = useMutation({
-    mutationFn: () => apiService.revokeAdminToken(token.id),
+    mutationFn: () => adminApi.revokeAdminToken(token.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-tokens'] });
       onTokenUpdated();
@@ -157,7 +157,7 @@ export default function ApiKeyDetails({ token, onBack, onTokenUpdated }: ApiKeyD
   });
 
   const rotateTokenMutation = useMutation({
-    mutationFn: () => apiService.rotateAdminToken(token.id),
+    mutationFn: () => adminApi.rotateAdminToken(token.id),
     onSuccess: (data) => {
       setRotatedToken(data.jwt_token);
       setShowRotateModal(true);

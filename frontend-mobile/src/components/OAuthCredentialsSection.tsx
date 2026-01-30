@@ -13,7 +13,7 @@ import {
 import { TouchableOpacity, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { colors } from '../constants/theme';
 import { Card, Button, Input } from './ui';
-import { apiService } from '../services/api';
+import { userApi } from '../services/api';
 import type { OAuthApp, OAuthProvider } from '../types';
 
 const PROVIDERS: OAuthProvider[] = [
@@ -43,7 +43,7 @@ export function OAuthCredentialsSection() {
   const loadOAuthApps = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await apiService.getUserOAuthApps();
+      const response = await userApi.getUserOAuthApps();
       setOauthApps(response.apps || []);
     } catch (error) {
       console.error('Failed to load OAuth apps:', error);
@@ -95,7 +95,7 @@ export function OAuthCredentialsSection() {
 
     try {
       setIsSaving(true);
-      await apiService.registerUserOAuthApp({
+      await userApi.registerUserOAuthApp({
         provider: selectedProvider.id,
         client_id: clientId.trim(),
         client_secret: clientSecret.trim(),
@@ -123,7 +123,7 @@ export function OAuthCredentialsSection() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await apiService.deleteUserOAuthApp(provider);
+              await userApi.deleteUserOAuthApp(provider);
               await loadOAuthApps();
             } catch {
               Alert.alert('Error', 'Failed to remove credentials');

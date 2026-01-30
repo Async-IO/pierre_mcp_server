@@ -5,7 +5,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 import { useQuery } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { providersApi, oauthApi } from '../services/api';
 import type { ProviderStatus } from '../services/api/oauth';
 import { Card, Badge } from './ui';
 
@@ -133,7 +133,7 @@ export default function ProviderConnectionCards({
   // Fetch providers from server (includes OAuth and non-OAuth providers)
   const { data: providersData, isLoading } = useQuery({
     queryKey: ['providers-status'],
-    queryFn: () => apiService.getProvidersStatus(),
+    queryFn: () => providersApi.getProvidersStatus(),
     refetchInterval: 5000,
   });
 
@@ -150,7 +150,7 @@ export default function ProviderConnectionCards({
 
     // Fallback: Navigate directly to OAuth authorization endpoint
     try {
-      const authUrl = await apiService.getOAuthAuthorizeUrl(provider.provider);
+      const authUrl = await oauthApi.getAuthorizeUrl(provider.provider);
       // Open OAuth in new tab to avoid security blocks from automated browser detection
       window.open(authUrl, '_blank');
     } catch (error) {

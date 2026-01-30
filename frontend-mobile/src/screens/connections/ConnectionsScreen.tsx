@@ -16,7 +16,7 @@ import * as Linking from 'expo-linking';
 import { getOAuthCallbackUrl } from '../../utils/oauth';
 import { colors, spacing } from '../../constants/theme';
 import { Card } from '../../components/ui';
-import { apiService } from '../../services/api';
+import { oauthApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { ExtendedProviderStatus } from '../../types';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -36,8 +36,18 @@ export function ConnectionsScreen({ navigation }: ConnectionsScreenProps) {
   const loadConnectionStatus = useCallback(async () => {
     try {
       setIsLoading(true);
+<<<<<<< HEAD
       const response = await apiService.getProvidersStatus();
       setProviders(response.providers || []);
+=======
+      const response = await oauthApi.getStatus();
+      const statusMap = new Map<string, ProviderStatus>();
+      const providers = response.providers || [];
+      providers.forEach((status: ProviderStatus) => {
+        statusMap.set(status.provider, status);
+      });
+      setProviderStatuses(statusMap);
+>>>>>>> origin/claude/remove-legacy-api-WaGCu
     } catch (error) {
       console.error('Failed to load connection status:', error);
       // Don't show alert on auth errors - screen will reload when auth is ready
@@ -63,7 +73,7 @@ export function ConnectionsScreen({ navigation }: ConnectionsScreenProps) {
 
       // Call the mobile OAuth init endpoint which returns the authorization URL
       // and includes the redirect URL in the OAuth state for callback handling
-      const oauthResponse = await apiService.initMobileOAuth(providerId, returnUrl);
+      const oauthResponse = await oauthApi.initMobileOAuth(providerId, returnUrl);
 
       // Open OAuth in an in-app browser (ASWebAuthenticationSession on iOS)
       // The returnUrl is watched for redirects to close the browser automatically

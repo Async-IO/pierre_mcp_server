@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { dashboardApi } from '../services/api';
 import { useWebSocketContext } from '../hooks/useWebSocketContext';
 import RealTimeIndicator from './RealTimeIndicator';
 import type { RequestLog, RequestStats } from '../types/api';
@@ -24,13 +24,13 @@ export default function RequestMonitor({ apiKeyId, showAllKeys = false }: Reques
 
   const { data: requestLogs, isLoading } = useQuery<RequestLog[]>({
     queryKey: ['request-logs', apiKeyId, filter],
-    queryFn: () => apiService.getRequestLogs(apiKeyId, filter),
+    queryFn: () => dashboardApi.getRequestLogs(apiKeyId, filter),
     refetchInterval: 5000, // Refresh every 5 seconds
   });
 
   const { data: requestStats } = useQuery<RequestStats>({
     queryKey: ['request-stats', apiKeyId, filter.timeRange],
-    queryFn: () => apiService.getRequestStats(apiKeyId, filter.timeRange),
+    queryFn: () => dashboardApi.getRequestStats(apiKeyId, filter.timeRange),
     refetchInterval: 10000,
   });
 

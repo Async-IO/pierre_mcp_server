@@ -24,6 +24,11 @@ export const socialApi = pierreApi.social;
 export const storeApi = pierreApi.store;
 export const userApi = pierreApi.user;
 
+// Web-only providers API (includes non-OAuth providers like synthetic)
+export const providersApi = {
+  getProvidersStatus: localOauthApi.getProvidersStatus,
+};
+
 // Export web-only modules from local implementations
 export { apiClient } from './client';
 export { keysApi } from './keys';
@@ -33,6 +38,9 @@ export { adminApi } from './admin';
 
 // Export types from shared package
 export type { Coach, StoreCoach } from '@pierre/shared-types';
+
+// Export types from local modules
+export type { ProviderStatus, ProvidersStatusResponse } from './oauth';
 
 /**
  * Unified API service that combines all domain-specific APIs.

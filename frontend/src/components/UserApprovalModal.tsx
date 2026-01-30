@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { adminApi } from '../services/api';
 import type { User, UserManagementResponse } from '../types/api';
 import { Button, Card } from './ui';
 import { Badge } from './ui/Badge';
@@ -29,9 +29,9 @@ export default function UserApprovalModal({
       if (!user) throw new Error('No user selected');
       
       if (action === 'approve') {
-        return apiService.approveUser(user.id, reason || undefined);
+        return adminApi.approveUser(user.id, reason || undefined);
       } else {
-        return apiService.suspendUser(user.id, reason || undefined);
+        return adminApi.suspendUser(user.id, reason || undefined);
       }
     },
     onSuccess: (response: UserManagementResponse) => {

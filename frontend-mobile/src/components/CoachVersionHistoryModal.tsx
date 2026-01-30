@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing } from '../constants/theme';
-import { apiService } from '../services/api';
+import { coachesApi } from '../services/api';
 
 interface VersionItem {
   version: number;
@@ -48,7 +48,7 @@ export function CoachVersionHistoryModal({
   const loadVersions = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await apiService.getCoachVersions(coachId, 50);
+      const response = await coachesApi.getVersions(coachId, 50);
       setVersions(response.versions);
       setCurrentVersion(response.current_version);
     } catch (error) {
@@ -106,7 +106,7 @@ export function CoachVersionHistoryModal({
 
     try {
       setIsReverting(true);
-      await apiService.revertCoachToVersion(coachId, selectedVersion.version);
+      await coachesApi.revertToVersion(coachId, selectedVersion.version);
       Alert.alert('Success', `Reverted to version ${selectedVersion.version}`);
       setSelectedVersion(null);
       onReverted?.();

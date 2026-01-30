@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { clsx } from 'clsx';
-import { apiService } from '../../services/api';
+import { socialApi } from '../../services/api';
 import { Card, Button } from '../ui';
 
 interface NotificationPreferences {
@@ -76,7 +76,7 @@ export default function SocialSettingsTab() {
   const loadSettings = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await apiService.getSocialSettings();
+      const response = await socialApi.getSettings();
       setSettings(response.settings);
     } catch (error) {
       console.error('Failed to load social settings:', error);
@@ -117,7 +117,7 @@ export default function SocialSettingsTab() {
 
     try {
       setIsSaving(true);
-      await apiService.updateSocialSettings({
+      await socialApi.updateSettings({
         discoverable: settings.discoverable,
         default_visibility: settings.default_visibility as 'friends_only' | 'public',
         notifications: settings.notifications,

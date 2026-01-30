@@ -15,7 +15,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
 import { colors, spacing } from '../../constants/theme';
-import { apiService } from '../../services/api';
+import { socialApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { RequestCard } from '../../components/social/FriendCard';
 import type { PendingRequestWithInfo } from '@pierre/shared-types';
@@ -44,7 +44,7 @@ export function FriendRequestsScreen() {
         setIsLoading(true);
       }
 
-      const response = await apiService.getPendingRequests();
+      const response = await socialApi.getPendingRequests();
       setIncomingRequests(response.received);
       setOutgoingRequests(response.sent);
     } catch (error) {
@@ -64,7 +64,7 @@ export function FriendRequestsScreen() {
   const handleAccept = async (request: PendingRequestWithInfo) => {
     try {
       setProcessingIds(prev => new Set(prev).add(request.id));
-      await apiService.acceptFriendRequest(request.id);
+      await socialApi.acceptFriendRequest(request.id);
       setIncomingRequests(prev => prev.filter(r => r.id !== request.id));
     } catch (error) {
       console.error('Failed to accept request:', error);
@@ -80,7 +80,7 @@ export function FriendRequestsScreen() {
   const handleDecline = async (request: PendingRequestWithInfo) => {
     try {
       setProcessingIds(prev => new Set(prev).add(request.id));
-      await apiService.declineFriendRequest(request.id);
+      await socialApi.declineFriendRequest(request.id);
       setIncomingRequests(prev => prev.filter(r => r.id !== request.id));
     } catch (error) {
       console.error('Failed to decline request:', error);
@@ -96,7 +96,7 @@ export function FriendRequestsScreen() {
   const handleCancel = async (request: PendingRequestWithInfo) => {
     try {
       setProcessingIds(prev => new Set(prev).add(request.id));
-      await apiService.removeFriend(request.id);
+      await socialApi.removeFriend(request.id);
       setOutgoingRequests(prev => prev.filter(r => r.id !== request.id));
     } catch (error) {
       console.error('Failed to cancel request:', error);

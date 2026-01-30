@@ -10,10 +10,10 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import StoreCoachDetail from '../StoreCoachDetail';
 
-// Mock the API service - define mock data inline to avoid hoisting issues
+// Mock the store API - define mock data inline to avoid hoisting issues
 vi.mock('../../services/api', () => ({
-  apiService: {
-    getStoreCoach: vi.fn().mockResolvedValue({
+  storeApi: {
+    get: vi.fn().mockResolvedValue({
       id: 'coach-1',
       title: 'Marathon Training Coach',
       description: 'A comprehensive marathon training program with weekly schedules',
@@ -30,16 +30,16 @@ vi.mock('../../services/api', () => ({
       created_at: '2024-01-10T00:00:00Z',
       publish_status: 'published',
     }),
-    getStoreInstallations: vi.fn().mockResolvedValue({
+    getInstallations: vi.fn().mockResolvedValue({
       coaches: [],
       metadata: { timestamp: new Date().toISOString(), api_version: '1.0' },
     }),
-    installStoreCoach: vi.fn().mockResolvedValue({
+    install: vi.fn().mockResolvedValue({
       message: 'Coach installed successfully',
       coach_id: 'coach-1',
       metadata: { timestamp: new Date().toISOString(), api_version: '1.0' },
     }),
-    uninstallStoreCoach: vi.fn().mockResolvedValue({
+    uninstall: vi.fn().mockResolvedValue({
       message: 'Coach uninstalled successfully',
       coach_id: 'coach-1',
       metadata: { timestamp: new Date().toISOString(), api_version: '1.0' },
@@ -47,7 +47,7 @@ vi.mock('../../services/api', () => ({
   },
 }));
 
-import { apiService } from '../../services/api';
+import { storeApi } from '../../services/api';
 
 const mockOnBack = vi.fn();
 const mockOnNavigateToLibrary = vi.fn();
@@ -75,7 +75,7 @@ describe('StoreCoachDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Reset to default mock implementations
-    vi.mocked(apiService.getStoreCoach).mockResolvedValue({
+    vi.mocked(storeApi.get).mockResolvedValue({
       id: 'coach-1',
       title: 'Marathon Training Coach',
       description: 'A comprehensive marathon training program with weekly schedules',
@@ -92,7 +92,7 @@ describe('StoreCoachDetail', () => {
       created_at: '2024-01-10T00:00:00Z',
       publish_status: 'published',
     });
-    vi.mocked(apiService.getStoreInstallations).mockResolvedValue({
+    vi.mocked(storeApi.getInstallations).mockResolvedValue({
       coaches: [],
       metadata: { timestamp: new Date().toISOString(), api_version: '1.0' },
     });
@@ -204,7 +204,7 @@ describe('StoreCoachDetail', () => {
       await user.click(screen.getByRole('button', { name: 'Add Coach' }));
 
       await waitFor(() => {
-        expect(apiService.installStoreCoach).toHaveBeenCalledWith('coach-1');
+        expect(storeApi.install).toHaveBeenCalledWith('coach-1');
       });
     });
 
@@ -229,7 +229,7 @@ describe('StoreCoachDetail', () => {
   describe('remove functionality', () => {
     beforeEach(() => {
       // Mock as installed
-      vi.mocked(apiService.getStoreInstallations).mockResolvedValue({
+      vi.mocked(storeApi.getInstallations).mockResolvedValue({
         coaches: [{ id: 'coach-1', title: 'Marathon Training Coach' }],
         metadata: { timestamp: new Date().toISOString(), api_version: '1.0' },
       });
@@ -278,7 +278,7 @@ describe('StoreCoachDetail', () => {
       await user.click(removeButtons[1]);
 
       await waitFor(() => {
-        expect(apiService.uninstallStoreCoach).toHaveBeenCalledWith('coach-1');
+        expect(storeApi.uninstall).toHaveBeenCalledWith('coach-1');
       });
     });
   });
@@ -336,7 +336,7 @@ describe('StoreCoachDetail', () => {
 
   describe('error handling', () => {
     it('should show error state when coach not found', async () => {
-      vi.mocked(apiService.getStoreCoach).mockRejectedValueOnce(new Error('Not found'));
+      vi.mocked(storeApi.get).mockRejectedValueOnce(new Error('Not found'));
 
       renderStoreCoachDetail('nonexistent-coach');
 
@@ -346,7 +346,7 @@ describe('StoreCoachDetail', () => {
     });
 
     it('should show Go Back button in error state', async () => {
-      vi.mocked(apiService.getStoreCoach).mockRejectedValueOnce(new Error('Not found'));
+      vi.mocked(storeApi.get).mockRejectedValueOnce(new Error('Not found'));
 
       renderStoreCoachDetail('nonexistent-coach');
 
@@ -357,7 +357,7 @@ describe('StoreCoachDetail', () => {
 
     it('should call onBack when Go Back is clicked in error state', async () => {
       const user = userEvent.setup();
-      vi.mocked(apiService.getStoreCoach).mockRejectedValueOnce(new Error('Not found'));
+      vi.mocked(storeApi.get).mockRejectedValueOnce(new Error('Not found'));
 
       renderStoreCoachDetail('nonexistent-coach');
 

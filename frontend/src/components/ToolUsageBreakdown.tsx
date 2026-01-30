@@ -2,7 +2,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 import { useQuery } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { dashboardApi } from '../services/api';
 import { Doughnut, Bar } from 'react-chartjs-2';
 import type { ToolUsageBreakdown } from '../types/api';
 
@@ -17,7 +17,7 @@ export default function ToolUsageBreakdownComponent({
 }: ToolUsageBreakdownProps) {
   const { data: toolUsage, isLoading } = useQuery<ToolUsageBreakdown[]>({
     queryKey: ['tool-usage-breakdown', apiKeyId, timeRange],
-    queryFn: () => apiService.getToolUsageBreakdown(apiKeyId, timeRange),
+    queryFn: () => dashboardApi.getToolUsageBreakdown(apiKeyId, timeRange),
   });
 
   if (isLoading) {

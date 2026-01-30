@@ -6,7 +6,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { adminApi } from '../services/api';
 import { Button, Card } from './ui';
 import { clsx } from 'clsx';
 import CoachRejectionModal from './CoachRejectionModal';
@@ -57,7 +57,7 @@ export default function CoachReviewDrawer({ coach, isOpen, onClose }: CoachRevie
   const queryClient = useQueryClient();
 
   const approveMutation = useMutation({
-    mutationFn: (coachId: string) => apiService.approveStoreCoach(coachId),
+    mutationFn: (coachId: string) => adminApi.approveStoreCoach(coachId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-store-review-queue'] });
       queryClient.invalidateQueries({ queryKey: ['admin-store-stats'] });

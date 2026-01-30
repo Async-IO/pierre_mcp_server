@@ -5,7 +5,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 import { useQuery } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { adminApi } from '../services/api';
 import { Card } from './ui';
 import { clsx } from 'clsx';
 
@@ -41,7 +41,7 @@ export default function RejectedCoachesList() {
   // Fetch rejected coaches
   const { data, isLoading, error } = useQuery({
     queryKey: ['admin-store-rejected'],
-    queryFn: () => apiService.getRejectedStoreCoaches(),
+    queryFn: () => adminApi.getRejectedStoreCoaches(),
   });
 
   const formatDate = (dateString: string) => {

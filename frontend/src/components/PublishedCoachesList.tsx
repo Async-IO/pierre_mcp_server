@@ -6,7 +6,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { adminApi } from '../services/api';
 import { Card, Button } from './ui';
 import { clsx } from 'clsx';
 import { ConfirmDialog } from './ui';
@@ -54,12 +54,12 @@ export default function PublishedCoachesList() {
   // Fetch published coaches
   const { data, isLoading, error } = useQuery({
     queryKey: ['admin-store-published', sortBy],
-    queryFn: () => apiService.getPublishedStoreCoaches({ sort_by: sortBy }),
+    queryFn: () => adminApi.getPublishedStoreCoaches({ sort_by: sortBy }),
   });
 
   // Unpublish mutation
   const unpublishMutation = useMutation({
-    mutationFn: (coachId: string) => apiService.unpublishStoreCoach(coachId),
+    mutationFn: (coachId: string) => adminApi.unpublishStoreCoach(coachId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-store-published'] });
       queryClient.invalidateQueries({ queryKey: ['admin-store-stats'] });

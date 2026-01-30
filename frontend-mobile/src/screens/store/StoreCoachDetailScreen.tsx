@@ -14,7 +14,7 @@ import {
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import { colors } from '../../constants/theme';
-import { apiService } from '../../services/api';
+import { storeApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { StoreCoachDetail } from '../../types';
 import type { CoachesStackParamList } from '../../navigation/MainTabs';
@@ -47,11 +47,11 @@ export function StoreCoachDetailScreen({ navigation, route }: StoreCoachDetailSc
 
     try {
       setIsLoading(true);
-      const response = await apiService.getStoreCoach(coachId);
+      const response = await storeApi.getStoreCoach(coachId);
       setCoach(response);
 
       // Check if already installed
-      const installations = await apiService.getInstalledCoaches();
+      const installations = await storeApi.getInstalledCoaches();
       const installed = installations.coaches.some(
         (c: { id: string }) => c.id === coachId
       );
@@ -73,7 +73,7 @@ export function StoreCoachDetailScreen({ navigation, route }: StoreCoachDetailSc
 
     try {
       setIsInstalling(true);
-      await apiService.installStoreCoach(coach.id);
+      await storeApi.installStoreCoach(coach.id);
       setIsInstalled(true);
       Alert.alert(
         'Installed!',
@@ -105,7 +105,7 @@ export function StoreCoachDetailScreen({ navigation, route }: StoreCoachDetailSc
           onPress: async () => {
             try {
               setIsInstalling(true);
-              await apiService.uninstallStoreCoach(coach.id);
+              await storeApi.uninstallStoreCoach(coach.id);
               setIsInstalled(false);
               Alert.alert('Uninstalled', 'Coach has been removed from your library.');
             } catch (error) {

@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { clsx } from 'clsx';
-import { apiService } from '../../services/api';
+import { socialApi } from '../../services/api';
 import { Card, Button } from '../ui';
 import type {
   FriendWithInfo,
@@ -30,7 +30,7 @@ export default function FriendsTab() {
   const loadFriends = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await apiService.listFriends();
+      const response = await socialApi.listFriends();
       setFriends(response.friends);
     } catch (error) {
       console.error('Failed to load friends:', error);
@@ -42,7 +42,7 @@ export default function FriendsTab() {
   const loadPendingRequests = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await apiService.getPendingFriendRequests();
+      const response = await socialApi.getPendingFriendRequests();
       setPendingReceived(response.received);
       setPendingSent(response.sent);
     } catch (error) {
@@ -65,7 +65,7 @@ export default function FriendsTab() {
 
     try {
       setIsSearching(true);
-      const response = await apiService.searchUsers(searchQuery.trim());
+      const response = await socialApi.searchUsers(searchQuery.trim());
       setSearchResults(response.users);
     } catch (error) {
       console.error('Search failed:', error);
@@ -77,7 +77,7 @@ export default function FriendsTab() {
   const handleSendRequest = async (userId: string) => {
     try {
       setActionLoading(userId);
-      await apiService.sendFriendRequest(userId);
+      await socialApi.sendFriendRequest(userId);
       // Update search results to show pending
       setSearchResults(prev =>
         prev.map(u => u.id === userId ? { ...u, has_pending_request: true } : u)
@@ -92,7 +92,7 @@ export default function FriendsTab() {
   const handleAcceptRequest = async (connectionId: string) => {
     try {
       setActionLoading(connectionId);
-      await apiService.acceptFriendRequest(connectionId);
+      await socialApi.acceptFriendRequest(connectionId);
       await loadPendingRequests();
     } catch (error) {
       console.error('Failed to accept request:', error);
@@ -104,7 +104,7 @@ export default function FriendsTab() {
   const handleRejectRequest = async (connectionId: string) => {
     try {
       setActionLoading(connectionId);
-      await apiService.rejectFriendRequest(connectionId);
+      await socialApi.rejectFriendRequest(connectionId);
       await loadPendingRequests();
     } catch (error) {
       console.error('Failed to reject request:', error);
@@ -116,7 +116,7 @@ export default function FriendsTab() {
   const handleRemoveFriend = async (userId: string) => {
     try {
       setActionLoading(userId);
-      await apiService.removeFriend(userId);
+      await socialApi.removeFriend(userId);
       await loadFriends();
     } catch (error) {
       console.error('Failed to remove friend:', error);

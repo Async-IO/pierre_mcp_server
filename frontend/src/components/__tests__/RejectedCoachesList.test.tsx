@@ -51,15 +51,15 @@ const mockCoaches = [
   },
 ];
 
-// Mock the API service - mocked implementation is set in beforeEach
+// Mock the admin API - mocked implementation is set in beforeEach
 vi.mock('../../services/api', () => ({
-  apiService: {
+  adminApi: {
     getRejectedStoreCoaches: vi.fn(),
   },
 }));
 
 import RejectedCoachesList from '../RejectedCoachesList';
-import { apiService } from '../../services/api';
+import { adminApi } from '../../services/api';
 
 function renderRejectedCoachesList() {
   const queryClient = new QueryClient({
@@ -79,7 +79,7 @@ function renderRejectedCoachesList() {
 describe('RejectedCoachesList', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(apiService.getRejectedStoreCoaches).mockResolvedValue({
+    vi.mocked(adminApi.getRejectedStoreCoaches).mockResolvedValue({
       coaches: mockCoaches,
       total: 2,
       metadata: { timestamp: new Date().toISOString(), api_version: '1.0' },
@@ -87,7 +87,7 @@ describe('RejectedCoachesList', () => {
   });
 
   it('displays loading spinner initially', () => {
-    vi.mocked(apiService.getRejectedStoreCoaches).mockImplementation(
+    vi.mocked(adminApi.getRejectedStoreCoaches).mockImplementation(
       () => new Promise(() => {})
     );
 
@@ -170,7 +170,7 @@ describe('RejectedCoachesList', () => {
   });
 
   it('shows empty state when no rejected coaches', async () => {
-    vi.mocked(apiService.getRejectedStoreCoaches).mockResolvedValue({
+    vi.mocked(adminApi.getRejectedStoreCoaches).mockResolvedValue({
       coaches: [],
       total: 0,
       metadata: { timestamp: new Date().toISOString(), api_version: '1.0' },
@@ -187,7 +187,7 @@ describe('RejectedCoachesList', () => {
   });
 
   it('shows error state on API failure', async () => {
-    vi.mocked(apiService.getRejectedStoreCoaches).mockRejectedValue(
+    vi.mocked(adminApi.getRejectedStoreCoaches).mockRejectedValue(
       new Error('API Error')
     );
 
@@ -218,7 +218,7 @@ describe('RejectedCoachesList', () => {
   });
 
   it('handles unknown rejection reason gracefully', async () => {
-    vi.mocked(apiService.getRejectedStoreCoaches).mockResolvedValue({
+    vi.mocked(adminApi.getRejectedStoreCoaches).mockResolvedValue({
       coaches: [
         {
           ...mockCoaches[0],
@@ -238,7 +238,7 @@ describe('RejectedCoachesList', () => {
   });
 
   it('shows singular form for one rejection', async () => {
-    vi.mocked(apiService.getRejectedStoreCoaches).mockResolvedValue({
+    vi.mocked(adminApi.getRejectedStoreCoaches).mockResolvedValue({
       coaches: [mockCoaches[0]],
       total: 1,
       metadata: { timestamp: new Date().toISOString(), api_version: '1.0' },

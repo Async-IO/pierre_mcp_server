@@ -6,7 +6,7 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { adminApi } from '../services/api';
 import { Card } from './ui';
 import { clsx } from 'clsx';
 import CoachReviewDrawer from './CoachReviewDrawer';
@@ -51,7 +51,7 @@ export default function CoachReviewQueue() {
   // Fetch pending coaches
   const { data, isLoading, error } = useQuery({
     queryKey: ['admin-store-review-queue'],
-    queryFn: () => apiService.getStoreReviewQueue(),
+    queryFn: () => adminApi.getStoreReviewQueue(),
   });
 
   const formatDate = (dateString: string) => {

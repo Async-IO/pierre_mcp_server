@@ -7,18 +7,23 @@ import Login from '../Login'
 import { AuthProvider } from '../../contexts/AuthContext'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-// Mock the API service
+// Mock the API service - AuthContext uses authApi, apiClient, adminApi
 vi.mock('../../services/api', () => ({
-  apiService: {
+  authApi: {
     login: vi.fn(),
     logout: vi.fn().mockResolvedValue(undefined),
+  },
+  adminApi: {
+    getSetupStatus: vi.fn().mockResolvedValue({ needs_setup: false, admin_exists: true }),
+    endImpersonation: vi.fn(),
+  },
+  apiClient: {
     getCsrfToken: vi.fn(() => null),
     setCsrfToken: vi.fn(),
     clearCsrfToken: vi.fn(),
     getUser: vi.fn(() => null),
     setUser: vi.fn(),
     clearUser: vi.fn(),
-    getSetupStatus: vi.fn().mockResolvedValue({ needs_setup: false, admin_exists: true }),
   }
 }))
 

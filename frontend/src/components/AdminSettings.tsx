@@ -6,7 +6,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { adminApi } from '../services/api';
 import { Card } from './ui';
 import type { SocialInsightsConfig } from '../types/api';
 
@@ -16,7 +16,7 @@ export default function AdminSettings() {
 
   const { data: autoApprovalData, isLoading, error } = useQuery({
     queryKey: ['auto-approval-setting'],
-    queryFn: () => apiService.getAutoApprovalSetting(),
+    queryFn: () => adminApi.getAutoApprovalSetting(),
     retry: 1,
   });
 
@@ -26,26 +26,26 @@ export default function AdminSettings() {
     error: socialInsightsError,
   } = useQuery({
     queryKey: ['social-insights-config'],
-    queryFn: () => apiService.getSocialInsightsConfig(),
+    queryFn: () => adminApi.getSocialInsightsConfig(),
     retry: 1,
   });
 
   const updateAutoApprovalMutation = useMutation({
-    mutationFn: (enabled: boolean) => apiService.updateAutoApprovalSetting(enabled),
+    mutationFn: (enabled: boolean) => adminApi.updateAutoApprovalSetting(enabled),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['auto-approval-setting'] });
     },
   });
 
   const updateSocialInsightsMutation = useMutation({
-    mutationFn: (config: SocialInsightsConfig) => apiService.updateSocialInsightsConfig(config),
+    mutationFn: (config: SocialInsightsConfig) => adminApi.updateSocialInsightsConfig(config),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['social-insights-config'] });
     },
   });
 
   const resetSocialInsightsMutation = useMutation({
-    mutationFn: () => apiService.resetSocialInsightsConfig(),
+    mutationFn: () => adminApi.resetSocialInsightsConfig(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['social-insights-config'] });
     },

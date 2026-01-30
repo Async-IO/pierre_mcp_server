@@ -5,7 +5,7 @@
 // ABOUTME: Simple modal with visibility selection and direct sharing
 
 import { useState } from 'react';
-import { apiService } from '../../services/api';
+import { socialApi } from '../../services/api';
 import { Button, Modal } from '../ui';
 import type { ShareVisibility } from '../../types/social';
 
@@ -40,7 +40,7 @@ export default function ShareChatMessageModal({
     setError(null);
 
     try {
-      await apiService.shareFromActivity({
+      await socialApi.shareFromActivity({
         content,
         insight_type: 'coaching_insight',
         visibility,

@@ -2,7 +2,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 import { useState, useEffect, useCallback } from 'react';
-import { apiService } from '../services/api';
+import { authApi, adminApi, apiClient } from '../services/api';
 import { AuthContext } from './auth';
 import type { User, ImpersonationState } from './auth';
 
@@ -51,12 +51,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string) => {
-    const response = await apiService.login({ email, password });
+    const response = await authApi.login({ email, password });
     // OAuth2 ROPC response uses access_token, csrf_token, and user
     const { access_token, csrf_token, user: userData } = response;
 
     // Store CSRF token in API service
-    apiService.setCsrfToken(csrf_token);
+    apiClient.setCsrfToken(csrf_token);
 
     // Store JWT token for WebSocket authentication
     if (access_token) {
@@ -70,11 +70,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const loginWithFirebase = async (idToken: string) => {
-    const response = await apiService.loginWithFirebase({ idToken });
+    const response = await authApi.loginWithFirebase({ idToken });
     const { csrf_token, jwt_token, user: userData } = response;
 
     // Store CSRF token in API service
-    apiService.setCsrfToken(csrf_token);
+    apiClient.setCsrfToken(csrf_token);
 
     // Store JWT token for WebSocket authentication
     if (jwt_token) {
@@ -104,11 +104,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('jwt_token');
 
     // Clear CSRF token from API service
-    apiService.clearCsrfToken();
-    apiService.clearUser();
+    apiClient.clearCsrfToken();
+    apiClient.clearUser();
 
     // Optionally call logout endpoint to clear cookies
-    apiService.logout().catch((error) => {
+    authApi.logout().catch((error) => {
       console.error('Logout API call failed:', error);
       // Continue with local cleanup even if API fails
     });
@@ -119,7 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error('Only super admins can impersonate users');
     }
 
-    const response = await apiService.startImpersonation(targetUserId, reason);
+    const response = await adminApi.startImpersonation(targetUserId, reason);
 
     // Store original user before switching
     const newImpersonationState: ImpersonationState = {
@@ -143,7 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      await apiService.endImpersonation();
+      await adminApi.endImpersonation();
     } catch (error) {
       console.error('Failed to end impersonation on server:', error);
       // Continue with local cleanup even if API fails

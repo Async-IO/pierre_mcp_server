@@ -2,7 +2,7 @@
 // ABOUTME: Manages user auth state, login/logout, and persists tokens with AsyncStorage
 
 import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import { apiService, onAuthFailure } from '../services/api';
+import { authApi, onAuthFailure } from '../services/api';
 import type { User, FirebaseLoginResponse } from '../types';
 
 interface AuthContextType {
@@ -29,9 +29,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     const initAuth = async () => {
       try {
-        const hasToken = await apiService.initializeAuth();
+        const hasToken = await authApi.initializeAuth();
         if (hasToken) {
-          const storedUser = await apiService.getStoredUser();
+          const storedUser = await authApi.getStoredUser();
           if (storedUser) {
             setUser(storedUser);
           }
@@ -55,7 +55,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const response = await apiService.login(email, password);
+    const response = await authApi.login({ email, password });
 
     // OAuth2 response contains access_token and user info
     const loginUser: User = response.user || {
@@ -66,27 +66,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
       user_status: 'active',
     };
 
-    await apiService.storeAuth(response.access_token, response.csrf_token || '', loginUser);
+    await authApi.storeAuth(response.access_token, response.csrf_token || '', loginUser);
     setUser(loginUser);
   }, []);
 
   const loginWithFirebase = useCallback(async (idToken: string): Promise<FirebaseLoginResponse> => {
-    const response = await apiService.loginWithFirebase(idToken);
+    const response = await authApi.loginWithFirebase({ idToken });
 
     // Store auth tokens and user info
-    await apiService.storeAuth(response.jwt_token, response.csrf_token, response.user);
+    await authApi.storeAuth(response.jwt_token, response.csrf_token, response.user);
     setUser(response.user);
 
     return response;
   }, []);
 
   const logout = useCallback(async () => {
-    await apiService.logout();
+    await authApi.logout();
     setUser(null);
   }, []);
 
   const register = useCallback(async (email: string, password: string, displayName?: string) => {
-    await apiService.register(email, password, displayName);
+    await authApi.register({ email, password, display_name: displayName });
     // After registration, user needs to log in (or wait for approval if pending)
   }, []);
 

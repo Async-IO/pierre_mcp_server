@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { adminApi } from '../services/api';
 import type { User } from '../types/api';
 import { Button, Card } from './ui';
 import { Badge } from './ui/Badge';
@@ -32,7 +32,7 @@ export default function PasswordResetModal({
   const resetMutation = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error('No user selected');
-      return apiService.resetUserPassword(user.id);
+      return adminApi.resetUserPassword(user.id);
     },
     onSuccess: (response: PasswordResetResponse) => {
       setResetResult(response);

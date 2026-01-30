@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { adminApi } from '../services/api';
 import type { User } from '../types/api';
 import { Button, Card, Badge } from './ui';
 import UserApprovalModal from './UserApprovalModal';
@@ -20,7 +20,7 @@ export default function PendingUsersList() {
     refetch 
   } = useQuery<User[]>({
     queryKey: ['pending-users'],
-    queryFn: () => apiService.getPendingUsers(),
+    queryFn: () => adminApi.getPendingUsers(),
     refetchInterval: 30000, // Refetch every 30 seconds for real-time updates
   });
 

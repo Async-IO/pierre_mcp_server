@@ -9,9 +9,9 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-// Mock the API service
+// Mock the admin API
 vi.mock('../../services/api', () => ({
-  apiService: {
+  adminApi: {
     getStoreStats: vi.fn().mockResolvedValue({
       pending_count: 5,
       published_count: 12,
@@ -38,7 +38,7 @@ vi.mock('../../services/api', () => ({
 }));
 
 import CoachStoreManagement from '../CoachStoreManagement';
-import { apiService } from '../../services/api';
+import { adminApi } from '../../services/api';
 
 function renderCoachStoreManagement() {
   const queryClient = new QueryClient({
@@ -58,7 +58,7 @@ function renderCoachStoreManagement() {
 describe('CoachStoreManagement', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(apiService.getStoreStats).mockResolvedValue({
+    vi.mocked(adminApi.getStoreStats).mockResolvedValue({
       pending_count: 5,
       published_count: 12,
       rejected_count: 3,
@@ -91,7 +91,7 @@ describe('CoachStoreManagement', () => {
   });
 
   it('shows loading state for stats', () => {
-    vi.mocked(apiService.getStoreStats).mockImplementation(
+    vi.mocked(adminApi.getStoreStats).mockImplementation(
       () => new Promise(() => {}) // Never resolves
     );
 
@@ -163,7 +163,7 @@ describe('CoachStoreManagement', () => {
   });
 
   it('formats numbers with locale formatting', async () => {
-    vi.mocked(apiService.getStoreStats).mockResolvedValue({
+    vi.mocked(adminApi.getStoreStats).mockResolvedValue({
       pending_count: 1234,
       published_count: 5678,
       rejected_count: 90,
@@ -183,7 +183,7 @@ describe('CoachStoreManagement', () => {
   });
 
   it('handles zero stats gracefully', async () => {
-    vi.mocked(apiService.getStoreStats).mockResolvedValue({
+    vi.mocked(adminApi.getStoreStats).mockResolvedValue({
       pending_count: 0,
       published_count: 0,
       rejected_count: 0,

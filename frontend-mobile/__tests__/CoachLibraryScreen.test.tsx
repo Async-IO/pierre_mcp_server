@@ -38,14 +38,15 @@ const mockShowCoach = jest.fn();
 const mockGetHiddenCoaches = jest.fn();
 
 jest.mock('../src/services/api', () => ({
-  apiService: {
-    listCoaches: (...args: unknown[]) => mockListCoaches(...args),
-    toggleCoachFavorite: (...args: unknown[]) => mockToggleCoachFavorite(...args),
-    updateCoach: (...args: unknown[]) => mockUpdateCoach(...args),
-    deleteCoach: (...args: unknown[]) => mockDeleteCoach(...args),
-    hideCoach: (...args: unknown[]) => mockHideCoach(...args),
-    showCoach: (...args: unknown[]) => mockShowCoach(...args),
-    getHiddenCoaches: (...args: unknown[]) => mockGetHiddenCoaches(...args),
+  coachesApi: {
+    list: (...args: unknown[]) => mockListCoaches(...args),
+    toggleFavorite: (...args: unknown[]) => mockToggleCoachFavorite(...args),
+    update: (...args: unknown[]) => mockUpdateCoach(...args),
+    delete: (...args: unknown[]) => mockDeleteCoach(...args),
+    hide: (...args: unknown[]) => mockHideCoach(...args),
+    show: (...args: unknown[]) => mockShowCoach(...args),
+    getHidden: (...args: unknown[]) => mockGetHiddenCoaches(...args),
+    fork: jest.fn(),
   },
 }));
 

@@ -16,7 +16,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
 import { colors, spacing, glassCard } from '../../constants/theme';
-import { apiService } from '../../services/api';
+import { socialApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { AdaptedInsight } from '../../types';
 import type { SocialStackParamList } from '../../navigation/MainTabs';
@@ -99,7 +99,7 @@ export function AdaptedInsightsScreen() {
         setIsLoading(true);
       }
 
-      const response = await apiService.getAdaptedInsights({ limit: 20 });
+      const response = await socialApi.getAdaptedInsights({ limit: 20 });
       setInsights(response.insights);
       setNextCursor(response.next_cursor);
       setHasMore(response.has_more);
@@ -116,7 +116,7 @@ export function AdaptedInsightsScreen() {
 
     try {
       setIsLoadingMore(true);
-      const response = await apiService.getAdaptedInsights({
+      const response = await socialApi.getAdaptedInsights({
         limit: 20,
         cursor: nextCursor,
       });

@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { clsx } from 'clsx';
-import { apiService } from '../../services/api';
+import { socialApi } from '../../services/api';
 import { Button, Modal } from '../ui';
 import SuggestionCard from './SuggestionCard';
 import type { InsightType, TrainingPhase, ShareVisibility } from '../../types/social';
@@ -49,7 +49,7 @@ export default function ShareInsightModal({ onClose, onSuccess, activityId }: Sh
       setError(null);
       setFlowState('loading');
 
-      const response = await apiService.getInsightSuggestions({
+      const response = await socialApi.getInsightSuggestions({
         limit: 10,
         activity_id: activityId,
       });
@@ -93,7 +93,7 @@ export default function ShareInsightModal({ onClose, onSuccess, activityId }: Sh
     try {
       setFlowState('submitting');
 
-      await apiService.shareFromActivity({
+      await socialApi.shareFromActivity({
         activity_id: selectedSuggestion.source_activity_id,
         insight_type: selectedSuggestion.insight_type,
         content: editedContent.trim(),

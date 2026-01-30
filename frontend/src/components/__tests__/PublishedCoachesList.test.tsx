@@ -46,16 +46,16 @@ const mockCoaches = [
   },
 ];
 
-// Mock the API service - mocked implementation is set in beforeEach
+// Mock the admin API - mocked implementation is set in beforeEach
 vi.mock('../../services/api', () => ({
-  apiService: {
+  adminApi: {
     getPublishedStoreCoaches: vi.fn(),
     unpublishStoreCoach: vi.fn(),
   },
 }));
 
 import PublishedCoachesList from '../PublishedCoachesList';
-import { apiService } from '../../services/api';
+import { adminApi } from '../../services/api';
 
 function renderPublishedCoachesList() {
   const queryClient = new QueryClient({
@@ -75,12 +75,12 @@ function renderPublishedCoachesList() {
 describe('PublishedCoachesList', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(apiService.getPublishedStoreCoaches).mockResolvedValue({
+    vi.mocked(adminApi.getPublishedStoreCoaches).mockResolvedValue({
       coaches: mockCoaches,
       total: 2,
       metadata: { timestamp: new Date().toISOString(), api_version: '1.0' },
     });
-    vi.mocked(apiService.unpublishStoreCoach).mockResolvedValue({
+    vi.mocked(adminApi.unpublishStoreCoach).mockResolvedValue({
       success: true,
       message: 'Coach unpublished',
       coach_id: 'coach-1',
@@ -88,7 +88,7 @@ describe('PublishedCoachesList', () => {
   });
 
   it('displays loading spinner initially', () => {
-    vi.mocked(apiService.getPublishedStoreCoaches).mockImplementation(
+    vi.mocked(adminApi.getPublishedStoreCoaches).mockImplementation(
       () => new Promise(() => {})
     );
 
@@ -165,14 +165,14 @@ describe('PublishedCoachesList', () => {
     await user.selectOptions(select, 'most_installed');
 
     await waitFor(() => {
-      expect(apiService.getPublishedStoreCoaches).toHaveBeenCalledWith({
+      expect(adminApi.getPublishedStoreCoaches).toHaveBeenCalledWith({
         sort_by: 'most_installed',
       });
     });
   });
 
   it('shows empty state when no coaches', async () => {
-    vi.mocked(apiService.getPublishedStoreCoaches).mockResolvedValue({
+    vi.mocked(adminApi.getPublishedStoreCoaches).mockResolvedValue({
       coaches: [],
       total: 0,
       metadata: { timestamp: new Date().toISOString(), api_version: '1.0' },
@@ -189,7 +189,7 @@ describe('PublishedCoachesList', () => {
   });
 
   it('shows error state on API failure', async () => {
-    vi.mocked(apiService.getPublishedStoreCoaches).mockRejectedValue(
+    vi.mocked(adminApi.getPublishedStoreCoaches).mockRejectedValue(
       new Error('API Error')
     );
 
@@ -253,7 +253,7 @@ describe('PublishedCoachesList', () => {
     await user.click(confirmButton!);
 
     await waitFor(() => {
-      expect(apiService.unpublishStoreCoach).toHaveBeenCalledWith('coach-1');
+      expect(adminApi.unpublishStoreCoach).toHaveBeenCalledWith('coach-1');
     });
   });
 

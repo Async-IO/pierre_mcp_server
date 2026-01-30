@@ -40,10 +40,10 @@ const mockSearchStoreCoaches = jest.fn();
 const mockGetStoreCategories = jest.fn();
 
 jest.mock('../src/services/api', () => ({
-  apiService: {
-    browseStoreCoaches: (...args: unknown[]) => mockBrowseStoreCoaches(...args),
-    searchStoreCoaches: (...args: unknown[]) => mockSearchStoreCoaches(...args),
-    getStoreCategories: (...args: unknown[]) => mockGetStoreCategories(...args),
+  storeApi: {
+    browse: (...args: unknown[]) => mockBrowseStoreCoaches(...args),
+    search: (...args: unknown[]) => mockSearchStoreCoaches(...args),
+    getCategories: (...args: unknown[]) => mockGetStoreCategories(...args),
   },
 }));
 

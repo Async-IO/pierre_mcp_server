@@ -26,7 +26,7 @@ const coachCardShadow: ViewStyle = {
   shadowRadius: glassCard.shadowRadius,
   elevation: glassCard.elevation,
 };
-import { apiService } from '../../services/api';
+import { storeApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { StoreCoach, CoachCategory } from '../../types';
 import type { CoachesStackParamList } from '../../navigation/MainTabs';
@@ -89,7 +89,7 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
         setIsLoading(true);
       }
 
-      const response = await apiService.browseStoreCoaches({
+      const response = await storeApi.browse({
         category: selectedCategory === 'all' ? undefined : selectedCategory,
         sort_by: selectedSort,
         limit: 20,
@@ -110,7 +110,7 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
 
     try {
       setIsLoadingMore(true);
-      const response = await apiService.browseStoreCoaches({
+      const response = await storeApi.browse({
         category: selectedCategory === 'all' ? undefined : selectedCategory,
         sort_by: selectedSort,
         limit: 20,
@@ -134,7 +134,7 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
 
     try {
       setIsSearching(true);
-      const response = await apiService.searchStoreCoaches(query.trim(), 50);
+      const response = await storeApi.search(query.trim(), 50);
       setCoaches(response.coaches);
       setNextCursor(null);
       setHasMore(false);

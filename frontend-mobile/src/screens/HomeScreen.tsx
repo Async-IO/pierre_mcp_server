@@ -17,7 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors, spacing, aiGlow } from '../constants/theme';
-import { apiService } from '../services/api';
+import { coachesApi, chatApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import type { Coach, Conversation } from '../types';
 
@@ -59,8 +59,8 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const loadData = useCallback(async () => {
     try {
       const [coachesResponse, conversationsResponse] = await Promise.all([
-        apiService.listCoaches({ favorites_only: false }),
-        apiService.getConversations(1, 0),
+        coachesApi.listCoaches({ favorites_only: false }),
+        chatApi.getConversations(1, 0),
       ]);
 
       // Find most recently used coach

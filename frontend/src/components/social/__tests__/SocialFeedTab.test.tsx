@@ -8,12 +8,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import SocialFeedTab from '../SocialFeedTab';
-import { apiService } from '../../../services/api';
+import { socialApi } from '../../../services/api';
 
 // Mock the API service
 vi.mock('../../../services/api', () => ({
-  apiService: {
-    getSocialFeed: vi.fn(),
+  socialApi: {
+    getFeed: vi.fn(),
+    getInsightSuggestions: vi.fn(),
     addReaction: vi.fn(),
     removeReaction: vi.fn(),
     shareInsight: vi.fn(),
@@ -63,8 +64,8 @@ const mockFeedItems = {
 describe('SocialFeedTab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(apiService.getSocialFeed).mockResolvedValue(mockFeedItems);
-    vi.mocked(apiService.addReaction).mockResolvedValue({
+    vi.mocked(socialApi.getFeed).mockResolvedValue(mockFeedItems);
+    vi.mocked(socialApi.addReaction).mockResolvedValue({
       reaction: {
         id: 'reaction-1',
         insight_id: 'insight-1',
@@ -81,7 +82,7 @@ describe('SocialFeedTab', () => {
       },
       metadata: { timestamp: '2024-01-01T00:00:00Z', api_version: 'v1' },
     });
-    vi.mocked(apiService.removeReaction).mockResolvedValue(undefined);
+    vi.mocked(socialApi.removeReaction).mockResolvedValue(undefined);
   });
 
   it('should render the Social Feed tab with title', async () => {
@@ -100,11 +101,11 @@ describe('SocialFeedTab', () => {
 
     expect(screen.getByText('Just completed my first marathon training block! Feeling strong.')).toBeInTheDocument();
     expect(screen.getByText('Jane Doe')).toBeInTheDocument();
-    expect(apiService.getSocialFeed).toHaveBeenCalled();
+    expect(socialApi.getFeed).toHaveBeenCalled();
   });
 
   it('should show empty state when no feed items', async () => {
-    vi.mocked(apiService.getSocialFeed).mockResolvedValue({
+    vi.mocked(socialApi.getFeed).mockResolvedValue({
       items: [],
       next_cursor: null,
       has_more: false,
@@ -169,7 +170,7 @@ describe('SocialFeedTab', () => {
     fireEvent.click(reactionButtons[0]);
 
     await waitFor(() => {
-      expect(apiService.addReaction).toHaveBeenCalledWith('insight-1', 'like');
+      expect(socialApi.addReaction).toHaveBeenCalledWith('insight-1', 'like');
     });
   });
 
@@ -182,7 +183,7 @@ describe('SocialFeedTab', () => {
   });
 
   it('should show Adapted button when user has already adapted', async () => {
-    vi.mocked(apiService.getSocialFeed).mockResolvedValue({
+    vi.mocked(socialApi.getFeed).mockResolvedValue({
       ...mockFeedItems,
       items: [
         {

@@ -28,9 +28,9 @@ const mockCoach = {
   publish_status: 'pending_review',
 };
 
-// Mock the API service
+// Mock the admin API
 vi.mock('../../services/api', () => ({
-  apiService: {
+  adminApi: {
     approveStoreCoach: vi.fn().mockResolvedValue({
       success: true,
       message: 'Coach approved',
@@ -45,7 +45,7 @@ vi.mock('../../services/api', () => ({
 }));
 
 import CoachReviewDrawer from '../CoachReviewDrawer';
-import { apiService } from '../../services/api';
+import { adminApi } from '../../services/api';
 
 const mockOnClose = vi.fn();
 
@@ -171,13 +171,13 @@ describe('CoachReviewDrawer', () => {
     await user.click(approveButton);
 
     await waitFor(() => {
-      expect(apiService.approveStoreCoach).toHaveBeenCalledWith('coach-1');
+      expect(adminApi.approveStoreCoach).toHaveBeenCalledWith('coach-1');
     });
   });
 
   it('shows loading state during approval', async () => {
     const user = userEvent.setup();
-    vi.mocked(apiService.approveStoreCoach).mockImplementation(
+    vi.mocked(adminApi.approveStoreCoach).mockImplementation(
       () => new Promise(() => {})
     );
 

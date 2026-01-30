@@ -8,11 +8,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import FriendsTab from '../FriendsTab';
-import { apiService } from '../../../services/api';
+import { socialApi } from '../../../services/api';
 
 // Mock the API service
 vi.mock('../../../services/api', () => ({
-  apiService: {
+  socialApi: {
     listFriends: vi.fn(),
     searchUsers: vi.fn(),
     getPendingFriendRequests: vi.fn(),
@@ -77,10 +77,10 @@ const mockPendingRequests = {
 describe('FriendsTab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(apiService.listFriends).mockResolvedValue(mockFriends);
-    vi.mocked(apiService.getPendingFriendRequests).mockResolvedValue(mockPendingRequests);
-    vi.mocked(apiService.searchUsers).mockResolvedValue(mockSearchResults);
-    vi.mocked(apiService.sendFriendRequest).mockResolvedValue({
+    vi.mocked(socialApi.listFriends).mockResolvedValue(mockFriends);
+    vi.mocked(socialApi.getPendingFriendRequests).mockResolvedValue(mockPendingRequests);
+    vi.mocked(socialApi.searchUsers).mockResolvedValue(mockSearchResults);
+    vi.mocked(socialApi.sendFriendRequest).mockResolvedValue({
       id: 'conn-3',
       initiator_id: 'user-1',
       receiver_id: 'user-3',
@@ -89,7 +89,7 @@ describe('FriendsTab', () => {
       updated_at: '2024-01-01T00:00:00Z',
       accepted_at: null,
     });
-    vi.mocked(apiService.acceptFriendRequest).mockResolvedValue({
+    vi.mocked(socialApi.acceptFriendRequest).mockResolvedValue({
       id: 'conn-2',
       initiator_id: 'user-4',
       receiver_id: 'user-1',
@@ -98,8 +98,8 @@ describe('FriendsTab', () => {
       updated_at: '2024-01-01T00:00:00Z',
       accepted_at: '2024-01-02T00:00:00Z',
     });
-    vi.mocked(apiService.rejectFriendRequest).mockResolvedValue(undefined);
-    vi.mocked(apiService.removeFriend).mockResolvedValue(undefined);
+    vi.mocked(socialApi.rejectFriendRequest).mockResolvedValue(undefined);
+    vi.mocked(socialApi.removeFriend).mockResolvedValue(undefined);
   });
 
   it('should render the Friends tab with title', async () => {
@@ -117,11 +117,11 @@ describe('FriendsTab', () => {
       expect(screen.getByText('Jane Doe')).toBeInTheDocument();
     });
 
-    expect(apiService.listFriends).toHaveBeenCalled();
+    expect(socialApi.listFriends).toHaveBeenCalled();
   });
 
   it('should show empty state when no friends', async () => {
-    vi.mocked(apiService.listFriends).mockResolvedValue({
+    vi.mocked(socialApi.listFriends).mockResolvedValue({
       friends: [],
       total: 0,
       metadata: { timestamp: '2024-01-01T00:00:00Z', api_version: 'v1' },
@@ -139,7 +139,7 @@ describe('FriendsTab', () => {
 
     // Wait for initial load
     await waitFor(() => {
-      expect(apiService.listFriends).toHaveBeenCalled();
+      expect(socialApi.listFriends).toHaveBeenCalled();
     });
 
     // Click on Find Friends tab
@@ -154,7 +154,7 @@ describe('FriendsTab', () => {
     fireEvent.click(searchButton);
 
     await waitFor(() => {
-      expect(apiService.searchUsers).toHaveBeenCalledWith('bob');
+      expect(socialApi.searchUsers).toHaveBeenCalledWith('bob');
     });
 
     await waitFor(() => {
@@ -183,7 +183,7 @@ describe('FriendsTab', () => {
     fireEvent.click(addButton);
 
     await waitFor(() => {
-      expect(apiService.sendFriendRequest).toHaveBeenCalledWith('user-3');
+      expect(socialApi.sendFriendRequest).toHaveBeenCalledWith('user-3');
     });
   });
 
@@ -191,7 +191,7 @@ describe('FriendsTab', () => {
     render(<FriendsTab />);
 
     await waitFor(() => {
-      expect(apiService.listFriends).toHaveBeenCalled();
+      expect(socialApi.listFriends).toHaveBeenCalled();
     });
 
     // Click on Pending tab
@@ -199,7 +199,7 @@ describe('FriendsTab', () => {
     fireEvent.click(pendingTab);
 
     await waitFor(() => {
-      expect(apiService.getPendingFriendRequests).toHaveBeenCalled();
+      expect(socialApi.getPendingFriendRequests).toHaveBeenCalled();
     });
 
     expect(screen.getByText('Received Requests (1)')).toBeInTheDocument();
@@ -221,7 +221,7 @@ describe('FriendsTab', () => {
     fireEvent.click(acceptButton);
 
     await waitFor(() => {
-      expect(apiService.acceptFriendRequest).toHaveBeenCalledWith('conn-2');
+      expect(socialApi.acceptFriendRequest).toHaveBeenCalledWith('conn-2');
     });
   });
 
@@ -237,7 +237,7 @@ describe('FriendsTab', () => {
     fireEvent.click(removeButton);
 
     await waitFor(() => {
-      expect(apiService.removeFriend).toHaveBeenCalledWith('user-2');
+      expect(socialApi.removeFriend).toHaveBeenCalledWith('user-2');
     });
   });
 });

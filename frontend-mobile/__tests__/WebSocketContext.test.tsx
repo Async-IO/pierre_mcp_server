@@ -5,11 +5,11 @@ import React from 'react';
 import { render, act, waitFor, fireEvent } from '@testing-library/react-native';
 import { Text, TouchableOpacity } from 'react-native';
 import { WebSocketProvider, useWebSocket } from '../src/contexts/WebSocketContext';
-import { apiService } from '../src/services/api';
+import { chatApi } from '../src/services/api';
 
 // Mock the api service
 jest.mock('../src/services/api', () => ({
-  apiService: {
+  chatApi: {
     getWebSocketUrl: jest.fn(() => 'ws://localhost:8081/api/chat/ws/conv-123?token=jwt'),
   },
 }));
@@ -142,7 +142,7 @@ describe('WebSocketContext', () => {
       });
 
       expect(getByTestId('status').children[0]).toBe('connecting');
-      expect(apiService.getWebSocketUrl).toHaveBeenCalledWith('conv-123');
+      expect(chatApi.getWebSocketUrl).toHaveBeenCalledWith('conv-123');
     });
 
     it('should update status to connected on open', async () => {

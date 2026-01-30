@@ -24,7 +24,7 @@ import {
   withSpring,
 } from 'react-native-reanimated';
 import { colors, spacing } from '../../constants/theme';
-import { apiService } from '../../services/api';
+import { coachesApi } from '../../services/api';
 import { CoachVersionHistoryModal } from '../../components/CoachVersionHistoryModal';
 import type { CreateCoachRequest, UpdateCoachRequest } from '../../types';
 import type { CoachesStackParamList } from '../../navigation/MainTabs';
@@ -81,7 +81,7 @@ export function CoachWizardScreen({ navigation }: CoachWizardScreenProps) {
   const loadCoach = useCallback(async (id: string) => {
     try {
       setIsLoading(true);
-      const coach = await apiService.getCoach(id);
+      const coach = await coachesApi.get(id);
       setTitle(coach.title);
       setDescription(coach.description || '');
       setCategory(coach.category);
@@ -215,7 +215,7 @@ export function CoachWizardScreen({ navigation }: CoachWizardScreenProps) {
           category,
           tags,
         };
-        await apiService.updateCoach(coachId, updateData);
+        await coachesApi.update(coachId, updateData);
         Alert.alert('Success', 'Coach updated successfully', [
           { text: 'OK', onPress: () => navigation.goBack() },
         ]);
@@ -227,7 +227,7 @@ export function CoachWizardScreen({ navigation }: CoachWizardScreenProps) {
           category,
           tags,
         };
-        await apiService.createCoach(createData);
+        await coachesApi.create(createData);
         Alert.alert('Success', 'Coach created successfully', [
           { text: 'OK', onPress: () => navigation.goBack() },
         ]);
