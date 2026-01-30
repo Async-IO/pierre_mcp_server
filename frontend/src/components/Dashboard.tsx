@@ -364,10 +364,11 @@ export default function Dashboard() {
             {!sidebarCollapsed && (
               <button
                 onClick={logout}
-                className="text-zinc-500 hover:text-pierre-violet transition-colors flex-shrink-0"
+                className="text-zinc-500 hover:text-pierre-violet transition-colors flex-shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center"
                 title="Sign out"
+                aria-label="Sign out"
               >
-                <svg className="w-3 h-3" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
               </button>
@@ -376,10 +377,11 @@ export default function Dashboard() {
             {sidebarCollapsed && (
               <button
                 onClick={logout}
-                className="text-zinc-500 hover:text-pierre-violet transition-colors"
+                className="text-zinc-500 hover:text-pierre-violet transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
                 title="Sign out"
+                aria-label="Sign out"
               >
-                <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
               </button>
@@ -390,13 +392,13 @@ export default function Dashboard() {
         {/* Collapse Toggle Button */}
         <button
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className="absolute -right-3 top-20 w-6 h-6 bg-pierre-slate border border-white/20 rounded-full flex items-center justify-center shadow-sm hover:bg-white/10 hover:border-pierre-violet transition-all duration-200 z-50"
+          className="absolute -right-5 top-20 w-11 h-11 bg-pierre-slate border border-white/20 rounded-full flex items-center justify-center shadow-sm hover:bg-white/10 hover:border-pierre-violet transition-all duration-200 z-50"
           title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           <svg
             className={clsx(
-              'w-3 h-3 text-zinc-400 transition-transform duration-300',
+              'w-4 h-4 text-zinc-400 transition-transform duration-300',
               sidebarCollapsed && 'rotate-180'
             )}
             fill="none"
