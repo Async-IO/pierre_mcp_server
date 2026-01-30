@@ -12,6 +12,7 @@ export interface Message {
   content: string;
   token_count?: number;
   created_at: string;
+  isError?: boolean;
 }
 
 export interface ConversationListResponse {

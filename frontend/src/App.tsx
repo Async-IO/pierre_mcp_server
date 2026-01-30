@@ -13,6 +13,7 @@ import OAuthCallback from './components/OAuthCallback';
 import ErrorBoundary from './components/ErrorBoundary';
 import { AuthProvider } from './contexts/AuthContext';
 import { WebSocketProvider } from './contexts/WebSocketProvider';
+import { ToastProvider } from './components/ui';
 import { useAuth } from './hooks/useAuth';
 import './App.css';
 
@@ -178,7 +179,9 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <WebSocketProvider>
-            <AppContent />
+            <ToastProvider>
+              <AppContent />
+            </ToastProvider>
           </WebSocketProvider>
         </AuthProvider>
       </QueryClientProvider>

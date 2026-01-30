@@ -70,6 +70,7 @@ export default function MessageList({
           message={msg}
           metadata={messageMetadata.get(msg.id)}
           feedback={messageFeedback.get(msg.id)}
+          isError={msg.isError}
           onCopy={msg.role === 'assistant' ? () => onCopyMessage(msg.content) : undefined}
           onShare={msg.role === 'assistant' ? () => onShareMessage(msg.content) : undefined}
           onShareToFeed={msg.role === 'assistant' ? () => onShareToFeed(msg.content) : undefined}

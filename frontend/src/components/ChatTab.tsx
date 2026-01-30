@@ -22,6 +22,7 @@ import {
   stripContextPrefix,
   DEFAULT_COACH_FORM_DATA,
 } from './chat';
+import { useSuccessToast, useInfoToast } from './ui';
 import type {
   Message,
   Conversation,
@@ -37,6 +38,8 @@ import type {
 
 export default function ChatTab() {
   const queryClient = useQueryClient();
+  const showSuccessToast = useSuccessToast();
+  const showInfoToast = useInfoToast();
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -540,7 +543,8 @@ export default function ChatTab() {
   // Message action handlers
   const handleCopyMessage = useCallback((content: string) => {
     navigator.clipboard.writeText(stripContextPrefix(content));
-  }, []);
+    showSuccessToast('Copied', 'Message copied to clipboard', 2000);
+  }, [showSuccessToast]);
 
   const handleShareMessage = useCallback((content: string) => {
     // Use native Web Share API if available, otherwise copy to clipboard
@@ -554,8 +558,9 @@ export default function ChatTab() {
       });
     } else {
       navigator.clipboard.writeText(strippedContent);
+      showInfoToast('Copied', 'Message copied to clipboard for sharing', 2000);
     }
-  }, []);
+  }, [showInfoToast]);
 
   const handleThumbsUp = useCallback((messageId: string) => {
     setMessageFeedback(prev => {
