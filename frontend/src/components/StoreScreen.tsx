@@ -275,7 +275,7 @@ export default function StoreScreen({ onNavigateToCoaches }: StoreScreenProps) {
               aria-label="Clear search"
               className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-300"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
@@ -318,8 +318,8 @@ export default function StoreScreen({ onNavigateToCoaches }: StoreScreenProps) {
             className={clsx(
               'px-3 py-1 text-sm rounded transition-colors',
               selectedSort === option.key
-                ? 'bg-pierre-violet/20 text-pierre-violet font-medium'
-                : 'text-gray-400 hover:text-pierre-violet'
+                ? 'bg-pierre-violet/20 text-pierre-violet-light font-medium'
+                : 'text-gray-400 hover:text-pierre-violet-light'
             )}
           >
             {option.label}
@@ -343,6 +343,7 @@ export default function StoreScreen({ onNavigateToCoaches }: StoreScreenProps) {
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
+              aria-hidden="true"
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>

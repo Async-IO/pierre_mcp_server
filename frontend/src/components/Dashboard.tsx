@@ -355,7 +355,7 @@ export default function Dashboard() {
                 <p className="text-[10px] font-medium text-white truncate leading-none">
                   {user?.display_name || user?.email}
                 </p>
-                <span className="text-[8px] text-zinc-500 uppercase">
+                <span className="text-[8px] text-zinc-300 uppercase">
                   {user?.role === 'super_admin' ? 'Super Admin' : user?.role === 'admin' ? 'Admin' : 'User'}
                 </span>
               </div>

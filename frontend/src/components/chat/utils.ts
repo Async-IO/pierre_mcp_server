@@ -84,7 +84,7 @@ export const getCategoryBadgeClass = (category: string): string => {
     recovery: 'bg-pierre-blue-100 text-pierre-blue-700',
     recipes: 'bg-pierre-yellow-100 text-pierre-yellow-700',
     mobility: 'bg-pierre-mobility/10 text-pierre-mobility',
-    analysis: 'bg-pierre-violet/10 text-pierre-violet',
+    analysis: 'bg-pierre-violet/10 text-pierre-violet-light',
     custom: 'bg-pierre-gray-100 text-pierre-gray-600',
   };
   return classes[category.toLowerCase()] || classes.custom;

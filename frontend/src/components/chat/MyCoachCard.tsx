@@ -102,7 +102,7 @@ const MyCoachCard = memo(function MyCoachCard({
       )}
       <div className="flex items-center gap-2 mt-1 text-xs text-zinc-500">
         {coach.is_system && (
-          <span className="bg-pierre-violet/20 text-pierre-violet px-1.5 py-0.5 rounded">
+          <span className="bg-pierre-violet/20 text-pierre-violet-light px-1.5 py-0.5 rounded">
             System
           </span>
         )}

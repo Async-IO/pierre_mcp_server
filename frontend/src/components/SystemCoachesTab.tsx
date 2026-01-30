@@ -21,7 +21,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   Recovery: 'bg-pierre-recovery/10 text-pierre-recovery border-pierre-recovery/20',
   Recipes: 'bg-pierre-yellow-500/10 text-pierre-yellow-600 border-pierre-yellow-500/20',
   Mobility: 'bg-pierre-mobility/10 text-pierre-mobility border-pierre-mobility/20',
-  Custom: 'bg-pierre-violet/10 text-pierre-violet border-pierre-violet/20',
+  Custom: 'bg-pierre-violet/10 text-pierre-violet-light border-pierre-violet/20',
 };
 
 // Helper to get category color class with case-insensitive lookup

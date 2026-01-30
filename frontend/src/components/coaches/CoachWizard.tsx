@@ -530,7 +530,7 @@ ${formData.successCriteria}
               onClick={() => toggleProvider(provider)}
               className={`px-4 py-2 rounded-lg border transition-colors ${
                 formData.prerequisites.providers.includes(provider)
-                  ? 'border-pierre-violet bg-pierre-violet/10 text-pierre-violet'
+                  ? 'border-pierre-violet bg-pierre-violet/10 text-pierre-violet-light'
                   : 'border-pierre-gray-200 text-pierre-gray-600 hover:border-pierre-gray-300'
               }`}
             >
