@@ -75,12 +75,12 @@ export function SharePreviewModal({
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 24 }}
         >
-          {/* Insight Preview */}
+          {/* Insight Preview - constrained height to keep visibility options visible */}
           <View className="mt-6">
             <Text className="text-text-tertiary text-sm uppercase tracking-wide mb-2">
               Preview
             </Text>
-            <View className="bg-background-secondary rounded-xl p-4">
+            <View className="bg-background-secondary rounded-xl p-4 max-h-48">
               <View className="flex-row items-center mb-3">
                 <View
                   className="w-8 h-8 rounded-full items-center justify-center mr-2"
@@ -92,9 +92,14 @@ export function SharePreviewModal({
                   Coach Insight
                 </Text>
               </View>
-              <Text className="text-text-primary text-base leading-6">
-                {content}
-              </Text>
+              <ScrollView
+                showsVerticalScrollIndicator={true}
+                nestedScrollEnabled={true}
+              >
+                <Text className="text-text-primary text-base leading-6">
+                  {content}
+                </Text>
+              </ScrollView>
             </View>
           </View>
 

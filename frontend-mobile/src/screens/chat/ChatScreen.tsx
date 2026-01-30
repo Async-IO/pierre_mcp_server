@@ -556,14 +556,49 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   const handleRetryMessage = async (messageId: string) => {
     // Find the assistant message and the preceding user message
     const messageIndex = messages.findIndex(m => m.id === messageId);
-    if (messageIndex > 0) {
-      const userMessage = messages[messageIndex - 1];
-      if (userMessage.role === 'user') {
-        // Remove the assistant message
-        setMessages(prev => prev.filter(m => m.id !== messageId));
-        // Resend the user's prompt
-        await sendPromptMessage(userMessage.content);
-      }
+    if (messageIndex <= 0) return;
+
+    const userMessage = messages[messageIndex - 1];
+    if (userMessage.role !== 'user') return;
+
+    const conversationId = currentConversation?.id;
+    if (!conversationId) return;
+
+    // Remove the error assistant message
+    setMessages(prev => prev.filter(m => m.id !== messageId));
+    setIsSending(true);
+
+    try {
+      // Retry sending the same user message content without creating a duplicate
+      const response = await chatApi.sendMessage(conversationId, userMessage.content);
+
+      // Add only the assistant response (user message already exists)
+      setMessages(prev => {
+        if (response.assistant_message?.id) {
+          return [...prev, {
+            ...response.assistant_message,
+            model: response.model,
+            execution_time_ms: response.execution_time_ms,
+          }];
+        }
+        return prev;
+      });
+      scrollToBottom();
+    } catch (error) {
+      console.error('Retry failed:', error);
+      // Add error message inline
+      const errorMsg = error instanceof Error ? error.message : 'Failed to get response';
+      const errorMessage: Message = {
+        id: `error-${Date.now()}`,
+        role: 'assistant',
+        content: `⚠️ ${errorMsg}\n\nPlease try again.`,
+        created_at: new Date().toISOString(),
+        isError: true,
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      scrollToBottom();
+    } finally {
+      setIsSending(false);
     }
   };
 
