@@ -255,12 +255,8 @@ npm run type-check
 To populate the dashboard with realistic demo data for visualization and testing:
 
 ```bash
-# From repository root - clear database first
-./scripts/fresh-start.sh
-
-# Start server to create tables
-# Then in another terminal:
-./scripts/seed-demo-data.sh
+# From repository root - full setup with all seeds
+./bin/setup-db-with-seeds-and-oauth-and-start-servers.sh
 ```
 
 The seed script creates:

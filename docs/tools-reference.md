@@ -3,11 +3,11 @@
 
 # MCP Tools Reference
 
-Comprehensive reference for all 47 Model Context Protocol (MCP) tools provided by Pierre Fitness Platform. These tools enable AI assistants to access fitness data, analyze performance, manage configurations, and provide personalized recommendations.
+Comprehensive reference for all 53 Model Context Protocol (MCP) tools provided by Pierre Fitness Platform. These tools enable AI assistants to access fitness data, analyze performance, manage configurations, and provide personalized recommendations.
 
 ## Overview
 
-Pierre MCP Server provides tools organized into 8 functional categories:
+Pierre MCP Server provides tools organized into 9 functional categories:
 - **Core Fitness Tools**: Activity data and provider connections
 - **Goals & Planning**: Goal setting and progress tracking
 - **Performance Analysis**: Activity insights and trend analysis
@@ -16,6 +16,7 @@ Pierre MCP Server provides tools organized into 8 functional categories:
 - **Sleep & Recovery**: Sleep analysis and recovery tracking
 - **Nutrition**: Dietary calculations and USDA food database
 - **Recipe Management**: Training-aware meal planning and recipe storage
+- **Mobility**: Stretching exercises, yoga poses, and recovery sequences
 
 ### Output Format
 
@@ -525,19 +526,86 @@ Training-aware recipe management tools for meal planning aligned with workout sc
 
 ---
 
+## Mobility
+
+Stretching and yoga tools for recovery, flexibility, and injury prevention. Includes exercise databases with detailed instructions, muscle targeting, and activity-specific recommendations.
+
+| Tool Name | Description | Required Parameters | Optional Parameters |
+|-----------|-------------|---------------------|---------------------|
+| `list_stretching_exercises` | List stretching exercises with filtering | - | `category`, `difficulty`, `muscle_group`, `activity_type`, `limit` |
+| `get_stretching_exercise` | Get detailed information about a specific stretch | `exercise_id` (string) | - |
+| `suggest_stretches_for_activity` | Get stretching recommendations based on activity type | `activity_type` (string) | `focus`, `limit` |
+| `list_yoga_poses` | List yoga poses with filtering | - | `category`, `difficulty`, `pose_type`, `muscle_group`, `recovery_context`, `limit` |
+| `get_yoga_pose` | Get detailed information about a specific yoga pose | `pose_id` (string) | - |
+| `suggest_yoga_sequence` | Create personalized yoga sequence for recovery | `purpose` (string) | `duration_minutes`, `difficulty`, `focus_area` |
+
+### Parameter Details
+
+**`list_stretching_exercises` Parameters**:
+- `category`: Stretch category - `static`, `dynamic`, `pnf`, `ballistic`
+- `difficulty`: Difficulty level - `beginner`, `intermediate`, `advanced`
+- `muscle_group`: Target muscle (e.g., `hamstrings`, `quadriceps`, `calves`)
+- `activity_type`: Recommended activity (e.g., `running`, `cycling`, `swimming`)
+- `limit`: Maximum results (default: 20)
+
+**`suggest_stretches_for_activity` Parameters**:
+- `activity_type`: Activity to get stretches for (e.g., `running`, `cycling`, `swimming`, `hiking`)
+- `focus`: Optional focus - `warmup` (dynamic stretches) or `cooldown` (static stretches)
+- `limit`: Maximum suggestions (default: 6)
+
+**`list_yoga_poses` Parameters**:
+- `category`: Pose category - `standing`, `seated`, `supine`, `prone`, `inversion`, `balance`, `twist`
+- `difficulty`: Difficulty level - `beginner`, `intermediate`, `advanced`
+- `pose_type`: Pose type - `stretch`, `strength`, `balance`, `relaxation`, `breathing`
+- `muscle_group`: Target muscle (e.g., `hamstrings`, `hips`, `shoulders`)
+- `recovery_context`: Recovery context - `post_cardio`, `rest_day`, `morning`, `evening`
+- `limit`: Maximum results (default: 20)
+
+**`suggest_yoga_sequence` Parameters**:
+- `purpose`: Sequence purpose - `post_cardio`, `rest_day`, `morning`, `evening`, `stress_relief`
+- `duration_minutes`: Target duration (10, 15, 20, 30). Default: 15
+- `difficulty`: Maximum difficulty - `beginner`, `intermediate`, `advanced`
+- `focus_area`: Optional muscle/area focus (e.g., `hips`, `hamstrings`, `back`, `shoulders`)
+
+**Example: Get Post-Run Stretches**:
+```json
+{
+  "tool": "suggest_stretches_for_activity",
+  "parameters": {
+    "activity_type": "running",
+    "focus": "cooldown",
+    "limit": 6
+  }
+}
+```
+
+**Example: Create Morning Yoga Sequence**:
+```json
+{
+  "tool": "suggest_yoga_sequence",
+  "parameters": {
+    "purpose": "morning",
+    "duration_minutes": 15,
+    "difficulty": "beginner"
+  }
+}
+```
+
+---
+
 ## Tool Selection & Administration
 
 Pierre MCP Server supports per-tenant tool selection, allowing administrators to control which tools are available to each tenant based on subscription plans and custom overrides.
 
 ### Overview
 
-Tools are organized into 8 categories and gated by subscription plan tiers:
+Tools are organized into 9 categories and gated by subscription plan tiers:
 
 | Plan | Available Tools | Description |
 |------|-----------------|-------------|
 | `starter` | Core Fitness, Configuration, Connections | Basic data access and setup |
 | `professional` | Starter + Analysis, Goals, Nutrition, Sleep, Recipes | Advanced analytics and planning |
-| `enterprise` | All 47 tools | Complete platform access |
+| `enterprise` | All 53 tools | Complete platform access |
 
 ### How Tool Selection Works
 
@@ -622,7 +690,8 @@ Overrides are stored in `tenant_tool_overrides` table and cached for performance
 | Sleep & Recovery | 5 | Sleep analysis and recovery metrics |
 | Nutrition | 5 | Dietary calculations and food database |
 | Recipe Management | 7 | Training-aware meal planning and recipes |
-| **Total** | **47** | **Complete MCP tool suite** |
+| Mobility | 6 | Stretching exercises, yoga poses, recovery sequences |
+| **Total** | **53** | **Complete MCP tool suite** |
 
 ---
 

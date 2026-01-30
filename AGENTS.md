@@ -260,7 +260,7 @@ npm run test:e2e
 
 **Run this at the START OF EVERY Claude Code session:**
 ```bash
-./scripts/claude-session-setup.sh
+./scripts/setup-claude-code-mcp.sh
 ```
 
 This script automatically:
@@ -299,7 +299,7 @@ If the script generated a new token, you may need to **restart the Claude Code s
 git config core.hooksPath .githooks
 
 # 2. Setup server and validate/refresh JWT token
-./scripts/claude-session-setup.sh
+./scripts/setup-claude-code-mcp.sh
 ```
 This enables the pre-push hook and ensures the Pierre MCP server is running with a valid JWT token. Sessions get archived/revived, so this must run EVERY time you start working, not just once.
 

@@ -1,22 +1,20 @@
 # Scripts Directory
 
-This directory contains shell scripts and utilities for development, testing, deployment, and validation of the Pierre MCP Server.
+CI/Dev tools for validation, testing, and release of the Pierre MCP Server.
+
+For runtime scripts (starting/stopping services), see [bin/README.md](../bin/README.md).
 
 ## Script Inventory
 
 | Script | Category | Purpose |
 |--------|----------|---------|
+| **setup-claude-code-mcp.sh** | Development | Sets up Claude Code session with valid JWT token and running server. |
 | **architectural-validation.sh** | Validation | Custom architectural validation that Cargo/Clippy cannot check. Enforces project-specific patterns using `validation-patterns.toml`. |
 | **clean-test-databases.sh** | Cleanup | Removes accumulated test database files from `test_data/` directory while preserving directory structure. |
-| **claude-session-setup.sh** | Development | Sets up Claude Code session with valid JWT token and running server. |
-| **complete-user-workflow.sh** | Testing | Complete user registration and approval workflow test. Implements all 5 steps from HOW_TO_REGISTER_A_USER.md. |
 | **deploy.sh** | Deployment | Production deployment script with Docker Compose management. Handles starting, stopping, and managing environments. |
-| **dev-start.sh** | Development | Development server startup script. Builds project, creates admin and regular users, starts backend and frontend servers. |
 | **ensure_mcp_compliance.sh** | Validation | MCP protocol compliance validation. Tests pierre-claude-bridge against Model Context Protocol specification. |
-| **fresh-start.sh** | Cleanup | Fresh start script for database cleanup. Removes all database files and Docker volumes for a clean state. |
 | **generate-sdk-types.js** | SDK | Auto-generates TypeScript type definitions from Pierre server tool schemas. Fetches MCP tool schemas and converts to TypeScript interfaces. |
 | **lint-and-test.sh** | CI/CD | Full CI validation suite. Runs format, clippy, deny, architectural validation, all tests, frontend, SDK, and bridge tests. |
-| **linear-session-init.sh** | Development | Initializes Linear session tracking for Claude Code sessions. |
 | **parse-validation-patterns.py** | Validation | Parses validation patterns from TOML configuration file. Outputs shell-compatible variables for use in validation scripts. |
 | **pre-push-validate.sh** | Git Hooks | Marker-based pre-push validation. Runs tiered checks and creates validation marker for git push. |
 | **pre-push-frontend-tests.sh** | Git Hooks | Pre-push validation for web frontend (frontend/). Runs TypeScript check, ESLint, and unit tests (~5-10 seconds). |
@@ -40,18 +38,22 @@ This directory contains shell scripts and utilities for development, testing, de
 
 ## Usage by Category
 
-### Essential Development Scripts
+### Development Setup
 ```bash
-./scripts/dev-start.sh              # Start development environment
-./scripts/fresh-start.sh            # Clean reset of database
-./scripts/claude-session-setup.sh   # Setup Claude Code session with valid JWT
-./scripts/setup-git-hooks.sh        # Install git hooks (run once)
+# Full dev environment (DB + seeds + all servers) - see bin/
+../bin/setup-db-with-seeds-and-oauth-and-start-servers.sh
+
+# Claude Code session JWT setup
+./scripts/setup-claude-code-mcp.sh
+
+# Install git hooks (run once)
+./scripts/setup-git-hooks.sh
 ```
 
 ### Validation (Run Before Commit)
 ```bash
 cargo fmt                              # Format code
-./scripts/architectural-validation.sh # Architectural patterns
+./scripts/architectural-validation.sh  # Architectural patterns
 cargo clippy --all-targets             # Linting
 cargo test --test <test_file> <pattern> -- --nocapture  # Targeted tests
 ```
@@ -87,18 +89,12 @@ cargo test --test store_routes_test test_browse -- --nocapture
 ./scripts/test-postgres.sh             # PostgreSQL integration (requires Docker)
 ./scripts/run_bridge_tests.sh          # SDK/Bridge tests
 ./scripts/ensure_mcp_compliance.sh     # MCP protocol compliance
-```
-
-### Workflow Testing
-```bash
-./scripts/complete-user-workflow.sh    # Full user registration flow
 ./scripts/test-claude-desktop.sh       # Claude Desktop integration
 ./scripts/test_trial_keys.sh           # API key provisioning workflow
 ```
 
 ### Cleanup
 ```bash
-./scripts/fresh-start.sh               # Full database reset
 ./scripts/clean-test-databases.sh      # Remove test databases only
 ```
 
@@ -115,4 +111,3 @@ cargo test --test store_routes_test test_browse -- --nocapture
 - **lint-and-test.sh** orchestrates multiple validation and test scripts including **run_bridge_tests.sh**
 - **pre-push-validate.sh** is used by git pre-push hook (installed via **setup-git-hooks.sh**)
 - **pre-push-validate.sh** calls **pre-push-frontend-tests.sh** and **pre-push-mobile-tests.sh** when those directories have changes
-- **test-claude-desktop.sh** calls **fresh-start.sh** and **complete-user-workflow.sh**

@@ -97,7 +97,7 @@ curl http://localhost:8081/health
 **Run this at the START OF EVERY Claude Code session:**
 
 ```bash
-./scripts/claude-session-setup.sh
+./scripts/setup-claude-code-mcp.sh
 ```
 
 This script automatically:
@@ -420,7 +420,7 @@ See [configuration.md](configuration.md) for database configuration.
 
 | Script | Description |
 |--------|-------------|
-| `claude-session-setup.sh` | **MANDATORY** session setup |
+| `setup-claude-code-mcp.sh` | **MANDATORY** session setup |
 | `fresh-start.sh` | Clean database and start fresh |
 | `complete-user-workflow.sh` | Create admin, user, tenant |
 | `dev-start.sh` | Development startup |

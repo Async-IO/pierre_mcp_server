@@ -102,3 +102,4 @@ pnpm-lock.yaml
 
 .claude/settings.local.json
 data/
+logs/

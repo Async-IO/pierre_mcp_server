@@ -23,7 +23,7 @@ See [Intelligence Methodology](docs/intelligence-methodology.md) and [Nutrition 
 - **MCP Protocol**: JSON-RPC 2.0 for AI assistant integration
 - **A2A Protocol**: Agent-to-agent communication
 - **OAuth 2.0 Server**: RFC 7591 dynamic client registration
-- **47 MCP Tools**: Activities, goals, analysis, sleep, recovery, nutrition, recipes, configuration
+- **53 MCP Tools**: Activities, goals, analysis, sleep, recovery, nutrition, recipes, mobility, configuration
 - **TypeScript SDK**: `pierre-mcp-client` npm package
 - **Pluggable Providers**: Compile-time provider selection
 - **TOON Format**: Token-Oriented Object Notation output for ~40% LLM token reduction ([spec](https://toonformat.dev))
@@ -91,7 +91,7 @@ See [Build Configuration](docs/build.md) for detailed feature documentation.
 - "Analyze this meal: 150g chicken, 200g rice, 100g broccoli"
 - "What's my predicted marathon time based on recent runs?"
 
-See [Tools Reference](docs/tools-reference.md) for the 47 available MCP tools.
+See [Tools Reference](docs/tools-reference.md) for the 53 available MCP tools.
 
 ## Quick Start
 
@@ -100,10 +100,18 @@ git clone https://github.com/Async-IO/pierre_mcp_server.git
 cd pierre_mcp_server
 cp .envrc.example .envrc  # edit with your settings
 direnv allow              # or: source .envrc
-./bin/setup-and-start.sh  # complete setup: fresh DB, admin user, server start
+
+# Full dev environment: reset DB, seed data, start all 3 servers
+./bin/setup-db-with-seeds-and-oauth-and-start-servers.sh
 ```
 
-Server starts on `http://localhost:8081`. See [Getting Started](docs/getting-started.md) for detailed setup.
+This single command:
+- Resets database with fresh migrations
+- Seeds admin, AI coaches, demo users, test data, mobility data
+- Starts Pierre server (8081), web frontend (3000), Expo mobile (8082)
+- Displays all credentials, tokens, and log file paths
+
+See [Getting Started](docs/getting-started.md) for detailed setup.
 
 ## MCP Client Configuration
 
@@ -124,7 +132,7 @@ The SDK handles OAuth 2.0 authentication automatically. See [SDK Documentation](
 
 ## Available MCP Tools
 
-47 tools organized in 8 categories:
+53 tools organized in 9 categories:
 
 | Category | Tools | Description |
 |----------|-------|-------------|
@@ -134,6 +142,7 @@ The SDK handles OAuth 2.0 authentication automatically. See [SDK Documentation](
 | **Sleep & Recovery** | 5 | Sleep quality, recovery score, rest recommendations |
 | **Nutrition** | 5 | BMR/TDEE, macros, USDA food search, meal analysis |
 | **Recipes** | 7 | Training-aware meal planning and recipe storage |
+| **Mobility** | 6 | Stretching exercises, yoga poses, recovery sequences |
 | **Configuration** | 6 | User settings, training zones, profiles |
 | **Fitness Config** | 4 | Fitness parameters, thresholds |
 
@@ -142,17 +151,20 @@ Full tool reference: [docs/tools-reference.md](docs/tools-reference.md)
 ## Server Management
 
 ```bash
-./bin/setup-and-start.sh  # complete setup: fresh DB, admin user, server start
-./bin/start-server.sh     # start backend only (loads .envrc)
+# Full development setup (recommended for first run or fresh start)
+./bin/setup-db-with-seeds-and-oauth-and-start-servers.sh
+
+# Individual services
+./bin/start-server.sh     # start backend only (port 8081)
 ./bin/stop-server.sh      # stop backend
-./bin/start-frontend.sh   # start dashboard (http://localhost:5173)
+./bin/start-frontend.sh   # start web dashboard (port 3000)
 ```
 
-Options for `setup-and-start.sh`:
-- `--skip-fresh-start` - preserve existing database
-- `--run-tests` - run workflow tests after startup
-- `--admin-email EMAIL` - custom admin email
-- `--admin-password PWD` - custom admin password
+The full setup script does everything:
+1. Resets database with fresh migrations
+2. Seeds admin user, AI coaches, demo users, test data, mobility data
+3. Starts Pierre server, web frontend, and Expo mobile
+4. Displays all credentials, tokens, and log file paths
 
 ## User Portal Dashboard
 
