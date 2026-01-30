@@ -7250,6 +7250,7 @@ impl PostgresDatabase {
                 tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
                 user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 role VARCHAR(50) DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'billing', 'member')),
+                invited_at TIMESTAMPTZ NOT NULL,
                 joined_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(tenant_id, user_id)
             )
@@ -7453,7 +7454,7 @@ impl PostgresDatabase {
                 title TEXT NOT NULL,
                 model VARCHAR(255) NOT NULL DEFAULT 'gemini-2.0-flash-exp',
                 system_prompt TEXT,
-                total_tokens INTEGER NOT NULL DEFAULT 0,
+                total_tokens BIGINT NOT NULL DEFAULT 0,
                 created_at TIMESTAMPTZ NOT NULL,
                 updated_at TIMESTAMPTZ NOT NULL
             )
@@ -7473,7 +7474,7 @@ impl PostgresDatabase {
                 conversation_id VARCHAR(255) NOT NULL REFERENCES chat_conversations(id) ON DELETE CASCADE,
                 role VARCHAR(50) NOT NULL CHECK (role IN ('system', 'user', 'assistant')),
                 content TEXT NOT NULL,
-                token_count INTEGER,
+                token_count BIGINT,
                 finish_reason VARCHAR(50),
                 created_at TIMESTAMPTZ NOT NULL
             )
