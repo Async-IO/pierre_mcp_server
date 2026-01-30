@@ -41,10 +41,9 @@ appId: com.asyncio.pierre
       - assertVisible: "No Insights"
 
 # Test: feed - pull to refresh works
-- scroll:
-    element:
-      id: "feed-scroll-view"
-    direction: DOWN
+- swipe:
+    start: "50%, 20%"
+    end: "50%, 60%"
 
 # Test: feed - share insight button visible
 - assertVisible:

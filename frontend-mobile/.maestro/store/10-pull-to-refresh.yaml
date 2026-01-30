@@ -15,16 +15,14 @@ appId: com.asyncio.pierre
     file: ../helpers/navigate-to-discover.yaml
 
 # Test: should refresh coaches on pull down
-# Scroll down first, then scroll up to trigger refresh
+# Scroll down first, then pull down from top to trigger refresh
 - scroll:
-    element:
-      id: "coach-list"
     direction: DOWN
 
-- scroll:
-    element:
-      id: "coach-list"
-    direction: UP
+# Pull down to refresh (swipe from top to bottom)
+- swipe:
+    start: "50%, 20%"
+    end: "50%, 60%"
 
 # Wait for refresh to complete
 - extendedWaitUntil:
