@@ -17,7 +17,7 @@ default-theme = "rust"
 preferred-dark-theme = "coal"
 git-repository-url = "https://github.com/Async-IO/pierre_mcp_server"
 edit-url-template = "https://github.com/Async-IO/pierre_mcp_server/edit/main/book/src/{path}"
-site-url = "/pierre_mcp_server/"
+site-url = "/documentation/"
 no-section-label = false
 
 [output.html.fold]

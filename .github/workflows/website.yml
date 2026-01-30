@@ -9,7 +9,7 @@ on:
       - main
     paths:
       - 'website/**'
-      - 'docs/**'
+      - 'book/**'
   workflow_dispatch:
 
 permissions:
@@ -47,14 +47,14 @@ jobs:
         run: bun run build
 
       - name: Build mdBook documentation
-        working-directory: docs
+        working-directory: book
         run: mdbook build
 
       - name: Combine outputs
         run: |
           # Move mdBook output to website dist under /documentation/
           mkdir -p website/dist/documentation
-          cp -r documentation-build/* website/dist/documentation/
+          cp -r book/build/* website/dist/documentation/
           echo "Combined website and documentation:"
           ls -la website/dist/
           ls -la website/dist/documentation/
