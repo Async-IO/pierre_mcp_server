@@ -390,8 +390,9 @@ export default function ToolAvailability({ tenantId }: ToolAvailabilityProps) {
           {/* Search */}
           <div className="relative">
             <Input
-              type="text"
+              type="search"
               placeholder="Search tools..."
+              aria-label="Search tools"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-64"
@@ -402,7 +403,7 @@ export default function ToolAvailability({ tenantId }: ToolAvailabilityProps) {
                 onClick={() => setSearchQuery('')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-pierre-gray-400 hover:text-pierre-gray-600"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>

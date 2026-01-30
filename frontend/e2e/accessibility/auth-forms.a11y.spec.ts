@@ -94,9 +94,12 @@ test.describe('Auth Forms Accessibility', () => {
       expect(hasFocusIndicator).toBe(true);
     });
 
-    test('should document form error announcement status', async ({ page }) => {
+    test('should announce form errors to screen readers', async ({ page }) => {
       // Submit empty form to trigger validation errors
       await page.getByRole('button', { name: /sign in/i }).click();
+
+      // Wait for error to appear
+      await page.waitForTimeout(500);
 
       // Check for aria-invalid on invalid fields
       const emailInput = page.locator('input[name="email"]');
@@ -106,13 +109,8 @@ test.describe('Auth Forms Accessibility', () => {
       const errorMessage = page.locator('[role="alert"], [aria-live="polite"]');
       const hasErrorAnnouncement = await errorMessage.count() > 0;
 
-      // Document current state - tracked in UI accessibility backlog
-      const hasProperAnnouncement = hasAriaInvalid === 'true' || hasErrorAnnouncement;
-      if (!hasProperAnnouncement) {
-        console.log('Note: Form error announcement needs aria-invalid or role=alert');
-      }
-      // Test passes - issue documented but does not block CI
-      expect(true).toBe(true);
+      // Either aria-invalid or role="alert" should be present
+      expect(hasAriaInvalid === 'true' || hasErrorAnnouncement).toBe(true);
     });
 
     test('should have proper heading hierarchy', async ({ page }) => {
@@ -126,9 +124,11 @@ test.describe('Auth Forms Accessibility', () => {
       expect(headings.h1Count).toBeGreaterThanOrEqual(1);
     });
 
-    test('should document color contrast status', async ({ page }) => {
+    test('should have sufficient color contrast', async ({ page }) => {
       const accessibilityScanResults = await new AxeBuilder({ page })
         .withTags(['cat.color'])
+        // Only check standard AA level contrast, not enhanced AAA
+        .disableRules(['color-contrast-enhanced'])
         .analyze();
 
       // Filter for contrast-related violations
@@ -136,14 +136,12 @@ test.describe('Auth Forms Accessibility', () => {
         (v) => v.id.includes('contrast')
       );
 
-      // Log violations for awareness - known UI design issue tracked separately
-      // This test documents current state without blocking CI
+      // Log violations for awareness
       if (contrastViolations.length > 0) {
         console.log(`Color contrast violations found: ${contrastViolations.length}`);
-        console.log('Note: Color contrast issues are tracked in UI design backlog');
       }
-      // Test passes - violations are documented but do not block CI
-      expect(true).toBe(true);
+      // Soft assertion - document but don't block CI for known design issues
+      expect.soft(contrastViolations).toEqual([]);
     });
 
     test('should support form submission with Enter key', async ({ page }) => {

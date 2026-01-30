@@ -272,23 +272,23 @@ test.describe('Admin Dashboard Accessibility', () => {
   });
 
   test.describe('Color Contrast', () => {
-    test('should document color contrast status for dashboard', async ({ page }) => {
+    test('should have sufficient color contrast throughout dashboard', async ({ page }) => {
       const accessibilityScanResults = await new AxeBuilder({ page })
         .withTags(['cat.color'])
+        // Only check standard AA level contrast, not enhanced AAA
+        .disableRules(['color-contrast-enhanced'])
         .analyze();
 
       const contrastViolations = accessibilityScanResults.violations.filter(
         (v) => v.id.includes('contrast')
       );
 
-      // Log violations for awareness - known UI design issue tracked separately
-      // This test documents current state without blocking CI
+      // Log violations for awareness
       if (contrastViolations.length > 0) {
         console.log(`Dashboard color contrast violations: ${contrastViolations.length}`);
-        console.log('Note: Color contrast issues are tracked in UI design backlog');
       }
-      // Test passes - violations are documented but do not block CI
-      expect(true).toBe(true);
+      // Soft assertion - document but don't block CI for known design issues
+      expect.soft(contrastViolations).toEqual([]);
     });
   });
 

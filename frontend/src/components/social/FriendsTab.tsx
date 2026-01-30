@@ -297,11 +297,12 @@ export default function FriendsTab() {
           <Card variant="dark" className="!p-5">
             <div className="flex gap-3">
               <input
-                type="text"
+                type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 placeholder="Search by name or email..."
+                aria-label="Search friends by name or email"
                 className="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-pierre-violet/50"
               />
               <Button variant="primary" onClick={handleSearch} loading={isSearching}>

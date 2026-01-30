@@ -221,14 +221,15 @@ export default function UserManagement() {
         <div className="flex-1 max-w-lg">
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg className="h-5 w-5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="h-5 w-5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </div>
             <input
-              type="text"
+              type="search"
               className="input-dark pl-10"
               placeholder="Search users by email or name..."
+              aria-label="Search users by email or name"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />

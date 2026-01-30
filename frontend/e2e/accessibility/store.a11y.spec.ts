@@ -73,26 +73,26 @@ test.describe('Store Pages Accessibility', () => {
       expect.soft(accessibilityScanResults.violations).toEqual([]);
     });
 
-    test('should document color contrast status for store', async ({ page }) => {
+    test('should have sufficient color contrast for all text', async ({ page }) => {
       await navigateToTab(page, 'Coaches');
       await page.waitForTimeout(500);
 
       const accessibilityScanResults = await new AxeBuilder({ page })
         .withTags(['cat.color'])
+        // Only check standard AA level contrast, not enhanced AAA
+        .disableRules(['color-contrast-enhanced'])
         .analyze();
 
       const contrastViolations = accessibilityScanResults.violations.filter(
         (v) => v.id.includes('contrast')
       );
 
-      // Log violations for awareness - known UI design issue tracked separately
-      // This test documents current state without blocking CI
+      // Log violations for awareness
       if (contrastViolations.length > 0) {
         console.log(`Store color contrast violations: ${contrastViolations.length}`);
-        console.log('Note: Color contrast issues are tracked in UI design backlog');
       }
-      // Test passes - violations are documented but do not block CI
-      expect(true).toBe(true);
+      // Soft assertion - document but don't block CI for known design issues
+      expect.soft(contrastViolations).toEqual([]);
     });
 
     test('should have visible focus indicators on coach cards', async ({ page }) => {
@@ -142,7 +142,7 @@ test.describe('Store Pages Accessibility', () => {
   });
 
   test.describe('Search Functionality', () => {
-    test('should document search input accessibility status', async ({ page }) => {
+    test('should have accessible search input', async ({ page }) => {
       await navigateToTab(page, 'Coaches');
       await page.waitForTimeout(500);
 
@@ -158,13 +158,8 @@ test.describe('Store Pages Accessibility', () => {
           return !!(ariaLabel || ariaLabelledBy || labelFor);
         });
 
-        // Document current state - tracked in UI accessibility backlog
-        if (!hasLabel) {
-          console.log('Note: Search input needs aria-label or associated label');
-        }
+        expect(hasLabel).toBe(true);
       }
-      // Test passes - issue documented but does not block CI
-      expect(true).toBe(true);
     });
 
     test('should announce search results to screen readers', async ({ page }) => {
@@ -372,7 +367,7 @@ test.describe('Store Pages Accessibility', () => {
       }
     });
 
-    test('should document icon accessibility status', async ({ page }) => {
+    test('should have accessible icons', async ({ page }) => {
       await navigateToTab(page, 'Coaches');
       await page.waitForTimeout(500);
 
@@ -392,12 +387,12 @@ test.describe('Store Pages Accessibility', () => {
         }
       }
 
-      // Document current state - tracked in UI accessibility backlog
+      // Log for awareness
       if (inaccessibleCount > 0) {
-        console.log(`Note: ${inaccessibleCount} icons need aria-hidden or aria-label`);
+        console.log(`${inaccessibleCount} icons need aria-hidden or aria-label`);
       }
-      // Test passes - issue documented but does not block CI
-      expect(true).toBe(true);
+      // Soft assertion - some icons may be in mocked content
+      expect.soft(inaccessibleCount).toBeLessThanOrEqual(5);
     });
   });
 
@@ -438,16 +433,15 @@ test.describe('Store Pages Accessibility', () => {
         .disableRules(['color-contrast'])
         .analyze();
 
-      // Document current state - tracked in UI accessibility backlog
+      // Log violations for awareness
       if (accessibilityScanResults.violations.length > 0) {
         console.log(`Mobile a11y violations found: ${accessibilityScanResults.violations.length}`);
-        console.log('Note: Mobile accessibility issues are tracked in UI design backlog');
       }
-      // Test passes - issue documented but does not block CI
-      expect(true).toBe(true);
+      // Soft assertion - mobile-specific issues may exist
+      expect.soft(accessibilityScanResults.violations).toEqual([]);
     });
 
-    test('should document touch target sizes on mobile', async ({ page }) => {
+    test('should have touch-friendly target sizes on mobile', async ({ page }) => {
       await page.setViewportSize({ width: 375, height: 667 });
 
       await navigateToTab(page, 'Coaches');
@@ -470,12 +464,12 @@ test.describe('Store Pages Accessibility', () => {
         }
       }
 
-      // Document current state - tracked in UI accessibility backlog
+      // Log for awareness
       if (undersizedCount > 0) {
-        console.log(`Note: ${undersizedCount} buttons have undersized touch targets`);
+        console.log(`${undersizedCount} buttons have undersized touch targets`);
       }
-      // Test passes - issue documented but does not block CI
-      expect(true).toBe(true);
+      // Soft assertion - allow some undersized targets in mocked content
+      expect.soft(undersizedCount).toBeLessThanOrEqual(3);
     });
   });
 });
