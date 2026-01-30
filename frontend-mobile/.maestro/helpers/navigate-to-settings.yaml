@@ -4,9 +4,9 @@
 appId: com.asyncio.pierre
 
 ---
-# Tap the Settings tab (labeled as Profile in the UI)
-- tapOn:
-    id: "tab-settingstab"
+# Tap the Settings tab using text selector (more reliable on Android)
+# The tab has accessibilityLabel="Settings"
+- tapOn: "Settings"
 
 # Wait for settings screen to load
 - extendedWaitUntil:

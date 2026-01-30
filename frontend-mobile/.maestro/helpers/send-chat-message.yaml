@@ -4,11 +4,14 @@
 appId: com.asyncio.pierre
 
 ---
-# Type message in the input field
-- tapOn:
-    id: "message-input"
+# Type message in the input field (tap on placeholder text for Android compatibility)
+- tapOn: "Message Pierre..."
 - inputText: ${MESSAGE}
 
-# Tap send button
+# Hide keyboard before tapping send
+- hideKeyboard
+
+# Tap send button - it's a TouchableOpacity with an icon, try using id first
+# If this fails on Android, may need to add accessibilityLabel to the component
 - tapOn:
     id: "send-button"

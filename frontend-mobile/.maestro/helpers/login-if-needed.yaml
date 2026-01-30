@@ -4,9 +4,8 @@
 appId: com.asyncio.pierre
 
 ---
-# Check if we're on login screen
+# Check if we're on login screen (using text selector for reliability)
 - runFlow:
     when:
-      visible:
-        id: "login-screen"
+      visible: "Welcome to Pierre"
     file: login.yaml

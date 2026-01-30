@@ -4,36 +4,32 @@
 appId: com.asyncio.pierre
 
 ---
-# Wait for login screen to be visible
+# Wait for login screen to be visible using text (more reliable on Android)
 - extendedWaitUntil:
-    visible:
-      id: "login-screen"
+    visible: "Welcome to Pierre"
     timeout: 10000
 
 # Clear any pre-filled values and enter test credentials
-- tapOn:
-    id: "email-input"
+# Using text selectors for labels as fallback
+- tapOn: "Email"
 - eraseText
 - inputText: ${TEST_EMAIL}
 
-- tapOn:
-    id: "password-input"
+- tapOn: "Password"
 - eraseText
 - inputText: ${TEST_PASSWORD}
 
 # Hide keyboard
 - hideKeyboard
 
-# Wait for login button to be visible and tap
+# Wait for Sign In button to be visible and tap
 - extendedWaitUntil:
-    visible:
-      id: "login-button"
+    visible: "Sign In"
     timeout: 5000
-- tapOn:
-    id: "login-button"
+- tapOn: "Sign In"
 
-# Wait for successful login (chat screen should appear)
+# Wait for successful login - use Chat tab text as indicator
+# The tab bar has "Chat" label visible after login
 - extendedWaitUntil:
-    visible:
-      id: "chat-screen"
+    visible: "Chat"
     timeout: 15000

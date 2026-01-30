@@ -8,7 +8,7 @@ appId: com.asyncio.pierre
 - launchApp
 
 # Wait for the app to be ready (login screen should appear)
+# Using text selector as it's more reliable on Android
 - extendedWaitUntil:
-    visible:
-      id: "login-screen"
-    timeout: 10000
+    visible: "Welcome to Pierre"
+    timeout: 15000

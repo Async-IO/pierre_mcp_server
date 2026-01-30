@@ -4,9 +4,9 @@
 appId: com.asyncio.pierre
 
 ---
-# Tap the Social tab (labeled as Activity in the UI)
-- tapOn:
-    id: "tab-socialtab"
+# Tap the Social tab using text selector (more reliable on Android)
+# The tab has accessibilityLabel="Insights"
+- tapOn: "Insights"
 
 # Wait for social feed screen to load
 - extendedWaitUntil:

@@ -4,9 +4,9 @@
 appId: com.asyncio.pierre
 
 ---
-# Tap the Coaches tab
-- tapOn:
-    id: "tab-coachestab"
+# Tap the Coaches tab using text selector (more reliable on Android)
+# The tab has accessibilityLabel="Coaches"
+- tapOn: "Coaches"
 
 # Wait for coach library screen to load
 - extendedWaitUntil:

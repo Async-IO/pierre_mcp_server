@@ -4,10 +4,9 @@
 appId: com.asyncio.pierre
 
 ---
-# Tap the new chat button
-- tapOn:
-    id: "new-chat-button"
+# Tap the new chat button (displays "+" text)
+# Using text selector for Android compatibility
+- tapOn: "+"
 
-# Verify we're in a new chat
-- assertVisible:
-    id: "chat-title"
+# Verify we're in a new chat by checking for "New Chat" default title
+- assertVisible: "New Chat"

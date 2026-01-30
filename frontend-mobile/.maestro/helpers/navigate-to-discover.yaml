@@ -4,9 +4,9 @@
 appId: com.asyncio.pierre
 
 ---
-# Tap the Coaches tab (Store/Discover is within Coaches stack)
-- tapOn:
-    id: "tab-coachestab"
+# Tap the Coaches tab using text selector (more reliable on Android)
+# The tab has accessibilityLabel="Coaches"
+- tapOn: "Coaches"
 
 # Wait for coaches screen to load
 - extendedWaitUntil:

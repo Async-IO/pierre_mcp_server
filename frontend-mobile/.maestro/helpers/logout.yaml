@@ -10,14 +10,12 @@ appId: com.asyncio.pierre
 
 # Scroll down if needed to see logout button
 - scrollUntilVisible:
-    element:
-      id: "settings-logout-button"
+    element: "Log Out"
     direction: DOWN
     timeout: 5000
 
-# Tap logout button
-- tapOn:
-    id: "settings-logout-button"
+# Tap logout button (the button shows "Log Out" text)
+- tapOn: "Log Out"
 
 # Confirm logout if a confirmation dialog appears
 - runFlow:
@@ -26,8 +24,7 @@ appId: com.asyncio.pierre
     commands:
       - tapOn: "Log Out"
 
-# Verify we're back on login screen
+# Verify we're back on login screen (using text selector)
 - extendedWaitUntil:
-    visible:
-      id: "login-screen"
+    visible: "Welcome to Pierre"
     timeout: 5000
