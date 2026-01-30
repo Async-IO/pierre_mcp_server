@@ -457,10 +457,20 @@ jobs:
           # Set API URL for the embedded bundle (10.0.2.2 is Android emulator's host)
           export EXPO_PUBLIC_API_URL="http://10.0.2.2:8081"
 
-          # Build debug APK with JavaScript bundle embedded
-          # This avoids needing Metro bundler during E2E tests
+          # Bundle JavaScript first, then build the APK
           cd android
-          ./gradlew assembleDebug -PbundleInDebug=true
+
+          # Create the JS bundle manually for debug build
+          mkdir -p app/src/main/assets
+          npx react-native bundle \
+            --platform android \
+            --dev false \
+            --entry-file ../index.js \
+            --bundle-output app/src/main/assets/index.android.bundle \
+            --assets-dest app/src/main/res
+
+          # Now build the debug APK (bundle is pre-created)
+          ./gradlew assembleDebug
         env:
           GRADLE_OPTS: "-Xmx4g -XX:+UseParallelGC"
 
@@ -475,7 +485,7 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            # Install the APK (has JS bundle embedded, no Metro needed)
+            # Install the APK (has JS bundle embedded)
             adb install frontend-mobile/android/app/build/outputs/apk/debug/app-debug.apk
 
             # Run Maestro tests
