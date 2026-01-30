@@ -330,12 +330,13 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
             <button
               onClick={() => setShowHidden(!showHidden)}
               className={clsx(
-                'p-2 rounded-lg transition-colors',
+                'p-2 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center',
                 showHidden
                   ? 'bg-pierre-violet/20 text-pierre-violet-light'
                   : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
               )}
               title={showHidden ? 'Hide hidden coaches' : 'Show hidden coaches'}
+              aria-label={showHidden ? 'Hide hidden coaches' : 'Show hidden coaches'}
             >
               <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 {showHidden ? (
