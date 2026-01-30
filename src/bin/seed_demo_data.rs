@@ -53,7 +53,7 @@ struct SeedArgs {
     #[arg(long)]
     database_url: Option<String>,
 
-    /// Server URL for API calls (default: http://localhost:8081)
+    /// Server URL for API calls (default: <http://localhost:8081>)
     #[arg(long)]
     server_url: Option<String>,
 
@@ -571,7 +571,7 @@ async fn main() -> Result<()> {
                 .ok()
                 .map(|p| format!("http://localhost:{p}"))
         })
-        .unwrap_or_else(|| "http://localhost:8081".to_string());
+        .unwrap_or_else(|| "http://localhost:8081".to_owned());
     info!("Using server URL: {}", server_url);
 
     // Reset if requested

@@ -3,6 +3,13 @@
 // ABOUTME: Integration tests for pierre-cli binary
 // ABOUTME: Tests CLI commands for user and token management
 
+//! Integration tests for the pierre-cli binary.
+//!
+//! These tests verify CLI command structure, help output, and error handling.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use std::process::Command;
 
 /// Get the path to the pierre-cli binary
@@ -13,10 +20,7 @@ fn cli_binary() -> String {
 
 /// Helper to run CLI command and capture output
 fn run_cli(args: &[&str]) -> (i32, String, String) {
-    let output = Command::new(cli_binary())
-        .args(args)
-        .output()
-        .expect("Failed to execute pierre-cli");
+    let output = Command::new(cli_binary()).args(args).output().unwrap();
 
     let exit_code = output.status.code().unwrap_or(-1);
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
