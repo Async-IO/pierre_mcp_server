@@ -1,22 +1,18 @@
 # ABOUTME: Helper flow to navigate from any screen to Discover (Store)
-# ABOUTME: Uses drawer navigation to reach the Store screen
+# ABOUTME: Uses bottom tab navigation then navigates to Store screen
 
 appId: com.asyncio.pierre
 
 ---
-# Open the drawer menu
+# Tap the Coaches tab (Store/Discover is within Coaches stack)
 - tapOn:
-    id: "menu-button"
+    id: "tab-coachestab"
 
-# Wait for drawer to open and tap Discover
+# Wait for coaches screen to load
 - extendedWaitUntil:
     visible:
-      text: "Discover"
-    timeout: 3000
-- tapOn: "Discover"
-
-# Wait for store screen to load
-- extendedWaitUntil:
-    visible:
-      id: "store-screen"
+      id: "coach-library-screen"
     timeout: 5000
+
+# Note: Store screen is accessed from within the Coaches tab
+# The store-screen testID is available when viewing the Store

@@ -1,22 +1,15 @@
-# ABOUTME: Helper flow to navigate from any screen to Social
-# ABOUTME: Uses drawer navigation to reach the Social screen
+# ABOUTME: Helper flow to navigate from any screen to Social/Activity
+# ABOUTME: Uses bottom tab navigation to reach the Social Feed screen
 
 appId: com.asyncio.pierre
 
 ---
-# Open the drawer menu
+# Tap the Social tab (labeled as Activity in the UI)
 - tapOn:
-    id: "menu-button"
+    id: "tab-socialtab"
 
-# Wait for drawer to open and tap Social
+# Wait for social feed screen to load
 - extendedWaitUntil:
     visible:
-      text: "Social"
-    timeout: 3000
-- tapOn: "Social"
-
-# Wait for social screen to load
-- extendedWaitUntil:
-    visible:
-      id: "social-screen"
+      id: "social-feed-screen"
     timeout: 5000

@@ -1,19 +1,12 @@
 # ABOUTME: Helper flow to navigate from any screen to My Coaches
-# ABOUTME: Uses drawer navigation to reach the Coach Library screen
+# ABOUTME: Uses bottom tab navigation to reach the Coach Library screen
 
 appId: com.asyncio.pierre
 
 ---
-# Open the drawer menu
+# Tap the Coaches tab
 - tapOn:
-    id: "menu-button"
-
-# Wait for drawer to open and tap My Coaches
-- extendedWaitUntil:
-    visible:
-      text: "My Coaches"
-    timeout: 3000
-- tapOn: "My Coaches"
+    id: "tab-coachestab"
 
 # Wait for coach library screen to load
 - extendedWaitUntil:

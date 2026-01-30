@@ -4,8 +4,9 @@
 appId: com.asyncio.pierre
 
 ---
-# Navigate to Settings via bottom tab
-- tapOn: "Settings"
+# Tap the Settings tab (labeled as Profile in the UI)
+- tapOn:
+    id: "tab-settingstab"
 
 # Wait for settings screen to load
 - extendedWaitUntil:
