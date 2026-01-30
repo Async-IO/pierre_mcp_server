@@ -568,7 +568,7 @@ See the [MCP Specification](https://spec.modelcontextprotocol.io/) for full deta
 
 **Pierre MCP Server:**
 - Main README: ../../../README.md
-- MCP Protocol: ../../../docs/protocols.md
+- MCP Protocol: ../../../book/src/protocols.md
 - Available Tools: ../../../src/protocols/universal/tool_registry.rs
 
 **Model Context Protocol:**

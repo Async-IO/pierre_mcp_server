@@ -16,7 +16,7 @@ Pierre Fitness Platform connects AI assistants to fitness data from Strava, Garm
 
 Sports science-based fitness analysis including training load management, race predictions, sleep and recovery scoring, nutrition planning, and pattern detection.
 
-See [Intelligence Methodology](docs/intelligence-methodology.md) and [Nutrition Methodology](docs/nutrition-methodology.md) for details.
+See [Intelligence Methodology](book/src/intelligence-methodology.md) and [Nutrition Methodology](book/src/nutrition-methodology.md) for details.
 
 ## Features
 
@@ -46,7 +46,7 @@ cargo build --release                                                    # all p
 cargo build --release --no-default-features --features "sqlite,provider-strava"  # strava only
 ```
 
-See [Pluggable Provider Architecture](docs/tutorial/chapter-17.5-pluggable-providers.md).
+See [Pluggable Provider Architecture](book/src/tutorial/chapter-17.5-pluggable-providers.md).
 
 ## Modular Architecture
 
@@ -81,7 +81,7 @@ cargo build --release --no-default-features --features "postgresql,server-saas-f
 | **Clients** | `client-web`, `client-admin`, `client-mobile` | Route groups |
 | **Tools** | `tools-fitness-core`, `tools-wellness`, `tools-all` | MCP tool categories |
 
-See [Build Configuration](docs/build.md) for detailed feature documentation.
+See [Build Configuration](book/src/build.md) for detailed feature documentation.
 
 ## What You Can Ask
 
@@ -91,7 +91,7 @@ See [Build Configuration](docs/build.md) for detailed feature documentation.
 - "Analyze this meal: 150g chicken, 200g rice, 100g broccoli"
 - "What's my predicted marathon time based on recent runs?"
 
-See [Tools Reference](docs/tools-reference.md) for the 53 available MCP tools.
+See [Tools Reference](book/src/tools-reference.md) for the 53 available MCP tools.
 
 ## Quick Start
 
@@ -111,7 +111,7 @@ This single command:
 - Starts Pierre server (8081), web frontend (3000), Expo mobile (8082)
 - Displays all credentials, tokens, and log file paths
 
-See [Getting Started](docs/getting-started.md) for detailed setup.
+See [Getting Started](book/src/getting-started.md) for detailed setup.
 
 ## MCP Client Configuration
 
@@ -146,7 +146,7 @@ The SDK handles OAuth 2.0 authentication automatically. See [SDK Documentation](
 | **Configuration** | 6 | User settings, training zones, profiles |
 | **Fitness Config** | 4 | Fitness parameters, thresholds |
 
-Full tool reference: [docs/tools-reference.md](docs/tools-reference.md)
+Full tool reference: [book/src/tools-reference.md](book/src/tools-reference.md)
 
 ## Server Management
 
@@ -216,7 +216,7 @@ bun start   # Start Expo development server
 bun run ios # Run on iOS Simulator
 ```
 
-See [Mobile App README](frontend-mobile/README.md) and [Mobile Development Guide](docs/mobile-development.md).
+See [Mobile App README](frontend-mobile/README.md) and [Mobile Development Guide](book/src/mobile-development.md).
 
 ## AI Coaches
 
@@ -259,28 +259,28 @@ This creates the 9 default AI coaching personas if they don't already exist.
 ## Documentation
 
 ### Reference
-- [Getting Started](docs/getting-started.md) - installation, configuration, first run
-- [Architecture](docs/architecture.md) - system design, components, request flow
-- [Protocols](docs/protocols.md) - MCP, OAuth2, A2A, REST
-- [Authentication](docs/authentication.md) - JWT, API keys, OAuth2 flows
-- [Configuration](docs/configuration.md) - environment variables, algorithms
+- [Getting Started](book/src/getting-started.md) - installation, configuration, first run
+- [Architecture](book/src/architecture.md) - system design, components, request flow
+- [Protocols](book/src/protocols.md) - MCP, OAuth2, A2A, REST
+- [Authentication](book/src/authentication.md) - JWT, API keys, OAuth2 flows
+- [Configuration](book/src/configuration.md) - environment variables, algorithms
 
 ### Development
-- [Development Guide](docs/development.md) - workflow, dashboard, testing
+- [Development Guide](book/src/development.md) - workflow, dashboard, testing
 - [Scripts Reference](scripts/README.md) - 30+ development scripts
-- [CI/CD](docs/ci-cd.md) - GitHub Actions, pipelines
-- [Release Guide](docs/release_how_to.md) - releasing server and SDK to npm
-- [Contributing](docs/contributing.md) - code standards, PR workflow
+- [CI/CD](book/src/ci-cd.md) - GitHub Actions, pipelines
+- [Release Guide](book/src/release_how_to.md) - releasing server and SDK to npm
+- [Contributing](book/src/contributing.md) - code standards, PR workflow
 
 ### Components
 - [SDK](sdk/README.md) - TypeScript client for MCP integration
 - [Frontend](frontend/README.md) - React dashboard
 - [Mobile](frontend-mobile/README.md) - React Native mobile app
-- [Mobile Development](docs/mobile-development.md) - mobile dev setup guide
+- [Mobile Development](book/src/mobile-development.md) - mobile dev setup guide
 
 ### Methodology
-- [Intelligence](docs/intelligence-methodology.md) - sports science formulas
-- [Nutrition](docs/nutrition-methodology.md) - dietary calculations
+- [Intelligence](book/src/intelligence-methodology.md) - sports science formulas
+- [Nutrition](book/src/nutrition-methodology.md) - dietary calculations
 
 ## Testing
 
@@ -290,7 +290,7 @@ cargo test                        # all tests
 ./scripts/pre-push-validate.sh    # tiered validation before push
 ```
 
-See [Testing Documentation](docs/testing.md).
+See [Testing Documentation](book/src/testing.md).
 
 ## Development Workflow
 
@@ -327,7 +327,7 @@ The pre-push hook blocks pushes without a valid marker. This decouples test exec
 
 ## Contributing
 
-See [Contributing Guide](docs/contributing.md).
+See [Contributing Guide](book/src/contributing.md).
 
 ## License
 

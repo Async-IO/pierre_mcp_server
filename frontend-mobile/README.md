@@ -276,7 +276,7 @@ cd android && ./gradlew clean && cd ..
 
 ## Contributing
 
-See [Contributing Guide](../docs/contributing.md) and [Mobile Development Guide](../docs/mobile-development.md).
+See [Contributing Guide](../CONTRIBUTING.md) and [Mobile Development Guide](../book/src/mobile-development.md).
 
 ## License
 

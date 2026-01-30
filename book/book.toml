@@ -1,0 +1,34 @@
+# ABOUTME: mdBook configuration for Pierre documentation
+# ABOUTME: Generates searchable documentation website from markdown files
+
+[book]
+authors = ["Pierre Fitness Intelligence"]
+language = "en"
+src = "src"
+title = "Pierre MCP Server Documentation"
+description = "Documentation for Pierre Fitness Intelligence MCP Server - AI-powered fitness analytics platform"
+
+[build]
+build-dir = "build"
+create-missing = false
+
+[output.html]
+default-theme = "rust"
+preferred-dark-theme = "coal"
+git-repository-url = "https://github.com/Async-IO/pierre_mcp_server"
+edit-url-template = "https://github.com/Async-IO/pierre_mcp_server/edit/main/book/src/{path}"
+site-url = "/pierre_mcp_server/"
+no-section-label = false
+
+[output.html.fold]
+enable = true
+level = 1
+
+[output.html.search]
+enable = true
+limit-results = 30
+teaser-word-count = 30
+copy-js = true
+
+[output.html.playground]
+runnable = false

@@ -319,7 +319,7 @@ Claude, run the security auditor agent focusing on database scoping
 
 ## 📋 CLAUDE.md Compliance
 
-All agents and skills enforce Pierre's coding standards from `docs/tutorial/appendix-b-claude-md.md`:
+All agents and skills enforce Pierre's coding standards from `.claude/CLAUDE.md`:
 
 ### Zero Tolerance Policies
 - ❌ NO `unwrap()`, `expect()`, `panic!()` in production code (src/)
@@ -490,10 +490,10 @@ When adding new agents or skills:
 
 ## 📚 Related Documentation
 
-- `docs/contributing.md` - Contribution guidelines
-- `docs/tutorial/appendix-b-claude-md.md` - CLAUDE.md compliance checklist
+- `CONTRIBUTING.md` - Contribution guidelines
+- `.claude/CLAUDE.md` - CLAUDE.md compliance checklist
 - `scripts/validation-patterns.toml` - Architectural validation patterns
-- `docs/ci-cd.md` - CI/CD workflow documentation
+- `book/src/ci-cd.md` - CI/CD workflow documentation
 
 ## 💡 Tips for Claude Code Users
 

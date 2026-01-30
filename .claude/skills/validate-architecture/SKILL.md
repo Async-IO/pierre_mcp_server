@@ -212,7 +212,7 @@ ARCHITECTURAL VALIDATION: FAILED
 - `scripts/architectural-validation.sh` - Main validation script
 - `scripts/validation-patterns.toml` - Pattern definitions (539 lines)
 - `scripts/parse-validation-patterns.py` - Pattern parser
-- `docs/tutorial/appendix-b-claude-md.md` - CLAUDE.md standards
+- `.claude/CLAUDE.md` - CLAUDE.md standards
 
 ## Related Skills
 - `strict-clippy-check` - Code quality linting
