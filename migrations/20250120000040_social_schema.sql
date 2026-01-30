@@ -95,8 +95,8 @@ CREATE TABLE IF NOT EXISTS shared_insights (
     visibility TEXT NOT NULL DEFAULT 'friends_only' CHECK (visibility IN ('friends_only', 'public')),
 
     -- Insight classification
-    -- Types: achievement, milestone, training_tip, recovery, motivation
-    insight_type TEXT NOT NULL CHECK (insight_type IN ('achievement', 'milestone', 'training_tip', 'recovery', 'motivation')),
+    -- Types: achievement, milestone, training_tip, recovery, motivation, coaching_insight
+    insight_type TEXT NOT NULL CHECK (insight_type IN ('achievement', 'milestone', 'training_tip', 'recovery', 'motivation', 'coaching_insight')),
 
     -- Sport context (optional): run, ride, swim, strength, etc.
     sport_type TEXT,

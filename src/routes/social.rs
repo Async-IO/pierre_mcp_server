@@ -642,8 +642,8 @@ pub struct UpdateHelpfulBody {
 #[derive(Debug, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(ToSchema))]
 pub struct ShareFromActivityBody {
-    /// Activity ID that generated the insight
-    pub activity_id: String,
+    /// Activity ID that generated the insight (optional for chat-based insights)
+    pub activity_id: Option<String>,
     /// Insight type to share
     pub insight_type: String,
     /// User-edited content (optional, uses suggestion if not provided)
@@ -1417,14 +1417,20 @@ impl SocialRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let social = Self::get_social_manager(&resources)?;
 
-        // Check if user has already shared an insight from this activity
-        if social
-            .has_insight_for_activity(auth.user_id, &body.activity_id)
-            .await?
+        // Generate activity_id for chat-based insights that don't have one
+        let activity_id = body
+            .activity_id
+            .clone()
+            .unwrap_or_else(|| format!("chat-insight-{}", Uuid::new_v4()));
+
+        // Check if user has already shared an insight from this activity (skip for generated IDs)
+        if body.activity_id.is_some()
+            && social
+                .has_insight_for_activity(auth.user_id, &activity_id)
+                .await?
         {
             return Err(AppError::already_exists(format!(
-                "Insight from activity '{}'",
-                body.activity_id
+                "Insight from activity '{activity_id}'"
             )));
         }
 
@@ -1480,7 +1486,7 @@ impl SocialRoutes {
             insight_type,
             content,
             visibility,
-            body.activity_id.clone(),
+            activity_id,
         );
 
         social.create_shared_insight(&insight).await?;

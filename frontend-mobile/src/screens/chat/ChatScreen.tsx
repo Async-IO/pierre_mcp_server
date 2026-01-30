@@ -64,9 +64,12 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useVoiceInput } from '../../hooks/useVoiceInput';
 import type { VoiceError } from '../../hooks/useVoiceInput';
 import { VoiceButton, PromptDialog } from '../../components/ui';
-import type { Conversation, Message, ExtendedProviderStatus, Coach } from '../../types';
+import { SharePreviewModal } from '../../components/social';
+import type { Conversation, Message, ExtendedProviderStatus, Coach, ShareVisibility } from '../../types';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { ChatStackParamList } from '../../navigation/MainTabs';
+import { useNavigation } from '@react-navigation/native';
+import type { ChatStackParamList, MainTabsParamList } from '../../navigation/MainTabs';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
 // Coach category badge background colors (lighter versions)
 const COACH_CATEGORY_BADGE_BG: Record<string, string> = {
@@ -126,8 +129,11 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
 
   // Share to social feed state
   const [shareToFeedContent, setShareToFeedContent] = useState<string | null>(null);
-  const [shareToFeedVisibility, setShareToFeedVisibility] = useState<'friends_only' | 'public'>('friends_only');
+  const [shareToFeedVisibility, setShareToFeedVisibility] = useState<ShareVisibility>('friends_only');
   const [isSharing, setIsSharing] = useState(false);
+
+  // Navigation for cross-tab navigation (to ShareInsightScreen)
+  const tabNavigation = useNavigation<BottomTabNavigationProp<MainTabsParamList>>();
 
   // Voice input hook for speech-to-text
   const {
@@ -506,6 +512,31 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     } finally {
       setIsSharing(false);
     }
+  };
+
+  const handleEditShare = () => {
+    if (!shareToFeedContent) return;
+
+    // Close the modal
+    const contentToEdit = shareToFeedContent;
+    const visibilityToEdit = shareToFeedVisibility;
+    setShareToFeedContent(null);
+    setShareToFeedVisibility('friends_only');
+
+    // Navigate to ShareInsightScreen in the Social tab with pre-populated content
+    tabNavigation.navigate('SocialTab', {
+      screen: 'ShareInsight',
+      params: {
+        content: contentToEdit,
+        insightType: 'coaching_insight',
+        visibility: visibilityToEdit,
+      },
+    } as never);
+  };
+
+  const handleCloseShareModal = () => {
+    setShareToFeedContent(null);
+    setShareToFeedVisibility('friends_only');
   };
 
   const handleThumbsUp = (messageId: string) => {
@@ -1542,117 +1573,16 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
         />
 
         {/* Share to Social Feed Modal */}
-        <Modal
+        <SharePreviewModal
           visible={shareToFeedContent !== null}
-          animationType="fade"
-          transparent
-          onRequestClose={() => {
-            setShareToFeedContent(null);
-            setShareToFeedVisibility('friends_only');
-          }}
-        >
-          <TouchableOpacity
-            className="flex-1 bg-black/50 justify-center items-center"
-            activeOpacity={1}
-            onPress={() => {
-              setShareToFeedContent(null);
-              setShareToFeedVisibility('friends_only');
-            }}
-          >
-            <View style={providerModalContainerStyle}>
-              <Text className="text-lg font-semibold text-text-primary text-center mb-1">
-                Share to Social Feed
-              </Text>
-              <Text className="text-sm text-text-secondary text-center mb-4">
-                Share this insight with your friends
-              </Text>
-
-              {/* Message Preview */}
-              <View className="bg-background-secondary rounded-lg p-3 mb-4 max-h-32">
-                <ScrollView showsVerticalScrollIndicator={false}>
-                  <Text className="text-sm text-text-primary" numberOfLines={5}>
-                    {shareToFeedContent}
-                  </Text>
-                </ScrollView>
-              </View>
-
-              {/* Visibility Options */}
-              <Text className="text-sm font-medium text-text-secondary mb-2">
-                Who can see this?
-              </Text>
-
-              <TouchableOpacity
-                className={`flex-row items-center rounded-lg p-3 mb-2 border ${
-                  shareToFeedVisibility === 'friends_only'
-                    ? 'border-primary-500 bg-primary-500/10'
-                    : 'border-border-default bg-background-secondary'
-                }`}
-                onPress={() => setShareToFeedVisibility('friends_only')}
-              >
-                <Ionicons
-                  name="people"
-                  size={20}
-                  color={shareToFeedVisibility === 'friends_only' ? colors.primary[500] : colors.text.secondary}
-                  style={{ marginRight: spacing.sm }}
-                />
-                <View className="flex-1">
-                  <Text className="text-sm font-medium text-text-primary">Friends Only</Text>
-                  <Text className="text-xs text-text-tertiary">Only your friends can see this</Text>
-                </View>
-                {shareToFeedVisibility === 'friends_only' && (
-                  <Ionicons name="checkmark-circle" size={20} color={colors.primary[500]} />
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                className={`flex-row items-center rounded-lg p-3 mb-4 border ${
-                  shareToFeedVisibility === 'public'
-                    ? 'border-primary-500 bg-primary-500/10'
-                    : 'border-border-default bg-background-secondary'
-                }`}
-                onPress={() => setShareToFeedVisibility('public')}
-              >
-                <Ionicons
-                  name="globe"
-                  size={20}
-                  color={shareToFeedVisibility === 'public' ? colors.primary[500] : colors.text.secondary}
-                  style={{ marginRight: spacing.sm }}
-                />
-                <View className="flex-1">
-                  <Text className="text-sm font-medium text-text-primary">Public</Text>
-                  <Text className="text-xs text-text-tertiary">Anyone can see this</Text>
-                </View>
-                {shareToFeedVisibility === 'public' && (
-                  <Ionicons name="checkmark-circle" size={20} color={colors.primary[500]} />
-                )}
-              </TouchableOpacity>
-
-              {/* Action Buttons */}
-              <TouchableOpacity
-                className="rounded-lg p-3 mb-2 items-center"
-                style={{ backgroundColor: colors.primary[600] }}
-                onPress={handleShareToFeed}
-                disabled={isSharing}
-              >
-                {isSharing ? (
-                  <ActivityIndicator size="small" color={colors.text.primary} />
-                ) : (
-                  <Text className="text-base font-semibold text-text-primary">Share</Text>
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                className="items-center p-3"
-                onPress={() => {
-                  setShareToFeedContent(null);
-                  setShareToFeedVisibility('friends_only');
-                }}
-              >
-                <Text className="text-base text-text-tertiary">Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </Modal>
+          content={shareToFeedContent || ''}
+          visibility={shareToFeedVisibility}
+          isSharing={isSharing}
+          onVisibilityChange={setShareToFeedVisibility}
+          onShare={handleShareToFeed}
+          onEdit={handleEditShare}
+          onClose={handleCloseShareModal}
+        />
       </KeyboardAvoidingView>
     </View>
   );

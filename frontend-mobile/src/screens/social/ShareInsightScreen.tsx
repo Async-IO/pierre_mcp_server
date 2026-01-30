@@ -21,7 +21,7 @@ import { colors } from '../../constants/theme';
 import { socialApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { SuggestionCard } from '../../components/social';
-import type { InsightSuggestion, ShareVisibility } from '../../types';
+import type { InsightSuggestion, ShareVisibility, InsightType } from '../../types';
 import type { SocialStackParamList } from '../../navigation/MainTabs';
 
 type NavigationProp = NativeStackNavigationProp<SocialStackParamList>;
@@ -35,11 +35,16 @@ export function ShareInsightScreen() {
   const route = useRoute<ShareInsightRouteProp>();
   const { isAuthenticated } = useAuth();
 
-  // Get optional activityId from route params
+  // Get optional params from route
   const activityId = route.params?.activityId;
+  const prePopulatedContent = route.params?.content;
+  const prePopulatedInsightType = route.params?.insightType;
+  const prePopulatedVisibility = route.params?.visibility;
 
-  // Flow state
-  const [flowState, setFlowState] = useState<ShareFlowState>('loading');
+  // Flow state - start in editing mode if content is pre-populated
+  const [flowState, setFlowState] = useState<ShareFlowState>(
+    prePopulatedContent ? 'editing' : 'loading'
+  );
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -48,11 +53,24 @@ export function ShareInsightScreen() {
 
   // Selected suggestion for editing
   const [selectedSuggestion, setSelectedSuggestion] = useState<InsightSuggestion | null>(null);
-  const [editedContent, setEditedContent] = useState('');
-  const [visibility, setVisibility] = useState<ShareVisibility>('friends_only');
+  const [editedContent, setEditedContent] = useState(prePopulatedContent || '');
+  const [visibility, setVisibility] = useState<ShareVisibility>(
+    prePopulatedVisibility || 'friends_only'
+  );
+  // Track insight type for pre-populated content (without suggestion)
+  // Note: setter not used since insight type is fixed from route params
+  const [directInsightType] = useState<InsightType | null>(
+    (prePopulatedInsightType as InsightType | undefined) || null
+  );
 
   // Fetch suggestions on mount (optionally filtered by activityId)
+  // Skip if content is pre-populated
   const fetchSuggestions = useCallback(async () => {
+    // Skip fetching if content was pre-populated from chat
+    if (prePopulatedContent) {
+      return;
+    }
+
     try {
       setError(null);
       const response = await socialApi.getInsightSuggestions({
@@ -69,13 +87,13 @@ export function ShareInsightScreen() {
       setError('Failed to load coach suggestions. Please try again.');
       setFlowState('error');
     }
-  }, [activityId]);
+  }, [activityId, prePopulatedContent]);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !prePopulatedContent) {
       fetchSuggestions();
     }
-  }, [isAuthenticated, fetchSuggestions]);
+  }, [isAuthenticated, fetchSuggestions, prePopulatedContent]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -99,14 +117,18 @@ export function ShareInsightScreen() {
 
   // Handle sharing the insight
   const handleShare = async () => {
-    if (!selectedSuggestion || !editedContent.trim()) return;
+    if (!editedContent.trim()) return;
+
+    // Need either a selected suggestion or direct insight type for pre-populated content
+    if (!selectedSuggestion && !directInsightType) return;
 
     try {
       setFlowState('submitting');
 
       await socialApi.shareFromActivity({
-        activity_id: selectedSuggestion.source_activity_id,
-        insight_type: selectedSuggestion.insight_type,
+        // Use suggestion's activity_id if available, otherwise undefined (server will generate)
+        activity_id: selectedSuggestion?.source_activity_id,
+        insight_type: selectedSuggestion?.insight_type || directInsightType || 'coaching_insight',
         content: editedContent.trim(),
         visibility,
       });
@@ -120,7 +142,21 @@ export function ShareInsightScreen() {
     }
   };
 
-  const canSubmit = editedContent.trim().length >= 10;
+  // Can submit if we have content (min 10 chars) and either a suggestion or direct insight type
+  const canSubmit =
+    editedContent.trim().length >= 10 &&
+    (selectedSuggestion !== null || directInsightType !== null);
+
+  // Handle back button - go to suggestions list or close screen if pre-populated
+  const handleBack = useCallback(() => {
+    if (prePopulatedContent) {
+      // If we came from chat with pre-populated content, just go back
+      navigation.goBack();
+    } else {
+      // If we selected from suggestions, go back to suggestions list
+      handleBackToSuggestions();
+    }
+  }, [prePopulatedContent, navigation, handleBackToSuggestions]);
 
   // Loading state
   if (flowState === 'loading') {
@@ -175,13 +211,17 @@ export function ShareInsightScreen() {
 
   // Editing state - show selected suggestion with edit capability
   if (flowState === 'editing' || flowState === 'submitting') {
+    // Determine the insight type to display
+    const displayInsightType =
+      selectedSuggestion?.insight_type || directInsightType || 'coaching_insight';
+
     return (
       <SafeAreaView className="flex-1 bg-background-primary" testID="share-insight-screen">
         {/* Header */}
         <View className="flex-row items-center px-4 py-4 border-b border-border-subtle">
           <TouchableOpacity
             className="p-2"
-            onPress={handleBackToSuggestions}
+            onPress={handleBack}
             disabled={flowState === 'submitting'}
             testID="back-button"
           >
@@ -211,10 +251,10 @@ export function ShareInsightScreen() {
         >
           <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
             {/* Type indicator */}
-            {selectedSuggestion && (
+            {(selectedSuggestion || directInsightType) && (
               <View className="mt-4 mb-2">
                 <Text className="text-text-tertiary text-sm uppercase tracking-wide">
-                  Coach Suggestion: {selectedSuggestion.insight_type.replace('_', ' ')}
+                  Coach Insight: {displayInsightType.replace(/_/g, ' ')}
                 </Text>
               </View>
             )}
