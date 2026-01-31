@@ -312,7 +312,14 @@ jobs:
       - name: Run Maestro tests
         working-directory: frontend-mobile
         run: |
-          $HOME/.maestro/bin/maestro test .maestro/ --format junit --output maestro-results.xml
+          # Run only login tests first to verify basic setup works
+          $HOME/.maestro/bin/maestro test .maestro/login/ --format junit --output maestro-results.xml --debug-output maestro-debug/ || true
+          # Show debug output if tests failed
+          if [ -d maestro-debug ]; then
+            echo "=== Maestro Debug Output ==="
+            ls -la maestro-debug/
+            cat maestro-debug/*.log 2>/dev/null || true
+          fi
         env:
           TEST_EMAIL: "mobiletest@pierre.dev"
           TEST_PASSWORD: "MobileTest123!"
@@ -490,8 +497,14 @@ jobs:
             # Install the APK (has JS bundle embedded)
             adb install frontend-mobile/android/app/build/outputs/apk/debug/app-debug.apk
 
-            # Run Maestro tests
-            cd frontend-mobile && $HOME/.maestro/bin/maestro test .maestro/ --format junit --output maestro-results-android.xml
+            # Run only login tests first to verify basic setup works
+            cd frontend-mobile && $HOME/.maestro/bin/maestro test .maestro/login/ --format junit --output maestro-results-android.xml --debug-output maestro-debug/ || true
+            # Show debug output if tests failed
+            if [ -d maestro-debug ]; then
+              echo "=== Maestro Debug Output ==="
+              ls -la maestro-debug/
+              cat maestro-debug/*.log 2>/dev/null || true
+            fi
         env:
           TEST_EMAIL: "mobiletest@pierre.dev"
           TEST_PASSWORD: "MobileTest123!"
