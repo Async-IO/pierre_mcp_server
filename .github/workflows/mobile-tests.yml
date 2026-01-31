@@ -313,13 +313,15 @@ jobs:
         working-directory: frontend-mobile
         run: |
           # Run only login tests first to verify basic setup works
-          $HOME/.maestro/bin/maestro test .maestro/login/ --format junit --output maestro-results.xml --debug-output maestro-debug/ || true
-          # Show debug output if tests failed
-          if [ -d maestro-debug ]; then
-            echo "=== Maestro Debug Output ==="
-            ls -la maestro-debug/
-            cat maestro-debug/*.log 2>/dev/null || true
-          fi
+          # Capture full output to a log file for debugging
+          echo "=== Starting Maestro Tests ==="
+          echo "Test directory contents:"
+          ls -la .maestro/login/
+          echo "=== Running Maestro ==="
+          $HOME/.maestro/bin/maestro test .maestro/login/ --format junit --output maestro-results.xml 2>&1 | tee maestro-output.log || true
+          echo "=== Maestro Exit Code: $? ==="
+          echo "=== Checking for results file ==="
+          ls -la maestro-results.xml 2>/dev/null || echo "No results file generated"
         env:
           TEST_EMAIL: "mobiletest@pierre.dev"
           TEST_PASSWORD: "MobileTest123!"
@@ -332,6 +334,7 @@ jobs:
           name: maestro-test-results-ios
           path: |
             frontend-mobile/maestro-results.xml
+            frontend-mobile/maestro-output.log
             frontend-mobile/.maestro/
           retention-days: 7
 
@@ -498,13 +501,14 @@ jobs:
             adb install frontend-mobile/android/app/build/outputs/apk/debug/app-debug.apk
 
             # Run only login tests first to verify basic setup works
-            cd frontend-mobile && $HOME/.maestro/bin/maestro test .maestro/login/ --format junit --output maestro-results-android.xml --debug-output maestro-debug/ || true
-            # Show debug output if tests failed
-            if [ -d maestro-debug ]; then
-              echo "=== Maestro Debug Output ==="
-              ls -la maestro-debug/
-              cat maestro-debug/*.log 2>/dev/null || true
-            fi
+            echo "=== Starting Maestro Tests ==="
+            echo "Test directory contents:"
+            ls -la frontend-mobile/.maestro/login/
+            echo "=== Running Maestro ==="
+            cd frontend-mobile && $HOME/.maestro/bin/maestro test .maestro/login/ --format junit --output maestro-results-android.xml 2>&1 | tee maestro-output.log || true
+            echo "=== Maestro Exit Code: $? ==="
+            echo "=== Checking for results file ==="
+            ls -la frontend-mobile/maestro-results-android.xml 2>/dev/null || echo "No results file generated"
         env:
           TEST_EMAIL: "mobiletest@pierre.dev"
           TEST_PASSWORD: "MobileTest123!"
@@ -517,5 +521,6 @@ jobs:
           name: maestro-test-results-android
           path: |
             frontend-mobile/maestro-results-android.xml
+            frontend-mobile/maestro-output.log
             frontend-mobile/.maestro/
           retention-days: 7
