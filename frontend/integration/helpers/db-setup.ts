@@ -70,7 +70,7 @@ export async function createTestAdminUser(user: TestUser): Promise<CreateUserRes
     if (/[;&|`$"'\\<>]/.test(user.password)) {
       return { success: false, error: 'Password contains invalid characters' };
     }
-    const command = `${adminSetup} create-admin-user --email "${user.email}" --password "${user.password}"`;
+    const command = `${adminSetup} user create --email "${user.email}" --password "${user.password}"`;
     // Security: Don't log the full command or DATABASE_URL as they may contain credentials
     console.log(`[DB Setup] Creating admin user: ${user.email}`);
 
@@ -119,7 +119,7 @@ export async function generateApiToken(
     if (!Number.isInteger(expiresDays) || expiresDays < 1 || expiresDays > 365) {
       return { success: false, error: 'Invalid expiry days (must be 1-365)' };
     }
-    const command = `${adminSetup} generate-token --service "${service}" --expires-days ${expiresDays}`;
+    const command = `${adminSetup} token generate --service "${service}" --expires-days ${expiresDays}`;
 
     const output = execSync(command, {
       cwd: PROJECT_ROOT,
