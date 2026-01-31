@@ -84,6 +84,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
+    "@react-native-community/cli": "^18.0.0",
     "@testing-library/jest-native": "^5.4.3",
     "@testing-library/react-native": "^13.3.3",
     "@types/detox": "^17.14.3",
