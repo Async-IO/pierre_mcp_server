@@ -219,13 +219,6 @@ jobs:
       - name: Create data directory
         run: mkdir -p data
 
-      - name: Seed database with test user
-        run: |
-          ./target/release/seed-demo-data
-        env:
-          DATABASE_URL: "sqlite:${{ github.workspace }}/data/maestro-test.db"
-          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
-
       - name: Start Pierre server
         run: |
           ./target/release/pierre-mcp-server &
@@ -247,6 +240,13 @@ jobs:
           STRAVA_CLIENT_ID: "test_client_id_ci"
           STRAVA_CLIENT_SECRET: "test_client_secret_ci"
           STRAVA_REDIRECT_URI: "http://localhost:8081/auth/strava/callback"
+
+      - name: Seed database with test user
+        run: |
+          ./target/release/seed-demo-data
+        env:
+          DATABASE_URL: "sqlite:${{ github.workspace }}/data/maestro-test.db"
+          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
 
       - name: List available simulators
         run: xcrun simctl list devices available
@@ -407,19 +407,13 @@ jobs:
       - name: Create data directory
         run: mkdir -p data
 
-      - name: Seed database with test user
-        run: |
-          ./target/release/seed-demo-data
-        env:
-          DATABASE_URL: "sqlite:${{ github.workspace }}/data/maestro-android-test.db"
-          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
-
       - name: Free disk space for Android build
         run: |
           echo "Disk space before cleanup:"
           df -h
-          # Preserve Pierre server binary before cleanup
+          # Preserve Pierre binaries before cleanup
           cp ./target/release/pierre-mcp-server /tmp/pierre-mcp-server
+          cp ./target/release/seed-demo-data /tmp/seed-demo-data
           # Remove large packages not needed for Android/mobile testing
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /usr/local/lib/android/sdk/ndk
@@ -456,6 +450,14 @@ jobs:
           STRAVA_CLIENT_ID: "test_client_id_ci"
           STRAVA_CLIENT_SECRET: "test_client_secret_ci"
           STRAVA_REDIRECT_URI: "http://localhost:8081/auth/strava/callback"
+
+      - name: Seed database with test user
+        run: |
+          # Use the preserved binary from /tmp since target was cleaned up
+          /tmp/seed-demo-data
+        env:
+          DATABASE_URL: "sqlite:${{ github.workspace }}/data/maestro-android-test.db"
+          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
 
       - name: Enable KVM for Android emulator
         run: |
