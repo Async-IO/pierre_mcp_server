@@ -7,8 +7,8 @@ tags:
   - e2e
 
 # Test flow organization by feature area
+# Note: helpers are NOT included - they're imported via runFlow
 flows:
-  - helpers/**
   - login/**
   - settings/**
   - chat/**
