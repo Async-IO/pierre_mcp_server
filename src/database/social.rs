@@ -581,14 +581,17 @@ impl SocialManager {
                    si.content, si.title, si.training_phase, si.reaction_count, si.adapt_count,
                    si.created_at, si.updated_at, si.expires_at, si.source_activity_id, si.coach_generated
             FROM shared_insights si
-            WHERE si.user_id IN (
-                SELECT CASE
-                    WHEN fc.initiator_id = $1 THEN fc.receiver_id
-                    ELSE fc.initiator_id
-                END
-                FROM friend_connections fc
-                WHERE (fc.initiator_id = $1 OR fc.receiver_id = $1)
-                  AND fc.status = 'accepted'
+            WHERE (
+                si.user_id = $1
+                OR si.user_id IN (
+                    SELECT CASE
+                        WHEN fc.initiator_id = $1 THEN fc.receiver_id
+                        ELSE fc.initiator_id
+                    END
+                    FROM friend_connections fc
+                    WHERE (fc.initiator_id = $1 OR fc.receiver_id = $1)
+                      AND fc.status = 'accepted'
+                )
             )
             AND (si.expires_at IS NULL OR si.expires_at > datetime('now'))
             ORDER BY si.created_at DESC
