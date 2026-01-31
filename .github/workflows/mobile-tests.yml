@@ -241,7 +241,16 @@ jobs:
           STRAVA_CLIENT_SECRET: "test_client_secret_ci"
           STRAVA_REDIRECT_URI: "http://localhost:8081/auth/strava/callback"
 
-      - name: Seed database with test user
+      - name: Create admin user for test login
+        run: |
+          ./target/release/pierre-cli user create \
+            --email mobiletest@pierre.dev \
+            --password "MobileTest123!"
+        env:
+          DATABASE_URL: "sqlite:${{ github.workspace }}/data/maestro-test.db"
+          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+
+      - name: Seed database with demo data
         run: |
           ./target/release/seed-demo-data
         env:
@@ -413,6 +422,7 @@ jobs:
           df -h
           # Preserve Pierre binaries before cleanup
           cp ./target/release/pierre-mcp-server /tmp/pierre-mcp-server
+          cp ./target/release/pierre-cli /tmp/pierre-cli
           cp ./target/release/seed-demo-data /tmp/seed-demo-data
           # Remove large packages not needed for Android/mobile testing
           sudo rm -rf /usr/share/dotnet
@@ -451,9 +461,17 @@ jobs:
           STRAVA_CLIENT_SECRET: "test_client_secret_ci"
           STRAVA_REDIRECT_URI: "http://localhost:8081/auth/strava/callback"
 
-      - name: Seed database with test user
+      - name: Create admin user for test login
         run: |
-          # Use the preserved binary from /tmp since target was cleaned up
+          /tmp/pierre-cli user create \
+            --email mobiletest@pierre.dev \
+            --password "MobileTest123!"
+        env:
+          DATABASE_URL: "sqlite:${{ github.workspace }}/data/maestro-android-test.db"
+          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+
+      - name: Seed database with demo data
+        run: |
           /tmp/seed-demo-data
         env:
           DATABASE_URL: "sqlite:${{ github.workspace }}/data/maestro-android-test.db"
