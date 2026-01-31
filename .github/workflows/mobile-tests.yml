@@ -311,6 +311,7 @@ jobs:
 
       - name: Run Maestro tests
         working-directory: frontend-mobile
+        timeout-minutes: 10
         run: |
           set -x  # Enable debug mode to see all commands
           echo "=== Starting Maestro Tests ===" > maestro-output.log
@@ -319,10 +320,14 @@ jobs:
           $HOME/.maestro/bin/maestro --version >> maestro-output.log 2>&1 || echo "Failed to get version" >> maestro-output.log
           echo "Test directory contents:" >> maestro-output.log
           ls -la .maestro/login/ >> maestro-output.log 2>&1 || echo "Failed to list" >> maestro-output.log
-          echo "=== Running Maestro ===" >> maestro-output.log
-          $HOME/.maestro/bin/maestro test .maestro/login/ --format junit --output maestro-results.xml >> maestro-output.log 2>&1 || echo "Maestro exited with code $?" >> maestro-output.log
+          echo "=== Running single test with 5 min timeout ===" >> maestro-output.log
+          # Run just one test file with timeout to diagnose issues
+          timeout 300 $HOME/.maestro/bin/maestro test .maestro/login/01-show-login-screen.yaml --format junit --output maestro-results.xml >> maestro-output.log 2>&1
+          EXIT_CODE=$?
+          echo "Maestro exited with code $EXIT_CODE" >> maestro-output.log
           echo "=== Done ===" >> maestro-output.log
           cat maestro-output.log
+          exit $EXIT_CODE
         env:
           TEST_EMAIL: "mobiletest@pierre.dev"
           TEST_PASSWORD: "MobileTest123!"
@@ -509,10 +514,14 @@ jobs:
             $HOME/.maestro/bin/maestro --version >> maestro-output.log 2>&1 || echo "Failed to get version" >> maestro-output.log
             echo "Test directory contents:" >> maestro-output.log
             ls -la .maestro/login/ >> maestro-output.log 2>&1 || echo "Failed to list" >> maestro-output.log
-            echo "=== Running Maestro ===" >> maestro-output.log
-            $HOME/.maestro/bin/maestro test .maestro/login/ --format junit --output maestro-results-android.xml >> maestro-output.log 2>&1 || echo "Maestro exited with code $?" >> maestro-output.log
+            echo "=== Running single test with 5 min timeout ===" >> maestro-output.log
+            # Run just one test file with timeout to diagnose issues
+            timeout 300 $HOME/.maestro/bin/maestro test .maestro/login/01-show-login-screen.yaml --format junit --output maestro-results-android.xml >> maestro-output.log 2>&1
+            EXIT_CODE=$?
+            echo "Maestro exited with code $EXIT_CODE" >> maestro-output.log
             echo "=== Done ===" >> maestro-output.log
             cat maestro-output.log
+            exit $EXIT_CODE
         env:
           TEST_EMAIL: "mobiletest@pierre.dev"
           TEST_PASSWORD: "MobileTest123!"
