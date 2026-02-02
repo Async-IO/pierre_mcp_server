@@ -7,7 +7,6 @@ interface OAuthCallbackProps {
   provider: string;
   success: boolean;
   error?: string;
-  onClose: () => void;
 }
 
 /**

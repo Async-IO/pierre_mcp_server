@@ -11,7 +11,11 @@ import { Card, Button } from '../ui';
 import ShareInsightModal from './ShareInsightModal';
 import AdaptInsightModal from './AdaptInsightModal';
 import ActivityDetailModal from './ActivityDetailModal';
-import type { InsightType, TrainingPhase } from '../../types/social';
+import type {
+  InsightType,
+  TrainingPhase,
+  FeedItem,
+} from '../../types/social';
 
 interface InsightSuggestion {
   insight_type: InsightType;
@@ -21,46 +25,6 @@ interface InsightSuggestion {
   sport_type?: string;
   training_phase?: TrainingPhase;
   source_activity_id?: string;
-}
-
-interface SharedInsight {
-  id: string;
-  user_id: string;
-  visibility: string;
-  insight_type: string;
-  sport_type: string | null;
-  content: string;
-  title: string | null;
-  training_phase: string | null;
-  reaction_count: number;
-  adapt_count: number;
-  created_at: string;
-  updated_at: string;
-  expires_at: string | null;
-  source_activity_id: string | null;
-  coach_generated: boolean;
-}
-
-interface FeedAuthor {
-  user_id: string;
-  display_name: string | null;
-  email: string;
-}
-
-interface ReactionCounts {
-  like: number;
-  celebrate: number;
-  inspire: number;
-  support: number;
-  total: number;
-}
-
-interface FeedItem {
-  insight: SharedInsight;
-  author: FeedAuthor;
-  reactions: ReactionCounts;
-  user_reaction: string | null;
-  user_has_adapted: boolean;
 }
 
 type ReactionType = 'like' | 'celebrate' | 'inspire' | 'support';

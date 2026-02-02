@@ -26,7 +26,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, spacing, glassCard, gradients, buttonGlow } from '../../constants/theme';
 import { coachesApi } from '../../services/api';
-import { CoachVersionHistoryModal } from '../../components/CoachVersionHistoryModal';
+import { CoachVersionHistory } from '../../components/coaches/CoachVersionHistory';
 import type { CreateCoachRequest, UpdateCoachRequest } from '../../types';
 import type { CoachesStackParamList } from '../../navigation/MainTabs';
 
@@ -668,8 +668,8 @@ export function CoachWizardScreen({ navigation }: CoachWizardScreenProps) {
 
         {/* Version History Modal */}
         {isEditMode && coachId && (
-          <CoachVersionHistoryModal
-            visible={showVersionHistory}
+          <CoachVersionHistory
+            isOpen={showVersionHistory}
             onClose={() => setShowVersionHistory(false)}
             coachId={coachId}
             coachTitle={title || 'Coach'}

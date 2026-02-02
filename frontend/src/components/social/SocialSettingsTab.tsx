@@ -8,12 +8,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { clsx } from 'clsx';
 import { socialApi } from '../../services/api';
 import { Card, Button } from '../ui';
-
-interface NotificationPreferences {
-  friend_requests: boolean;
-  insight_reactions: boolean;
-  adapted_insights: boolean;
-}
+import type { NotificationPreferences } from '../../types/social';
 
 interface SocialSettings {
   user_id: string;

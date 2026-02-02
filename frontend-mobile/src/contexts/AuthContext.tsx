@@ -3,6 +3,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { authApi, onAuthFailure } from '../services/api';
+import { signOutFromFirebase } from '../firebase';
 import type { User, FirebaseLoginResponse } from '../types';
 
 interface AuthContextType {
@@ -82,6 +83,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const logout = useCallback(async () => {
     await authApi.logout();
+    await signOutFromFirebase();
     setUser(null);
   }, []);
 

@@ -20,6 +20,13 @@ jest.mock('../src/services/api', () => ({
   onAuthFailure: jest.fn(() => jest.fn()),
 }));
 
+// Mock the firebase module to prevent WebBrowser initialization errors in tests
+jest.mock('../src/firebase', () => ({
+  signOutFromFirebase: jest.fn().mockResolvedValue(undefined),
+  subscribeToAuthState: jest.fn(() => jest.fn()),
+  getCurrentFirebaseUser: jest.fn().mockResolvedValue(null),
+}));
+
 // Test component that uses the auth context
 function TestAuthConsumer() {
   const { user, isAuthenticated, isLoading, login, logout, register } = useAuth();
