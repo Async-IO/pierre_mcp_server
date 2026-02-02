@@ -1,4 +1,4 @@
-// ABOUTME: Bottom tab navigation for primary app screens (Home, Chat, Coaches, Activity, Profile)
+// ABOUTME: Bottom tab navigation for primary app screens (Chat, Coaches, Discover, Insights, Settings)
 // ABOUTME: Each tab has its own stack navigator so detail screens keep the tab bar visible
 
 import React from 'react';
@@ -11,7 +11,6 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { colors, spacing } from '../constants/theme';
-import { HomeScreen } from '../screens/HomeScreen';
 import { ChatScreen } from '../screens/chat/ChatScreen';
 import { ConversationsScreen } from '../screens/conversations/ConversationsScreen';
 import { SocialFeedScreen } from '../screens/social/SocialFeedScreen';
@@ -34,10 +33,6 @@ import { ActivityDetailScreen } from '../screens/ActivityDetailScreen';
 import type { AdaptedInsight } from '../types';
 
 // Stack param lists for each tab
-export type HomeStackParamList = {
-  HomeMain: undefined;
-};
-
 export type ChatStackParamList = {
   ChatMain: { conversationId?: string } | undefined;
   Conversations: undefined;
@@ -80,31 +75,28 @@ export type SettingsStackParamList = {
   Connections: undefined;
 };
 
+export type DiscoverStackParamList = {
+  Store: undefined;
+  StoreCoachDetail: { coachId: string };
+};
+
 // Tab param list references the stacks
 export type MainTabsParamList = {
-  HomeTab: undefined;
   ChatTab: undefined;
   CoachesTab: undefined;
+  DiscoverTab: undefined;
   SocialTab: undefined;
   SettingsTab: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabsParamList>();
-const HomeStack = createNativeStackNavigator<HomeStackParamList>();
 const ChatStack = createNativeStackNavigator<ChatStackParamList>();
 const SocialStack = createNativeStackNavigator<SocialStackParamList>();
 const CoachesStack = createNativeStackNavigator<CoachesStackParamList>();
+const DiscoverStack = createNativeStackNavigator<DiscoverStackParamList>();
 const SettingsStack = createNativeStackNavigator<SettingsStackParamList>();
 
 // Stack navigators for each tab
-function HomeStackScreen() {
-  return (
-    <HomeStack.Navigator screenOptions={{ headerShown: false }}>
-      <HomeStack.Screen name="HomeMain" component={HomeScreen} />
-    </HomeStack.Navigator>
-  );
-}
-
 function ChatStackScreen() {
   return (
     <ChatStack.Navigator screenOptions={{ headerShown: false }}>
@@ -140,6 +132,15 @@ function CoachesStackScreen() {
       <CoachesStack.Screen name="Store" component={StoreScreen} />
       <CoachesStack.Screen name="StoreCoachDetail" component={StoreCoachDetailScreen} />
     </CoachesStack.Navigator>
+  );
+}
+
+function DiscoverStackScreen() {
+  return (
+    <DiscoverStack.Navigator screenOptions={{ headerShown: false }}>
+      <DiscoverStack.Screen name="Store" component={StoreScreen} />
+      <DiscoverStack.Screen name="StoreCoachDetail" component={StoreCoachDetailScreen} />
+    </DiscoverStack.Navigator>
   );
 }
 
@@ -190,9 +191,9 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
 
   const tabConfig: Record<string, { icon: keyof typeof Feather.glyphMap; label: string }> = {
-    HomeTab: { icon: 'home', label: 'Home' },
     ChatTab: { icon: 'message-circle', label: 'Chat' },
     CoachesTab: { icon: 'award', label: 'Coaches' },
+    DiscoverTab: { icon: 'compass', label: 'Discover' },
     SocialTab: { icon: 'zap', label: 'Insights' },
     SettingsTab: { icon: 'settings', label: 'Settings' },
   };
@@ -231,7 +232,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
             accessibilityRole="button"
             accessibilityState={isFocused ? { selected: true } : {}}
             accessibilityLabel={config.label}
-            testID={`tab-${route.name.toLowerCase()}`}
+            testID={`tab-${config.label.toLowerCase()}`}
             onPress={onPress}
             onLongPress={onLongPress}
             className="flex-1 items-center justify-center py-1"
@@ -258,11 +259,6 @@ export function MainTabs() {
       }}
     >
       <Tab.Screen
-        name="HomeTab"
-        component={HomeStackScreen}
-        options={{ tabBarLabel: 'Home' }}
-      />
-      <Tab.Screen
         name="ChatTab"
         component={ChatStackScreen}
         options={{ tabBarLabel: 'Chat' }}
@@ -273,9 +269,14 @@ export function MainTabs() {
         options={{ tabBarLabel: 'Coaches' }}
       />
       <Tab.Screen
+        name="DiscoverTab"
+        component={DiscoverStackScreen}
+        options={{ tabBarLabel: 'Discover' }}
+      />
+      <Tab.Screen
         name="SocialTab"
         component={SocialStackScreen}
-        options={{ tabBarLabel: 'Activity' }}
+        options={{ tabBarLabel: 'Insights' }}
       />
       <Tab.Screen
         name="SettingsTab"

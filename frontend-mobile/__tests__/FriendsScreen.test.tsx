@@ -7,7 +7,6 @@ import { render, fireEvent, waitFor } from '@testing-library/react-native';
 // Mock navigation
 const mockNavigation = {
   navigate: jest.fn(),
-  openDrawer: jest.fn(),
   goBack: jest.fn(),
 };
 

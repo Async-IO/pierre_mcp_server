@@ -361,6 +361,40 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
           </div>
         </div>
 
+        {/* Search Bar - top placement following F-pattern reading */}
+        <div className="border-b border-white/10 pb-4">
+          <div className="relative max-w-md">
+            <svg
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-zinc-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="search"
+              placeholder="Search coaches..."
+              aria-label="Search coaches"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-pierre-violet/30 focus:border-pierre-violet transition-colors"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                aria-label="Clear search"
+                className="absolute right-1 top-1/2 transform -translate-y-1/2 text-zinc-500 hover:text-zinc-300 min-w-[44px] min-h-[44px] flex items-center justify-center"
+              >
+                <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-4">
           {/* Category filter */}
@@ -468,7 +502,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
             )}
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-20">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredCoaches.map((coach) => {
               const isHidden = coach.is_hidden;
               return (
@@ -618,30 +652,6 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
             })}
           </div>
         )}
-
-        {/* Floating Search Bar */}
-        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 w-full max-w-md px-4">
-          <div className="flex items-center gap-2 px-4 h-11 rounded-full bg-[#1E1B2D]/95 border border-pierre-violet/40 shadow-lg shadow-black/20">
-            <svg className="w-5 h-5 text-pierre-violet" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="search"
-              placeholder="Search coaches..."
-              aria-label="Search coaches"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 bg-transparent text-white placeholder-zinc-500 outline-none text-sm"
-            />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery('')} aria-label="Clear search" className="text-zinc-500 hover:text-zinc-300 min-w-[44px] min-h-[44px] flex items-center justify-center -mr-2">
-                <svg className="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
-          </div>
-        </div>
 
         {/* Context Menu Modal */}
         {actionMenuCoach && (

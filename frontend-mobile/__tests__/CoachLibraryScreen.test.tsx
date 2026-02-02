@@ -8,7 +8,6 @@ import { Alert } from 'react-native';
 // Mock navigation
 const mockNavigation = {
   navigate: jest.fn(),
-  openDrawer: jest.fn(),
 };
 
 // Mock useFocusEffect - needs to be before imports that use it

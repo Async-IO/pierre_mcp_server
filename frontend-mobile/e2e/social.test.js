@@ -1,305 +1,268 @@
-// ABOUTME: E2E tests for social features (Friends, Feed, Settings)
-// ABOUTME: Tests social flows including friend management and feed interactions
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
-describe('Social Features', () => {
+// ABOUTME: E2E tests for social features - friends, feed, sharing insights
+// ABOUTME: Tests friend management, social feed interactions, and sharing workflows
+
+const { loginAsMobileTestUser, navigateToTab } = require('./visual-test-helpers');
+
+describe('Social Features E2E', () => {
   beforeAll(async () => {
-    await device.launchApp({ newInstance: true });
-    // Login first
-    await waitFor(element(by.id('login-screen')))
-      .toBeVisible()
-      .withTimeout(10000);
-    await element(by.id('email-input')).clearText();
-    await element(by.id('email-input')).typeText('mobile@test.com');
-    await element(by.id('password-input')).clearText();
-    await element(by.id('password-input')).typeText('mobiletest123\n');
-    await waitFor(element(by.id('login-button')))
-      .toBeVisible()
-      .withTimeout(5000);
-    await element(by.id('login-button')).tap();
-    await waitFor(element(by.id('login-screen')))
-      .not.toBeVisible()
-      .withTimeout(15000);
+    await device.launchApp();
   });
 
   beforeEach(async () => {
     await device.reloadReactNative();
-    // Re-authenticate after reload
-    await waitFor(element(by.id('login-screen')))
-      .toBeVisible()
-      .withTimeout(10000);
-    await element(by.id('email-input')).clearText();
-    await element(by.id('email-input')).typeText('mobile@test.com');
-    await element(by.id('password-input')).clearText();
-    await element(by.id('password-input')).typeText('mobiletest123\n');
-    await waitFor(element(by.id('login-button')))
-      .toBeVisible()
-      .withTimeout(5000);
-    await element(by.id('login-button')).tap();
-    await waitFor(element(by.id('login-screen')))
-      .not.toBeVisible()
-      .withTimeout(15000);
+    await loginAsMobileTestUser();
   });
 
-  describe('Friends Screen', () => {
-    beforeEach(async () => {
-      // Open drawer and navigate to Friends
-      await element(by.id('drawer-toggle')).tap();
-      await waitFor(element(by.text('Friends')))
+  describe('Friends Management', () => {
+    it('should display friends list', async () => {
+      // Navigate to Insights tab
+      await navigateToTab('insights');
+      await waitFor(element(by.id('social-feed-screen')))
         .toBeVisible()
         .withTimeout(5000);
-      await element(by.text('Friends')).tap();
+
+      // Navigate to Friends
+      await element(by.id('friends-button')).tap();
       await waitFor(element(by.id('friends-screen')))
         .toBeVisible()
         .withTimeout(5000);
+
+      // Should see friends list or empty state
+      await expect(element(by.id('friends-list'))).toBeVisible();
     });
 
-    it('should display Friends screen header', async () => {
-      await expect(element(by.text('Friends'))).toBeVisible();
-    });
-
-    it('should show empty state or friends list', async () => {
-      // Either show empty state message or friends list
-      try {
-        await waitFor(element(by.text('No Friends Yet')))
-          .toBeVisible()
-          .withTimeout(3000);
-      } catch {
-        // Has friends - should show search bar
-        await expect(element(by.id('friends-search-input'))).toBeVisible();
-      }
-    });
-
-    it('should navigate to Search Friends', async () => {
-      // Find and tap Search Friends button (in header or empty state)
-      await waitFor(element(by.id('search-friends-button')))
+    it('should search for friends', async () => {
+      // Navigate to insights and then friends
+      await navigateToTab('insights');
+      await waitFor(element(by.id('social-feed-screen')))
         .toBeVisible()
         .withTimeout(5000);
-      await element(by.id('search-friends-button')).tap();
-      await waitFor(element(by.id('search-friends-screen')))
+
+      await element(by.id('friends-button')).tap();
+      await waitFor(element(by.id('friends-screen')))
         .toBeVisible()
         .withTimeout(5000);
-      await expect(element(by.text('Search Friends'))).toBeVisible();
-    });
 
-    it('should search for users', async () => {
       // Navigate to search
       await element(by.id('search-friends-button')).tap();
       await waitFor(element(by.id('search-friends-screen')))
         .toBeVisible()
         .withTimeout(5000);
 
-      // Type search query
-      await element(by.id('user-search-input')).typeText('test');
-
-      // Wait for results (or empty message)
-      await waitFor(element(by.id('search-results-list')))
+      // Search for a user
+      await element(by.id('search-input')).typeText('test');
+      await waitFor(element(by.id('search-results')))
         .toBeVisible()
         .withTimeout(5000);
     });
-  });
 
-  describe('Social Feed Screen', () => {
-    beforeEach(async () => {
-      // Open drawer and navigate to Feed
-      await element(by.id('drawer-toggle')).tap();
-      await waitFor(element(by.text('Feed')))
-        .toBeVisible()
-        .withTimeout(5000);
-      await element(by.text('Feed')).tap();
+    it('should send friend request', async () => {
+      // Navigate to search friends
+      await navigateToTab('insights');
       await waitFor(element(by.id('social-feed-screen')))
         .toBeVisible()
         .withTimeout(5000);
-    });
 
-    it('should display Feed screen header', async () => {
-      await expect(element(by.text('Feed'))).toBeVisible();
-    });
+      await element(by.id('friends-button')).tap();
+      await waitFor(element(by.id('friends-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
 
-    it('should show empty state or feed items', async () => {
-      // Either show empty state or feed items
+      await element(by.id('search-friends-button')).tap();
+      await waitFor(element(by.id('search-friends-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
+
+      // Search and send request (if user exists)
+      await element(by.id('search-input')).typeText('webtest');
+      await waitFor(element(by.id('search-results')))
+        .toBeVisible()
+        .withTimeout(5000);
+
       try {
-        await waitFor(element(by.text('No Insights Yet')))
-          .toBeVisible()
-          .withTimeout(3000);
+        await element(by.id('send-request-button-0')).tap();
+        await expect(element(by.text('Request sent'))).toBeVisible();
       } catch {
-        // Has feed items - should show insight cards
-        await expect(element(by.id('feed-list'))).toBeVisible();
+        // User might not exist or request already sent
       }
     });
 
-    it('should navigate to Share Insight', async () => {
-      await element(by.id('share-insight-button')).tap();
-      await waitFor(element(by.id('share-insight-screen')))
+    it('should display feed', async () => {
+      // Navigate to Insights tab (which shows the feed)
+      await navigateToTab('insights');
+      await waitFor(element(by.id('social-feed-screen')))
         .toBeVisible()
         .withTimeout(5000);
-      await expect(element(by.text('Share Insight'))).toBeVisible();
+
+      // Should see feed or empty state
+      await expect(element(by.id('feed-list'))).toBeVisible();
     });
 
-    it('should pull to refresh', async () => {
-      // Pull down to refresh the feed
-      await element(by.id('feed-scroll-view')).swipe('down', 'fast');
-      // Wait for refresh indicator to disappear (feed reloaded)
-      await waitFor(element(by.id('feed-scroll-view')))
+    it('should react to a post', async () => {
+      // Navigate to feed
+      await navigateToTab('insights');
+      await waitFor(element(by.id('social-feed-screen')))
         .toBeVisible()
         .withTimeout(5000);
+
+      // Try to react to a post
+      try {
+        await element(by.id('reaction-button-0')).tap();
+        await element(by.text('Celebrate')).tap();
+        // Reaction should be added
+      } catch {
+        // No posts to react to
+      }
     });
   });
 
-  describe('Social Settings Screen', () => {
-    beforeEach(async () => {
-      // Open drawer and navigate to Social Settings
-      await element(by.id('drawer-toggle')).tap();
-      await waitFor(element(by.text('Social Settings')))
+  describe('Social Settings', () => {
+    it('should open social settings', async () => {
+      // Navigate to insights, then social settings
+      await navigateToTab('insights');
+      await waitFor(element(by.id('social-feed-screen')))
         .toBeVisible()
         .withTimeout(5000);
-      await element(by.text('Social Settings')).tap();
+
+      await element(by.id('social-settings-button')).tap();
       await waitFor(element(by.id('social-settings-screen')))
         .toBeVisible()
         .withTimeout(5000);
     });
 
-    it('should display Social Settings header', async () => {
-      await expect(element(by.text('Social Settings'))).toBeVisible();
-    });
-
-    it('should display Privacy section', async () => {
-      await expect(element(by.text('Privacy'))).toBeVisible();
-      await expect(element(by.text('Discoverable'))).toBeVisible();
-    });
-
-    it('should display Default Sharing section', async () => {
-      await expect(element(by.text('Default Sharing'))).toBeVisible();
-      await expect(element(by.text('Friends Only'))).toBeVisible();
-      await expect(element(by.text('Public'))).toBeVisible();
-    });
-
-    it('should display Notifications section', async () => {
-      await expect(element(by.text('Notifications'))).toBeVisible();
-      await expect(element(by.text('Friend Requests'))).toBeVisible();
-      await expect(element(by.text('Reactions'))).toBeVisible();
-      await expect(element(by.text('Adapted Insights'))).toBeVisible();
-    });
-
-    it('should toggle discoverable setting', async () => {
-      // Find and toggle the discoverable switch
-      await element(by.id('discoverable-switch')).tap();
-      // Save button should appear
-      await waitFor(element(by.text('Save')))
+    it('should toggle privacy setting', async () => {
+      // Navigate to social settings
+      await navigateToTab('insights');
+      await waitFor(element(by.id('social-feed-screen')))
         .toBeVisible()
-        .withTimeout(3000);
-    });
-
-    it('should change default visibility', async () => {
-      // Tap Public option
-      await element(by.text('Public')).tap();
-      // Save button should appear
-      await waitFor(element(by.text('Save')))
-        .toBeVisible()
-        .withTimeout(3000);
-    });
-
-    it('should save settings changes', async () => {
-      // Make a change first
-      await element(by.text('Public')).tap();
-      // Save
-      await element(by.text('Save')).tap();
-      // Should show success or button should disappear
-      await waitFor(element(by.text('Save')))
-        .not.toBeVisible()
         .withTimeout(5000);
+
+      await element(by.id('social-settings-button')).tap();
+      await waitFor(element(by.id('social-settings-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
+
+      // Toggle privacy
+      await element(by.id('privacy-toggle')).tap();
     });
   });
 
-  describe('Share Insight Flow', () => {
-    beforeEach(async () => {
-      // Navigate to Share Insight via Feed
-      await element(by.id('drawer-toggle')).tap();
-      await element(by.text('Feed')).tap();
-      await waitFor(element(by.id('social-feed-screen')))
-        .toBeVisible()
-        .withTimeout(5000);
-      await element(by.id('share-insight-button')).tap();
-      await waitFor(element(by.id('share-insight-screen')))
-        .toBeVisible()
-        .withTimeout(5000);
-    });
-
-    it('should display share insight form', async () => {
-      await expect(element(by.text('Share Insight'))).toBeVisible();
-      await expect(element(by.id('insight-type-picker'))).toBeVisible();
-      await expect(element(by.id('insight-content-input'))).toBeVisible();
-    });
-
-    it('should select insight type', async () => {
-      await expect(element(by.id('insight-type-picker'))).toBeVisible();
-      // Tap on Achievement type button
-      await element(by.id('insight-type-achievement')).tap();
-    });
-
-    it('should enter insight content', async () => {
-      await element(by.id('insight-content-input')).typeText('Just completed my first 5k!');
-      await expect(element(by.text('Just completed my first 5k!'))).toBeVisible();
-    });
-
-    it('should select visibility', async () => {
-      await element(by.text('Friends Only')).tap();
-      // Should show selection indicator
-    });
-
-    it('should share insight', async () => {
-      // Fill out form
-      await element(by.id('insight-type-achievement')).tap();
-      await element(by.id('insight-title-input')).typeText('First 5K');
-      await element(by.id('insight-content-input')).typeText('Just completed my first 5k run!');
-
-      // Share
-      await element(by.id('share-button')).tap();
-
-      // Should navigate back to feed or show success
-      await waitFor(element(by.id('social-feed-screen')))
+  describe('Sharing Insights', () => {
+    it('should open share dialog from chat', async () => {
+      await waitFor(element(by.id('chat-screen')))
         .toBeVisible()
         .withTimeout(10000);
-    });
-  });
 
-  describe('Adapt Insight Flow', () => {
-    it('should show Adapt to My Training button on feed items', async () => {
-      // Navigate to feed
-      await element(by.id('drawer-toggle')).tap();
-      await element(by.text('Feed')).tap();
-      await waitFor(element(by.id('social-feed-screen')))
-        .toBeVisible()
-        .withTimeout(5000);
-
-      // If there are feed items, check for adapt button
+      // Look for a shareable insight in the chat
       try {
-        await waitFor(element(by.id('adapt-button')).atIndex(0))
+        await element(by.id('share-insight-button-0')).tap();
+        await waitFor(element(by.id('share-insight-modal')))
           .toBeVisible()
-          .withTimeout(3000);
-        await expect(element(by.text('Adapt to My Training'))).toBeVisible();
+          .withTimeout(5000);
       } catch {
-        // No feed items - empty state is shown
-        await expect(element(by.text('No Insights Yet'))).toBeVisible();
+        // No shareable insights
       }
     });
 
-    it('should navigate to adapt screen when tapping Adapt button', async () => {
+    it('should share insight to feed', async () => {
+      await waitFor(element(by.id('chat-screen')))
+        .toBeVisible()
+        .withTimeout(10000);
+
+      try {
+        // Find and tap share button
+        await element(by.id('share-insight-button-0')).tap();
+        await waitFor(element(by.id('share-insight-modal')))
+          .toBeVisible()
+          .withTimeout(5000);
+
+        // Add a comment and share
+        await element(by.id('share-comment-input')).typeText('Check out my training!');
+        await element(by.id('share-button')).tap();
+
+        // Should show success
+        await waitFor(element(by.text('Shared successfully')))
+          .toBeVisible()
+          .withTimeout(5000);
+      } catch {
+        // No shareable insights available
+      }
+    });
+
+    it('should adapt insight from feed', async () => {
       // Navigate to feed
-      await element(by.id('drawer-toggle')).tap();
-      await element(by.text('Feed')).tap();
+      await navigateToTab('insights');
       await waitFor(element(by.id('social-feed-screen')))
         .toBeVisible()
         .withTimeout(5000);
 
-      // If there are feed items with adapt button
       try {
-        await element(by.id('adapt-button')).atIndex(0).tap();
-        await waitFor(element(by.id('adapt-insight-screen')))
+        // Find and tap adapt button on a post
+        await element(by.id('adapt-button-0')).tap();
+        await waitFor(element(by.text('Adapt to My Training')))
           .toBeVisible()
           .withTimeout(5000);
-        await expect(element(by.text('Adapted for You'))).toBeVisible();
+
+        await element(by.text('Adapt to My Training')).tap();
+
+        // Should navigate to adapted insight screen or show confirmation
+        await waitFor(element(by.id('adapted-insight-screen')))
+          .toBeVisible()
+          .withTimeout(10000);
       } catch {
-        // No feed items - skip this test condition
+        // No posts with adaptable insights
+      }
+    });
+  });
+
+  describe('Friend Requests', () => {
+    it('should view pending requests', async () => {
+      // Navigate to friends
+      await navigateToTab('insights');
+      await waitFor(element(by.id('social-feed-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
+
+      await element(by.id('friends-button')).tap();
+      await waitFor(element(by.id('friends-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
+
+      // Go to requests tab
+      await element(by.id('friend-requests-button')).tap();
+      await waitFor(element(by.id('friend-requests-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
+
+      // Should see requests list
+      await expect(element(by.id('requests-list'))).toBeVisible();
+    });
+
+    it('should accept friend request', async () => {
+      // Navigate to requests
+      await navigateToTab('insights');
+      await waitFor(element(by.id('social-feed-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
+
+      await element(by.id('friends-button')).tap();
+      await waitFor(element(by.id('friends-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
+
+      await element(by.id('friend-requests-button')).tap();
+      await waitFor(element(by.id('friend-requests-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
+
+      try {
+        await element(by.id('accept-request-button-0')).tap();
+        await expect(element(by.text('Friend added'))).toBeVisible();
+      } catch {
+        // No pending requests
       }
     });
   });

@@ -7,7 +7,6 @@ import { render, fireEvent, waitFor } from '@testing-library/react-native';
 // Mock navigation
 const mockNavigation = {
   navigate: jest.fn(),
-  openDrawer: jest.fn(),
   goBack: jest.fn(),
 };
 
@@ -254,20 +253,6 @@ describe('SocialFeedScreen', () => {
       // Verify reaction counts are displayed
       expect(getByText('3')).toBeTruthy(); // like count
       expect(getByText('2')).toBeTruthy(); // celebrate count
-    });
-  });
-
-  describe('navigation', () => {
-    it('should call openDrawer when menu button pressed', async () => {
-      const { getByText } = render(<SocialFeedScreen />);
-
-      await waitFor(() => {
-        expect(getByText('Feed')).toBeTruthy();
-      });
-
-      // The drawer navigation is set up, menu icon triggers openDrawer
-      // Since we can't easily find icon buttons, we verify the mock is available
-      expect(mockNavigation.openDrawer).toBeDefined();
     });
   });
 

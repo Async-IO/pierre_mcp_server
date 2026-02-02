@@ -1,7 +1,7 @@
 // ABOUTME: Coach library screen for managing user's AI coaches
 // ABOUTME: Lists coaches with category filters, favorites toggle, and CRUD actions
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -83,7 +83,6 @@ const actionMenuStyle: ViewStyle = {
 export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
   const { isAuthenticated } = useAuth();
   const [coaches, setCoaches] = useState<Coach[]>([]);
-  const [filteredCoaches, setFilteredCoaches] = useState<Coach[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<CoachCategory | 'all'>('all');
   const [selectedSource, setSelectedSource] = useState<CoachSource>('all');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
@@ -137,8 +136,8 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
     }
   }, [isAuthenticated]);
 
-  // Apply filters whenever coaches, category, source, favorites, showHidden, or searchQuery changes
-  React.useEffect(() => {
+  // Compute filtered coaches - derived state using useMemo to avoid act() warnings in tests
+  const filteredCoaches = useMemo(() => {
     let filtered = [...coaches];
 
     // Filter out hidden coaches unless showHidden is enabled
@@ -172,7 +171,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
       );
     }
 
-    setFilteredCoaches(filtered);
+    return filtered;
   }, [coaches, selectedCategory, selectedSource, showFavoritesOnly, showHidden, searchQuery]);
 
   useFocusEffect(

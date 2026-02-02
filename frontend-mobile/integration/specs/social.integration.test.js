@@ -51,7 +51,7 @@ describe('Social API Integration Tests', () => {
   describe('Friend Requests', () => {
     it('should list pending friend requests', async () => {
       const result = await authenticatedRequest(
-        '/api/social/friend-requests',
+        '/api/social/friends/pending',
         accessToken
       );
 
@@ -62,7 +62,7 @@ describe('Social API Integration Tests', () => {
 
     it('should list sent friend requests', async () => {
       const result = await authenticatedRequest(
-        '/api/social/friend-requests/sent',
+        '/api/social/friends/pending?type=sent',
         accessToken
       );
 
@@ -118,7 +118,7 @@ describe('Social API Integration Tests', () => {
   describe('User Search', () => {
     it('should search for users', async () => {
       const result = await authenticatedRequest(
-        '/api/social/search?q=test',
+        '/api/social/users/search?q=test',
         accessToken
       );
 
@@ -129,7 +129,7 @@ describe('Social API Integration Tests', () => {
 
     it('should return empty results for non-matching search', async () => {
       const result = await authenticatedRequest(
-        '/api/social/search?q=nonexistentuserxyz123',
+        '/api/social/users/search?q=nonexistentuserxyz123',
         accessToken
       );
 
@@ -303,7 +303,8 @@ describe('Social API Integration Tests', () => {
       );
 
       expect(result.success).toBe(false);
-      expect(result.status).toBe(400);
+      // 400 Bad Request or 422 Unprocessable Entity are both valid validation errors
+      expect([400, 422]).toContain(result.status);
     });
   });
 

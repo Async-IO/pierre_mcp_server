@@ -4,8 +4,9 @@
 import { useState, lazy, Suspense, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
-import { dashboardApi, adminApi, a2aApi } from '../services/api';
+import { dashboardApi, adminApi, a2aApi, chatApi } from '../services/api';
 import type { DashboardOverview, RateLimitOverview, User, AdminToken } from '../types/api';
+import type { Conversation } from './chat/types';
 import type { AnalyticsData } from '../types/chart';
 import { useWebSocketContext } from '../hooks/useWebSocketContext';
 import { Card } from './ui';
@@ -113,6 +114,15 @@ export default function Dashboard() {
     enabled: isAdminUser,
   });
 
+  // Chat conversations - fetch for all users when Chat tab is active
+  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
+  const { data: conversationsData, isLoading: conversationsLoading } = useQuery<{ conversations: Conversation[] }>({
+    queryKey: ['chat-conversations'],
+    queryFn: () => chatApi.getConversations(),
+    enabled: activeTab === 'chat',
+  });
+  const conversations = conversationsData?.conversations ?? [];
+
   // Refresh data when WebSocket updates are received
   useEffect(() => {
     if (lastMessage && isAdminUser) {
@@ -187,7 +197,7 @@ export default function Dashboard() {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
       </svg>
     ) },
-    { id: 'social-feed', name: 'Social Feed', icon: (
+    { id: 'social-feed', name: 'Insights', icon: (
       <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
       </svg>
@@ -216,7 +226,7 @@ export default function Dashboard() {
     ) },
   ], [adminTabs]);
 
-  // Regular user tabs - Chat, My Coaches, Discover, Social Feed, Friends, Settings
+  // Regular user tabs - Chat, My Coaches, Discover, Insights, Friends, Settings
   const regularTabs: TabDefinition[] = useMemo(() => [
     { id: 'chat', name: 'Chat', icon: (
       <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -233,7 +243,7 @@ export default function Dashboard() {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
       </svg>
     ) },
-    { id: 'social-feed', name: 'Social Feed', icon: (
+    { id: 'social-feed', name: 'Insights', icon: (
       <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
       </svg>
@@ -328,6 +338,40 @@ export default function Dashboard() {
               </li>
             ))}
           </ul>
+
+          {/* Recent Conversations - shown when Chat tab is active */}
+          {activeTab === 'chat' && !sidebarCollapsed && (
+            <div className="mt-4 px-3">
+              <div className="border-t border-white/10 pt-4">
+                <h3 className="text-[11px] font-bold text-zinc-400 tracking-wider uppercase px-3 mb-2">
+                  Recent Chats
+                </h3>
+                <div className="space-y-0.5 max-h-64 overflow-y-auto">
+                  {conversationsLoading ? (
+                    <div className="px-3 py-2 text-zinc-500 text-sm">Loading...</div>
+                  ) : conversations.length === 0 ? (
+                    <div className="px-3 py-2 text-zinc-500 text-sm">No conversations yet</div>
+                  ) : (
+                    conversations.slice(0, 10).map((conv) => (
+                      <button
+                        key={conv.id}
+                        onClick={() => setSelectedConversation(conv.id)}
+                        className={clsx(
+                          'w-full text-left px-3 py-2 rounded-lg text-sm transition-colors truncate',
+                          selectedConversation === conv.id
+                            ? 'bg-pierre-violet/20 text-pierre-violet-light'
+                            : 'text-zinc-400 hover:bg-white/5 hover:text-white'
+                        )}
+                        title={conv.title || 'Untitled Chat'}
+                      >
+                        {conv.title || 'Untitled Chat'}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </nav>
 
         {/* User Profile Section - Bottom of sidebar */}
@@ -541,7 +585,10 @@ export default function Dashboard() {
         )}
         {activeTab === 'chat' && (
           <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
-            <ChatTab />
+            <ChatTab
+              selectedConversation={selectedConversation}
+              onSelectConversation={setSelectedConversation}
+            />
           </Suspense>
         )}
         {activeTab === 'my-coaches' && (

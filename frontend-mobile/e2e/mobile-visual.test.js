@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-// ABOUTME: Visual E2E tests for mobile app (ASY-314).
-// ABOUTME: Tests all mobile screens against real backend using Detox.
+// ABOUTME: Visual E2E tests for mobile app - tests all screens using tab navigation.
+// ABOUTME: Tests navigation, screen rendering, and visual consistency using Detox.
 
 const {
   loginAsMobileTestUser,
-  navigateViaDrawer,
+  navigateToTab,
   takeVisualScreenshot,
   scrollDown,
   pullToRefresh,
@@ -15,7 +15,7 @@ const {
   TEST_USERS,
 } = require('./visual-test-helpers');
 
-describe('ASY-314: Mobile Visual Tests', () => {
+describe('Mobile Visual Tests', () => {
   beforeAll(async () => {
     await device.launchApp({ newInstance: true });
   });
@@ -45,192 +45,204 @@ describe('ASY-314: Mobile Visual Tests', () => {
 
     it('login - password is masked', async () => {
       await element(by.id('password-input')).typeText('TestPassword');
-      // Password should be secure entry (masked)
       await expect(element(by.id('password-input'))).toBeVisible();
       await element(by.id('password-input')).clearText();
     });
 
-    it('login - shows error for invalid credentials', async () => {
-      await element(by.id('email-input')).clearText();
-      await element(by.id('email-input')).typeText('wrong@email.com');
-      await element(by.id('password-input')).clearText();
-      await element(by.id('password-input')).typeText('wrongpassword\n');
+    it('login - shows error on invalid credentials', async () => {
+      await element(by.id('email-input')).typeText('invalid@test.com');
+      await element(by.id('password-input')).typeText('wrongpassword');
       await element(by.id('login-button')).tap();
 
-      // Wait for error or stay on login screen
-      await waitFor(element(by.id('login-screen')))
+      await waitFor(element(by.text(/Invalid|Error|incorrect/i)))
         .toBeVisible()
         .withTimeout(5000);
+
+      await element(by.id('email-input')).clearText();
+      await element(by.id('password-input')).clearText();
     });
 
-    it('login - successful login navigates away from login screen', async () => {
-      await device.reloadReactNative();
-      await loginAsMobileTestUser();
-      // Should no longer see login screen
-      await waitFor(element(by.id('login-screen')))
-        .not.toBeVisible()
+    it('login - successful login navigates to chat', async () => {
+      await element(by.id('email-input')).typeText(TEST_USERS.mobiletest.email);
+      await element(by.id('password-input')).typeText(TEST_USERS.mobiletest.password);
+      await element(by.id('login-button')).tap();
+
+      await waitFor(element(by.id('chat-screen')))
+        .toBeVisible()
         .withTimeout(15000);
     });
   });
 
   // ========================================
-  // Home Screen
+  // Tab Bar Navigation
   // ========================================
-  describe('Home Screen', () => {
+  describe('Tab Navigation', () => {
     beforeAll(async () => {
       await device.reloadReactNative();
       await loginAsMobileTestUser();
     });
 
-    it('home - displays greeting with user name', async () => {
-      // Home tab should be default or navigate to it
-      try {
-        await element(by.id('home-tab')).tap();
-      } catch {
-        // Already on home or no tab bar
-      }
+    it('tab bar - chat tab visible', async () => {
+      await expect(element(by.id('tab-chat'))).toBeVisible();
+    });
 
-      // Look for greeting text
-      await waitFor(element(by.text(/Hello|Welcome/)))
+    it('tab bar - coaches tab visible', async () => {
+      await expect(element(by.id('tab-coaches'))).toBeVisible();
+    });
+
+    it('tab bar - discover tab visible', async () => {
+      await expect(element(by.id('tab-discover'))).toBeVisible();
+    });
+
+    it('tab bar - insights tab visible', async () => {
+      await expect(element(by.id('tab-insights'))).toBeVisible();
+    });
+
+    it('tab bar - settings tab visible', async () => {
+      await expect(element(by.id('tab-settings'))).toBeVisible();
+    });
+
+    it('navigation - chat to coaches', async () => {
+      await navigateToTab('coaches');
+      await waitFor(element(by.id('coach-library-screen')))
         .toBeVisible()
         .withTimeout(5000);
     });
 
-    it('home - displays stat cards', async () => {
-      // Look for stat card elements
-      const statCard = element(by.id('stat-card')).atIndex(0);
-      const hasStatCard = await isVisible(statCard);
-      if (hasStatCard) {
-        await expect(statCard).toBeVisible();
-      }
+    it('navigation - coaches to discover', async () => {
+      await navigateToTab('discover');
+      await waitFor(element(by.id('store-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
     });
 
-    it('home - pull to refresh works', async () => {
-      try {
-        await element(by.id('home-scroll-view')).swipe('down', 'fast');
-        // Wait for refresh to complete
-        await waitFor(element(by.id('home-scroll-view')))
-          .toBeVisible()
-          .withTimeout(5000);
-      } catch {
-        // Scroll view may have different ID
-      }
+    it('navigation - discover to insights', async () => {
+      await navigateToTab('insights');
+      await waitFor(element(by.id('social-feed-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
+    });
+
+    it('navigation - insights to settings', async () => {
+      await navigateToTab('settings');
+      await waitFor(element(by.id('settings-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
+    });
+
+    it('navigation - settings back to chat', async () => {
+      await navigateToTab('chat');
+      await waitFor(element(by.id('chat-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
     });
   });
 
   // ========================================
-  // Chat Tab
+  // Chat Screen
   // ========================================
-  describe('Chat Tab', () => {
+  describe('Chat Screen', () => {
     beforeAll(async () => {
       await device.reloadReactNative();
       await loginAsMobileTestUser();
     });
 
-    it('chat - tab icon visible and tappable', async () => {
-      await waitFor(element(by.id('chat-tab')))
+    it('chat - default screen after login', async () => {
+      await waitFor(element(by.id('chat-screen')))
         .toBeVisible()
-        .withTimeout(5000);
-      await element(by.id('chat-tab')).tap();
+        .withTimeout(10000);
     });
 
-    it('chat - displays conversation list or empty state', async () => {
-      await element(by.id('chat-tab')).tap();
-      // Either conversations list or empty state
+    it('chat - message input visible', async () => {
+      await expect(element(by.id('message-input'))).toBeVisible();
+    });
+
+    it('chat - send button visible', async () => {
+      await expect(element(by.id('send-button'))).toBeVisible();
+    });
+
+    it('chat - coach selector available', async () => {
       try {
-        await waitFor(element(by.id('conversations-list')))
-          .toBeVisible()
-          .withTimeout(3000);
+        await expect(element(by.id('coach-selector'))).toBeVisible();
       } catch {
-        // Empty state
-        await expect(element(by.text(/No conversations|Start a chat/i))).toBeVisible();
+        // May not have coach selector if only one coach
       }
     });
 
-    it('chat - new chat button visible', async () => {
-      await element(by.id('chat-tab')).tap();
-      const newChatButton = element(by.id('new-chat-button'));
-      const hasNewChat = await isVisible(newChatButton);
-      // Button may or may not be visible depending on UI
+    it('chat - can type message', async () => {
+      await element(by.id('message-input')).typeText('Test message');
+      await element(by.id('message-input')).clearText();
     });
 
-    it('chat - message input accepts text', async () => {
-      await element(by.id('chat-tab')).tap();
-      // Try to find message input (may need to open a conversation first)
+    it('chat - conversations button navigates', async () => {
       try {
-        await waitFor(element(by.id('message-input')))
-          .toBeVisible()
-          .withTimeout(3000);
-        await element(by.id('message-input')).typeText('Test message');
-        await element(by.id('message-input')).clearText();
-      } catch {
-        // No active conversation
-      }
-    });
-  });
-
-  // ========================================
-  // Coaches Tab
-  // ========================================
-  describe('Coaches Tab', () => {
-    beforeAll(async () => {
-      await device.reloadReactNative();
-      await loginAsMobileTestUser();
-    });
-
-    it('coaches - tab icon visible and tappable', async () => {
-      await waitFor(element(by.id('coaches-tab')))
-        .toBeVisible()
-        .withTimeout(5000);
-      await element(by.id('coaches-tab')).tap();
-    });
-
-    it('coaches - displays coach list', async () => {
-      await element(by.id('coaches-tab')).tap();
-      await waitFor(element(by.id('coaches-screen')))
-        .toBeVisible()
-        .withTimeout(5000);
-    });
-
-    it('coaches - search input works', async () => {
-      await element(by.id('coaches-tab')).tap();
-      try {
-        await waitFor(element(by.id('coach-search-input')))
-          .toBeVisible()
-          .withTimeout(3000);
-        await element(by.id('coach-search-input')).typeText('training');
-        await element(by.id('coach-search-input')).clearText();
-      } catch {
-        // Search may not be visible
-      }
-    });
-
-    it('coaches - favorite filter toggles', async () => {
-      await element(by.id('coaches-tab')).tap();
-      try {
-        await element(by.id('favorites-filter')).tap();
-      } catch {
-        // Filter may not be visible
-      }
-    });
-
-    it('coaches - coach card tap opens detail', async () => {
-      await element(by.id('coaches-tab')).tap();
-      try {
-        await element(by.id('coach-card')).atIndex(0).tap();
-        await waitFor(element(by.id('coach-detail-screen')))
+        await element(by.id('conversations-button')).tap();
+        await waitFor(element(by.id('conversations-screen')))
           .toBeVisible()
           .withTimeout(5000);
-        // Go back
         await element(by.id('back-button')).tap();
       } catch {
-        // No coaches or different UI
+        // Conversations might not be available
       }
     });
   });
 
   // ========================================
-  // Coach Store Screen
+  // Coaches Screen
+  // ========================================
+  describe('Coaches Screen', () => {
+    beforeAll(async () => {
+      await device.reloadReactNative();
+      await loginAsMobileTestUser();
+    });
+
+    it('coaches - navigates via tab', async () => {
+      await navigateToTab('coaches');
+      await waitFor(element(by.id('coach-library-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
+    });
+
+    it('coaches - displays coach list or empty state', async () => {
+      await navigateToTab('coaches');
+      await waitFor(element(by.id('coach-library-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
+
+      try {
+        await waitFor(element(by.id('coach-card')).atIndex(0))
+          .toBeVisible()
+          .withTimeout(3000);
+      } catch {
+        await expect(element(by.text(/No coaches|Get started/i))).toBeVisible();
+      }
+    });
+
+    it('coaches - create button visible', async () => {
+      await navigateToTab('coaches');
+      await waitFor(element(by.id('coach-library-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
+
+      try {
+        await expect(element(by.id('create-coach-button'))).toBeVisible();
+      } catch {
+        // Create button might be styled differently
+      }
+    });
+
+    it('coaches - pull to refresh works', async () => {
+      await navigateToTab('coaches');
+      await waitFor(element(by.id('coach-library-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
+
+      await element(by.id('coach-list')).swipe('down', 'fast');
+    });
+  });
+
+  // ========================================
+  // Coach Store (Discover)
   // ========================================
   describe('Coach Store', () => {
     beforeAll(async () => {
@@ -238,45 +250,46 @@ describe('ASY-314: Mobile Visual Tests', () => {
       await loginAsMobileTestUser();
     });
 
-    it('store - navigates via drawer', async () => {
-      await element(by.id('drawer-toggle')).tap();
-      await waitFor(element(by.text('Store')))
-        .toBeVisible()
-        .withTimeout(5000);
-      await element(by.text('Store')).tap();
+    it('store - navigates via tab', async () => {
+      await navigateToTab('discover');
       await waitFor(element(by.id('store-screen')))
         .toBeVisible()
         .withTimeout(5000);
     });
 
     it('store - displays coach grid', async () => {
-      await element(by.id('drawer-toggle')).tap();
-      await element(by.text('Store')).tap();
+      await navigateToTab('discover');
       await waitFor(element(by.id('store-screen')))
         .toBeVisible()
         .withTimeout(5000);
+
+      try {
+        await waitFor(element(by.id('coach-card')).atIndex(0))
+          .toBeVisible()
+          .withTimeout(3000);
+      } catch {
+        // Store might be empty
+      }
     });
 
     it('store - category tabs filter content', async () => {
-      await element(by.id('drawer-toggle')).tap();
-      await element(by.text('Store')).tap();
+      await navigateToTab('discover');
       await waitFor(element(by.id('store-screen')))
         .toBeVisible()
         .withTimeout(5000);
 
-      // Try tapping category tabs
       try {
         await element(by.text('Training')).tap();
         await element(by.text('Nutrition')).tap();
         await element(by.text('Recovery')).tap();
+        await element(by.text('All')).tap();
       } catch {
         // Categories may have different names
       }
     });
 
     it('store - search coaches works', async () => {
-      await element(by.id('drawer-toggle')).tap();
-      await element(by.text('Store')).tap();
+      await navigateToTab('discover');
       await waitFor(element(by.id('store-screen')))
         .toBeVisible()
         .withTimeout(5000);
@@ -290,8 +303,7 @@ describe('ASY-314: Mobile Visual Tests', () => {
     });
 
     it('store - install button visible on coach cards', async () => {
-      await element(by.id('drawer-toggle')).tap();
-      await element(by.text('Store')).tap();
+      await navigateToTab('discover');
       await waitFor(element(by.id('store-screen')))
         .toBeVisible()
         .withTimeout(5000);
@@ -299,13 +311,13 @@ describe('ASY-314: Mobile Visual Tests', () => {
       try {
         await expect(element(by.id('install-button')).atIndex(0)).toBeVisible();
       } catch {
-        // May show "Installed" instead
+        // May show "Installed" instead or no coaches
       }
     });
   });
 
   // ========================================
-  // Social Tab / Feed
+  // Social Feed (Insights)
   // ========================================
   describe('Social Feed', () => {
     beforeAll(async () => {
@@ -313,25 +325,19 @@ describe('ASY-314: Mobile Visual Tests', () => {
       await loginAsMobileTestUser();
     });
 
-    it('feed - navigates via drawer', async () => {
-      await element(by.id('drawer-toggle')).tap();
-      await waitFor(element(by.text('Feed')))
-        .toBeVisible()
-        .withTimeout(5000);
-      await element(by.text('Feed')).tap();
+    it('feed - navigates via tab', async () => {
+      await navigateToTab('insights');
       await waitFor(element(by.id('social-feed-screen')))
         .toBeVisible()
         .withTimeout(5000);
     });
 
     it('feed - displays insight cards or empty state', async () => {
-      await element(by.id('drawer-toggle')).tap();
-      await element(by.text('Feed')).tap();
+      await navigateToTab('insights');
       await waitFor(element(by.id('social-feed-screen')))
         .toBeVisible()
         .withTimeout(5000);
 
-      // Either insights or empty state
       try {
         await waitFor(element(by.id('insight-card')).atIndex(0))
           .toBeVisible()
@@ -342,14 +348,12 @@ describe('ASY-314: Mobile Visual Tests', () => {
     });
 
     it('feed - reaction buttons visible on insight cards', async () => {
-      await element(by.id('drawer-toggle')).tap();
-      await element(by.text('Feed')).tap();
+      await navigateToTab('insights');
       await waitFor(element(by.id('social-feed-screen')))
         .toBeVisible()
         .withTimeout(5000);
 
       try {
-        // Look for reaction buttons (emoji buttons)
         await waitFor(element(by.id('reaction-button')).atIndex(0))
           .toBeVisible()
           .withTimeout(3000);
@@ -359,8 +363,7 @@ describe('ASY-314: Mobile Visual Tests', () => {
     });
 
     it('feed - tapping reaction records it', async () => {
-      await element(by.id('drawer-toggle')).tap();
-      await element(by.text('Feed')).tap();
+      await navigateToTab('insights');
       await waitFor(element(by.id('social-feed-screen')))
         .toBeVisible()
         .withTimeout(5000);
@@ -373,8 +376,7 @@ describe('ASY-314: Mobile Visual Tests', () => {
     });
 
     it('feed - pull to refresh works', async () => {
-      await element(by.id('drawer-toggle')).tap();
-      await element(by.text('Feed')).tap();
+      await navigateToTab('insights');
       await waitFor(element(by.id('social-feed-screen')))
         .toBeVisible()
         .withTimeout(5000);
@@ -383,8 +385,7 @@ describe('ASY-314: Mobile Visual Tests', () => {
     });
 
     it('feed - adapt button opens adapt screen', async () => {
-      await element(by.id('drawer-toggle')).tap();
-      await element(by.text('Feed')).tap();
+      await navigateToTab('insights');
       await waitFor(element(by.id('social-feed-screen')))
         .toBeVisible()
         .withTimeout(5000);
@@ -394,7 +395,6 @@ describe('ASY-314: Mobile Visual Tests', () => {
         await waitFor(element(by.id('adapt-insight-screen')))
           .toBeVisible()
           .withTimeout(5000);
-        // Go back
         await element(by.id('back-button')).tap();
       } catch {
         // No insights or adapt not available
@@ -411,20 +411,25 @@ describe('ASY-314: Mobile Visual Tests', () => {
       await loginAsMobileTestUser();
     });
 
-    it('friends - navigates via drawer', async () => {
-      await element(by.id('drawer-toggle')).tap();
-      await waitFor(element(by.text('Friends')))
+    it('friends - navigates via insights tab', async () => {
+      await navigateToTab('insights');
+      await waitFor(element(by.id('social-feed-screen')))
         .toBeVisible()
         .withTimeout(5000);
-      await element(by.text('Friends')).tap();
+
+      await element(by.id('friends-button')).tap();
       await waitFor(element(by.id('friends-screen')))
         .toBeVisible()
         .withTimeout(5000);
     });
 
     it('friends - displays friend list or empty state', async () => {
-      await element(by.id('drawer-toggle')).tap();
-      await element(by.text('Friends')).tap();
+      await navigateToTab('insights');
+      await waitFor(element(by.id('social-feed-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
+
+      await element(by.id('friends-button')).tap();
       await waitFor(element(by.id('friends-screen')))
         .toBeVisible()
         .withTimeout(5000);
@@ -434,52 +439,51 @@ describe('ASY-314: Mobile Visual Tests', () => {
           .toBeVisible()
           .withTimeout(3000);
       } catch {
-        await expect(element(by.text(/No Friends|Add friends/i))).toBeVisible();
+        await expect(element(by.text(/No friends|Find friends/i))).toBeVisible();
       }
     });
 
-    it('friends - search button opens search', async () => {
-      await element(by.id('drawer-toggle')).tap();
-      await element(by.text('Friends')).tap();
-      await waitFor(element(by.id('friends-screen')))
+    it('friends - search button navigates', async () => {
+      await navigateToTab('insights');
+      await waitFor(element(by.id('social-feed-screen')))
         .toBeVisible()
         .withTimeout(5000);
 
-      await element(by.id('search-friends-button')).tap();
-      await waitFor(element(by.id('search-friends-screen')))
-        .toBeVisible()
-        .withTimeout(5000);
-    });
-
-    it('friends - search finds users', async () => {
-      await element(by.id('drawer-toggle')).tap();
-      await element(by.text('Friends')).tap();
-      await waitFor(element(by.id('friends-screen')))
-        .toBeVisible()
-        .withTimeout(5000);
-
-      await element(by.id('search-friends-button')).tap();
-      await waitFor(element(by.id('search-friends-screen')))
-        .toBeVisible()
-        .withTimeout(5000);
-
-      await element(by.id('user-search-input')).typeText('alice');
-      await waitFor(element(by.id('search-results-list')))
-        .toBeVisible()
-        .withTimeout(5000);
-    });
-
-    it('friends - pending requests tab works', async () => {
-      await element(by.id('drawer-toggle')).tap();
-      await element(by.text('Friends')).tap();
+      await element(by.id('friends-button')).tap();
       await waitFor(element(by.id('friends-screen')))
         .toBeVisible()
         .withTimeout(5000);
 
       try {
-        await element(by.text('Pending')).tap();
+        await element(by.id('search-friends-button')).tap();
+        await waitFor(element(by.id('search-friends-screen')))
+          .toBeVisible()
+          .withTimeout(5000);
+        await element(by.id('back-button')).tap();
       } catch {
-        // Tab may not exist
+        // Button might not exist
+      }
+    });
+
+    it('friends - requests button navigates', async () => {
+      await navigateToTab('insights');
+      await waitFor(element(by.id('social-feed-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
+
+      await element(by.id('friends-button')).tap();
+      await waitFor(element(by.id('friends-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
+
+      try {
+        await element(by.id('friend-requests-button')).tap();
+        await waitFor(element(by.id('friend-requests-screen')))
+          .toBeVisible()
+          .withTimeout(5000);
+        await element(by.id('back-button')).tap();
+      } catch {
+        // Button might not exist
       }
     });
   });
@@ -487,208 +491,154 @@ describe('ASY-314: Mobile Visual Tests', () => {
   // ========================================
   // Social Settings Screen
   // ========================================
-  describe('Social Settings', () => {
+  describe('Social Settings Screen', () => {
     beforeAll(async () => {
       await device.reloadReactNative();
       await loginAsMobileTestUser();
     });
 
-    it('social settings - navigates via drawer', async () => {
-      await element(by.id('drawer-toggle')).tap();
-      await waitFor(element(by.text('Social Settings')))
-        .toBeVisible()
-        .withTimeout(5000);
-      await element(by.text('Social Settings')).tap();
-      await waitFor(element(by.id('social-settings-screen')))
-        .toBeVisible()
-        .withTimeout(5000);
-    });
-
-    it('social settings - displays visibility options', async () => {
-      await element(by.id('drawer-toggle')).tap();
-      await element(by.text('Social Settings')).tap();
-      await waitFor(element(by.id('social-settings-screen')))
-        .toBeVisible()
-        .withTimeout(5000);
-
-      await expect(element(by.text('Discoverable'))).toBeVisible();
-    });
-
-    it('social settings - toggle discoverable', async () => {
-      await element(by.id('drawer-toggle')).tap();
-      await element(by.text('Social Settings')).tap();
-      await waitFor(element(by.id('social-settings-screen')))
-        .toBeVisible()
-        .withTimeout(5000);
-
-      await element(by.id('discoverable-switch')).tap();
-    });
-
-    it('social settings - displays notification options', async () => {
-      await element(by.id('drawer-toggle')).tap();
-      await element(by.text('Social Settings')).tap();
-      await waitFor(element(by.id('social-settings-screen')))
-        .toBeVisible()
-        .withTimeout(5000);
-
-      await expect(element(by.text('Notifications'))).toBeVisible();
-    });
-  });
-
-  // ========================================
-  // Settings Tab
-  // ========================================
-  describe('Settings Tab', () => {
-    beforeAll(async () => {
-      await device.reloadReactNative();
-      await loginAsMobileTestUser();
-    });
-
-    it('settings - tab icon visible and tappable', async () => {
-      await waitFor(element(by.id('settings-tab')))
-        .toBeVisible()
-        .withTimeout(5000);
-      await element(by.id('settings-tab')).tap();
-    });
-
-    it('settings - displays profile section', async () => {
-      await element(by.id('settings-tab')).tap();
-      await waitFor(element(by.id('settings-screen')))
-        .toBeVisible()
-        .withTimeout(5000);
-
-      // Look for profile info
-      await expect(element(by.text(/Profile|Account/i))).toBeVisible();
-    });
-
-    it('settings - displays connections section', async () => {
-      await element(by.id('settings-tab')).tap();
-      await waitFor(element(by.id('settings-screen')))
-        .toBeVisible()
-        .withTimeout(5000);
-
-      // Look for connections
-      try {
-        await expect(element(by.text(/Connections|Providers/i))).toBeVisible();
-      } catch {
-        // May need to scroll
-      }
-    });
-
-    it('settings - logout button visible', async () => {
-      await element(by.id('settings-tab')).tap();
-      await waitFor(element(by.id('settings-screen')))
-        .toBeVisible()
-        .withTimeout(5000);
-
-      // Scroll to find logout
-      try {
-        await element(by.id('settings-scroll-view')).swipe('up', 'slow');
-        await expect(element(by.text('Logout'))).toBeVisible();
-      } catch {
-        // May be at different position
-      }
-    });
-  });
-
-  // ========================================
-  // Connection Modal
-  // ========================================
-  describe('Connection Modal', () => {
-    beforeAll(async () => {
-      await device.reloadReactNative();
-      await loginAsMobileTestUser();
-    });
-
-    it('connections - opens from settings', async () => {
-      await element(by.id('settings-tab')).tap();
-      await waitFor(element(by.id('settings-screen')))
-        .toBeVisible()
-        .withTimeout(5000);
-
-      try {
-        await element(by.text('Connections')).tap();
-        await waitFor(element(by.id('connections-modal')))
-          .toBeVisible()
-          .withTimeout(5000);
-      } catch {
-        // May be inline instead of modal
-      }
-    });
-
-    it('connections - displays Strava provider', async () => {
-      await element(by.id('settings-tab')).tap();
-      await waitFor(element(by.id('settings-screen')))
-        .toBeVisible()
-        .withTimeout(5000);
-
-      try {
-        await element(by.text('Connections')).tap();
-        await expect(element(by.text('Strava'))).toBeVisible();
-      } catch {
-        // May be different location
-      }
-    });
-  });
-
-  // ========================================
-  // Share Insight Modal
-  // ========================================
-  describe('Share Insight Modal', () => {
-    beforeAll(async () => {
-      await device.reloadReactNative();
-      await loginAsMobileTestUser();
-    });
-
-    it('share - opens from feed', async () => {
-      await element(by.id('drawer-toggle')).tap();
-      await element(by.text('Feed')).tap();
+    it('social settings - navigates via insights tab', async () => {
+      await navigateToTab('insights');
       await waitFor(element(by.id('social-feed-screen')))
         .toBeVisible()
         .withTimeout(5000);
 
-      await element(by.id('share-insight-button')).tap();
-      await waitFor(element(by.id('share-insight-screen')))
+      await element(by.id('social-settings-button')).tap();
+      await waitFor(element(by.id('social-settings-screen')))
         .toBeVisible()
         .withTimeout(5000);
     });
 
-    it('share - displays visibility options', async () => {
-      await element(by.id('drawer-toggle')).tap();
-      await element(by.text('Feed')).tap();
-      await element(by.id('share-insight-button')).tap();
-      await waitFor(element(by.id('share-insight-screen')))
+    it('social settings - displays privacy options', async () => {
+      await navigateToTab('insights');
+      await waitFor(element(by.id('social-feed-screen')))
         .toBeVisible()
         .withTimeout(5000);
 
-      await expect(element(by.text(/Friends|Public|Private/i))).toBeVisible();
-    });
-
-    it('share - caption input works', async () => {
-      await element(by.id('drawer-toggle')).tap();
-      await element(by.text('Feed')).tap();
-      await element(by.id('share-insight-button')).tap();
-      await waitFor(element(by.id('share-insight-screen')))
+      await element(by.id('social-settings-button')).tap();
+      await waitFor(element(by.id('social-settings-screen')))
         .toBeVisible()
         .withTimeout(5000);
 
       try {
-        await element(by.id('insight-content-input')).typeText('Test caption');
-        await element(by.id('insight-content-input')).clearText();
+        await expect(element(by.id('privacy-toggle'))).toBeVisible();
       } catch {
-        // Different input ID
+        // Different setting names
       }
     });
 
-    it('share - publish button visible', async () => {
-      await element(by.id('drawer-toggle')).tap();
-      await element(by.text('Feed')).tap();
-      await element(by.id('share-insight-button')).tap();
-      await waitFor(element(by.id('share-insight-screen')))
+    it('social settings - back button works', async () => {
+      await navigateToTab('insights');
+      await waitFor(element(by.id('social-feed-screen')))
         .toBeVisible()
         .withTimeout(5000);
 
-      await expect(element(by.id('share-button'))).toBeVisible();
+      await element(by.id('social-settings-button')).tap();
+      await waitFor(element(by.id('social-settings-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
+
+      await element(by.id('back-button')).tap();
+      await waitFor(element(by.id('social-feed-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
+    });
+  });
+
+  // ========================================
+  // Settings Screen
+  // ========================================
+  describe('Settings Screen', () => {
+    beforeAll(async () => {
+      await device.reloadReactNative();
+      await loginAsMobileTestUser();
+    });
+
+    it('settings - navigates via tab', async () => {
+      await navigateToTab('settings');
+      await waitFor(element(by.id('settings-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
+    });
+
+    it('settings - displays user profile section', async () => {
+      await navigateToTab('settings');
+      await waitFor(element(by.id('settings-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
+
+      try {
+        await expect(element(by.id('profile-section'))).toBeVisible();
+      } catch {
+        // Section might be named differently
+      }
+    });
+
+    it('settings - logout button visible', async () => {
+      await navigateToTab('settings');
+      await waitFor(element(by.id('settings-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
+
+      try {
+        await scrollDown('settings-scroll');
+      } catch {
+        // Might not need scrolling
+      }
+
+      await expect(element(by.id('logout-button'))).toBeVisible();
+    });
+
+    it('settings - connections button navigates', async () => {
+      await navigateToTab('settings');
+      await waitFor(element(by.id('settings-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
+
+      try {
+        await element(by.id('connections-button')).tap();
+        await waitFor(element(by.id('connections-screen')))
+          .toBeVisible()
+          .withTimeout(5000);
+        await element(by.id('back-button')).tap();
+      } catch {
+        // Button might not exist
+      }
+    });
+  });
+
+  // ========================================
+  // Logout Flow
+  // ========================================
+  describe('Logout', () => {
+    beforeAll(async () => {
+      await device.reloadReactNative();
+      await loginAsMobileTestUser();
+    });
+
+    it('logout - navigates to login screen', async () => {
+      await navigateToTab('settings');
+      await waitFor(element(by.id('settings-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
+
+      try {
+        await scrollDown('settings-scroll');
+      } catch {
+        // Might not need scrolling
+      }
+
+      await element(by.id('logout-button')).tap();
+
+      try {
+        await element(by.text('Logout')).tap();
+      } catch {
+        // No confirmation dialog
+      }
+
+      await waitFor(element(by.id('login-screen')))
+        .toBeVisible()
+        .withTimeout(5000);
     });
   });
 });

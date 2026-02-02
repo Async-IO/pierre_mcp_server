@@ -377,4 +377,115 @@ describe('CoachLibraryTab Component', () => {
 
     expect(screen.getByRole('button', { name: /Delete/i })).toBeInTheDocument();
   });
+
+  describe('search functionality', () => {
+    it('should render the search input', async () => {
+      await act(async () => {
+        renderCoachLibraryTab();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText('Search coaches...')).toBeInTheDocument();
+      });
+    });
+
+    it('should filter coaches by search query', async () => {
+      const user = userEvent.setup();
+
+      await act(async () => {
+        renderCoachLibraryTab();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Test Coach')).toBeInTheDocument();
+        expect(screen.getByText('Favorite Coach')).toBeInTheDocument();
+      });
+
+      const searchInput = screen.getByPlaceholderText('Search coaches...');
+      await user.type(searchInput, 'Favorite');
+
+      // Should filter to only show the matching coach
+      await waitFor(() => {
+        expect(screen.getByText('Favorite Coach')).toBeInTheDocument();
+        expect(screen.queryByText('Test Coach')).not.toBeInTheDocument();
+      });
+    });
+
+    it('should clear search when X button is clicked', async () => {
+      const user = userEvent.setup();
+
+      await act(async () => {
+        renderCoachLibraryTab();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Test Coach')).toBeInTheDocument();
+      });
+
+      const searchInput = screen.getByPlaceholderText('Search coaches...');
+      await user.type(searchInput, 'Favorite');
+
+      // Verify search is active
+      await waitFor(() => {
+        expect(searchInput).toHaveValue('Favorite');
+      });
+
+      // Click clear button
+      const clearButton = screen.getByLabelText('Clear search');
+      await user.click(clearButton);
+
+      // Search should be cleared
+      await waitFor(() => {
+        expect(searchInput).toHaveValue('');
+      });
+
+      // Both coaches should be visible again
+      await waitFor(() => {
+        expect(screen.getByText('Test Coach')).toBeInTheDocument();
+        expect(screen.getByText('Favorite Coach')).toBeInTheDocument();
+      });
+    });
+
+    it('should search by description', async () => {
+      const user = userEvent.setup();
+
+      await act(async () => {
+        renderCoachLibraryTab();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Test Coach')).toBeInTheDocument();
+      });
+
+      const searchInput = screen.getByPlaceholderText('Search coaches...');
+      await user.type(searchInput, 'unit testing');
+
+      // Should find coach by description content
+      await waitFor(() => {
+        expect(screen.getByText('Test Coach')).toBeInTheDocument();
+        expect(screen.queryByText('Favorite Coach')).not.toBeInTheDocument();
+      });
+    });
+
+    it('should show empty state when no coaches match search', async () => {
+      const user = userEvent.setup();
+
+      await act(async () => {
+        renderCoachLibraryTab();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Test Coach')).toBeInTheDocument();
+      });
+
+      const searchInput = screen.getByPlaceholderText('Search coaches...');
+      await user.type(searchInput, 'nonexistent');
+
+      // Should show empty state
+      await waitFor(() => {
+        expect(screen.queryByText('Test Coach')).not.toBeInTheDocument();
+        expect(screen.queryByText('Favorite Coach')).not.toBeInTheDocument();
+      });
+    });
+  });
 });

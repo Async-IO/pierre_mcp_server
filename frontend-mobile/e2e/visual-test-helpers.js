@@ -45,27 +45,15 @@ async function loginAsMobileTestUser() {
 }
 
 /**
- * Navigate to a screen via drawer menu.
- */
-async function navigateViaDrawer(screenName) {
-  await element(by.id('drawer-toggle')).tap();
-  await waitFor(element(by.text(screenName)))
-    .toBeVisible()
-    .withTimeout(5000);
-  await element(by.text(screenName)).tap();
-  await waitFor(element(by.id(`${screenName.toLowerCase().replace(/\s+/g, '-')}-screen`)))
-    .toBeVisible()
-    .withTimeout(5000);
-}
-
-/**
  * Navigate to a tab via bottom tab bar.
+ * Tab names: 'chat', 'coaches', 'discover', 'insights', 'settings'
  */
 async function navigateToTab(tabName) {
-  await waitFor(element(by.id(`${tabName.toLowerCase()}-tab`)))
+  const tabId = `tab-${tabName.toLowerCase()}`;
+  await waitFor(element(by.id(tabId)))
     .toBeVisible()
     .withTimeout(5000);
-  await element(by.id(`${tabName.toLowerCase()}-tab`)).tap();
+  await element(by.id(tabId)).tap();
 }
 
 /**
@@ -116,7 +104,6 @@ async function waitForVisible(elementMatcher, timeout = 5000) {
 module.exports = {
   TEST_USERS,
   loginAsMobileTestUser,
-  navigateViaDrawer,
   navigateToTab,
   takeVisualScreenshot,
   scrollDown,

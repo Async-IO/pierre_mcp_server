@@ -9,23 +9,20 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ConfirmDialog } from './ui';
 import { chatApi, providersApi, coachesApi } from '../services/api';
 import PromptSuggestions from './PromptSuggestions';
-import { MessageCircle, Plus, Sparkles, PanelLeftClose, PanelLeft, History } from 'lucide-react';
+import { MessageCircle, Plus, Sparkles } from 'lucide-react';
 import { ShareChatMessageModal } from './social';
-import { clsx } from 'clsx';
 import {
   MessageList,
   MessageInput,
   ProviderConnectionModal,
   CoachFormModal,
   CreateCoachFromConversationModal,
-  ConversationItem,
   stripContextPrefix,
   DEFAULT_COACH_FORM_DATA,
 } from './chat';
 import { useSuccessToast, useInfoToast } from './ui';
 import type {
   Message,
-  Conversation,
   Coach,
   MessageMetadata,
   MessageFeedback,
@@ -33,14 +30,17 @@ import type {
   CoachDeleteConfirmation,
   PendingCoachAction,
   CoachFormData,
-  DeleteConfirmation,
 } from './chat';
 
-export default function ChatTab() {
+interface ChatTabProps {
+  selectedConversation: string | null;
+  onSelectConversation: (id: string | null) => void;
+}
+
+export default function ChatTab({ selectedConversation, onSelectConversation }: ChatTabProps) {
   const queryClient = useQueryClient();
   const showSuccessToast = useSuccessToast();
   const showInfoToast = useInfoToast();
-  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
@@ -62,12 +62,6 @@ export default function ChatTab() {
   const [shareMessageContent, setShareMessageContent] = useState<string | null>(null);
   const [showCreateCoachFromConversation, setShowCreateCoachFromConversation] = useState(false);
 
-  // Conversations panel state
-  const [conversationsPanelOpen, setConversationsPanelOpen] = useState(true);
-  const [editingTitle, setEditingTitle] = useState<string | null>(null);
-  const [editedTitleValue, setEditedTitleValue] = useState('');
-  const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmation | null>(null);
-
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Fetch provider status (includes both OAuth and non-OAuth providers like synthetic)
@@ -77,14 +71,6 @@ export default function ChatTab() {
   });
 
   const hasConnectedProvider = providersData?.providers?.some(p => p.connected) ?? false;
-
-  // Fetch conversations list
-  const { data: conversationsData, isLoading: conversationsLoading } = useQuery<{ conversations: Conversation[] }>({
-    queryKey: ['chat-conversations'],
-    queryFn: () => chatApi.getConversations(),
-  });
-
-  const conversations = conversationsData?.conversations ?? [];
 
   // Fetch messages for selected conversation
   const { data: messagesData, isLoading: messagesLoading } = useQuery<{ messages: Message[] }>({
@@ -105,29 +91,8 @@ export default function ChatTab() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
-      setSelectedConversation(data.id);
+      onSelectConversation(data.id);
       setPendingSystemPrompt(null);
-    },
-  });
-
-  const updateConversation = useMutation({
-    mutationFn: ({ id, title }: { id: string; title: string }) =>
-      chatApi.updateConversation(id, { title }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
-      setEditingTitle(null);
-      setEditedTitleValue('');
-    },
-  });
-
-  const deleteConversation = useMutation({
-    mutationFn: (id: string) => chatApi.deleteConversation(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
-      setDeleteConfirmation(null);
-      if (selectedConversation === deleteConfirmation?.id) {
-        setSelectedConversation(null);
-      }
     },
   });
 
@@ -212,7 +177,7 @@ export default function ChatTab() {
       setConnectingProvider(null);
 
       if (data.savedConversation) {
-        setSelectedConversation(data.savedConversation);
+        onSelectConversation(data.savedConversation);
       }
 
       if (data.savedCoachAction) {
@@ -294,7 +259,7 @@ export default function ChatTab() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [queryClient, createConversation]);
+  }, [queryClient, createConversation, onSelectConversation]);
 
   // Handle sending a pending prompt
   useEffect(() => {
@@ -500,38 +465,6 @@ export default function ChatTab() {
     }
   };
 
-  // Conversation management handlers
-  const handleStartRename = (e: React.MouseEvent, conv: Conversation) => {
-    e.stopPropagation();
-    setEditingTitle(conv.id);
-    setEditedTitleValue(conv.title ?? 'Untitled Chat');
-  };
-
-  const handleSaveRename = (id: string) => {
-    if (editedTitleValue.trim()) {
-      updateConversation.mutate({ id, title: editedTitleValue.trim() });
-    } else {
-      setEditingTitle(null);
-      setEditedTitleValue('');
-    }
-  };
-
-  const handleCancelRename = () => {
-    setEditingTitle(null);
-    setEditedTitleValue('');
-  };
-
-  const handleDeleteConversation = (e: React.MouseEvent, conv: Conversation) => {
-    e.stopPropagation();
-    setDeleteConfirmation({ id: conv.id, title: conv.title });
-  };
-
-  const handleConfirmDeleteConversation = () => {
-    if (deleteConfirmation) {
-      deleteConversation.mutate(deleteConfirmation.id);
-    }
-  };
-
   const handleConnectProvider = (provider: string) => {
     setConnectingProvider(provider);
     if (selectedConversation) {
@@ -643,70 +576,7 @@ export default function ChatTab() {
 
   return (
     <div className="h-full flex bg-pierre-dark relative">
-      {/* Conversations Panel */}
-      <div
-        className={clsx(
-          'flex-shrink-0 border-r border-white/5 bg-pierre-slate/50 transition-all duration-300 flex flex-col',
-          conversationsPanelOpen ? 'w-72' : 'w-0 overflow-hidden'
-        )}
-      >
-        {/* Panel Header */}
-        <div className="p-4 border-b border-white/5 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <History className="w-4 h-4 text-zinc-400" />
-            <span className="text-sm font-medium text-zinc-300">Recent Chats</span>
-          </div>
-          <button
-            onClick={() => createConversation.mutate()}
-            disabled={createConversation.isPending}
-            className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
-            title="New chat"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Conversations List */}
-        <div className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
-          {conversationsLoading ? (
-            <div className="p-4 text-center text-zinc-500 text-sm">Loading...</div>
-          ) : conversations.length === 0 ? (
-            <div className="p-4 text-center text-zinc-500 text-sm">No conversations yet</div>
-          ) : (
-            conversations.map((conv) => (
-              <ConversationItem
-                key={conv.id}
-                conversation={conv}
-                isSelected={selectedConversation === conv.id}
-                isEditing={editingTitle === conv.id}
-                editedTitleValue={editedTitleValue}
-                onSelect={() => setSelectedConversation(conv.id)}
-                onStartRename={(e) => handleStartRename(e, conv)}
-                onDelete={(e) => handleDeleteConversation(e, conv)}
-                onTitleChange={setEditedTitleValue}
-                onSaveRename={() => handleSaveRename(conv.id)}
-                onCancelRename={handleCancelRename}
-              />
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* Panel Toggle Button */}
-      <button
-        onClick={() => setConversationsPanelOpen(!conversationsPanelOpen)}
-        className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-1.5 bg-pierre-slate border border-white/10 rounded-r-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
-        style={{ left: conversationsPanelOpen ? '286px' : '0px' }}
-        title={conversationsPanelOpen ? 'Hide conversations' : 'Show conversations'}
-      >
-        {conversationsPanelOpen ? (
-          <PanelLeftClose className="w-4 h-4" />
-        ) : (
-          <PanelLeft className="w-4 h-4" />
-        )}
-      </button>
-
-      {/* Main Content Area */}
+      {/* Main Content Area - conversations are now in Dashboard sidebar */}
       <div className="flex-1 flex flex-col min-w-0">
         {!selectedConversation ? (
           /* Welcome View */
@@ -847,17 +717,6 @@ export default function ChatTab() {
       </div>
 
       {/* Modals and Dialogs */}
-      <ConfirmDialog
-        isOpen={!!deleteConfirmation}
-        onClose={() => setDeleteConfirmation(null)}
-        onConfirm={handleConfirmDeleteConversation}
-        title="Delete Conversation"
-        message={`Are you sure you want to delete "${deleteConfirmation?.title || 'this conversation'}"? This action cannot be undone.`}
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
-        variant="danger"
-        isLoading={deleteConversation.isPending}
-      />
       <ProviderConnectionModal
         isOpen={showProviderModal}
         onClose={handleProviderModalClose}
