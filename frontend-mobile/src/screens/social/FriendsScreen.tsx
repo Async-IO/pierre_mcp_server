@@ -15,7 +15,7 @@ import {
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
-import { colors, spacing } from '../../constants/theme';
+import { colors, spacing, glassCard, buttonGlow } from '../../constants/theme';
 import { socialApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { FriendCard } from '../../components/social/FriendCard';
@@ -108,18 +108,33 @@ export function FriendsScreen() {
 
   const renderEmptyState = () => (
     <View className="flex-1 justify-center items-center p-6">
-      <Feather name="users" size={64} color={colors.text.tertiary} />
-      <Text className="text-text-primary text-xl font-bold mt-5">No Friends Yet</Text>
+      {/* Icon with subtle glow */}
+      <View
+        className="w-24 h-24 rounded-full items-center justify-center mb-2"
+        style={{
+          backgroundColor: 'rgba(139, 92, 246, 0.1)',
+          shadowColor: colors.pierre.violet,
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.3,
+          shadowRadius: 20,
+        }}
+      >
+        <Feather name="users" size={48} color={colors.pierre.violet} />
+      </View>
+      <Text className="text-text-primary text-xl font-bold mt-4">No Friends Yet</Text>
       <Text className="text-text-secondary text-base text-center mt-2 mb-6">
         Find and connect with other athletes to share coach insights
       </Text>
       <TouchableOpacity
-        className="flex-row items-center px-5 py-4 rounded-lg gap-2"
-        style={{ backgroundColor: colors.pierre.violet }}
+        className="flex-row items-center px-6 py-4 rounded-xl gap-2"
+        style={{
+          backgroundColor: colors.pierre.violet,
+          ...buttonGlow,
+        }}
         onPress={() => navigation.navigate('SearchFriends')}
       >
-        <Feather name="search" size={18} color={colors.text.primary} />
-        <Text className="text-text-primary text-base font-semibold">Find Friends</Text>
+        <Feather name="search" size={18} color="#FFFFFF" />
+        <Text className="text-white text-base font-semibold">Find Friends</Text>
       </TouchableOpacity>
     </View>
   );
@@ -169,12 +184,19 @@ export function FriendsScreen() {
         </View>
       </View>
 
-      {/* Search Bar */}
+      {/* Search Bar with glassmorphism */}
       {friends.length > 0 && (
-        <View className="flex-row items-center mx-4 my-4 px-4 py-2 rounded-lg bg-background-secondary">
-          <Feather name="search" size={18} color={colors.text.tertiary} />
+        <View
+          className="flex-row items-center mx-4 my-4 px-4 py-3 rounded-xl"
+          style={{
+            ...glassCard,
+            borderRadius: 12,
+            borderColor: 'rgba(139, 92, 246, 0.2)',
+          }}
+        >
+          <Feather name="search" size={18} color={colors.pierre.violet} />
           <TextInput
-            className="flex-1 ml-2 text-text-primary text-base"
+            className="flex-1 ml-3 text-text-primary text-base"
             placeholder="Search friends..."
             placeholderTextColor={colors.text.tertiary}
             value={searchQuery}
@@ -182,7 +204,7 @@ export function FriendsScreen() {
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => handleSearch('')}>
-              <Feather name="x" size={18} color={colors.text.tertiary} />
+              <Feather name="x" size={18} color={colors.text.secondary} />
             </TouchableOpacity>
           )}
         </View>

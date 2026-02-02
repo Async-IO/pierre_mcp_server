@@ -1,5 +1,5 @@
 // ABOUTME: Registration screen for new user signup
-// ABOUTME: Validates input and shows pending approval state after registration
+// ABOUTME: Professional dark theme UI with glassmorphism matching web design
 
 import React, { useState } from 'react';
 import {
@@ -11,10 +11,12 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  type ViewStyle,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button, Input } from '../../components/ui';
-import { spacing } from '../../constants/theme';
+import { spacing, glassCard, buttonGlow, gradients } from '../../constants/theme';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 type AuthStackParamList = {
@@ -86,6 +88,19 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
     }
   };
 
+  // Glassmorphism card style
+  const cardStyle: ViewStyle = {
+    ...glassCard,
+    borderRadius: 16,
+    overflow: 'hidden',
+  };
+
+  // Button with glow effect
+  const glowButtonStyle: ViewStyle = {
+    ...buttonGlow,
+    marginTop: spacing.md,
+  };
+
   return (
     <SafeAreaView className="flex-1 bg-background-primary">
       <KeyboardAvoidingView
@@ -96,74 +111,92 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
           contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.xl }}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Header */}
-          <View className="items-center mb-6">
-            <View className="w-16 h-16 rounded-lg bg-primary-600 items-center justify-center mb-3">
-              <Text className="text-[32px] font-bold text-text-primary">P</Text>
+          {/* Glassmorphism Card Container */}
+          <View style={cardStyle}>
+            {/* Gradient accent bar at top */}
+            <LinearGradient
+              colors={gradients.violetCyan as [string, string]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{ height: 3, width: '100%' }}
+            />
+
+            <View className="px-6 py-8">
+              {/* Header */}
+              <View className="items-center mb-6">
+                <LinearGradient
+                  colors={gradients.violetCyan as [string, string]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  className="w-14 h-14 rounded-xl items-center justify-center mb-3"
+                >
+                  <Text className="text-[28px] font-bold text-white">P</Text>
+                </LinearGradient>
+                <Text className="text-xl font-bold text-text-primary mb-1">Create Account</Text>
+                <Text className="text-sm text-text-secondary text-center leading-[20px]">
+                  Join Pierre to unlock AI-powered fitness insights
+                </Text>
+              </View>
+
+              {/* Registration Form */}
+              <View className="mb-4">
+                <Input
+                  label="Display Name"
+                  placeholder="How should we call you?"
+                  value={displayName}
+                  onChangeText={setDisplayName}
+                  autoCapitalize="words"
+                  error={errors.displayName}
+                />
+
+                <Input
+                  label="Email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  error={errors.email}
+                />
+
+                <Input
+                  label="Password"
+                  placeholder="Minimum 8 characters"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                  showPasswordToggle
+                  error={errors.password}
+                />
+
+                <Input
+                  label="Confirm Password"
+                  placeholder="Re-enter your password"
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  secureTextEntry
+                  showPasswordToggle
+                  error={errors.confirmPassword}
+                />
+
+                <Button
+                  title="Create Account"
+                  onPress={handleRegister}
+                  loading={isLoading}
+                  fullWidth
+                  style={glowButtonStyle}
+                />
+              </View>
+
+              {/* Login Link */}
+              <View className="flex-row justify-center items-center gap-1 pt-2">
+                <Text className="text-sm text-text-secondary">Already have an account?</Text>
+                <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+                  <Text className="text-sm font-semibold text-primary-500">Sign in</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-            <Text className="text-2xl font-bold text-text-primary mb-1">Create Account</Text>
-            <Text className="text-base text-text-secondary text-center leading-[22px]">
-              Join Pierre to unlock AI-powered fitness insights
-            </Text>
-          </View>
-
-          {/* Registration Form */}
-          <View className="mb-6">
-            <Input
-              label="Display Name"
-              placeholder="How should we call you?"
-              value={displayName}
-              onChangeText={setDisplayName}
-              autoCapitalize="words"
-              error={errors.displayName}
-            />
-
-            <Input
-              label="Email"
-              placeholder="you@example.com"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              error={errors.email}
-            />
-
-            <Input
-              label="Password"
-              placeholder="Minimum 8 characters"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              showPasswordToggle
-              error={errors.password}
-            />
-
-            <Input
-              label="Confirm Password"
-              placeholder="Re-enter your password"
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              secureTextEntry
-              showPasswordToggle
-              error={errors.confirmPassword}
-            />
-
-            <Button
-              title="Create Account"
-              onPress={handleRegister}
-              loading={isLoading}
-              fullWidth
-              style={{ marginTop: spacing.md }}
-            />
-          </View>
-
-          {/* Login Link */}
-          <View className="flex-row justify-center items-center gap-1">
-            <Text className="text-sm text-text-secondary">Already have an account?</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-              <Text className="text-sm font-semibold text-primary-500">Sign in</Text>
-            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

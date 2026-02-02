@@ -14,7 +14,8 @@ import {
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
-import { colors, spacing } from '../../constants/theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { colors, spacing, glassCard, gradients, buttonGlow } from '../../constants/theme';
 import { coachesApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Coach } from '../../types';
@@ -25,14 +26,14 @@ interface CoachDetailScreenProps {
   route: RouteProp<CoachesStackParamList, 'CoachDetail'>;
 }
 
-// Coach category colors
+// Coach category colors matching Stitch UX spec
 const COACH_CATEGORY_COLORS: Record<string, string> = {
-  training: '#10B981',
-  nutrition: '#F59E0B',
-  recovery: '#6366F1',
-  recipes: '#F97316',
-  mobility: '#EC4899',
-  custom: '#7C3AED',
+  training: '#4ADE80',  // Green per Stitch spec
+  nutrition: '#F59E0B', // Amber per Stitch spec
+  recovery: '#22D3EE',  // Cyan per Stitch spec
+  recipes: '#F59E0B',   // Amber
+  mobility: '#EC4899',  // Pink - for stretching/yoga
+  custom: '#8B5CF6',    // Violet per Stitch spec
 };
 
 export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps) {
@@ -231,8 +232,16 @@ export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps)
             <Text className="text-sm font-semibold text-text-secondary uppercase tracking-wide mb-2">Tags</Text>
             <View className="flex-row flex-wrap">
               {coach.tags.map((tag, index) => (
-                <View key={index} className="bg-background-secondary px-3 py-1 rounded-full mr-2 mb-2 border border-border-default">
-                  <Text className="text-sm text-text-primary">{tag}</Text>
+                <View
+                  key={index}
+                  className="px-3 py-1.5 rounded-full mr-2 mb-2"
+                  style={{
+                    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+                    borderWidth: 1,
+                    borderColor: 'rgba(139, 92, 246, 0.3)',
+                  }}
+                >
+                  <Text className="text-sm" style={{ color: colors.pierre.violet }}>{tag}</Text>
                 </View>
               ))}
             </View>
@@ -242,29 +251,43 @@ export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps)
         {/* System Prompt */}
         <View className="px-5 py-3">
           <Text className="text-sm font-semibold text-text-secondary uppercase tracking-wide mb-2">System Prompt</Text>
-          <View className="bg-background-secondary p-3 rounded-md border border-border-default">
-            <Text className="text-sm text-text-secondary leading-5 font-mono">
-              {coach.system_prompt}
-            </Text>
+          <View style={{ ...glassCard, borderRadius: 12, overflow: 'hidden' }}>
+            <LinearGradient
+              colors={[categoryColor, `${categoryColor}40`] as [string, string]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{ height: 2, width: '100%' }}
+            />
+            <View className="p-4">
+              <Text className="text-sm text-text-secondary leading-5 font-mono">
+                {coach.system_prompt}
+              </Text>
+            </View>
           </View>
         </View>
 
         {/* Metadata */}
         <View className="px-5 py-3">
           <Text className="text-sm font-semibold text-text-secondary uppercase tracking-wide mb-2">Details</Text>
-          <View className="bg-background-secondary rounded-md border border-border-default overflow-hidden">
-            <View className="flex-row justify-between items-center px-3 py-2 border-b border-border-default">
+          <View style={{ ...glassCard, borderRadius: 12, overflow: 'hidden' }}>
+            <LinearGradient
+              colors={gradients.violetCyan as [string, string]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{ height: 2, width: '100%' }}
+            />
+            <View className="flex-row justify-between items-center px-4 py-3 border-b border-white/5">
               <Text className="text-sm text-text-secondary">Token Count</Text>
               <Text className="text-sm text-text-primary font-medium">{coach.token_count}</Text>
             </View>
-            <View className="flex-row justify-between items-center px-3 py-2 border-b border-border-default">
+            <View className="flex-row justify-between items-center px-4 py-3 border-b border-white/5">
               <Text className="text-sm text-text-secondary">Context Usage</Text>
               <Text className="text-sm text-text-primary font-medium">
                 {((coach.token_count / 128000) * 100).toFixed(1)}%
               </Text>
             </View>
             {coach.created_at && (
-              <View className="flex-row justify-between items-center px-3 py-2 border-b border-border-default">
+              <View className="flex-row justify-between items-center px-4 py-3 border-b border-white/5">
                 <Text className="text-sm text-text-secondary">Created</Text>
                 <Text className="text-sm text-text-primary font-medium">
                   {new Date(coach.created_at).toLocaleDateString()}
@@ -272,7 +295,7 @@ export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps)
               </View>
             )}
             {coach.last_used_at && (
-              <View className="flex-row justify-between items-center px-3 py-2">
+              <View className="flex-row justify-between items-center px-4 py-3">
                 <Text className="text-sm text-text-secondary">Last Used</Text>
                 <Text className="text-sm text-text-primary font-medium">
                   {new Date(coach.last_used_at).toLocaleDateString()}
@@ -286,20 +309,36 @@ export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps)
         <View className="h-[120px]" />
       </ScrollView>
 
-      {/* Action Bar - Fixed at bottom */}
-      <View className="absolute bottom-0 left-0 right-0 flex-row bg-background-primary border-t border-border-default p-3 pb-5 gap-2">
+      {/* Action Bar - Fixed at bottom with glassmorphism */}
+      <View
+        className="absolute bottom-0 left-0 right-0 flex-row p-4 pb-6 gap-3"
+        style={{
+          backgroundColor: 'rgba(15, 15, 23, 0.95)',
+          borderTopWidth: 1,
+          borderTopColor: 'rgba(139, 92, 246, 0.2)',
+        }}
+      >
         <TouchableOpacity
-          className="flex-1 flex-row items-center justify-center py-3 rounded-md gap-1 bg-primary-500"
+          className="flex-1 flex-row items-center justify-center py-3.5 rounded-xl gap-2"
+          style={{
+            backgroundColor: colors.pierre.violet,
+            ...buttonGlow,
+          }}
           onPress={handleUseInChat}
           testID="use-in-chat-button"
         >
-          <Feather name="message-circle" size={18} color={colors.text.primary} />
-          <Text className="text-text-primary text-base font-semibold">Use in Chat</Text>
+          <Feather name="message-circle" size={18} color="#FFFFFF" />
+          <Text className="text-white text-base font-semibold">Use in Chat</Text>
         </TouchableOpacity>
 
         {coach.is_system && (
           <TouchableOpacity
-            className="flex-1 flex-row items-center justify-center py-3 rounded-md gap-1 bg-background-secondary border border-border-default"
+            className="flex-1 flex-row items-center justify-center py-3.5 rounded-xl gap-2"
+            style={{
+              ...glassCard,
+              borderRadius: 12,
+              borderColor: isHidden ? colors.pierre.violet : 'rgba(255, 255, 255, 0.1)',
+            }}
             onPress={handleToggleHidden}
             disabled={isTogglingHidden}
             testID="hide-button"
@@ -311,9 +350,9 @@ export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps)
                 <Feather
                   name={isHidden ? 'eye' : 'eye-off'}
                   size={18}
-                  color={isHidden ? colors.primary[400] : colors.text.secondary}
+                  color={isHidden ? colors.pierre.violet : colors.text.secondary}
                 />
-                <Text className={`text-base font-medium ${isHidden ? 'text-primary-400' : 'text-text-secondary'}`}>
+                <Text className="text-base font-medium" style={{ color: isHidden ? colors.pierre.violet : colors.text.secondary }}>
                   {isHidden ? 'Show' : 'Hide'}
                 </Text>
               </>
@@ -323,17 +362,22 @@ export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps)
 
         {!coach.is_system && (
           <TouchableOpacity
-            className="flex-1 flex-row items-center justify-center py-3 rounded-md gap-1 bg-background-secondary border border-error"
+            className="flex-1 flex-row items-center justify-center py-3.5 rounded-xl gap-2"
+            style={{
+              ...glassCard,
+              borderRadius: 12,
+              borderColor: colors.error,
+            }}
             onPress={handleDelete}
             disabled={isDeleting}
             testID="delete-button"
           >
             {isDeleting ? (
-              <ActivityIndicator size="small" color="#EF4444" />
+              <ActivityIndicator size="small" color={colors.error} />
             ) : (
               <>
-                <Feather name="trash-2" size={18} color="#EF4444" />
-                <Text className="text-error text-base font-medium">Delete</Text>
+                <Feather name="trash-2" size={18} color={colors.error} />
+                <Text className="text-base font-medium" style={{ color: colors.error }}>Delete</Text>
               </>
             )}
           </TouchableOpacity>

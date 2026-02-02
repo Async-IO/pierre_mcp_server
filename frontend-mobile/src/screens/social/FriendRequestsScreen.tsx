@@ -14,7 +14,7 @@ import {
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
-import { colors, spacing } from '../../constants/theme';
+import { colors, spacing, glassCard } from '../../constants/theme';
 import { socialApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { RequestCard } from '../../components/social/FriendCard';
@@ -122,12 +122,24 @@ export function FriendRequestsScreen() {
 
   const renderEmptyState = () => (
     <View className="flex-1 justify-center items-center p-6">
-      <Feather
-        name={activeTab === 'incoming' ? 'inbox' : 'send'}
-        size={64}
-        color={colors.text.tertiary}
-      />
-      <Text className="text-text-primary text-xl font-bold mt-5">
+      {/* Icon with subtle glow */}
+      <View
+        className="w-24 h-24 rounded-full items-center justify-center mb-2"
+        style={{
+          backgroundColor: 'rgba(139, 92, 246, 0.1)',
+          shadowColor: colors.pierre.violet,
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.3,
+          shadowRadius: 20,
+        }}
+      >
+        <Feather
+          name={activeTab === 'incoming' ? 'inbox' : 'send'}
+          size={48}
+          color={colors.pierre.violet}
+        />
+      </View>
+      <Text className="text-text-primary text-xl font-bold mt-4">
         {activeTab === 'incoming' ? 'No Incoming Requests' : 'No Outgoing Requests'}
       </Text>
       <Text className="text-text-secondary text-base text-center mt-2">
@@ -164,43 +176,63 @@ export function FriendRequestsScreen() {
         <Text className="flex-1 text-xl font-bold text-text-primary">Friend Requests</Text>
       </View>
 
-      {/* Tabs */}
-      <View className="flex-row px-4 py-4 gap-2">
+      {/* Tabs with glassmorphism */}
+      <View className="flex-row px-4 py-4 gap-3">
         <TouchableOpacity
-          className={`flex-1 flex-row items-center justify-center py-4 rounded-lg gap-2 ${
-            activeTab === 'incoming' ? '' : 'bg-background-secondary'
-          }`}
-          style={activeTab === 'incoming' ? { backgroundColor: colors.pierre.violet } : undefined}
+          className="flex-1 flex-row items-center justify-center py-4 rounded-xl gap-2"
+          style={activeTab === 'incoming' ? {
+            backgroundColor: colors.pierre.violet,
+            shadowColor: colors.pierre.violet,
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 4,
+          } : {
+            ...glassCard,
+            borderRadius: 12,
+          }}
           onPress={() => setActiveTab('incoming')}
         >
-          <Text className={`text-base font-semibold ${activeTab === 'incoming' ? 'text-text-primary' : 'text-text-secondary'}`}>
+          <Text className={`text-base font-semibold ${activeTab === 'incoming' ? 'text-white' : 'text-text-secondary'}`}>
             Incoming
           </Text>
           {incomingRequests.length > 0 && (
             <View
               className="rounded-full min-w-[20px] h-5 justify-center items-center px-1.5"
-              style={{ backgroundColor: activeTab === 'incoming' ? 'rgba(255, 255, 255, 0.2)' : colors.background.tertiary }}
+              style={{ backgroundColor: activeTab === 'incoming' ? 'rgba(255, 255, 255, 0.25)' : 'rgba(139, 92, 246, 0.2)' }}
             >
-              <Text className="text-text-primary text-xs font-bold">{incomingRequests.length}</Text>
+              <Text className={`text-xs font-bold ${activeTab === 'incoming' ? 'text-white' : ''}`} style={activeTab !== 'incoming' ? { color: colors.pierre.violet } : undefined}>
+                {incomingRequests.length}
+              </Text>
             </View>
           )}
         </TouchableOpacity>
         <TouchableOpacity
-          className={`flex-1 flex-row items-center justify-center py-4 rounded-lg gap-2 ${
-            activeTab === 'outgoing' ? '' : 'bg-background-secondary'
-          }`}
-          style={activeTab === 'outgoing' ? { backgroundColor: colors.pierre.violet } : undefined}
+          className="flex-1 flex-row items-center justify-center py-4 rounded-xl gap-2"
+          style={activeTab === 'outgoing' ? {
+            backgroundColor: colors.pierre.violet,
+            shadowColor: colors.pierre.violet,
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 4,
+          } : {
+            ...glassCard,
+            borderRadius: 12,
+          }}
           onPress={() => setActiveTab('outgoing')}
         >
-          <Text className={`text-base font-semibold ${activeTab === 'outgoing' ? 'text-text-primary' : 'text-text-secondary'}`}>
+          <Text className={`text-base font-semibold ${activeTab === 'outgoing' ? 'text-white' : 'text-text-secondary'}`}>
             Outgoing
           </Text>
           {outgoingRequests.length > 0 && (
             <View
               className="rounded-full min-w-[20px] h-5 justify-center items-center px-1.5"
-              style={{ backgroundColor: activeTab === 'outgoing' ? 'rgba(255, 255, 255, 0.2)' : colors.background.tertiary }}
+              style={{ backgroundColor: activeTab === 'outgoing' ? 'rgba(255, 255, 255, 0.25)' : 'rgba(139, 92, 246, 0.2)' }}
             >
-              <Text className="text-text-primary text-xs font-bold">{outgoingRequests.length}</Text>
+              <Text className={`text-xs font-bold ${activeTab === 'outgoing' ? 'text-white' : ''}`} style={activeTab !== 'outgoing' ? { color: colors.pierre.violet } : undefined}>
+                {outgoingRequests.length}
+              </Text>
             </View>
           )}
         </TouchableOpacity>

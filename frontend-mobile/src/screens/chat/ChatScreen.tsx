@@ -29,7 +29,7 @@ import { getOAuthCallbackUrl } from '../../utils/oauth';
 import Markdown from 'react-native-markdown-display';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, type RouteProp } from '@react-navigation/native';
-import { colors, spacing, fontSize, borderRadius } from '../../constants/theme';
+import { colors, spacing, fontSize, borderRadius, aiGlow, glassCard } from '../../constants/theme';
 
 // ViewStyle objects for styles that require React Native shadow properties
 const popoverContainerStyle: ViewStyle = {
@@ -1117,11 +1117,12 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
           style={[
             // User bubbles: violet (#8B5CF6) per Stitch spec
             isUser ? { backgroundColor: colors.pierre.violet } : undefined,
-            // AI bubbles: glassmorphic dark slate per Stitch spec
+            // AI bubbles: glassmorphic dark slate with AI glow per Stitch spec
             !isUser && !isError ? {
               backgroundColor: 'rgba(30, 30, 46, 0.9)',
               borderWidth: 1,
-              borderColor: 'rgba(255, 255, 255, 0.1)',
+              borderColor: 'rgba(139, 92, 246, 0.2)',
+              ...aiGlow.ambient,
             } : undefined,
             isError ? { backgroundColor: 'rgba(239, 68, 68, 0.15)' } : undefined,
           ]}
@@ -1225,7 +1226,8 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
         style={{
           backgroundColor: 'rgba(30, 30, 46, 0.9)',
           borderWidth: 1,
-          borderColor: 'rgba(255, 255, 255, 0.1)',
+          borderColor: 'rgba(139, 92, 246, 0.3)',
+          ...aiGlow.thinking,
         }}
       >
         <View className="w-8 h-8 rounded-full mr-3 overflow-hidden">
@@ -1417,11 +1419,16 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
           />
         )}
 
-        {/* Input Area - liquid style with violet accent, transparent background */}
+        {/* Input Area - liquid style with violet accent, glass background */}
         <View className="absolute bottom-0 left-0 right-0 px-4 py-2">
           <View
             className="flex-row items-center rounded-full px-3 min-h-[36px] max-h-[100px]"
-            style={{ backgroundColor: 'rgba(30, 27, 45, 0.95)', borderWidth: 1, borderColor: 'rgba(139, 92, 246, 0.4)' }}
+            style={{
+              ...glassCard,
+              backgroundColor: glassCard.background,
+              borderColor: 'rgba(139, 92, 246, 0.4)',
+              borderRadius: 9999,
+            }}
           >
             {/* Paperclip icon per Stitch spec */}
             <TouchableOpacity className="w-8 h-8 items-center justify-center mr-1">

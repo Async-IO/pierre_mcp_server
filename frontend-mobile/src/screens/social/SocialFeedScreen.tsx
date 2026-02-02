@@ -14,7 +14,8 @@ import {
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
-import { colors, spacing } from '../../constants/theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { colors, spacing, glassCard, gradients, buttonGlow } from '../../constants/theme';
 import { socialApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { InsightCard } from '../../components/social/InsightCard';
@@ -205,18 +206,33 @@ export function SocialFeedScreen() {
 
   const renderEmptyState = () => (
     <View className="flex-1 justify-center items-center p-6">
-      <Feather name="users" size={64} color={colors.text.tertiary} />
-      <Text className="text-text-primary text-xl font-bold mt-5">No Insights Yet</Text>
+      {/* Icon with subtle glow */}
+      <View
+        className="w-24 h-24 rounded-full items-center justify-center mb-2"
+        style={{
+          backgroundColor: 'rgba(139, 92, 246, 0.1)',
+          shadowColor: colors.pierre.violet,
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.3,
+          shadowRadius: 20,
+        }}
+      >
+        <Feather name="users" size={48} color={colors.pierre.violet} />
+      </View>
+      <Text className="text-text-primary text-xl font-bold mt-4">No Insights Yet</Text>
       <Text className="text-text-secondary text-base text-center mt-2 mb-6">
         When your friends share coach insights, they'll appear here. Find friends to get started!
       </Text>
       <TouchableOpacity
-        className="flex-row items-center px-5 py-4 rounded-lg gap-2"
-        style={{ backgroundColor: colors.pierre.violet }}
+        className="flex-row items-center px-6 py-4 rounded-xl gap-2"
+        style={{
+          backgroundColor: colors.pierre.violet,
+          ...buttonGlow,
+        }}
         onPress={() => navigation.navigate('Friends')}
       >
-        <Feather name="user-plus" size={18} color={colors.text.primary} />
-        <Text className="text-text-primary text-base font-semibold">Find Friends</Text>
+        <Feather name="user-plus" size={18} color="#FFFFFF" />
+        <Text className="text-white text-base font-semibold">Find Friends</Text>
       </TouchableOpacity>
     </View>
   );
@@ -230,48 +246,60 @@ export function SocialFeedScreen() {
     );
   };
 
-  // Suggestions banner at top of feed
+  // Suggestions banner at top of feed with glassmorphism
   const renderSuggestionsBanner = () => {
     if (suggestions.length === 0 || !showSuggestionsBanner) return null;
 
     return (
       <View
-        className="mx-4 mt-4 mb-2 p-4 rounded-xl"
-        style={{ backgroundColor: colors.pierre.violet + '15' }}
+        className="mx-4 mt-4 mb-2 rounded-xl overflow-hidden"
+        style={{ ...glassCard, borderRadius: 16 }}
         testID="suggestions-banner"
       >
-        {/* Header with dismiss */}
-        <View className="flex-row items-center justify-between mb-3">
-          <View className="flex-row items-center gap-2">
-            <Feather name="zap" size={18} color={colors.pierre.violet} />
-            <Text className="text-text-primary font-semibold">Coach noticed something!</Text>
+        {/* Gradient accent bar */}
+        <LinearGradient
+          colors={gradients.violetCyan as [string, string]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={{ height: 3, width: '100%' }}
+        />
+        <View className="p-4">
+          {/* Header with dismiss */}
+          <View className="flex-row items-center justify-between mb-3">
+            <View className="flex-row items-center gap-2">
+              <Feather name="zap" size={18} color={colors.pierre.violet} />
+              <Text className="text-text-primary font-semibold">Coach noticed something!</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setShowSuggestionsBanner(false)}
+              className="p-1"
+              testID="dismiss-suggestions"
+            >
+              <Feather name="x" size={18} color={colors.text.tertiary} />
+            </TouchableOpacity>
           </View>
+
+          {/* Preview of top suggestion */}
+          <Text className="text-text-secondary text-sm mb-4" numberOfLines={2}>
+            {suggestions[0].suggested_content}
+          </Text>
+
+          {/* Share button with glow */}
           <TouchableOpacity
-            onPress={() => setShowSuggestionsBanner(false)}
-            className="p-1"
-            testID="dismiss-suggestions"
+            className="flex-row items-center justify-center py-3.5 rounded-xl gap-2"
+            style={{
+              backgroundColor: colors.pierre.violet,
+              ...buttonGlow,
+            }}
+            onPress={() => navigation.navigate('ShareInsight')}
+            testID="share-suggestion-button"
           >
-            <Feather name="x" size={18} color={colors.text.tertiary} />
+            <Feather name="share-2" size={16} color="#FFFFFF" />
+            <Text className="text-white font-semibold">
+              Share with Friends ({suggestions.length} available)
+            </Text>
           </TouchableOpacity>
         </View>
-
-        {/* Preview of top suggestion */}
-        <Text className="text-text-secondary text-sm mb-3" numberOfLines={2}>
-          {suggestions[0].suggested_content}
-        </Text>
-
-        {/* Share button */}
-        <TouchableOpacity
-          className="flex-row items-center justify-center py-3 rounded-lg gap-2"
-          style={{ backgroundColor: colors.pierre.violet }}
-          onPress={() => navigation.navigate('ShareInsight')}
-          testID="share-suggestion-button"
-        >
-          <Feather name="share-2" size={16} color={colors.text.primary} />
-          <Text className="text-text-primary font-semibold">
-            Share with Friends ({suggestions.length} available)
-          </Text>
-        </TouchableOpacity>
       </View>
     );
   };

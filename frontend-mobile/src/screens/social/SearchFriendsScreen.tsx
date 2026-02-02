@@ -105,8 +105,20 @@ export function SearchFriendsScreen() {
     if (!hasSearched) {
       return (
         <View className="flex-1 justify-center items-center p-6">
-          <Feather name="search" size={64} color={colors.text.tertiary} />
-          <Text className="text-text-primary text-xl font-bold mt-5">Find Friends</Text>
+          {/* Icon with subtle glow */}
+          <View
+            className="w-24 h-24 rounded-full items-center justify-center mb-2"
+            style={{
+              backgroundColor: 'rgba(139, 92, 246, 0.1)',
+              shadowColor: colors.pierre.violet,
+              shadowOffset: { width: 0, height: 0 },
+              shadowOpacity: 0.3,
+              shadowRadius: 20,
+            }}
+          >
+            <Feather name="search" size={48} color={colors.pierre.violet} />
+          </View>
+          <Text className="text-text-primary text-xl font-bold mt-4">Find Friends</Text>
           <Text className="text-text-secondary text-base text-center mt-2">
             Search by name or email to connect with other athletes
           </Text>
@@ -116,8 +128,20 @@ export function SearchFriendsScreen() {
 
     return (
       <View className="flex-1 justify-center items-center p-6">
-        <Feather name="user-x" size={64} color={colors.text.tertiary} />
-        <Text className="text-text-primary text-xl font-bold mt-5">No Users Found</Text>
+        {/* Icon with subtle glow */}
+        <View
+          className="w-24 h-24 rounded-full items-center justify-center mb-2"
+          style={{
+            backgroundColor: 'rgba(139, 92, 246, 0.1)',
+            shadowColor: colors.pierre.violet,
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0.3,
+            shadowRadius: 20,
+          }}
+        >
+          <Feather name="user-x" size={48} color={colors.pierre.violet} />
+        </View>
+        <Text className="text-text-primary text-xl font-bold mt-4">No Users Found</Text>
         <Text className="text-text-secondary text-base text-center mt-2">
           Try a different search term or check the spelling
         </Text>

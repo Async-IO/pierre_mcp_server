@@ -14,7 +14,8 @@ import {
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { getOAuthCallbackUrl } from '../../utils/oauth';
-import { colors, spacing } from '../../constants/theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { colors, spacing, glassCard, gradients } from '../../constants/theme';
 import { Card } from '../../components/ui';
 import { oauthApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -239,13 +240,22 @@ export function ConnectionsScreen({ navigation }: ConnectionsScreenProps) {
           </View>
         )}
 
-        <View className="bg-background-secondary rounded-lg p-3 mt-6 border border-border-subtle">
-          <Text className="text-sm font-semibold text-text-primary mb-1">Privacy Note</Text>
-          <Text className="text-sm text-text-secondary leading-5">
-            Pierre only accesses the data you authorize. We never share your
-            fitness data with third parties. You can disconnect any provider at
-            any time.
-          </Text>
+        {/* Privacy Note with glassmorphism */}
+        <View className="rounded-xl overflow-hidden mt-6" style={{ ...glassCard, borderRadius: 16 }}>
+          <LinearGradient
+            colors={gradients.violetCyan as [string, string]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={{ height: 3, width: '100%' }}
+          />
+          <View className="p-4">
+            <Text className="text-sm font-semibold text-text-primary mb-1">Privacy Note</Text>
+            <Text className="text-sm text-text-secondary leading-5">
+              Pierre only accesses the data you authorize. We never share your
+              fitness data with third parties. You can disconnect any provider at
+              any time.
+            </Text>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>

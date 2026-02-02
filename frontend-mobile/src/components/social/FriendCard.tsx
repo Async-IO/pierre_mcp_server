@@ -4,7 +4,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, type ViewStyle } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { colors, glassCard } from '../../constants/theme';
+import { colors, glassCard, buttonGlow } from '../../constants/theme';
 import type { FriendWithInfo, DiscoverableUser, PendingRequestWithInfo } from '@pierre/shared-types';
 
 // Generate avatar initials from name or email
@@ -28,9 +28,11 @@ const getAvatarColor = (str: string): string => {
   return `hsl(${hue}, 70%, 50%)`;
 };
 
-// Glass card style with shadow (React Native shadows cannot use className)
+// Glass card style with violet accent border
 const cardStyle: ViewStyle = {
   ...glassCard,
+  borderRadius: 12,
+  borderColor: 'rgba(139, 92, 246, 0.15)',
 };
 
 interface FriendCardProps {
@@ -130,14 +132,22 @@ export function RequestCard({
       ) : type === 'incoming' ? (
         <View className="flex-row gap-2">
           <TouchableOpacity
-            className="w-9 h-9 rounded-full justify-center items-center"
-            style={{ backgroundColor: colors.pierre.activity }}
+            className="w-10 h-10 rounded-full justify-center items-center"
+            style={{
+              backgroundColor: colors.pierre.activity,
+              shadowColor: colors.pierre.activity,
+              shadowOffset: { width: 0, height: 0 },
+              shadowOpacity: 0.4,
+              shadowRadius: 8,
+              elevation: 4,
+            }}
             onPress={onAccept}
           >
-            <Feather name="check" size={18} color={colors.text.primary} />
+            <Feather name="check" size={18} color="#FFFFFF" />
           </TouchableOpacity>
           <TouchableOpacity
-            className="w-9 h-9 rounded-full justify-center items-center bg-background-tertiary"
+            className="w-10 h-10 rounded-full justify-center items-center"
+            style={{ ...glassCard, borderRadius: 20 }}
             onPress={onDecline}
           >
             <Feather name="x" size={18} color={colors.text.secondary} />
@@ -193,17 +203,20 @@ export function SearchUserCard({ user, onAddFriend, isAdding }: SearchUserCardPr
         </View>
       ) : (
         <TouchableOpacity
-          className="flex-row items-center px-3 py-2 rounded-lg gap-1"
-          style={{ backgroundColor: colors.pierre.violet }}
+          className="flex-row items-center px-4 py-2.5 rounded-xl gap-1.5"
+          style={{
+            backgroundColor: colors.pierre.violet,
+            ...buttonGlow,
+          }}
           onPress={onAddFriend}
           disabled={isAdding}
         >
           {isAdding ? (
-            <ActivityIndicator size="small" color={colors.text.primary} />
+            <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
             <>
-              <Feather name="user-plus" size={16} color={colors.text.primary} />
-              <Text className="text-sm font-semibold text-text-primary">Add</Text>
+              <Feather name="user-plus" size={16} color="#FFFFFF" />
+              <Text className="text-sm font-semibold text-white">Add</Text>
             </>
           )}
         </TouchableOpacity>

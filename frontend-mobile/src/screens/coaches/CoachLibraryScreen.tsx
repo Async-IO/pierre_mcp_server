@@ -18,7 +18,8 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
-import { colors, spacing } from '../../constants/theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { colors, spacing, glassCard, gradients } from '../../constants/theme';
 import { coachesApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { PromptDialog, ScrollFadeContainer } from '../../components/ui';
@@ -67,17 +68,20 @@ const searchContainerShadow: ViewStyle = {
   elevation: 4,
 };
 
-// Action menu shadow style
+// Action menu with glassmorphism style
 const actionMenuStyle: ViewStyle = {
-  backgroundColor: colors.background.primary,
-  borderRadius: 12,
-  paddingVertical: spacing.xs,
-  minWidth: 220,
-  shadowColor: '#000',
+  backgroundColor: 'rgba(30, 27, 45, 0.95)',
+  borderRadius: 16,
+  paddingVertical: spacing.sm,
+  minWidth: 240,
+  borderWidth: 1,
+  borderColor: 'rgba(139, 92, 246, 0.2)',
+  shadowColor: colors.pierre.violet,
   shadowOffset: { width: 0, height: 4 },
   shadowOpacity: 0.3,
-  shadowRadius: 8,
+  shadowRadius: 12,
   elevation: 8,
+  overflow: 'hidden',
 };
 
 export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
@@ -356,21 +360,26 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
       <TouchableOpacity
         style={[
           {
-            backgroundColor: 'rgba(255, 255, 255, 0.05)',
-            borderWidth: 1,
-            borderColor: 'rgba(255, 255, 255, 0.1)',
+            ...glassCard,
             borderRadius: 16,
+            overflow: 'hidden',
           },
           isHidden && { opacity: 0.6 },
         ]}
-        className="p-4"
         onPress={() => handleCoachPress(item)}
         onLongPress={() => handleCoachLongPress(item)}
         delayLongPress={300}
         activeOpacity={0.7}
         testID={`coach-card-${item.id}`}
       >
-        <View className="flex-row items-start">
+        {/* Category-colored gradient accent bar */}
+        <LinearGradient
+          colors={[categoryColor, `${categoryColor}80`] as [string, string]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={{ height: 3, width: '100%' }}
+        />
+        <View className="flex-row items-start p-4">
           {/* Coach Avatar/Icon */}
           <View
             className="w-12 h-12 rounded-xl items-center justify-center mr-3"
@@ -452,9 +461,9 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
           </TouchableOpacity>
         </View>
 
-        {/* Action row for system coaches and hidden coaches */}
+        {/* Action row for system coaches and hidden coaches (inside card content) */}
         {(item.is_system || isHidden) && (
-          <View className="flex-row items-center justify-end mt-3 pt-2 border-t border-white/5 gap-2">
+          <View className="flex-row items-center justify-end mx-4 mb-3 pt-2 border-t border-white/5 gap-2">
             {/* Fork button for system coaches */}
             {item.is_system && (
               <TouchableOpacity
@@ -716,7 +725,14 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
           onPress={closeActionMenu}
         >
           <View style={actionMenuStyle}>
-            <TouchableOpacity className="flex-row items-center px-3 py-2" onPress={() => handleToggleFavorite()}>
+            {/* Gradient accent bar */}
+            <LinearGradient
+              colors={gradients.violetCyan as [string, string]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{ height: 3, width: '100%', marginBottom: spacing.xs }}
+            />
+            <TouchableOpacity className="flex-row items-center px-4 py-2.5" onPress={() => handleToggleFavorite()}>
               <View className="w-6 mr-2 items-center">
                 <Feather
                   name="star"
@@ -732,7 +748,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
             {/* Hide/Show option for system or assigned coaches */}
             {(selectedCoach?.is_system || selectedCoach?.is_assigned) && (
               <TouchableOpacity
-                className="flex-row items-center px-3 py-2"
+                className="flex-row items-center px-4 py-2.5"
                 onPress={() => (selectedCoach?.is_hidden ? handleShowCoach() : handleHideCoach())}
               >
                 <View className="w-6 mr-2 items-center">
@@ -751,7 +767,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
             {/* Fork option for system coaches */}
             {selectedCoach?.is_system && (
               <TouchableOpacity
-                className="flex-row items-center px-3 py-2"
+                className="flex-row items-center px-4 py-2.5"
                 onPress={() => handleForkCoach()}
               >
                 <View className="w-6 mr-2 items-center">
@@ -763,7 +779,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
 
             {/* Rename only for user-created coaches */}
             {!selectedCoach?.is_system && (
-              <TouchableOpacity className="flex-row items-center px-3 py-2" onPress={handleRename}>
+              <TouchableOpacity className="flex-row items-center px-4 py-2.5" onPress={handleRename}>
                 <View className="w-6 mr-2 items-center">
                   <Feather name="edit-2" size={18} color={colors.text.primary} />
                 </View>
@@ -773,7 +789,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
 
             {/* Delete only for user-created coaches */}
             {!selectedCoach?.is_system && (
-              <TouchableOpacity className="flex-row items-center px-3 py-2" onPress={handleDelete}>
+              <TouchableOpacity className="flex-row items-center px-4 py-2.5" onPress={handleDelete}>
                 <View className="w-6 mr-2 items-center">
                   <Feather name="trash-2" size={18} color={colors.error} />
                 </View>

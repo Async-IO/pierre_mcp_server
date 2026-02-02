@@ -17,7 +17,8 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
-import { colors, spacing } from '../../constants/theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { colors, spacing, glassCard, gradients, buttonGlow } from '../../constants/theme';
 import { chatApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { PromptDialog } from '../../components/ui';
@@ -28,29 +29,24 @@ interface ConversationsScreenProps {
   navigation: NativeStackNavigationProp<ChatStackParamList>;
 }
 
-// Shadow styles (React Native shadows cannot use className)
-const searchContainerShadow: ViewStyle = {
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.25,
-  shadowRadius: 4,
-  elevation: 4,
+// Glassmorphic search bar style
+const searchBarStyle: ViewStyle = {
+  ...glassCard,
+  borderRadius: 22,
+  borderColor: 'rgba(139, 92, 246, 0.2)',
 };
 
-const fabShadow: ViewStyle = {
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.25,
-  shadowRadius: 4,
-  elevation: 4,
+// FAB with violet glow
+const fabStyle: ViewStyle = {
+  backgroundColor: colors.pierre.violet,
+  ...buttonGlow,
 };
 
-const menuShadow: ViewStyle = {
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 0.3,
-  shadowRadius: 8,
-  elevation: 8,
+// Glassmorphic menu style
+const menuStyle: ViewStyle = {
+  ...glassCard,
+  borderRadius: 16,
+  borderColor: 'rgba(139, 92, 246, 0.2)',
 };
 
 export function ConversationsScreen({ navigation }: ConversationsScreenProps) {
@@ -248,8 +244,28 @@ export function ConversationsScreen({ navigation }: ConversationsScreenProps) {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View className="flex-1 items-center justify-center pt-16">
-              <Text className="text-base text-text-tertiary">
-                {searchQuery ? 'No conversations found' : 'No conversations yet'}
+              {/* Icon with subtle glow */}
+              <View
+                className="w-20 h-20 rounded-full items-center justify-center mb-4"
+                style={{
+                  backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                  shadowColor: colors.pierre.violet,
+                  shadowOffset: { width: 0, height: 0 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 20,
+                }}
+              >
+                <Feather
+                  name={searchQuery ? 'search' : 'message-circle'}
+                  size={36}
+                  color={colors.pierre.violet}
+                />
+              </View>
+              <Text className="text-lg font-semibold text-text-primary mb-1">
+                {searchQuery ? 'No Results' : 'No Conversations'}
+              </Text>
+              <Text className="text-base text-text-secondary text-center px-6">
+                {searchQuery ? 'Try a different search term' : 'Start a conversation with your AI coach'}
               </Text>
             </View>
           }
@@ -258,28 +274,28 @@ export function ConversationsScreen({ navigation }: ConversationsScreenProps) {
 
       {/* Floating Bottom Bar with Search and New Chat */}
       <View
-        className="absolute left-3 right-3 flex-row items-center gap-2"
+        className="absolute left-3 right-3 flex-row items-center gap-3"
         style={{ bottom: spacing.lg }}
       >
         <View
-          className="flex-1 flex-row items-center bg-background-secondary rounded-full px-3 py-1"
-          style={[{ height: 44 }, searchContainerShadow]}
+          className="flex-1 flex-row items-center px-4 py-2"
+          style={[{ height: 48 }, searchBarStyle]}
         >
-          <Text className="text-base mr-2">🔍</Text>
+          <Feather name="search" size={18} color={colors.text.tertiary} />
           <TextInput
-            className="flex-1 text-base text-text-primary"
-            placeholder="Search"
+            className="flex-1 text-base text-text-primary ml-3"
+            placeholder="Search conversations"
             placeholderTextColor={colors.text.tertiary}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
         </View>
         <TouchableOpacity
-          className="w-11 h-11 rounded-full bg-primary-500 items-center justify-center"
-          style={fabShadow}
+          className="w-12 h-12 rounded-full items-center justify-center"
+          style={fabStyle}
           onPress={handleNewChat}
         >
-          <Text className="text-3xl text-text-primary" style={{ marginTop: -2 }}>+</Text>
+          <Feather name="plus" size={24} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
 
@@ -291,31 +307,40 @@ export function ConversationsScreen({ navigation }: ConversationsScreenProps) {
         onRequestClose={closeActionMenu}
       >
         <TouchableOpacity
-          className="flex-1 bg-black/30 justify-center items-center"
+          className="flex-1 bg-black/50 justify-center items-center"
           activeOpacity={1}
           onPress={closeActionMenu}
         >
           <View
-            className="bg-background-primary rounded-lg py-1 min-w-[200px]"
-            style={menuShadow}
+            className="min-w-[240px] overflow-hidden"
+            style={menuStyle}
           >
-            <TouchableOpacity
-              className="flex-row items-center px-3 py-2 opacity-40"
-              disabled
-            >
-              <Text className="text-lg mr-2 w-6">☆</Text>
-              <Text className="text-base text-text-tertiary">Add to favorites</Text>
-            </TouchableOpacity>
+            {/* Gradient accent bar */}
+            <LinearGradient
+              colors={gradients.violetCyan as [string, string]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{ height: 3, width: '100%' }}
+            />
+            <View className="py-2">
+              <TouchableOpacity
+                className="flex-row items-center px-4 py-3 opacity-40"
+                disabled
+              >
+                <Feather name="star" size={18} color={colors.text.tertiary} />
+                <Text className="text-base text-text-tertiary ml-3">Add to favorites</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity className="flex-row items-center px-3 py-2" onPress={handleRename}>
-              <Text className="text-lg mr-2 w-6">✎</Text>
-              <Text className="text-base text-text-primary">Rename</Text>
-            </TouchableOpacity>
+              <TouchableOpacity className="flex-row items-center px-4 py-3" onPress={handleRename}>
+                <Feather name="edit-2" size={18} color={colors.text.primary} />
+                <Text className="text-base text-text-primary ml-3">Rename</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity className="flex-row items-center px-3 py-2" onPress={handleDelete}>
-              <Text className="text-lg mr-2 w-6">🗑</Text>
-              <Text className="text-base text-error">Delete</Text>
-            </TouchableOpacity>
+              <TouchableOpacity className="flex-row items-center px-4 py-3" onPress={handleDelete}>
+                <Feather name="trash-2" size={18} color={colors.error} />
+                <Text className="text-base text-error ml-3">Delete</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </TouchableOpacity>
       </Modal>

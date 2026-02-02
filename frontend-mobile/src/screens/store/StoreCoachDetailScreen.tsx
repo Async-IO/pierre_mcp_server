@@ -13,7 +13,9 @@ import {
 } from 'react-native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
-import { colors } from '../../constants/theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { colors, glassCard, buttonGlow } from '../../constants/theme';
+import { Feather } from '@expo/vector-icons';
 import { storeApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { StoreCoachDetail } from '../../types';
@@ -152,13 +154,13 @@ export function StoreCoachDetailScreen({ navigation, route }: StoreCoachDetailSc
   return (
     <SafeAreaView className="flex-1 bg-background-primary" testID="store-coach-detail-screen">
       {/* Header */}
-      <View className="flex-row items-center px-3 py-2 border-b border-border-default">
+      <View className="flex-row items-center px-3 py-2 border-b border-border-subtle">
         <TouchableOpacity
           testID="back-button"
-          className="p-2"
+          className="w-10 h-10 items-center justify-center"
           onPress={() => navigation.navigate('Store')}
         >
-          <Text className="text-2xl text-text-primary">←</Text>
+          <Feather name="arrow-left" size={24} color={colors.text.primary} />
         </TouchableOpacity>
         <Text className="flex-1 text-lg font-semibold text-text-primary text-center mx-2" numberOfLines={1}>
           {coach.title}
@@ -197,8 +199,16 @@ export function StoreCoachDetailScreen({ navigation, route }: StoreCoachDetailSc
             <Text className="text-sm font-semibold text-text-secondary uppercase tracking-wide mb-2">Tags</Text>
             <View className="flex-row flex-wrap">
               {coach.tags.map((tag, tagIndex) => (
-                <View key={tagIndex} className="bg-background-secondary px-3 py-1 rounded-full mr-2 mb-2 border border-border-default">
-                  <Text className="text-sm text-text-primary">{tag}</Text>
+                <View
+                  key={tagIndex}
+                  className="px-3 py-1.5 rounded-full mr-2 mb-2"
+                  style={{
+                    backgroundColor: `${categoryColor}15`,
+                    borderWidth: 1,
+                    borderColor: `${categoryColor}30`,
+                  }}
+                >
+                  <Text className="text-sm font-medium" style={{ color: categoryColor }}>{tag}</Text>
                 </View>
               ))}
             </View>
@@ -210,7 +220,15 @@ export function StoreCoachDetailScreen({ navigation, route }: StoreCoachDetailSc
           <View className="px-4 py-3">
             <Text className="text-sm font-semibold text-text-secondary uppercase tracking-wide mb-2">Sample Prompts</Text>
             {coach.sample_prompts.map((prompt, promptIndex) => (
-              <View key={promptIndex} className="bg-background-secondary p-3 rounded-lg mb-2 border border-border-default">
+              <View
+                key={promptIndex}
+                className="p-3 rounded-xl mb-2 overflow-hidden"
+                style={{
+                  ...glassCard,
+                  borderRadius: 12,
+                  borderColor: 'rgba(139, 92, 246, 0.15)',
+                }}
+              >
                 <Text className="text-base text-text-primary leading-5">{prompt}</Text>
               </View>
             ))}
@@ -220,28 +238,50 @@ export function StoreCoachDetailScreen({ navigation, route }: StoreCoachDetailSc
         {/* System Prompt Preview */}
         <View className="px-4 py-3">
           <Text className="text-sm font-semibold text-text-secondary uppercase tracking-wide mb-2">System Prompt</Text>
-          <View className="bg-background-secondary p-3 rounded-lg border border-border-default">
-            <Text className="text-sm text-text-secondary leading-5 font-mono" numberOfLines={10}>
-              {coach.system_prompt}
-            </Text>
-            {coach.system_prompt.length > 500 && (
-              <Text className="text-xs text-text-secondary italic mt-2">
-                ...and more ({coach.token_count} tokens)
+          <View
+            className="rounded-xl overflow-hidden"
+            style={{
+              ...glassCard,
+              borderRadius: 12,
+              borderColor: `${categoryColor}30`,
+            }}
+          >
+            <LinearGradient
+              colors={[categoryColor, `${categoryColor}40`] as [string, string]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{ height: 2, width: '100%' }}
+            />
+            <View className="p-3">
+              <Text className="text-sm text-text-secondary leading-5 font-mono" numberOfLines={10}>
+                {coach.system_prompt}
               </Text>
-            )}
+              {coach.system_prompt.length > 500 && (
+                <Text className="text-xs text-text-tertiary italic mt-2">
+                  ...and more ({coach.token_count} tokens)
+                </Text>
+              )}
+            </View>
           </View>
         </View>
 
         {/* Metadata */}
         <View className="px-4 py-3">
           <Text className="text-sm font-semibold text-text-secondary uppercase tracking-wide mb-2">Details</Text>
-          <View className="bg-background-secondary rounded-lg border border-border-default overflow-hidden">
-            <View className="flex-row justify-between items-center px-3 py-2 border-b border-border-default">
+          <View
+            className="rounded-xl overflow-hidden"
+            style={{
+              ...glassCard,
+              borderRadius: 12,
+              borderColor: 'rgba(139, 92, 246, 0.15)',
+            }}
+          >
+            <View className="flex-row justify-between items-center px-4 py-3 border-b border-border-subtle">
               <Text className="text-sm text-text-secondary">Token Count</Text>
               <Text className="text-sm text-text-primary font-medium">{coach.token_count}</Text>
             </View>
             {coach.published_at && (
-              <View className="flex-row justify-between items-center px-3 py-2 border-b border-border-default">
+              <View className="flex-row justify-between items-center px-4 py-3">
                 <Text className="text-sm text-text-secondary">Published</Text>
                 <Text className="text-sm text-text-primary font-medium">
                   {new Date(coach.published_at).toLocaleDateString()}
@@ -256,29 +296,44 @@ export function StoreCoachDetailScreen({ navigation, route }: StoreCoachDetailSc
       </ScrollView>
 
       {/* Install/Uninstall Button - Fixed at bottom */}
-      <View className="absolute bottom-0 left-0 right-0 bg-background-primary border-t border-border-default p-3 pb-5">
+      <View className="absolute bottom-0 left-0 right-0 bg-background-primary border-t border-border-subtle p-3 pb-5">
         {isInstalled ? (
           <TouchableOpacity
-            className="py-3 rounded-lg items-center justify-center bg-background-secondary border border-border-default"
+            className="flex-row items-center justify-center py-3.5 rounded-xl"
+            style={{
+              ...glassCard,
+              borderRadius: 12,
+              borderColor: 'rgba(139, 92, 246, 0.2)',
+            }}
             onPress={handleUninstall}
             disabled={isInstalling}
           >
             {isInstalling ? (
               <ActivityIndicator size="small" color={colors.text.primary} />
             ) : (
-              <Text className="text-text-primary text-base font-medium">Uninstall</Text>
+              <>
+                <Feather name="check" size={18} color={colors.pierre.activity} />
+                <Text className="text-text-primary text-base font-medium ml-2">Installed</Text>
+              </>
             )}
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
-            className="py-3 rounded-lg items-center justify-center bg-primary-500"
+            className="flex-row items-center justify-center py-3.5 rounded-xl"
+            style={{
+              backgroundColor: colors.pierre.violet,
+              ...buttonGlow,
+            }}
             onPress={handleInstall}
             disabled={isInstalling}
           >
             {isInstalling ? (
-              <ActivityIndicator size="small" color={colors.text.primary} />
+              <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <Text className="text-text-primary text-base font-semibold">Install Coach</Text>
+              <>
+                <Feather name="download" size={18} color="#FFFFFF" />
+                <Text className="text-white text-base font-semibold ml-2">Install Coach</Text>
+              </>
             )}
           </TouchableOpacity>
         )}

@@ -23,7 +23,8 @@ import {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import { colors, spacing } from '../../constants/theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { colors, spacing, glassCard, gradients, buttonGlow } from '../../constants/theme';
 import { coachesApi } from '../../services/api';
 import { CoachVersionHistoryModal } from '../../components/CoachVersionHistoryModal';
 import type { CreateCoachRequest, UpdateCoachRequest } from '../../types';
@@ -36,14 +37,14 @@ interface CoachWizardScreenProps {
   navigation: NativeStackNavigationProp<CoachesStackParamList>;
 }
 
-// Category options with colors
+// Category options with colors matching Stitch UX spec
 const CATEGORY_OPTIONS: Array<{ key: string; label: string; color: string }> = [
-  { key: 'training', label: 'Training', color: '#10B981' },
-  { key: 'nutrition', label: 'Nutrition', color: '#F59E0B' },
-  { key: 'recovery', label: 'Recovery', color: '#6366F1' },
-  { key: 'recipes', label: 'Recipes', color: '#F97316' },
-  { key: 'mobility', label: 'Mobility', color: '#EC4899' },
-  { key: 'custom', label: 'Custom', color: '#7C3AED' },
+  { key: 'training', label: 'Training', color: '#4ADE80' },  // Green
+  { key: 'nutrition', label: 'Nutrition', color: '#F59E0B' }, // Amber
+  { key: 'recovery', label: 'Recovery', color: '#22D3EE' },  // Cyan
+  { key: 'recipes', label: 'Recipes', color: '#F59E0B' },    // Amber
+  { key: 'mobility', label: 'Mobility', color: '#EC4899' },  // Pink
+  { key: 'custom', label: 'Custom', color: '#8B5CF6' },      // Violet
 ];
 
 // Validation constants
@@ -240,34 +241,38 @@ export function CoachWizardScreen({ navigation }: CoachWizardScreenProps) {
     }
   };
 
-  // Render step indicator
+  // Render step indicator with gradient active step
   const renderStepIndicator = () => (
-    <View className="items-center py-3" testID="step-indicator">
+    <View className="items-center py-4" testID="step-indicator">
       <View className="flex-row gap-3">
         {STEPS.map((step, index) => (
           <TouchableOpacity
             key={step}
             onPress={() => goToStep(index)}
             testID={`step-dot-${index}`}
-            className={`w-8 h-8 rounded-full justify-center items-center ${
-              index === currentStep
-                ? 'bg-primary-500'
-                : index < currentStep
-                ? 'bg-pierre-activity'
-                : 'bg-background-tertiary'
-            }`}
           >
-            {index < currentStep ? (
-              <Text className="text-white text-sm font-bold">✓</Text>
+            {index === currentStep ? (
+              <LinearGradient
+                colors={gradients.violetCyan as [string, string]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' }}
+              >
+                <Text className="text-white text-sm font-bold">{index + 1}</Text>
+              </LinearGradient>
+            ) : index < currentStep ? (
+              <View className="w-8 h-8 rounded-full justify-center items-center bg-pierre-activity">
+                <Text className="text-white text-sm font-bold">✓</Text>
+              </View>
             ) : (
-              <Text className={`text-sm font-semibold ${index === currentStep ? 'text-white' : 'text-text-secondary'}`}>
-                {index + 1}
-              </Text>
+              <View className="w-8 h-8 rounded-full justify-center items-center" style={{ ...glassCard, borderRadius: 16 }}>
+                <Text className="text-text-secondary text-sm font-semibold">{index + 1}</Text>
+              </View>
             )}
           </TouchableOpacity>
         ))}
       </View>
-      <Text className="text-text-primary text-base font-semibold mt-2" testID="current-step-label">{STEPS[currentStep]}</Text>
+      <Text className="text-text-primary text-base font-semibold mt-3" testID="current-step-label">{STEPS[currentStep]}</Text>
     </View>
   );
 
@@ -275,10 +280,15 @@ export function CoachWizardScreen({ navigation }: CoachWizardScreenProps) {
   const renderBasicInfoStep = () => (
     <View className="flex-1 pt-3" testID="step-basic-info">
       <View className="mb-5">
-        <Text className="text-text-primary text-sm font-semibold mb-1">Title *</Text>
+        <Text className="text-text-primary text-sm font-semibold mb-2">Title *</Text>
         <TextInput
           testID="coach-title-input"
-          className={`bg-background-secondary border rounded-md p-3 text-text-primary text-base ${errors.title ? 'border-error' : 'border-border-default'}`}
+          className="p-3.5 text-text-primary text-base"
+          style={{
+            ...glassCard,
+            borderRadius: 12,
+            borderColor: errors.title ? colors.error : 'rgba(139, 92, 246, 0.2)',
+          }}
           value={title}
           onChangeText={setTitle}
           placeholder="Enter coach title"
@@ -290,15 +300,20 @@ export function CoachWizardScreen({ navigation }: CoachWizardScreenProps) {
       </View>
 
       <View className="mb-5">
-        <View className="flex-row justify-between items-center mb-1">
+        <View className="flex-row justify-between items-center mb-2">
           <Text className="text-text-primary text-sm font-semibold">Description</Text>
           <TouchableOpacity onPress={() => setExpandedTextArea('description')} testID="expand-description-button">
-            <Text className="text-primary-500 text-sm">Expand ↗</Text>
+            <Text style={{ color: colors.pierre.violet }} className="text-sm">Expand ↗</Text>
           </TouchableOpacity>
         </View>
         <TextInput
           testID="coach-description-input"
-          className={`bg-background-secondary border rounded-md p-3 text-text-primary text-base min-h-[80px] ${errors.description ? 'border-error' : 'border-border-default'}`}
+          className="p-3.5 text-text-primary text-base min-h-[100px]"
+          style={{
+            ...glassCard,
+            borderRadius: 12,
+            borderColor: errors.description ? colors.error : 'rgba(139, 92, 246, 0.2)',
+          }}
           value={description}
           onChangeText={setDescription}
           placeholder="Briefly describe what this coach does"
@@ -321,14 +336,18 @@ export function CoachWizardScreen({ navigation }: CoachWizardScreenProps) {
     return (
       <View className="flex-1 pt-3" testID="step-category-tags">
         <View className="mb-5">
-          <Text className="text-text-primary text-sm font-semibold mb-1">Category</Text>
+          <Text className="text-text-primary text-sm font-semibold mb-2">Category</Text>
           <TouchableOpacity
-            className="flex-row items-center justify-between bg-background-secondary border border-border-default rounded-md p-3"
+            className="flex-row items-center justify-between p-3.5"
+            style={{
+              ...glassCard,
+              borderRadius: 12,
+            }}
             onPress={showCategoryPicker}
             testID="category-picker"
           >
             <View
-              className="px-3 py-1 rounded-full"
+              className="px-3 py-1.5 rounded-full"
               style={{ backgroundColor: selectedCategory?.color }}
               testID="selected-category"
             >
@@ -339,11 +358,15 @@ export function CoachWizardScreen({ navigation }: CoachWizardScreenProps) {
         </View>
 
         <View className="mb-5">
-          <Text className="text-text-primary text-sm font-semibold mb-1">Tags</Text>
+          <Text className="text-text-primary text-sm font-semibold mb-2">Tags</Text>
           <View className="flex-row gap-2">
             <TextInput
               testID="tag-input"
-              className="flex-1 bg-background-secondary border border-border-default rounded-md p-3 text-text-primary text-base"
+              className="flex-1 p-3.5 text-text-primary text-base"
+              style={{
+                ...glassCard,
+                borderRadius: 12,
+              }}
               value={newTag}
               onChangeText={setNewTag}
               placeholder="Add a tag"
@@ -352,19 +375,32 @@ export function CoachWizardScreen({ navigation }: CoachWizardScreenProps) {
               returnKeyType="done"
             />
             <TouchableOpacity
-              className="bg-primary-500 rounded-md w-11 justify-center items-center"
+              className="w-12 justify-center items-center rounded-xl"
+              style={{
+                backgroundColor: colors.pierre.violet,
+                ...buttonGlow,
+              }}
               onPress={addTag}
               testID="add-tag-button"
             >
               <Text className="text-white text-xl font-bold">+</Text>
             </TouchableOpacity>
           </View>
-          <View className="flex-row flex-wrap gap-2 mt-2" testID="tags-container">
+          <View className="flex-row flex-wrap gap-2 mt-3" testID="tags-container">
             {tags.map((tag) => (
-              <View key={tag} className="flex-row items-center bg-background-tertiary px-3 py-1 rounded-full gap-1" testID={`tag-chip-${tag}`}>
-                <Text className="text-text-primary text-sm">{tag}</Text>
+              <View
+                key={tag}
+                className="flex-row items-center px-3 py-1.5 rounded-full gap-1"
+                style={{
+                  backgroundColor: 'rgba(139, 92, 246, 0.15)',
+                  borderWidth: 1,
+                  borderColor: 'rgba(139, 92, 246, 0.3)',
+                }}
+                testID={`tag-chip-${tag}`}
+              >
+                <Text style={{ color: colors.pierre.violet }} className="text-sm">{tag}</Text>
                 <TouchableOpacity onPress={() => removeTag(tag)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} testID={`remove-tag-${tag}`}>
-                  <Text className="text-text-secondary text-lg font-bold">×</Text>
+                  <Text style={{ color: colors.pierre.violet }} className="text-lg font-bold">×</Text>
                 </TouchableOpacity>
               </View>
             ))}
@@ -381,15 +417,20 @@ export function CoachWizardScreen({ navigation }: CoachWizardScreenProps) {
   const renderSystemPromptStep = () => (
     <View className="flex-1 pt-3" testID="step-system-prompt">
       <View className="mb-5 flex-1">
-        <View className="flex-row justify-between items-center mb-1">
+        <View className="flex-row justify-between items-center mb-2">
           <Text className="text-text-primary text-sm font-semibold">System Prompt *</Text>
           <TouchableOpacity onPress={() => setExpandedTextArea('systemPrompt')} testID="expand-prompt-button">
-            <Text className="text-primary-500 text-sm">Expand ↗</Text>
+            <Text style={{ color: colors.pierre.violet }} className="text-sm">Expand ↗</Text>
           </TouchableOpacity>
         </View>
         <TextInput
           testID="system-prompt-input"
-          className={`bg-background-secondary border rounded-md p-3 text-text-primary text-base min-h-[200px] flex-1 ${errors.systemPrompt ? 'border-error' : 'border-border-default'}`}
+          className="p-3.5 text-text-primary text-base min-h-[200px] flex-1"
+          style={{
+            ...glassCard,
+            borderRadius: 12,
+            borderColor: errors.systemPrompt ? colors.error : 'rgba(139, 92, 246, 0.2)',
+          }}
           value={systemPrompt}
           onChangeText={setSystemPrompt}
           placeholder="Define how this coach should behave and respond..."
@@ -400,12 +441,17 @@ export function CoachWizardScreen({ navigation }: CoachWizardScreenProps) {
         {errors.systemPrompt && <Text className="text-error text-xs mt-1" testID="prompt-error">{errors.systemPrompt}</Text>}
       </View>
 
-      <View className="mt-3" testID="token-counter">
-        <Text className="text-text-secondary text-sm mb-1" testID="token-count-text">
+      <View className="mt-3 p-3 rounded-xl" style={{ ...glassCard, borderRadius: 12 }} testID="token-counter">
+        <Text className="text-text-secondary text-sm mb-2" testID="token-count-text">
           ~{tokenCount.toLocaleString()} tokens ({contextPercentage}% of context)
         </Text>
-        <View className="h-1 bg-background-tertiary rounded overflow-hidden">
-          <View className="h-full bg-primary-500" style={{ width: `${Math.min(parseFloat(contextPercentage), 100)}%` }} />
+        <View className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}>
+          <LinearGradient
+            colors={gradients.violetCyan as [string, string]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={{ height: '100%', width: `${Math.min(parseFloat(contextPercentage), 100)}%`, borderRadius: 3 }}
+          />
         </View>
       </View>
     </View>
@@ -564,20 +610,44 @@ export function CoachWizardScreen({ navigation }: CoachWizardScreenProps) {
         </ScrollView>
 
         {/* Navigation Buttons */}
-        <View className="flex-row items-center px-3 py-3 border-t border-border-default">
+        <View
+          className="flex-row items-center px-4 py-4"
+          style={{ borderTopWidth: 1, borderTopColor: 'rgba(139, 92, 246, 0.2)' }}
+        >
           {currentStep > 0 && (
-            <TouchableOpacity className="py-2 px-3" onPress={handleBack} testID="back-button">
+            <TouchableOpacity
+              className="py-2.5 px-4 rounded-xl"
+              style={{ ...glassCard, borderRadius: 12 }}
+              onPress={handleBack}
+              testID="back-button"
+            >
               <Text className="text-text-secondary text-base">← Back</Text>
             </TouchableOpacity>
           )}
           <View className="flex-1" />
           {currentStep < STEPS.length - 1 ? (
-            <TouchableOpacity className="bg-primary-500 py-2 px-5 rounded-md" onPress={handleNext} testID="next-button">
+            <TouchableOpacity
+              className="py-2.5 px-6 rounded-xl overflow-hidden"
+              style={{
+                backgroundColor: colors.pierre.violet,
+                ...buttonGlow,
+              }}
+              onPress={handleNext}
+              testID="next-button"
+            >
               <Text className="text-white text-base font-semibold">Next →</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
-              className={`bg-pierre-activity py-2 px-5 rounded-md min-w-[120px] items-center ${isSaving ? 'opacity-60' : ''}`}
+              className={`py-2.5 px-6 rounded-xl min-w-[140px] items-center ${isSaving ? 'opacity-60' : ''}`}
+              style={{
+                backgroundColor: colors.pierre.activity,
+                shadowColor: colors.pierre.activity,
+                shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: 0.4,
+                shadowRadius: 12,
+                elevation: 4,
+              }}
               onPress={handleSave}
               disabled={isSaving}
               testID="save-button"

@@ -1,5 +1,5 @@
 // ABOUTME: Login screen with email/password and Google Sign-In authentication
-// ABOUTME: Professional dark theme UI matching ChatGPT/Claude design aesthetic
+// ABOUTME: Professional dark theme UI with glassmorphism matching web design
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -14,10 +14,12 @@ import {
   Image,
   ActivityIndicator,
   type ImageStyle,
+  type ViewStyle,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button, Input } from '../../components/ui';
-import { colors, spacing } from '../../constants/theme';
+import { colors, spacing, glassCard, buttonGlow, gradients } from '../../constants/theme';
 import {
   isFirebaseEnabled,
   useGoogleAuth,
@@ -146,7 +148,20 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
   };
 
   // Logo style (pixel-specific dimensions)
-  const logoStyle: ImageStyle = { width: 160, height: 160, marginBottom: spacing.lg };
+  const logoStyle: ImageStyle = { width: 120, height: 120, marginBottom: spacing.md };
+
+  // Glassmorphism card style
+  const cardStyle: ViewStyle = {
+    ...glassCard,
+    borderRadius: 16,
+    overflow: 'hidden',
+  };
+
+  // Button with glow effect
+  const glowButtonStyle: ViewStyle = {
+    ...buttonGlow,
+    marginTop: spacing.md,
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-background-primary" testID="login-screen">
@@ -159,90 +174,103 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
           keyboardShouldPersistTaps="handled"
           testID="login-scroll-view"
         >
-          {/* Logo and Header */}
-          <View className="items-center mb-6">
-            <Image
-              source={require('../../../assets/pierre-logo.png')}
-              style={logoStyle}
-              resizeMode="contain"
-            />
-            <Text className="text-2xl font-bold text-text-primary mb-1">
-              Welcome to Pierre
-            </Text>
-            <Text className="text-base text-text-secondary text-center leading-[22px]">
-              Your AI-powered fitness intelligence companion
-            </Text>
-          </View>
-
-          {/* Login Form */}
-          <View className="mb-6">
-            <Input
-              label="Email"
-              placeholder="you@example.com"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              error={errors.email}
-              testID="email-input"
+          {/* Glassmorphism Card Container */}
+          <View style={cardStyle}>
+            {/* Gradient accent bar at top */}
+            <LinearGradient
+              colors={gradients.violetCyan as [string, string]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{ height: 3, width: '100%' }}
             />
 
-            <Input
-              label="Password"
-              placeholder="Enter your password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              showPasswordToggle
-              error={errors.password}
-              testID="password-input"
-            />
+            <View className="px-6 py-8">
+              {/* Logo and Header */}
+              <View className="items-center mb-6">
+                <Image
+                  source={require('../../../assets/pierre-logo.png')}
+                  style={logoStyle}
+                  resizeMode="contain"
+                />
+                <Text className="text-xl font-bold text-text-primary mb-1">
+                  Welcome to Pierre
+                </Text>
+                <Text className="text-sm text-text-secondary text-center leading-[20px]">
+                  Your AI-powered fitness intelligence companion
+                </Text>
+              </View>
 
-            <Button
-              title="Sign In"
-              onPress={handleLogin}
-              loading={isLoading}
-              fullWidth
-              style={{ marginTop: spacing.md }}
-              testID="login-button"
-            />
+              {/* Login Form */}
+              <View className="mb-4">
+                <Input
+                  label="Email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  error={errors.email}
+                  testID="email-input"
+                />
 
-            {/* Google Sign-In - only show when Firebase is configured */}
-            {isFirebaseEnabled() && (
-              <>
-                <View className="flex-row items-center my-5">
-                  <View className="flex-1 h-px bg-border-default" />
-                  <Text className="text-sm text-text-secondary px-3">or continue with</Text>
-                  <View className="flex-1 h-px bg-border-default" />
-                </View>
+                <Input
+                  label="Password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                  showPasswordToggle
+                  error={errors.password}
+                  testID="password-input"
+                />
 
-                <TouchableOpacity
-                  className="flex-row items-center justify-center bg-background-secondary border border-border-default rounded-lg py-3 px-5 gap-2"
-                  onPress={handleGoogleSignIn}
-                  disabled={isGoogleLoading}
-                  testID="google-signin-button"
-                  activeOpacity={0.7}
-                >
-                  {isGoogleLoading ? (
-                    <ActivityIndicator size="small" color={colors.text.primary} />
-                  ) : (
-                    <AntDesign name="google" size={20} color={colors.google} />
-                  )}
-                  <Text className="text-base font-medium text-text-primary">
-                    {isGoogleLoading ? 'Signing in...' : 'Continue with Google'}
-                  </Text>
+                <Button
+                  title="Sign In"
+                  onPress={handleLogin}
+                  loading={isLoading}
+                  fullWidth
+                  style={glowButtonStyle}
+                  testID="login-button"
+                />
+
+                {/* Google Sign-In - only show when Firebase is configured */}
+                {isFirebaseEnabled() && (
+                  <>
+                    <View className="flex-row items-center my-5">
+                      <View className="flex-1 h-px bg-border-default" />
+                      <Text className="text-sm text-text-secondary px-3">or continue with</Text>
+                      <View className="flex-1 h-px bg-border-default" />
+                    </View>
+
+                    <TouchableOpacity
+                      className="flex-row items-center justify-center bg-background-tertiary border border-border-default rounded-xl py-3 px-5 gap-2"
+                      onPress={handleGoogleSignIn}
+                      disabled={isGoogleLoading}
+                      testID="google-signin-button"
+                      activeOpacity={0.7}
+                    >
+                      {isGoogleLoading ? (
+                        <ActivityIndicator size="small" color={colors.text.primary} />
+                      ) : (
+                        <AntDesign name="google" size={20} color={colors.google} />
+                      )}
+                      <Text className="text-base font-medium text-text-primary">
+                        {isGoogleLoading ? 'Signing in...' : 'Continue with Google'}
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+
+              {/* Register Link */}
+              <View className="flex-row justify-center items-center gap-1 pt-2">
+                <Text className="text-sm text-text-secondary">Don't have an account?</Text>
+                <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+                  <Text className="text-sm font-semibold text-primary-500">Create one</Text>
                 </TouchableOpacity>
-              </>
-            )}
-          </View>
-
-          {/* Register Link */}
-          <View className="flex-row justify-center items-center gap-1">
-            <Text className="text-sm text-text-secondary">Don't have an account?</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-              <Text className="text-sm font-semibold text-primary-500">Create one</Text>
-            </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

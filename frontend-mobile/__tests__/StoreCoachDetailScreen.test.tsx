@@ -318,7 +318,7 @@ describe('StoreCoachDetailScreen', () => {
   });
 
   describe('uninstall functionality', () => {
-    it('should show Uninstall button when coach is installed', async () => {
+    it('should show Installed button when coach is installed', async () => {
       mockGetInstalledCoaches.mockResolvedValue({
         coaches: [{ id: 'test-coach-id' }],
       });
@@ -331,11 +331,11 @@ describe('StoreCoachDetailScreen', () => {
       );
 
       await waitFor(() => {
-        expect(getByText('Uninstall')).toBeTruthy();
+        expect(getByText('Installed')).toBeTruthy();
       });
     });
 
-    it('should show confirmation dialog when Uninstall is pressed', async () => {
+    it('should show confirmation dialog when Installed button is pressed', async () => {
       mockGetInstalledCoaches.mockResolvedValue({
         coaches: [{ id: 'test-coach-id' }],
       });
@@ -348,10 +348,11 @@ describe('StoreCoachDetailScreen', () => {
       );
 
       await waitFor(() => {
-        expect(getByText('Uninstall')).toBeTruthy();
+        expect(getByText('Installed')).toBeTruthy();
       });
 
-      fireEvent.press(getByText('Uninstall'));
+      // Pressing "Installed" button triggers uninstall confirmation
+      fireEvent.press(getByText('Installed'));
 
       await waitFor(() => {
         expect(Alert.alert).toHaveBeenCalledWith(
@@ -388,10 +389,11 @@ describe('StoreCoachDetailScreen', () => {
       );
 
       await waitFor(() => {
-        expect(getByText('Uninstall')).toBeTruthy();
+        expect(getByText('Installed')).toBeTruthy();
       });
 
-      fireEvent.press(getByText('Uninstall'));
+      // Pressing "Installed" button triggers uninstall confirmation
+      fireEvent.press(getByText('Installed'));
 
       await waitFor(() => {
         expect(mockUninstallStoreCoach).toHaveBeenCalledWith('test-coach-id');
@@ -401,7 +403,7 @@ describe('StoreCoachDetailScreen', () => {
 
   describe('navigation', () => {
     it('should go back when back button is pressed', async () => {
-      const { getAllByText, getByText } = render(
+      const { getAllByText, getByTestId } = render(
         <StoreCoachDetailScreen
           navigation={mockNavigation as never}
           route={mockRoute as never}
@@ -413,8 +415,8 @@ describe('StoreCoachDetailScreen', () => {
         expect(getAllByText('Marathon Training Coach').length).toBeGreaterThan(0);
       });
 
-      // Find and press back button (back arrow text)
-      fireEvent.press(getByText('←'));
+      // Find and press back button via testID
+      fireEvent.press(getByTestId('back-button'));
 
       expect(mockNavigation.navigate).toHaveBeenCalledWith('Store');
     });
