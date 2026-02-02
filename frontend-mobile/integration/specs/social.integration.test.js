@@ -209,7 +209,7 @@ describe('Social API Integration Tests', () => {
         accessToken,
         {
           method: 'PUT',
-          body: JSON.stringify({ default_visibility: 'friends' }),
+          body: JSON.stringify({ default_visibility: 'friends_only' }),
         }
       );
 

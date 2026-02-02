@@ -64,12 +64,13 @@ describe('Chat Integration Tests', () => {
           method: 'POST',
           body: JSON.stringify({
             title: 'Test Conversation',
+            model: 'gemini-1.5-flash', // Provide model to skip LLM provider initialization
           }),
         }
       );
 
-      // Either 200/201 for success or 404 if endpoint doesn't support creation
-      expect([200, 201, 404].includes(result.status)).toBe(true);
+      // 201 for successful creation
+      expect(result.status).toBe(201);
 
       if (result.success) {
         expect(result.data).toBeDefined();
@@ -108,6 +109,7 @@ describe('Chat Integration Tests', () => {
           method: 'POST',
           body: JSON.stringify({
             title: 'Test Messages Conversation',
+            model: 'gemini-1.5-flash', // Provide model to skip LLM provider initialization
           }),
         }
       );
