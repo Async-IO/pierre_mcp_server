@@ -427,16 +427,20 @@ cargo fmt
 # 2. Architectural validation
 ./scripts/architectural-validation.sh
 
-# 3. Clippy WITH --all-targets (REQUIRED - catches test file import errors)
+# 3. Clippy (use -p to target only our crate, not dependencies)
 # Cargo.toml defines all lint levels - no CLI flags needed
-cargo clippy --all-targets
-# For faster iteration, target specific crate: cargo clippy -p pierre_mcp_server --all-targets
+#
+# If only src/ files changed (faster - skips test compilation):
+cargo clippy -p pierre_mcp_server
+#
+# If test files changed (must include --all-targets):
+cargo clippy -p pierre_mcp_server --all-targets
 
 # 4. Run TARGETED tests for changed modules (ALWAYS use --test)
 cargo test --test <test_file> <test_pattern> -- --nocapture
 ```
 
-**CRITICAL: Always use `--all-targets` with clippy.** Without it, clippy only checks `src/` code and misses lint errors in `tests/`, `benches/`, and binary crates. CI uses `--all-targets`, so local validation must match.
+**NOTE:** Use `--all-targets` when test files changed or before committing. Without it, clippy only checks `src/` code. CI uses `--all-targets`, so pre-commit validation must include it. Always use `-p pierre_mcp_server` to avoid checking dependencies.
 
 #### Tier 3: Full Validation (before PR/merge only)
 Run the full suite only when preparing a PR or merging:
@@ -445,7 +449,7 @@ Run the full suite only when preparing a PR or merging:
 # OR manually:
 cargo fmt
 ./scripts/architectural-validation.sh
-cargo clippy --all-targets
+cargo clippy -p pierre_mcp_server --all-targets
 cargo test
 ```
 
@@ -689,7 +693,7 @@ The codebase clone usage falls into these **approved categories**:
    ```bash
    cargo fmt
    ./scripts/architectural-validation.sh
-   cargo clippy --all-targets  # Or: cargo clippy -p pierre_mcp_server --all-targets
+   cargo clippy -p pierre_mcp_server  # Add --all-targets if test files changed
    cargo test --test <test_file> <test_pattern> -- --nocapture
    ```
 
