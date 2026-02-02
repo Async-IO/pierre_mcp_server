@@ -115,7 +115,7 @@ export const aiGlow = {
 // AI card style with gradient background and glow (web CSS)
 export const aiCard = {
   background: gradients.aiGradient,
-  border: '1px solid rgba(124, 58, 237, 0.2)',
+  border: '1px solid rgba(139, 92, 246, 0.2)',
   borderRadius: `${borderRadius.xl}px`,
   ...aiGlow.ambient,
 } as const;

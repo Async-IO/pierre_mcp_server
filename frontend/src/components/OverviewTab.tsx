@@ -45,8 +45,8 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
       {
         label: 'Requests',
         data: weeklyUsage?.time_series?.slice(-7).map((point: TimeSeriesPoint) => point.request_count) || [],
-        borderColor: 'rgb(124, 58, 237)',
-        backgroundColor: 'rgba(124, 58, 237, 0.1)',
+        borderColor: 'rgb(139, 92, 246)',
+        backgroundColor: 'rgba(139, 92, 246, 0.1)',
         tension: 0.4,
         fill: true,
         pointRadius: 3,

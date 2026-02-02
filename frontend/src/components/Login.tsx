@@ -12,11 +12,11 @@ function PierreLogo() {
     <svg width="80" height="80" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="pg" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" style={{ stopColor: '#7C3AED' }} />
-          <stop offset="100%" style={{ stopColor: '#06B6D4' }} />
+          <stop offset="0%" style={{ stopColor: '#8B5CF6' }} />
+          <stop offset="100%" style={{ stopColor: '#22D3EE' }} />
         </linearGradient>
         <linearGradient id="ag" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" style={{ stopColor: '#10B981' }} />
+          <stop offset="0%" style={{ stopColor: '#4ADE80' }} />
           <stop offset="100%" style={{ stopColor: '#059669' }} />
         </linearGradient>
         <linearGradient id="ng" x1="0%" y1="0%" x2="100%" y2="100%">

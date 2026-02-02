@@ -27,7 +27,12 @@ Using npm/yarn will corrupt the project by creating conflicting lock files and i
 | Add a package | `bun add <package>` |
 | Add dev dependency | `bun add -d <package>` |
 | Run scripts | `bun run <script>` |
-| Run tests | `bun test` |
+| Run tests | `bun run test` |
+
+**IMPORTANT: `bun test` vs `bun run test`**
+- `bun test` = Bun's native test runner (searches for `.test.ts` files with bun-style tests)
+- `bun run test` = Runs the `test` script from package.json (vitest for frontend, jest for mobile)
+- **Always use `bun run test`** for frontend/ and frontend-mobile/ directories
 
 ### Enforcement
 - All `package.json` files have a `preinstall` script that rejects npm/yarn
@@ -207,7 +212,7 @@ bun run typecheck
 bun run lint
 
 # Tier 2: Unit tests (~3s, 135 tests)
-bun test
+bun run test
 
 # All tiers at once (what pre-push runs)
 ../scripts/pre-push-mobile-tests.sh

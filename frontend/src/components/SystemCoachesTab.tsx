@@ -694,12 +694,12 @@ export default function SystemCoachesTab() {
 // Helper function to get category accent color
 function getCategoryColor(category: string): string {
   const colors: Record<string, string> = {
-    Training: '#10B981',
+    Training: '#4ADE80',
     Nutrition: '#F59E0B',
     Recovery: '#6366F1',
     Recipes: '#F97316',
     Mobility: '#EC4899',
-    Custom: '#7C3AED',
+    Custom: '#8B5CF6',
   };
   // Normalize category to title case for lookup
   const normalized = category.charAt(0).toUpperCase() + category.slice(1).toLowerCase();

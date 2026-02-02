@@ -47,7 +47,7 @@ export default function ToolUsageBreakdownComponent({
     '#4ADE80', // pierre-activity
     '#F59E0B', // pierre-nutrition
     '#FF6B6B', // pierre-red
-    '#06B6D4', // cyan
+    '#22D3EE', // cyan
     '#FB923C', // orange
     '#A78BFA', // light violet
   ];

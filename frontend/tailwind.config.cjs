@@ -12,14 +12,14 @@ module.exports = {
       colors: {
         // Pierre brand colors - Holistic Intelligence design system
         pierre: {
-          // Primary brand colors
-          violet: '#7C3AED',  // Intelligence, AI, sophistication
-          cyan: '#06B6D4',    // Data flow, connectivity, freshness
+          // Primary brand colors (synced with shared-constants/design-system.ts)
+          violet: '#8B5CF6',  // Intelligence, AI, sophistication
+          cyan: '#22D3EE',    // Data flow, connectivity, freshness
 
-          // Three Pillars - Semantic accent colors (dark-mode optimized)
-          activity: '#10B981',   // Emerald - Movement, fitness, energy
-          nutrition: '#FBBF24',  // Amber - Food, fuel, nourishment (brightened for dark mode)
-          recovery: '#818CF8',   // Indigo - Rest, sleep, restoration (brightened for dark mode)
+          // Three Pillars - Semantic accent colors (synced with shared-constants)
+          activity: '#4ADE80',   // Green - Movement, fitness, energy
+          nutrition: '#F59E0B',  // Amber - Food, fuel, nourishment
+          recovery: '#818CF8',   // Indigo - Rest, sleep, restoration
           mobility: '#EC4899',   // Pink - Flexibility, stretching, movement quality
 
           // Dark theme backgrounds
@@ -28,18 +28,18 @@ module.exports = {
 
           // Extended violet palette
           'violet-light': '#A78BFA',
-          'violet-dark': '#5B21B6',
+          'violet-dark': '#7C3AED',
 
           // Extended cyan palette
-          'cyan-light': '#22D3EE',
-          'cyan-dark': '#0891B2',
+          'cyan-light': '#67E8F9',
+          'cyan-dark': '#06B6D4',
 
-          // Extended activity (emerald) palette
-          'activity-light': '#34D399',
-          'activity-dark': '#059669',
+          // Extended activity (green) palette
+          'activity-light': '#86EFAC',
+          'activity-dark': '#22C55E',
 
           // Extended nutrition (amber) palette
-          'nutrition-light': '#FBBF24',
+          'nutrition-light': '#FCD34D',
           'nutrition-dark': '#D97706',
 
           // Extended recovery (indigo) palette
@@ -181,14 +181,14 @@ module.exports = {
         'md': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
         'lg': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
         'xl': '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-        // Glow effects for premium interactions
-        'glow': '0 0 15px rgba(124, 58, 237, 0.3)',
-        'glow-sm': '0 0 8px rgba(124, 58, 237, 0.2)',
-        'glow-lg': '0 0 20px rgba(124, 58, 237, 0.5)',
-        'glow-violet': '0 0 20px rgba(124, 58, 237, 0.3)',
-        'glow-cyan': '0 0 20px rgba(6, 182, 212, 0.3)',
-        'glow-activity': '0 0 20px rgba(16, 185, 129, 0.3)',
-        'glow-nutrition': '0 0 20px rgba(251, 191, 36, 0.3)',
+        // Glow effects for premium interactions (synced with shared-constants)
+        'glow': '0 0 15px rgba(139, 92, 246, 0.3)',
+        'glow-sm': '0 0 8px rgba(139, 92, 246, 0.2)',
+        'glow-lg': '0 0 20px rgba(139, 92, 246, 0.5)',
+        'glow-violet': '0 0 20px rgba(139, 92, 246, 0.3)',
+        'glow-cyan': '0 0 20px rgba(34, 211, 238, 0.3)',
+        'glow-activity': '0 0 20px rgba(74, 222, 128, 0.3)',
+        'glow-nutrition': '0 0 20px rgba(245, 158, 11, 0.3)',
         'glow-recovery': '0 0 20px rgba(129, 140, 248, 0.3)',
         // Glassmorphism inner border effect
         'glass': 'inset 0 0 0 1px rgba(255, 255, 255, 0.1)',
@@ -202,12 +202,12 @@ module.exports = {
         'slow': '300ms',
       },
       backgroundImage: {
-        'gradient-pierre': 'linear-gradient(135deg, #7C3AED 0%, #06B6D4 100%)',
-        'gradient-activity': 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+        'gradient-pierre': 'linear-gradient(135deg, #8B5CF6 0%, #22D3EE 100%)',
+        'gradient-activity': 'linear-gradient(135deg, #4ADE80 0%, #22C55E 100%)',
         'gradient-nutrition': 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
-        'gradient-recovery': 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)',
+        'gradient-recovery': 'linear-gradient(135deg, #818CF8 0%, #6366F1 100%)',
         'gradient-mobility': 'linear-gradient(135deg, #EC4899 0%, #DB2777 100%)',
-        'gradient-pierre-horizontal': 'linear-gradient(90deg, #7C3AED 0%, #06B6D4 100%)',
+        'gradient-pierre-horizontal': 'linear-gradient(90deg, #8B5CF6 0%, #22D3EE 100%)',
       },
       animation: {
         'slide-up': 'slideUp 0.2s ease-out',
@@ -234,8 +234,8 @@ module.exports = {
           '100%': { backgroundPosition: '200% 0' },
         },
         pulseGlow: {
-          '0%, 100%': { boxShadow: '0 0 0 0 rgba(124, 58, 237, 0.4)' },
-          '50%': { boxShadow: '0 0 0 8px rgba(124, 58, 237, 0)' },
+          '0%, 100%': { boxShadow: '0 0 0 0 rgba(139, 92, 246, 0.4)' },
+          '50%': { boxShadow: '0 0 0 8px rgba(139, 92, 246, 0)' },
         },
       },
     },

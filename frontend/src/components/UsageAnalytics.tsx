@@ -43,9 +43,9 @@ export default function UsageAnalytics() {
 
   // Pierre Design System colors for charts
   const pierreColors = {
-    violet: '#7C3AED',
-    cyan: '#06B6D4',
-    activity: '#10B981',
+    violet: '#8B5CF6',
+    cyan: '#22D3EE',
+    activity: '#4ADE80',
     nutrition: '#F59E0B',
     recovery: '#6366F1',
     red: '#EF4444',

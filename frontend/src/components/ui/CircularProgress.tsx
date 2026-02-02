@@ -24,12 +24,12 @@ const sizeConfig = {
 };
 
 const variantColors = {
-  violet: { stroke: '#7C3AED', bg: 'rgba(124, 58, 237, 0.1)' },
-  cyan: { stroke: '#06B6D4', bg: 'rgba(6, 182, 212, 0.1)' },
-  activity: { stroke: '#10B981', bg: 'rgba(16, 185, 129, 0.1)' },
+  violet: { stroke: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.1)' },
+  cyan: { stroke: '#22D3EE', bg: 'rgba(34, 211, 238, 0.1)' },
+  activity: { stroke: '#4ADE80', bg: 'rgba(74, 222, 128, 0.1)' },
   nutrition: { stroke: '#F59E0B', bg: 'rgba(245, 158, 11, 0.1)' },
-  recovery: { stroke: '#6366F1', bg: 'rgba(99, 102, 241, 0.1)' },
-  gradient: { stroke: 'url(#progressGradient)', bg: 'rgba(124, 58, 237, 0.1)' },
+  recovery: { stroke: '#818CF8', bg: 'rgba(129, 140, 248, 0.1)' },
+  gradient: { stroke: 'url(#progressGradient)', bg: 'rgba(139, 92, 246, 0.1)' },
 };
 
 export const CircularProgress: React.FC<CircularProgressProps> = ({
@@ -53,8 +53,8 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
       <svg width={diameter} height={diameter} className="transform -rotate-90">
         <defs>
           <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#7C3AED" />
-            <stop offset="100%" stopColor="#06B6D4" />
+            <stop offset="0%" stopColor="#8B5CF6" />
+            <stop offset="100%" stopColor="#22D3EE" />
           </linearGradient>
         </defs>
         {/* Background circle */}

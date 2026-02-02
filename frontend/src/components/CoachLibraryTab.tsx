@@ -42,14 +42,14 @@ const CATEGORY_COLORS: Record<string, string> = {
   Custom: 'bg-pierre-violet/10 text-pierre-violet-light border-pierre-violet/20',
 };
 
-// Category border colors for left accent (matching mobile design)
+// Category border colors for left accent (synced with shared-constants)
 const CATEGORY_BORDER_COLORS: Record<string, string> = {
-  Training: '#10B981',
+  Training: '#4ADE80',
   Nutrition: '#F59E0B',
-  Recovery: '#6366F1',
+  Recovery: '#818CF8',
   Recipes: '#F97316',
   Mobility: '#EC4899',
-  Custom: '#7C3AED',
+  Custom: '#8B5CF6',
 };
 
 // LLM context window size for percentage calculation
@@ -509,7 +509,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                 <div
                   key={coach.id}
                   className={clsx(
-                    'cursor-pointer hover:shadow-md transition-all border-l-4 bg-[#151520] rounded-xl p-4 border border-white/10',
+                    'cursor-pointer hover:shadow-md transition-all border-l-4 bg-pierre-slate rounded-xl p-4 border border-white/10',
                     isHidden && 'opacity-60'
                   )}
                   style={{ borderLeftColor: CATEGORY_BORDER_COLORS[coach.category] || CATEGORY_BORDER_COLORS.Custom }}
@@ -855,7 +855,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                 className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-pierre-violet focus:border-transparent"
               >
                 {COACH_CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat} className="bg-[#151520]">{cat}</option>
+                  <option key={cat} value={cat} className="bg-pierre-slate">{cat}</option>
                 ))}
               </select>
             </div>

@@ -48,12 +48,12 @@ const STEPS = [
 ];
 
 const CATEGORIES: Array<{ key: CoachCategory; label: string; color: string }> = [
-  { key: 'training', label: 'Training', color: '#10B981' },
+  { key: 'training', label: 'Training', color: '#4ADE80' },
   { key: 'nutrition', label: 'Nutrition', color: '#F59E0B' },
   { key: 'recovery', label: 'Recovery', color: '#6366F1' },
   { key: 'recipes', label: 'Recipes', color: '#F97316' },
   { key: 'mobility', label: 'Mobility', color: '#EC4899' },
-  { key: 'custom', label: 'Custom', color: '#7C3AED' },
+  { key: 'custom', label: 'Custom', color: '#8B5CF6' },
 ];
 
 const PROVIDERS = ['Strava', 'Garmin', 'Fitbit', 'Whoop', 'Coros', 'Terra'];
