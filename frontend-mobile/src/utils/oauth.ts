@@ -1,8 +1,6 @@
 // ABOUTME: OAuth utility functions for mobile app
 // ABOUTME: Handles OAuth callback URL generation for development and production
 
-import Constants from 'expo-constants';
-
 // The app scheme defined in app.json
 const APP_SCHEME = 'pierre';
 
@@ -22,11 +20,4 @@ export function getOAuthCallbackUrl(): string {
   // Always use the custom scheme for OAuth callbacks
   // This ensures consistent behavior across dev and prod
   return `${APP_SCHEME}://oauth-callback`;
-}
-
-/**
- * Checks if running in Expo Go (development) vs standalone build
- */
-export function isExpoGo(): boolean {
-  return Constants.appOwnership === 'expo';
 }
