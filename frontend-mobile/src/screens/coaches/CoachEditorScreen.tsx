@@ -17,8 +17,10 @@ import {
 } from 'react-native';
 import { useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing } from '../../constants/theme';
 import { coachesApi } from '../../services/api';
+import { CoachVersionHistory } from '../../components/coaches/CoachVersionHistory';
 import type { CreateCoachRequest, UpdateCoachRequest } from '../../types';
 import type { CoachesStackParamList } from '../../navigation/MainTabs';
 
@@ -57,6 +59,7 @@ export function CoachEditorScreen({ navigation }: CoachEditorScreenProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
 
   // Load coach data for edit mode
   useEffect(() => {
@@ -207,6 +210,16 @@ export function CoachEditorScreen({ navigation }: CoachEditorScreenProps) {
           <Text className="flex-1 text-lg font-semibold text-text-primary text-center">
             {isEditMode ? 'Edit Coach' : 'Create Coach'}
           </Text>
+          {/* Version History Button (edit mode only) */}
+          {isEditMode && (
+            <TouchableOpacity
+              className="w-10 h-10 items-center justify-center mr-1"
+              onPress={() => setShowVersionHistory(true)}
+              testID="version-history-button"
+            >
+              <Ionicons name="git-branch-outline" size={22} color={colors.text.primary} />
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             className={`px-3 py-1 bg-primary-500 rounded-md min-w-[60px] items-center ${isSaving ? 'opacity-60' : ''}`}
             onPress={handleSave}
@@ -321,6 +334,20 @@ export function CoachEditorScreen({ navigation }: CoachEditorScreenProps) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Version History Modal */}
+      {isEditMode && coachId && (
+        <CoachVersionHistory
+          coachId={coachId}
+          coachTitle={title || 'Coach'}
+          isOpen={showVersionHistory}
+          onClose={() => setShowVersionHistory(false)}
+          onReverted={() => {
+            // Reload the coach data after revert
+            loadCoach(coachId);
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }

@@ -126,6 +126,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   const [renamePromptVisible, setRenamePromptVisible] = useState(false);
   const [renameConversationId, setRenameConversationId] = useState<string | null>(null);
   const [renameDefaultTitle, setRenameDefaultTitle] = useState('');
+  const [showCoachSuggestions, setShowCoachSuggestions] = useState(false);
 
   // Share to social feed state
   const [shareToFeedContent, setShareToFeedContent] = useState<string | null>(null);
@@ -1477,6 +1478,19 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
               <Text className="text-xs text-error">Tap mic to stop recording</Text>
             </View>
           )}
+          {/* Need ideas button - shows coach suggestions */}
+          {!isListening && coaches.length > 0 && (
+            <View className="pt-2 items-center">
+              <TouchableOpacity
+                className="flex-row items-center gap-1"
+                onPress={() => setShowCoachSuggestions(true)}
+                testID="need-ideas-button"
+              >
+                <Ionicons name="bulb-outline" size={14} color={colors.pierre.violet} />
+                <Text className="text-xs text-pierre-violet">Need ideas?</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         {/* Conversation Action Menu Modal - Claude-style popover */}
@@ -1625,6 +1639,102 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
           onEdit={handleEditShare}
           onClose={handleCloseShareModal}
         />
+
+        {/* Coach Suggestions Modal */}
+        <Modal
+          visible={showCoachSuggestions}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setShowCoachSuggestions(false)}
+        >
+          <TouchableOpacity
+            className="flex-1 bg-black/50 justify-end"
+            activeOpacity={1}
+            onPress={() => setShowCoachSuggestions(false)}
+          >
+            <View
+              className="bg-background-primary rounded-t-2xl max-h-[70%]"
+              style={{ paddingBottom: insets.bottom + spacing.md }}
+              onStartShouldSetResponder={() => true}
+            >
+              {/* Header */}
+              <View className="flex-row items-center justify-between px-4 py-3 border-b border-border-subtle">
+                <View className="flex-row items-center gap-2">
+                  <Ionicons name="bulb" size={20} color={colors.pierre.violet} />
+                  <Text className="text-lg font-semibold text-text-primary">Coaches</Text>
+                </View>
+                <TouchableOpacity
+                  className="p-2"
+                  onPress={() => setShowCoachSuggestions(false)}
+                  testID="close-coach-suggestions"
+                >
+                  <Ionicons name="close" size={24} color={colors.text.secondary} />
+                </TouchableOpacity>
+              </View>
+              <Text className="text-xs text-text-tertiary px-4 py-2">
+                Select a coach to start or continue a conversation with specialized assistance
+              </Text>
+              {/* Coach Grid */}
+              <ScrollView
+                className="px-4"
+                showsVerticalScrollIndicator={false}
+              >
+                <View className="flex-row flex-wrap justify-between gap-2 pb-4">
+                  {coaches.map((coach) => (
+                    <TouchableOpacity
+                      key={coach.id}
+                      className="bg-background-secondary rounded-xl p-4 w-[48%] border border-border-subtle mb-2"
+                      onPress={() => {
+                        setShowCoachSuggestions(false);
+                        handleCoachSelect(coach);
+                      }}
+                      activeOpacity={0.7}
+                      testID={`coach-suggestion-${coach.id}`}
+                    >
+                      {/* Header row: Title + Category icon */}
+                      <View className="flex-row justify-between items-start mb-1 gap-2">
+                        <Text className="flex-1 text-sm font-semibold text-text-primary leading-[18px]" numberOfLines={2}>
+                          {coach.title}
+                        </Text>
+                        <View
+                          className="w-7 h-7 rounded items-center justify-center"
+                          style={{ backgroundColor: COACH_CATEGORY_BADGE_BG[coach.category] }}
+                        >
+                          <Text className="text-sm">
+                            {COACH_CATEGORY_ICONS[coach.category]}
+                          </Text>
+                        </View>
+                      </View>
+                      {/* Description */}
+                      {coach.description && (
+                        <Text className="text-xs text-text-secondary leading-4 mb-1" numberOfLines={2}>
+                          {coach.description}
+                        </Text>
+                      )}
+                      {/* Footer: Badges + Use count */}
+                      <View className="flex-row items-center gap-2 mt-1">
+                        {coach.is_system && (
+                          <View className="px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(124, 58, 237, 0.15)' }}>
+                            <Text className="text-xs font-medium" style={{ color: '#7C3AED' }}>System</Text>
+                          </View>
+                        )}
+                        {coach.is_favorite && (
+                          <View className="px-1 py-0.5 rounded" style={{ backgroundColor: 'rgba(245, 158, 11, 0.15)' }}>
+                            <Text className="text-xs" style={{ color: '#F59E0B' }}>★</Text>
+                          </View>
+                        )}
+                        <View className="flex-1" />
+                        {coach.use_count > 0 && (
+                          <Text className="text-xs text-text-tertiary">{coach.use_count}×</Text>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+          </TouchableOpacity>
+        </Modal>
       </KeyboardAvoidingView>
     </View>
   );

@@ -1,6 +1,20 @@
 // ABOUTME: Jest setup file for Pierre Mobile app tests
 // ABOUTME: Configures mocks for React Native modules
 
+// Suppress known React Testing Library act() warnings for async state updates
+// These occur when components have async useEffect/useFocusEffect that update state
+const originalError = console.error;
+console.error = (...args) => {
+  const message = args[0];
+  if (
+    typeof message === 'string' &&
+    message.includes('inside a test was not wrapped in act')
+  ) {
+    return;
+  }
+  originalError.apply(console, args);
+};
+
 // Mock react-native-gesture-handler
 jest.mock('react-native-gesture-handler', () => {
   const View = require('react-native').View;
