@@ -165,8 +165,8 @@ jobs:
   mobile-e2e-tests:
     name: Mobile E2E Tests (Detox)
     runs-on: macos-latest
-    # Run on main branch pushes or when explicitly triggered
-    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    # Temporarily disabled due to GitHub Actions outage
+    if: false
 
     steps:
       - name: Checkout code
@@ -328,8 +328,8 @@ jobs:
   mobile-e2e-tests-android:
     name: Mobile E2E Tests - Android (Detox)
     runs-on: ubuntu-latest
-    # Run on main branch pushes or when explicitly triggered
-    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    # Temporarily disabled due to GitHub Actions outage
+    if: false
 
     steps:
       - name: Checkout code
