@@ -392,8 +392,8 @@ test.describe('ASY-312: Web Admin Mode Visual Tests', () => {
       await takeVisualScreenshot(page, 'admin-friends', 'list');
     });
 
-    test('feed - displays social feed', async ({ page }) => {
-      await navigateToTab(page, 'Social Feed');
+    test('feed - displays insights', async ({ page }) => {
+      await navigateToTab(page, 'Insights');
       await waitForNetworkIdle(page);
 
       const mainContent = page.locator('main');

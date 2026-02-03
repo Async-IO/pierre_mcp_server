@@ -334,15 +334,15 @@ test.describe('ASY-313: Web User Mode Visual Tests', () => {
   });
 
   // ========================================
-  // Social Feed Tab
+  // Insights Tab
   // ========================================
-  test.describe('Social Feed Tab', () => {
+  test.describe('Insights Tab', () => {
     test.beforeEach(async ({ page }) => {
       await loginAsUser(page, 'webtest');
     });
 
     test('feed - displays insight cards', async ({ page }) => {
-      await navigateToTab(page, 'Social Feed');
+      await navigateToTab(page, 'Insights');
       await waitForNetworkIdle(page);
 
       const mainContent = page.locator('main');
@@ -352,7 +352,7 @@ test.describe('ASY-313: Web User Mode Visual Tests', () => {
     });
 
     test('feed - reaction buttons visible', async ({ page }) => {
-      await navigateToTab(page, 'Social Feed');
+      await navigateToTab(page, 'Insights');
       await waitForNetworkIdle(page);
 
       // Look for reaction buttons (emoji buttons)
@@ -362,7 +362,7 @@ test.describe('ASY-313: Web User Mode Visual Tests', () => {
     });
 
     test('feed - clicking reaction records it', async ({ page }) => {
-      await navigateToTab(page, 'Social Feed');
+      await navigateToTab(page, 'Insights');
       await waitForNetworkIdle(page);
 
       const reactionButton = page.locator('button:has-text("👍"), button:has-text("💪")').first();
@@ -375,7 +375,7 @@ test.describe('ASY-313: Web User Mode Visual Tests', () => {
     });
 
     test('feed - adapt button opens modal', async ({ page }) => {
-      await navigateToTab(page, 'Social Feed');
+      await navigateToTab(page, 'Insights');
       await waitForNetworkIdle(page);
 
       const adaptButton = page.getByRole('button', { name: /adapt/i });
