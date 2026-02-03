@@ -49,7 +49,7 @@ async fn test_create_conversation() {
         .header("authorization", &auth_token)
         .json(&json!({
             "title": "Test Conversation",
-            "model": "gemini-2.0-flash-exp"
+            "model": "gemini-1.5-flash"
         }))
         .send(router)
         .await;
@@ -58,7 +58,7 @@ async fn test_create_conversation() {
 
     let conv: ConversationResponse = response.json();
     assert_eq!(conv.title, "Test Conversation");
-    assert_eq!(conv.model, "gemini-2.0-flash-exp");
+    assert_eq!(conv.model, "gemini-1.5-flash");
     assert_eq!(conv.total_tokens, 0);
     assert!(conv.system_prompt.is_none());
 }

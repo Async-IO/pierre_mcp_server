@@ -242,11 +242,11 @@ ollama show qwen2.5:14b-instruct
 
 | Model | Description | Default |
 |-------|-------------|---------|
-| `gemini-2.5-flash` | Latest fast model with improved capabilities | ✓ |
-| `gemini-2.0-flash-exp` | Experimental fast model | |
+| `gemini-3-flash-preview` | Latest Gemini 3 preview with enhanced reasoning | |
+| `gemini-2.5-pro` | Most capable Gemini model with advanced reasoning | |
+| `gemini-2.5-flash` | Fast model with improved capabilities | |
 | `gemini-1.5-pro` | Advanced reasoning capabilities | |
-| `gemini-1.5-flash` | Balanced performance and cost | |
-| `gemini-1.0-pro` | Legacy pro model | |
+| `gemini-1.5-flash` | Balanced performance and cost | ✓ |
 
 #### Local (Ollama/vLLM)
 

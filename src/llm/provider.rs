@@ -71,7 +71,7 @@ impl ChatProvider {
     /// - `local`/`ollama`/`vllm`/`localai`: Creates `OpenAiCompatibleProvider`
     ///
     /// When `PIERRE_LLM_FALLBACK_ENABLED=true`, if the primary provider fails,
-    /// attempts to use the fallback provider specified by `PIERRE_LLM_PROVIDER_FALLBACK`.
+    /// attempts to use the fallback provider specified by `PIERRE_LLM_FALLBACK_PROVIDER`.
     ///
     /// # Errors
     ///
@@ -246,10 +246,10 @@ impl ChatProvider {
 
         match credentials.provider {
             TenantLlmProvider::Gemini => {
-                let mut provider = GeminiProvider::new(&credentials.api_key);
-                if let Some(model) = credentials.default_model {
-                    provider = provider.with_default_model(model);
-                }
+                let model = credentials.default_model.or_else(LlmProviderType::model_from_env).ok_or_else(|| {
+                    AppError::config("No model specified in credentials and PIERRE_LLM_MODEL not set")
+                })?;
+                let provider = GeminiProvider::new(&credentials.api_key, model);
                 Ok(Self::Gemini(provider))
             }
             TenantLlmProvider::Groq => Ok(Self::Groq(GroqProvider::new(credentials.api_key))),
@@ -287,12 +287,12 @@ impl ChatProvider {
         }
     }
 
-    /// Create a Gemini provider with a specific API key
+    /// Create a Gemini provider with a specific API key and model
     ///
     /// Use this when you have already resolved the API key from tenant/user credentials.
     #[must_use]
-    pub fn gemini_with_key(api_key: &str) -> Self {
-        Self::Gemini(GeminiProvider::new(api_key))
+    pub fn gemini_with_key(api_key: &str, model: &str) -> Self {
+        Self::Gemini(GeminiProvider::new(api_key, model))
     }
 
     /// Create a Groq provider with a specific API key

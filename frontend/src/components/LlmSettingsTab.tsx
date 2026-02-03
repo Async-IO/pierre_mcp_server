@@ -295,9 +295,9 @@ export default function LlmSettingsTab() {
               onChange={(e) => setDefaultModel(e.target.value)}
               placeholder={
                 selectedProvider === 'gemini'
-                  ? 'gemini-2.0-flash-exp'
+                  ? 'gemini-1.5-flash'
                   : selectedProvider === 'groq'
-                    ? 'llama-3.1-70b-versatile'
+                    ? 'llama-3.3-70b-versatile'
                     : 'qwen2.5:14b-instruct'
               }
               helpText="Override the default model for this provider"

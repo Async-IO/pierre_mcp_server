@@ -25,7 +25,7 @@ const mockUserMessage: Message = {
 };
 
 const mockMetadata: MessageMetadata = {
-  model: 'gemini-2.0-flash',
+  model: 'gemini-1.5-flash',
   executionTimeMs: 2500,
 };
 
@@ -55,7 +55,7 @@ describe('MessageItem', () => {
         />
       );
 
-      expect(screen.getByText(/gemini-2.0-flash/)).toBeInTheDocument();
+      expect(screen.getByText(/gemini-1.5-flash/)).toBeInTheDocument();
       expect(screen.getByText(/2\.5s/)).toBeInTheDocument();
     });
   });

@@ -362,7 +362,7 @@ optional arguments:
 **Free Tier (No Credit Card Required):**
 - **Requests per day**: 1,500
 - **Requests per minute**: 15
-- **Model**: gemini-2.0-flash-exp
+- **Model**: gemini-1.5-flash
 - **Context window**: 32,768 tokens
 - **Function calling**: ✅ Supported
 - **Streaming**: ✅ Supported
@@ -403,7 +403,7 @@ This example can be adapted to use other free LLM services:
 # Test your API key
 curl -H "Content-Type: application/json" \
      -d '{"contents":[{"parts":[{"text":"Hello"}]}]}' \
-     "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=YOUR_API_KEY"
+     "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=YOUR_API_KEY"
 ```
 
 ### Pierre Authentication Issues

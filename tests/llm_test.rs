@@ -99,7 +99,7 @@ fn test_registry_operations() {
 
 #[test]
 fn test_gemini_provider_metadata() {
-    let provider = GeminiProvider::new("test-key");
+    let provider = GeminiProvider::new("test-key", "test-model");
     assert_eq!(provider.name(), "gemini");
     assert_eq!(provider.display_name(), "Google Gemini");
     assert!(!provider.available_models().is_empty());
@@ -107,7 +107,7 @@ fn test_gemini_provider_metadata() {
 
 #[test]
 fn test_gemini_capabilities() {
-    let provider = GeminiProvider::new("test-key");
+    let provider = GeminiProvider::new("test-key", "test-model");
     let caps = provider.capabilities();
     assert!(caps.supports_streaming());
     assert!(caps.supports_function_calling());
@@ -117,18 +117,18 @@ fn test_gemini_capabilities() {
 
 #[test]
 fn test_gemini_debug_redacts_api_key() {
-    let provider = GeminiProvider::new("super-secret-key");
+    let provider = GeminiProvider::new("super-secret-key", "test-model");
     let debug_output = format!("{provider:?}");
     assert!(!debug_output.contains("super-secret-key"));
     assert!(debug_output.contains("[REDACTED]"));
 }
 
 #[test]
-fn test_gemini_with_default_model() {
-    let provider = GeminiProvider::new("key").with_default_model("gemini-1.5-pro");
+fn test_gemini_with_custom_model() {
+    let provider = GeminiProvider::new("key", "gemini-2.5-pro");
     // Check via the trait method since default_model field is private
     let debug_output = format!("{provider:?}");
-    assert!(debug_output.contains("gemini-1.5-pro"));
+    assert!(debug_output.contains("gemini-2.5-pro"));
 }
 
 // ============================================================================

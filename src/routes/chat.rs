@@ -11,6 +11,7 @@
 
 use crate::{
     auth::AuthResult,
+    config::LlmProviderType,
     database::{ConversationRecord, MessageRecord},
     database_plugins::DatabaseProvider,
     errors::AppError,
@@ -799,13 +800,15 @@ impl ChatRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
 
-        // Use default model if none specified
-        // Note: We use a constant default to avoid requiring LLM provider initialization
-        // during conversation creation. The actual model is used when sending messages.
-        let model = request
-            .model
-            .clone()
-            .unwrap_or_else(|| "gemini-2.0-flash".to_owned());
+        // Use model from request, or fall back to PIERRE_LLM_MODEL env var
+        let model = match request.model.clone() {
+            Some(m) => m,
+            None => LlmProviderType::model_from_env().ok_or_else(|| {
+                AppError::config(
+                    "No model specified and PIERRE_LLM_MODEL environment variable not set",
+                )
+            })?,
+        };
 
         let conv = resources
             .database

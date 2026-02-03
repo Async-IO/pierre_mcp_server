@@ -135,7 +135,7 @@ class GeminiFitnessAssistant:
 
         # Use Gemini 2.0 Flash for fast, free inference with function calling
         self.model = genai.GenerativeModel(
-            model_name='gemini-2.0-flash-exp',
+            model_name='gemini-1.5-flash',
             system_instruction="""You are a fitness assistant with access to the user's fitness data
             through the Pierre Fitness Platform. You can analyze activities, provide training insights,
             suggest goals, and help with nutrition planning.
@@ -207,7 +207,7 @@ class GeminiFitnessAssistant:
         self.chat = self.model.start_chat(enable_automatic_function_calling=True)
 
         print("🤖 Gemini Fitness Assistant ready!")
-        print("   Model: gemini-2.0-flash-exp (free tier)")
+        print("   Model: gemini-1.5-flash (free tier)")
         print("   Rate limit: 1,500 requests/day\n")
 
     async def process_query(self, user_query: str) -> str:

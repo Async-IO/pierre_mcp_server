@@ -21,7 +21,7 @@ const mockLlmSettingsEmpty = {
 // Format matches api-client LlmSettingsResponse: { settings: LlmSettings[] }
 const mockLlmSettingsWithCredentials = {
   settings: [
-    { provider: 'gemini', api_key: 'sk-***', model: 'gemini-2.0-flash-exp', enabled: true },
+    { provider: 'gemini', api_key: 'sk-***', model: 'gemini-1.5-flash', enabled: true },
     { provider: 'groq', enabled: false },
     { provider: 'local', enabled: false },
   ],
@@ -43,7 +43,7 @@ const mockValidationFailure = {
 const mockSaveSuccess = {
   provider: 'gemini',
   api_key: 'sk-***',
-  model: 'gemini-2.0-flash-exp',
+  model: 'gemini-1.5-flash',
   enabled: true,
 };
 
@@ -234,7 +234,7 @@ test.describe('LLM Settings - Configuration Form', () => {
 
     // Default model field should show placeholder
     const modelInput = page.getByLabel(/Default Model/);
-    await expect(modelInput).toHaveAttribute('placeholder', 'gemini-2.0-flash-exp');
+    await expect(modelInput).toHaveAttribute('placeholder', 'gemini-1.5-flash');
   });
 });
 

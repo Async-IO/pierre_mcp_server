@@ -153,17 +153,41 @@ impl LlmProviderType {
 }
 
 impl LlmProviderType {
+    /// Environment variable for model/version selection
+    pub const MODEL_ENV_VAR: &'static str = "PIERRE_LLM_MODEL";
+
     /// Environment variable for enabling fallback
     pub const FALLBACK_ENABLED_ENV_VAR: &'static str = "PIERRE_LLM_FALLBACK_ENABLED";
 
     /// Environment variable for fallback provider selection
-    pub const FALLBACK_PROVIDER_ENV_VAR: &'static str = "PIERRE_LLM_PROVIDER_FALLBACK";
+    pub const FALLBACK_PROVIDER_ENV_VAR: &'static str = "PIERRE_LLM_FALLBACK_PROVIDER";
+
+    /// Environment variable for fallback model selection
+    pub const FALLBACK_MODEL_ENV_VAR: &'static str = "PIERRE_LLM_FALLBACK_MODEL";
 
     /// Environment variable for fallback wait time in seconds
     pub const FALLBACK_WAIT_SECS_ENV_VAR: &'static str = "PIERRE_LLM_FALLBACK_WAIT_SECS";
 
     /// Default wait time before attempting fallback (10 seconds, matches Gemini retry)
     pub const DEFAULT_FALLBACK_WAIT_SECS: u64 = 10;
+
+    /// Get model from environment
+    ///
+    /// Reads `PIERRE_LLM_MODEL` - returns None if not set.
+    /// Logs an error when not configured but allows server to continue.
+    #[must_use]
+    pub fn model_from_env() -> Option<String> {
+        match env::var(Self::MODEL_ENV_VAR) {
+            Ok(model) if !model.is_empty() => Some(model),
+            _ => {
+                tracing::error!(
+                    "{} environment variable not set. Configure it in .envrc to specify the LLM model.",
+                    Self::MODEL_ENV_VAR
+                );
+                None
+            }
+        }
+    }
 
     /// Check if fallback is enabled from environment
     ///
@@ -178,7 +202,7 @@ impl LlmProviderType {
 
     /// Get fallback provider from environment
     ///
-    /// Reads `PIERRE_LLM_PROVIDER_FALLBACK` - returns None if not set.
+    /// Reads `PIERRE_LLM_FALLBACK_PROVIDER` - returns None if not set.
     /// Must be explicitly configured.
     #[must_use]
     pub fn fallback_provider_from_env() -> Option<Self> {
@@ -186,6 +210,17 @@ impl LlmProviderType {
             .ok()
             .filter(|s| !s.is_empty())
             .map(|s| Self::from_str_or_default(&s))
+    }
+
+    /// Get fallback model from environment
+    ///
+    /// Reads `PIERRE_LLM_FALLBACK_MODEL` - returns None if not set.
+    /// When fallback is triggered, uses this model or the default.
+    #[must_use]
+    pub fn fallback_model_from_env() -> Option<String> {
+        env::var(Self::FALLBACK_MODEL_ENV_VAR)
+            .ok()
+            .filter(|s| !s.is_empty())
     }
 
     /// Get fallback wait time in seconds from environment
