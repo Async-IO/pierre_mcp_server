@@ -8,6 +8,8 @@ prerequisites:
   min_activities: 5
   activity_types: [Run]
 visibility: tenant
+startup:
+  query: "Fetch my last 15 running activities. Look for interval workouts, recent race efforts, and identify my current speed potential."
 ---
 
 ## Purpose
