@@ -11,12 +11,7 @@ import { socialApi } from '../../services/api';
 import { Card, Button } from '../ui';
 import ShareInsightModal from './ShareInsightModal';
 import AdaptInsightModal from './AdaptInsightModal';
-import ActivityDetailModal from './ActivityDetailModal';
-import type {
-  InsightType,
-  TrainingPhase,
-  FeedItem,
-} from '../../types/social';
+import type { InsightType, TrainingPhase } from '../../types/social';
 
 interface InsightSuggestion {
   insight_type: InsightType;
@@ -26,6 +21,46 @@ interface InsightSuggestion {
   sport_type?: string;
   training_phase?: TrainingPhase;
   source_activity_id?: string;
+}
+
+interface SharedInsight {
+  id: string;
+  user_id: string;
+  visibility: string;
+  insight_type: string;
+  sport_type: string | null;
+  content: string;
+  title: string | null;
+  training_phase: string | null;
+  reaction_count: number;
+  adapt_count: number;
+  created_at: string;
+  updated_at: string;
+  expires_at: string | null;
+  source_activity_id: string | null;
+  coach_generated: boolean;
+}
+
+interface FeedAuthor {
+  user_id: string;
+  display_name: string | null;
+  email: string;
+}
+
+interface ReactionCounts {
+  like: number;
+  celebrate: number;
+  inspire: number;
+  support: number;
+  total: number;
+}
+
+interface FeedItem {
+  insight: SharedInsight;
+  author: FeedAuthor;
+  reactions: ReactionCounts;
+  user_reaction: string | null;
+  user_has_adapted: boolean;
 }
 
 type ReactionType = 'like' | 'celebrate' | 'inspire' | 'support';
@@ -53,19 +88,10 @@ export default function SocialFeedTab() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [reactionLoading, setReactionLoading] = useState<string | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [shareActivityId, setShareActivityId] = useState<string | undefined>(undefined);
   const [showAdaptModal, setShowAdaptModal] = useState(false);
   const [selectedInsightId, setSelectedInsightId] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<InsightSuggestion[]>([]);
   const [showSuggestionsBanner, setShowSuggestionsBanner] = useState(true);
-  const [showActivityDetailModal, setShowActivityDetailModal] = useState(false);
-  const [selectedActivityDetail, setSelectedActivityDetail] = useState<{
-    activityId: string;
-    title: string;
-    type: string;
-    date: string;
-    insightContent: string;
-  } | null>(null);
 
   // Load coach suggestions
   const loadSuggestions = useCallback(async () => {
@@ -277,7 +303,7 @@ export default function SocialFeedTab() {
           </p>
 
           {/* Share button */}
-          <Button variant="primary" onClick={() => { setShareActivityId(undefined); setShowShareModal(true); }} className="w-full">
+          <Button variant="primary" onClick={() => setShowShareModal(true)} className="w-full">
             <span className="flex items-center justify-center gap-2">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
@@ -405,56 +431,6 @@ export default function SocialFeedTab() {
                   </div>
 
                   <div className="flex gap-2">
-                    {/* View Activity Details button (for insights with activity link) */}
-                    {item.insight.source_activity_id && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedActivityDetail({
-                            activityId: item.insight.source_activity_id!,
-                            title: item.insight.title || 'Activity',
-                            type: item.insight.sport_type || 'run',
-                            date: new Date(item.insight.created_at).toLocaleDateString('en-US', {
-                              weekday: 'long',
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric',
-                            }),
-                            insightContent: item.insight.content,
-                          });
-                          setShowActivityDetailModal(true);
-                        }}
-                      >
-                        <span className="flex items-center gap-2">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                          View Activity
-                        </span>
-                      </Button>
-                    )}
-
-                    {/* Share Similar button (only for coach-generated insights with activity link) */}
-                    {item.insight.coach_generated && item.insight.source_activity_id && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                          setShareActivityId(item.insight.source_activity_id ?? undefined);
-                          setShowShareModal(true);
-                        }}
-                      >
-                        <span className="flex items-center gap-2">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                          </svg>
-                          Share Similar
-                        </span>
-                      </Button>
-                    )}
-
                     {/* Adapt button */}
                     <Button
                       variant={item.user_has_adapted ? 'secondary' : 'primary'}
@@ -502,12 +478,8 @@ export default function SocialFeedTab() {
       {/* Modals */}
       {showShareModal && (
         <ShareInsightModal
-          onClose={() => {
-            setShowShareModal(false);
-            setShareActivityId(undefined);
-          }}
+          onClose={() => setShowShareModal(false)}
           onSuccess={handleShareSuccess}
-          activityId={shareActivityId}
         />
       )}
 
@@ -522,19 +494,6 @@ export default function SocialFeedTab() {
         />
       )}
 
-      {showActivityDetailModal && selectedActivityDetail && (
-        <ActivityDetailModal
-          activityId={selectedActivityDetail.activityId}
-          activityTitle={selectedActivityDetail.title}
-          activityType={selectedActivityDetail.type}
-          activityDate={selectedActivityDetail.date}
-          insightContent={selectedActivityDetail.insightContent}
-          onClose={() => {
-            setShowActivityDetailModal(false);
-            setSelectedActivityDetail(null);
-          }}
-        />
-      )}
     </div>
   );
 }

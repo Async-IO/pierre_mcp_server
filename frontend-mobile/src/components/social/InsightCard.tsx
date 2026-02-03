@@ -74,7 +74,6 @@ interface InsightCardProps {
   item: FeedItem;
   onReaction: (type: ReactionType) => void;
   onAdapt: () => void;
-  onShare?: (activityId: string) => void;
   isReacting?: boolean;
   isAdapting?: boolean;
 }
@@ -83,7 +82,6 @@ export function InsightCard({
   item,
   onReaction,
   onAdapt,
-  onShare,
   isReacting,
   isAdapting,
 }: InsightCardProps) {
@@ -179,17 +177,6 @@ export function InsightCard({
 
       {/* Action buttons */}
       <View className="flex-row gap-2 mt-3">
-        {/* Share Similar button (only for coach-generated insights with activity link) */}
-        {insight.coach_generated && insight.source_activity_id && onShare && (
-          <TouchableOpacity
-            className="flex-1 flex-row items-center justify-center py-3 rounded-lg gap-2 bg-background-secondary"
-            onPress={() => onShare(insight.source_activity_id as string)}
-          >
-            <Feather name="share-2" size={16} color={colors.text.secondary} />
-            <Text className="text-base font-semibold text-text-secondary">Share Similar</Text>
-          </TouchableOpacity>
-        )}
-
         {/* Adapt to My Training button */}
         <TouchableOpacity
           className={`flex-1 flex-row items-center justify-center py-3 rounded-lg gap-2 ${

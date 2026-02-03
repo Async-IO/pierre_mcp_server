@@ -10,7 +10,6 @@ import { ConfirmDialog } from './ui';
 import { chatApi, providersApi, coachesApi } from '../services/api';
 import PromptSuggestions from './PromptSuggestions';
 import { MessageCircle, Plus, Sparkles } from 'lucide-react';
-import { ShareChatMessageModal } from './social';
 import {
   MessageList,
   MessageInput,
@@ -20,6 +19,7 @@ import {
   stripContextPrefix,
   DEFAULT_COACH_FORM_DATA,
 } from './chat';
+import ShareChatMessageModal from './social/ShareChatMessageModal';
 import { useSuccessToast, useInfoToast } from './ui';
 import type {
   Message,
@@ -59,8 +59,10 @@ export default function ChatTab({ selectedConversation, onSelectConversation }: 
   const [editingCoachId, setEditingCoachId] = useState<string | null>(null);
   const [coachFormData, setCoachFormData] = useState<CoachFormData>(DEFAULT_COACH_FORM_DATA);
   const [coachDeleteConfirmation, setCoachDeleteConfirmation] = useState<CoachDeleteConfirmation | null>(null);
-  const [shareMessageContent, setShareMessageContent] = useState<string | null>(null);
   const [showCreateCoachFromConversation, setShowCreateCoachFromConversation] = useState(false);
+  const [showShareToFeedModal, setShowShareToFeedModal] = useState(false);
+  const [shareToFeedContent, setShareToFeedContent] = useState('');
+  const [isGeneratingInsight, setIsGeneratingInsight] = useState(false);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -458,6 +460,47 @@ export default function ChatTab({ selectedConversation, onSelectConversation }: 
     }
   }, [showInfoToast]);
 
+  const handleShareToFeed = useCallback((content: string) => {
+    setShareToFeedContent(stripContextPrefix(content));
+    setShowShareToFeedModal(true);
+  }, []);
+
+  const handleCreateInsight = useCallback(async (content: string) => {
+    if (isGeneratingInsight) return;
+
+    setIsGeneratingInsight(true);
+    setErrorMessage(null);
+
+    try {
+      // Call the backend insight generation endpoint
+      const response = await fetch('/api/social/insights/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`,
+        },
+        body: JSON.stringify({ content: stripContextPrefix(content) }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const generatedContent = data.content || '';
+
+      // Open the share modal with the generated insight content
+      setShareToFeedContent(generatedContent);
+      setShowShareToFeedModal(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to generate insight';
+      setErrorMessage(message);
+    } finally {
+      setIsGeneratingInsight(false);
+    }
+  }, [isGeneratingInsight]);
+
   const handleThumbsUp = useCallback((messageId: string) => {
     setMessageFeedback(prev => {
       const newMap = new Map(prev);
@@ -648,6 +691,7 @@ export default function ChatTab({ selectedConversation, onSelectConversation }: 
                 messages={messagesData?.messages || []}
                 messageMetadata={messageMetadata}
                 messageFeedback={messageFeedback}
+                insightMessageIds={new Set<string>()}
                 isLoading={messagesLoading}
                 isStreaming={isStreaming}
                 streamingContent={streamingContent}
@@ -658,7 +702,8 @@ export default function ChatTab({ selectedConversation, onSelectConversation }: 
                 onDismissOAuthNotification={() => setOauthNotification(null)}
                 onCopyMessage={handleCopyMessage}
                 onShareMessage={handleShareMessage}
-                onShareToFeed={(content) => setShareMessageContent(stripContextPrefix(content))}
+                onShareToFeed={handleShareToFeed}
+                onCreateInsight={handleCreateInsight}
                 onThumbsUp={handleThumbsUp}
                 onThumbsDown={handleThumbsDown}
                 onRetryMessage={handleRetryMessage}
@@ -712,14 +757,6 @@ export default function ChatTab({ selectedConversation, onSelectConversation }: 
         isLoading={deleteCoach.isPending}
       />
 
-      {shareMessageContent && (
-        <ShareChatMessageModal
-          content={shareMessageContent}
-          onClose={() => setShareMessageContent(null)}
-          onSuccess={() => setShareMessageContent(null)}
-        />
-      )}
-
       {selectedConversation && (
         <CreateCoachFromConversationModal
           isOpen={showCreateCoachFromConversation}
@@ -732,6 +769,13 @@ export default function ChatTab({ selectedConversation, onSelectConversation }: 
           }}
         />
       )}
+
+      <ShareChatMessageModal
+        isOpen={showShareToFeedModal}
+        onClose={() => setShowShareToFeedModal(false)}
+        content={shareToFeedContent}
+        onSuccess={() => setShowShareToFeedModal(false)}
+      />
     </div>
   );
 }

@@ -11,17 +11,16 @@
 //! ## Configuration
 //!
 //! - `GEMINI_API_KEY`: Required API key from Google AI Studio: <https://makersuite.google.com/app/apikey>
-//! - `PIERRE_LLM_MODEL`: Model selection (default: gemini-1.5-flash)
+//! - `PIERRE_LLM_DEFAULT_MODEL`: Default model to use (via `LlmModelConfig`)
+//! - `PIERRE_LLM_FALLBACK_MODEL`: Fallback model when default fails (via `LlmModelConfig`)
 //!
 //! ## Supported Models
 //!
-//! Model selection is configurable via `PIERRE_LLM_MODEL` environment variable.
-//! Common models include:
-//! - `gemini-3-flash-preview`: Latest Gemini 3 preview model with enhanced reasoning
-//! - `gemini-2.5-pro`: Capable Gemini model with advanced reasoning
+//! - `gemini-3-flash-preview` (default): Latest flash model with improved capabilities
 //! - `gemini-2.5-flash`: Fast model with improved capabilities
+//! - `gemini-2.0-flash`: Stable multimodal model
 //! - `gemini-1.5-pro`: Advanced reasoning capabilities
-//! - `gemini-1.5-flash`: Balanced performance and cost (default)
+//! - `gemini-1.5-flash`: Balanced performance and cost
 //!
 //! ## Example
 //!
@@ -56,7 +55,7 @@ use super::{
     ChatMessage, ChatRequest, ChatResponse, ChatStream, LlmCapabilities, LlmProvider, MessageRole,
     StreamChunk, TokenUsage,
 };
-use crate::config::LlmProviderType;
+use crate::config::LlmModelConfig;
 use crate::errors::{AppError, ErrorCode};
 
 /// Environment variable for Gemini API key
@@ -71,12 +70,11 @@ const GEMINI_INITIAL_RETRY_DELAY_MS_ENV: &str = "GEMINI_INITIAL_RETRY_DELAY_MS";
 /// Environment variable for maximum retry delay in milliseconds
 const GEMINI_MAX_RETRY_DELAY_MS_ENV: &str = "GEMINI_MAX_RETRY_DELAY_MS";
 
-/// Available Gemini models (informational - actual model is configured via `PIERRE_LLM_MODEL` env var)
-/// This list is used for UI display purposes; any valid Gemini model can be used via env config
+/// Available Gemini models
 const AVAILABLE_MODELS: &[&str] = &[
     "gemini-3-flash-preview",
-    "gemini-2.5-pro",
     "gemini-2.5-flash",
+    "gemini-2.0-flash",
     "gemini-1.5-pro",
     "gemini-1.5-flash",
 ];
@@ -265,6 +263,8 @@ pub struct GeminiProvider {
     api_key: String,
     client: Client,
     default_model: String,
+    /// Fallback model when default fails (rate limits, errors)
+    fallback_model: String,
     /// Maximum number of retries for transient failures
     max_retries: u32,
     /// Initial delay for exponential backoff (in milliseconds)
@@ -274,13 +274,26 @@ pub struct GeminiProvider {
 }
 
 impl GeminiProvider {
-    /// Create a new Gemini provider with an API key and model
+    /// Create a new Gemini provider with an API key
+    ///
+    /// Loads model configuration from `LlmModelConfig` environment variables.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `PIERRE_LLM_DEFAULT_MODEL` or `PIERRE_LLM_FALLBACK_MODEL` are not set.
+    pub fn new(api_key: impl Into<String>) -> Result<Self, AppError> {
+        let model_config = LlmModelConfig::from_env().map_err(AppError::config)?;
+        Ok(Self::with_config(api_key, &model_config))
+    }
+
+    /// Create a new Gemini provider with an API key and explicit model config
     #[must_use]
-    pub fn new(api_key: impl Into<String>, model: impl Into<String>) -> Self {
+    pub fn with_config(api_key: impl Into<String>, model_config: &LlmModelConfig) -> Self {
         Self {
             api_key: api_key.into(),
             client: Client::new(),
-            default_model: model.into(),
+            default_model: model_config.default_model.clone(),
+            fallback_model: model_config.fallback_model.clone(),
             max_retries: DEFAULT_MAX_RETRIES,
             initial_retry_delay_ms: DEFAULT_INITIAL_RETRY_DELAY_MS,
             max_retry_delay_ms: DEFAULT_MAX_RETRY_DELAY_MS,
@@ -290,25 +303,22 @@ impl GeminiProvider {
     /// Create a provider from environment variables
     ///
     /// - `GEMINI_API_KEY`: Required API key
-    /// - `PIERRE_LLM_MODEL`: Model selection (default: gemini-1.5-flash when not set)
+    /// - `PIERRE_LLM_DEFAULT_MODEL`: Default model to use
+    /// - `PIERRE_LLM_FALLBACK_MODEL`: Fallback model when default fails
     /// - `GEMINI_MAX_RETRIES`: Optional max retries (default: 3)
     /// - `GEMINI_INITIAL_RETRY_DELAY_MS`: Optional initial retry delay in ms (default: 500)
     /// - `GEMINI_MAX_RETRY_DELAY_MS`: Optional max retry delay in ms (default: 5000)
     ///
     /// # Errors
     ///
-    /// Returns an error if `GEMINI_API_KEY` or `PIERRE_LLM_MODEL` environment variables are not set.
+    /// Returns an error if required environment variables are not set.
     pub fn from_env() -> Result<Self, AppError> {
         let api_key = env::var(GEMINI_API_KEY_ENV).map_err(|_| {
             AppError::config(format!("{GEMINI_API_KEY_ENV} environment variable not set"))
         })?;
 
-        let model = LlmProviderType::model_from_env().ok_or_else(|| {
-            AppError::config(format!(
-                "{} environment variable not set",
-                LlmProviderType::MODEL_ENV_VAR
-            ))
-        })?;
+        // Load model config from environment
+        let model_config = LlmModelConfig::from_env().map_err(AppError::config)?;
 
         let max_retries = env::var(GEMINI_MAX_RETRIES_ENV)
             .ok()
@@ -326,21 +336,32 @@ impl GeminiProvider {
             .unwrap_or(DEFAULT_MAX_RETRY_DELAY_MS);
 
         info!(
-            model = %model,
+            default_model = %model_config.default_model,
+            fallback_model = %model_config.fallback_model,
             max_retries = max_retries,
             initial_retry_delay_ms = initial_retry_delay_ms,
             max_retry_delay_ms = max_retry_delay_ms,
             "Gemini provider initialized"
         );
 
-        Ok(Self::new(api_key, model)
-            .with_retry_config(max_retries, initial_retry_delay_ms, max_retry_delay_ms))
+        Ok(Self::with_config(api_key, &model_config).with_retry_config(
+            max_retries,
+            initial_retry_delay_ms,
+            max_retry_delay_ms,
+        ))
     }
 
     /// Set a custom default model
     #[must_use]
     pub fn with_default_model(mut self, model: impl Into<String>) -> Self {
         self.default_model = model.into();
+        self
+    }
+
+    /// Set a custom fallback model
+    #[must_use]
+    pub fn with_fallback_model(mut self, model: impl Into<String>) -> Self {
+        self.fallback_model = model.into();
         self
     }
 
@@ -376,7 +397,7 @@ impl GeminiProvider {
     /// # Errors
     ///
     /// Returns `AppError` if the HTTP request fails or if the API returns an error response.
-    #[instrument(skip(self, request, tools))]
+    #[instrument(skip(self, request, tools), fields(model = %request.model.as_deref().unwrap_or("default")))]
     pub async fn complete_with_tools(
         &self,
         request: &ChatRequest,
@@ -753,7 +774,7 @@ impl LlmProvider for GeminiProvider {
         AVAILABLE_MODELS
     }
 
-    #[instrument(skip(self, request))]
+    #[instrument(skip(self, request), fields(model = %request.model.as_deref().unwrap_or("default")))]
     async fn complete(&self, request: &ChatRequest) -> Result<ChatResponse, AppError> {
         let model = request.model.as_deref().unwrap_or(&self.default_model);
         let url = self.build_url(model, "generateContent");
@@ -871,7 +892,7 @@ impl LlmProvider for GeminiProvider {
         Err(last_error.unwrap_or_else(|| AppError::internal("Gemini request failed after retries")))
     }
 
-    #[instrument(skip(self, request))]
+    #[instrument(skip(self, request), fields(model = %request.model.as_deref().unwrap_or("default")))]
     async fn complete_stream(&self, request: &ChatRequest) -> Result<ChatStream, AppError> {
         let model = request.model.as_deref().unwrap_or(&self.default_model);
         let url = self.build_url(model, "streamGenerateContent");

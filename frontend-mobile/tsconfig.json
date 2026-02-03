@@ -7,7 +7,8 @@
       "@/*": ["src/*"],
       "@pierre/shared-types": ["../packages/shared-types/src"],
       "@pierre/shared-constants": ["../packages/shared-constants/src"]
-    }
+    },
+    "types": ["jest", "node", "react-native"]
   },
   "include": [
     "**/*.ts",

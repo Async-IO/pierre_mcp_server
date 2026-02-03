@@ -244,3 +244,62 @@ impl Display for LlmProviderType {
         }
     }
 }
+
+/// LLM model configuration for all providers (Gemini, Groq, Local)
+///
+/// Reads model names from environment variables:
+/// - `PIERRE_LLM_DEFAULT_MODEL`: Primary model to use
+/// - `PIERRE_LLM_FALLBACK_MODEL`: Fallback model when primary fails (rate limits, errors)
+#[derive(Debug, Clone)]
+pub struct LlmModelConfig {
+    /// Default model to use for all requests
+    pub default_model: String,
+    /// Fallback model when default model fails (rate limits, errors, unavailable)
+    pub fallback_model: String,
+}
+
+impl LlmModelConfig {
+    /// Environment variable for default model
+    pub const DEFAULT_MODEL_ENV_VAR: &'static str = "PIERRE_LLM_DEFAULT_MODEL";
+
+    /// Environment variable for fallback model
+    pub const FALLBACK_MODEL_ENV_VAR: &'static str = "PIERRE_LLM_FALLBACK_MODEL";
+
+    /// Load model configuration from environment variables
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `PIERRE_LLM_DEFAULT_MODEL` is not set.
+    pub fn from_env() -> Result<Self, String> {
+        let default_model = env::var(Self::DEFAULT_MODEL_ENV_VAR).map_err(|_| {
+            format!(
+                "{} environment variable not set",
+                Self::DEFAULT_MODEL_ENV_VAR
+            )
+        })?;
+
+        let fallback_model = env::var(Self::FALLBACK_MODEL_ENV_VAR).map_err(|_| {
+            format!(
+                "{} environment variable not set",
+                Self::FALLBACK_MODEL_ENV_VAR
+            )
+        })?;
+
+        Ok(Self {
+            default_model,
+            fallback_model,
+        })
+    }
+
+    /// Get the default model name
+    #[must_use]
+    pub fn default_model(&self) -> &str {
+        &self.default_model
+    }
+
+    /// Get the fallback model name
+    #[must_use]
+    pub fn fallback_model(&self) -> &str {
+        &self.fallback_model
+    }
+}

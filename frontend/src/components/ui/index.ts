@@ -26,6 +26,9 @@ export type { ModalProps, ModalActionsProps } from './Modal';
 export { ConfirmDialog } from './ConfirmDialog';
 export type { ConfirmDialogProps, ConfirmDialogVariant } from './ConfirmDialog';
 
+// Content display components
+export { InsightPreview } from './InsightPreview';
+
 // Navigation components
 export { Tabs, TabPanel } from './Tabs';
 export type { TabsProps, TabPanelProps, Tab } from './Tabs';

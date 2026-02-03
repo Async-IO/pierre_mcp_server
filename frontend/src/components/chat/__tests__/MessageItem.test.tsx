@@ -61,10 +61,11 @@ describe('MessageItem', () => {
   });
 
   describe('action buttons', () => {
-    it('should render action buttons for assistant messages', () => {
+    it('should render action buttons for assistant insight messages', () => {
       render(
         <MessageItem
           message={mockAssistantMessage}
+          hasInsight={true}
           onCopy={vi.fn()}
           onShare={vi.fn()}
           onShareToFeed={vi.fn()}
@@ -75,11 +76,35 @@ describe('MessageItem', () => {
       );
 
       expect(screen.getByTitle('Copy message')).toBeInTheDocument();
+      // Share buttons only appear for insight messages
       expect(screen.getByTitle('Share')).toBeInTheDocument();
-      expect(screen.getByTitle('Share to social feed')).toBeInTheDocument();
+      expect(screen.getByTitle('Share Insight')).toBeInTheDocument();
       expect(screen.getByTitle('Good response')).toBeInTheDocument();
       expect(screen.getByTitle('Poor response')).toBeInTheDocument();
       expect(screen.getByTitle('Regenerate response')).toBeInTheDocument();
+      // Lightbulb (Create Insight) should NOT appear for insight messages
+      expect(screen.queryByTitle('Create shareable insight')).not.toBeInTheDocument();
+    });
+
+    it('should render Create Insight button for non-insight assistant messages', () => {
+      render(
+        <MessageItem
+          message={mockAssistantMessage}
+          hasInsight={false}
+          onCopy={vi.fn()}
+          onCreateInsight={vi.fn()}
+          onThumbsUp={vi.fn()}
+          onThumbsDown={vi.fn()}
+          onRetry={vi.fn()}
+        />
+      );
+
+      expect(screen.getByTitle('Copy message')).toBeInTheDocument();
+      // Create Insight button appears for non-insight messages
+      expect(screen.getByTitle('Create shareable insight')).toBeInTheDocument();
+      // Share buttons should NOT appear for non-insight messages
+      expect(screen.queryByTitle('Share')).not.toBeInTheDocument();
+      expect(screen.queryByTitle('Share to social feed')).not.toBeInTheDocument();
     });
 
     it('should not render action buttons for user messages', () => {
@@ -110,19 +135,36 @@ describe('MessageItem', () => {
       expect(onCopy).toHaveBeenCalledTimes(1);
     });
 
-    it('should call onShare when share button is clicked', async () => {
+    it('should call onShare when share button is clicked on insight message', async () => {
       const user = userEvent.setup();
       const onShare = vi.fn();
 
       render(
         <MessageItem
           message={mockAssistantMessage}
+          hasInsight={true}
           onShare={onShare}
         />
       );
 
       await user.click(screen.getByTitle('Share'));
       expect(onShare).toHaveBeenCalledTimes(1);
+    });
+
+    it('should call onCreateInsight when lightbulb button is clicked', async () => {
+      const user = userEvent.setup();
+      const onCreateInsight = vi.fn();
+
+      render(
+        <MessageItem
+          message={mockAssistantMessage}
+          hasInsight={false}
+          onCreateInsight={onCreateInsight}
+        />
+      );
+
+      await user.click(screen.getByTitle('Create shareable insight'));
+      expect(onCreateInsight).toHaveBeenCalledTimes(1);
     });
 
     it('should call onRetry when retry button is clicked', async () => {

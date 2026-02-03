@@ -66,8 +66,14 @@ use crate::errors::{AppError, ErrorCode};
 /// Environment variable for Groq API key
 const GROQ_API_KEY_ENV: &str = "GROQ_API_KEY";
 
-/// Default model to use
-const DEFAULT_MODEL: &str = "llama-3.3-70b-versatile";
+/// Environment variable for default model
+const GROQ_DEFAULT_MODEL_ENV: &str = "GROQ_DEFAULT_MODEL";
+
+/// Environment variable for fallback model
+const GROQ_FALLBACK_MODEL_ENV: &str = "GROQ_FALLBACK_MODEL";
+
+/// Hardcoded fallback if env vars not set
+const HARDCODED_DEFAULT_MODEL: &str = "llama-3.3-70b-versatile";
 
 /// Available Groq models
 const AVAILABLE_MODELS: &[&str] = &[
@@ -234,15 +240,28 @@ struct GroqErrorDetail {
 pub struct GroqProvider {
     client: Client,
     api_key: String,
+    default_model: String,
+    fallback_model: String,
 }
 
 impl GroqProvider {
     /// Create a new Groq provider with the given API key
+    ///
+    /// Uses environment variables for model configuration:
+    /// - `GROQ_DEFAULT_MODEL`: Primary model (default: llama-3.3-70b-versatile)
+    /// - `GROQ_FALLBACK_MODEL`: Fallback model (default: llama-3.3-70b-versatile)
     #[must_use]
     pub fn new(api_key: String) -> Self {
+        let default_model =
+            env::var(GROQ_DEFAULT_MODEL_ENV).unwrap_or_else(|_| HARDCODED_DEFAULT_MODEL.to_owned());
+        let fallback_model = env::var(GROQ_FALLBACK_MODEL_ENV)
+            .unwrap_or_else(|_| HARDCODED_DEFAULT_MODEL.to_owned());
+
         Self {
             client: Client::new(),
             api_key,
+            default_model,
+            fallback_model,
         }
     }
 
@@ -258,7 +277,26 @@ impl GroqProvider {
             ))
         })?;
 
-        Ok(Self::new(api_key))
+        let provider = Self::new(api_key);
+        info!(
+            default_model = %provider.default_model,
+            fallback_model = %provider.fallback_model,
+            "Groq provider initialized"
+        );
+
+        Ok(provider)
+    }
+
+    /// Get the default model
+    #[must_use]
+    pub fn default_model(&self) -> &str {
+        &self.default_model
+    }
+
+    /// Get the fallback model
+    #[must_use]
+    pub fn fallback_model(&self) -> &str {
+        &self.fallback_model
     }
 
     /// Build the API URL for a given endpoint
@@ -384,13 +422,13 @@ impl GroqProvider {
     /// # Errors
     ///
     /// Returns an error if the API call fails or response parsing fails.
-    #[instrument(skip(self, request, tools), fields(model = %request.model.as_deref().unwrap_or(DEFAULT_MODEL)))]
+    #[instrument(skip(self, request, tools), fields(model = %request.model.as_deref().unwrap_or(&self.default_model)))]
     pub async fn complete_with_tools(
         &self,
         request: &ChatRequest,
         tools: Option<Vec<Tool>>,
     ) -> Result<ChatResponseWithTools, AppError> {
-        let model = request.model.as_deref().unwrap_or(DEFAULT_MODEL);
+        let model = request.model.as_deref().unwrap_or(&self.default_model);
 
         debug!("Sending chat completion request to Groq with tools");
 
@@ -487,16 +525,16 @@ impl LlmProvider for GroqProvider {
     }
 
     fn default_model(&self) -> &str {
-        DEFAULT_MODEL
+        &self.default_model
     }
 
     fn available_models(&self) -> &'static [&'static str] {
         AVAILABLE_MODELS
     }
 
-    #[instrument(skip(self, request), fields(model = %request.model.as_deref().unwrap_or(DEFAULT_MODEL)))]
+    #[instrument(skip(self, request), fields(model = %request.model.as_deref().unwrap_or(&self.default_model)))]
     async fn complete(&self, request: &ChatRequest) -> Result<ChatResponse, AppError> {
-        let model = request.model.as_deref().unwrap_or(DEFAULT_MODEL);
+        let model = request.model.as_deref().unwrap_or(&self.default_model);
 
         debug!("Sending chat completion request to Groq");
 
@@ -564,9 +602,9 @@ impl LlmProvider for GroqProvider {
         })
     }
 
-    #[instrument(skip(self, request), fields(model = %request.model.as_deref().unwrap_or(DEFAULT_MODEL)))]
+    #[instrument(skip(self, request), fields(model = %request.model.as_deref().unwrap_or(&self.default_model)))]
     async fn complete_stream(&self, request: &ChatRequest) -> Result<ChatStream, AppError> {
-        let model = request.model.as_deref().unwrap_or(DEFAULT_MODEL);
+        let model = request.model.as_deref().unwrap_or(&self.default_model);
 
         debug!("Sending streaming chat completion request to Groq");
 

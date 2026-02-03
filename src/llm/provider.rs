@@ -35,7 +35,7 @@
 use std::fmt;
 use std::time::Duration;
 use tokio::time::sleep;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 use uuid::Uuid;
 
 use super::{
@@ -71,7 +71,7 @@ impl ChatProvider {
     /// - `local`/`ollama`/`vllm`/`localai`: Creates `OpenAiCompatibleProvider`
     ///
     /// When `PIERRE_LLM_FALLBACK_ENABLED=true`, if the primary provider fails,
-    /// attempts to use the fallback provider specified by `PIERRE_LLM_FALLBACK_PROVIDER`.
+    /// attempts to use the fallback provider specified by `PIERRE_LLM_PROVIDER_FALLBACK`.
     ///
     /// # Errors
     ///
@@ -97,26 +97,6 @@ impl ChatProvider {
                 Ok(provider)
             }
             Err(primary_error) => Self::try_fallback(provider_type, primary_error).await,
-        }
-    }
-
-    /// Try to create a provider from environment, returning None if unavailable
-    ///
-    /// This is useful for optional LLM features that should gracefully degrade
-    /// when no LLM provider is configured (e.g., in test environments).
-    ///
-    /// Unlike `from_env()`, this method logs a warning and returns `None` instead
-    /// of failing with an error when no provider can be initialized.
-    pub async fn try_from_env() -> Option<Self> {
-        match Self::from_env().await {
-            Ok(provider) => Some(provider),
-            Err(e) => {
-                warn!(
-                    "LLM provider not available (validation will be skipped): {}",
-                    e
-                );
-                None
-            }
         }
     }
 
@@ -246,10 +226,10 @@ impl ChatProvider {
 
         match credentials.provider {
             TenantLlmProvider::Gemini => {
-                let model = credentials.default_model.or_else(LlmProviderType::model_from_env).ok_or_else(|| {
-                    AppError::config("No model specified in credentials and PIERRE_LLM_MODEL not set")
-                })?;
-                let provider = GeminiProvider::new(&credentials.api_key, model);
+                let mut provider = GeminiProvider::new(&credentials.api_key)?;
+                if let Some(model) = credentials.default_model {
+                    provider = provider.with_default_model(model);
+                }
                 Ok(Self::Gemini(provider))
             }
             TenantLlmProvider::Groq => Ok(Self::Groq(GroqProvider::new(credentials.api_key))),
@@ -268,7 +248,8 @@ impl ChatProvider {
                     } else {
                         Some(credentials.api_key)
                     },
-                    default_model: model,
+                    default_model: model.clone(),
+                    fallback_model: model,
                     provider_name: "local".to_owned(),
                     display_name: "Local LLM".to_owned(),
                     capabilities: LlmCapabilities::STREAMING
@@ -287,12 +268,15 @@ impl ChatProvider {
         }
     }
 
-    /// Create a Gemini provider with a specific API key and model
+    /// Create a Gemini provider with a specific API key
     ///
     /// Use this when you have already resolved the API key from tenant/user credentials.
-    #[must_use]
-    pub fn gemini_with_key(api_key: &str, model: &str) -> Self {
-        Self::Gemini(GeminiProvider::new(api_key, model))
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if LLM model config is not set in environment.
+    pub fn gemini_with_key(api_key: &str) -> Result<Self, AppError> {
+        Ok(Self::Gemini(GeminiProvider::new(api_key)?))
     }
 
     /// Create a Groq provider with a specific API key

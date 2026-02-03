@@ -5,6 +5,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
+  FlatList,
   TextInput,
   TouchableOpacity,
   KeyboardAvoidingView,
@@ -18,7 +19,6 @@ import {
   Image,
   type ViewStyle,
 } from 'react-native';
-import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
@@ -64,12 +64,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useVoiceInput } from '../../hooks/useVoiceInput';
 import type { VoiceError } from '../../hooks/useVoiceInput';
 import { VoiceButton, PromptDialog } from '../../components/ui';
-import { SharePreviewModal } from '../../components/social';
-import type { Conversation, Message, ExtendedProviderStatus, Coach, ShareVisibility } from '../../types';
+import type { Conversation, Message, ExtendedProviderStatus, Coach } from '../../types';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useNavigation } from '@react-navigation/native';
-import type { ChatStackParamList, MainTabsParamList } from '../../navigation/MainTabs';
-import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { ChatStackParamList } from '../../navigation/MainTabs';
 
 // Coach category badge background colors (lighter versions)
 const COACH_CATEGORY_BADGE_BG: Record<string, string> = {
@@ -128,15 +125,28 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   const [renamePromptVisible, setRenamePromptVisible] = useState(false);
   const [renameConversationId, setRenameConversationId] = useState<string | null>(null);
   const [renameDefaultTitle, setRenameDefaultTitle] = useState('');
-  const [showCoachSuggestions, setShowCoachSuggestions] = useState(false);
 
-  // Share to social feed state
-  const [shareToFeedContent, setShareToFeedContent] = useState<string | null>(null);
-  const [shareToFeedVisibility, setShareToFeedVisibility] = useState<ShareVisibility>('friends_only');
-  const [isSharing, setIsSharing] = useState(false);
+  // Track which messages are insights (responses from Create Insight button)
+  const [insightMessages, setInsightMessages] = useState<Set<string>>(new Set());
 
-  // Navigation for cross-tab navigation (to ShareInsightScreen)
-  const tabNavigation = useNavigation<BottomTabNavigationProp<MainTabsParamList>>();
+  // Helper to check if a message is an insight prompt (should be hidden from display)
+  const isInsightPrompt = (content: string): boolean => {
+    return content.startsWith('Create a shareable insight from this analysis');
+  };
+
+  // Detect which assistant messages are insights by finding those that follow insight prompts
+  const detectInsightMessages = (msgs: Message[]): Set<string> => {
+    const insightIds = new Set<string>();
+    for (let i = 0; i < msgs.length - 1; i++) {
+      const currentMsg = msgs[i];
+      const nextMsg = msgs[i + 1];
+      // If current is an insight prompt (user) and next is assistant, mark it as insight
+      if (currentMsg.role === 'user' && isInsightPrompt(currentMsg.content) && nextMsg.role === 'assistant') {
+        insightIds.add(nextMsg.id);
+      }
+    }
+    return insightIds;
+  };
 
   // Voice input hook for speech-to-text
   const {
@@ -151,7 +161,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     clearError: clearVoiceError,
   } = useVoiceInput();
 
-  const flashListRef = useRef<FlashListRef<Message>>(null);
+  const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
   // Track when we just created a conversation to prevent loadMessages from clearing optimistic messages
   const justCreatedConversationRef = useRef<string | null>(null);
@@ -357,7 +367,24 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   const loadMessages = async (conversationId: string) => {
     try {
       const response = await chatApi.getConversationMessages(conversationId);
-      setMessages(response.messages);
+      const allMessages = response.messages || [];
+
+      // Detect insight messages BEFORE filtering (by looking at message patterns)
+      const detectedInsights = detectInsightMessages(allMessages);
+      // Merge detected insights into state
+      if (detectedInsights.size > 0) {
+        setInsightMessages(prev => {
+          const merged = new Set(prev);
+          detectedInsights.forEach(id => merged.add(id));
+          return merged;
+        });
+      }
+
+      // Filter out insight prompt messages (user messages that triggered insight generation)
+      const filteredMessages = allMessages.filter(
+        (msg: Message) => !(msg.role === 'user' && isInsightPrompt(msg.content))
+      );
+      setMessages(filteredMessages);
       setTimeout(() => scrollToBottom(), 100);
     } catch (error) {
       console.error('Failed to load messages:', error);
@@ -365,8 +392,8 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   };
 
   const scrollToBottom = () => {
-    if (flashListRef.current && messages.length > 0) {
-      flashListRef.current.scrollToEnd({ animated: true });
+    if (flatListRef.current && messages.length > 0) {
+      flatListRef.current.scrollToEnd({ animated: true });
     }
   };
 
@@ -488,58 +515,23 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     }
   };
 
-  const handleShareToFeed = async () => {
-    if (!shareToFeedContent) return;
+  const handleCreateInsight = async (content: string) => {
+    if (isSending) return;
 
-    setIsSharing(true);
+    setIsSending(true);
+
     try {
-      await socialApi.shareFromActivity({
-        content: shareToFeedContent,
-        insight_type: 'coaching_insight',
-        visibility: shareToFeedVisibility,
-      });
-      Toast.show({
-        type: 'success',
-        text1: 'Shared to Social Feed',
-        text2: 'Your insight has been posted',
-      });
-      setShareToFeedContent(null);
-      setShareToFeedVisibility('friends_only');
+      // Call the backend insight generation endpoint
+      const response = await socialApi.generateInsight(content);
+
+      // Directly open share sheet with the generated insight
+      await Share.share({ message: response.content });
     } catch (error) {
-      console.error('Failed to share to feed:', error);
-      Toast.show({
-        type: 'error',
-        text1: 'Share Failed',
-        text2: 'Could not share to social feed',
-      });
+      console.error('Failed to create insight:', error);
+      Alert.alert('Error', 'Failed to generate insight');
     } finally {
-      setIsSharing(false);
+      setIsSending(false);
     }
-  };
-
-  const handleEditShare = () => {
-    if (!shareToFeedContent) return;
-
-    // Close the modal
-    const contentToEdit = shareToFeedContent;
-    const visibilityToEdit = shareToFeedVisibility;
-    setShareToFeedContent(null);
-    setShareToFeedVisibility('friends_only');
-
-    // Navigate to ShareInsightScreen in the Social tab with pre-populated content
-    tabNavigation.navigate('SocialTab', {
-      screen: 'ShareInsight',
-      params: {
-        content: contentToEdit,
-        insightType: 'coaching_insight',
-        visibility: visibilityToEdit,
-      },
-    } as never);
-  };
-
-  const handleCloseShareModal = () => {
-    setShareToFeedContent(null);
-    setShareToFeedVisibility('friends_only');
   };
 
   const handleThumbsUp = (messageId: string) => {
@@ -1186,20 +1178,24 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
                 >
                   <Ionicons name="copy-outline" size={14} color={colors.text.tertiary} />
                 </TouchableOpacity>
-                {/* Share (system share sheet) */}
-                <TouchableOpacity
-                  className="p-0.5"
-                  onPress={() => handleShareMessage(item.content)}
-                >
-                  <Ionicons name="arrow-redo-outline" size={14} color={colors.text.tertiary} />
-                </TouchableOpacity>
-                {/* Share to Social Feed */}
-                <TouchableOpacity
-                  className="p-0.5"
-                  onPress={() => setShareToFeedContent(item.content)}
-                >
-                  <Ionicons name="people-outline" size={14} color={colors.text.tertiary} />
-                </TouchableOpacity>
+                {/* Share (system share sheet) - only for insight messages */}
+                {insightMessages.has(item.id) && (
+                  <TouchableOpacity
+                    className="p-0.5"
+                    onPress={() => handleShareMessage(item.content)}
+                  >
+                    <Ionicons name="arrow-redo-outline" size={14} color={colors.text.tertiary} />
+                  </TouchableOpacity>
+                )}
+                {/* Create Insight - only for non-insight messages (coach recommendations) */}
+                {!insightMessages.has(item.id) && (
+                  <TouchableOpacity
+                    className="p-0.5"
+                    onPress={() => handleCreateInsight(item.content)}
+                  >
+                    <Ionicons name="bulb-outline" size={14} color={colors.text.tertiary} />
+                  </TouchableOpacity>
+                )}
                 {/* Thumbs Up */}
                 <TouchableOpacity
                   className="p-0.5"
@@ -1431,8 +1427,8 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
         ) : ((messages?.length ?? 0) === 0 && !isSending) ? (
           renderEmptyChat()
         ) : (
-          <FlashList
-            ref={flashListRef}
+          <FlatList
+            ref={flatListRef}
             data={messages ?? []}
             renderItem={renderMessage}
             keyExtractor={(item, index) => item?.id ? `${item.id}-${index}` : `fallback-${index}`}
@@ -1499,19 +1495,6 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
           {isListening && (
             <View className="pt-1 items-center">
               <Text className="text-xs text-error">Tap mic to stop recording</Text>
-            </View>
-          )}
-          {/* Need ideas button - shows coach suggestions */}
-          {!isListening && coaches.length > 0 && (
-            <View className="pt-2 items-center">
-              <TouchableOpacity
-                className="flex-row items-center gap-1"
-                onPress={() => setShowCoachSuggestions(true)}
-                testID="need-ideas-button"
-              >
-                <Ionicons name="bulb-outline" size={14} color={colors.pierre.violet} />
-                <Text className="text-xs text-pierre-violet">Need ideas?</Text>
-              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -1653,113 +1636,6 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
           testID="rename-conversation-dialog"
         />
 
-        {/* Share to Social Feed Modal */}
-        <SharePreviewModal
-          visible={shareToFeedContent !== null}
-          content={shareToFeedContent || ''}
-          visibility={shareToFeedVisibility}
-          isSharing={isSharing}
-          onVisibilityChange={setShareToFeedVisibility}
-          onShare={handleShareToFeed}
-          onEdit={handleEditShare}
-          onClose={handleCloseShareModal}
-        />
-
-        {/* Coach Suggestions Modal */}
-        <Modal
-          visible={showCoachSuggestions}
-          animationType="slide"
-          transparent
-          onRequestClose={() => setShowCoachSuggestions(false)}
-        >
-          <TouchableOpacity
-            className="flex-1 bg-black/50 justify-end"
-            activeOpacity={1}
-            onPress={() => setShowCoachSuggestions(false)}
-          >
-            <View
-              className="bg-background-primary rounded-t-2xl max-h-[70%]"
-              style={{ paddingBottom: insets.bottom + spacing.md }}
-              onStartShouldSetResponder={() => true}
-            >
-              {/* Header */}
-              <View className="flex-row items-center justify-between px-4 py-3 border-b border-border-subtle">
-                <View className="flex-row items-center gap-2">
-                  <Ionicons name="bulb" size={20} color={colors.pierre.violet} />
-                  <Text className="text-lg font-semibold text-text-primary">Coaches</Text>
-                </View>
-                <TouchableOpacity
-                  className="p-2"
-                  onPress={() => setShowCoachSuggestions(false)}
-                  testID="close-coach-suggestions"
-                >
-                  <Ionicons name="close" size={24} color={colors.text.secondary} />
-                </TouchableOpacity>
-              </View>
-              <Text className="text-xs text-text-tertiary px-4 py-2">
-                Select a coach to start or continue a conversation with specialized assistance
-              </Text>
-              {/* Coach Grid */}
-              <ScrollView
-                className="px-4"
-                showsVerticalScrollIndicator={false}
-              >
-                <View className="flex-row flex-wrap justify-between gap-2 pb-4">
-                  {coaches.map((coach) => (
-                    <TouchableOpacity
-                      key={coach.id}
-                      className="bg-background-secondary rounded-xl p-4 w-[48%] border border-border-subtle mb-2"
-                      onPress={() => {
-                        setShowCoachSuggestions(false);
-                        handleCoachSelect(coach);
-                      }}
-                      activeOpacity={0.7}
-                      testID={`coach-suggestion-${coach.id}`}
-                    >
-                      {/* Header row: Title + Category icon */}
-                      <View className="flex-row justify-between items-start mb-1 gap-2">
-                        <Text className="flex-1 text-sm font-semibold text-text-primary leading-[18px]" numberOfLines={2}>
-                          {coach.title}
-                        </Text>
-                        <View
-                          className="w-7 h-7 rounded items-center justify-center"
-                          style={{ backgroundColor: COACH_CATEGORY_BADGE_BG[coach.category] }}
-                        >
-                          <Text className="text-sm">
-                            {COACH_CATEGORY_ICONS[coach.category]}
-                          </Text>
-                        </View>
-                      </View>
-                      {/* Description */}
-                      {coach.description && (
-                        <Text className="text-xs text-text-secondary leading-4 mb-1" numberOfLines={2}>
-                          {coach.description}
-                        </Text>
-                      )}
-                      {/* Footer: Badges + Use count */}
-                      <View className="flex-row items-center gap-2 mt-1">
-                        {coach.is_system && (
-                          <View className="px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(124, 58, 237, 0.15)' }}>
-                            <Text className="text-xs font-medium" style={{ color: '#7C3AED' }}>System</Text>
-                          </View>
-                        )}
-                        {coach.is_favorite && (
-                          <View className="px-1 py-0.5 rounded" style={{ backgroundColor: 'rgba(245, 158, 11, 0.15)' }}>
-                            <Text className="text-xs" style={{ color: '#F59E0B' }}>★</Text>
-                          </View>
-                        )}
-                        <View className="flex-1" />
-                        {coach.use_count > 0 && (
-                          <Text className="text-xs text-text-tertiary">{coach.use_count}×</Text>
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </ScrollView>
-            </View>
-          </TouchableOpacity>
-        </Modal>
       </KeyboardAvoidingView>
     </View>
   );

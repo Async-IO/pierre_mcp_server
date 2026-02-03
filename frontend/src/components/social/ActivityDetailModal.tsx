@@ -5,6 +5,7 @@
 // ABOUTME: Shows activity stats, AI insights, and allows coach-mediated sharing
 
 import { useState } from 'react';
+import Markdown from 'react-markdown';
 import { Button, Modal, Card } from '../ui';
 import ShareInsightModal from './ShareInsightModal';
 
@@ -58,7 +59,7 @@ export default function ActivityDetailModal({
         isOpen={true}
         onClose={onClose}
         title="Activity Details"
-        size="lg"
+        size="xl"
       >
         <div className="space-y-6">
           {/* Activity Header */}
@@ -90,7 +91,19 @@ export default function ActivityDetailModal({
                 </div>
                 <div className="flex-1">
                   <p className="text-xs font-medium text-pierre-violet mb-1">AI Insight</p>
-                  <p className="text-sm text-zinc-300 leading-relaxed">{insightContent}</p>
+                  <div className="text-sm text-zinc-300 leading-relaxed prose prose-sm prose-invert max-w-none prose-headings:text-zinc-100 prose-headings:font-semibold prose-headings:text-base prose-strong:text-zinc-100 prose-ul:my-2 prose-li:my-0.5">
+                    <Markdown
+                      components={{
+                        a: ({ href, children }) => (
+                          <a href={href} target="_blank" rel="noopener noreferrer" className="text-pierre-violet underline hover:text-pierre-violet/80 break-all">
+                            {children}
+                          </a>
+                        ),
+                      }}
+                    >
+                      {insightContent}
+                    </Markdown>
+                  </div>
                 </div>
               </div>
             </Card>

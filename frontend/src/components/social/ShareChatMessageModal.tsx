@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-// ABOUTME: Modal for sharing a coach chat message to the social feed
+// ABOUTME: Modal for sharing an insight to the social feed
 // ABOUTME: Simple modal with visibility selection and direct sharing
 
 import { useState } from 'react';
 import { socialApi } from '../../services/api';
-import { Button, Modal } from '../ui';
+import { Button, Modal, InsightPreview } from '../ui';
 import type { ShareVisibility } from '../../types/social';
 
 interface ShareChatMessageModalProps {
@@ -56,17 +56,14 @@ export default function ShareChatMessageModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Share to Social Feed">
+    <Modal isOpen={isOpen} onClose={onClose} title="Share Insight" size="2xl">
       <div className="space-y-6">
         {/* Message Preview */}
-        <div>
-          <label className="block text-sm font-medium text-zinc-300 mb-2">
-            Message to Share
-          </label>
-          <div className="bg-white/5 rounded-lg p-4 text-zinc-100 text-sm max-h-48 overflow-y-auto">
-            {content}
-          </div>
-        </div>
+        <InsightPreview
+          content={content}
+          label="Message to Share"
+          maxHeight="max-h-80"
+        />
 
         {/* Visibility Selection */}
         <div>

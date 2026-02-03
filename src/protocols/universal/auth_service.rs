@@ -5,6 +5,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::config::environment::get_oauth_config;
+use crate::constants::oauth_providers;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::AppError;
 use crate::mcp::resources::ServerResources;
@@ -12,6 +13,7 @@ use crate::models::UserOAuthToken;
 use crate::oauth2_client::client::fitbit::refresh_fitbit_token;
 use crate::oauth2_client::client::strava::refresh_strava_token;
 use crate::protocols::universal::UniversalResponse;
+use crate::providers::synthetic_provider::SyntheticProvider;
 use crate::providers::{CoreFitnessProvider, OAuth2Credentials};
 use crate::tenant::{TenantContext, TenantRole};
 use crate::utils::http_client::api_client;
@@ -260,6 +262,18 @@ impl AuthService {
                 error: Some(format!("Unsupported provider: {provider_name}")),
                 metadata: None,
             });
+        }
+
+        // Synthetic provider doesn't use OAuth - create directly with user context
+        if provider_name == oauth_providers::SYNTHETIC {
+            debug!(
+                user_id = %user_id,
+                provider = provider_name,
+                "Creating synthetic provider with user context (no OAuth required)"
+            );
+            let mut provider = SyntheticProvider::new();
+            provider.set_user_id(user_id);
+            return Ok(Box::new(provider));
         }
 
         // Get valid token for the provider (with automatic refresh if needed)

@@ -98,6 +98,27 @@ export OAUTH_CALLBACK_PORT=35535
 # Weather Service Configuration
 export OPENWEATHER_API_KEY="your-openweathermap-api-key"
 
+# ----------------------------------------------------------------------------
+# LLM Provider Configuration
+# ----------------------------------------------------------------------------
+# Provider selection: gemini, groq, or local (Ollama)
+export PIERRE_LLM_PROVIDER=gemini
+
+# Gemini Configuration (when PIERRE_LLM_PROVIDER=gemini)
+export GEMINI_API_KEY="your-gemini-api-key"
+export PIERRE_LLM_DEFAULT_MODEL=gemini-3-flash-preview
+export PIERRE_LLM_FALLBACK_MODEL=gemini-2.5-flash
+
+# Groq Configuration (when PIERRE_LLM_PROVIDER=groq)
+export GROQ_API_KEY="your-groq-api-key"
+# export GROQ_DEFAULT_MODEL=llama-3.3-70b-versatile
+# export GROQ_FALLBACK_MODEL=llama-3.3-70b-versatile
+
+# Local LLM Configuration (when PIERRE_LLM_PROVIDER=local)
+# export LOCAL_LLM_BASE_URL="http://localhost:11434/v1"
+# export LOCAL_LLM_MODEL="qwen2.5:14b-instruct"
+# export LOCAL_LLM_FALLBACK_MODEL="qwen2.5:14b-instruct"
+
 # Server Configuration - Unified Single Port Architecture
 export HTTP_PORT="8081"
 export RUST_LOG="info"

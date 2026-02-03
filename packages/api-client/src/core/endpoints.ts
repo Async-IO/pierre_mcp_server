@@ -135,6 +135,8 @@ export const ENDPOINTS = {
     SUGGESTIONS: '/api/social/insights/suggestions',
     /** Share insight from activity */
     FROM_ACTIVITY: '/api/social/insights/from-activity',
+    /** Generate shareable insight from analysis content */
+    GENERATE: '/api/social/insights/generate',
   },
 
   // ==================== STORE ====================

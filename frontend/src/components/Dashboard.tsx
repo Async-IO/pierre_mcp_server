@@ -301,7 +301,13 @@ export default function Dashboard() {
             {tabs.map((tab) => (
               <li key={tab.id}>
                 <button
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    // Reset conversation selection when clicking Chat tab to show coach selection
+                    if (tab.id === 'chat') {
+                      setSelectedConversation(null);
+                    }
+                  }}
                   className={clsx(
                     'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group relative min-h-[44px]',
                     {
@@ -458,12 +464,12 @@ export default function Dashboard() {
       {/* Main Content Area */}
       <main
         className={clsx(
-          'flex-1 min-h-screen transition-all duration-300 ease-in-out',
+          'flex-1 h-screen flex flex-col transition-all duration-300 ease-in-out',
           sidebarCollapsed ? 'ml-[72px]' : 'ml-[260px]'
         )}
       >
         {/* Top Header Bar - Dark with glassmorphism */}
-        <header className="bg-pierre-slate/80 backdrop-blur-lg shadow-sm border-b border-white/10 sticky top-0 z-30">
+        <header className="bg-pierre-slate/80 backdrop-blur-lg shadow-sm border-b border-white/10 sticky top-0 z-30 flex-shrink-0">
           <div className="px-6 py-4 flex items-center justify-between">
             <div>
               <h1 className="text-xl font-medium text-white">
@@ -473,8 +479,11 @@ export default function Dashboard() {
           </div>
         </header>
 
-        {/* Content Area */}
-        <div className="p-6 overflow-auto">
+        {/* Content Area - Full height for chat, padded for other tabs */}
+        <div className={clsx(
+          'flex-1 overflow-auto',
+          activeTab === 'chat' ? '' : 'p-6'
+        )}>
 
           {/* Content */}
         {activeTab === 'overview' && (

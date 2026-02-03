@@ -10,4 +10,3 @@ export { default as SocialSettingsTab } from './SocialSettingsTab';
 export { default as ShareInsightModal } from './ShareInsightModal';
 export { default as ShareChatMessageModal } from './ShareChatMessageModal';
 export { default as AdaptInsightModal } from './AdaptInsightModal';
-export { default as ActivityDetailModal } from './ActivityDetailModal';

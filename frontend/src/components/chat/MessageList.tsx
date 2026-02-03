@@ -14,6 +14,7 @@ interface MessageListProps {
   messages: Message[];
   messageMetadata: Map<string, MessageMetadata>;
   messageFeedback: Map<string, MessageFeedback>;
+  insightMessageIds: Set<string>;
   isLoading: boolean;
   isStreaming: boolean;
   streamingContent: string;
@@ -25,15 +26,36 @@ interface MessageListProps {
   onCopyMessage: (content: string) => void;
   onShareMessage: (content: string) => void;
   onShareToFeed: (content: string) => void;
+  onCreateInsight: (content: string) => void;
   onThumbsUp: (messageId: string) => void;
   onThumbsDown: (messageId: string) => void;
   onRetryMessage: (messageId: string) => void;
 }
 
+// Check if a message is an insight prompt (should be hidden from display)
+const isInsightPrompt = (content: string): boolean => {
+  return content.startsWith('Create a shareable insight');
+};
+
+// Detect which assistant messages are insights by finding those that follow insight prompts
+const detectInsightMessages = (messages: Message[]): Set<string> => {
+  const insightIds = new Set<string>();
+  for (let i = 0; i < messages.length - 1; i++) {
+    const currentMsg = messages[i];
+    const nextMsg = messages[i + 1];
+    // If current is an insight prompt (user) and next is assistant, mark it as insight
+    if (currentMsg.role === 'user' && isInsightPrompt(currentMsg.content) && nextMsg.role === 'assistant') {
+      insightIds.add(nextMsg.id);
+    }
+  }
+  return insightIds;
+};
+
 export default function MessageList({
   messages,
   messageMetadata,
   messageFeedback,
+  insightMessageIds,
   isLoading,
   isStreaming,
   streamingContent,
@@ -45,6 +67,7 @@ export default function MessageList({
   onCopyMessage,
   onShareMessage,
   onShareToFeed,
+  onCreateInsight,
   onThumbsUp,
   onThumbsDown,
   onRetryMessage,
@@ -62,23 +85,37 @@ export default function MessageList({
     );
   }
 
+  // Detect insight messages from the message pattern (assistant response following insight prompt)
+  const detectedInsightIds = detectInsightMessages(messages);
+
+  // Filter out insight prompt messages (user messages that triggered insight generation)
+  const visibleMessages = messages.filter(msg =>
+    !(msg.role === 'user' && isInsightPrompt(msg.content))
+  );
+
   return (
     <div className="space-y-6">
-      {messages.map((msg) => (
-        <MessageItem
-          key={msg.id}
-          message={msg}
-          metadata={messageMetadata.get(msg.id)}
-          feedback={messageFeedback.get(msg.id)}
-          isError={msg.isError}
-          onCopy={msg.role === 'assistant' ? () => onCopyMessage(msg.content) : undefined}
-          onShare={msg.role === 'assistant' ? () => onShareMessage(msg.content) : undefined}
-          onShareToFeed={msg.role === 'assistant' ? () => onShareToFeed(msg.content) : undefined}
-          onThumbsUp={msg.role === 'assistant' ? () => onThumbsUp(msg.id) : undefined}
-          onThumbsDown={msg.role === 'assistant' ? () => onThumbsDown(msg.id) : undefined}
-          onRetry={msg.role === 'assistant' ? () => onRetryMessage(msg.id) : undefined}
-        />
-      ))}
+      {visibleMessages.map((msg) => {
+        // Combine passed-in insight IDs with detected ones
+        const isInsight = insightMessageIds.has(msg.id) || detectedInsightIds.has(msg.id);
+        return (
+          <MessageItem
+            key={msg.id}
+            message={msg}
+            metadata={messageMetadata.get(msg.id)}
+            feedback={messageFeedback.get(msg.id)}
+            isError={msg.isError}
+            hasInsight={isInsight}
+            onCopy={msg.role === 'assistant' ? () => onCopyMessage(msg.content) : undefined}
+            onShare={msg.role === 'assistant' && isInsight ? () => onShareMessage(msg.content) : undefined}
+            onShareToFeed={msg.role === 'assistant' && isInsight ? () => onShareToFeed(msg.content) : undefined}
+            onCreateInsight={msg.role === 'assistant' && !isInsight ? () => onCreateInsight(msg.content) : undefined}
+            onThumbsUp={msg.role === 'assistant' ? () => onThumbsUp(msg.id) : undefined}
+            onThumbsDown={msg.role === 'assistant' ? () => onThumbsDown(msg.id) : undefined}
+            onRetry={msg.role === 'assistant' ? () => onRetryMessage(msg.id) : undefined}
+          />
+        );
+      })}
 
       {/* OAuth connection notification */}
       {oauthNotification && (

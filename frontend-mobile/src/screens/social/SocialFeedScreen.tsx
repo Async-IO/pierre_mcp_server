@@ -189,16 +189,11 @@ export function SocialFeedScreen() {
     }
   };
 
-  const handleShare = (activityId: string) => {
-    navigation.navigate('ShareInsight', { activityId });
-  };
-
   const renderFeedItem = ({ item }: { item: FeedItem }) => (
     <InsightCard
       item={item}
       onReaction={(type) => handleReaction(item.insight.id, type)}
       onAdapt={() => handleAdapt(item.insight.id)}
-      onShare={handleShare}
       isReacting={reactingIds.has(item.insight.id)}
       isAdapting={adaptingIds.has(item.insight.id)}
     />

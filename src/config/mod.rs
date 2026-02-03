@@ -90,7 +90,7 @@ pub mod admin;
 pub use environment::{LlmProviderType, ServerConfig};
 
 // Re-export core types
-pub use types::{Environment, LogLevel};
+pub use types::{Environment, LlmModelConfig, LogLevel};
 
 // Re-export database types
 pub use database::{BackupConfig, DatabaseConfig, DatabaseUrl, PostgresPoolConfig, SqlxConfig};

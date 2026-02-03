@@ -6,7 +6,7 @@
 
 import { memo } from 'react';
 import Markdown from 'react-markdown';
-import { Copy, Share2, Users, ThumbsUp, ThumbsDown, RefreshCw } from 'lucide-react';
+import { Copy, Share2, Users, ThumbsUp, ThumbsDown, RefreshCw, Lightbulb } from 'lucide-react';
 import type { Message, MessageMetadata, MessageFeedback } from './types';
 import { linkifyUrls, stripContextPrefix } from './utils';
 
@@ -15,9 +15,11 @@ interface MessageItemProps {
   metadata?: MessageMetadata;
   feedback?: MessageFeedback;
   isError?: boolean;
+  hasInsight?: boolean;
   onCopy?: () => void;
   onShare?: () => void;
   onShareToFeed?: () => void;
+  onCreateInsight?: () => void;
   onThumbsUp?: () => void;
   onThumbsDown?: () => void;
   onRetry?: () => void;
@@ -28,9 +30,11 @@ const MessageItem = memo(function MessageItem({
   metadata,
   feedback,
   isError = false,
+  hasInsight = false,
   onCopy,
   onShare,
   onShareToFeed,
+  onCreateInsight,
   onThumbsUp,
   onThumbsDown,
   onRetry,
@@ -95,8 +99,8 @@ const MessageItem = memo(function MessageItem({
                     <Copy className="w-3.5 h-3.5" />
                   </button>
                 )}
-                {/* Share (system) */}
-                {onShare && (
+                {/* Share - only shown for insight messages */}
+                {onShare && hasInsight && (
                   <button
                     onClick={onShare}
                     className="p-0.5 text-zinc-500 hover:text-zinc-300 transition-colors"
@@ -105,14 +109,24 @@ const MessageItem = memo(function MessageItem({
                     <Share2 className="w-3.5 h-3.5" />
                   </button>
                 )}
-                {/* Share to Social Feed */}
-                {onShareToFeed && (
+                {/* Share Insight - only shown for insight messages */}
+                {onShareToFeed && hasInsight && (
                   <button
                     onClick={onShareToFeed}
                     className="p-0.5 text-zinc-500 hover:text-zinc-300 transition-colors"
-                    title="Share to social feed"
+                    title="Share Insight"
                   >
                     <Users className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                {/* Create Insight - only shown for non-insight messages (coach recommendations) */}
+                {onCreateInsight && !hasInsight && (
+                  <button
+                    onClick={onCreateInsight}
+                    className="p-0.5 text-zinc-500 hover:text-pierre-cyan transition-colors"
+                    title="Create shareable insight"
+                  >
+                    <Lightbulb className="w-3.5 h-3.5" />
                   </button>
                 )}
                 {/* Thumbs Up */}

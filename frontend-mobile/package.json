@@ -80,6 +80,7 @@
     "@types/detox": "^17.14.3",
     "@types/jest": "^30.0.0",
     "@types/react": "~19.1.0",
+    "@types/react-native": "^0.73.0",
     "@typescript-eslint/eslint-plugin": "^8.53.0",
     "@typescript-eslint/parser": "^8.53.0",
     "detox": "^20.46.3",

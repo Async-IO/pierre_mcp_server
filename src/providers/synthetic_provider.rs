@@ -147,6 +147,9 @@ pub struct SyntheticProvider {
     /// NOTE: This uses `Box::leak` for dynamic names - acceptable for test providers
     /// which are typically created once and live for the program duration.
     provider_name: &'static str,
+    /// Optional user ID for database-backed activity queries
+    /// When set, activities are fetched from the `synthetic_activities` table
+    user_id: Option<uuid::Uuid>,
 }
 
 impl SyntheticProvider {
@@ -199,6 +202,7 @@ impl SyntheticProvider {
                 default_scopes: vec!["activity:read_all".to_owned(), "sleep:read".to_owned()],
             },
             provider_name: name,
+            user_id: None,
         }
     }
 
@@ -218,6 +222,24 @@ impl SyntheticProvider {
     #[must_use]
     pub fn with_name(name: &'static str) -> Self {
         Self::with_activities_and_name(Vec::new(), name)
+    }
+
+    /// Set the user ID for database-backed activity queries
+    ///
+    /// When a user ID is set, `get_activities_with_params()` will query the
+    /// `synthetic_activities` table instead of using in-memory data.
+    ///
+    /// # Arguments
+    ///
+    /// * `user_id` - The user's UUID
+    pub fn set_user_id(&mut self, user_id: uuid::Uuid) {
+        self.user_id = Some(user_id);
+    }
+
+    /// Get the configured user ID, if any
+    #[must_use]
+    pub fn user_id(&self) -> Option<uuid::Uuid> {
+        self.user_id
     }
 
     /// Add a sleep session to the provider dynamically
@@ -881,6 +903,160 @@ impl SyntheticProvider {
 
         Ok(records.into_values().collect())
     }
+
+    /// Fetch activities from the `synthetic_activities` database table
+    ///
+    /// This is used when `user_id` is set and a database pool is available,
+    /// allowing the synthetic provider to serve seeded test data from the database.
+    async fn fetch_activities_from_database(
+        pool: &sqlx::Pool<sqlx::Sqlite>,
+        user_id: uuid::Uuid,
+        params: &ActivityQueryParams,
+    ) -> AppResult<Vec<Activity>> {
+        use sqlx::Row;
+
+        let user_id_str = user_id.to_string();
+        let limit = params.limit.unwrap_or(30);
+        let offset = params.offset.unwrap_or(0);
+
+        // Build query with optional time filtering
+        let mut query = String::from(
+            "SELECT id, name, sport_type, start_date, duration_seconds, \
+             distance_meters, elevation_gain, average_heart_rate, max_heart_rate, \
+             average_speed, max_speed, calories, city, region, country, \
+             start_latitude, start_longitude, temperature, humidity \
+             FROM synthetic_activities WHERE user_id = ?",
+        );
+
+        // Add time filters if specified
+        if params.after.is_some() {
+            query.push_str(" AND datetime(start_date) >= datetime(?, 'unixepoch')");
+        }
+        if params.before.is_some() {
+            query.push_str(" AND datetime(start_date) < datetime(?, 'unixepoch')");
+        }
+
+        // Order by start_date descending (newest first) and apply pagination
+        query.push_str(" ORDER BY start_date DESC LIMIT ? OFFSET ?");
+
+        // Build and execute query
+        let mut sql_query = sqlx::query(&query).bind(&user_id_str);
+
+        if let Some(after_ts) = params.after {
+            sql_query = sql_query.bind(after_ts);
+        }
+        if let Some(before_ts) = params.before {
+            sql_query = sql_query.bind(before_ts);
+        }
+
+        #[allow(clippy::cast_possible_wrap)]
+        let sql_query = sql_query.bind(limit as i64).bind(offset as i64);
+
+        let rows = sql_query
+            .fetch_all(pool)
+            .await
+            .map_err(|e| ProviderError::ApiError {
+                provider: oauth_providers::SYNTHETIC.to_owned(),
+                message: format!("Database query failed: {e}"),
+                status_code: 500,
+                retryable: false,
+            })?;
+
+        // Convert rows to Activity objects
+        let activities: Vec<Activity> = rows
+            .into_iter()
+            .filter_map(|row| {
+                let id: String = row.get("id");
+                let name: String = row.get("name");
+                let sport_type_str: String = row.get("sport_type");
+                let start_date_str: String = row.get("start_date");
+                let duration_seconds: i64 = row.get("duration_seconds");
+
+                // Parse start_date from ISO 8601
+                let start_date: DateTime<Utc> = start_date_str.parse().ok()?;
+
+                // Parse sport type from snake_case internal format
+                let sport_type = SportType::from_internal_string(&sport_type_str);
+
+                // Safe: duration from database is bounded by activity duration limits
+                #[allow(clippy::cast_sign_loss)]
+                let duration = duration_seconds as u64;
+
+                // Build activity with all available fields
+                let mut builder = ActivityBuilder::new(
+                    id,
+                    name,
+                    sport_type,
+                    start_date,
+                    duration,
+                    oauth_providers::SYNTHETIC,
+                );
+
+                // Optional fields
+                if let Ok(distance) = row.try_get::<Option<f64>, _>("distance_meters") {
+                    builder = builder.distance_meters_opt(distance);
+                }
+                if let Ok(elevation) = row.try_get::<Option<f64>, _>("elevation_gain") {
+                    builder = builder.elevation_gain_opt(elevation);
+                }
+                // Heart rate fields stored as INTEGER in SQLite, convert to u32
+                #[allow(clippy::cast_sign_loss)]
+                if let Ok(avg_hr) = row.try_get::<Option<i32>, _>("average_heart_rate") {
+                    builder = builder.average_heart_rate_opt(avg_hr.map(|v| v as u32));
+                }
+                #[allow(clippy::cast_sign_loss)]
+                if let Ok(max_hr) = row.try_get::<Option<i32>, _>("max_heart_rate") {
+                    builder = builder.max_heart_rate_opt(max_hr.map(|v| v as u32));
+                }
+                if let Ok(avg_speed) = row.try_get::<Option<f64>, _>("average_speed") {
+                    builder = builder.average_speed_opt(avg_speed);
+                }
+                if let Ok(max_speed) = row.try_get::<Option<f64>, _>("max_speed") {
+                    builder = builder.max_speed_opt(max_speed);
+                }
+                // Calories stored as INTEGER in SQLite, convert to u32
+                #[allow(clippy::cast_sign_loss)]
+                if let Ok(calories) = row.try_get::<Option<i32>, _>("calories") {
+                    builder = builder.calories_opt(calories.map(|v| v as u32));
+                }
+                if let Ok(Some(city)) = row.try_get::<Option<String>, _>("city") {
+                    builder = builder.city(city);
+                }
+                if let Ok(Some(region)) = row.try_get::<Option<String>, _>("region") {
+                    builder = builder.region(region);
+                }
+                if let Ok(Some(country)) = row.try_get::<Option<String>, _>("country") {
+                    builder = builder.country(country);
+                }
+                if let Ok(Some(lat)) = row.try_get::<Option<f64>, _>("start_latitude") {
+                    builder = builder.start_latitude(lat);
+                }
+                if let Ok(Some(lon)) = row.try_get::<Option<f64>, _>("start_longitude") {
+                    builder = builder.start_longitude(lon);
+                }
+                if let Ok(Some(temp)) = row.try_get::<Option<f64>, _>("temperature") {
+                    #[allow(clippy::cast_possible_truncation)]
+                    let temp_f32 = temp as f32;
+                    builder = builder.temperature(temp_f32);
+                }
+                if let Ok(Some(humidity)) = row.try_get::<Option<f64>, _>("humidity") {
+                    #[allow(clippy::cast_possible_truncation)]
+                    let humidity_f32 = humidity as f32;
+                    builder = builder.humidity(humidity_f32);
+                }
+
+                Some(builder.build())
+            })
+            .collect();
+
+        tracing::debug!(
+            user_id = %user_id,
+            count = activities.len(),
+            "Fetched synthetic activities from database"
+        );
+
+        Ok(activities)
+    }
 }
 
 impl Default for SyntheticProvider {
@@ -934,12 +1110,23 @@ impl FitnessProvider for SyntheticProvider {
             api_call = "get_activities",
             limit = ?params.limit,
             offset = ?params.offset,
+            user_id = ?self.user_id,
         )
     )]
     async fn get_activities_with_params(
         &self,
         params: &ActivityQueryParams,
     ) -> AppResult<Vec<Activity>> {
+        // If user_id is set and database pool is available, query from database
+        if let (Some(user_id), Some(pool)) = (self.user_id, get_synthetic_database_pool()) {
+            tracing::debug!(
+                user_id = %user_id,
+                "Fetching synthetic activities from database"
+            );
+            return Self::fetch_activities_from_database(&pool, user_id, params).await;
+        }
+
+        // Fall back to in-memory activities
         let mut sorted = {
             let activities =
                 self.activities

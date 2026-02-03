@@ -48,7 +48,8 @@ pub use gemini::{
 pub use groq::GroqProvider;
 pub use openai_compatible::{OpenAiCompatibleConfig, OpenAiCompatibleProvider};
 pub use prompts::{
-    get_coach_generation_prompt, get_insight_validation_prompt, get_pierre_system_prompt,
+    get_coach_generation_prompt, get_insight_generation_prompt, get_insight_validation_prompt,
+    get_pierre_system_prompt,
 };
 pub use provider::ChatProvider;
 

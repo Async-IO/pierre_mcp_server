@@ -282,6 +282,19 @@ export function createSocialApi(axios: AxiosInstance) {
       const response = await axios.post<InsightResponse>(ENDPOINTS.SOCIAL.FROM_ACTIVITY, data);
       return response.data;
     },
+
+    /**
+     * Generate a shareable insight from analysis content.
+     * Uses the backend insight generation prompt to transform analysis into
+     * a concise, inspiring social post format.
+     */
+    async generateInsight(content: string): Promise<{ content: string }> {
+      const response = await axios.post<{ content: string; metadata: unknown }>(
+        ENDPOINTS.SOCIAL.GENERATE,
+        { content }
+      );
+      return { content: response.data.content };
+    },
   };
 
   // Add aliases for backward compatibility

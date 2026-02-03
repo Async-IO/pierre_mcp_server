@@ -64,8 +64,11 @@ use crate::errors::{AppError, ErrorCode};
 /// Environment variable for local LLM base URL
 const LOCAL_LLM_BASE_URL_ENV: &str = "LOCAL_LLM_BASE_URL";
 
-/// Environment variable for local LLM model
+/// Environment variable for local LLM default model
 const LOCAL_LLM_MODEL_ENV: &str = "LOCAL_LLM_MODEL";
+
+/// Environment variable for local LLM fallback model
+const LOCAL_LLM_FALLBACK_MODEL_ENV: &str = "LOCAL_LLM_FALLBACK_MODEL";
 
 /// Environment variable for local LLM API key (optional)
 const LOCAL_LLM_API_KEY_ENV: &str = "LOCAL_LLM_API_KEY";
@@ -234,6 +237,8 @@ pub struct OpenAiCompatibleConfig {
     pub api_key: Option<String>,
     /// Default model to use
     pub default_model: String,
+    /// Fallback model when default fails
+    pub fallback_model: String,
     /// Provider name for display/logging
     pub provider_name: String,
     /// Provider display name
@@ -250,6 +255,7 @@ impl OpenAiCompatibleConfig {
             base_url: "http://localhost:11434/v1".to_owned(),
             api_key: None,
             default_model: model.to_owned(),
+            fallback_model: model.to_owned(),
             provider_name: "ollama".to_owned(),
             display_name: "Ollama (Local)".to_owned(),
             capabilities: LlmCapabilities::STREAMING
@@ -265,6 +271,7 @@ impl OpenAiCompatibleConfig {
             base_url: "http://localhost:8000/v1".to_owned(),
             api_key: None,
             default_model: model.to_owned(),
+            fallback_model: model.to_owned(),
             provider_name: "vllm".to_owned(),
             display_name: "vLLM (Local)".to_owned(),
             capabilities: LlmCapabilities::STREAMING
@@ -281,6 +288,7 @@ impl OpenAiCompatibleConfig {
             base_url: "http://localhost:8080/v1".to_owned(),
             api_key: None,
             default_model: model.to_owned(),
+            fallback_model: model.to_owned(),
             provider_name: "localai".to_owned(),
             display_name: "LocalAI".to_owned(),
             capabilities: LlmCapabilities::STREAMING
@@ -296,6 +304,7 @@ impl Default for OpenAiCompatibleConfig {
             base_url: DEFAULT_BASE_URL.to_owned(),
             api_key: None,
             default_model: DEFAULT_MODEL.to_owned(),
+            fallback_model: DEFAULT_MODEL.to_owned(),
             provider_name: "local".to_owned(),
             display_name: "Local LLM".to_owned(),
             capabilities: LlmCapabilities::STREAMING
@@ -339,6 +348,7 @@ impl OpenAiCompatibleProvider {
     /// Reads:
     /// - `LOCAL_LLM_BASE_URL`: Base URL (default: Ollama at localhost:11434)
     /// - `LOCAL_LLM_MODEL`: Model name (default: qwen2.5:14b-instruct)
+    /// - `LOCAL_LLM_FALLBACK_MODEL`: Fallback model (default: same as default model)
     /// - `LOCAL_LLM_API_KEY`: API key (optional)
     ///
     /// # Errors
@@ -349,6 +359,8 @@ impl OpenAiCompatibleProvider {
             env::var(LOCAL_LLM_BASE_URL_ENV).unwrap_or_else(|_| DEFAULT_BASE_URL.to_owned());
         let default_model =
             env::var(LOCAL_LLM_MODEL_ENV).unwrap_or_else(|_| DEFAULT_MODEL.to_owned());
+        let fallback_model =
+            env::var(LOCAL_LLM_FALLBACK_MODEL_ENV).unwrap_or_else(|_| default_model.clone());
         let api_key = env::var(LOCAL_LLM_API_KEY_ENV)
             .ok()
             .filter(|k| !k.is_empty());
@@ -368,6 +380,7 @@ impl OpenAiCompatibleProvider {
             base_url,
             api_key,
             default_model,
+            fallback_model,
             provider_name: provider_name.to_owned(),
             display_name: display_name.to_owned(),
             capabilities: LlmCapabilities::STREAMING
@@ -376,8 +389,8 @@ impl OpenAiCompatibleProvider {
         };
 
         info!(
-            "Initializing {} provider: base_url={}, model={}",
-            config.display_name, config.base_url, config.default_model
+            "Initializing {} provider: base_url={}, default_model={}, fallback_model={}",
+            config.display_name, config.base_url, config.default_model, config.fallback_model
         );
 
         Self::new(config)
