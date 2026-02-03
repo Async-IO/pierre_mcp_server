@@ -8,8 +8,6 @@ prerequisites:
   min_activities: 10
   activity_types: [Run, Ride, Swim]
 visibility: tenant
-startup:
-  query: "Fetch my last 30 activities. Analyze my training load, identify weekly volume trends, and look for any patterns or areas of concern."
 ---
 
 ## Purpose

@@ -15,7 +15,7 @@ use crate::{
     auth::AuthResult,
     coaches::{
         parse_coach_content, to_markdown, CoachDefinition, CoachFrontmatter, CoachPrerequisites,
-        CoachSections, CoachStartup,
+        CoachSections,
     },
     database::{
         coaches::{
@@ -1768,7 +1768,6 @@ fn coach_to_definition(coach: &Coach) -> CoachDefinition {
             tags: coach.tags.clone(),
             prerequisites: CoachPrerequisites::default(),
             visibility: coach.visibility,
-            startup: CoachStartup::default(),
         },
         sections: CoachSections {
             purpose: coach.description.clone().unwrap_or_default(),

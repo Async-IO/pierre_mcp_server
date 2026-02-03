@@ -8,8 +8,6 @@ prerequisites:
   min_activities: 10
   activity_types: [Run]
 visibility: tenant
-startup:
-  query: "Fetch my last 25 running activities. Analyze my weekly mileage, long run progression, and identify any patterns in my training."
 ---
 
 ## Purpose

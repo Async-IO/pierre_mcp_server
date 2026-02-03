@@ -32,7 +32,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, collections::HashSet, fmt::Write, sync::Arc, time::Instant};
-use tracing::{info, warn};
+use tracing::info;
 use uuid::Uuid;
 
 // ============================================================================
@@ -376,57 +376,6 @@ impl ChatRoutes {
             base_prompt
         } else {
             format!("{base_prompt}{provider_context}")
-        }
-    }
-
-    /// Get startup query for a coach conversation if applicable
-    ///
-    /// The `system_prompt` is stored in conversations when a coach is selected.
-    /// This function looks up the coach by `system_prompt` and returns its startup query.
-    ///
-    /// Returns `Some(query)` only if:
-    /// - This is the first message in the conversation (`history_len == 1`)
-    /// - The conversation has a custom `system_prompt` (indicates a coach)
-    /// - The coach has a `startup_query` configured
-    ///
-    /// The `startup_query` if found, None otherwise.
-    async fn get_startup_query_if_applicable(
-        resources: &Arc<ServerResources>,
-        history_len: usize,
-        system_prompt: Option<&String>,
-        tenant_id: &str,
-    ) -> Option<String> {
-        use crate::database::coaches::CoachesManager;
-
-        // Only inject on first message
-        if history_len != 1 {
-            return None;
-        }
-
-        // Must have a system prompt (indicates coach conversation)
-        let prompt = system_prompt?;
-
-        // Only SQLite is supported for coaches - PostgreSQL databases skip startup query
-        let pool = resources.database.sqlite_pool()?;
-
-        let coaches_manager = CoachesManager::new(pool.clone());
-
-        match coaches_manager
-            .get_startup_query_by_system_prompt(prompt, tenant_id)
-            .await
-        {
-            Ok(Some(query)) => {
-                info!(
-                    "Found startup query for coach conversation: {}",
-                    &query[..query.len().min(50)]
-                );
-                Some(query)
-            }
-            Ok(None) => None,
-            Err(e) => {
-                warn!("Failed to get startup query: {e}");
-                None
-            }
         }
     }
 
@@ -1094,21 +1043,6 @@ impl ChatRoutes {
             Self::get_augmented_system_prompt(&conv, &resources, auth.user_id).await;
         let mut llm_messages =
             Self::build_llm_messages(Some(system_prompt_text.as_str()), &history);
-
-        // Inject startup query if this is the first message in a coach conversation
-        // The startup query runs before the user's message to fetch relevant context
-        if let Some(startup_query) = Self::get_startup_query_if_applicable(
-            &resources,
-            history.len(),
-            conv.system_prompt.as_ref(),
-            &tenant_id,
-        )
-        .await
-        {
-            // Insert startup query as user message right after system prompt
-            // Position 1 is after system message (position 0) and before user's actual message
-            llm_messages.insert(1, ChatMessage::user(&startup_query));
-        }
 
         // Build MCP tools for function calling
         let tools = Self::build_mcp_tools();
