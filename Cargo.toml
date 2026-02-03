@@ -49,6 +49,11 @@ path = "src/bin/seed_social.rs"
 bench = false
 
 [[bin]]
+name = "seed-insight-samples"
+path = "src/bin/seed_insight_samples.rs"
+bench = false
+
+[[bin]]
 name = "seed-synthetic-activities"
 path = "src/bin/seed_synthetic_activities.rs"
 bench = false

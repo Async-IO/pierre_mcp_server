@@ -2088,6 +2088,12 @@ impl AuthRoutes {
                     provider_name == "synthetic" && has_synthetic_activities
                 };
 
+                // Skip non-OAuth providers that aren't connected (no data available)
+                // This prevents showing "Not Available" for synthetic providers without data
+                if !requires_oauth && !connected {
+                    continue;
+                }
+
                 // Build capabilities list from bitflags
                 let mut capabilities = Vec::new();
                 if caps.supports_activities() {

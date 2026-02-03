@@ -25,18 +25,12 @@ use crate::{
 use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
-    response::{
-        sse::{Event, KeepAlive, Sse},
-        IntoResponse, Response,
-    },
+    response::{IntoResponse, Response},
     routing::{delete, get, post, put},
     Json, Router,
 };
-use futures_util::stream::Stream;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
-use std::{borrow::Cow, convert::Infallible, sync::Arc, time::Instant};
-use tokio_stream::StreamExt;
+use std::{borrow::Cow, collections::HashSet, fmt::Write, sync::Arc, time::Instant};
 use tracing::info;
 use uuid::Uuid;
 
@@ -269,14 +263,10 @@ impl ChatRoutes {
                 "/api/chat/conversations/:conversation_id/messages",
                 get(Self::get_messages),
             )
+            // POST messages with MCP tool support (non-streaming)
             .route(
                 "/api/chat/conversations/:conversation_id/messages",
                 post(Self::send_message),
-            )
-            // Streaming endpoint
-            .route(
-                "/api/chat/conversations/:conversation_id/stream",
-                post(Self::send_message_stream),
             )
             .with_state(resources)
     }
@@ -323,6 +313,69 @@ impl ChatRoutes {
             .system_prompt
             .clone()
             .unwrap_or_else(|| get_pierre_system_prompt().to_owned())
+    }
+
+    /// Build provider context string for inclusion in system prompt
+    ///
+    /// This informs the LLM which fitness data providers are connected for the user,
+    /// so it doesn't ask users to connect providers that are already available.
+    async fn build_provider_context(resources: &Arc<ServerResources>, user_id: Uuid) -> String {
+        let mut connected = Vec::new();
+
+        // Check OAuth providers
+        if let Ok(oauth_tokens) = resources.database.get_user_oauth_tokens(user_id).await {
+            let oauth_providers: HashSet<String> =
+                oauth_tokens.into_iter().map(|t| t.provider).collect();
+
+            for provider in ["strava", "garmin"] {
+                if oauth_providers.contains(provider) {
+                    connected.push(provider);
+                }
+            }
+        }
+
+        // Check synthetic data availability (non-OAuth provider)
+        if let Ok(has_synthetic) = resources
+            .database
+            .user_has_synthetic_activities(user_id)
+            .await
+        {
+            if has_synthetic {
+                connected.push("synthetic (test data)");
+            }
+        }
+
+        if connected.is_empty() {
+            return String::new();
+        }
+
+        let mut context = String::from("\n\n## Connected Fitness Data Providers\n\n");
+        context.push_str("The user has the following data sources available:\n");
+        for provider in &connected {
+            // Write trait used to avoid format_push_string lint
+            let _ = writeln!(context, "- ✓ {provider}");
+        }
+        context.push_str("\nUse the connected providers to fetch activity data. ");
+        context
+            .push_str("Do NOT ask the user to connect providers that are already connected above.");
+
+        context
+    }
+
+    /// Get augmented system prompt with provider context
+    async fn get_augmented_system_prompt(
+        conversation: &ConversationRecord,
+        resources: &Arc<ServerResources>,
+        user_id: Uuid,
+    ) -> String {
+        let base_prompt = Self::get_system_prompt_text(conversation);
+        let provider_context = Self::build_provider_context(resources, user_id).await;
+
+        if provider_context.is_empty() {
+            base_prompt
+        } else {
+            format!("{base_prompt}{provider_context}")
+        }
     }
 
     /// Get LLM provider based on `PIERRE_LLM_PROVIDER` environment variable
@@ -982,7 +1035,9 @@ impl ChatRoutes {
             .chat_get_messages(&conversation_id)
             .await?;
 
-        let system_prompt_text = Self::get_system_prompt_text(&conv);
+        // Get system prompt augmented with connected provider info
+        let system_prompt_text =
+            Self::get_augmented_system_prompt(&conv, &resources, auth.user_id).await;
         let mut llm_messages =
             Self::build_llm_messages(Some(system_prompt_text.as_str()), &history);
 
@@ -1068,127 +1123,5 @@ impl ChatRoutes {
         };
 
         Ok((StatusCode::OK, Json(response)).into_response())
-    }
-
-    /// Send a message and stream the response via SSE
-    async fn send_message_stream(
-        State(resources): State<Arc<ServerResources>>,
-        headers: HeaderMap,
-        Path(conversation_id): Path<String>,
-        Json(request): Json<SendMessageRequest>,
-    ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
-        let auth = Self::authenticate(&headers, &resources).await?;
-        let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
-
-        // Get conversation to verify ownership and get model/system prompt
-        let conv = resources
-            .database
-            .chat_get_conversation(&conversation_id, &auth.user_id.to_string(), &tenant_id)
-            .await?
-            .ok_or_else(|| AppError::not_found("Conversation not found"))?;
-
-        // Save user message
-        let user_msg = resources
-            .database
-            .chat_add_message(&conversation_id, "user", &request.content, None, None)
-            .await?;
-
-        // Get conversation history and build LLM messages with system prompt
-        let history = resources
-            .database
-            .chat_get_messages(&conversation_id)
-            .await?;
-
-        let system_prompt_text = Self::get_system_prompt_text(&conv);
-        let llm_messages = Self::build_llm_messages(Some(system_prompt_text.as_str()), &history);
-
-        // Get LLM streaming response
-        let provider = Self::get_llm_provider().await?;
-        let llm_request = ChatRequest::new(llm_messages)
-            .with_model(&conv.model)
-            .with_streaming();
-
-        let mut llm_stream = provider.complete_stream(&llm_request).await?;
-
-        // Create stream for SSE
-        // Clone values needed for the async block
-        let conv_id = conversation_id.clone();
-        let stream_resources = resources.clone(); // Arc clone for async stream
-
-        let stream = async_stream::stream! {
-            let mut full_content = String::new();
-            let mut finish_reason = None;
-
-            // Send user message event first
-            let user_event = json!({
-                "type": "user_message",
-                "message": {
-                    "id": user_msg.id,
-                    "role": "user",
-                    "content": user_msg.content,
-                    "created_at": user_msg.created_at
-                }
-            });
-            yield Ok(Event::default().data(user_event.to_string()));
-
-            // Stream chunks
-            while let Some(chunk_result) = llm_stream.next().await {
-                match chunk_result {
-                    Ok(chunk) => {
-                        full_content.push_str(&chunk.delta);
-
-                        let chunk_event = json!({
-                            "type": "chunk",
-                            "delta": chunk.delta,
-                            "is_final": chunk.is_final
-                        });
-                        yield Ok(Event::default().data(chunk_event.to_string()));
-
-                        if chunk.is_final {
-                            finish_reason = chunk.finish_reason;
-                        }
-                    }
-                    Err(e) => {
-                        let error_event = json!({
-                            "type": "error",
-                            "message": e.to_string()
-                        });
-                        yield Ok(Event::default().data(error_event.to_string()));
-                        return;
-                    }
-                }
-            }
-
-            // Save complete assistant message
-            match stream_resources.database.chat_add_message(
-                &conv_id,
-                "assistant",
-                &full_content,
-                None, // We don't have token count from streaming
-                finish_reason.as_deref(),
-            ).await {
-                Ok(assistant_msg) => {
-                    let done_event = json!({
-                        "type": "done",
-                        "message": {
-                            "id": assistant_msg.id,
-                            "role": "assistant",
-                            "content": full_content,
-                            "created_at": assistant_msg.created_at
-                        }
-                    });
-                    yield Ok(Event::default().data(done_event.to_string()));
-                }
-                Err(e) => {
-                    let error_event = json!({
-                        "type": "error",
-                        "message": format!("Failed to save message: {e}")
-                    });
-                    yield Ok(Event::default().data(error_event.to_string()));
-                }
-            }
-        };
-
-        Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
     }
 }

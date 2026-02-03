@@ -33,8 +33,8 @@ export default function ProviderConnectionModal({
         onClick={onClose}
       />
       {/* Modal Content */}
-      <div className="relative bg-pierre-slate rounded-2xl shadow-2xl border border-white/10 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="p-6">
+      <div className="relative bg-pierre-slate rounded-2xl shadow-2xl border border-white/10 max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="p-8">
           {/* Close button */}
           <button
             onClick={onClose}
@@ -46,16 +46,16 @@ export default function ProviderConnectionModal({
             </svg>
           </button>
 
-          <div className="text-center mb-6">
-            <div className="w-12 h-12 bg-pierre-violet/20 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-glow-sm">
-              <svg className="w-6 h-6 text-pierre-violet" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="text-center mb-8">
+            <div className="w-14 h-14 bg-pierre-violet/20 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-glow-sm">
+              <svg className="w-7 h-7 text-pierre-violet" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
-            <h2 className="text-xl font-semibold text-white mb-2">
+            <h2 className="text-2xl font-semibold text-white mb-3">
               Connect your fitness data
             </h2>
-            <p className="text-zinc-400 text-sm">
+            <p className="text-zinc-400">
               Link a provider for personalized insights, or continue without
             </p>
           </div>

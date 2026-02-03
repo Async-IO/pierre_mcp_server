@@ -105,6 +105,9 @@ pub mod a2a_routes;
 /// Coach definition parsing from markdown files
 pub mod coaches;
 
+/// Insight sample parsing from markdown files for validation testing
+pub mod insight_samples;
+
 /// Multi-tenant database management (legacy)
 pub mod database;
 

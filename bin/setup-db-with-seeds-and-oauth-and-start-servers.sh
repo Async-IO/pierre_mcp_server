@@ -14,6 +14,19 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
+# Parse command line args
+BUILD_MODE="release"
+TARGET_DIR="release"
+for arg in "$@"; do
+    case $arg in
+        --debug)
+            BUILD_MODE="debug"
+            TARGET_DIR="debug"
+            shift
+            ;;
+    esac
+done
+
 # Project paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -109,39 +122,48 @@ fi
 echo "    Database cleared"
 
 # Step 3: Build binaries
-print_step 3 "Building server binaries..."
-cargo build --release --bin pierre-mcp-server --bin pierre-cli --bin seed-coaches --bin seed-demo-data --bin seed-social --bin seed-mobility 2>&1 | tail -3
+print_step 3 "Building server binaries ($BUILD_MODE mode)..."
+if [ "$BUILD_MODE" = "release" ]; then
+    cargo build --release --bin pierre-mcp-server --bin pierre-cli --bin seed-coaches --bin seed-demo-data --bin seed-social --bin seed-mobility --bin seed-synthetic-activities 2>&1 | tail -3
+else
+    cargo build --bin pierre-mcp-server --bin pierre-cli --bin seed-coaches --bin seed-demo-data --bin seed-social --bin seed-mobility --bin seed-synthetic-activities 2>&1 | tail -3
+fi
 echo "    Build complete"
 
 # Step 4: Run migrations and seeders
 print_step 4 "Running migrations and seeders..."
 
 # Start server temporarily for migrations
-RUST_LOG=warn ./target/release/pierre-mcp-server > /dev/null 2>&1 &
+RUST_LOG=warn ./target/$TARGET_DIR/pierre-mcp-server > /dev/null 2>&1 &
 TEMP_PID=$!
 sleep 3
 
 # Create admin user
 echo "    Creating admin user..."
-./target/release/pierre-cli user create \
+./target/$TARGET_DIR/pierre-cli user create \
     --email "$ADMIN_EMAIL" \
     --password "$ADMIN_PASSWORD" 2>&1 | grep -E "(Created|already exists)" || true
 
 # Seed coaches
 echo "    Seeding AI coaches (9 personas)..."
-./target/release/seed-coaches 2>&1 | grep -E "(Created|Skipped)" | head -3 || true
+./target/$TARGET_DIR/seed-coaches 2>&1 | grep -E "(Created|Skipped)" | head -3 || true
 
 # Seed demo users
 echo "    Seeding demo users..."
-./target/release/seed-demo-data --days 30 2>&1 | grep -E "(Created|Skipped)" | head -3 || true
+./target/$TARGET_DIR/seed-demo-data --days 30 2>&1 | grep -E "(Created|Skipped)" | head -3 || true
 
 # Seed social data (includes webtest/mobiletest users)
 echo "    Seeding social test data..."
-./target/release/seed-social 2>&1 | grep -E "(Created|Skipped)" | head -3 || true
+./target/$TARGET_DIR/seed-social 2>&1 | grep -E "(Created|Skipped)" | head -3 || true
 
 # Seed mobility data
 echo "    Seeding mobility data (stretches, yoga)..."
-./target/release/seed-mobility 2>&1 | grep -E "(Created|Skipped|Seeded)" | head -3 || true
+./target/$TARGET_DIR/seed-mobility 2>&1 | grep -E "(Created|Skipped|Seeded)" | head -3 || true
+
+# Seed synthetic activities for test users
+echo "    Seeding synthetic activities for test users..."
+./target/$TARGET_DIR/seed-synthetic-activities --email "$WEB_TEST_EMAIL" --count 30 --days 30 2>&1 | grep -E "(Created|activities)" | head -1 || true
+./target/$TARGET_DIR/seed-synthetic-activities --email "$MOBILE_TEST_EMAIL" --count 30 --days 30 2>&1 | grep -E "(Created|activities)" | head -1 || true
 
 # Stop temporary server
 kill $TEMP_PID 2>/dev/null || true
@@ -150,7 +172,7 @@ echo "    All seeders complete"
 
 # Step 5: Start Pierre server
 print_step 5 "Starting Pierre MCP Server (port $SERVER_PORT)..."
-RUST_LOG=info ./target/release/pierre-mcp-server > "$SERVER_LOG" 2>&1 &
+RUST_LOG=info ./target/$TARGET_DIR/pierre-mcp-server > "$SERVER_LOG" 2>&1 &
 SERVER_PID=$!
 
 # Wait for health check

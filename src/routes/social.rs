@@ -36,11 +36,13 @@ use crate::{
     errors::{AppError, ErrorCode},
     intelligence::{
         insight_adapter::{InsightAdapter, UserTrainingContext},
+        insight_validation::{validate_insight_with_policy, ValidationVerdict},
         social_insights::{
             InsightContextBuilder, InsightGenerationContext, InsightSuggestion,
             SharedInsightGenerator,
         },
     },
+    llm::ChatProvider,
     mcp::resources::ServerResources,
     models::{
         Activity, AdaptedInsight, FriendConnection, FriendStatus, InsightReaction, InsightType,
@@ -844,6 +846,52 @@ impl SocialRoutes {
         Ok(SocialManager::new(pool.clone()))
     }
 
+    /// Validate content for sharing based on user tier and sharing policy
+    ///
+    /// Returns the validated (and potentially improved/redacted) content, or an error if rejected.
+    async fn validate_content_for_sharing(
+        resources: &Arc<ServerResources>,
+        social: &SocialManager,
+        user_id: Uuid,
+        content: &str,
+        insight_type: InsightType,
+    ) -> Result<String, AppError> {
+        // Get user tier
+        let user = resources
+            .database
+            .get_user(user_id)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("User {user_id}")))?;
+
+        // Get user's sharing policy from social settings
+        let policy = social
+            .get_user_social_settings(user_id)
+            .await?
+            .map(|s| s.insight_sharing_policy)
+            .unwrap_or_default();
+
+        // Get LLM provider for quality validation
+        let llm_provider = ChatProvider::from_env().await?;
+
+        // Run validation
+        let result =
+            validate_insight_with_policy(&llm_provider, content, insight_type, &user.tier, &policy)
+                .await?;
+
+        // Handle validation result
+        match result.verdict {
+            ValidationVerdict::Valid => Ok(result.final_content),
+            ValidationVerdict::Improved { .. } => {
+                // Use the improved/redacted content
+                Ok(result.final_content)
+            }
+            ValidationVerdict::Rejected { reason } => Err(AppError::new(
+                ErrorCode::InvalidInput,
+                format!("Content cannot be shared: {reason}"),
+            )),
+        }
+    }
+
     // ========================================================================
     // Friend Connections
     // ========================================================================
@@ -1269,7 +1317,18 @@ impl SocialRoutes {
             .map(|p| TrainingPhase::from_str(&p))
             .transpose()?;
 
-        let mut insight = SharedInsight::new(auth.user_id, insight_type, body.content, visibility);
+        // Validate content before sharing
+        let validated_content = Self::validate_content_for_sharing(
+            &resources,
+            &social,
+            auth.user_id,
+            &body.content,
+            insight_type,
+        )
+        .await?;
+
+        let mut insight =
+            SharedInsight::new(auth.user_id, insight_type, validated_content, visibility);
         insight.title = body.title;
         insight.sport_type = body.sport_type;
         insight.training_phase = training_phase;
@@ -1451,40 +1510,58 @@ impl SocialRoutes {
         );
 
         // Build content: use custom content if provided, otherwise generate coach content
-        let content = match body.content.clone() {
-            Some(custom_content) => custom_content,
-            None => {
-                // Try to generate coach content based on user's activities
-                // Falls back to default message if context building fails (e.g., no OAuth token)
-                Self::build_insight_context(
-                    &resources,
-                    auth.user_id,
-                    &provider_name,
-                    body.tenant_id.as_deref(),
-                    None, // Use default server limit for share operations
-                )
-                .await
-                .map_or_else(
-                    |_| default_message.clone(),
-                    |context| {
-                        let generator = SharedInsightGenerator::new();
-                        let suggestions = generator.generate_suggestions(&context);
+        // Only validate custom user content - coach-generated content is already quality-controlled
+        let (content, is_custom_content) = if let Some(custom_content) = body.content.clone() {
+            (custom_content, true)
+        } else {
+            // Try to generate coach content based on user's activities
+            // Falls back to default message if context building fails (e.g., no OAuth token)
+            let generated = Self::build_insight_context(
+                &resources,
+                auth.user_id,
+                &provider_name,
+                body.tenant_id.as_deref(),
+                None, // Use default server limit for share operations
+            )
+            .await
+            .map_or_else(
+                |error| {
+                    tracing::debug!("Could not build insight context for coach content: {error}");
+                    default_message.clone()
+                },
+                |context| {
+                    let generator = SharedInsightGenerator::new();
+                    let suggestions = generator.generate_suggestions(&context);
 
-                        // Find a matching suggestion for the insight type
-                        suggestions
-                            .into_iter()
-                            .find(|s| s.insight_type == insight_type)
-                            .map_or_else(|| default_message.clone(), |s| s.suggested_content)
-                    },
-                )
-            }
+                    // Find a matching suggestion for the insight type
+                    suggestions
+                        .into_iter()
+                        .find(|s| s.insight_type == insight_type)
+                        .map_or_else(|| default_message.clone(), |s| s.suggested_content)
+                },
+            );
+            (generated, false)
+        };
+
+        // Validate only custom user-provided content, not coach-generated content
+        let validated_content = if is_custom_content {
+            Self::validate_content_for_sharing(
+                &resources,
+                &social,
+                auth.user_id,
+                &content,
+                insight_type,
+            )
+            .await?
+        } else {
+            content
         };
 
         // Create the coach-generated insight
         let insight = SharedInsight::coach_generated(
             auth.user_id,
             insight_type,
-            content,
+            validated_content,
             visibility,
             activity_id,
         );

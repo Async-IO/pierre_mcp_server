@@ -345,7 +345,7 @@ export default function ChatTab({ selectedConversation, onSelectConversation }: 
     }));
 
     try {
-      const response = await fetch(`/api/chat/conversations/${selectedConversation}/stream`, {
+      const response = await fetch(`/api/chat/conversations/${selectedConversation}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -359,48 +359,11 @@ export default function ChatTab({ selectedConversation, onSelectConversation }: 
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('No response body');
-
-      const decoder = new TextDecoder();
-      let assistantContent = '';
-      let assistantMessageId = '';
-      let model = '';
-      let executionTimeMs = 0;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') continue;
-
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.content) {
-                assistantContent += parsed.content;
-                setStreamingContent(assistantContent);
-              }
-              if (parsed.message_id) {
-                assistantMessageId = parsed.message_id;
-              }
-              if (parsed.model) {
-                model = parsed.model;
-              }
-              if (parsed.execution_time_ms) {
-                executionTimeMs = parsed.execution_time_ms;
-              }
-            } catch {
-              // Skip invalid JSON
-            }
-          }
-        }
-      }
+      // Parse JSON response (non-streaming with MCP tool support)
+      const data = await response.json();
+      const assistantMessageId = data.assistant_message?.id || '';
+      const model = data.model || '';
+      const executionTimeMs = data.execution_time_ms || 0;
 
       if (assistantMessageId && model) {
         setMessageMetadata(prev => {

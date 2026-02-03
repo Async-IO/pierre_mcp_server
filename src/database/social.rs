@@ -10,6 +10,7 @@ use sqlx::{Row, SqlitePool};
 use uuid::Uuid;
 
 use crate::errors::{AppError, AppResult};
+use crate::intelligence::InsightSharingPolicy;
 use crate::models::{
     AdaptedInsight, FeedItem, FriendConnection, FriendInfo, FriendStatus, InsightReaction,
     InsightType, NotificationPreferences, ReactionSummary, ReactionType, SharedInsight,
@@ -290,7 +291,7 @@ impl SocialManager {
             r"
             SELECT user_id, discoverable, default_visibility, share_activity_types,
                    notify_friend_requests, notify_insight_reactions, notify_adapted_insights,
-                   created_at, updated_at
+                   insight_sharing_policy, created_at, updated_at
             FROM user_social_settings
             WHERE user_id = $1
             ",
@@ -320,8 +321,8 @@ impl SocialManager {
             INSERT INTO user_social_settings (
                 user_id, discoverable, default_visibility, share_activity_types,
                 notify_friend_requests, notify_insight_reactions, notify_adapted_insights,
-                created_at, updated_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                insight_sharing_policy, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             ON CONFLICT(user_id) DO UPDATE SET
                 discoverable = excluded.discoverable,
                 default_visibility = excluded.default_visibility,
@@ -329,6 +330,7 @@ impl SocialManager {
                 notify_friend_requests = excluded.notify_friend_requests,
                 notify_insight_reactions = excluded.notify_insight_reactions,
                 notify_adapted_insights = excluded.notify_adapted_insights,
+                insight_sharing_policy = excluded.insight_sharing_policy,
                 updated_at = excluded.updated_at
             ",
         )
@@ -339,6 +341,7 @@ impl SocialManager {
         .bind(i32::from(settings.notifications.friend_requests))
         .bind(i32::from(settings.notifications.insight_reactions))
         .bind(i32::from(settings.notifications.adapted_insights))
+        .bind(settings.insight_sharing_policy.as_str())
         .bind(settings.created_at.to_rfc3339())
         .bind(settings.updated_at.to_rfc3339())
         .execute(&self.pool)
@@ -356,11 +359,15 @@ impl SocialManager {
         let notify_friend_requests: i32 = row.get("notify_friend_requests");
         let notify_insight_reactions: i32 = row.get("notify_insight_reactions");
         let notify_adapted_insights: i32 = row.get("notify_adapted_insights");
+        let insight_sharing_policy_str: String = row.get("insight_sharing_policy");
         let created_at_str: String = row.get("created_at");
         let updated_at_str: String = row.get("updated_at");
 
         let share_activity_types: Vec<String> =
             serde_json::from_str(&activity_types_json).unwrap_or_default();
+
+        let insight_sharing_policy =
+            InsightSharingPolicy::parse(&insight_sharing_policy_str).unwrap_or_default();
 
         Ok(UserSocialSettings {
             user_id: Uuid::parse_str(&user_id_str)
@@ -375,6 +382,7 @@ impl SocialManager {
                 insight_reactions: notify_insight_reactions != 0,
                 adapted_insights: notify_adapted_insights != 0,
             },
+            insight_sharing_policy,
             created_at: DateTime::parse_from_rfc3339(&created_at_str)
                 .map_err(|e| AppError::database(format!("Invalid date: {e}")))?
                 .with_timezone(&Utc),

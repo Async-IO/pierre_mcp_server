@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { clsx } from 'clsx';
+import Markdown from 'react-markdown';
 import { socialApi } from '../../services/api';
 import { Card, Button } from '../ui';
 import ShareInsightModal from './ShareInsightModal';
@@ -345,7 +346,19 @@ export default function SocialFeedTab() {
                 {item.insight.title && (
                   <h3 className="text-lg font-semibold text-white mb-2">{item.insight.title}</h3>
                 )}
-                <p className="text-zinc-300 mb-4 whitespace-pre-wrap">{item.insight.content}</p>
+                <div className="text-zinc-300 mb-4 prose prose-sm prose-invert max-w-none prose-headings:text-white prose-headings:font-semibold prose-strong:text-white prose-a:text-pierre-violet prose-a:underline hover:prose-a:text-pierre-violet/80">
+                  <Markdown
+                    components={{
+                      a: ({ href, children }) => (
+                        <a href={href} target="_blank" rel="noopener noreferrer" className="break-all">
+                          {children}
+                        </a>
+                      ),
+                    }}
+                  >
+                    {item.insight.content}
+                  </Markdown>
+                </div>
 
                 {/* Context badges */}
                 {(item.insight.sport_type || item.insight.training_phase) && (

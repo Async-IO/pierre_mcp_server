@@ -169,14 +169,14 @@ export default function ProviderConnectionCards({
   if (isLoading) {
     return (
       <div className="w-full">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3, 4, 5].map((i) => (
-            <Card key={i} className="p-4 animate-pulse">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-pierre-gray-100" />
+            <Card key={i} variant="dark" className="p-5 animate-pulse">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-white/10" />
                 <div className="flex-1">
-                  <div className="h-4 w-20 bg-pierre-gray-100 rounded mb-2" />
-                  <div className="h-3 w-28 bg-pierre-gray-50 rounded" />
+                  <div className="h-4 w-24 bg-white/10 rounded mb-2" />
+                  <div className="h-3 w-32 bg-white/5 rounded" />
                 </div>
               </div>
             </Card>
@@ -190,7 +190,7 @@ export default function ProviderConnectionCards({
 
   return (
     <div className="w-full">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {providers.map((provider) => {
           const style = PROVIDER_STYLES[provider.provider] ?? DEFAULT_STYLE;
           const isConnecting = connectingProvider === provider.display_name;
@@ -212,29 +212,30 @@ export default function ProviderConnectionCards({
               }
             >
               <Card
-                className={`p-4 transition-all duration-200 h-full border-2 ${
+                variant="dark"
+                className={`p-5 transition-all duration-200 h-full border-2 ${
                   provider.connected
-                    ? 'bg-pierre-gray-50/50 border-emerald-200'
+                    ? 'border-emerald-500/50'
                     : isConnecting
-                      ? 'border-pierre-violet bg-pierre-violet/5'
+                      ? 'border-pierre-violet'
                       : isNonOAuth
-                        ? 'border-transparent bg-pierre-gray-50/30'
+                        ? 'border-transparent opacity-60'
                         : `border-transparent ${style.hoverColor} hover:shadow-lg hover:-translate-y-0.5`
                 }`}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-4">
                   <div
-                    className={`w-10 h-10 rounded-xl ${style.brandColor} flex items-center justify-center text-white shadow-sm`}
+                    className={`w-12 h-12 rounded-xl ${style.brandColor} flex items-center justify-center text-white shadow-sm`}
                   >
                     {isConnecting ? (
-                      <div className="pierre-spinner w-5 h-5 border-white border-t-transparent"></div>
+                      <div className="pierre-spinner w-6 h-6 border-white border-t-transparent"></div>
                     ) : (
-                      <ProviderIcon providerId={provider.provider} />
+                      <ProviderIcon providerId={provider.provider} className="w-6 h-6" />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-pierre-gray-900 text-sm">{provider.display_name}</span>
+                      <span className="font-semibold text-white text-sm">{provider.display_name}</span>
                       {provider.connected && (
                         <Badge variant="success">
                           Connected
@@ -246,11 +247,11 @@ export default function ProviderConnectionCards({
                         </Badge>
                       )}
                     </div>
-                    <p className="text-xs text-pierre-gray-500 mt-0.5">{getProviderDescription(provider)}</p>
+                    <p className="text-xs text-zinc-400 mt-0.5">{getProviderDescription(provider)}</p>
                   </div>
                   {!provider.connected && provider.requires_oauth && (
                     <svg
-                      className="w-4 h-4 text-pierre-gray-300 group-hover:text-pierre-gray-500 transition-colors"
+                      className="w-4 h-4 text-zinc-500 group-hover:text-zinc-300 transition-colors"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -274,26 +275,27 @@ export default function ProviderConnectionCards({
             aria-label="Skip and start chatting"
           >
             <Card
-              className="p-4 transition-all duration-200 h-full border-2 border-transparent hover:border-pierre-violet hover:shadow-lg hover:-translate-y-0.5 bg-gradient-to-br from-pierre-violet/5 to-pierre-cyan/5"
+              variant="dark"
+              className="p-5 transition-all duration-200 h-full border-2 border-transparent hover:border-pierre-violet hover:shadow-lg hover:-translate-y-0.5"
             >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pierre-violet to-pierre-cyan flex items-center justify-center text-white shadow-sm">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-pierre-violet to-pierre-cyan flex items-center justify-center text-white shadow-sm">
                   {isSkipPending ? (
-                    <div className="pierre-spinner w-5 h-5 border-white border-t-transparent"></div>
+                    <div className="pierre-spinner w-6 h-6 border-white border-t-transparent"></div>
                   ) : (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <span className="font-semibold text-pierre-gray-900 text-sm">
+                  <span className="font-semibold text-white text-sm">
                     {isSkipPending ? 'Starting...' : 'Start chatting'}
                   </span>
-                  <p className="text-xs text-pierre-gray-500 mt-0.5">Connect providers later</p>
+                  <p className="text-xs text-zinc-400 mt-0.5">Connect providers later</p>
                 </div>
                 <svg
-                  className="w-4 h-4 text-pierre-gray-300 group-hover:text-pierre-violet transition-colors"
+                  className="w-4 h-4 text-zinc-500 group-hover:text-pierre-violet transition-colors"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"

@@ -87,6 +87,8 @@ pub mod recipes;
 pub mod friend_activity_cache;
 /// Adapts shared insights to user's training context
 pub mod insight_adapter;
+/// LLM-powered insight quality validation for social sharing
+pub mod insight_validation;
 /// Generates shareable, privacy-preserving insights
 pub mod social_insights;
 
@@ -347,6 +349,13 @@ pub use social_insights::SharedInsightGenerator;
 // Helper functions
 pub use insight_adapter::truncate_string;
 pub use social_insights::{calculate_milestone_relevance, capitalize_first};
+// Insight quality validation
+pub use insight_validation::{
+    contains_metrics, detect_metrics, quick_reject_check, redact_content,
+    validate_insight_with_policy, validate_insight_with_quick_check, DetectedMetric,
+    InsightMetricType, InsightSharingPolicy, InsightValidationResult, RedactionInfo,
+    ValidationVerdict,
+};
 
 // Re-export visitor pattern types
 

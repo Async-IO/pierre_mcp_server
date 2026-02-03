@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::errors::AppError;
+use crate::intelligence::InsightSharingPolicy;
 
 // ============================================================================
 // Enums
@@ -454,6 +455,8 @@ pub struct UserSocialSettings {
     pub share_activity_types: Vec<String>,
     /// Notification preferences
     pub notifications: NotificationPreferences,
+    /// Policy for data detail level in shared insights
+    pub insight_sharing_policy: InsightSharingPolicy,
     /// When settings were created
     pub created_at: DateTime<Utc>,
     /// When settings were last updated
@@ -471,6 +474,7 @@ impl UserSocialSettings {
             default_visibility: ShareVisibility::FriendsOnly,
             share_activity_types: vec!["run".to_owned(), "ride".to_owned(), "swim".to_owned()],
             notifications: NotificationPreferences::all_enabled(),
+            insight_sharing_policy: InsightSharingPolicy::default(),
             created_at: now,
             updated_at: now,
         }

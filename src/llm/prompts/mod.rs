@@ -24,6 +24,12 @@ pub const PIERRE_SYSTEM_PROMPT: &str = include_str!("pierre_system.md");
 /// a specialized coach profile with title, description, system prompt, and tags.
 pub const COACH_GENERATION_PROMPT: &str = include_str!("coach_generation.md");
 
+/// Insight validation system prompt
+///
+/// Contains instructions for the LLM to evaluate fitness content quality
+/// before sharing to social feed. Returns valid, improved, or rejected verdict.
+pub const INSIGHT_VALIDATION_PROMPT: &str = include_str!("insight_validation.md");
+
 /// Get the system prompt for the Pierre fitness assistant
 ///
 /// This is the default system prompt used when starting a new conversation.
@@ -40,4 +46,13 @@ pub const fn get_pierre_system_prompt() -> &'static str {
 #[must_use]
 pub const fn get_coach_generation_prompt() -> &'static str {
     COACH_GENERATION_PROMPT
+}
+
+/// Get the system prompt for insight quality validation
+///
+/// This prompt instructs the LLM to evaluate fitness content quality
+/// before sharing to social feed, returning a verdict with optional improvements.
+#[must_use]
+pub const fn get_insight_validation_prompt() -> &'static str {
+    INSIGHT_VALIDATION_PROMPT
 }

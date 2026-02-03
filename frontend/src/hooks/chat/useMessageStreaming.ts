@@ -174,47 +174,13 @@ export function useMessageStreaming(options: UseMessageStreamingOptions): UseMes
         throw new Error(errorData.message || errorData.error || 'Failed to send message');
       }
 
-      const responseText = await response.text();
-      let fullContent = '';
-      let responseModel: string | undefined;
-      let responseExecutionTimeMs: number | undefined;
-      let assistantMessageId: string | undefined;
-
-      // Try JSON first (non-streaming)
-      try {
-        const jsonResponse = JSON.parse(responseText);
-        if (jsonResponse.assistant_message) {
-          fullContent = jsonResponse.assistant_message.content || '';
-          assistantMessageId = jsonResponse.assistant_message.id;
-          responseModel = jsonResponse.model;
-          responseExecutionTimeMs = jsonResponse.execution_time_ms;
-          setStreamingContent(fullContent);
-        }
-      } catch {
-        // SSE parsing for streaming responses
-        const lines = responseText.split('\n');
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') continue;
-
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.delta) {
-                fullContent += parsed.delta;
-                setStreamingContent(fullContent);
-              }
-              if (parsed.type === 'done' && parsed.message) {
-                assistantMessageId = parsed.message.id;
-                responseModel = parsed.model;
-                responseExecutionTimeMs = parsed.execution_time_ms;
-              }
-            } catch {
-              // Skip non-JSON lines
-            }
-          }
-        }
-      }
+      // Parse JSON response (non-streaming with MCP tool support)
+      const jsonResponse = await response.json();
+      const fullContent = jsonResponse.assistant_message?.content || '';
+      const assistantMessageId = jsonResponse.assistant_message?.id;
+      const responseModel = jsonResponse.model;
+      const responseExecutionTimeMs = jsonResponse.execution_time_ms;
+      setStreamingContent(fullContent);
 
       // Store metadata
       if (assistantMessageId && (responseModel || responseExecutionTimeMs)) {

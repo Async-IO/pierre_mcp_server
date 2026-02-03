@@ -119,6 +119,8 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   const [actionMenuVisible, setActionMenuVisible] = useState(false);
   const [providerModalVisible, setProviderModalVisible] = useState(false);
   const [connectedProviders, setConnectedProviders] = useState<ExtendedProviderStatus[]>([]);
+  // Cache the user's provider selection to avoid showing the modal repeatedly
+  const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [messageFeedback, setMessageFeedback] = useState<Record<string, 'up' | 'down' | null>>({});
   const [coaches, setCoaches] = useState<Coach[]>([]);
@@ -704,15 +706,34 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   const handleCoachSelect = async (coach: Coach) => {
     if (isSending) return;
 
-    // Check if any provider is connected
-    if (!hasConnectedProvider()) {
-      // Store pending action and show provider modal
-      setPendingCoachAction({ coach });
-      setProviderModalVisible(true);
+    // Check if we have a cached provider that is still connected
+    if (selectedProvider) {
+      const cachedProvider = connectedProviders.find(
+        p => p.provider === selectedProvider && p.connected
+      );
+      if (cachedProvider) {
+        // Use the cached provider, skip the modal
+        await startCoachConversation(coach);
+        return;
+      }
+      // Cached provider no longer connected, clear it
+      setSelectedProvider(null);
+    }
+
+    // Check if any provider is connected - if so, proceed (original behavior)
+    if (hasConnectedProvider()) {
+      // Auto-cache the first connected provider for future use
+      const firstConnected = connectedProviders.find(p => p.connected);
+      if (firstConnected) {
+        setSelectedProvider(firstConnected.provider);
+      }
+      await startCoachConversation(coach);
       return;
     }
 
-    await startCoachConversation(coach);
+    // No providers connected - show modal to connect one
+    setPendingCoachAction({ coach });
+    setProviderModalVisible(true);
   };
 
   const startCoachConversation = async (coach: Coach) => {
@@ -883,6 +904,8 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
         if (success) {
           // OAuth completed successfully - refresh connection status
           await loadProviderStatus();
+          // Cache the provider selection to skip modal next time
+          setSelectedProvider(provider);
           // Start pending coach conversation now that provider is connected
           if (pendingCoachAction) {
             await startCoachConversation(pendingCoachAction.coach);
@@ -1571,6 +1594,8 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
                     }`}
                     onPress={() => {
                       if (isConnected) {
+                        // Cache the selected provider to skip modal next time
+                        setSelectedProvider(provider.provider);
                         setProviderModalVisible(false);
                         if (pendingPrompt) {
                           const prompt = pendingPrompt;
