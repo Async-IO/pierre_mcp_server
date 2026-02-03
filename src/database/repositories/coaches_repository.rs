@@ -165,13 +165,14 @@ impl CoachesRepository for CoachesRepositoryImpl {
         tenant_id: &str,
         query: &str,
         limit: Option<u32>,
+        offset: Option<u32>,
     ) -> Result<Vec<Coach>, DatabaseError> {
         let manager = self.get_manager().ok_or_else(|| DatabaseError::QueryError {
             context: "Coaches operations require SQLite backend".to_string(),
         })?;
 
         manager
-            .search(user_id, tenant_id, query, limit)
+            .search(user_id, tenant_id, query, limit, offset)
             .await
             .map_err(|e| DatabaseError::QueryError {
                 context: e.to_string(),

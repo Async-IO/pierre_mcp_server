@@ -595,9 +595,16 @@ pub fn handle_search_coaches(
             .and_then(Value::as_u64)
             .map(|v| v.min(100) as u32);
 
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let offset = request.parameters.get("offset").and_then(|v| {
+            v.as_u64()
+                .map(|n| n.min(u64::from(u32::MAX)) as u32)
+                .or_else(|| v.as_f64().map(|f| f as u32))
+        });
+
         let manager = get_coaches_manager(executor)?;
         let coaches = manager
-            .search(user_id, tenant_id, query, limit)
+            .search(user_id, tenant_id, query, limit, offset)
             .await
             .map_err(|e| ProtocolError::InternalError(format!("Failed to search coaches: {e}")))?;
 
@@ -616,12 +623,20 @@ pub fn handle_search_coaches(
             })
             .collect();
 
+        let returned_count = results.len();
+        let limit_val = limit.unwrap_or(20);
+        #[allow(clippy::cast_possible_truncation)]
+        let has_more = returned_count == limit_val as usize;
+
         let result = UniversalResponse {
             success: true,
             result: Some(json!({
                 "query": query,
                 "results": results,
-                "count": results.len(),
+                "returned_count": returned_count,
+                "offset": offset.unwrap_or(0),
+                "limit": limit_val,
+                "has_more": has_more,
             })),
             error: None,
             metadata: None,

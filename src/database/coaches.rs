@@ -884,8 +884,10 @@ impl CoachesManager {
         tenant_id: &str,
         query: &str,
         limit: Option<u32>,
+        offset: Option<u32>,
     ) -> AppResult<Vec<Coach>> {
         let limit_val = i32::try_from(limit.unwrap_or(20)).unwrap_or(20);
+        let offset_val = i32::try_from(offset.unwrap_or(0)).unwrap_or(0);
         let search_pattern = format!("%{query}%");
 
         let rows = sqlx::query(
@@ -900,13 +902,14 @@ impl CoachesManager {
                 title LIKE $3 OR description LIKE $3 OR tags LIKE $3
             )
             ORDER BY updated_at DESC
-            LIMIT $4
+            LIMIT $4 OFFSET $5
             ",
         )
         .bind(user_id.to_string())
         .bind(tenant_id)
         .bind(&search_pattern)
         .bind(limit_val)
+        .bind(offset_val)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to search coaches: {e}")))?;

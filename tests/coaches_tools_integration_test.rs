@@ -919,7 +919,7 @@ async fn test_search_coaches_by_title() -> Result<()> {
     let result = response.result.unwrap();
 
     assert_eq!(result["query"].as_str().unwrap(), "marathon");
-    assert_eq!(result["count"].as_u64().unwrap(), 1);
+    assert_eq!(result["returned_count"].as_u64().unwrap(), 1);
 
     let results = result["results"].as_array().unwrap();
     assert!(results[0]["title"].as_str().unwrap().contains("Marathon"));
@@ -972,7 +972,7 @@ async fn test_search_coaches_by_tag() -> Result<()> {
     assert!(response.success);
     let result = response.result.unwrap();
 
-    assert_eq!(result["count"].as_u64().unwrap(), 1);
+    assert_eq!(result["returned_count"].as_u64().unwrap(), 1);
 
     Ok(())
 }
@@ -996,7 +996,7 @@ async fn test_search_coaches_no_results() -> Result<()> {
     assert!(response.success);
     let result = response.result.unwrap();
 
-    assert_eq!(result["count"].as_u64().unwrap(), 0);
+    assert_eq!(result["returned_count"].as_u64().unwrap(), 0);
     assert!(result["results"].as_array().unwrap().is_empty());
 
     Ok(())
@@ -1051,7 +1051,182 @@ async fn test_search_coaches_with_limit() -> Result<()> {
     assert!(response.success);
     let result = response.result.unwrap();
 
-    assert_eq!(result["count"].as_u64().unwrap(), 3);
+    assert_eq!(result["returned_count"].as_u64().unwrap(), 3);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_search_coaches_pagination_has_more_true() -> Result<()> {
+    let executor = create_coach_test_executor().await?;
+    let (user_id, tenant_id) = create_test_user_for_coaches(&executor).await?;
+
+    // Create 5 coaches
+    for i in 0..5 {
+        let request = create_test_request(
+            "create_coach",
+            json!({
+                "title": format!("Pagination Coach {}", i),
+                "system_prompt": "Testing pagination."
+            }),
+            user_id,
+            &tenant_id,
+        );
+        executor.execute_tool(request).await?;
+    }
+
+    // Search with limit=3, expecting has_more=true (5 coaches, returning 3)
+    let request = create_test_request(
+        "search_coaches",
+        json!({
+            "query": "pagination",
+            "limit": 3
+        }),
+        user_id,
+        &tenant_id,
+    );
+
+    let response = executor.execute_tool(request).await?;
+    assert!(response.success);
+    let result = response.result.unwrap();
+
+    // Verify pagination metadata fields exist and are correct
+    assert_eq!(result["returned_count"].as_u64().unwrap(), 3);
+    assert_eq!(result["limit"].as_u64().unwrap(), 3);
+    assert_eq!(result["offset"].as_u64().unwrap(), 0);
+    assert!(
+        result["has_more"].as_bool().unwrap(),
+        "has_more should be true when returned_count equals limit"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_search_coaches_pagination_has_more_false() -> Result<()> {
+    let executor = create_coach_test_executor().await?;
+    let (user_id, tenant_id) = create_test_user_for_coaches(&executor).await?;
+
+    // Create 2 coaches
+    for i in 0..2 {
+        let request = create_test_request(
+            "create_coach",
+            json!({
+                "title": format!("Limited Coach {}", i),
+                "system_prompt": "Testing has_more false."
+            }),
+            user_id,
+            &tenant_id,
+        );
+        executor.execute_tool(request).await?;
+    }
+
+    // Search with limit=10, expecting has_more=false (only 2 coaches)
+    let request = create_test_request(
+        "search_coaches",
+        json!({
+            "query": "limited",
+            "limit": 10
+        }),
+        user_id,
+        &tenant_id,
+    );
+
+    let response = executor.execute_tool(request).await?;
+    assert!(response.success);
+    let result = response.result.unwrap();
+
+    assert_eq!(result["returned_count"].as_u64().unwrap(), 2);
+    assert_eq!(result["limit"].as_u64().unwrap(), 10);
+    assert!(
+        !result["has_more"].as_bool().unwrap(),
+        "has_more should be false when returned_count < limit"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_search_coaches_pagination_with_offset() -> Result<()> {
+    let executor = create_coach_test_executor().await?;
+    let (user_id, tenant_id) = create_test_user_for_coaches(&executor).await?;
+
+    // Create 5 coaches with sequential titles for deterministic ordering
+    for i in 0..5 {
+        let request = create_test_request(
+            "create_coach",
+            json!({
+                "title": format!("Offset Coach {}", i),
+                "system_prompt": "Testing offset pagination."
+            }),
+            user_id,
+            &tenant_id,
+        );
+        executor.execute_tool(request).await?;
+    }
+
+    // First page: offset=0, limit=2
+    let request1 = create_test_request(
+        "search_coaches",
+        json!({
+            "query": "offset",
+            "limit": 2,
+            "offset": 0
+        }),
+        user_id,
+        &tenant_id,
+    );
+
+    let response1 = executor.execute_tool(request1).await?;
+    assert!(response1.success);
+    let result1 = response1.result.unwrap();
+
+    assert_eq!(result1["returned_count"].as_u64().unwrap(), 2);
+    assert_eq!(result1["offset"].as_u64().unwrap(), 0);
+    assert!(result1["has_more"].as_bool().unwrap());
+
+    // Second page: offset=2, limit=2
+    let request2 = create_test_request(
+        "search_coaches",
+        json!({
+            "query": "offset",
+            "limit": 2,
+            "offset": 2
+        }),
+        user_id,
+        &tenant_id,
+    );
+
+    let response2 = executor.execute_tool(request2).await?;
+    assert!(response2.success);
+    let result2 = response2.result.unwrap();
+
+    assert_eq!(result2["returned_count"].as_u64().unwrap(), 2);
+    assert_eq!(result2["offset"].as_u64().unwrap(), 2);
+    assert!(result2["has_more"].as_bool().unwrap());
+
+    // Third page: offset=4, limit=2 (only 1 remaining)
+    let request3 = create_test_request(
+        "search_coaches",
+        json!({
+            "query": "offset",
+            "limit": 2,
+            "offset": 4
+        }),
+        user_id,
+        &tenant_id,
+    );
+
+    let response3 = executor.execute_tool(request3).await?;
+    assert!(response3.success);
+    let result3 = response3.result.unwrap();
+
+    assert_eq!(result3["returned_count"].as_u64().unwrap(), 1);
+    assert_eq!(result3["offset"].as_u64().unwrap(), 4);
+    assert!(
+        !result3["has_more"].as_bool().unwrap(),
+        "has_more should be false on last page"
+    );
 
     Ok(())
 }

@@ -703,7 +703,7 @@ impl McpTool for SearchCoachesTool {
     }
 
     fn description(&self) -> &'static str {
-        "Search for coaches by query"
+        "Search for coaches by query. Returns up to 20 results by default. Check the `has_more` field before requesting additional results with offset."
     }
 
     fn input_schema(&self) -> JsonSchema {
@@ -726,7 +726,14 @@ impl McpTool for SearchCoachesTool {
             "limit".to_owned(),
             PropertySchema {
                 property_type: "integer".to_owned(),
-                description: Some("Maximum results. Default: 20".to_owned()),
+                description: Some("Maximum results per request. Default: 20, max: 100".to_owned()),
+            },
+        );
+        properties.insert(
+            "offset".to_owned(),
+            PropertySchema {
+                property_type: "integer".to_owned(),
+                description: Some("Pagination offset. Default: 0. Only use if previous response had has_more=true".to_owned()),
             },
         );
         JsonSchema {
@@ -752,18 +759,33 @@ impl McpTool for SearchCoachesTool {
             .and_then(Value::as_u64)
             .map(|v| v.min(100) as u32);
 
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let offset = args.get("offset").and_then(|v| {
+            v.as_u64()
+                .map(|n| n.min(u64::from(u32::MAX)) as u32)
+                .or_else(|| v.as_f64().map(|f| f as u32))
+        });
+
         let manager = get_coaches_manager(ctx)?;
         let tenant_id = get_tenant_id(ctx);
 
         let coaches = manager
-            .search(ctx.user_id, &tenant_id, query, limit)
+            .search(ctx.user_id, &tenant_id, query, limit, offset)
             .await?;
 
         let results: Vec<Value> = coaches.iter().map(format_coach_for_search).collect();
 
+        let returned_count = results.len();
+        let limit_val = limit.unwrap_or(20);
+        #[allow(clippy::cast_possible_truncation)]
+        let has_more = returned_count == limit_val as usize;
+
         Ok(ToolResult::ok(json!({
             "results": results,
-            "count": results.len(),
+            "returned_count": returned_count,
+            "offset": offset.unwrap_or(0),
+            "limit": limit_val,
+            "has_more": has_more,
             "query": query,
         })))
     }

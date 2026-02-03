@@ -204,6 +204,8 @@ pub struct SearchCoachesQuery {
     pub q: String,
     /// Maximum results to return
     pub limit: Option<u32>,
+    /// Pagination offset
+    pub offset: Option<u32>,
 }
 
 /// Response for toggle favorite
@@ -673,7 +675,13 @@ impl CoachesRoutes {
 
         let manager = Self::get_coaches_manager(&resources)?;
         let coaches = manager
-            .search(auth.user_id, &tenant_id, &query.q, query.limit)
+            .search(
+                auth.user_id,
+                &tenant_id,
+                &query.q,
+                query.limit,
+                query.offset,
+            )
             .await?;
 
         let response = ListCoachesResponse {

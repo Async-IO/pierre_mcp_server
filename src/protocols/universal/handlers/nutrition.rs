@@ -636,7 +636,7 @@ pub fn handle_search_food(
                     success: true,
                     result: Some(json!({
                         "foods": paginated.foods,
-                        "count": count,
+                        "returned_count": count,
                         "total_hits": paginated.total_hits,
                         "page_number": paginated.current_page,
                         "page_size": page_size,

@@ -398,7 +398,7 @@ impl McpTool for SearchFoodTool {
     }
 
     fn description(&self) -> &'static str {
-        "Search USDA FoodData Central database for foods"
+        "Search USDA FoodData Central database for foods. Returns up to 10 results by default. Check the `has_more` field before requesting additional pages."
     }
 
     fn input_schema(&self) -> JsonSchema {
@@ -414,7 +414,14 @@ impl McpTool for SearchFoodTool {
             "page_size".to_owned(),
             PropertySchema {
                 property_type: "integer".to_owned(),
-                description: Some("Number of results to return (default: 10, max: 50)".to_owned()),
+                description: Some("Number of results per page (default: 10, max: 50)".to_owned()),
+            },
+        );
+        properties.insert(
+            "page_number".to_owned(),
+            PropertySchema {
+                property_type: "integer".to_owned(),
+                description: Some("Page number (1-indexed, default: 1). Only use if previous response had has_more=true".to_owned()),
             },
         );
         JsonSchema {
@@ -442,10 +449,16 @@ impl McpTool for SearchFoodTool {
             .and_then(Value::as_u64)
             .map_or(10_u32, |s| s.min(50) as u32);
 
+        #[allow(clippy::cast_possible_truncation)]
+        let page_number = args
+            .get("page_number")
+            .and_then(Value::as_u64)
+            .map_or(1_u32, |p| p.clamp(1, 100) as u32);
+
         let client = get_usda_client(ctx)?;
 
         let results = client
-            .search_foods(query, page_size, 1) // page 1, requested size
+            .search_foods(query, page_size, page_number)
             .await
             .map_err(|e| AppError::internal(format!("USDA search failed: {e}")))?;
 
@@ -462,10 +475,17 @@ impl McpTool for SearchFoodTool {
             })
             .collect();
 
+        let has_more = results.current_page < results.total_pages;
+
         Ok(ToolResult::ok(json!({
             "query": query,
-            "total_results": foods.len(),
             "foods": foods,
+            "returned_count": foods.len(),
+            "total_hits": results.total_hits,
+            "page_number": results.current_page,
+            "page_size": page_size,
+            "total_pages": results.total_pages,
+            "has_more": has_more,
             "searched_at": Utc::now().to_rfc3339(),
         })))
     }

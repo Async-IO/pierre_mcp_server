@@ -650,6 +650,187 @@ async fn test_search_food_page_size_boundary() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test]
+async fn test_search_food_pagination_metadata_fields() -> Result<()> {
+    if !usda_api_key_available() {
+        println!("Skipping test_search_food_pagination_metadata_fields - no USDA_API_KEY");
+        return Ok(());
+    }
+
+    let executor = create_nutrition_test_executor().await?;
+
+    let request = create_test_request(
+        "search_food",
+        json!({
+            "query": "chicken",
+            "page_size": 5,
+            "page_number": 1
+        }),
+    );
+
+    let response = execute_usda_api_call_with_timeout(
+        &executor,
+        request,
+        "test_search_food_pagination_metadata_fields",
+    )
+    .await?;
+
+    let Some(response) = response else {
+        return Ok(());
+    };
+
+    assert!(response.success);
+    let result = response.result.unwrap();
+
+    // Verify all pagination metadata fields are present
+    assert!(
+        result.get("returned_count").is_some(),
+        "Response should include returned_count"
+    );
+    assert!(
+        result.get("total_hits").is_some(),
+        "Response should include total_hits"
+    );
+    assert!(
+        result.get("page_number").is_some(),
+        "Response should include page_number"
+    );
+    assert!(
+        result.get("page_size").is_some(),
+        "Response should include page_size"
+    );
+    assert!(
+        result.get("total_pages").is_some(),
+        "Response should include total_pages"
+    );
+    assert!(
+        result.get("has_more").is_some(),
+        "Response should include has_more"
+    );
+
+    // Verify page_number matches request
+    assert_eq!(result["page_number"].as_u64().unwrap(), 1);
+    assert_eq!(result["page_size"].as_u64().unwrap(), 5);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_search_food_pagination_has_more_calculation() -> Result<()> {
+    if !usda_api_key_available() {
+        println!("Skipping test_search_food_pagination_has_more_calculation - no USDA_API_KEY");
+        return Ok(());
+    }
+
+    let executor = create_nutrition_test_executor().await?;
+
+    // Request a small page size to ensure multiple pages exist for common foods
+    let request = create_test_request(
+        "search_food",
+        json!({
+            "query": "apple",
+            "page_size": 2,
+            "page_number": 1
+        }),
+    );
+
+    let response = execute_usda_api_call_with_timeout(
+        &executor,
+        request,
+        "test_search_food_pagination_has_more_calculation",
+    )
+    .await?;
+
+    let Some(response) = response else {
+        return Ok(());
+    };
+
+    assert!(response.success);
+    let result = response.result.unwrap();
+
+    let current_page = result["page_number"].as_u64().unwrap();
+    let total_pages = result["total_pages"].as_u64().unwrap();
+    let has_more = result["has_more"].as_bool().unwrap();
+
+    // Verify has_more is calculated correctly: current_page < total_pages
+    if total_pages > 1 {
+        assert!(
+            has_more,
+            "has_more should be true when on page {current_page} of {total_pages}"
+        );
+    }
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_search_food_pagination_page_navigation() -> Result<()> {
+    if !usda_api_key_available() {
+        println!("Skipping test_search_food_pagination_page_navigation - no USDA_API_KEY");
+        return Ok(());
+    }
+
+    let executor = create_nutrition_test_executor().await?;
+
+    // Request page 1
+    let request1 = create_test_request(
+        "search_food",
+        json!({
+            "query": "beef",
+            "page_size": 3,
+            "page_number": 1
+        }),
+    );
+
+    let response1 = execute_usda_api_call_with_timeout(
+        &executor,
+        request1,
+        "test_search_food_pagination_page_navigation_1",
+    )
+    .await?;
+
+    let Some(response1) = response1 else {
+        return Ok(());
+    };
+
+    assert!(response1.success);
+    let result1 = response1.result.unwrap();
+    assert_eq!(result1["page_number"].as_u64().unwrap(), 1);
+
+    // Request page 2 if available
+    if result1["has_more"].as_bool().unwrap_or(false) {
+        let request2 = create_test_request(
+            "search_food",
+            json!({
+                "query": "beef",
+                "page_size": 3,
+                "page_number": 2
+            }),
+        );
+
+        let response2 = execute_usda_api_call_with_timeout(
+            &executor,
+            request2,
+            "test_search_food_pagination_page_navigation_2",
+        )
+        .await?;
+
+        let Some(response2) = response2 else {
+            return Ok(());
+        };
+
+        assert!(response2.success);
+        let result2 = response2.result.unwrap();
+        assert_eq!(
+            result2["page_number"].as_u64().unwrap(),
+            2,
+            "page_number should reflect requested page"
+        );
+    }
+
+    Ok(())
+}
+
 // ============================================================================
 // get_food_details Tests (USDA API - conditional)
 // ============================================================================
@@ -815,9 +996,10 @@ async fn test_search_food_with_api_key() -> Result<()> {
     let result = response.result.unwrap();
 
     assert!(result["foods"].is_array(), "Should return foods array");
-    // Response uses total_hits for total result count
+    // Response uses total_hits for total result count, returned_count for items in response
     assert!(
-        result["total_hits"].as_u64().unwrap_or(0) > 0 || result["count"].as_u64().unwrap_or(0) > 0,
+        result["total_hits"].as_u64().unwrap_or(0) > 0
+            || result["returned_count"].as_u64().unwrap_or(0) > 0,
         "Should find results"
     );
 

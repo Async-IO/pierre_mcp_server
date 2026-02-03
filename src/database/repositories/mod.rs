@@ -1067,6 +1067,7 @@ pub trait CoachesRepository: Send + Sync {
         tenant_id: &str,
         query: &str,
         limit: Option<u32>,
+        offset: Option<u32>,
     ) -> Result<Vec<crate::database::coaches::Coach>, DatabaseError>;
 
     /// Count coaches for a user
