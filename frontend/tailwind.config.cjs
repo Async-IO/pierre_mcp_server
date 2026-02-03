@@ -13,7 +13,7 @@ module.exports = {
         // Pierre brand colors - Holistic Intelligence design system
         pierre: {
           // Primary brand colors (synced with shared-constants/design-system.ts)
-          violet: '#8B5CF6',  // Intelligence, AI, sophistication
+          violet: '#7C3AED',  // Intelligence, AI, sophistication (WCAG AA compliant with white text)
           cyan: '#22D3EE',    // Data flow, connectivity, freshness
 
           // Three Pillars - Semantic accent colors (synced with shared-constants)
@@ -182,10 +182,10 @@ module.exports = {
         'lg': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
         'xl': '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
         // Glow effects for premium interactions (synced with shared-constants)
-        'glow': '0 0 15px rgba(139, 92, 246, 0.3)',
-        'glow-sm': '0 0 8px rgba(139, 92, 246, 0.2)',
-        'glow-lg': '0 0 20px rgba(139, 92, 246, 0.5)',
-        'glow-violet': '0 0 20px rgba(139, 92, 246, 0.3)',
+        'glow': '0 0 15px rgba(124, 58, 237, 0.3)',
+        'glow-sm': '0 0 8px rgba(124, 58, 237, 0.2)',
+        'glow-lg': '0 0 20px rgba(124, 58, 237, 0.5)',
+        'glow-violet': '0 0 20px rgba(124, 58, 237, 0.3)',
         'glow-cyan': '0 0 20px rgba(34, 211, 238, 0.3)',
         'glow-activity': '0 0 20px rgba(74, 222, 128, 0.3)',
         'glow-nutrition': '0 0 20px rgba(245, 158, 11, 0.3)',
@@ -234,8 +234,8 @@ module.exports = {
           '100%': { backgroundPosition: '200% 0' },
         },
         pulseGlow: {
-          '0%, 100%': { boxShadow: '0 0 0 0 rgba(139, 92, 246, 0.4)' },
-          '50%': { boxShadow: '0 0 0 8px rgba(139, 92, 246, 0)' },
+          '0%, 100%': { boxShadow: '0 0 0 0 rgba(124, 58, 237, 0.4)' },
+          '50%': { boxShadow: '0 0 0 8px rgba(124, 58, 237, 0)' },
         },
       },
     },
