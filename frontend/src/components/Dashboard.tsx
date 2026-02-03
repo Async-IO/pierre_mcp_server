@@ -197,7 +197,7 @@ export default function Dashboard() {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
       </svg>
     ) },
-    { id: 'social-feed', name: 'Insights', icon: (
+    { id: 'insights', name: 'Insights', icon: (
       <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
       </svg>
@@ -243,7 +243,7 @@ export default function Dashboard() {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
       </svg>
     ) },
-    { id: 'social-feed', name: 'Insights', icon: (
+    { id: 'insights', name: 'Insights', icon: (
       <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
       </svg>
@@ -582,7 +582,7 @@ export default function Dashboard() {
             <FriendsTab />
           </Suspense>
         )}
-        {activeTab === 'social-feed' && (
+        {activeTab === 'insights' && (
           <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
             <SocialFeedTab />
           </Suspense>
@@ -597,6 +597,7 @@ export default function Dashboard() {
             <ChatTab
               selectedConversation={selectedConversation}
               onSelectConversation={setSelectedConversation}
+              onNavigateToInsights={() => setActiveTab('insights')}
             />
           </Suspense>
         )}

@@ -99,8 +99,8 @@ const MessageItem = memo(function MessageItem({
                     <Copy className="w-3.5 h-3.5" />
                   </button>
                 )}
-                {/* Share - only shown for insight messages */}
-                {onShare && hasInsight && (
+                {/* Share - always visible */}
+                {onShare && (
                   <button
                     onClick={onShare}
                     className="p-0.5 text-zinc-500 hover:text-zinc-300 transition-colors"
@@ -109,17 +109,7 @@ const MessageItem = memo(function MessageItem({
                     <Share2 className="w-3.5 h-3.5" />
                   </button>
                 )}
-                {/* Share Insight - only shown for insight messages */}
-                {onShareToFeed && hasInsight && (
-                  <button
-                    onClick={onShareToFeed}
-                    className="p-0.5 text-zinc-500 hover:text-zinc-300 transition-colors"
-                    title="Share Insight"
-                  >
-                    <Users className="w-3.5 h-3.5" />
-                  </button>
-                )}
-                {/* Create Insight - only shown for non-insight messages (coach recommendations) */}
+                {/* Create Insight - only for non-insight messages */}
                 {onCreateInsight && !hasInsight && (
                   <button
                     onClick={onCreateInsight}
@@ -127,6 +117,16 @@ const MessageItem = memo(function MessageItem({
                     title="Create shareable insight"
                   >
                     <Lightbulb className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                {/* Share to Feed - only for insight messages */}
+                {onShareToFeed && hasInsight && (
+                  <button
+                    onClick={onShareToFeed}
+                    className="p-0.5 text-zinc-500 hover:text-zinc-300 transition-colors"
+                    title="Share to Feed"
+                  >
+                    <Users className="w-3.5 h-3.5" />
                   </button>
                 )}
                 {/* Thumbs Up */}

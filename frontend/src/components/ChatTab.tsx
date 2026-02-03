@@ -35,9 +35,10 @@ import type {
 interface ChatTabProps {
   selectedConversation: string | null;
   onSelectConversation: (id: string | null) => void;
+  onNavigateToInsights?: () => void;
 }
 
-export default function ChatTab({ selectedConversation, onSelectConversation }: ChatTabProps) {
+export default function ChatTab({ selectedConversation, onSelectConversation, onNavigateToInsights }: ChatTabProps) {
   const queryClient = useQueryClient();
   const showSuccessToast = useSuccessToast();
   const showInfoToast = useInfoToast();
@@ -466,20 +467,25 @@ export default function ChatTab({ selectedConversation, onSelectConversation }: 
   }, []);
 
   const handleCreateInsight = useCallback(async (content: string) => {
-    if (isGeneratingInsight) return;
+    if (isGeneratingInsight || !selectedConversation || isStreaming) return;
 
     setIsGeneratingInsight(true);
+    setIsStreaming(true); // Show "Thinking..." indicator
+    setStreamingContent('');
     setErrorMessage(null);
 
+    // Create the insight prompt (will be hidden from display by the filter)
+    const insightPrompt = `Create a shareable insight from this analysis:\n\n${stripContextPrefix(content)}`;
+
     try {
-      // Call the backend insight generation endpoint
-      const response = await fetch('/api/social/insights/generate', {
+      // Send the insight prompt via the chat API (will appear in chat as response)
+      const response = await fetch(`/api/chat/conversations/${selectedConversation}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`,
         },
-        body: JSON.stringify({ content: stripContextPrefix(content) }),
+        body: JSON.stringify({ content: insightPrompt }),
       });
 
       if (!response.ok) {
@@ -487,19 +493,17 @@ export default function ChatTab({ selectedConversation, onSelectConversation }: 
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
-      const generatedContent = data.content || '';
-
-      // Open the share modal with the generated insight content
-      setShareToFeedContent(generatedContent);
-      setShowShareToFeedModal(true);
+      // Refresh messages to show the generated insight
+      queryClient.invalidateQueries({ queryKey: ['chat-messages', selectedConversation] });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to generate insight';
       setErrorMessage(message);
     } finally {
       setIsGeneratingInsight(false);
+      setIsStreaming(false);
+      setStreamingContent('');
     }
-  }, [isGeneratingInsight]);
+  }, [isGeneratingInsight, selectedConversation, isStreaming, queryClient]);
 
   const handleThumbsUp = useCallback((messageId: string) => {
     setMessageFeedback(prev => {
@@ -774,7 +778,10 @@ export default function ChatTab({ selectedConversation, onSelectConversation }: 
         isOpen={showShareToFeedModal}
         onClose={() => setShowShareToFeedModal(false)}
         content={shareToFeedContent}
-        onSuccess={() => setShowShareToFeedModal(false)}
+        onSuccess={() => {
+          setShowShareToFeedModal(false);
+          onNavigateToInsights?.();
+        }}
       />
     </div>
   );

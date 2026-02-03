@@ -107,9 +107,9 @@ export default function MessageList({
             isError={msg.isError}
             hasInsight={isInsight}
             onCopy={msg.role === 'assistant' ? () => onCopyMessage(msg.content) : undefined}
-            onShare={msg.role === 'assistant' && isInsight ? () => onShareMessage(msg.content) : undefined}
-            onShareToFeed={msg.role === 'assistant' && isInsight ? () => onShareToFeed(msg.content) : undefined}
-            onCreateInsight={msg.role === 'assistant' && !isInsight ? () => onCreateInsight(msg.content) : undefined}
+            onShare={msg.role === 'assistant' ? () => onShareMessage(msg.content) : undefined}
+            onCreateInsight={msg.role === 'assistant' ? () => onCreateInsight(msg.content) : undefined}
+            onShareToFeed={msg.role === 'assistant' ? () => onShareToFeed(msg.content) : undefined}
             onThumbsUp={msg.role === 'assistant' ? () => onThumbsUp(msg.id) : undefined}
             onThumbsDown={msg.role === 'assistant' ? () => onThumbsDown(msg.id) : undefined}
             onRetry={msg.role === 'assistant' ? () => onRetryMessage(msg.id) : undefined}

@@ -66,7 +66,9 @@ import type { VoiceError } from '../../hooks/useVoiceInput';
 import { VoiceButton, PromptDialog } from '../../components/ui';
 import type { Conversation, Message, ExtendedProviderStatus, Coach } from '../../types';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { ChatStackParamList } from '../../navigation/MainTabs';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { useNavigation } from '@react-navigation/native';
+import type { ChatStackParamList, MainTabsParamList } from '../../navigation/MainTabs';
 
 // Coach category badge background colors (lighter versions)
 const COACH_CATEGORY_BADGE_BG: Record<string, string> = {
@@ -107,6 +109,8 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   const { isAuthenticated } = useAuth();
   const insets = useSafeAreaInsets();
   const route = useRoute<RouteProp<ChatStackParamList, 'ChatMain'>>();
+  // Navigation for cross-tab navigation (to ShareInsightScreen)
+  const tabNavigation = useNavigation<BottomTabNavigationProp<MainTabsParamList>>();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -515,20 +519,80 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     }
   };
 
+  const handleShareToFeed = (content: string) => {
+    // Navigate to ShareInsightScreen in the Social tab with pre-populated content
+    tabNavigation.navigate('SocialTab', {
+      screen: 'ShareInsight',
+      params: {
+        content,
+        insightType: 'coaching_insight',
+        visibility: 'friends_only',
+      },
+    } as never);
+  };
+
   const handleCreateInsight = async (content: string) => {
     if (isSending) return;
 
+    // Create conversation if needed
+    let conversationId = currentConversation?.id;
+    if (!conversationId) {
+      try {
+        const conversation = await chatApi.createConversation({
+          title: 'Insight Generation',
+        });
+        if (!conversation || !conversation.id) {
+          throw new Error('Invalid conversation response');
+        }
+        setConversations(prev => [conversation, ...prev]);
+        justCreatedConversationRef.current = conversation.id;
+        setCurrentConversation(conversation);
+        conversationId = conversation.id;
+      } catch (error) {
+        console.error('Failed to create conversation:', error);
+        Alert.alert('Error', 'Failed to create conversation');
+        return;
+      }
+    }
+
     setIsSending(true);
 
-    try {
-      // Call the backend insight generation endpoint
-      const response = await socialApi.generateInsight(content);
+    // Create the insight prompt (will be hidden from display)
+    const insightPrompt = `Create a shareable insight from this analysis:\n\n${content}`;
 
-      // Directly open share sheet with the generated insight
-      await Share.share({ message: response.content });
+    // Add user message optimistically (will be filtered out when loading)
+    const userMessage: Message = {
+      id: `temp-${Date.now()}`,
+      role: 'user',
+      content: insightPrompt,
+      created_at: new Date().toISOString(),
+    };
+    // Don't add to messages since it will be filtered out anyway
+    scrollToBottom();
+
+    try {
+      const response = await chatApi.sendMessage(conversationId, insightPrompt);
+
+      // Add only the assistant response (the generated insight)
+      if (response.assistant_message?.id) {
+        // Mark this message as an insight
+        setInsightMessages(prev => {
+          const updated = new Set(prev);
+          updated.add(response.assistant_message.id);
+          return updated;
+        });
+
+        setMessages(prev => [...prev, {
+          ...response.assistant_message,
+          model: response.model,
+          execution_time_ms: response.execution_time_ms,
+        }]);
+      }
+      scrollToBottom();
     } catch (error) {
       console.error('Failed to create insight:', error);
-      Alert.alert('Error', 'Failed to generate insight');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to generate insight';
+      Alert.alert('Error', errorMessage);
     } finally {
       setIsSending(false);
     }
@@ -1178,22 +1242,29 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
                 >
                   <Ionicons name="copy-outline" size={14} color={colors.text.tertiary} />
                 </TouchableOpacity>
-                {/* Share (system share sheet) - only for insight messages */}
-                {insightMessages.has(item.id) && (
-                  <TouchableOpacity
-                    className="p-0.5"
-                    onPress={() => handleShareMessage(item.content)}
-                  >
-                    <Ionicons name="arrow-redo-outline" size={14} color={colors.text.tertiary} />
-                  </TouchableOpacity>
-                )}
-                {/* Create Insight - only for non-insight messages (coach recommendations) */}
+                {/* Share (system share sheet) - always visible */}
+                <TouchableOpacity
+                  className="p-0.5"
+                  onPress={() => handleShareMessage(item.content)}
+                >
+                  <Ionicons name="arrow-redo-outline" size={14} color={colors.text.tertiary} />
+                </TouchableOpacity>
+                {/* Create Insight - only for non-insight messages */}
                 {!insightMessages.has(item.id) && (
                   <TouchableOpacity
                     className="p-0.5"
                     onPress={() => handleCreateInsight(item.content)}
                   >
                     <Ionicons name="bulb-outline" size={14} color={colors.text.tertiary} />
+                  </TouchableOpacity>
+                )}
+                {/* Share to Feed - only for insight messages */}
+                {insightMessages.has(item.id) && (
+                  <TouchableOpacity
+                    className="p-0.5"
+                    onPress={() => handleShareToFeed(item.content)}
+                  >
+                    <Ionicons name="people-outline" size={14} color={colors.text.tertiary} />
                   </TouchableOpacity>
                 )}
                 {/* Thumbs Up */}

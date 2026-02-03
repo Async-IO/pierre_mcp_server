@@ -1532,9 +1532,8 @@ impl SocialRoutes {
         );
 
         // Build content: use custom content if provided, otherwise generate coach content
-        // Only validate custom user content - coach-generated content is already quality-controlled
-        let (content, is_custom_content) = if let Some(custom_content) = body.content.clone() {
-            (custom_content, true)
+        let content = if let Some(custom_content) = body.content.clone() {
+            custom_content
         } else {
             // Try to generate coach content based on user's activities
             // Falls back to default message if context building fails (e.g., no OAuth token)
@@ -1562,7 +1561,7 @@ impl SocialRoutes {
                         .map_or_else(|| default_message.clone(), |s| s.suggested_content)
                 },
             );
-            (generated, false)
+            generated
         };
 
         // Skip validation for content provided via this endpoint - it's either:
