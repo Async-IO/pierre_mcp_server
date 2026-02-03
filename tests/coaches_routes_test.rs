@@ -993,7 +993,8 @@ async fn test_generate_coach_empty_conversation() {
     let create_response = AxumTestRequest::post("/api/chat/conversations")
         .header("authorization", &auth_token)
         .json(&json!({
-            "title": "Empty Conversation"
+            "title": "Empty Conversation",
+            "model": "gemini-1.5-flash"
         }))
         .send(chat_router)
         .await;
@@ -1043,7 +1044,8 @@ async fn test_generate_coach_other_users_conversation() {
     let create_response = AxumTestRequest::post("/api/chat/conversations")
         .header("authorization", &auth_token1)
         .json(&json!({
-            "title": "User1 Conversation"
+            "title": "User1 Conversation",
+            "model": "gemini-1.5-flash"
         }))
         .send(chat_router)
         .await;
