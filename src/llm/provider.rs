@@ -35,7 +35,7 @@
 use std::fmt;
 use std::time::Duration;
 use tokio::time::sleep;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 use super::{
@@ -97,6 +97,26 @@ impl ChatProvider {
                 Ok(provider)
             }
             Err(primary_error) => Self::try_fallback(provider_type, primary_error).await,
+        }
+    }
+
+    /// Try to create a provider from environment, returning None if unavailable
+    ///
+    /// This is useful for optional LLM features that should gracefully degrade
+    /// when no LLM provider is configured (e.g., in test environments).
+    ///
+    /// Unlike `from_env()`, this method logs a warning and returns `None` instead
+    /// of failing with an error when no provider can be initialized.
+    pub async fn try_from_env() -> Option<Self> {
+        match Self::from_env().await {
+            Ok(provider) => Some(provider),
+            Err(e) => {
+                warn!(
+                    "LLM provider not available (validation will be skipped): {}",
+                    e
+                );
+                None
+            }
         }
     }
 
