@@ -1,0 +1,5 @@
+# ABOUTME: Rust toolchain configuration for the Pierre MCP Server project
+# ABOUTME: Specifies the Rust version used for building and development
+
+[toolchain]
+channel = "1.92.0"
