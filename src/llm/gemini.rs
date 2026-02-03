@@ -724,7 +724,10 @@ impl GeminiProvider {
     fn is_retryable_error(error: &AppError) -> bool {
         let message = error.to_string();
         // Retry on 429 rate limit - backoff will help
-        if message.contains("429") || message.contains("quota exceeded") || message.contains("rate limit") {
+        if message.contains("429")
+            || message.contains("quota exceeded")
+            || message.contains("rate limit")
+        {
             return true;
         }
         // Retry on 503 overloaded

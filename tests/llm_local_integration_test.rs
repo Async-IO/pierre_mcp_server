@@ -475,6 +475,7 @@ async fn test_local_llm_server_not_running_error() {
         base_url: "http://localhost:59999/v1".to_owned(),
         api_key: None,
         default_model: "test".to_owned(),
+        fallback_model: "test".to_owned(),
         provider_name: "test".to_owned(),
         display_name: "Test".to_owned(),
         capabilities: LlmCapabilities::default(),
