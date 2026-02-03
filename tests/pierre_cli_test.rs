@@ -14,8 +14,9 @@ use std::process::Command;
 
 /// Get the path to the pierre-cli binary
 fn cli_binary() -> String {
-    // Use debug binary for tests
-    format!("{}/target/debug/pierre-cli", env!("CARGO_MANIFEST_DIR"))
+    // Use Cargo's built-in env var to find the binary path
+    // This works correctly regardless of target directory (debug, llvm-cov, etc.)
+    env!("CARGO_BIN_EXE_pierre-cli").to_owned()
 }
 
 /// Helper to run CLI command and capture output
