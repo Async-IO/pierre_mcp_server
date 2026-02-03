@@ -20,7 +20,7 @@ import { colors, spacing, borderRadius } from '../../constants/theme';
 import { Input } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext';
 import { userApi, oauthApi } from '../../services/api';
-import type { McpToken, ProviderStatus } from '../../types';
+import type { McpToken, ExtendedProviderStatus } from '../../types';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { SettingsStackParamList } from '../../navigation/MainTabs';
 
@@ -53,7 +53,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
   const [newTokenName, setNewTokenName] = useState('');
   const [isCreatingToken, setIsCreatingToken] = useState(false);
   const [newToken, setNewToken] = useState<string | null>(null);
-  const [connectedProviders, setConnectedProviders] = useState<ProviderStatus[]>([]);
+  const [connectedProviders, setConnectedProviders] = useState<ExtendedProviderStatus[]>([]);
 
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -95,7 +95,8 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
 
   const loadProviderStatus = async () => {
     try {
-      const response = await oauthApi.getStatus();
+      // Use getProvidersStatus() to include non-OAuth providers like synthetic
+      const response = await oauthApi.getProvidersStatus();
       setConnectedProviders(response.providers || []);
     } catch (error) {
       console.error('Failed to load provider status:', error);
