@@ -96,7 +96,8 @@ async fn test_list_conversations() {
     let create_response = AxumTestRequest::post("/api/chat/conversations")
         .header("authorization", &auth_token)
         .json(&json!({
-            "title": "Test Conversation"
+            "title": "Test Conversation",
+            "model": "gemini-1.5-flash"
         }))
         .send(router.clone())
         .await;
@@ -125,7 +126,8 @@ async fn test_get_conversation() {
     let create_response = AxumTestRequest::post("/api/chat/conversations")
         .header("authorization", &auth_token)
         .json(&json!({
-            "title": "Get Test Conv"
+            "title": "Get Test Conv",
+            "model": "gemini-1.5-flash"
         }))
         .send(router.clone())
         .await;
@@ -153,7 +155,8 @@ async fn test_update_conversation_title() {
     let create_response = AxumTestRequest::post("/api/chat/conversations")
         .header("authorization", &auth_token)
         .json(&json!({
-            "title": "Original Title"
+            "title": "Original Title",
+            "model": "gemini-1.5-flash"
         }))
         .send(router.clone())
         .await;
@@ -189,7 +192,8 @@ async fn test_delete_conversation() {
     let create_response = AxumTestRequest::post("/api/chat/conversations")
         .header("authorization", &auth_token)
         .json(&json!({
-            "title": "To Delete"
+            "title": "To Delete",
+            "model": "gemini-1.5-flash"
         }))
         .send(router.clone())
         .await;
@@ -262,7 +266,8 @@ async fn test_list_conversations_pagination() {
         AxumTestRequest::post("/api/chat/conversations")
             .header("authorization", &auth_token)
             .json(&json!({
-                "title": format!("Conv {}", i)
+                "title": format!("Conv {}", i),
+                "model": "gemini-1.5-flash"
             }))
             .send(router.clone())
             .await;
