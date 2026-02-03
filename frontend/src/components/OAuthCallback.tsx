@@ -7,13 +7,14 @@ interface OAuthCallbackProps {
   provider: string;
   success: boolean;
   error?: string;
+  onClose?: () => void;
 }
 
 /**
  * OAuth callback result page shown after OAuth redirect from provider.
  * Displays success or error state and allows user to continue to dashboard.
  */
-export default function OAuthCallback({ provider, success, error }: OAuthCallbackProps) {
+export default function OAuthCallback({ provider, success, error, onClose }: OAuthCallbackProps) {
   const providerDisplay = provider.charAt(0).toUpperCase() + provider.slice(1);
 
   // Store OAuth result in localStorage so ChatTab can display connection status
@@ -148,9 +149,18 @@ export default function OAuthCallback({ provider, success, error }: OAuthCallbac
             </>
           )}
 
-          <p className="text-xs text-pierre-gray-500">
-            You can close this tab and return to your conversation.
-          </p>
+          {onClose ? (
+            <button
+              onClick={onClose}
+              className="btn-primary w-full"
+            >
+              Continue to Dashboard
+            </button>
+          ) : (
+            <p className="text-xs text-pierre-gray-500">
+              You can close this tab and return to your conversation.
+            </p>
+          )}
         </div>
       </div>
     </div>
