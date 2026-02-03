@@ -710,13 +710,13 @@ export default function Dashboard() {
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog
-        open={!!deleteConfirmation}
+        isOpen={!!deleteConfirmation}
         title="Delete Conversation"
         message={`Are you sure you want to delete "${deleteConfirmation?.title}"? This action cannot be undone.`}
         confirmLabel="Delete"
         cancelLabel="Cancel"
         onConfirm={handleConfirmDelete}
-        onCancel={handleCancelDelete}
+        onClose={handleCancelDelete}
         variant="danger"
       />
     </div>
