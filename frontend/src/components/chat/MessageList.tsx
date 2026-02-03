@@ -6,6 +6,7 @@
 
 import { useRef, useEffect } from 'react';
 import Markdown from 'react-markdown';
+import { isInsightPrompt, detectInsightMessages } from '@pierre/chat-utils';
 import MessageItem from './MessageItem';
 import type { Message, MessageMetadata, MessageFeedback, OAuthNotification } from './types';
 import { linkifyUrls } from './utils';
@@ -31,25 +32,6 @@ interface MessageListProps {
   onThumbsDown: (messageId: string) => void;
   onRetryMessage: (messageId: string) => void;
 }
-
-// Check if a message is an insight prompt (should be hidden from display)
-const isInsightPrompt = (content: string): boolean => {
-  return content.startsWith('Create a shareable insight');
-};
-
-// Detect which assistant messages are insights by finding those that follow insight prompts
-const detectInsightMessages = (messages: Message[]): Set<string> => {
-  const insightIds = new Set<string>();
-  for (let i = 0; i < messages.length - 1; i++) {
-    const currentMsg = messages[i];
-    const nextMsg = messages[i + 1];
-    // If current is an insight prompt (user) and next is assistant, mark it as insight
-    if (currentMsg.role === 'user' && isInsightPrompt(currentMsg.content) && nextMsg.role === 'assistant') {
-      insightIds.add(nextMsg.id);
-    }
-  }
-  return insightIds;
-};
 
 export default function MessageList({
   messages,

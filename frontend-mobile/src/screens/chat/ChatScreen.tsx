@@ -59,6 +59,7 @@ const providerModalContainerStyle: ViewStyle = {
   shadowRadius: 8,
   elevation: 8,
 };
+import { isInsightPrompt, detectInsightMessages, createInsightPrompt } from '@pierre/chat-utils';
 import { chatApi, coachesApi, oauthApi, socialApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useVoiceInput } from '../../hooks/useVoiceInput';
@@ -138,25 +139,6 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   const [shareToFeedContent, setShareToFeedContent] = useState<string | null>(null);
   const [shareToFeedVisibility, setShareToFeedVisibility] = useState<ShareVisibility>('friends_only');
   const [isSharing, setIsSharing] = useState(false);
-
-  // Helper to check if a message is an insight prompt (should be hidden from display)
-  const isInsightPrompt = (content: string): boolean => {
-    return content.startsWith('Create a shareable insight from this analysis');
-  };
-
-  // Detect which assistant messages are insights by finding those that follow insight prompts
-  const detectInsightMessages = (msgs: Message[]): Set<string> => {
-    const insightIds = new Set<string>();
-    for (let i = 0; i < msgs.length - 1; i++) {
-      const currentMsg = msgs[i];
-      const nextMsg = msgs[i + 1];
-      // If current is an insight prompt (user) and next is assistant, mark it as insight
-      if (currentMsg.role === 'user' && isInsightPrompt(currentMsg.content) && nextMsg.role === 'assistant') {
-        insightIds.add(nextMsg.id);
-      }
-    }
-    return insightIds;
-  };
 
   // Voice input hook for speech-to-text
   const {
@@ -613,7 +595,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     setIsSending(true);
 
     // Create the insight prompt (will be hidden from display)
-    const insightPrompt = `Create a shareable insight from this analysis:\n\n${content}`;
+    const insightPrompt = createInsightPrompt(content);
 
     scrollToBottom();
 
