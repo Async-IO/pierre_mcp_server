@@ -502,7 +502,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
             )}
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {filteredCoaches.map((coach) => {
               const isHidden = coach.is_hidden;
               return (
@@ -528,7 +528,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                     <div className="flex-1 min-w-0">
                       {/* Title and badges */}
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className={clsx('font-semibold truncate', isHidden ? 'text-zinc-500' : 'text-white')}>
+                        <h3 className={clsx('font-semibold', isHidden ? 'text-zinc-500' : 'text-white')}>
                           {coach.title}
                         </h3>
                         <span className={clsx(
@@ -573,7 +573,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
 
                       {/* Description */}
                       {coach.description && (
-                        <p className={clsx('text-sm line-clamp-2', isHidden ? 'text-zinc-600' : 'text-zinc-400')}>
+                        <p className={clsx('text-sm line-clamp-4', isHidden ? 'text-zinc-600' : 'text-zinc-400')}>
                           {coach.description}
                         </p>
                       )}
