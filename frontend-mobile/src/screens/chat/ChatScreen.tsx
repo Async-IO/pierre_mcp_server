@@ -64,7 +64,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useVoiceInput } from '../../hooks/useVoiceInput';
 import type { VoiceError } from '../../hooks/useVoiceInput';
 import { VoiceButton, PromptDialog } from '../../components/ui';
-import type { Conversation, Message, ExtendedProviderStatus, Coach } from '../../types';
+import { SharePreviewModal } from '../../components/social';
+import type { Conversation, Message, ExtendedProviderStatus, Coach, ShareVisibility } from '../../types';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useNavigation } from '@react-navigation/native';
@@ -132,6 +133,11 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
 
   // Track which messages are insights (responses from Create Insight button)
   const [insightMessages, setInsightMessages] = useState<Set<string>>(new Set());
+
+  // Share to social feed state
+  const [shareToFeedContent, setShareToFeedContent] = useState<string | null>(null);
+  const [shareToFeedVisibility, setShareToFeedVisibility] = useState<ShareVisibility>('friends_only');
+  const [isSharing, setIsSharing] = useState(false);
 
   // Helper to check if a message is an insight prompt (should be hidden from display)
   const isInsightPrompt = (content: string): boolean => {
@@ -520,15 +526,64 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   };
 
   const handleShareToFeed = (content: string) => {
+    // Show the share preview modal
+    setShareToFeedContent(content);
+  };
+
+  const handleShareToFeedSubmit = async () => {
+    if (!shareToFeedContent) return;
+
+    setIsSharing(true);
+    try {
+      await socialApi.shareFromActivity({
+        content: shareToFeedContent,
+        insight_type: 'coaching_insight',
+        visibility: shareToFeedVisibility,
+      });
+      Toast.show({
+        type: 'success',
+        text1: 'Shared to Social Feed',
+        text2: 'Your insight has been posted',
+      });
+      setShareToFeedContent(null);
+      setShareToFeedVisibility('friends_only');
+      // Navigate to Insights tab
+      tabNavigation.navigate('SocialTab', { screen: 'SocialMain' } as never);
+    } catch (error) {
+      console.error('Failed to share to feed:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Share Failed',
+        text2: 'Could not share to social feed',
+      });
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  const handleEditShare = () => {
+    if (!shareToFeedContent) return;
+
+    // Close the modal and navigate to edit screen
+    const contentToEdit = shareToFeedContent;
+    const visibilityToEdit = shareToFeedVisibility;
+    setShareToFeedContent(null);
+    setShareToFeedVisibility('friends_only');
+
     // Navigate to ShareInsightScreen in the Social tab with pre-populated content
     tabNavigation.navigate('SocialTab', {
       screen: 'ShareInsight',
       params: {
-        content,
+        content: contentToEdit,
         insightType: 'coaching_insight',
-        visibility: 'friends_only',
+        visibility: visibilityToEdit,
       },
     } as never);
+  };
+
+  const handleCloseShareModal = () => {
+    setShareToFeedContent(null);
+    setShareToFeedVisibility('friends_only');
   };
 
   const handleCreateInsight = async (content: string) => {
@@ -560,14 +615,6 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     // Create the insight prompt (will be hidden from display)
     const insightPrompt = `Create a shareable insight from this analysis:\n\n${content}`;
 
-    // Add user message optimistically (will be filtered out when loading)
-    const userMessage: Message = {
-      id: `temp-${Date.now()}`,
-      role: 'user',
-      content: insightPrompt,
-      created_at: new Date().toISOString(),
-    };
-    // Don't add to messages since it will be filtered out anyway
     scrollToBottom();
 
     try {
@@ -1705,6 +1752,18 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
           onSubmit={handleRenameSubmit}
           onCancel={handleRenameCancel}
           testID="rename-conversation-dialog"
+        />
+
+        {/* Share to Social Feed Preview Modal */}
+        <SharePreviewModal
+          visible={shareToFeedContent !== null}
+          content={shareToFeedContent || ''}
+          visibility={shareToFeedVisibility}
+          isSharing={isSharing}
+          onVisibilityChange={setShareToFeedVisibility}
+          onShare={handleShareToFeedSubmit}
+          onEdit={handleEditShare}
+          onClose={handleCloseShareModal}
         />
 
       </KeyboardAvoidingView>

@@ -2,9 +2,10 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 // ABOUTME: Modal for sharing an insight to the social feed
-// ABOUTME: Simple modal with visibility selection and direct sharing
+// ABOUTME: Shows preview mode with Edit button, then allows editing before sharing
 
 import { useState } from 'react';
+import { Pencil } from 'lucide-react';
 import { socialApi } from '../../services/api';
 import { Button, Modal, InsightPreview } from '../ui';
 import type { ShareVisibility } from '../../types/social';
@@ -34,6 +35,8 @@ export default function ShareChatMessageModal({
   const [visibility, setVisibility] = useState<ShareVisibility>('friends_only');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedContent, setEditedContent] = useState(content);
 
   const handleShare = async () => {
     setIsSubmitting(true);
@@ -41,7 +44,7 @@ export default function ShareChatMessageModal({
 
     try {
       await socialApi.shareFromActivity({
-        content,
+        content: editedContent,
         insight_type: 'coaching_insight',
         visibility,
       });
@@ -58,12 +61,47 @@ export default function ShareChatMessageModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Share Insight" size="2xl">
       <div className="space-y-6">
-        {/* Message Preview */}
-        <InsightPreview
-          content={content}
-          label="Message to Share"
-          maxHeight="max-h-80"
-        />
+        {/* Message Preview or Edit Mode */}
+        {isEditing ? (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-zinc-300">
+                Edit Your Insight
+              </label>
+              <button
+                onClick={() => setIsEditing(false)}
+                className="text-xs text-zinc-400 hover:text-zinc-300 transition-colors"
+              >
+                Done Editing
+              </button>
+            </div>
+            <textarea
+              value={editedContent}
+              onChange={(e) => setEditedContent(e.target.value)}
+              className="w-full h-64 bg-white/5 border border-white/10 rounded-lg p-4 text-zinc-200 text-sm leading-relaxed resize-none focus:outline-none focus:border-pierre-violet/50 focus:ring-1 focus:ring-pierre-violet/50"
+              placeholder="Edit your insight..."
+            />
+          </div>
+        ) : (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-zinc-300">
+                Message to Share
+              </label>
+              <button
+                onClick={() => setIsEditing(true)}
+                className="flex items-center gap-1 text-xs text-pierre-violet hover:text-pierre-violet/80 transition-colors"
+              >
+                <Pencil className="w-3 h-3" />
+                Edit
+              </button>
+            </div>
+            <InsightPreview
+              content={editedContent}
+              maxHeight="max-h-80"
+            />
+          </div>
+        )}
 
         {/* Visibility Selection */}
         <div>
