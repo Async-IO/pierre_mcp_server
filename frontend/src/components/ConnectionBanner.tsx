@@ -15,7 +15,7 @@ export default function ConnectionBanner() {
 
   // Debounce showing the banner to avoid flashing during brief disconnects
   useEffect(() => {
-    let timeout: NodeJS.Timeout;
+    let timeout: ReturnType<typeof setTimeout>;
 
     if (!isConnected) {
       // Show banner after 2 seconds of disconnection
