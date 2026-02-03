@@ -7,11 +7,19 @@
 // Test files don't require documentation - this is a rustc lint (not clippy)
 #![allow(missing_docs)]
 
-use pierre_mcp_server::config::LlmProviderType;
+use pierre_mcp_server::config::{LlmModelConfig, LlmProviderType};
 use pierre_mcp_server::llm::{
     ChatMessage, ChatRequest, GeminiProvider, GroqProvider, LlmCapabilities, LlmProvider,
     LlmProviderRegistry, MessageRole,
 };
+
+/// Helper to create a test model config
+fn test_model_config() -> LlmModelConfig {
+    LlmModelConfig {
+        default_model: "test-model".to_owned(),
+        fallback_model: "test-model".to_owned(),
+    }
+}
 
 // ============================================================================
 // LlmCapabilities Tests
@@ -99,7 +107,7 @@ fn test_registry_operations() {
 
 #[test]
 fn test_gemini_provider_metadata() {
-    let provider = GeminiProvider::new("test-key", "test-model");
+    let provider = GeminiProvider::with_config("test-key", &test_model_config());
     assert_eq!(provider.name(), "gemini");
     assert_eq!(provider.display_name(), "Google Gemini");
     assert!(!provider.available_models().is_empty());
@@ -107,7 +115,7 @@ fn test_gemini_provider_metadata() {
 
 #[test]
 fn test_gemini_capabilities() {
-    let provider = GeminiProvider::new("test-key", "test-model");
+    let provider = GeminiProvider::with_config("test-key", &test_model_config());
     let caps = provider.capabilities();
     assert!(caps.supports_streaming());
     assert!(caps.supports_function_calling());
@@ -117,7 +125,7 @@ fn test_gemini_capabilities() {
 
 #[test]
 fn test_gemini_debug_redacts_api_key() {
-    let provider = GeminiProvider::new("super-secret-key", "test-model");
+    let provider = GeminiProvider::with_config("super-secret-key", &test_model_config());
     let debug_output = format!("{provider:?}");
     assert!(!debug_output.contains("super-secret-key"));
     assert!(debug_output.contains("[REDACTED]"));
@@ -125,7 +133,11 @@ fn test_gemini_debug_redacts_api_key() {
 
 #[test]
 fn test_gemini_with_custom_model() {
-    let provider = GeminiProvider::new("key", "gemini-2.5-pro");
+    let config = LlmModelConfig {
+        default_model: "gemini-2.5-pro".to_owned(),
+        fallback_model: "gemini-2.5-pro".to_owned(),
+    };
+    let provider = GeminiProvider::with_config("key", &config);
     // Check via the trait method since default_model field is private
     let debug_output = format!("{provider:?}");
     assert!(debug_output.contains("gemini-2.5-pro"));
