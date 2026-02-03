@@ -78,7 +78,7 @@ describe('MessageItem', () => {
       expect(screen.getByTitle('Copy message')).toBeInTheDocument();
       // Share buttons only appear for insight messages
       expect(screen.getByTitle('Share')).toBeInTheDocument();
-      expect(screen.getByTitle('Share Insight')).toBeInTheDocument();
+      expect(screen.getByTitle('Share insight')).toBeInTheDocument();
       expect(screen.getByTitle('Good response')).toBeInTheDocument();
       expect(screen.getByTitle('Poor response')).toBeInTheDocument();
       expect(screen.getByTitle('Regenerate response')).toBeInTheDocument();
@@ -104,7 +104,7 @@ describe('MessageItem', () => {
       expect(screen.getByTitle('Create shareable insight')).toBeInTheDocument();
       // Share buttons should NOT appear for non-insight messages
       expect(screen.queryByTitle('Share')).not.toBeInTheDocument();
-      expect(screen.queryByTitle('Share to social feed')).not.toBeInTheDocument();
+      expect(screen.queryByTitle('Share insight')).not.toBeInTheDocument();
     });
 
     it('should not render action buttons for user messages', () => {

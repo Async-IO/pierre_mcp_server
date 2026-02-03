@@ -124,7 +124,7 @@ const MessageItem = memo(function MessageItem({
                   <button
                     onClick={onShareToFeed}
                     className="p-0.5 text-zinc-500 hover:text-zinc-300 transition-colors"
-                    title="Share to Feed"
+                    title="Share insight"
                   >
                     <Users className="w-3.5 h-3.5" />
                   </button>
