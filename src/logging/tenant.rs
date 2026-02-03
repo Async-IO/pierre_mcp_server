@@ -29,6 +29,26 @@ pub struct ProviderApiContext<'a> {
     pub status_code: Option<u16>,
 }
 
+/// Context for output format efficiency logging
+pub struct FormatEfficiencyContext<'a> {
+    /// User ID for the request
+    pub user_id: Uuid,
+    /// Tenant ID for multi-tenant isolation
+    pub tenant_id: Uuid,
+    /// Name of the operation (e.g., "`get_activities`")
+    pub operation: &'a str,
+    /// Format used (e.g., "toon", "json")
+    pub format_used: &'a str,
+    /// Estimated token count
+    pub estimated_tokens: usize,
+    /// Output byte size
+    pub byte_size: usize,
+    /// Token savings percentage compared to JSON
+    pub token_savings_percent: f64,
+    /// Compression ratio (JSON size / actual size)
+    pub compression_ratio: f64,
+}
+
 /// Tenant-aware logging utilities
 pub struct TenantLogger;
 
@@ -171,6 +191,25 @@ impl TenantLogger {
             status_code = ?context.status_code,
             event_type = "provider_api_call",
             "Provider API call completed"
+        );
+    }
+
+    /// Log output format efficiency with tenant context
+    ///
+    /// Use this to track token savings from TOON format vs JSON
+    /// across different operations and tenants.
+    pub fn log_format_efficiency(context: &FormatEfficiencyContext) {
+        info!(
+            user_id = %context.user_id,
+            tenant_id = %context.tenant_id,
+            operation = %context.operation,
+            format_used = %context.format_used,
+            estimated_tokens = %context.estimated_tokens,
+            byte_size = %context.byte_size,
+            token_savings_percent = %format!("{:.1}", context.token_savings_percent),
+            compression_ratio = %format!("{:.2}", context.compression_ratio),
+            event_type = "format_efficiency",
+            "Output format efficiency tracked"
         );
     }
 }

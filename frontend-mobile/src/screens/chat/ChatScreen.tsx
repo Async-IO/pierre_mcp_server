@@ -5,7 +5,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
-  FlatList,
   TextInput,
   TouchableOpacity,
   KeyboardAvoidingView,
@@ -19,6 +18,7 @@ import {
   Image,
   type ViewStyle,
 } from 'react-native';
+import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
@@ -151,7 +151,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     clearError: clearVoiceError,
   } = useVoiceInput();
 
-  const flatListRef = useRef<FlatList>(null);
+  const flashListRef = useRef<FlashListRef<Message>>(null);
   const inputRef = useRef<TextInput>(null);
   // Track when we just created a conversation to prevent loadMessages from clearing optimistic messages
   const justCreatedConversationRef = useRef<string | null>(null);
@@ -365,8 +365,8 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   };
 
   const scrollToBottom = () => {
-    if (flatListRef.current && messages.length > 0) {
-      flatListRef.current.scrollToEnd({ animated: true });
+    if (flashListRef.current && messages.length > 0) {
+      flashListRef.current.scrollToEnd({ animated: true });
     }
   };
 
@@ -1431,8 +1431,8 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
         ) : ((messages?.length ?? 0) === 0 && !isSending) ? (
           renderEmptyChat()
         ) : (
-          <FlatList
-            ref={flatListRef}
+          <FlashList
+            ref={flashListRef}
             data={messages ?? []}
             renderItem={renderMessage}
             keyExtractor={(item, index) => item?.id ? `${item.id}-${index}` : `fallback-${index}`}

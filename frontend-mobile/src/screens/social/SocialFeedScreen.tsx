@@ -6,11 +6,11 @@ import {
   View,
   Text,
   SafeAreaView,
-  FlatList,
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
@@ -330,8 +330,8 @@ export function SocialFeedScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Feed List */}
-      <FlatList
+      {/* Feed List - Using FlashList for improved performance with large feeds */}
+      <FlashList
         testID="feed-list"
         data={feedItems}
         keyExtractor={item => item.insight.id}

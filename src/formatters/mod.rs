@@ -31,6 +31,7 @@
 use serde::Serialize;
 use std::{error::Error, fmt};
 use toon_format::EncodeOptions;
+use tracing::debug;
 
 /// Output serialization format selector
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -80,6 +81,87 @@ impl fmt::Display for OutputFormat {
     }
 }
 
+/// Metrics for tracking token efficiency of output formatting
+///
+/// These metrics help understand the token savings achieved by using
+/// different output formats, particularly TOON vs JSON.
+#[derive(Debug, Clone, Serialize)]
+pub struct TokenEfficiencyMetrics {
+    /// The format used for the output
+    pub format_used: String,
+    /// Estimated tokens in the output (chars / 4 approximation)
+    pub estimated_tokens: usize,
+    /// Byte size of the output
+    pub byte_size: usize,
+    /// JSON equivalent byte size (for comparison)
+    pub json_equivalent_size: usize,
+    /// Token savings percentage compared to JSON (0-100)
+    pub token_savings_percent: f64,
+    /// Compression ratio (JSON size / actual size)
+    pub compression_ratio: f64,
+}
+
+impl TokenEfficiencyMetrics {
+    /// Calculate token efficiency metrics from formatted output
+    ///
+    /// Uses the common approximation of 4 characters per token for LLM tokenization.
+    /// Calculates savings by comparing against JSON equivalent if TOON was used.
+    #[must_use]
+    pub fn calculate<T: Serialize>(data: &T, output: &FormattedOutput) -> Self {
+        let byte_size = output.data.len();
+        let estimated_tokens = Self::estimate_tokens(&output.data);
+
+        // Calculate JSON equivalent size for comparison
+        let json_equivalent_size = serde_json::to_string(data)
+            .map(|s| s.len())
+            .unwrap_or(byte_size);
+
+        let (token_savings_percent, compression_ratio) = if json_equivalent_size > 0 {
+            let ratio = json_equivalent_size as f64 / byte_size as f64;
+            let savings = ((json_equivalent_size as f64 - byte_size as f64)
+                / json_equivalent_size as f64)
+                * 100.0;
+            (savings.max(0.0), ratio)
+        } else {
+            (0.0, 1.0)
+        };
+
+        Self {
+            format_used: output.format.as_str().to_owned(),
+            estimated_tokens,
+            byte_size,
+            json_equivalent_size,
+            token_savings_percent,
+            compression_ratio,
+        }
+    }
+
+    /// Estimate token count from string using 4 chars per token approximation
+    ///
+    /// This is a simplified estimation. Actual tokenization varies by model
+    /// but 4 chars/token is a reasonable average for English text and code.
+    #[must_use]
+    pub fn estimate_tokens(text: &str) -> usize {
+        // Use character count / 4 as approximation, rounding up
+        text.chars().count().div_ceil(4)
+    }
+
+    /// Log the efficiency metrics for telemetry
+    pub fn log(&self, operation: &str) {
+        debug!(
+            operation = %operation,
+            format_used = %self.format_used,
+            estimated_tokens = %self.estimated_tokens,
+            byte_size = %self.byte_size,
+            json_equivalent_size = %self.json_equivalent_size,
+            token_savings_percent = %format!("{:.1}", self.token_savings_percent),
+            compression_ratio = %format!("{:.2}", self.compression_ratio),
+            event_type = "token_efficiency",
+            "Output format efficiency metrics"
+        );
+    }
+}
+
 /// Formatted output containing the serialized data and metadata
 #[derive(Debug, Clone)]
 pub struct FormattedOutput {
@@ -89,6 +171,22 @@ pub struct FormattedOutput {
     pub format: OutputFormat,
     /// The MIME content type
     pub content_type: &'static str,
+}
+
+impl FormattedOutput {
+    /// Calculate token efficiency metrics for this output
+    ///
+    /// Requires the original data for JSON comparison calculation.
+    #[must_use]
+    pub fn calculate_efficiency<T: Serialize>(&self, original_data: &T) -> TokenEfficiencyMetrics {
+        TokenEfficiencyMetrics::calculate(original_data, self)
+    }
+
+    /// Get the estimated token count for this output
+    #[must_use]
+    pub fn estimated_tokens(&self) -> usize {
+        TokenEfficiencyMetrics::estimate_tokens(&self.data)
+    }
 }
 
 /// Error type for formatting operations
@@ -161,6 +259,46 @@ pub fn format_output<T: Serialize>(
         format,
         content_type: format.content_type(),
     })
+}
+
+/// Format serializable data with token efficiency telemetry
+///
+/// This function formats the data and logs token efficiency metrics for monitoring.
+/// Use this variant when you want to track format efficiency for telemetry purposes.
+///
+/// # Arguments
+/// * `data` - Any serializable data structure
+/// * `format` - The desired output format
+/// * `operation` - Name of the operation for telemetry labeling
+///
+/// # Returns
+/// * `Ok((FormattedOutput, TokenEfficiencyMetrics))` - Formatted data with efficiency metrics
+/// * `Err(FormatError)` - Serialization failed
+///
+/// # Errors
+/// Returns `FormatError` if serialization fails for either format.
+///
+/// # Example
+/// ```rust,no_run
+/// use pierre_mcp_server::formatters::{format_output_with_telemetry, OutputFormat};
+///
+/// let activities = vec!["activity1", "activity2"];
+/// if let Ok((output, metrics)) = format_output_with_telemetry(&activities, OutputFormat::Toon, "get_activities") {
+///     println!("Saved {}% tokens vs JSON", metrics.token_savings_percent as u32);
+/// }
+/// ```
+pub fn format_output_with_telemetry<T: Serialize>(
+    data: &T,
+    format: OutputFormat,
+    operation: &str,
+) -> Result<(FormattedOutput, TokenEfficiencyMetrics), FormatError> {
+    let output = format_output(data, format)?;
+    let metrics = output.calculate_efficiency(data);
+
+    // Log telemetry
+    metrics.log(operation);
+
+    Ok((output, metrics))
 }
 
 /// Format serializable data to pretty-printed output (for debugging/display)

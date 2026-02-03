@@ -799,13 +799,13 @@ impl ChatRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
 
-        // Use provider's default model if none specified
-        let model = if let Some(m) = request.model.clone() {
-            m
-        } else {
-            let provider = Self::get_llm_provider().await?;
-            provider.default_model().to_owned()
-        };
+        // Use default model if none specified
+        // Note: We use a constant default to avoid requiring LLM provider initialization
+        // during conversation creation. The actual model is used when sending messages.
+        let model = request
+            .model
+            .clone()
+            .unwrap_or_else(|| "gemini-2.0-flash".to_owned());
 
         let conv = resources
             .database

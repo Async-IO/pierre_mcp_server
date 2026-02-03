@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@pierre/shared-types": "*",
-    "axios": "^1.6.0"
+    "axios": "^1.13.4"
   },
   "devDependencies": {
     "typescript": "^5.3.0"

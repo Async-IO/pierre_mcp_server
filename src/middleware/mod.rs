@@ -16,6 +16,8 @@ pub mod rate_limiting;
 pub mod redaction;
 /// Request ID generation and propagation
 pub mod request_id;
+/// Tenant context extraction middleware
+pub mod tenant;
 /// Request tracing and context propagation
 pub mod tracing;
 
@@ -78,3 +80,12 @@ pub use tracing::create_mcp_span;
 pub use tracing::create_request_span;
 /// Request context for tracing
 pub use tracing::RequestContext;
+
+// Tenant context middleware
+
+/// Require tenant context helper function
+pub use tenant::require_tenant_context;
+/// Tenant context extraction middleware
+pub use tenant::tenant_context_middleware;
+/// Extracted tenant context wrapper for request extensions
+pub use tenant::ExtractedTenantContext;

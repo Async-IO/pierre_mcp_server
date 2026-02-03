@@ -12,6 +12,7 @@ import {
   RefreshControl,
   type ViewStyle,
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
@@ -322,8 +323,8 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
         {SORT_OPTIONS.map((option) => renderSortChip(option))}
       </View>
 
-      {/* Coach List with Virtualization and Infinite Scroll */}
-      <FlatList
+      {/* Coach List with FlashList for optimized performance */}
+      <FlashList
         testID="coach-list"
         data={coaches}
         keyExtractor={(item) => item.id}
@@ -332,10 +333,6 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
         ListEmptyComponent={renderEmptyState}
         onEndReached={loadMoreCoaches}
         onEndReachedThreshold={0.5}
-        initialNumToRender={10}
-        maxToRenderPerBatch={10}
-        windowSize={5}
-        removeClippedSubviews={true}
         ListFooterComponent={
           isLoadingMore ? (
             <View className="flex-row items-center justify-center py-4 gap-2">

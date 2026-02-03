@@ -130,3 +130,13 @@ jest.mock('expo-linear-gradient', () => {
   };
 });
 
+// Mock @shopify/flash-list - use FlatList as a drop-in replacement for tests
+jest.mock('@shopify/flash-list', () => {
+  const React = require('react');
+  const FlatList = require('react-native').FlatList;
+  return {
+    FlashList: FlatList,
+    FlashListRef: {},
+  };
+});
+
