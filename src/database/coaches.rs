@@ -2891,6 +2891,54 @@ impl CoachesManager {
 
         Ok(source_id)
     }
+
+    // ============================================
+    // Startup Query Methods
+    // ============================================
+
+    /// Get the startup query for a coach by matching its system prompt.
+    ///
+    /// This is used to automatically inject a startup query when a user
+    /// starts a conversation with a coach that has one configured.
+    /// The `system_prompt` is stored in conversations when a coach is selected.
+    ///
+    /// # Arguments
+    ///
+    /// * `system_prompt` - The system prompt to match against coach instructions
+    /// * `tenant_id` - The tenant ID to scope the search
+    ///
+    /// # Returns
+    ///
+    /// The `startup_query` if found, None otherwise.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn get_startup_query_by_system_prompt(
+        &self,
+        system_prompt: &str,
+        tenant_id: &str,
+    ) -> AppResult<Option<String>> {
+        // First try to find a coach matching the tenant (custom coaches)
+        // Then fall back to system coaches (is_system = 1) which are shared across tenants
+        let row: Option<(Option<String>,)> = sqlx::query_as(
+            r"
+            SELECT startup_query
+            FROM coaches
+            WHERE system_prompt = $1
+              AND startup_query IS NOT NULL
+              AND (tenant_id = $2 OR is_system = 1)
+            LIMIT 1
+            ",
+        )
+        .bind(system_prompt)
+        .bind(tenant_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get startup query: {e}")))?;
+
+        Ok(row.and_then(|(q,)| q))
+    }
 }
 
 /// Compute SHA-256 hash of content for version tracking

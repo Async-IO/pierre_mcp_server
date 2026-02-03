@@ -8,6 +8,8 @@ prerequisites:
   min_activities: 8
   activity_types: [Run]
 visibility: tenant
+startup:
+  query: "Fetch my last 20 running activities. Summarize my recent training volume, tempo work, and long run distances."
 ---
 
 ## Purpose

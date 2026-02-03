@@ -31,6 +31,15 @@ pub struct CoachPrerequisites {
     pub activity_types: Vec<String>,
 }
 
+/// Startup configuration for coach conversations
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CoachStartup {
+    /// Query to automatically send when starting a coach conversation.
+    /// This query is executed before the user's first message to provide context.
+    #[serde(default)]
+    pub query: Option<String>,
+}
+
 /// Type of relationship between coaches
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -92,6 +101,10 @@ pub struct CoachFrontmatter {
     /// Access level (defaults to tenant)
     #[serde(default)]
     pub visibility: CoachVisibility,
+
+    /// Startup configuration for coach conversations
+    #[serde(default)]
+    pub startup: CoachStartup,
 }
 
 /// Markdown sections parsed from coach file
@@ -190,12 +203,24 @@ pub fn parse_frontmatter(content: &str) -> AppResult<CoachFrontmatter> {
 
     let yaml_content = &after_first[..end_pos].trim();
 
-    serde_yaml::from_str(yaml_content).map_err(|e| {
+    let frontmatter: CoachFrontmatter = serde_yaml::from_str(yaml_content).map_err(|e| {
         AppError::new(
             ErrorCode::InvalidFormat,
             format!("Invalid YAML frontmatter: {e}"),
         )
-    })
+    })?;
+
+    // Validate startup.query is not empty if provided
+    if let Some(query) = &frontmatter.startup.query {
+        if query.trim().is_empty() {
+            return Err(AppError::new(
+                ErrorCode::InvalidFormat,
+                "startup.query must not be empty if provided",
+            ));
+        }
+    }
+
+    Ok(frontmatter)
 }
 
 /// Parse markdown sections from content (after frontmatter)
@@ -453,6 +478,12 @@ pub fn to_markdown(definition: &CoachDefinition) -> String {
             "visibility: {}",
             definition.frontmatter.visibility.as_str()
         );
+    }
+
+    // Startup configuration
+    if let Some(query) = &definition.frontmatter.startup.query {
+        output.push_str("startup:\n");
+        let _ = writeln!(output, "  query: \"{query}\"");
     }
 
     output.push_str("---\n\n");

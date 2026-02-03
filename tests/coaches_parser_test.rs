@@ -11,7 +11,7 @@
 // Allow raw string hashes for readability in test fixtures
 #![allow(clippy::needless_raw_string_hashes)]
 
-use pierre_mcp_server::coaches::{parse_frontmatter, parse_sections, RelationType};
+use pierre_mcp_server::coaches::{parse_frontmatter, parse_sections, CoachStartup, RelationType};
 use pierre_mcp_server::database::coaches::{CoachCategory, CoachVisibility};
 
 const SAMPLE_COACH: &str = r#"---
@@ -269,4 +269,129 @@ Default visibility test.
     let frontmatter = parse_frontmatter(content).unwrap();
     // Default visibility should be Private per CoachVisibility default
     assert_eq!(frontmatter.visibility, CoachVisibility::Private);
+}
+
+// ============================================================================
+// Startup Query Tests
+// ============================================================================
+
+#[test]
+fn test_parse_coach_with_startup_query() {
+    let content = r#"---
+name: startup-test
+title: Startup Test Coach
+category: training
+startup:
+  query: "Fetch my last 20 running activities"
+---
+
+## Purpose
+Test coach with startup query.
+
+## Instructions
+Test instructions.
+"#;
+    let frontmatter = parse_frontmatter(content).unwrap();
+    assert_eq!(
+        frontmatter.startup.query,
+        Some("Fetch my last 20 running activities".to_owned())
+    );
+}
+
+#[test]
+fn test_parse_coach_without_startup() {
+    let content = r#"---
+name: no-startup
+title: No Startup Coach
+category: training
+---
+
+## Purpose
+Coach without startup configuration.
+
+## Instructions
+No startup query test.
+"#;
+    let frontmatter = parse_frontmatter(content).unwrap();
+    assert!(frontmatter.startup.query.is_none());
+}
+
+#[test]
+fn test_startup_query_with_complex_content() {
+    let content = r#"---
+name: complex-startup
+title: Complex Startup Coach
+category: training
+prerequisites:
+  providers: [strava]
+  min_activities: 10
+startup:
+  query: "Fetch my last 25 running activities. Analyze my weekly mileage, long run progression, and identify any patterns."
+---
+
+## Purpose
+Coach with complex startup query.
+
+## Instructions
+Complex startup test.
+"#;
+    let frontmatter = parse_frontmatter(content).unwrap();
+    assert!(frontmatter.startup.query.is_some());
+    let query = frontmatter.startup.query.unwrap();
+    assert!(query.contains("Fetch my last 25"));
+    assert!(query.contains("weekly mileage"));
+}
+
+#[test]
+fn test_startup_query_validation_rejects_empty() {
+    let content = r#"---
+name: empty-startup
+title: Empty Startup Coach
+category: training
+startup:
+  query: ""
+---
+
+## Purpose
+Coach with empty startup query.
+
+## Instructions
+Empty startup test.
+"#;
+    let result = parse_frontmatter(content);
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .message
+        .contains("startup.query must not be empty"));
+}
+
+#[test]
+fn test_startup_query_validation_rejects_whitespace_only() {
+    let content = r#"---
+name: whitespace-startup
+title: Whitespace Startup Coach
+category: training
+startup:
+  query: "   "
+---
+
+## Purpose
+Coach with whitespace-only startup query.
+
+## Instructions
+Whitespace startup test.
+"#;
+    let result = parse_frontmatter(content);
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .message
+        .contains("startup.query must not be empty"));
+}
+
+#[test]
+fn test_default_startup_struct() {
+    let startup = CoachStartup::default();
+    assert!(startup.query.is_none());
 }

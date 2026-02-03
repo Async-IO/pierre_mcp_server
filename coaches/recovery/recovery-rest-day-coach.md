@@ -8,6 +8,8 @@ prerequisites:
   min_activities: 5
   activity_types: []
 visibility: tenant
+startup:
+  query: "Fetch my last 14 activities. Analyze my recent training load and look for signs of fatigue or overtraining."
 ---
 
 ## Purpose
