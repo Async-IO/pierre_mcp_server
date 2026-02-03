@@ -8,7 +8,7 @@ user-invocable: true
 
 **CLAUDE: When this skill is invoked with `/validate-sdk`, run these commands in sequence:**
 ```bash
-cd sdk && npm run build && npm run type-check && npm run lint && npm test
+cd sdk && bun run build && bun run type-check && bun run lint && bun run test
 ```
 
 ## Purpose
@@ -23,7 +23,7 @@ Validates the TypeScript MCP client SDK for build integrity, type safety, lint c
 
 ### Build Verification
 ```bash
-cd sdk && npm run build
+cd sdk && bun run build
 ```
 - Compiles TypeScript via esbuild
 - Generates `dist/` output
@@ -31,7 +31,7 @@ cd sdk && npm run build
 
 ### TypeScript Check
 ```bash
-cd sdk && npm run type-check
+cd sdk && bun run type-check
 ```
 - Validates type definitions
 - Ensures generated types are valid
@@ -39,7 +39,7 @@ cd sdk && npm run type-check
 
 ### ESLint
 ```bash
-cd sdk && npm run lint
+cd sdk && bun run lint
 ```
 - Code style consistency
 - TypeScript best practices
@@ -47,7 +47,7 @@ cd sdk && npm run lint
 
 ### Tests
 ```bash
-cd sdk && npm test
+cd sdk && bun run test
 ```
 - Unit tests for SDK components
 - Integration tests with server
@@ -55,28 +55,28 @@ cd sdk && npm test
 
 ## Full Validation Command
 ```bash
-cd sdk && npm run build && npm run type-check && npm run lint && npm test
+cd sdk && bun run build && bun run type-check && bun run lint && bun run test
 ```
 
 ## Additional Commands
 
 ### Specific Test Categories
 ```bash
-cd sdk && npm run test:unit           # Unit tests only
-cd sdk && npm run test:integration    # Integration tests
-cd sdk && npm run test:e2e            # End-to-end tests
-cd sdk && npm run test:all            # All test categories
+cd sdk && bun run test:unit           # Unit tests only
+cd sdk && bun run test:integration    # Integration tests
+cd sdk && bun run test:e2e            # End-to-end tests
+cd sdk && bun run test:all            # All test categories
 ```
 
 ### Type Generation
 ```bash
-cd sdk && npm run generate-types
+cd sdk && bun run generate-types
 ```
 Regenerates TypeScript types from Rust tool schemas.
 
 ### MCP Inspector
 ```bash
-cd sdk && npm run inspect
+cd sdk && bun run inspect
 ```
 Interactive debugging with MCP inspector.
 

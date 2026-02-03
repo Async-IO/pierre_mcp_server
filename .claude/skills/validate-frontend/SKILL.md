@@ -8,7 +8,7 @@ user-invocable: true
 
 **CLAUDE: When this skill is invoked with `/validate-frontend`, run these commands in sequence:**
 ```bash
-cd frontend && npm run type-check && npm run lint && npm test -- --run
+cd frontend && bun run type-check && bun run lint && bun run test -- --run
 ```
 
 ## Purpose
@@ -23,7 +23,7 @@ Validates the web frontend codebase (Vite + React + TypeScript) for type safety,
 
 ### Tier 0: TypeScript (fastest feedback)
 ```bash
-cd frontend && npm run type-check
+cd frontend && bun run type-check
 ```
 - Catches type errors before runtime
 - Validates all `.ts` and `.tsx` files
@@ -31,7 +31,7 @@ cd frontend && npm run type-check
 
 ### Tier 1: ESLint
 ```bash
-cd frontend && npm run lint
+cd frontend && bun run lint
 ```
 - React hooks rules
 - React refresh compliance
@@ -40,7 +40,7 @@ cd frontend && npm run lint
 
 ### Tier 2: Unit Tests
 ```bash
-cd frontend && npm test -- --run
+cd frontend && bun run test -- --run
 ```
 - Runs Vitest in single-run mode
 - Tests components, hooks, and utilities
@@ -48,29 +48,29 @@ cd frontend && npm test -- --run
 
 ## Full Validation Command
 ```bash
-cd frontend && npm run type-check && npm run lint && npm test -- --run
+cd frontend && bun run type-check && bun run lint && bun run test -- --run
 ```
 
 ## Additional Commands
 
 ### E2E Tests (requires browser, run before PR)
 ```bash
-cd frontend && npm run test:e2e
+cd frontend && bun run test:e2e
 ```
 
 ### Integration Tests
 ```bash
-cd frontend && npm run test:integration
+cd frontend && bun run test:integration
 ```
 
 ### Coverage Report
 ```bash
-cd frontend && npm run test:coverage
+cd frontend && bun run test:coverage
 ```
 
 ### Interactive Test UI
 ```bash
-cd frontend && npm run test:ui
+cd frontend && bun run test:ui
 ```
 
 ## Success Criteria

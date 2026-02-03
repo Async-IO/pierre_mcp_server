@@ -112,8 +112,8 @@ Claude desktop config (`~/Library/Application Support/Claude/claude_desktop_conf
 
 ```bash
 cd sdk
-npm install
-npm run build
+bun install
+bun run build
 ```
 
 Claude desktop config:

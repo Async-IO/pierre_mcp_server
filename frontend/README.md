@@ -164,8 +164,8 @@ This creates a super-admin who can then approve other user registrations and gra
 
 ```bash
 cd frontend
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
 The development server runs at http://localhost:5173
@@ -173,7 +173,7 @@ The development server runs at http://localhost:5173
 ### Build
 
 ```bash
-npm run build
+bun run build
 ```
 
 Production build outputs to `dist/` directory.
@@ -184,13 +184,13 @@ Production build outputs to `dist/` directory.
 
 ```bash
 # Run tests in watch mode
-npm test
+bun run test
 
 # Run tests with UI
-npm run test:ui
+bun run test:ui
 
 # Run tests with coverage
-npm run test:coverage
+bun run test:coverage
 ```
 
 ### E2E Tests (Playwright)
@@ -216,19 +216,19 @@ The E2E test suite covers **294 tests** across 14 spec files:
 
 ```bash
 # Run all E2E tests
-npm run test:e2e
+bun run test:e2e
 
 # Run with Playwright UI
-npm run test:e2e:ui
+bun run test:e2e:ui
 
 # Run in headed mode (visible browser)
-npm run test:e2e:headed
+bun run test:e2e:headed
 
 # Run specific test file
-npx playwright test e2e/connections.spec.ts
+bunx playwright test e2e/connections.spec.ts
 
 # Run tests matching pattern
-npx playwright test --grep "API Key"
+bunx playwright test --grep "API Key"
 ```
 
 ### Test Architecture
@@ -246,8 +246,8 @@ Shared test utilities are in `e2e/test-helpers.ts`:
 ### Linting
 
 ```bash
-npm run lint
-npm run type-check
+bun run lint
+bun run type-check
 ```
 
 ## Demo Data

@@ -76,7 +76,7 @@ When working on `frontend-mobile/`:
 cargo run --bin pierre-mcp-server
 
 # Frontend (separate terminal)
-cd frontend && npm run dev
+cd frontend && bun run dev
 
 # Mobile (separate terminal)
 cd frontend-mobile && bun start
@@ -305,32 +305,32 @@ bun run tunnel:stop      # Stop tunnel
 
 ```bash
 cd frontend
-npm install
+bun install
 ```
 
 ### Running
 
 ```bash
-npm run dev              # Start Vite dev server (port 5173)
+bun run dev              # Start Vite dev server (port 5173)
 ```
 
 ### Validation
 
 ```bash
 # TypeScript
-npm run type-check
+bun run type-check
 
 # ESLint
-npm run lint
+bun run lint
 
 # Unit tests
-npm test -- --run
+bun run test -- --run
 
 # All tiers
 ../scripts/pre-push-frontend-tests.sh
 
 # E2E tests
-npm run test:e2e
+bun run test:e2e
 ```
 
 ### Environment

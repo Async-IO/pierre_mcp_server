@@ -209,7 +209,7 @@ cargo run --bin pierre-mcp-server
 
 # Generate types (in sdk/ directory)
 cd sdk
-npm run generate-types
+bun run generate-types
 ```
 
 **What Happens**:
@@ -232,8 +232,8 @@ npm run generate-types
 
 ```bash
 cd sdk
-npm install
-npm run build
+bun install
+bun run build
 ```
 
 ## Example

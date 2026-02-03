@@ -241,19 +241,19 @@ When working on `frontend/`, run these validations:
 cd frontend
 
 # Tier 0: TypeScript (fastest feedback)
-npm run type-check
+bun run type-check
 
 # Tier 1: ESLint
-npm run lint
+bun run lint
 
 # Tier 2: Unit tests (~4s)
-npm test -- --run
+bun run test -- --run
 
 # All tiers at once (what pre-push runs)
 ../scripts/pre-push-frontend-tests.sh
 
 # E2E tests (requires browser, run before PR)
-npm run test:e2e
+bun run test:e2e
 ```
 
 ### Frontend Patterns

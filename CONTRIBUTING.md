@@ -129,9 +129,9 @@ cargo run --bin pierre-mcp-server
 ### Frontend Development (Optional)
 ```bash
 cd frontend
-npm install
-npm run dev    # Development server on :5173
-npm test       # Component tests
+bun install
+bun run dev    # Development server on :5173
+bun run test   # Component tests
 ```
 
 ## Code Standards
@@ -152,8 +152,8 @@ cargo test                  # All tests pass
 - **Document public APIs** - Use `///` doc comments
 
 ### TypeScript Frontend
-- **ESLint must pass**: `npm run lint`
-- **Tests required**: `npm test`
+- **ESLint must pass**: `bun run lint`
+- **Tests required**: `bun run test`
 - **Type safety**: No `any` types
 
 ## Development Workflow
@@ -248,7 +248,7 @@ See [Testing Guide](book/src/testing.md) for complete testing documentation.
 # Continuous testing during development (optional)
 cargo watch -x test           # Auto-run tests on changes
 cargo watch -x clippy          # Auto-run linting
-npm run dev                    # Frontend dev server with hot reload
+bun run dev                    # Frontend dev server with hot reload
 ```
 
 ### Before Submitting PR
@@ -342,7 +342,7 @@ impl FitnessProvider for NewProvider {
 4. Add unit + integration tests
 5. Regenerate SDK types:
 ```bash
-cd sdk && npm run generate-types
+cd sdk && bun run generate-types
 ```
 
 ### New Database Backend

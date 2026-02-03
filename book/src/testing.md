@@ -132,7 +132,7 @@ cargo test --test mcp_type_generation_multitenant_test
 
 # SDK multi-tenant tests
 cd sdk
-npm run test -- --testPathPattern=e2e-multitenant
+bun run test -- --testPathPattern=e2e-multitenant
 cd ..
 ```
 

@@ -40,7 +40,7 @@ export default defineConfig({
   // Run the Vite dev server before starting tests
   // E2E_TEST=true disables backend proxy since all APIs are mocked by Playwright
   webServer: {
-    command: 'npm run dev',
+    command: 'bun run dev',
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
