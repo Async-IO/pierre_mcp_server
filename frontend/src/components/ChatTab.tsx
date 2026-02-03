@@ -10,13 +10,13 @@ import { ConfirmDialog } from './ui';
 import { chatApi, providersApi, coachesApi } from '../services/api';
 import PromptSuggestions from './PromptSuggestions';
 import { MessageCircle, Plus, Sparkles } from 'lucide-react';
+import { createInsightPrompt, stripContextPrefix } from '@pierre/chat-utils';
 import {
   MessageList,
   MessageInput,
   ProviderConnectionModal,
   CoachFormModal,
   CreateCoachFromConversationModal,
-  stripContextPrefix,
   DEFAULT_COACH_FORM_DATA,
 } from './chat';
 import ShareChatMessageModal from './social/ShareChatMessageModal';
@@ -389,7 +389,9 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
   }, [newMessage, selectedConversation, isStreaming, connectingProvider, oauthNotification, hasConnectedProvider, messagesData?.messages, providersData?.providers, queryClient]);
 
   // Coach handlers
-  const handleSelectPrompt = (prompt: string, systemPrompt?: string) => {
+  // Note: coachId is passed by PromptSuggestions but not currently used here
+  const handleSelectPrompt = (prompt: string, coachId?: string, systemPrompt?: string) => {
+    void coachId; // Acknowledge unused parameter - may be used for coach tracking later
     if (!hasConnectedProvider) {
       setPendingCoachAction({ prompt, systemPrompt });
       localStorage.setItem('pierre_pending_coach_action', JSON.stringify({ prompt, systemPrompt }));
@@ -475,7 +477,7 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
     setErrorMessage(null);
 
     // Create the insight prompt (will be hidden from display by the filter)
-    const insightPrompt = `Create a shareable insight from this analysis:\n\n${stripContextPrefix(content)}`;
+    const insightPrompt = createInsightPrompt(content);
 
     try {
       // Send the insight prompt via the chat API (will appear in chat as response)

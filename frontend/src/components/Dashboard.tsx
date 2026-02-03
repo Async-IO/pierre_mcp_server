@@ -2,15 +2,16 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 import { useState, lazy, Suspense, useEffect, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
 import { dashboardApi, adminApi, a2aApi, chatApi } from '../services/api';
 import type { DashboardOverview, RateLimitOverview, User, AdminToken } from '../types/api';
 import type { Conversation } from './chat/types';
 import type { AnalyticsData } from '../types/chart';
 import { useWebSocketContext } from '../hooks/useWebSocketContext';
-import { Card } from './ui';
+import { Card, ConfirmDialog } from './ui';
 import { clsx } from 'clsx';
+import ConversationItem from './chat/ConversationItem';
 
 // Lazy load heavy components to reduce initial bundle size
 const OverviewTab = lazy(() => import('./OverviewTab'));
@@ -116,12 +117,75 @@ export default function Dashboard() {
 
   // Chat conversations - fetch for all users when Chat tab is active
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
+  const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
+  const [editedTitleValue, setEditedTitleValue] = useState('');
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{ id: string; title: string } | null>(null);
+  const queryClient = useQueryClient();
+
   const { data: conversationsData, isLoading: conversationsLoading } = useQuery<{ conversations: Conversation[] }>({
     queryKey: ['chat-conversations'],
     queryFn: () => chatApi.getConversations(),
     enabled: activeTab === 'chat',
   });
   const conversations = conversationsData?.conversations ?? [];
+
+  // Mutations for conversation management
+  const updateConversationMutation = useMutation({
+    mutationFn: ({ id, title }: { id: string; title: string }) =>
+      chatApi.updateConversation(id, { title }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
+      setEditingConversationId(null);
+      setEditedTitleValue('');
+    },
+  });
+
+  const deleteConversationMutation = useMutation({
+    mutationFn: (id: string) => chatApi.deleteConversation(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
+      if (selectedConversation === deleteConfirmation?.id) {
+        setSelectedConversation(null);
+      }
+      setDeleteConfirmation(null);
+    },
+  });
+
+  // Conversation action handlers
+  const handleStartRename = (e: React.MouseEvent, conv: Conversation) => {
+    e.stopPropagation();
+    setEditingConversationId(conv.id);
+    setEditedTitleValue(conv.title || 'Untitled Chat');
+  };
+
+  const handleSaveRename = () => {
+    if (editingConversationId && editedTitleValue.trim()) {
+      updateConversationMutation.mutate({ id: editingConversationId, title: editedTitleValue.trim() });
+    } else {
+      setEditingConversationId(null);
+      setEditedTitleValue('');
+    }
+  };
+
+  const handleCancelRename = () => {
+    setEditingConversationId(null);
+    setEditedTitleValue('');
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent, conv: Conversation) => {
+    e.stopPropagation();
+    setDeleteConfirmation({ id: conv.id, title: conv.title || 'Untitled Chat' });
+  };
+
+  const handleConfirmDelete = () => {
+    if (deleteConfirmation) {
+      deleteConversationMutation.mutate(deleteConfirmation.id);
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setDeleteConfirmation(null);
+  };
 
   // Refresh data when WebSocket updates are received
   useEffect(() => {
@@ -359,19 +423,19 @@ export default function Dashboard() {
                     <div className="px-3 py-2 text-zinc-500 text-sm">No conversations yet</div>
                   ) : (
                     conversations.slice(0, 10).map((conv) => (
-                      <button
+                      <ConversationItem
                         key={conv.id}
-                        onClick={() => setSelectedConversation(conv.id)}
-                        className={clsx(
-                          'w-full text-left px-3 py-2 rounded-lg text-sm transition-colors truncate',
-                          selectedConversation === conv.id
-                            ? 'bg-pierre-violet/20 text-pierre-violet-light'
-                            : 'text-zinc-400 hover:bg-white/5 hover:text-white'
-                        )}
-                        title={conv.title || 'Untitled Chat'}
-                      >
-                        {conv.title || 'Untitled Chat'}
-                      </button>
+                        conversation={conv}
+                        isSelected={selectedConversation === conv.id}
+                        isEditing={editingConversationId === conv.id}
+                        editedTitleValue={editedTitleValue}
+                        onSelect={() => setSelectedConversation(conv.id)}
+                        onStartRename={(e) => handleStartRename(e, conv)}
+                        onDelete={(e) => handleDeleteClick(e, conv)}
+                        onTitleChange={setEditedTitleValue}
+                        onSaveRename={handleSaveRename}
+                        onCancelRename={handleCancelRename}
+                      />
                     ))
                   )}
                 </div>
@@ -643,6 +707,18 @@ export default function Dashboard() {
         )}
         </div>
       </main>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={!!deleteConfirmation}
+        title="Delete Conversation"
+        message={`Are you sure you want to delete "${deleteConfirmation?.title}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+        variant="danger"
+      />
     </div>
   );
 }
