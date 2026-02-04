@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-use crate::routes::OAuthCallbackResponse;
+use crate::types::OAuthCallbackResponse;
 use std::error::Error;
 
 /// Template renderer for OAuth success and error pages

@@ -22,6 +22,9 @@ pub use types::{
     RegisterResponse, UpdateProfileRequest, UpdateProfileResponse, UserInfo, UserStatsResponse,
 };
 
+// Re-export OAuthCallbackResponse from types module (moved for proper layering)
+pub use crate::types::OAuthCallbackResponse;
+
 use std::{
     collections::{HashMap, HashSet},
     env,
@@ -37,7 +40,6 @@ use axum::{
     Json, Router,
 };
 use chrono::Utc;
-use serde::Serialize;
 use serde_json::{json, Value as JsonValue};
 use tokio::task;
 use tracing::{debug, error, field::Empty, info, warn, Span};
@@ -1241,22 +1243,6 @@ impl OAuthService {
 
 /// OAuth routes - alias for OAuth service to match test expectations
 pub type OAuthRoutes = OAuthService;
-
-/// OAuth callback response
-#[derive(Debug, Serialize)]
-pub struct OAuthCallbackResponse {
-    /// User ID for the connected account
-    pub user_id: String,
-    /// Name of the OAuth provider
-    pub provider: String,
-    /// When the OAuth token expires (ISO 8601 format)
-    pub expires_at: String,
-    /// Space-separated list of granted OAuth scopes
-    pub scopes: String,
-    /// Optional mobile redirect URL from OAuth state (for mobile app flows)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mobile_redirect_url: Option<String>,
-}
 
 /// Authentication routes implementation
 #[derive(Clone)]
