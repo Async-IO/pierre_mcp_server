@@ -450,8 +450,13 @@ pub async fn setup_server_resources_test_environment(
 // USDA Mock Client for Testing (No Real API Calls)
 // ============================================================================
 
+use async_trait::async_trait;
+use futures_util::stream;
 use pierre_mcp_server::errors::AppError;
 use pierre_mcp_server::external::{FoodDetails, FoodNutrient, FoodSearchResult};
+use pierre_mcp_server::llm::{
+    ChatRequest, ChatResponse, ChatStream, LlmCapabilities, LlmProvider, StreamChunk,
+};
 use std::collections::HashMap;
 
 /// Mock USDA client for testing (no API calls)
@@ -1117,4 +1122,112 @@ pub async fn cleanup_postgres_db(db_name: &str) -> Result<()> {
     sqlx::query(&drop_query).execute(&pool).await?;
 
     Ok(())
+}
+
+// ============================================================================
+// Test LLM Provider for Mocking
+// ============================================================================
+
+/// Mock LLM provider for testing insight validation logic
+///
+/// Allows tests to control LLM responses without making actual API calls.
+/// Configured with predetermined responses for validation testing.
+pub struct TestLlmProvider {
+    /// Pre-configured JSON response that will be returned by `complete()`
+    response: String,
+    /// Model name to return (stored to satisfy lifetime requirements)
+    model_name: String,
+}
+
+impl TestLlmProvider {
+    /// Create a provider that returns a "valid" verdict
+    #[must_use]
+    pub fn valid() -> Self {
+        Self {
+            response: r#"{"verdict": "valid", "reason": "Content meets quality standards"}"#
+                .to_owned(),
+            model_name: "test-model-v1".to_owned(),
+        }
+    }
+
+    /// Create a provider that returns a "rejected" verdict with custom reason
+    #[must_use]
+    pub fn rejected(reason: &str) -> Self {
+        Self {
+            response: format!(r#"{{"verdict": "rejected", "reason": "{reason}"}}"#),
+            model_name: "test-model-v1".to_owned(),
+        }
+    }
+
+    /// Create a provider that returns an "improved" verdict with enhanced content
+    #[must_use]
+    pub fn improved(improved_content: &str, reason: &str) -> Self {
+        Self {
+            response: format!(
+                r#"{{"verdict": "improved", "reason": "{reason}", "improved_content": "{improved_content}"}}"#
+            ),
+            model_name: "test-model-v1".to_owned(),
+        }
+    }
+
+    /// Create a provider with a custom JSON response
+    #[must_use]
+    pub fn with_response(response: String) -> Self {
+        Self {
+            response,
+            model_name: "test-model-v1".to_owned(),
+        }
+    }
+}
+
+#[async_trait]
+impl LlmProvider for TestLlmProvider {
+    fn name(&self) -> &'static str {
+        "test"
+    }
+
+    fn display_name(&self) -> &'static str {
+        "Test Provider"
+    }
+
+    fn capabilities(&self) -> LlmCapabilities {
+        LlmCapabilities::SYSTEM_MESSAGES | LlmCapabilities::JSON_MODE
+    }
+
+    fn default_model(&self) -> &str {
+        &self.model_name
+    }
+
+    fn available_models(&self) -> &'static [&'static str] {
+        &["test-model-v1"]
+    }
+
+    async fn complete(&self, _request: &ChatRequest) -> Result<ChatResponse, AppError> {
+        Ok(ChatResponse {
+            content: self.response.clone(),
+            model: self.model_name.clone(),
+            usage: None,
+            finish_reason: Some("stop".to_owned()),
+        })
+    }
+
+    async fn complete_stream(&self, request: &ChatRequest) -> Result<ChatStream, AppError> {
+        // For tests, just delegate to non-streaming complete
+        // Tests typically don't need streaming functionality
+        let response = self.complete(request).await?;
+
+        // Create a single-item stream
+        let chunk = StreamChunk {
+            delta: response.content,
+            is_final: true,
+            finish_reason: response.finish_reason,
+        };
+
+        let result_stream = stream::once(async move { Ok(chunk) });
+        Ok(Box::pin(result_stream))
+    }
+
+    async fn health_check(&self) -> Result<bool, AppError> {
+        Ok(true)
+    }
 }

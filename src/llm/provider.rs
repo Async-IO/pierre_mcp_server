@@ -443,3 +443,71 @@ impl fmt::Debug for ChatProvider {
         }
     }
 }
+
+// Implement LlmProvider trait for ChatProvider to enable trait object usage
+#[async_trait::async_trait]
+impl LlmProvider for ChatProvider {
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Gemini(p) => p.name(),
+            Self::Groq(p) => p.name(),
+            Self::Local(p) => p.name(),
+        }
+    }
+
+    fn display_name(&self) -> &'static str {
+        match self {
+            Self::Gemini(p) => p.display_name(),
+            Self::Groq(p) => p.display_name(),
+            Self::Local(p) => p.display_name(),
+        }
+    }
+
+    fn capabilities(&self) -> LlmCapabilities {
+        match self {
+            Self::Gemini(p) => p.capabilities(),
+            Self::Groq(p) => p.capabilities(),
+            Self::Local(p) => p.capabilities(),
+        }
+    }
+
+    fn default_model(&self) -> &str {
+        match self {
+            Self::Gemini(p) => p.default_model(),
+            Self::Groq(p) => p.default_model(),
+            Self::Local(p) => p.default_model(),
+        }
+    }
+
+    fn available_models(&self) -> &'static [&'static str] {
+        match self {
+            Self::Gemini(p) => p.available_models(),
+            Self::Groq(p) => p.available_models(),
+            Self::Local(p) => p.available_models(),
+        }
+    }
+
+    async fn complete(&self, request: &ChatRequest) -> Result<ChatResponse, AppError> {
+        match self {
+            Self::Gemini(p) => p.complete(request).await,
+            Self::Groq(p) => p.complete(request).await,
+            Self::Local(p) => p.complete(request).await,
+        }
+    }
+
+    async fn complete_stream(&self, request: &ChatRequest) -> Result<ChatStream, AppError> {
+        match self {
+            Self::Gemini(p) => p.complete_stream(request).await,
+            Self::Groq(p) => p.complete_stream(request).await,
+            Self::Local(p) => p.complete_stream(request).await,
+        }
+    }
+
+    async fn health_check(&self) -> Result<bool, AppError> {
+        match self {
+            Self::Gemini(p) => p.health_check().await,
+            Self::Groq(p) => p.health_check().await,
+            Self::Local(p) => p.health_check().await,
+        }
+    }
+}

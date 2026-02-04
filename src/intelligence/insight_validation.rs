@@ -30,10 +30,10 @@
 //! use pierre_mcp_server::intelligence::insight_validation::{
 //!     validate_insight_with_policy, ValidationVerdict, InsightSharingPolicy,
 //! };
-//! use pierre_mcp_server::llm::ChatProvider;
+//! use pierre_mcp_server::llm::{ChatProvider, LlmProvider};
 //! use pierre_mcp_server::models::{InsightType, UserTier};
 //!
-//! async fn example(provider: &ChatProvider) {
+//! async fn example(provider: &dyn LlmProvider) {
 //!     let result = validate_insight_with_policy(
 //!         provider,
 //!         "Just completed a 10K in 45:32 - new PR!",
@@ -50,7 +50,7 @@ use std::sync::LazyLock;
 use tracing::{debug, warn};
 
 use crate::errors::AppError;
-use crate::llm::{get_insight_validation_prompt, ChatMessage, ChatProvider, ChatRequest};
+use crate::llm::{get_insight_validation_prompt, ChatMessage, ChatRequest, LlmProvider};
 use crate::models::{InsightType, UserTier};
 
 // ============================================================================
@@ -658,7 +658,7 @@ struct InternalValidationResult {
 ///
 /// # Arguments
 ///
-/// * `provider` - LLM provider for validation
+/// * `provider` - LLM provider for validation (implements `LlmProvider` trait)
 /// * `content` - The insight content to validate
 /// * `insight_type` - Type of insight being shared
 /// * `user_tier` - User's subscription tier
@@ -667,7 +667,7 @@ struct InternalValidationResult {
 ///
 /// Returns an error if the LLM call fails or response parsing fails.
 async fn validate_insight(
-    provider: &ChatProvider,
+    provider: &dyn LlmProvider,
     content: &str,
     insight_type: InsightType,
     user_tier: &UserTier,
@@ -798,11 +798,18 @@ pub fn quick_reject_check(content: &str) -> Option<String> {
 /// This is the recommended entry point - it first checks for obvious
 /// rejection cases to save LLM calls, then falls back to full validation.
 ///
+/// # Arguments
+///
+/// * `provider` - LLM provider for validation (implements `LlmProvider` trait)
+/// * `content` - The insight content to validate
+/// * `insight_type` - Type of insight being shared
+/// * `user_tier` - User's subscription tier
+///
 /// # Errors
 ///
 /// Returns an error if the LLM validation call fails.
 pub async fn validate_insight_with_quick_check(
-    provider: &ChatProvider,
+    provider: &dyn LlmProvider,
     content: &str,
     insight_type: InsightType,
     user_tier: &UserTier,
@@ -878,7 +885,7 @@ fn apply_policy_redaction(
 ///
 /// # Arguments
 ///
-/// * `provider` - LLM provider for validation
+/// * `provider` - LLM provider for validation (implements `LlmProvider` trait)
 /// * `content` - The insight content to validate
 /// * `insight_type` - Type of insight being shared
 /// * `user_tier` - User's subscription tier
@@ -888,7 +895,7 @@ fn apply_policy_redaction(
 ///
 /// Returns an error if the LLM call fails or response parsing fails.
 pub async fn validate_insight_with_policy(
-    provider: &ChatProvider,
+    provider: &dyn LlmProvider,
     content: &str,
     insight_type: InsightType,
     user_tier: &UserTier,
