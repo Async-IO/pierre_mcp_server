@@ -5,6 +5,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 #![allow(clippy::missing_panics_doc, clippy::missing_errors_doc)]
+#![allow(clippy::uninlined_format_args)]
 
 mod common;
 
