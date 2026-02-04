@@ -257,6 +257,8 @@ impl McpAuthMiddleware {
                 tier: format!("{:?}", db_key.tier).to_lowercase(),
             },
             rate_limit,
+            // API keys don't carry active_tenant_id - tenant resolved from user's default
+            active_tenant_id: None,
         })
     }
 
@@ -269,6 +271,19 @@ impl McpAuthMiddleware {
 
         let user_id = parse_uuid(&claims.sub)
             .map_err(|_| AppError::auth_invalid("Invalid user ID in token"))?;
+
+        // Extract active_tenant_id from JWT claims (multi-tenant user tenant selection)
+        let active_tenant_id = claims.active_tenant_id.as_deref().and_then(|tid| {
+            parse_uuid(tid)
+                .inspect_err(|e| {
+                    warn!(
+                        tenant_id = %tid,
+                        error = %e,
+                        "Invalid active_tenant_id format in JWT claims, will use default tenant"
+                    );
+                })
+                .ok()
+        });
 
         // Get user from database to check tier and rate limits
         let user = self
@@ -294,6 +309,7 @@ impl McpAuthMiddleware {
                 tier: format!("{:?}", user.tier).to_lowercase(),
             },
             rate_limit,
+            active_tenant_id,
         })
     }
 

@@ -114,10 +114,8 @@ impl ToolHandlers {
             .await
         {
             Ok(auth_result) => {
-                // Record authentication success in span
-                tracing::Span::current()
-                    .record("user_id", auth_result.user_id.to_string())
-                    .record("tenant_id", auth_result.user_id.to_string()); // Use user_id as tenant_id for now
+                // Record authentication success in span (tenant_id recorded after extraction)
+                tracing::Span::current().record("user_id", auth_result.user_id.to_string());
 
                 info!(
                     "MCP tool call authentication successful for user: {} (method: {})",
@@ -140,11 +138,12 @@ impl ToolHandlers {
 
                 // Extract tenant context from request and auth result
                 // Tenant context is REQUIRED for tool execution to ensure tenant isolation
+                // Priority: JWT active_tenant_id > user's default tenant
                 let tenant_context = match extract_tenant_context_internal(
                     &resources.database,
                     Some(auth_result.user_id),
-                    None,
-                    None, // MCP transport headers not applicable here
+                    auth_result.active_tenant_id, // Pass active_tenant_id from JWT claims
+                    None,                         // MCP transport headers not applicable here
                 )
                 .await
                 {

@@ -50,6 +50,7 @@ fn create_test_auth_result(user_id: Uuid) -> AuthResult {
             tier: "free".to_owned(),
             auth_method: "jwt".to_owned(),
         },
+        active_tenant_id: None,
     }
 }
 

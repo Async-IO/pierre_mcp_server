@@ -277,6 +277,8 @@ impl A2AAuthenticator {
                 tier: "A2A-OAuth2".into(),
                 auth_method: "oauth2".into(),
             },
+            // A2A clients don't carry active_tenant_id - tenant resolved from user's default
+            active_tenant_id: None,
         })
     }
 

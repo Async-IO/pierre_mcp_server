@@ -179,6 +179,10 @@ pub struct AuthResult {
     pub auth_method: AuthMethod,
     /// Rate limit information (always provided for both `API` keys and `JWT` tokens)
     pub rate_limit: UnifiedRateLimitInfo,
+    /// Active tenant ID from JWT claims (for multi-tenant user tenant selection)
+    /// Users can belong to multiple tenants and this field indicates which tenant
+    /// should be used for the current request. Extracted from JWT `active_tenant_id` claim.
+    pub active_tenant_id: Option<Uuid>,
 }
 
 /// Authentication method used

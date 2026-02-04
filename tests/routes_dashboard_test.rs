@@ -429,6 +429,7 @@ impl DashboardTestSetup {
                 tier: "premium".to_owned(),
                 auth_method: "jwt".to_owned(),
             },
+            active_tenant_id: None,
         }
     }
 
@@ -549,6 +550,7 @@ async fn test_get_dashboard_overview_invalid_auth() -> Result<()> {
                 tier: "premium".to_owned(),
                 auth_method: "jwt".to_owned(),
             },
+            active_tenant_id: None,
         })
         .await;
     assert!(result.is_err());
@@ -569,6 +571,7 @@ async fn test_get_dashboard_overview_invalid_auth() -> Result<()> {
                 tier: "premium".to_owned(),
                 auth_method: "jwt".to_owned(),
             },
+            active_tenant_id: None,
         })
         .await;
     assert!(result.is_err());
@@ -589,6 +592,7 @@ async fn test_get_dashboard_overview_invalid_auth() -> Result<()> {
                 tier: "premium".to_owned(),
                 auth_method: "jwt".to_owned(),
             },
+            active_tenant_id: None,
         })
         .await;
     assert!(result.is_err());
@@ -787,6 +791,7 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
             tier: "premium".to_owned(),
             auth_method: "jwt".to_owned(),
         },
+        active_tenant_id: None,
     };
 
     // No API keys created - should return empty overview
@@ -890,6 +895,7 @@ async fn test_get_usage_analytics_invalid_auth() -> Result<()> {
                     tier: "premium".to_owned(),
                     auth_method: "jwt".to_owned(),
                 },
+                active_tenant_id: None,
             },
             7,
         )
@@ -912,6 +918,7 @@ async fn test_get_usage_analytics_invalid_auth() -> Result<()> {
                     tier: "premium".to_owned(),
                     auth_method: "jwt".to_owned(),
                 },
+                active_tenant_id: None,
             },
             7,
         )
@@ -1013,6 +1020,7 @@ async fn test_get_rate_limit_overview_invalid_auth() -> Result<()> {
                 tier: "premium".to_owned(),
                 auth_method: "jwt".to_owned(),
             },
+            active_tenant_id: None,
         })
         .await;
     assert!(result.is_err());
@@ -1032,6 +1040,7 @@ async fn test_get_rate_limit_overview_invalid_auth() -> Result<()> {
                 tier: "premium".to_owned(),
                 auth_method: "jwt".to_owned(),
             },
+            active_tenant_id: None,
         })
         .await;
     assert!(result.is_err());
@@ -1300,6 +1309,7 @@ async fn test_get_request_stats_invalid_auth() -> Result<()> {
                     tier: "premium".to_owned(),
                     auth_method: "jwt".to_owned(),
                 },
+                active_tenant_id: None,
             },
             None,
             Some("24h"),
@@ -1323,6 +1333,7 @@ async fn test_get_request_stats_invalid_auth() -> Result<()> {
                     tier: "premium".to_owned(),
                     auth_method: "jwt".to_owned(),
                 },
+                active_tenant_id: None,
             },
             None,
             Some("24h"),
@@ -1417,6 +1428,7 @@ async fn test_get_tool_usage_breakdown_invalid_auth() -> Result<()> {
                     tier: "premium".to_owned(),
                     auth_method: "jwt".to_owned(),
                 },
+                active_tenant_id: None,
             },
             None,
             Some("7d"),
@@ -1440,6 +1452,7 @@ async fn test_get_tool_usage_breakdown_invalid_auth() -> Result<()> {
                     tier: "premium".to_owned(),
                     auth_method: "jwt".to_owned(),
                 },
+                active_tenant_id: None,
             },
             None,
             Some("7d"),
@@ -1485,6 +1498,7 @@ async fn test_dashboard_with_malformed_jwt() -> Result<()> {
                     tier: "premium".to_owned(),
                     auth_method: "jwt".to_owned(),
                 },
+                active_tenant_id: None,
             })
             .await;
         assert!(
@@ -1518,6 +1532,7 @@ async fn test_dashboard_with_different_user() -> Result<()> {
             tier: "premium".to_owned(),
             auth_method: "jwt".to_owned(),
         },
+        active_tenant_id: None,
     };
 
     // This user should have no API keys and no data
