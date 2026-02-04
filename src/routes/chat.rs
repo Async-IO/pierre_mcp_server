@@ -16,8 +16,8 @@ use crate::{
     database_plugins::DatabaseProvider,
     errors::AppError,
     llm::{
-        get_pierre_system_prompt, ChatMessage, ChatProvider, ChatRequest, FunctionCall,
-        FunctionDeclaration, FunctionResponse, TokenUsage, Tool,
+        get_insight_generation_prompt, get_pierre_system_prompt, ChatMessage, ChatProvider,
+        ChatRequest, FunctionCall, FunctionDeclaration, FunctionResponse, TokenUsage, Tool,
     },
     mcp::resources::ServerResources,
     protocols::universal::{UniversalExecutor, UniversalRequest, UniversalResponse},
@@ -41,6 +41,10 @@ use uuid::Uuid;
 
 /// Maximum number of tool call iterations before forcing a text response
 const MAX_TOOL_ITERATIONS: usize = 10;
+
+/// Prefix used to detect insight generation requests from the frontend.
+/// Must match the `INSIGHT_PROMPT_PREFIX` constant in `@pierre/chat-utils`.
+const INSIGHT_PROMPT_PREFIX: &str = "Create a shareable insight from this analysis";
 
 // ============================================================================
 // Helper Functions
@@ -1089,25 +1093,50 @@ impl ChatRoutes {
             .chat_get_messages(&conversation_id)
             .await?;
 
-        // Get system prompt augmented with connected provider info
-        let system_prompt_text =
-            Self::get_augmented_system_prompt(&conv, &resources, auth.user_id).await;
-        let mut llm_messages =
-            Self::build_llm_messages(Some(system_prompt_text.as_str()), &history);
+        // Check if this is an insight generation request
+        // These use a dedicated prompt optimized for clean, shareable output
+        let is_insight_request = request.content.starts_with(INSIGHT_PROMPT_PREFIX);
+
+        let mut llm_messages = if is_insight_request {
+            // For insight generation: use dedicated prompt and extract just the analysis
+            let insight_prompt = get_insight_generation_prompt();
+
+            // Extract the analysis content (everything after the prefix and colon/newlines)
+            let analysis_content = request
+                .content
+                .strip_prefix(INSIGHT_PROMPT_PREFIX)
+                .unwrap_or(&request.content)
+                .trim_start_matches(':')
+                .trim();
+
+            // Build messages without history - insight generation is a single-turn task
+            vec![
+                ChatMessage::system(insight_prompt),
+                ChatMessage::user(analysis_content),
+            ]
+        } else {
+            // Normal conversation: use augmented system prompt with full history
+            let system_prompt_text =
+                Self::get_augmented_system_prompt(&conv, &resources, auth.user_id).await;
+            Self::build_llm_messages(Some(system_prompt_text.as_str()), &history)
+        };
 
         // Inject startup query if this is the first message in a coach conversation
+        // (only for non-insight requests)
         // The startup query runs before the user's message to fetch relevant context
-        if let Some(startup_query) = Self::get_startup_query_if_applicable(
-            &resources,
-            history.len(),
-            conv.system_prompt.as_ref(),
-            &tenant_id,
-        )
-        .await
-        {
-            // Insert startup query as user message right after system prompt
-            // Position 1 is after system message (position 0) and before user's actual message
-            llm_messages.insert(1, ChatMessage::user(&startup_query));
+        if !is_insight_request {
+            if let Some(startup_query) = Self::get_startup_query_if_applicable(
+                &resources,
+                history.len(),
+                conv.system_prompt.as_ref(),
+                &tenant_id,
+            )
+            .await
+            {
+                // Insert startup query as user message right after system prompt
+                // Position 1 is after system message (position 0) and before user's actual message
+                llm_messages.insert(1, ChatMessage::user(&startup_query));
+            }
         }
 
         // Build MCP tools for function calling
