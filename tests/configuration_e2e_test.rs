@@ -26,7 +26,7 @@ use pierre_mcp_server::intelligence::{
     ActivityIntelligence, ContextualFactors, PerformanceMetrics, TimeOfDay, TrendDirection,
     TrendIndicators,
 };
-use pierre_mcp_server::mcp::resources::ServerResources;
+use pierre_mcp_server::mcp::resources::{ServerResources, ServerResourcesOptions};
 use pierre_mcp_server::models::User;
 use pierre_mcp_server::protocols::universal::{UniversalRequest, UniversalToolExecutor};
 use serde_json::json;
@@ -126,8 +126,11 @@ async fn create_test_tool_executor_with_user() -> (Arc<UniversalToolExecutor>, S
             "test_secret",
             config,
             cache,
-            2048, // Use 2048-bit RSA keys for faster test execution
-            Some(common::get_shared_test_jwks()),
+            ServerResourcesOptions {
+                rsa_key_size_bits: Some(2048),
+                jwks_manager: Some(common::get_shared_test_jwks()),
+                llm_provider: None,
+            },
         )
         .await,
     );

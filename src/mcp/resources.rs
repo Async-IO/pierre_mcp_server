@@ -28,6 +28,7 @@ use crate::intelligence::{
     ActivityIntelligence, ContextualFactors, PerformanceMetrics, TimeOfDay, TrendDirection,
     TrendIndicators,
 };
+use crate::llm::LlmProvider;
 use crate::mcp::sampling_peer::SamplingPeer;
 use crate::mcp::schema::{OAuthCompletedNotification, ProgressNotification};
 use crate::mcp::tool_selection::ToolSelectionService;
@@ -49,6 +50,63 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc, RwLock};
 use tracing::{error, info, warn};
+
+/// Optional initialization parameters for `ServerResources`
+///
+/// Used to pass optional configuration during server initialization without
+/// exceeding function argument limits. All fields have sensible defaults.
+#[derive(Default)]
+pub struct ServerResourcesOptions {
+    /// Size of RSA keys for JWT signing (2048 for tests, 4096 for production)
+    pub rsa_key_size_bits: Option<usize>,
+    /// Pre-existing JWKS manager (for test performance - reuses RSA keys)
+    pub jwks_manager: Option<Arc<JwksManager>>,
+    /// LLM provider for insight validation (injected for testing with mock providers)
+    pub llm_provider: Option<Arc<dyn LlmProvider>>,
+}
+
+impl ServerResourcesOptions {
+    /// Create options with production defaults (4096-bit RSA keys)
+    #[must_use]
+    pub const fn production() -> Self {
+        Self {
+            rsa_key_size_bits: Some(4096),
+            jwks_manager: None,
+            llm_provider: None,
+        }
+    }
+
+    /// Create options for testing (2048-bit RSA keys for speed)
+    #[must_use]
+    pub const fn testing() -> Self {
+        Self {
+            rsa_key_size_bits: Some(2048),
+            jwks_manager: None,
+            llm_provider: None,
+        }
+    }
+
+    /// Set the RSA key size
+    #[must_use]
+    pub const fn with_rsa_key_size(mut self, size: usize) -> Self {
+        self.rsa_key_size_bits = Some(size);
+        self
+    }
+
+    /// Set the JWKS manager
+    #[must_use]
+    pub fn with_jwks_manager(mut self, jwks: Arc<JwksManager>) -> Self {
+        self.jwks_manager = Some(jwks);
+        self
+    }
+
+    /// Set the LLM provider
+    #[must_use]
+    pub fn with_llm_provider(mut self, provider: Arc<dyn LlmProvider>) -> Self {
+        self.llm_provider = Some(provider);
+        self
+    }
+}
 
 /// Centralized resource container for dependency injection
 ///
@@ -112,14 +170,15 @@ pub struct ServerResources {
     pub tool_selection: Arc<ToolSelectionService>,
     /// Central registry for MCP tool discovery and execution
     pub tool_registry: Arc<ToolRegistry>,
+    /// Optional LLM provider for insight validation and generation (injected for testing)
+    pub llm_provider: Option<Arc<dyn LlmProvider>>,
 }
 
 impl ServerResources {
     /// Create new server resources with proper Arc sharing
     ///
     /// # Parameters
-    /// - `rsa_key_size_bits`: Size of RSA keys for JWT signing (2048 for tests, 4096 for production)
-    /// - `jwks_manager`: Optional pre-existing JWKS manager (for test performance - reuses RSA keys)
+    /// - `options`: Optional initialization parameters (RSA key size, JWKS manager, LLM provider)
     // Function exceeds line limit because it assembles 20+ interdependent resources
     // Splitting would reduce clarity without improving maintainability
     #[allow(clippy::too_many_lines)]
@@ -129,9 +188,12 @@ impl ServerResources {
         admin_jwt_secret: &str,
         config: Arc<ServerConfig>,
         cache: Cache,
-        rsa_key_size_bits: usize,
-        jwks_manager: Option<Arc<JwksManager>>,
+        options: ServerResourcesOptions,
     ) -> Self {
+        let rsa_key_size_bits = options.rsa_key_size_bits.unwrap_or(4096);
+        let jwks_manager = options.jwks_manager;
+        let llm_provider = options.llm_provider;
+
         let database_arc = Arc::new(database);
         let auth_manager_arc = Arc::new(auth_manager);
 
@@ -246,6 +308,7 @@ impl ServerResources {
             admin_config,
             tool_selection,
             tool_registry,
+            llm_provider,
         }
     }
 
@@ -512,6 +575,7 @@ pub struct ServerResourcesBuilder {
     cache: Option<Cache>,
     rsa_key_size_bits: usize,
     jwks_manager: Option<Arc<JwksManager>>,
+    llm_provider: Option<Arc<dyn LlmProvider>>,
 }
 
 impl ServerResourcesBuilder {
@@ -526,6 +590,7 @@ impl ServerResourcesBuilder {
             cache: None,
             rsa_key_size_bits: 4096, // Production default
             jwks_manager: None,
+            llm_provider: None,
         }
     }
 
@@ -578,6 +643,13 @@ impl ServerResourcesBuilder {
         self
     }
 
+    /// Set an LLM provider for insight validation (for testing with mock providers)
+    #[must_use]
+    pub fn with_llm_provider(mut self, llm_provider: Arc<dyn LlmProvider>) -> Self {
+        self.llm_provider = Some(llm_provider);
+        self
+    }
+
     /// Build the `ServerResources`
     ///
     /// # Errors
@@ -592,14 +664,19 @@ impl ServerResourcesBuilder {
         let config = self.config.ok_or("Server config is required")?;
         let cache = self.cache.ok_or("Cache is required")?;
 
+        let options = ServerResourcesOptions {
+            rsa_key_size_bits: Some(self.rsa_key_size_bits),
+            jwks_manager: self.jwks_manager,
+            llm_provider: self.llm_provider,
+        };
+
         let resources = ServerResources::new(
             database,
             auth_manager,
             &admin_jwt_secret,
             config,
             cache,
-            self.rsa_key_size_bits,
-            self.jwks_manager,
+            options,
         )
         .await;
         Ok(resources)

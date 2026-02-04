@@ -22,7 +22,7 @@ use pierre_mcp_server::{
         AppBehaviorConfig, BackupConfig, DatabaseConfig, DatabaseUrl, Environment, SecurityConfig,
         SecurityHeadersConfig, ServerConfig,
     },
-    mcp::resources::ServerResources,
+    mcp::resources::{ServerResources, ServerResourcesOptions},
     routes::api_keys::ApiKeyRoutes,
 };
 use serde_json::json;
@@ -78,8 +78,11 @@ impl ApiKeyTestSetup {
                 "test_jwt_secret",
                 config,
                 cache,
-                2048,
-                Some(common::get_shared_test_jwks()),
+                ServerResourcesOptions {
+                    rsa_key_size_bits: Some(2048),
+                    jwks_manager: Some(common::get_shared_test_jwks()),
+                    llm_provider: None,
+                },
             )
             .await,
         );

@@ -168,7 +168,7 @@ use pierre_mcp_server::{
     },
     dashboard_routes::DashboardRoutes,
     database_plugins::{factory::Database, DatabaseProvider},
-    mcp::resources::ServerResources,
+    mcp::resources::{ServerResources, ServerResourcesOptions},
     rate_limiting::UnifiedRateLimitInfo,
 };
 use std::{sync::Arc, time::Instant};
@@ -349,8 +349,11 @@ impl DashboardTestSetup {
                 "test_jwt_secret",
                 config,
                 cache,
-                2048, // Use 2048-bit RSA keys for faster test execution
-                Some(common::get_shared_test_jwks()),
+                ServerResourcesOptions {
+                    rsa_key_size_bits: Some(2048),
+                    jwks_manager: Some(common::get_shared_test_jwks()),
+                    llm_provider: None,
+                },
             )
             .await,
         );
@@ -759,8 +762,11 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
             "test_jwt_secret",
             config,
             cache,
-            2048, // Use 2048-bit RSA keys for faster test execution
-            Some(common::get_shared_test_jwks()),
+            ServerResourcesOptions {
+                rsa_key_size_bits: Some(2048),
+                jwks_manager: Some(common::get_shared_test_jwks()),
+                llm_provider: None,
+            },
         )
         .await,
     );

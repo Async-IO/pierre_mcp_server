@@ -26,7 +26,8 @@ use pierre_mcp_server::{
     key_management::KeyManager,
     logging,
     mcp::{
-        multitenant::MultiTenantMcpServer, resources::ServerResources,
+        multitenant::MultiTenantMcpServer,
+        resources::{ServerResources, ServerResourcesOptions},
         transport_manager::TransportManager,
     },
     plugins::executor::PluginToolExecutor,
@@ -410,8 +411,11 @@ async fn create_server(
         jwt_secret,
         Arc::new(config.clone()),
         cache,
-        rsa_key_size,
-        None, // Generate new JWKS manager for production
+        ServerResourcesOptions {
+            rsa_key_size_bits: Some(rsa_key_size),
+            jwks_manager: None, // Generate new JWKS manager for production
+            llm_provider: None, // Use ChatProvider::from_env() for LLM in production
+        },
     )
     .await;
 

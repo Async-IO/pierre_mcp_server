@@ -42,7 +42,7 @@ use crate::{
             SharedInsightGenerator,
         },
     },
-    llm::{get_insight_generation_prompt, ChatMessage, ChatProvider, ChatRequest},
+    llm::{get_insight_generation_prompt, ChatMessage, ChatProvider, ChatRequest, LlmProvider},
     mcp::resources::ServerResources,
     models::{
         Activity, AdaptedInsight, FriendConnection, FriendStatus, InsightReaction, InsightType,
@@ -868,6 +868,19 @@ impl SocialRoutes {
         Ok(SocialManager::new(pool.clone()))
     }
 
+    /// Get LLM provider from resources or create from environment
+    ///
+    /// Uses injected provider if available (for testing), otherwise falls back to
+    /// `ChatProvider::from_env()` which reads API keys from environment variables.
+    async fn get_llm_provider(
+        resources: &Arc<ServerResources>,
+    ) -> Result<Arc<dyn LlmProvider>, AppError> {
+        match &resources.llm_provider {
+            Some(provider) => Ok(provider.clone()),
+            None => Ok(Arc::new(ChatProvider::from_env().await?)),
+        }
+    }
+
     /// Validate content for sharing based on user tier and sharing policy
     ///
     /// Returns the validated (and potentially improved/redacted) content, or an error if rejected.
@@ -892,13 +905,18 @@ impl SocialRoutes {
             .map(|s| s.insight_sharing_policy)
             .unwrap_or_default();
 
-        // Get LLM provider for quality validation
-        let llm_provider = ChatProvider::from_env().await?;
+        // Get LLM provider from resources (injected for tests) or environment
+        let llm_provider = Self::get_llm_provider(resources).await?;
 
         // Run validation
-        let result =
-            validate_insight_with_policy(&llm_provider, content, insight_type, &user.tier, &policy)
-                .await?;
+        let result = validate_insight_with_policy(
+            llm_provider.as_ref(),
+            content,
+            insight_type,
+            &user.tier,
+            &policy,
+        )
+        .await?;
 
         // Handle validation result
         match result.verdict {
@@ -1603,8 +1621,8 @@ impl SocialRoutes {
             return Err(AppError::invalid_input("Content cannot be empty"));
         }
 
-        // Get LLM provider
-        let llm_provider = ChatProvider::from_env().await?;
+        // Get LLM provider from resources (injected for tests) or environment
+        let llm_provider = Self::get_llm_provider(&resources).await?;
 
         // Build the generation request using the insight generation prompt
         let system_prompt = get_insight_generation_prompt();

@@ -422,7 +422,6 @@ max_magic_input_antipatterns = 0  # ZERO TOLERANCE: tools must require explicit 
 files = [
     "llm_local_integration_test.rs",   # Requires Ollama/vLLM server with downloaded models
     "llm_openai_compatible_test.rs",   # Requires running Ollama server for API tests
-    "social_routes_http_test.rs",      # Insight tests require GROQ_API_KEY - pending mock LLM refactor
 ]
 
 [ci_continue_on_error_allowlist]

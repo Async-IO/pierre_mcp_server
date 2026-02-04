@@ -26,7 +26,7 @@ use pierre_mcp_server::{
     },
     context::ServerContext,
     database_plugins::factory::Database,
-    mcp::resources::ServerResources,
+    mcp::resources::{ServerResources, ServerResourcesOptions},
     routes::{auth::AuthService, RegisterRequest},
 };
 use std::{ptr, sync::Arc};
@@ -228,8 +228,11 @@ async fn test_register_user() {
             "test_jwt_secret",
             config,
             cache,
-            2048, // Use 2048-bit RSA keys for faster test execution
-            Some(common::get_shared_test_jwks()),
+            ServerResourcesOptions {
+                rsa_key_size_bits: Some(2048),
+                jwks_manager: Some(common::get_shared_test_jwks()),
+                llm_provider: None,
+            },
         )
         .await,
     );
@@ -408,8 +411,11 @@ async fn test_register_duplicate_user() {
             "test_jwt_secret",
             config,
             cache,
-            2048, // Use 2048-bit RSA keys for faster test execution
-            Some(common::get_shared_test_jwks()),
+            ServerResourcesOptions {
+                rsa_key_size_bits: Some(2048),
+                jwks_manager: Some(common::get_shared_test_jwks()),
+                llm_provider: None,
+            },
         )
         .await,
     );

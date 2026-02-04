@@ -162,7 +162,10 @@ use pierre_mcp_server::{
     context::ServerContext,
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
-    mcp::{multitenant::MultiTenantMcpServer, resources::ServerResources},
+    mcp::{
+        multitenant::MultiTenantMcpServer,
+        resources::{ServerResources, ServerResourcesOptions},
+    },
     models::{Tenant, User, UserStatus, UserTier},
     permissions::UserRole,
     routes::{
@@ -351,8 +354,11 @@ async fn test_oauth_flow_through_mcp() {
             TEST_JWT_SECRET,
             config,
             cache,
-            2048, // Use 2048-bit RSA keys for faster test execution
-            Some(common::get_shared_test_jwks()),
+            ServerResourcesOptions {
+                rsa_key_size_bits: Some(2048),
+                jwks_manager: Some(common::get_shared_test_jwks()),
+                llm_provider: None,
+            },
         )
         .await,
     );
@@ -657,8 +663,11 @@ async fn test_oauth_callback_error_handling() {
             "test_jwt_secret",
             config,
             cache,
-            2048, // Use 2048-bit RSA keys for faster test execution
-            Some(common::get_shared_test_jwks()),
+            ServerResourcesOptions {
+                rsa_key_size_bits: Some(2048),
+                jwks_manager: Some(common::get_shared_test_jwks()),
+                llm_provider: None,
+            },
         )
         .await,
     );
@@ -929,8 +938,11 @@ async fn test_oauth_state_csrf_protection() {
             "test_jwt_secret",
             config,
             cache,
-            2048, // Use 2048-bit RSA keys for faster test execution
-            Some(common::get_shared_test_jwks()),
+            ServerResourcesOptions {
+                rsa_key_size_bits: Some(2048),
+                jwks_manager: Some(common::get_shared_test_jwks()),
+                llm_provider: None,
+            },
         )
         .await,
     );
@@ -1119,8 +1131,11 @@ async fn test_connection_status_tracking() {
             TEST_JWT_SECRET,
             config,
             cache,
-            2048, // Use 2048-bit RSA keys for faster test execution
-            Some(common::get_shared_test_jwks()),
+            ServerResourcesOptions {
+                rsa_key_size_bits: Some(2048),
+                jwks_manager: Some(common::get_shared_test_jwks()),
+                llm_provider: None,
+            },
         )
         .await,
     );

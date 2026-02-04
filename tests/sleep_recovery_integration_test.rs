@@ -17,7 +17,7 @@ use pierre_mcp_server::{
     cache::{factory::Cache, CacheConfig as MemoryCacheConfig},
     config::environment::*,
     database_plugins::DatabaseProvider,
-    mcp::resources::ServerResources,
+    mcp::resources::{ServerResources, ServerResourcesOptions},
     models::User,
     protocols::universal::{UniversalRequest, UniversalToolExecutor},
 };
@@ -218,8 +218,11 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
             "test_secret",
             config,
             cache,
-            2048, // Use 2048-bit RSA keys for faster test execution
-            Some(common::get_shared_test_jwks()),
+            ServerResourcesOptions {
+                rsa_key_size_bits: Some(2048),
+                jwks_manager: Some(common::get_shared_test_jwks()),
+                llm_provider: None,
+            },
         )
         .await,
     );

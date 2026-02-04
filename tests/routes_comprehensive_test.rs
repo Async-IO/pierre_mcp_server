@@ -25,7 +25,7 @@ use pierre_mcp_server::{
     },
     context::ServerContext,
     database_plugins::{factory::Database, DatabaseProvider},
-    mcp::resources::ServerResources,
+    mcp::resources::{ServerResources, ServerResourcesOptions},
     models::{Tenant, User, UserStatus, UserTier},
     permissions::UserRole,
     routes::{
@@ -82,8 +82,11 @@ async fn create_test_auth_routes() -> Result<AuthService> {
             "test_jwt_secret",
             config,
             cache,
-            2048, // Use 2048-bit RSA keys for faster test execution
-            Some(common::get_shared_test_jwks()),
+            ServerResourcesOptions {
+                rsa_key_size_bits: Some(2048),
+                jwks_manager: Some(common::get_shared_test_jwks()),
+                llm_provider: None,
+            },
         )
         .await,
     );
@@ -321,8 +324,11 @@ async fn create_test_oauth_routes() -> Result<(OAuthService, Uuid, Arc<Database>
             "test_jwt_secret",
             config,
             cache,
-            2048, // Use 2048-bit RSA keys for faster test execution
-            Some(common::get_shared_test_jwks()),
+            ServerResourcesOptions {
+                rsa_key_size_bits: Some(2048),
+                jwks_manager: Some(common::get_shared_test_jwks()),
+                llm_provider: None,
+            },
         )
         .await,
     );
@@ -617,8 +623,11 @@ async fn test_user_login_success() -> Result<()> {
             "test_jwt_secret",
             config,
             cache,
-            2048, // Use 2048-bit RSA keys for faster test execution
-            Some(common::get_shared_test_jwks()),
+            ServerResourcesOptions {
+                rsa_key_size_bits: Some(2048),
+                jwks_manager: Some(common::get_shared_test_jwks()),
+                llm_provider: None,
+            },
         )
         .await,
     );
@@ -906,8 +915,11 @@ async fn test_token_refresh_success() -> Result<()> {
             "test_jwt_secret",
             config,
             cache,
-            2048, // Use 2048-bit RSA keys for faster test execution
-            Some(common::get_shared_test_jwks()),
+            ServerResourcesOptions {
+                rsa_key_size_bits: Some(2048),
+                jwks_manager: Some(common::get_shared_test_jwks()),
+                llm_provider: None,
+            },
         )
         .await,
     );
@@ -1143,8 +1155,11 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
             "test_jwt_secret",
             config,
             cache,
-            2048, // Use 2048-bit RSA keys for faster test execution
-            Some(common::get_shared_test_jwks()),
+            ServerResourcesOptions {
+                rsa_key_size_bits: Some(2048),
+                jwks_manager: Some(common::get_shared_test_jwks()),
+                llm_provider: None,
+            },
         )
         .await,
     );
@@ -1634,8 +1649,11 @@ async fn test_complete_auth_flow() -> Result<()> {
             "test_jwt_secret",
             config,
             cache,
-            2048, // Use 2048-bit RSA keys for faster test execution
-            Some(common::get_shared_test_jwks()),
+            ServerResourcesOptions {
+                rsa_key_size_bits: Some(2048),
+                jwks_manager: Some(common::get_shared_test_jwks()),
+                llm_provider: None,
+            },
         )
         .await,
     );
@@ -1949,8 +1967,11 @@ async fn test_concurrent_logins() -> Result<()> {
             "test_jwt_secret",
             config,
             cache,
-            2048, // Use 2048-bit RSA keys for faster test execution
-            Some(common::get_shared_test_jwks()),
+            ServerResourcesOptions {
+                rsa_key_size_bits: Some(2048),
+                jwks_manager: Some(common::get_shared_test_jwks()),
+                llm_provider: None,
+            },
         )
         .await,
     );

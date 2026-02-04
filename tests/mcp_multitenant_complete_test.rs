@@ -25,7 +25,10 @@ use pierre_mcp_server::{
     },
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
-    mcp::{multitenant::MultiTenantMcpServer, resources::ServerResources},
+    mcp::{
+        multitenant::MultiTenantMcpServer,
+        resources::{ServerResources, ServerResourcesOptions},
+    },
     models::{Tenant, User, UserStatus, UserTier},
     permissions::UserRole,
     tenant::TenantOAuthCredentials,
@@ -528,8 +531,11 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
             &stored_jwt_secret,
             create_test_config(server_port),
             cache,
-            2048, // Use 2048-bit RSA keys for faster test execution
-            Some(common::get_shared_test_jwks()),
+            ServerResourcesOptions {
+                rsa_key_size_bits: Some(2048),
+                jwks_manager: Some(common::get_shared_test_jwks()),
+                llm_provider: None,
+            },
         )
         .await,
     );
@@ -707,8 +713,11 @@ async fn test_mcp_authentication_required() -> Result<()> {
             &stored_jwt_secret,
             create_test_config(server_port),
             cache,
-            2048, // Use 2048-bit RSA keys for faster test execution
-            Some(common::get_shared_test_jwks()),
+            ServerResourcesOptions {
+                rsa_key_size_bits: Some(2048),
+                jwks_manager: Some(common::get_shared_test_jwks()),
+                llm_provider: None,
+            },
         )
         .await,
     );
@@ -805,8 +814,11 @@ async fn test_mcp_initialization_no_auth() -> Result<()> {
             &stored_jwt_secret,
             create_test_config(server_port),
             cache,
-            2048, // Use 2048-bit RSA keys for faster test execution
-            Some(common::get_shared_test_jwks()),
+            ServerResourcesOptions {
+                rsa_key_size_bits: Some(2048),
+                jwks_manager: Some(common::get_shared_test_jwks()),
+                llm_provider: None,
+            },
         )
         .await,
     );
@@ -890,8 +902,11 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
             &stored_jwt_secret,
             create_test_config(server_port),
             cache,
-            2048, // Use 2048-bit RSA keys for faster test execution
-            Some(common::get_shared_test_jwks()),
+            ServerResourcesOptions {
+                rsa_key_size_bits: Some(2048),
+                jwks_manager: Some(common::get_shared_test_jwks()),
+                llm_provider: None,
+            },
         )
         .await,
     );
@@ -1000,8 +1015,11 @@ async fn test_multitenant_server_config() -> Result<()> {
             &stored_jwt_secret,
             config.clone(),
             cache,
-            2048, // Use 2048-bit RSA keys for faster test execution
-            Some(common::get_shared_test_jwks()),
+            ServerResourcesOptions {
+                rsa_key_size_bits: Some(2048),
+                jwks_manager: Some(common::get_shared_test_jwks()),
+                llm_provider: None,
+            },
         )
         .await,
     );

@@ -23,7 +23,8 @@ use pierre_mcp_server::{
         SecurityHeadersConfig, ServerConfig,
     },
     database::social::SocialManager,
-    mcp::resources::ServerResources,
+    llm::LlmProvider,
+    mcp::resources::{ServerResources, ServerResourcesOptions},
     models::{InsightType, ShareVisibility, SharedInsight},
     routes::social::SocialRoutes,
 };
@@ -74,6 +75,9 @@ impl SocialRoutesTestSetup {
             ..Default::default()
         });
 
+        // Create TestLlmProvider for mock insight validation in tests
+        let llm_provider: Arc<dyn LlmProvider> = Arc::new(common::TestLlmProvider::valid());
+
         let resources = Arc::new(
             ServerResources::new(
                 (*database).clone(),
@@ -81,8 +85,11 @@ impl SocialRoutesTestSetup {
                 "test_jwt_secret",
                 config,
                 cache,
-                2048,
-                Some(common::get_shared_test_jwks()),
+                ServerResourcesOptions {
+                    rsa_key_size_bits: Some(2048),
+                    jwks_manager: Some(common::get_shared_test_jwks()),
+                    llm_provider: Some(llm_provider), // Inject mock LLM provider for tests
+                },
             )
             .await,
         );
@@ -627,7 +634,6 @@ async fn test_list_insights_missing_auth() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore = "requires GROQ_API_KEY - pending mock LLM refactor"]
 async fn test_share_insight_success() {
     let setup = SocialRoutesTestSetup::new().await.expect("Setup failed");
     let routes = setup.routes();
@@ -658,7 +664,6 @@ async fn test_share_insight_success() {
 }
 
 #[tokio::test]
-#[ignore = "requires GROQ_API_KEY - pending mock LLM refactor"]
 async fn test_share_insight_minimal() {
     let setup = SocialRoutesTestSetup::new().await.expect("Setup failed");
     let routes = setup.routes();
@@ -678,7 +683,6 @@ async fn test_share_insight_minimal() {
 }
 
 #[tokio::test]
-#[ignore = "requires GROQ_API_KEY - pending mock LLM refactor"]
 async fn test_share_insight_with_training_phase() {
     let setup = SocialRoutesTestSetup::new().await.expect("Setup failed");
     let routes = setup.routes();
@@ -710,7 +714,7 @@ async fn test_share_insight_invalid_type() {
 
     let body = json!({
         "insight_type": "invalid_type",
-        "content": "Test content"
+        "content": "Test content for insight validation"
     });
 
     let response = AxumTestRequest::post("/api/social/insights")
@@ -729,7 +733,7 @@ async fn test_share_insight_missing_auth() {
 
     let body = json!({
         "insight_type": "milestone",
-        "content": "Test content"
+        "content": "Test content for insight validation"
     });
 
     let response = AxumTestRequest::post("/api/social/insights")
@@ -745,7 +749,6 @@ async fn test_share_insight_missing_auth() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore = "requires GROQ_API_KEY - pending mock LLM refactor"]
 async fn test_get_insight_success() {
     let setup = SocialRoutesTestSetup::new().await.expect("Setup failed");
     let routes = setup.routes();
@@ -811,7 +814,6 @@ async fn test_get_insight_invalid_uuid() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore = "requires GROQ_API_KEY - pending mock LLM refactor"]
 async fn test_delete_insight_success() {
     let setup = SocialRoutesTestSetup::new().await.expect("Setup failed");
     let routes = setup.routes();
@@ -819,7 +821,7 @@ async fn test_delete_insight_success() {
     // Create an insight
     let create_body = json!({
         "insight_type": "milestone",
-        "content": "To be deleted"
+        "content": "This insight is to be deleted soon"
     });
 
     let create_response = AxumTestRequest::post("/api/social/insights")
@@ -842,7 +844,6 @@ async fn test_delete_insight_success() {
 }
 
 #[tokio::test]
-#[ignore = "requires GROQ_API_KEY - pending mock LLM refactor"]
 async fn test_delete_insight_not_owner() {
     let setup = SocialRoutesTestSetup::new().await.expect("Setup failed");
     let (_, friend_token) = setup
@@ -854,7 +855,7 @@ async fn test_delete_insight_not_owner() {
     // Create an insight as main user
     let create_body = json!({
         "insight_type": "milestone",
-        "content": "Main user's insight"
+        "content": "This is the main user's fitness insight"
     });
 
     let create_response = AxumTestRequest::post("/api/social/insights")
@@ -881,7 +882,6 @@ async fn test_delete_insight_not_owner() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore = "requires GROQ_API_KEY - pending mock LLM refactor"]
 async fn test_list_reactions_empty() {
     let setup = SocialRoutesTestSetup::new().await.expect("Setup failed");
     let routes = setup.routes();
@@ -889,7 +889,7 @@ async fn test_list_reactions_empty() {
     // Create an insight first
     let create_body = json!({
         "insight_type": "milestone",
-        "content": "Test insight"
+        "content": "This is a test insight for validation"
     });
 
     let create_response = AxumTestRequest::post("/api/social/insights")
@@ -920,7 +920,6 @@ async fn test_list_reactions_empty() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore = "requires GROQ_API_KEY - pending mock LLM refactor"]
 async fn test_add_reaction_success() {
     let setup = SocialRoutesTestSetup::new().await.expect("Setup failed");
     let (_, friend_token) = setup
@@ -932,7 +931,7 @@ async fn test_add_reaction_success() {
     // Create an insight
     let create_body = json!({
         "insight_type": "milestone",
-        "content": "Test insight"
+        "content": "This is a test insight for validation"
     });
 
     let create_response = AxumTestRequest::post("/api/social/insights")
@@ -964,7 +963,6 @@ async fn test_add_reaction_success() {
 }
 
 #[tokio::test]
-#[ignore = "requires GROQ_API_KEY - pending mock LLM refactor"]
 async fn test_add_reaction_invalid_type() {
     let setup = SocialRoutesTestSetup::new().await.expect("Setup failed");
     let routes = setup.routes();
@@ -972,7 +970,7 @@ async fn test_add_reaction_invalid_type() {
     // Create an insight
     let create_body = json!({
         "insight_type": "milestone",
-        "content": "Test insight"
+        "content": "This is a test insight for validation"
     });
 
     let create_response = AxumTestRequest::post("/api/social/insights")
@@ -1000,7 +998,6 @@ async fn test_add_reaction_invalid_type() {
 }
 
 #[tokio::test]
-#[ignore = "requires GROQ_API_KEY - pending mock LLM refactor"]
 async fn test_add_duplicate_reaction() {
     let setup = SocialRoutesTestSetup::new().await.expect("Setup failed");
     let (_, friend_token) = setup
@@ -1012,7 +1009,7 @@ async fn test_add_duplicate_reaction() {
     // Create an insight
     let create_body = json!({
         "insight_type": "milestone",
-        "content": "Test insight"
+        "content": "This is a test insight for validation"
     });
 
     let create_response = AxumTestRequest::post("/api/social/insights")
@@ -1056,7 +1053,6 @@ async fn test_add_duplicate_reaction() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore = "requires GROQ_API_KEY - pending mock LLM refactor"]
 async fn test_remove_reaction_success() {
     let setup = SocialRoutesTestSetup::new().await.expect("Setup failed");
     let (_, friend_token) = setup
@@ -1068,7 +1064,7 @@ async fn test_remove_reaction_success() {
     // Create an insight
     let create_body = json!({
         "insight_type": "milestone",
-        "content": "Test insight"
+        "content": "This is a test insight for validation"
     });
 
     let create_response = AxumTestRequest::post("/api/social/insights")
@@ -1151,7 +1147,6 @@ async fn test_get_feed_missing_auth() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore = "requires GROQ_API_KEY - pending mock LLM refactor"]
 async fn test_adapt_insight_success() {
     let setup = SocialRoutesTestSetup::new().await.expect("Setup failed");
     let (_, friend_token) = setup
@@ -1198,7 +1193,6 @@ async fn test_adapt_insight_success() {
 }
 
 #[tokio::test]
-#[ignore = "requires GROQ_API_KEY - pending mock LLM refactor"]
 async fn test_adapt_insight_without_context() {
     let setup = SocialRoutesTestSetup::new().await.expect("Setup failed");
     let (_, friend_token) = setup
@@ -1290,7 +1284,6 @@ async fn test_list_adapted_insights_missing_auth() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore = "requires GROQ_API_KEY - pending mock LLM refactor"]
 async fn test_update_helpful_success() {
     let setup = SocialRoutesTestSetup::new().await.expect("Setup failed");
     let (_, friend_token) = setup
@@ -1302,7 +1295,7 @@ async fn test_update_helpful_success() {
     // Create an insight
     let create_body = json!({
         "insight_type": "training_tip",
-        "content": "Test tip content"
+        "content": "This is a helpful training tip for you"
     });
 
     let create_response = AxumTestRequest::post("/api/social/insights")
@@ -1496,7 +1489,6 @@ async fn test_full_friend_workflow() {
 }
 
 #[tokio::test]
-#[ignore = "requires GROQ_API_KEY - pending mock LLM refactor"]
 async fn test_full_insight_workflow() {
     let setup = SocialRoutesTestSetup::new().await.expect("Setup failed");
     let (_, friend_token) = setup

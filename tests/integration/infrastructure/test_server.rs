@@ -18,7 +18,10 @@ use pierre_mcp_server::{
         SecurityConfig, SecurityHeadersConfig, ServerConfig, SseConfig, TlsConfig,
     },
     database_plugins::DatabaseProvider,
-    mcp::{multitenant::MultiTenantMcpServer, resources::ServerResources},
+    mcp::{
+        multitenant::MultiTenantMcpServer,
+        resources::{ServerResources, ServerResourcesOptions},
+    },
     models::{Tenant, User, UserStatus, UserTier},
     permissions::UserRole,
     providers::synthetic_provider::set_synthetic_test_seed,
@@ -80,8 +83,11 @@ impl IntegrationTestServer {
                 "integration_test_jwt_secret",
                 config,
                 cache,
-                2048,
-                Some(jwks_manager),
+                ServerResourcesOptions {
+                    rsa_key_size_bits: Some(2048),
+                    jwks_manager: Some(jwks_manager),
+                    llm_provider: None,
+                },
             )
             .await,
         );

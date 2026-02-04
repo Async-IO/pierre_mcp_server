@@ -164,7 +164,7 @@ use pierre_mcp_server::{
     config::environment::ServerConfig,
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
-    mcp::resources::ServerResources,
+    mcp::resources::{ServerResources, ServerResourcesOptions},
     models::User,
 };
 use serde_json::json;
@@ -255,8 +255,11 @@ impl A2ATestSetup {
                 "test_jwt_secret",
                 config,
                 cache,
-                2048, // Use 2048-bit RSA keys for faster test execution
-                Some(common::get_shared_test_jwks()),
+                ServerResourcesOptions {
+                    rsa_key_size_bits: Some(2048),
+                    jwks_manager: Some(common::get_shared_test_jwks()),
+                    llm_provider: None,
+                },
             )
             .await,
         );

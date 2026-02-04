@@ -37,7 +37,7 @@ use pierre_mcp_server::{
     constants,
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
-    mcp::resources::ServerResources,
+    mcp::resources::{ServerResources, ServerResourcesOptions},
     middleware::McpAuthMiddleware,
     models::{Tenant, User, UserStatus, UserTier},
     routes::mcp::McpRoutes,
@@ -405,8 +405,11 @@ pub async fn create_test_server_resources() -> Result<Arc<ServerResources>> {
             admin_jwt_secret,
             config,
             cache,
-            2048, // Use 2048-bit RSA keys for faster test execution (if new keys needed)
-            Some(jwks_manager),
+            ServerResourcesOptions {
+                rsa_key_size_bits: Some(2048),
+                jwks_manager: Some(jwks_manager),
+                llm_provider: None, // Use ChatProvider::from_env() by default, override for tests needing mock LLM
+            },
         )
         .await,
     ))

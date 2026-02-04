@@ -25,7 +25,10 @@ use pierre_mcp_server::{
         WeatherServiceConfig,
     },
     database_plugins::{factory::Database, DatabaseProvider},
-    mcp::{multitenant::MultiTenantMcpServer, resources::ServerResources},
+    mcp::{
+        multitenant::MultiTenantMcpServer,
+        resources::{ServerResources, ServerResourcesOptions},
+    },
     models::{User, UserStatus, UserTier},
     permissions::UserRole,
 };
@@ -463,8 +466,11 @@ async fn test_mcp_server_tenant_isolation() -> Result<()> {
             TEST_JWT_SECRET,
             create_test_server_config(),
             cache,
-            2048, // Use 2048-bit RSA keys for faster test execution
-            Some(common::get_shared_test_jwks()),
+            ServerResourcesOptions {
+                rsa_key_size_bits: Some(2048),
+                jwks_manager: Some(common::get_shared_test_jwks()),
+                llm_provider: None,
+            },
         )
         .await,
     );
