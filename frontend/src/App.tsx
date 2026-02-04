@@ -81,10 +81,10 @@ function AppContent() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-pierre-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-pierre-dark flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-pierre-violet mx-auto"></div>
-          <p className="mt-4 text-pierre-gray-600">Loading...</p>
+          <p className="mt-4 text-zinc-400">Loading...</p>
         </div>
       </div>
     );
@@ -108,15 +108,15 @@ function AppContent() {
     }
 
     return (
-      <div className="min-h-screen bg-pierre-gray-50">
+      <div className="min-h-screen bg-pierre-dark">
         {registrationMessage && (
           <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 max-w-md w-full px-4">
-            <div className="bg-pierre-activity-light border border-pierre-activity text-pierre-gray-900 px-4 py-3 rounded-lg shadow-lg">
+            <div className="bg-pierre-activity/20 border border-pierre-activity text-white px-4 py-3 rounded-lg shadow-lg backdrop-blur-sm">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-medium">{registrationMessage}</p>
                 <button
                   onClick={() => setRegistrationMessage(null)}
-                  className="ml-4 text-pierre-gray-600 hover:text-pierre-gray-900"
+                  className="ml-4 text-zinc-400 hover:text-white"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -139,15 +139,15 @@ function AppContent() {
   // Authenticated but suspended
   if (user?.user_status === 'suspended') {
     return (
-      <div className="min-h-screen bg-pierre-gray-50 flex items-center justify-center px-4">
-        <div className="max-w-md w-full bg-white rounded-xl shadow-lg overflow-hidden">
+      <div className="min-h-screen bg-pierre-dark flex items-center justify-center px-4">
+        <div className="max-w-md w-full bg-pierre-slate/60 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
           <div className="h-1 w-full bg-gradient-to-r from-red-500 to-red-600" />
           <div className="px-8 py-10 text-center">
             <svg className="w-16 h-16 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
             </svg>
-            <h1 className="text-xl font-bold text-pierre-gray-900 mb-2">Account Suspended</h1>
-            <p className="text-sm text-pierre-gray-600 mb-6">
+            <h1 className="text-xl font-bold text-white mb-2">Account Suspended</h1>
+            <p className="text-sm text-zinc-400 mb-6">
               Your account has been suspended. Please contact an administrator for assistance.
             </p>
           </div>
@@ -158,7 +158,7 @@ function AppContent() {
 
   // Authenticated and active - show dashboard
   return (
-    <div className="min-h-screen bg-pierre-gray-50">
+    <div className="min-h-screen bg-pierre-dark">
       <ConnectionBanner />
       <ImpersonationBanner />
       <Dashboard />

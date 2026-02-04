@@ -5,10 +5,16 @@ import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 
+// Mock parent navigation (tab navigator)
+const mockParentNavigation = {
+  navigate: jest.fn(),
+};
+
 // Mock navigation
 const mockNavigation = {
   navigate: jest.fn(),
   goBack: jest.fn(),
+  getParent: jest.fn(() => mockParentNavigation),
 };
 
 const mockRoute = {
@@ -454,7 +460,8 @@ describe('StoreCoachDetailScreen', () => {
       fireEvent.press(getByText('Install Coach'));
 
       await waitFor(() => {
-        expect(mockNavigation.navigate).toHaveBeenCalledWith('CoachesMain');
+        // After install, navigation uses parent tab navigator to go to Coaches tab
+        expect(mockParentNavigation.navigate).toHaveBeenCalledWith('CoachesTab');
       });
     });
   });

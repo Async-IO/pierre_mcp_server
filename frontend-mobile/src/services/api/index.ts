@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 // ABOUTME: API service entry point using @pierre/api-client with mobile adapter
-// ABOUTME: Exports domain-based APIs for clean architecture
+// ABOUTME: Exports domain-based APIs with secure token storage via expo-secure-store
 
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import {
   createMobileAdapter,
   createPierreApi,
@@ -26,9 +27,10 @@ const getApiUrl = (): string => {
   return 'http://localhost:8081';
 };
 
-// Create the mobile platform adapter
+// Create the mobile platform adapter with secure token storage
 const adapter = createMobileAdapter({
   asyncStorage: AsyncStorage,
+  secureStorage: SecureStore,
   baseURL: getApiUrl(),
   timeout: 300000, // 5 minutes for slow LLM responses
 });

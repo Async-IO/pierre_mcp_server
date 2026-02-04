@@ -19,11 +19,11 @@ import { Feather } from '@expo/vector-icons';
 import { storeApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { StoreCoachDetail } from '../../types';
-import type { CoachesStackParamList } from '../../navigation/MainTabs';
+import type { DiscoverStackParamList } from '../../navigation/MainTabs';
 
 interface StoreCoachDetailScreenProps {
-  navigation: NativeStackNavigationProp<CoachesStackParamList>;
-  route: RouteProp<CoachesStackParamList, 'StoreCoachDetail'>;
+  navigation: NativeStackNavigationProp<DiscoverStackParamList>;
+  route: RouteProp<DiscoverStackParamList, 'StoreCoachDetail'>;
 }
 
 // Coach category colors
@@ -81,7 +81,16 @@ export function StoreCoachDetailScreen({ navigation, route }: StoreCoachDetailSc
         'Installed!',
         `"${coach.title}" has been added to your coaches.`,
         [
-          { text: 'View My Coaches', onPress: () => navigation.navigate('CoachesMain') },
+          {
+            text: 'View My Coaches',
+            onPress: () => {
+              // Navigate to Coaches tab using the parent tab navigator
+              const parent = navigation.getParent();
+              if (parent) {
+                parent.navigate('CoachesTab');
+              }
+            },
+          },
           { text: 'Stay Here', style: 'cancel' },
         ]
       );

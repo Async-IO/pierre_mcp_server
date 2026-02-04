@@ -30,10 +30,10 @@ const coachCardShadow: ViewStyle = {
 import { storeApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { StoreCoach, CoachCategory } from '../../types';
-import type { CoachesStackParamList } from '../../navigation/MainTabs';
+import type { DiscoverStackParamList } from '../../navigation/MainTabs';
 
 interface StoreScreenProps {
-  navigation: NativeStackNavigationProp<CoachesStackParamList>;
+  navigation: NativeStackNavigationProp<DiscoverStackParamList>;
 }
 
 // Category filter options

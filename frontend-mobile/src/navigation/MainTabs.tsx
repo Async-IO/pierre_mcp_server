@@ -66,8 +66,6 @@ export type CoachesStackParamList = {
   CoachDetail: { coachId: string };
   CoachEditor: { coachId?: string } | undefined;
   CoachWizard: { coachId?: string } | undefined;
-  Store: undefined;
-  StoreCoachDetail: { coachId: string };
 };
 
 export type SettingsStackParamList = {
@@ -129,8 +127,6 @@ function CoachesStackScreen() {
       <CoachesStack.Screen name="CoachDetail" component={CoachDetailScreen} />
       <CoachesStack.Screen name="CoachEditor" component={CoachEditorScreen} />
       <CoachesStack.Screen name="CoachWizard" component={CoachWizardScreen} />
-      <CoachesStack.Screen name="Store" component={StoreScreen} />
-      <CoachesStack.Screen name="StoreCoachDetail" component={StoreCoachDetailScreen} />
     </CoachesStack.Navigator>
   );
 }
