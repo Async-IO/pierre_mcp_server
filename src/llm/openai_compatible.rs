@@ -43,7 +43,6 @@
 //! ```
 
 use async_trait::async_trait;
-use futures_util::{future, StreamExt};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -51,6 +50,7 @@ use std::env;
 use std::time::Duration;
 use tracing::{debug, error, info, instrument, warn};
 
+use super::sse_parser;
 use super::{
     ChatMessage, ChatRequest, ChatResponse, ChatResponseWithTools, ChatStream, FunctionCall,
     LlmCapabilities, LlmProvider, StreamChunk, TokenUsage, Tool,
@@ -560,6 +560,26 @@ impl OpenAiCompatibleProvider {
         }
     }
 
+    /// Parse an OpenAI-compatible SSE data payload into a `StreamChunk`
+    fn parse_stream_data(json_str: &str) -> Option<Result<StreamChunk, AppError>> {
+        match serde_json::from_str::<OpenAiStreamChunk>(json_str) {
+            Ok(chunk) => {
+                let choice = chunk.choices.into_iter().next()?;
+                let delta = choice.delta.content.unwrap_or_default();
+                let is_final = choice.finish_reason.is_some();
+                Some(Ok(StreamChunk {
+                    delta,
+                    is_final,
+                    finish_reason: choice.finish_reason,
+                }))
+            }
+            Err(e) => {
+                warn!("Failed to parse stream chunk: {e}");
+                None
+            }
+        }
+    }
+
     /// Perform a chat completion with tool/function calling support
     ///
     /// # Errors
@@ -870,82 +890,13 @@ impl LlmProvider for OpenAiCompatibleProvider {
             return Err(Self::parse_error_response(status, &body));
         }
 
-        let byte_stream = response.bytes_stream();
-
-        let stream = byte_stream
-            .map(move |chunk_result| {
-                match chunk_result {
-                    Ok(bytes) => {
-                        let text = String::from_utf8_lossy(&bytes);
-
-                        // Parse SSE format: "data: {...}\n\n"
-                        let mut result_chunks = Vec::new();
-
-                        for line in text.lines() {
-                            let line = line.trim();
-
-                            if line.is_empty() {
-                                continue;
-                            }
-
-                            if line == "data: [DONE]" {
-                                result_chunks.push(Ok(StreamChunk {
-                                    delta: String::new(),
-                                    is_final: true,
-                                    finish_reason: Some("stop".to_owned()),
-                                }));
-                                continue;
-                            }
-
-                            if let Some(json_str) = line.strip_prefix("data: ") {
-                                match serde_json::from_str::<OpenAiStreamChunk>(json_str) {
-                                    Ok(chunk) => {
-                                        if let Some(choice) = chunk.choices.into_iter().next() {
-                                            let delta = choice.delta.content.unwrap_or_default();
-                                            let is_final = choice.finish_reason.is_some();
-
-                                            result_chunks.push(Ok(StreamChunk {
-                                                delta,
-                                                is_final,
-                                                finish_reason: choice.finish_reason,
-                                            }));
-                                        }
-                                    }
-                                    Err(e) => {
-                                        warn!("Failed to parse stream chunk: {}", e);
-                                    }
-                                }
-                            }
-                        }
-
-                        // Return the first chunk or an empty one
-                        result_chunks.into_iter().next().unwrap_or_else(|| {
-                            Ok(StreamChunk {
-                                delta: String::new(),
-                                is_final: false,
-                                finish_reason: None,
-                            })
-                        })
-                    }
-                    Err(e) => {
-                        error!("Error reading stream: {}", e);
-                        Err(AppError::external_service(
-                            "LocalLLM",
-                            format!("Stream read error: {e}"),
-                        ))
-                    }
-                }
-            })
-            .filter(|result| {
-                // Filter out empty deltas unless it's the final chunk
-                future::ready(
-                    result
-                        .as_ref()
-                        .map_or(true, |chunk| !chunk.delta.is_empty() || chunk.is_final),
-                )
-            });
-
-        Ok(Box::pin(stream))
+        // Use shared SSE parser for correct multi-event and partial-line handling
+        let stream = sse_parser::create_sse_stream(
+            response.bytes_stream(),
+            Self::parse_stream_data,
+            "LocalLLM",
+        );
+        Ok(stream)
     }
 
     #[instrument(skip(self))]

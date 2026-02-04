@@ -50,13 +50,14 @@
 //! ```
 
 use async_trait::async_trait;
-use futures_util::{future, StreamExt};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::env;
+use tokio::time::sleep;
 use tracing::{debug, error, info, instrument, warn};
 
+use super::sse_parser::{self, RetryConfig};
 use super::{
     ChatMessage, ChatRequest, ChatResponse, ChatResponseWithTools, ChatStream, FunctionCall,
     LlmCapabilities, LlmProvider, StreamChunk, TokenUsage, Tool,
@@ -86,6 +87,15 @@ const AVAILABLE_MODELS: &[&str] = &[
 
 /// Base URL for the Groq API (OpenAI-compatible)
 const API_BASE_URL: &str = "https://api.groq.com/openai/v1";
+
+/// Environment variable for maximum retries
+const GROQ_MAX_RETRIES_ENV: &str = "GROQ_MAX_RETRIES";
+
+/// Environment variable for initial retry delay in milliseconds
+const GROQ_INITIAL_RETRY_DELAY_MS_ENV: &str = "GROQ_INITIAL_RETRY_DELAY_MS";
+
+/// Environment variable for maximum retry delay in milliseconds
+const GROQ_MAX_RETRY_DELAY_MS_ENV: &str = "GROQ_MAX_RETRY_DELAY_MS";
 
 // ============================================================================
 // API Request/Response Types (OpenAI-compatible format)
@@ -242,6 +252,8 @@ pub struct GroqProvider {
     api_key: String,
     default_model: String,
     fallback_model: String,
+    /// Retry configuration for transient failures (429, 503, network errors)
+    retry_config: RetryConfig,
 }
 
 impl GroqProvider {
@@ -257,11 +269,29 @@ impl GroqProvider {
         let fallback_model = env::var(GROQ_FALLBACK_MODEL_ENV)
             .unwrap_or_else(|_| HARDCODED_DEFAULT_MODEL.to_owned());
 
+        let max_retries = env::var(GROQ_MAX_RETRIES_ENV)
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(RetryConfig::default_config().max_retries);
+        let initial_delay_ms = env::var(GROQ_INITIAL_RETRY_DELAY_MS_ENV)
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(RetryConfig::default_config().initial_delay_ms);
+        let max_delay_ms = env::var(GROQ_MAX_RETRY_DELAY_MS_ENV)
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(RetryConfig::default_config().max_delay_ms);
+
         Self {
             client: Client::new(),
             api_key,
             default_model,
             fallback_model,
+            retry_config: RetryConfig {
+                max_retries,
+                initial_delay_ms,
+                max_delay_ms,
+            },
         }
     }
 
@@ -281,6 +311,8 @@ impl GroqProvider {
         info!(
             default_model = %provider.default_model,
             fallback_model = %provider.fallback_model,
+            max_retries = provider.retry_config.max_retries,
+            initial_delay_ms = provider.retry_config.initial_delay_ms,
             "Groq provider initialized"
         );
 
@@ -375,6 +407,40 @@ impl GroqProvider {
                 .to_owned()
         } else {
             "Groq AI rate limit reached. Please wait a moment and try again.".to_owned()
+        }
+    }
+
+    /// Check if an error from the Groq API is retryable (transient)
+    fn is_retryable_error(status: u16) -> bool {
+        sse_parser::is_retryable_status(status)
+    }
+
+    /// Build an authenticated HTTP request to the Groq API
+    fn build_request(&self, groq_request: &GroqRequest) -> reqwest::RequestBuilder {
+        self.client
+            .post(Self::api_url("chat/completions"))
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Content-Type", "application/json")
+            .json(groq_request)
+    }
+
+    /// Parse a Groq SSE data payload into a `StreamChunk`
+    fn parse_stream_data(json_str: &str) -> Option<Result<StreamChunk, AppError>> {
+        match serde_json::from_str::<GroqStreamChunk>(json_str) {
+            Ok(chunk) => {
+                let choice = chunk.choices.into_iter().next()?;
+                let delta = choice.delta.content.unwrap_or_default();
+                let is_final = choice.finish_reason.is_some();
+                Some(Ok(StreamChunk {
+                    delta,
+                    is_final,
+                    finish_reason: choice.finish_reason,
+                }))
+            }
+            Err(e) => {
+                warn!("Failed to parse Groq stream chunk: {e}");
+                None
+            }
         }
     }
 
@@ -536,8 +602,6 @@ impl LlmProvider for GroqProvider {
     async fn complete(&self, request: &ChatRequest) -> Result<ChatResponse, AppError> {
         let model = request.model.as_deref().unwrap_or(&self.default_model);
 
-        debug!("Sending chat completion request to Groq");
-
         let groq_request = GroqRequest {
             model: model.to_owned(),
             messages: Self::convert_messages(&request.messages),
@@ -548,65 +612,101 @@ impl LlmProvider for GroqProvider {
             tool_choice: None,
         };
 
-        let response = self
-            .client
-            .post(Self::api_url("chat/completions"))
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .json(&groq_request)
-            .send()
-            .await
-            .map_err(|e| {
-                error!("Failed to send request to Groq API: {}", e);
-                AppError::external_service("Groq", format!("Failed to connect: {e}"))
+        let mut last_error: Option<AppError> = None;
+
+        for attempt in 0..=self.retry_config.max_retries {
+            if attempt > 0 {
+                let delay = self.retry_config.delay_for_attempt(attempt - 1);
+                warn!(
+                    attempt = attempt,
+                    delay_ms = delay.as_millis(),
+                    "Retrying Groq request after transient failure"
+                );
+                sleep(delay).await;
+            }
+
+            debug!(attempt = attempt, "Sending chat completion request to Groq");
+
+            let response = match self.build_request(&groq_request).send().await {
+                Ok(r) => r,
+                Err(e) => {
+                    let error =
+                        AppError::external_service("Groq", format!("Failed to connect: {e}"));
+                    if sse_parser::is_retryable_request_error(&e)
+                        && attempt < self.retry_config.max_retries
+                    {
+                        last_error = Some(error);
+                        continue;
+                    }
+                    return Err(error);
+                }
+            };
+
+            let status = response.status();
+            let body = match response.text().await {
+                Ok(t) => t,
+                Err(e) => {
+                    let error =
+                        AppError::external_service("Groq", format!("Failed to read response: {e}"));
+                    if attempt < self.retry_config.max_retries {
+                        last_error = Some(error);
+                        continue;
+                    }
+                    return Err(error);
+                }
+            };
+
+            if !status.is_success() {
+                let error = Self::parse_error_response(status, &body);
+                if Self::is_retryable_error(status.as_u16())
+                    && attempt < self.retry_config.max_retries
+                {
+                    warn!(status = %status, attempt = attempt, "Groq API returned retryable error");
+                    last_error = Some(error);
+                    continue;
+                }
+                return Err(error);
+            }
+
+            let groq_response: GroqResponse = serde_json::from_str(&body).map_err(|e| {
+                error!("Failed to parse Groq API response: {e}");
+                AppError::external_service("Groq", format!("Failed to parse response: {e}"))
             })?;
 
-        let status = response.status();
-        let body = response.text().await.map_err(|e| {
-            error!("Failed to read Groq API response: {}", e);
-            AppError::external_service("Groq", format!("Failed to read response: {e}"))
-        })?;
+            let choice = groq_response
+                .choices
+                .into_iter()
+                .next()
+                .ok_or_else(|| AppError::external_service("Groq", "API returned no choices"))?;
 
-        if !status.is_success() {
-            return Err(Self::parse_error_response(status, &body));
+            let content = choice.message.content.unwrap_or_default();
+
+            debug!(
+                attempt = attempt,
+                "Received response from Groq: {} chars, finish_reason: {:?}",
+                content.len(),
+                choice.finish_reason
+            );
+
+            return Ok(ChatResponse {
+                content,
+                model: groq_response.model,
+                usage: groq_response.usage.map(|u| TokenUsage {
+                    prompt_tokens: u.prompt,
+                    completion_tokens: u.completion,
+                    total_tokens: u.total,
+                }),
+                finish_reason: choice.finish_reason,
+            });
         }
 
-        let groq_response: GroqResponse = serde_json::from_str(&body).map_err(|e| {
-            error!("Failed to parse Groq API response: {}", e);
-            AppError::external_service("Groq", format!("Failed to parse response: {e}"))
-        })?;
-
-        let choice = groq_response
-            .choices
-            .into_iter()
-            .next()
-            .ok_or_else(|| AppError::external_service("Groq", "API returned no choices"))?;
-
-        let content = choice.message.content.unwrap_or_default();
-
-        debug!(
-            "Received response from Groq: {} chars, finish_reason: {:?}",
-            content.len(),
-            choice.finish_reason
-        );
-
-        Ok(ChatResponse {
-            content,
-            model: groq_response.model,
-            usage: groq_response.usage.map(|u| TokenUsage {
-                prompt_tokens: u.prompt,
-                completion_tokens: u.completion,
-                total_tokens: u.total,
-            }),
-            finish_reason: choice.finish_reason,
-        })
+        Err(last_error
+            .unwrap_or_else(|| AppError::external_service("Groq", "Request failed after retries")))
     }
 
     #[instrument(skip(self, request), fields(model = %request.model.as_deref().unwrap_or(&self.default_model)))]
     async fn complete_stream(&self, request: &ChatRequest) -> Result<ChatStream, AppError> {
         let model = request.model.as_deref().unwrap_or(&self.default_model);
-
-        debug!("Sending streaming chat completion request to Groq");
 
         let groq_request = GroqRequest {
             model: model.to_owned(),
@@ -618,102 +718,67 @@ impl LlmProvider for GroqProvider {
             tool_choice: None,
         };
 
-        let response = self
-            .client
-            .post(Self::api_url("chat/completions"))
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .json(&groq_request)
-            .send()
-            .await
-            .map_err(|e| {
-                error!("Failed to send streaming request to Groq API: {}", e);
-                AppError::external_service("Groq", format!("Failed to connect: {e}"))
-            })?;
+        // Retry the initial HTTP request (not the stream itself)
+        let mut last_error: Option<AppError> = None;
 
-        let status = response.status();
+        for attempt in 0..=self.retry_config.max_retries {
+            if attempt > 0 {
+                let delay = self.retry_config.delay_for_attempt(attempt - 1);
+                warn!(
+                    attempt = attempt,
+                    delay_ms = delay.as_millis(),
+                    "Retrying Groq streaming request after transient failure"
+                );
+                sleep(delay).await;
+            }
 
-        if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
-            return Err(Self::parse_error_response(status, &body));
+            debug!(
+                attempt = attempt,
+                "Sending streaming chat completion request to Groq"
+            );
+
+            let response = match self.build_request(&groq_request).send().await {
+                Ok(r) => r,
+                Err(e) => {
+                    let error =
+                        AppError::external_service("Groq", format!("Failed to connect: {e}"));
+                    if sse_parser::is_retryable_request_error(&e)
+                        && attempt < self.retry_config.max_retries
+                    {
+                        last_error = Some(error);
+                        continue;
+                    }
+                    return Err(error);
+                }
+            };
+
+            let status = response.status();
+
+            if !status.is_success() {
+                let body = response.text().await.unwrap_or_default();
+                let error = Self::parse_error_response(status, &body);
+                if Self::is_retryable_error(status.as_u16())
+                    && attempt < self.retry_config.max_retries
+                {
+                    warn!(status = %status, attempt = attempt, "Groq streaming API returned retryable error");
+                    last_error = Some(error);
+                    continue;
+                }
+                return Err(error);
+            }
+
+            // Connection succeeded — build SSE stream with shared parser
+            let stream = sse_parser::create_sse_stream(
+                response.bytes_stream(),
+                Self::parse_stream_data,
+                "Groq",
+            );
+            return Ok(stream);
         }
 
-        let byte_stream = response.bytes_stream();
-
-        let stream = byte_stream
-            .map(move |chunk_result| {
-                match chunk_result {
-                    Ok(bytes) => {
-                        let text = String::from_utf8_lossy(&bytes);
-
-                        // Parse SSE format: "data: {...}\n\n"
-                        let mut result_chunks = Vec::new();
-
-                        for line in text.lines() {
-                            let line = line.trim();
-
-                            if line.is_empty() {
-                                continue;
-                            }
-
-                            if line == "data: [DONE]" {
-                                result_chunks.push(Ok(StreamChunk {
-                                    delta: String::new(),
-                                    is_final: true,
-                                    finish_reason: Some("stop".to_owned()),
-                                }));
-                                continue;
-                            }
-
-                            if let Some(json_str) = line.strip_prefix("data: ") {
-                                match serde_json::from_str::<GroqStreamChunk>(json_str) {
-                                    Ok(chunk) => {
-                                        if let Some(choice) = chunk.choices.into_iter().next() {
-                                            let delta = choice.delta.content.unwrap_or_default();
-                                            let is_final = choice.finish_reason.is_some();
-
-                                            result_chunks.push(Ok(StreamChunk {
-                                                delta,
-                                                is_final,
-                                                finish_reason: choice.finish_reason,
-                                            }));
-                                        }
-                                    }
-                                    Err(e) => {
-                                        warn!("Failed to parse Groq stream chunk: {}", e);
-                                    }
-                                }
-                            }
-                        }
-
-                        // Return the first chunk or an empty one
-                        result_chunks.into_iter().next().unwrap_or_else(|| {
-                            Ok(StreamChunk {
-                                delta: String::new(),
-                                is_final: false,
-                                finish_reason: None,
-                            })
-                        })
-                    }
-                    Err(e) => {
-                        error!("Error reading Groq stream: {}", e);
-                        Err(AppError::external_service(
-                            "Groq",
-                            format!("Stream read error: {e}"),
-                        ))
-                    }
-                }
-            })
-            .filter(|result| {
-                // Filter out empty deltas unless it's the final chunk
-                future::ready(
-                    result
-                        .as_ref()
-                        .map_or(true, |chunk| !chunk.delta.is_empty() || chunk.is_final),
-                )
-            });
-
-        Ok(Box::pin(stream))
+        Err(last_error.unwrap_or_else(|| {
+            AppError::external_service("Groq", "Streaming request failed after retries")
+        }))
     }
 
     #[instrument(skip(self))]

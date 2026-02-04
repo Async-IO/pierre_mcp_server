@@ -45,12 +45,12 @@ use std::fmt::{Debug, Formatter, Result as FmtResult};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
-use futures_util::StreamExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tokio::time::sleep;
 use tracing::{debug, error, info, instrument, warn};
 
+use super::sse_parser;
 use super::{
     ChatMessage, ChatRequest, ChatResponse, ChatStream, LlmCapabilities, LlmProvider, MessageRole,
     StreamChunk, TokenUsage,
@@ -757,6 +757,46 @@ impl GeminiProvider {
             % 100;
         Duration::from_millis(capped_delay + jitter)
     }
+
+    /// Parse a Gemini SSE data payload into a `StreamChunk`
+    ///
+    /// Gemini's streaming response uses a different JSON structure than
+    /// OpenAI-compatible providers, requiring provider-specific parsing.
+    fn parse_stream_data(json_str: &str) -> Option<Result<StreamChunk, AppError>> {
+        match serde_json::from_str::<StreamingResponse>(json_str) {
+            Ok(response) => {
+                let candidate = response.candidates?.into_iter().next()?;
+                let content = candidate.content?;
+                let part = content.parts.first()?;
+
+                let is_final = candidate
+                    .finish_reason
+                    .as_ref()
+                    .is_some_and(|r| r == "STOP");
+
+                let delta = match part {
+                    ContentPart::Text { text } => text.clone(),
+                    ContentPart::FunctionCall { function_call } => {
+                        format!(
+                            "{{\"function_call\": {{\"name\": \"{}\", \"args\": {}}}}}",
+                            function_call.name, function_call.args
+                        )
+                    }
+                    ContentPart::FunctionResponse { .. } => return None,
+                };
+
+                Some(Ok(StreamChunk {
+                    delta,
+                    is_final,
+                    finish_reason: candidate.finish_reason,
+                }))
+            }
+            Err(e) => {
+                warn!(error = %e, "Failed to parse Gemini streaming chunk");
+                None
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -903,97 +943,73 @@ impl LlmProvider for GeminiProvider {
     async fn complete_stream(&self, request: &ChatRequest) -> Result<ChatStream, AppError> {
         let model = request.model.as_deref().unwrap_or(&self.default_model);
         let url = self.build_url(model, "streamGenerateContent");
-
         let gemini_request = Self::build_gemini_request(request, None);
 
-        debug!("Starting streaming request to Gemini API");
+        // Retry the initial HTTP request (consistent with non-streaming complete())
+        let mut last_error: Option<AppError> = None;
 
-        let response = self
-            .client
-            .post(&url)
-            .query(&[("alt", "sse")])
-            .json(&gemini_request)
-            .send()
-            .await
-            .map_err(|e| AppError::internal(format!("HTTP request failed: {e}")))?;
+        for attempt in 0..=self.max_retries {
+            if attempt > 0 {
+                let delay = self.calculate_retry_delay(attempt - 1);
+                warn!(
+                    attempt = attempt,
+                    delay_ms = delay.as_millis(),
+                    "Retrying Gemini streaming request after transient failure"
+                );
+                sleep(delay).await;
+            }
 
-        let status = response.status();
-        if !status.is_success() {
-            let error_text = response
-                .text()
+            debug!(
+                attempt = attempt,
+                "Starting streaming request to Gemini API"
+            );
+
+            let response = match self
+                .client
+                .post(&url)
+                .query(&[("alt", "sse")])
+                .json(&gemini_request)
+                .send()
                 .await
-                .unwrap_or_else(|_| "Unknown error".to_owned());
-            return Err(Self::map_api_error(status.as_u16(), &error_text));
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    let error = AppError::internal(format!("HTTP request failed: {e}"));
+                    if Self::is_retryable_error(&error) && attempt < self.max_retries {
+                        last_error = Some(error);
+                        continue;
+                    }
+                    return Err(error);
+                }
+            };
+
+            let status = response.status();
+            if !status.is_success() {
+                let error_text = response
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "Unknown error".to_owned());
+                let error = Self::map_api_error(status.as_u16(), &error_text);
+                if Self::is_retryable_error(&error) && attempt < self.max_retries {
+                    warn!(status = %status, attempt = attempt, "Gemini streaming API returned retryable error");
+                    last_error = Some(error);
+                    continue;
+                }
+                return Err(error);
+            }
+
+            // Connection succeeded — use shared SSE parser
+            // Gemini does not send [DONE] signal; stream ends with HTTP response
+            let stream = sse_parser::create_sse_stream(
+                response.bytes_stream(),
+                Self::parse_stream_data,
+                "Gemini",
+            );
+            return Ok(stream);
         }
 
-        // Create a stream from the SSE response
-        let byte_stream = response.bytes_stream();
-
-        let stream = byte_stream.filter_map(|result| async move {
-            match result {
-                Ok(bytes) => {
-                    let text = String::from_utf8_lossy(&bytes);
-
-                    // Parse SSE format: lines starting with "data: "
-                    for line in text.lines() {
-                        if let Some(data) = line.strip_prefix("data: ") {
-                            if data.trim().is_empty() {
-                                continue;
-                            }
-
-                            match serde_json::from_str::<StreamingResponse>(data) {
-                                Ok(response) => {
-                                    if let Some(candidates) = response.candidates {
-                                        if let Some(candidate) = candidates.first() {
-                                            if let Some(content) = &candidate.content {
-                                                if let Some(part) = content.parts.first() {
-                                                    let is_final = candidate
-                                                        .finish_reason
-                                                        .as_ref()
-                                                        .is_some_and(|r| r == "STOP");
-
-                                                    // Extract text from ContentPart enum
-                                                    let delta = match part {
-                                                        ContentPart::Text { text } => text.clone(),
-                                                        ContentPart::FunctionCall { function_call } => {
-                                                            // Serialize function call for streaming
-                                                            format!(
-                                                                "{{\"function_call\": {{\"name\": \"{}\", \"args\": {}}}}}",
-                                                                function_call.name,
-                                                                function_call.args
-                                                            )
-                                                        }
-                                                        ContentPart::FunctionResponse { .. } => {
-                                                            continue;
-                                                        }
-                                                    };
-
-                                                    return Some(Ok(StreamChunk {
-                                                        delta,
-                                                        is_final,
-                                                        finish_reason: candidate
-                                                            .finish_reason
-                                                            .clone(),
-                                                    }));
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                Err(e) => {
-                                    warn!(error = %e, "Failed to parse streaming chunk");
-                                }
-                            }
-                        }
-                    }
-
-                    None
-                }
-                Err(e) => Some(Err(AppError::internal(format!("Stream error: {e}")))),
-            }
-        });
-
-        Ok(Box::pin(stream) as ChatStream)
+        Err(last_error
+            .unwrap_or_else(|| AppError::internal("Gemini streaming request failed after retries")))
     }
 
     #[instrument(skip(self))]

@@ -40,6 +40,7 @@ mod groq;
 mod openai_compatible;
 pub mod prompts;
 mod provider;
+pub mod sse_parser;
 
 pub use gemini::{
     ChatResponseWithTools, FunctionCall, FunctionDeclaration, FunctionResponse, GeminiProvider,

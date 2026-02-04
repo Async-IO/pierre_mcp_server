@@ -308,6 +308,10 @@ impl ChatProvider {
     /// Gemini, Groq, and Local providers all support native function/tool calling
     /// via their respective APIs (Gemini native, Groq/Local OpenAI-compatible).
     ///
+    /// Tool-calling always uses non-streaming mode. Streaming tool-call accumulation
+    /// is complex and provides negligible UX benefit for short tool-call payloads.
+    /// If `request.stream` is true, it is ignored for tool-calling requests.
+    ///
     /// # Errors
     ///
     /// Returns an error if the API call fails.
