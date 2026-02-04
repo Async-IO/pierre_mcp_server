@@ -1,8 +1,8 @@
-// SPDX-License-Identifier: MIT OR Apache-2.0
-// Copyright (c) 2025 Pierre Fitness Intelligence
-//
 // ABOUTME: Visitor pattern for single-pass activity time series analysis
 // ABOUTME: Enables efficient data processing without multiple iterations over streams
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 //! # Time Series Visitor Pattern
 //!

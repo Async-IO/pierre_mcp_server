@@ -1,7 +1,8 @@
-// SPDX-License-Identifier: MIT OR Apache-2.0
-// Copyright (c) 2025 Pierre Fitness Intelligence
 // ABOUTME: JWKS (JSON Web Key Set) initialization helpers for pierre-cli
 // ABOUTME: Manages RSA keypair loading and generation for JWT signing
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use pierre_mcp_server::{
     admin::jwks::JwksManager,

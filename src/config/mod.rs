@@ -27,9 +27,9 @@
 //! - **VO2 Max**: Physiological calculations and training zones
 //! - **Routes**: HTTP endpoints for configuration management
 
-use std::error::Error;
-
 use tracing::{debug, info};
+
+use crate::errors::AppResult;
 
 // Core configuration type modules (extracted from environment.rs)
 /// External API provider configuration (Strava, Fitbit, Garmin APIs)
@@ -176,7 +176,7 @@ pub use social::{
 /// # Errors
 ///
 /// Returns an error if configuration initialization fails
-pub fn init_configs() -> Result<(), Box<dyn Error>> {
+pub fn init_configs() -> AppResult<()> {
     // Initialize global intelligence config
     let intelligence_config = IntelligenceConfig::global();
 

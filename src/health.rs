@@ -7,12 +7,17 @@
 //! Health check endpoints and monitoring utilities
 
 use std::env;
-use std::error::Error;
+use std::error::Error as StdError;
+use std::fmt;
 #[cfg(target_os = "linux")]
 use std::fs;
+use std::io::Error as IoError;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+use std::num::ParseIntError;
 use std::path::Path;
 #[cfg(unix)]
 use std::process::Command;
+use std::string::FromUtf8Error;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -33,6 +38,68 @@ use crate::constants::{
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::errors::AppResult;
 use crate::utils::http_client::get_health_check_timeout_secs;
+
+/// Errors that can occur during health probe operations
+#[derive(Debug)]
+pub enum HealthError {
+    /// IO operation failed (file read, command execution)
+    Io(IoError),
+    /// Failed to parse string data
+    ParseString(FromUtf8Error),
+    /// Failed to parse integer
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    ParseInt(ParseIntError),
+    /// Platform not supported for this probe
+    UnsupportedPlatform(&'static str),
+    /// Windows API call failed
+    #[cfg(target_os = "windows")]
+    WindowsApi(&'static str),
+}
+
+impl fmt::Display for HealthError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Io(e) => write!(f, "IO error: {e}"),
+            Self::ParseString(e) => write!(f, "String parse error: {e}"),
+            #[cfg(any(target_os = "linux", target_os = "macos"))]
+            Self::ParseInt(e) => write!(f, "Integer parse error: {e}"),
+            Self::UnsupportedPlatform(msg) => write!(f, "{msg}"),
+            #[cfg(target_os = "windows")]
+            Self::WindowsApi(msg) => write!(f, "Windows API error: {msg}"),
+        }
+    }
+}
+
+impl StdError for HealthError {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        match self {
+            Self::Io(e) => Some(e),
+            Self::ParseString(e) => Some(e),
+            #[cfg(any(target_os = "linux", target_os = "macos"))]
+            Self::ParseInt(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+impl From<IoError> for HealthError {
+    fn from(e: IoError) -> Self {
+        Self::Io(e)
+    }
+}
+
+impl From<FromUtf8Error> for HealthError {
+    fn from(e: FromUtf8Error) -> Self {
+        Self::ParseString(e)
+    }
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+impl From<ParseIntError> for HealthError {
+    fn from(e: ParseIntError) -> Self {
+        Self::ParseInt(e)
+    }
+}
 
 /// Overall health status
 #[non_exhaustive]
@@ -478,7 +545,7 @@ impl HealthChecker {
     }
 
     /// Get system memory information
-    fn get_memory_info() -> Result<MemoryInfo, Box<dyn Error>> {
+    fn get_memory_info() -> Result<MemoryInfo, HealthError> {
         // Cross-platform memory information retrieval
         #[cfg(target_os = "linux")]
         {
@@ -494,12 +561,14 @@ impl HealthChecker {
         }
         #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
         {
-            Err("Memory monitoring not supported on this platform".into())
+            Err(HealthError::UnsupportedPlatform(
+                "Memory monitoring not supported on this platform",
+            ))
         }
     }
 
     /// Get disk space information
-    fn get_disk_info(&self) -> Result<DiskInfo, Box<dyn Error>> {
+    fn get_disk_info(&self) -> Result<DiskInfo, HealthError> {
         let current_dir = env::current_dir().unwrap_or_else(|_| "/".into());
 
         #[cfg(unix)]
@@ -512,12 +581,14 @@ impl HealthChecker {
         }
         #[cfg(not(any(unix, windows)))]
         {
-            Err("Disk monitoring not supported on this platform".into())
+            Err(HealthError::UnsupportedPlatform(
+                "Disk monitoring not supported on this platform",
+            ))
         }
     }
 
     #[cfg(target_os = "linux")]
-    fn get_memory_info_linux() -> Result<MemoryInfo, Box<dyn Error>> {
+    fn get_memory_info_linux() -> Result<MemoryInfo, HealthError> {
         let meminfo = fs::read_to_string("/proc/meminfo")?;
         let mut total_kilobytes = 0;
         let mut available_kilobytes = 0;
@@ -559,7 +630,7 @@ impl HealthChecker {
     }
 
     #[cfg(target_os = "macos")]
-    fn get_memory_info_macos() -> Result<MemoryInfo, Box<dyn Error>> {
+    fn get_memory_info_macos() -> Result<MemoryInfo, HealthError> {
         // Use sysctl for macOS memory information
 
         let output = Command::new("sysctl").args(["hw.memsize"]).output()?;
@@ -638,7 +709,7 @@ const fn bytes_to_gb_safe(value: u64) -> f64 {
 impl HealthChecker {
     #[cfg(target_os = "windows")]
     #[allow(unsafe_code)] // Windows FFI requires unsafe for GlobalMemoryStatusEx call
-    fn get_memory_info_windows() -> Result<MemoryInfo, Box<dyn Error>> {
+    fn get_memory_info_windows() -> Result<MemoryInfo, HealthError> {
         // Use Windows API GlobalMemoryStatusEx for accurate memory information
         use std::mem;
 
@@ -659,8 +730,8 @@ impl HealthChecker {
             fn GlobalMemoryStatusEx(lpBuffer: *mut MemoryStatusEx) -> i32;
         }
 
-        let struct_size = u32::try_from(mem::size_of::<MemoryStatusEx>())
-            .map_err(|e| format!("MemoryStatusEx size exceeds u32::MAX: {e}"))?;
+        // MemoryStatusEx struct size is 72 bytes, well within u32::MAX
+        let struct_size = u32::try_from(mem::size_of::<MemoryStatusEx>()).unwrap_or(72);
 
         let mut mem_status = MemoryStatusEx {
             dw_length: struct_size,
@@ -676,7 +747,9 @@ impl HealthChecker {
 
         let result = unsafe { GlobalMemoryStatusEx(&raw mut mem_status) };
         if result == 0 {
-            return Err("Failed to get Windows memory status".into());
+            return Err(HealthError::WindowsApi(
+                "Failed to get Windows memory status",
+            ));
         }
 
         let total_mb = mem_status.ull_total_phys / BYTES_TO_MB_DIVISOR;
@@ -693,7 +766,7 @@ impl HealthChecker {
     }
 
     #[cfg(unix)]
-    fn get_disk_info_unix(_: &Self, path: &Path) -> Result<DiskInfo, Box<dyn Error>> {
+    fn get_disk_info_unix(_: &Self, path: &Path) -> Result<DiskInfo, HealthError> {
         let output = Command::new("df")
             .args(["-h", path.to_str().unwrap_or("/")])
             .output()?;
@@ -736,7 +809,7 @@ impl HealthChecker {
 
     #[cfg(windows)]
     #[allow(unsafe_code)] // Windows FFI requires unsafe for GetDiskFreeSpaceExW call
-    fn get_disk_info_windows(_: &Self, path: &Path) -> Result<DiskInfo, Box<dyn Error>> {
+    fn get_disk_info_windows(_: &Self, path: &Path) -> Result<DiskInfo, HealthError> {
         // Use Windows API GetDiskFreeSpaceEx for accurate disk information
         use std::ffi::OsStr;
         use std::iter;
@@ -773,11 +846,7 @@ impl HealthChecker {
         };
 
         if result == 0 {
-            return Err(format!(
-                "Failed to get Windows disk space for path: {}",
-                path.display()
-            )
-            .into());
+            return Err(HealthError::WindowsApi("Failed to get Windows disk space"));
         }
 
         // Convert bytes to GB using helper function with documented precision behavior

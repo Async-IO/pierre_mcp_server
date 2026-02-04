@@ -1,7 +1,8 @@
-// SPDX-License-Identifier: MIT OR Apache-2.0
-// Copyright (c) 2025 Pierre Fitness Intelligence
 // ABOUTME: Output formatting helpers for pierre-cli
 // ABOUTME: Provides consistent display functions for tokens and user information
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use pierre_mcp_server::admin::models::GeneratedAdminToken;
 

@@ -1877,11 +1877,7 @@ impl AuthRoutes {
                 }
 
                 // Otherwise serve the success page directly (same-origin production)
-                let html = OAuthTemplateRenderer::render_success_template(&provider, &response)
-                    .map_err(|e| {
-                        error!("Failed to render OAuth success template: {}", e);
-                        AppError::internal("Template rendering failed")
-                    })?;
+                let html = OAuthTemplateRenderer::render_success_template(&provider, &response);
 
                 Ok((StatusCode::OK, [(header::CONTENT_TYPE, "text/html")], html).into_response())
             }
@@ -1924,14 +1920,7 @@ impl AuthRoutes {
                 }
 
                 let html =
-                    OAuthTemplateRenderer::render_error_template(&provider, error_msg, description)
-                        .map_err(|template_err| {
-                            error!(
-                                "Critical: Failed to render OAuth error template: {}",
-                                template_err
-                            );
-                            AppError::internal("Template rendering failed")
-                        })?;
+                    OAuthTemplateRenderer::render_error_template(&provider, error_msg, description);
 
                 Ok((
                     StatusCode::INTERNAL_SERVER_ERROR,

@@ -1,7 +1,8 @@
-// SPDX-License-Identifier: MIT OR Apache-2.0
-// Copyright (c) 2025 Pierre Fitness Intelligence
 // ABOUTME: Token management commands for pierre-cli
 // ABOUTME: Handles generate, list, revoke, rotate, and stats operations for admin tokens
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use pierre_mcp_server::{
     admin::{

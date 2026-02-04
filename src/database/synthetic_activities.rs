@@ -1,8 +1,8 @@
-// SPDX-License-Identifier: MIT OR Apache-2.0
-// Copyright (c) 2025 Pierre Fitness Intelligence
-
 // ABOUTME: Database operations for synthetic provider activities
 // ABOUTME: Provides methods to query synthetic activities table for provider status
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::database::Database;
 use crate::errors::AppResult;

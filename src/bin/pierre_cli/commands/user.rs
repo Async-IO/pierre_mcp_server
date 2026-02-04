@@ -1,7 +1,8 @@
-// SPDX-License-Identifier: MIT OR Apache-2.0
-// Copyright (c) 2025 Pierre Fitness Intelligence
 // ABOUTME: User management commands for pierre-cli
 // ABOUTME: Handles creation and management of admin users for frontend login
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use bcrypt::{hash, DEFAULT_COST};
 use chrono::Utc;
