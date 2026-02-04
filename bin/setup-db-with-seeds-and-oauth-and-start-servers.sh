@@ -43,7 +43,7 @@ EXPO_LOG="$LOG_DIR/expo.log"
 
 # Ports
 SERVER_PORT=8081
-FRONTEND_PORT=3000
+FRONTEND_PORT=5173
 EXPO_PORT=8082
 
 # Credentials - use .envrc values or defaults
