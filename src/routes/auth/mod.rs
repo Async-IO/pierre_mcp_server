@@ -1449,7 +1449,7 @@ impl AuthRoutes {
             .await
         {
             Ok(mut response) => {
-                // Clone JWT for cookie (keep in response for backward compatibility)
+                // Clone JWT for cookie (also included in JSON response for API clients)
                 let jwt_token = response
                     .jwt_token
                     .clone() // Safe: JWT string ownership for cookie
@@ -1511,7 +1511,7 @@ impl AuthRoutes {
 
         match auth_service.refresh_token(request).await {
             Ok(mut response) => {
-                // Clone JWT for cookie (keep in response for backward compatibility)
+                // Clone JWT for cookie (also included in JSON response for API clients)
                 let jwt_token = response
                     .jwt_token
                     .clone() // Safe: JWT string ownership for cookie

@@ -3,17 +3,18 @@
 // ABOUTME: User management commands for pierre-cli
 // ABOUTME: Handles creation and management of admin users for frontend login
 
-use anyhow::Result;
 use bcrypt::{hash, DEFAULT_COST};
 use chrono::Utc;
 use pierre_mcp_server::{
     constants::tiers,
     database::CreateUserMcpTokenRequest,
     database_plugins::{factory::Database, DatabaseProvider},
-    errors::AppError,
+    errors::{AppError, AppResult},
     models::{Tenant, User, UserStatus, UserTier},
     permissions::UserRole,
 };
+
+type Result<T> = AppResult<T>;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
@@ -70,7 +71,9 @@ async fn update_existing_admin_user(
 ) -> Result<()> {
     if !force {
         display_existing_user_error(&existing_user);
-        return Err(AppError::invalid_input("User already exists (use --force to update)").into());
+        return Err(AppError::invalid_input(
+            "User already exists (use --force to update)",
+        ));
     }
 
     let role_str = if super_admin { "super admin" } else { "admin" };
@@ -87,7 +90,8 @@ async fn update_existing_admin_user(
         id: existing_user.id,
         email: email.to_owned(),
         display_name: Some(name.to_owned()),
-        password_hash: hash(password, DEFAULT_COST)?,
+        password_hash: hash(password, DEFAULT_COST)
+            .map_err(|e| AppError::internal(format!("bcrypt error: {e}")))?,
         tier: UserTier::Enterprise,
         strava_token: existing_user.strava_token,
         fitbit_token: existing_user.fitbit_token,
@@ -230,7 +234,8 @@ async fn create_new_admin_user(
     };
 
     let user_id = Uuid::new_v4();
-    let password_hash = hash(password, DEFAULT_COST)?;
+    let password_hash = hash(password, DEFAULT_COST)
+        .map_err(|e| AppError::internal(format!("bcrypt error: {e}")))?;
     let new_user = build_admin_user(user_id, email, password_hash, name, role);
 
     database.create_user(&new_user).await?;

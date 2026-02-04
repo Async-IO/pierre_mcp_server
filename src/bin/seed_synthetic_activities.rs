@@ -30,7 +30,6 @@
 //! cargo run --bin seed-synthetic-activities -- -v
 //! ```
 
-use anyhow::Result;
 use chrono::{Duration, Utc};
 use clap::Parser;
 use rand::prelude::SliceRandom;
@@ -40,8 +39,21 @@ use sqlx::{Row, SqlitePool};
 use std::collections::HashMap;
 use std::env;
 use std::time::{SystemTime, UNIX_EPOCH};
+use thiserror::Error;
 use tracing::info;
 use uuid::Uuid;
+
+/// CLI-specific error type for the seed binary
+#[derive(Error, Debug)]
+enum SeedError {
+    #[error("Database error: {0}")]
+    Database(#[from] sqlx::Error),
+
+    #[error("{0}")]
+    Validation(String),
+}
+
+type SeedResult<T> = Result<T, SeedError>;
 
 #[derive(Parser)]
 #[command(
@@ -438,7 +450,7 @@ fn build_weighted_sports(configs: &[SportConfig]) -> Vec<usize> {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> SeedResult<()> {
     let args = SeedArgs::parse();
 
     // Initialize logging
@@ -467,10 +479,10 @@ async fn main() -> Result<()> {
     let (user_id, tenant_id): (String, String) = match user_row {
         Some(row) => (row.get("id"), row.get("tenant_id")),
         None => {
-            anyhow::bail!(
+            return Err(SeedError::Validation(format!(
                 "User not found: {}. Run ./scripts/complete-user-workflow.sh first.",
                 args.email
-            );
+            )));
         }
     };
 

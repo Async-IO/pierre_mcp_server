@@ -47,7 +47,7 @@ pub struct NutritionConfig {
 pub struct BmrConfig {
     /// Mifflin-St Jeor formula enabled (recommended)
     pub use_mifflin_st_jeor: bool,
-    /// Harris-Benedict formula enabled (legacy)
+    /// Harris-Benedict formula enabled (1919 original formula)
     pub use_harris_benedict: bool,
     /// Mifflin-St Jeor weight coefficient (10.0)
     pub msj_weight_coef: f64,

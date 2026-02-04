@@ -140,7 +140,7 @@ pub mod openapi;
 // RE-EXPORTS
 // ═══════════════════════════════════════════════════════════════
 
-// Re-export commonly used types from each domain for backward compatibility
+// Re-export commonly used types from each domain for convenience
 
 /// Health check route handlers
 pub use health::HealthRoutes;
@@ -158,7 +158,7 @@ pub use auth::{
     OAuthAuthorizationResponse, OAuthCallbackResponse, OAuthService, OAuthStatus,
     RefreshTokenRequest, RegisterRequest, RegisterResponse, UserInfo,
 };
-// SetupStatusResponse is defined in crate::auth and re-exported here for backward compatibility
+// SetupStatusResponse is defined in crate::auth and re-exported here for convenience
 #[cfg(feature = "protocol-rest")]
 pub use crate::auth::SetupStatusResponse;
 
@@ -222,7 +222,7 @@ pub use user_mcp_tokens::UserMcpTokenRoutes;
 #[cfg(feature = "openapi")]
 pub use openapi::OpenApiRoutes;
 
-// For backward compatibility, re-export OAuth functionality
+// OAuth routes alias for naming consistency
 #[cfg(feature = "protocol-rest")]
 /// OAuth routes (alias for `OAuthService`)
 pub type OAuthRoutes = OAuthService;

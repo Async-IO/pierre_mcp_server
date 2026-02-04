@@ -26,13 +26,25 @@
 
 use std::collections::HashMap;
 
-use anyhow::Result;
 use chrono::Utc;
 use clap::Parser;
 use sqlx::SqlitePool;
 use std::env;
+use thiserror::Error;
 use tracing::info;
 use uuid::Uuid;
+
+/// CLI-specific error type for the seed binary
+#[derive(Error, Debug)]
+enum SeedError {
+    #[error("Database error: {0}")]
+    Database(#[from] sqlx::Error),
+
+    #[error("JSON error: {0}")]
+    Json(#[from] serde_json::Error),
+}
+
+type SeedResult<T> = Result<T, SeedError>;
 
 #[derive(Parser)]
 #[command(
@@ -812,7 +824,7 @@ const ACTIVITY_MAPPINGS: &[ActivityMappingData] = &[
 ];
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> SeedResult<()> {
     let args = SeedArgs::parse();
 
     // Initialize logging
@@ -898,7 +910,7 @@ async fn seed_stretching_exercise(
     pool: &SqlitePool,
     exercise: &StretchingData,
     now: &str,
-) -> Result<()> {
+) -> SeedResult<()> {
     let id = Uuid::new_v4().to_string();
     let primary_muscles = serde_json::to_string(exercise.primary_muscles)?;
     let secondary_muscles = serde_json::to_string(exercise.secondary_muscles)?;
@@ -939,7 +951,7 @@ async fn seed_stretching_exercise(
     Ok(())
 }
 
-async fn seed_yoga_pose(pool: &SqlitePool, pose: &YogaPoseData, now: &str) -> Result<()> {
+async fn seed_yoga_pose(pool: &SqlitePool, pose: &YogaPoseData, now: &str) -> SeedResult<()> {
     let id = Uuid::new_v4().to_string();
     let benefits = serde_json::to_string(pose.benefits)?;
     let primary_muscles = serde_json::to_string(pose.primary_muscles)?;
@@ -992,7 +1004,7 @@ async fn seed_activity_mapping(
     pool: &SqlitePool,
     mapping: &ActivityMappingData,
     now: &str,
-) -> Result<()> {
+) -> SeedResult<()> {
     let id = Uuid::new_v4().to_string();
 
     // Convert muscle arrays to JSON objects

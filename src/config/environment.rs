@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::env;
 use tracing::{info, warn};
 
-// Re-export types from sub-modules for backward compatibility
+// Re-export types from sub-modules for convenience
 // API providers
 pub use crate::config::api_providers::{
     ExternalServicesConfig, FitbitApiConfig, GarminApiConfig, GeocodingServiceConfig,

@@ -738,7 +738,7 @@ impl McpTool for ValidateConfigurationTool {
         // Validate relationships
         all_errors.extend(validate_parameter_relationships(obj));
 
-        // Legacy pattern validation
+        // Invalid pattern validation
         for (key, value) in obj {
             if key.contains("invalid") || key.starts_with("invalid.") {
                 all_errors.push(format!("Invalid parameter name: {key}"));

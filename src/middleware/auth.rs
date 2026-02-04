@@ -133,7 +133,8 @@ impl McpAuthMiddleware {
             // Security: Do not log auth header content to prevent token leakage
             debug!(
                 "Authentication attempt with header type: {}",
-                if header.starts_with(key_prefixes::API_KEY_LIVE) {
+                if header.starts_with(key_prefixes::LIVE) || header.starts_with(key_prefixes::TRIAL)
+                {
                     "API_KEY"
                 } else if header.starts_with("Bearer ") {
                     "JWT_TOKEN"
@@ -147,8 +148,8 @@ impl McpAuthMiddleware {
             return Err(auth_error("Missing authorization header - Request authentication requires Authorization header with Bearer token or API key"));
         };
 
-        // Try API key authentication first (starts with pk_live_)
-        if auth_str.starts_with(key_prefixes::API_KEY_LIVE) {
+        // Try API key authentication first (starts with pk_live_ or pk_trial_)
+        if auth_str.starts_with(key_prefixes::LIVE) || auth_str.starts_with(key_prefixes::TRIAL) {
             tracing::Span::current().record("auth_method", "API_KEY");
             debug!("Attempting API key authentication");
             match self.authenticate_api_key(auth_str).await {

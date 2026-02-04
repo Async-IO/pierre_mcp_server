@@ -228,7 +228,7 @@ pub struct ActivityQueryParams {
 }
 
 impl ActivityQueryParams {
-    /// Create new query params with just limit and offset (backward compatible)
+    /// Create new query params with limit and offset for pagination
     #[must_use]
     pub const fn with_pagination(limit: Option<usize>, offset: Option<usize>) -> Self {
         Self {
@@ -309,7 +309,7 @@ pub trait FitnessProvider: Send + Sync {
     /// ```
     async fn get_athlete(&self) -> AppResult<Athlete>;
 
-    /// Get user's activities with offset-based pagination (legacy)
+    /// Get user's activities with offset-based pagination
     ///
     /// For time-based filtering, use `get_activities_with_params` instead.
     async fn get_activities(

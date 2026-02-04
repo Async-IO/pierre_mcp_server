@@ -108,7 +108,7 @@ pub mod coaches;
 /// Insight sample parsing from markdown files for validation testing
 pub mod insight_samples;
 
-/// Multi-tenant database management (legacy)
+/// Multi-tenant database management
 pub mod database;
 
 /// Database abstraction layer with plugin support

@@ -26,7 +26,7 @@ impl TenantRole {
     /// Convert from database string (case-insensitive)
     ///
     /// Handles role strings from the database with case-insensitive matching.
-    /// Maps "viewer" to `Member` for backward compatibility.
+    /// Maps "viewer" to `Member` (viewer is an alias for member).
     /// Unknown roles default to `Member` for security (least privilege).
     #[must_use]
     pub fn from_db_string(s: &str) -> Self {

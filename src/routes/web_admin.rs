@@ -219,9 +219,7 @@ async fn assign_user_to_admin_tenant(
         })?;
 
     if let Some(admin_tenant) = admin_tenants.first() {
-        // Legacy: Update user's tenant_id in users table for backward compatibility
-        // The tenant_users junction table is the source of truth, but we update both
-        // during the migration period
+        // Update user's tenant_id in users table (kept in sync with tenant_users junction)
         resources
             .database
             .update_user_tenant_id(target_user_id, &admin_tenant.id.to_string())

@@ -31,13 +31,28 @@
 use std::cmp::Ordering;
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
 use clap::Parser;
 use glob::glob;
+use thiserror::Error;
 use tracing::{debug, warn};
 
 use pierre_mcp_server::insight_samples::{parse_insight_sample_file, InsightSampleDefinition};
 use pierre_mcp_server::models::UserTier;
+
+/// CLI-specific error type for the seed binary
+#[derive(Error, Debug)]
+enum SeedError {
+    #[error("Glob pattern error: {0}")]
+    GlobPattern(#[from] glob::PatternError),
+
+    #[error("Glob error: {0}")]
+    Glob(#[from] glob::GlobError),
+
+    #[error("{0}")]
+    Validation(String),
+}
+
+type SeedResult<T> = Result<T, SeedError>;
 
 #[derive(Parser)]
 #[command(
@@ -89,7 +104,7 @@ impl SeedStats {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> SeedResult<()> {
     let args = SeedArgs::parse();
 
     // Initialize logging for debug/warn messages only
@@ -108,10 +123,10 @@ async fn main() -> Result<()> {
         "professional" => UserTier::Professional,
         "enterprise" => UserTier::Enterprise,
         _ => {
-            anyhow::bail!(
+            return Err(SeedError::Validation(format!(
                 "Invalid tier '{}'. Use: starter, professional, or enterprise",
                 args.tier
-            );
+            )));
         }
     };
 
@@ -163,7 +178,7 @@ fn run_validation_mode(samples: &[InsightSampleDefinition], user_tier: &UserTier
 fn discover_samples(
     samples_dir: &Path,
     category_filter: Option<&str>,
-) -> Result<Vec<InsightSampleDefinition>> {
+) -> SeedResult<Vec<InsightSampleDefinition>> {
     let pattern = samples_dir.join("**/*.md");
     let pattern_str = pattern.to_string_lossy();
 

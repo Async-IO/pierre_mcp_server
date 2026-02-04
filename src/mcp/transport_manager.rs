@@ -67,7 +67,7 @@ impl TransportManager {
         );
 
         // Delegate to the unified server implementation
-        self.start_legacy_unified_server(port).await
+        self.start_unified_server(port).await
     }
 
     /// Start stdio transport only (no HTTP/SSE transports)
@@ -192,7 +192,7 @@ impl TransportManager {
     /// - `transport-stdio`: stdio transport for MCP communication
     /// - `transport-sse`: SSE notification forwarder
     /// - `transport-http`: HTTP server with Axum
-    async fn start_legacy_unified_server(&self, port: u16) -> AppResult<()> {
+    async fn start_unified_server(&self, port: u16) -> AppResult<()> {
         info!("Starting MCP server with configured transports (Axum framework)");
         Self::log_enabled_transports(port);
 

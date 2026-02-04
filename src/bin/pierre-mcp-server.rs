@@ -12,7 +12,6 @@
 //! This binary starts the multi-protocol Pierre Fitness API with user authentication,
 //! secure token storage, and database management.
 
-use anyhow::Result;
 use clap::{error::ErrorKind, Parser};
 #[cfg(feature = "provider-synthetic")]
 use pierre_mcp_server::providers::set_synthetic_database_pool;
@@ -22,7 +21,7 @@ use pierre_mcp_server::{
     config::environment::{ServerConfig, TokioRuntimeConfig},
     constants::init_server_config,
     database_plugins::{factory::Database, DatabaseProvider},
-    errors::AppError,
+    errors::{AppError, AppResult},
     features::FeatureConfig,
     key_management::KeyManager,
     logging,
@@ -33,6 +32,8 @@ use pierre_mcp_server::{
     plugins::executor::PluginToolExecutor,
     utils::{http_client::initialize_http_clients, route_timeout::initialize_route_timeouts},
 };
+
+type Result<T> = AppResult<T>;
 use std::{env, sync::Arc};
 use tokio::runtime::{Builder, Runtime};
 use tracing::{error, info};
@@ -100,7 +101,7 @@ fn build_tokio_runtime(config: &TokioRuntimeConfig) -> Result<Runtime> {
 
     builder
         .build()
-        .map_err(|e| AppError::internal(format!("Failed to build Tokio runtime: {e}")).into())
+        .map_err(|e| AppError::internal(format!("Failed to build Tokio runtime: {e}")))
 }
 
 /// Parse command line arguments or use defaults on failure
@@ -224,8 +225,7 @@ fn validate_required_environment() -> Result<()> {
             .join(", ");
         return Err(AppError::config(format!(
             "Missing required environment variables: {missing_names}"
-        ))
-        .into());
+        )));
     }
 
     Ok(())

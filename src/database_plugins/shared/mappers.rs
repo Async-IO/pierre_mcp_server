@@ -66,7 +66,7 @@ where
         .map_err(|e| AppError::database(format!("Failed to get column 'tier': {e}")))?;
     let tier = super::enums::str_to_user_tier(&tier_str);
 
-    // Parse role - default to 'user' if not present (backward compatibility)
+    // Parse role - default to 'user' if column is missing
     let role = row
         .try_get::<String, _>("role")
         .map(|role_str| super::enums::str_to_user_role(&role_str))
@@ -107,7 +107,7 @@ where
         last_active: row
             .try_get("last_active")
             .map_err(|e| AppError::database(format!("Failed to get column 'last_active': {e}")))?,
-        // Firebase fields - default to None/"email" for backward compatibility
+        // Firebase fields - default to None/"email" if columns are missing
         firebase_uid: row.try_get("firebase_uid").ok().flatten(),
         auth_provider: row
             .try_get("auth_provider")

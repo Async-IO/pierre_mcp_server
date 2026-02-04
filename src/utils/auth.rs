@@ -80,7 +80,9 @@ pub fn is_bearer_token(auth_header: &str) -> bool {
 /// Check if authorization header is likely an API key format
 #[must_use]
 pub fn is_api_key_format(auth_header: &str) -> bool {
-    auth_header.starts_with(key_prefixes::API_KEY_LIVE) || auth_header.starts_with("sk_")
+    auth_header.starts_with(key_prefixes::LIVE)
+        || auth_header.starts_with(key_prefixes::TRIAL)
+        || auth_header.starts_with("sk_")
 }
 
 /// Determine the authorization type from header

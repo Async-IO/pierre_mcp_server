@@ -73,9 +73,7 @@ pub use oauth::*;
 pub use tools::*;
 // Note: protocol and protocols are kept as modules to avoid conflicts
 
-// Alias for backward compatibility during transition
-
-/// OAuth provider constants (backward compatibility alias)
+/// OAuth provider constants
 pub mod oauth_providers {
     /// Re-export all OAuth constants
     pub use super::oauth::*;
@@ -232,8 +230,6 @@ pub mod key_prefixes {
     pub const LIVE: &str = "pk_live_";
     /// Trial API key prefix
     pub const TRIAL: &str = "pk_trial_";
-    /// API key live prefix (legacy name)
-    pub const API_KEY_LIVE: &str = "pk_live_";
 }
 
 /// API key tiers
@@ -597,7 +593,7 @@ pub mod api_provider_limits {
     }
 }
 
-/// Time module for backward compatibility
+/// Time-related constants
 pub mod time {
     /// Default token expiry in seconds (1 hour)
     pub const DEFAULT_TOKEN_EXPIRY_SECONDS: i64 = 3600;

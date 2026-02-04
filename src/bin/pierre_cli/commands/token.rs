@@ -3,15 +3,16 @@
 // ABOUTME: Token management commands for pierre-cli
 // ABOUTME: Handles generate, list, revoke, rotate, and stats operations for admin tokens
 
-use anyhow::Result;
 use pierre_mcp_server::{
     admin::{
         jwks::JwksManager,
         models::{AdminPermission, CreateAdminTokenRequest},
     },
     database_plugins::{factory::Database, DatabaseProvider},
-    errors::AppError,
+    errors::{AppError, AppResult},
 };
+
+type Result<T> = AppResult<T>;
 use std::collections::HashMap;
 use tracing::{error, info, warn};
 
@@ -62,7 +63,9 @@ async fn check_existing_token(database: &Database, service: &str) -> Result<()> 
                 service
             );
             info!("Use 'rotate-token' command to replace the existing token");
-            return Err(AppError::invalid_input("Service already has an active token").into());
+            return Err(AppError::invalid_input(
+                "Service already has an active token",
+            ));
         }
     }
     Ok(())
@@ -130,7 +133,7 @@ fn parse_single_permission(trimmed: &str) -> Result<AdminPermission> {
     trimmed.parse::<AdminPermission>().map_err(|_| {
         error!("Error Invalid permission: '{}'", trimmed);
         print_valid_permissions();
-        AppError::invalid_input(format!("Invalid permission: {trimmed}")).into()
+        AppError::invalid_input(format!("Invalid permission: {trimmed}"))
     })
 }
 
@@ -167,8 +170,7 @@ async fn load_jwt_secret(database: &Database) -> Result<String> {
         log_jwt_secret_error();
         return Err(AppError::config(
             "Admin JWT secret not found. Run pierre-cli user create first.",
-        )
-        .into());
+        ));
     };
 
     info!("JWT signing key loaded successfully for token generation");
@@ -298,7 +300,7 @@ pub async fn rotate(
         .ok_or_else(|| AppError::not_found(format!("Admin token: {token_id}")))?;
 
     if !old_token.is_active {
-        return Err(AppError::invalid_input("Cannot rotate inactive token").into());
+        return Err(AppError::invalid_input("Cannot rotate inactive token"));
     }
 
     // Create new token with same service and permissions
@@ -319,8 +321,7 @@ pub async fn rotate(
         error!("Admin JWT secret not found in database!");
         return Err(AppError::config(
             "Admin JWT secret not found. Run pierre-cli user create first.",
-        )
-        .into());
+        ));
     };
 
     // Generate new token using RS256 asymmetric signing

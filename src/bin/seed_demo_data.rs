@@ -24,15 +24,36 @@
 //! cargo run --bin seed-demo-data -- -v
 //! ```
 
-use anyhow::Result;
 use chrono::{DateTime, Datelike, Duration, Timelike, Utc, Weekday};
 use clap::Parser;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use sqlx::{Row, SqlitePool};
 use std::env;
+use thiserror::Error;
 use tracing::info;
 use uuid::Uuid;
+
+/// CLI-specific error type for the seed binary
+#[derive(Error, Debug)]
+enum SeedError {
+    #[error("Database error: {0}")]
+    Database(#[from] sqlx::Error),
+
+    #[error("UUID parse error: {0}")]
+    Uuid(#[from] uuid::Error),
+
+    #[error("HTTP request error: {0}")]
+    Http(#[from] reqwest::Error),
+
+    #[error("JSON error: {0}")]
+    Json(#[from] serde_json::Error),
+
+    #[error("{0}")]
+    Validation(String),
+}
+
+type SeedResult<T> = Result<T, SeedError>;
 
 /// Default password for all demo users - allows login for testing.
 /// Password: `DemoUser123!`
@@ -539,7 +560,7 @@ fn is_weekend(dt: DateTime<Utc>) -> bool {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> SeedResult<()> {
     let args = SeedArgs::parse();
 
     // Initialize logging
@@ -614,7 +635,7 @@ async fn main() -> Result<()> {
 }
 
 /// Find admin user by email or get first admin
-async fn find_admin_user(pool: &SqlitePool, email: Option<&str>) -> Result<(Uuid, String)> {
+async fn find_admin_user(pool: &SqlitePool, email: Option<&str>) -> SeedResult<(Uuid, String)> {
     let row = if let Some(email) = email {
         sqlx::query("SELECT id, email FROM users WHERE email = ? AND is_admin = 1")
             .bind(email)
@@ -627,9 +648,10 @@ async fn find_admin_user(pool: &SqlitePool, email: Option<&str>) -> Result<(Uuid
     };
 
     let Some(row) = row else {
-        anyhow::bail!(
+        return Err(SeedError::Validation(
             "No admin user found. Run 'cargo run --bin pierre-cli -- user create' first."
-        );
+                .to_owned(),
+        ));
     };
 
     let id_str: String = row.get("id");
@@ -640,7 +662,7 @@ async fn find_admin_user(pool: &SqlitePool, email: Option<&str>) -> Result<(Uuid
 }
 
 /// Reset usage data tables
-async fn reset_usage_data(pool: &SqlitePool) -> Result<()> {
+async fn reset_usage_data(pool: &SqlitePool) -> SeedResult<()> {
     sqlx::query("DELETE FROM api_key_usage")
         .execute(pool)
         .await?;
@@ -649,7 +671,7 @@ async fn reset_usage_data(pool: &SqlitePool) -> Result<()> {
 }
 
 /// Seed demo users via the registration API (creates user + tenant properly)
-async fn seed_demo_users(pool: &SqlitePool, server_url: &str) -> Result<Vec<Uuid>> {
+async fn seed_demo_users(pool: &SqlitePool, server_url: &str) -> SeedResult<Vec<Uuid>> {
     let demo_users = get_demo_users();
     let mut user_ids = Vec::new();
     let client = reqwest::Client::new();
@@ -682,13 +704,16 @@ async fn seed_demo_users(pool: &SqlitePool, server_url: &str) -> Result<Vec<Uuid
 
             if !response.status().is_success() {
                 let error_text = response.text().await.unwrap_or_default();
-                anyhow::bail!("Failed to register user {}: {}", user.email, error_text);
+                return Err(SeedError::Validation(format!(
+                    "Failed to register user {}: {}",
+                    user.email, error_text
+                )));
             }
 
             let register_response: serde_json::Value = response.json().await?;
-            let user_id_str = register_response["user_id"]
-                .as_str()
-                .ok_or_else(|| anyhow::anyhow!("No user_id in registration response"))?;
+            let user_id_str = register_response["user_id"].as_str().ok_or_else(|| {
+                SeedError::Validation("No user_id in registration response".to_owned())
+            })?;
             let id = Uuid::parse_str(user_id_str)?;
 
             // Update tier and status if different from defaults (starter/active)
@@ -716,7 +741,11 @@ async fn seed_demo_users(pool: &SqlitePool, server_url: &str) -> Result<Vec<Uuid
 }
 
 /// Seed API keys
-async fn seed_api_keys(pool: &SqlitePool, admin_id: &Uuid, user_ids: &[Uuid]) -> Result<Vec<Uuid>> {
+async fn seed_api_keys(
+    pool: &SqlitePool,
+    admin_id: &Uuid,
+    user_ids: &[Uuid],
+) -> SeedResult<Vec<Uuid>> {
     let api_keys = get_demo_api_keys();
     let mut key_ids = Vec::new();
     let mut rng = StdRng::from_entropy();
@@ -785,7 +814,7 @@ async fn seed_a2a_clients(
     pool: &SqlitePool,
     admin_id: &Uuid,
     user_ids: &[Uuid],
-) -> Result<Vec<Uuid>> {
+) -> SeedResult<Vec<Uuid>> {
     let clients = get_demo_a2a_clients();
     let mut client_ids = Vec::new();
     let mut rng = StdRng::from_entropy();
@@ -843,7 +872,7 @@ async fn seed_a2a_clients(
 }
 
 /// Seed API usage data with realistic patterns
-async fn seed_api_usage(pool: &SqlitePool, api_key_ids: &[Uuid], days: u32) -> Result<u64> {
+async fn seed_api_usage(pool: &SqlitePool, api_key_ids: &[Uuid], days: u32) -> SeedResult<u64> {
     let mut rng = StdRng::from_entropy();
     let mut total_records: u64 = 0;
 
@@ -919,7 +948,7 @@ async fn seed_api_usage(pool: &SqlitePool, api_key_ids: &[Uuid], days: u32) -> R
 }
 
 /// Seed A2A usage data
-async fn seed_a2a_usage(pool: &SqlitePool, client_ids: &[Uuid], days: u32) -> Result<u64> {
+async fn seed_a2a_usage(pool: &SqlitePool, client_ids: &[Uuid], days: u32) -> SeedResult<u64> {
     let mut rng = StdRng::from_entropy();
     let mut total_records: u64 = 0;
 
@@ -983,7 +1012,7 @@ fn print_test_credentials() {
 }
 
 /// Print summary statistics
-async fn print_summary(pool: &SqlitePool) -> Result<()> {
+async fn print_summary(pool: &SqlitePool) -> SeedResult<()> {
     print_count(pool, "Users", "SELECT COUNT(*) FROM users").await?;
     print_count(pool, "API Keys", "SELECT COUNT(*) FROM api_keys").await?;
     print_count(
@@ -1006,7 +1035,7 @@ async fn print_summary(pool: &SqlitePool) -> Result<()> {
 }
 
 /// Helper to print a single count query result
-async fn print_count(pool: &SqlitePool, label: &str, query: &str) -> Result<()> {
+async fn print_count(pool: &SqlitePool, label: &str, query: &str) -> SeedResult<()> {
     let row: (i64,) = sqlx::query_as(query).fetch_one(pool).await?;
     info!("{}: {}", label, row.0);
     Ok(())

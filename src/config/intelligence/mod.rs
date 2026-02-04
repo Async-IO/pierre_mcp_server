@@ -40,7 +40,7 @@ pub mod training_zones;
 pub mod vo2_max;
 pub mod weather;
 
-// Re-export all types for backward compatibility
+// Re-export all types for convenience
 pub use activity::{
     ActivityAnalysisConfig, ActivityAnalyzerConfig, ActivityInsightsConfig, ActivityScoringConfig,
     HeartRateZonesConfig, PowerZonesConfig, SeverityThresholds,

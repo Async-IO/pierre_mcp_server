@@ -56,7 +56,7 @@ pub struct UserInfo {
     pub email: String,
     /// User's display name if set
     pub display_name: Option<String>,
-    /// Whether the user has admin privileges (legacy - use role instead)
+    /// Whether the user has admin privileges
     pub is_admin: bool,
     /// User role for permission system (`super_admin`, `admin`, `user`)
     pub role: String,

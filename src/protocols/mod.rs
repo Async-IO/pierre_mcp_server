@@ -172,7 +172,7 @@ pub enum ProtocolError {
     #[error("Configuration error: {0}")]
     ConfigurationError(String),
 
-    /// Serialization error (detailed, for backward compatibility)
+    /// Serialization error with structured details
     #[error("Serialization failed: {message}")]
     SerializationErrorDetailed {
         /// Error message

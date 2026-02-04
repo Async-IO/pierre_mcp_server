@@ -143,5 +143,5 @@ pub struct UniversalTool {
         fn(&UniversalToolExecutor, UniversalRequest) -> Result<UniversalResponse, ProtocolError>,
 }
 
-/// Type alias for backward compatibility - use `UniversalExecutor` directly in new code
+/// Type alias for `UniversalExecutor` used in tool handler signatures
 pub type UniversalToolExecutor = UniversalExecutor;

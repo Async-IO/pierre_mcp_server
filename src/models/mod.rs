@@ -42,7 +42,7 @@ mod tenant;
 mod tool_selection;
 mod user;
 
-// Re-export all public types for backward compatibility
+// Re-export all public types for convenience
 // Activity domain
 pub use activity::{
     Activity, ActivityBuilder, HeartRateZone, PowerZone, SegmentEffort, TimeSeriesData,

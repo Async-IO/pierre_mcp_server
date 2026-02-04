@@ -24,7 +24,6 @@
 //! Prerequisites:
 //! - Run `cargo run --bin seed-demo-data` first to create demo users
 
-use anyhow::Result;
 use chrono::{Duration, Utc};
 use clap::Parser;
 use rand::prelude::SliceRandom;
@@ -32,8 +31,24 @@ use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use sqlx::{Row, SqlitePool};
 use std::env;
+use thiserror::Error;
 use tracing::info;
 use uuid::Uuid;
+
+/// CLI-specific error type for the seed binary
+#[derive(Error, Debug)]
+enum SeedError {
+    #[error("Database error: {0}")]
+    Database(#[from] sqlx::Error),
+
+    #[error("UUID parse error: {0}")]
+    Uuid(#[from] uuid::Error),
+
+    #[error("{0}")]
+    Validation(String),
+}
+
+type SeedResult<T> = Result<T, SeedError>;
 
 #[derive(Parser)]
 #[command(
@@ -173,7 +188,7 @@ fn get_adaptation_templates() -> Vec<&'static str> {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> SeedResult<()> {
     let args = SeedArgs::parse();
 
     // Initialize logging
@@ -199,10 +214,10 @@ async fn main() -> Result<()> {
         .await?;
 
     if user_count.0 < 5 {
-        anyhow::bail!(
+        return Err(SeedError::Validation(format!(
             "Not enough demo users found ({}). Run 'cargo run --bin seed-demo-data' first.",
             user_count.0
-        );
+        )));
     }
 
     // Reset if requested
@@ -282,7 +297,7 @@ async fn main() -> Result<()> {
 }
 
 /// Get demo user IDs
-async fn get_demo_user_ids(pool: &SqlitePool) -> Result<Vec<Uuid>> {
+async fn get_demo_user_ids(pool: &SqlitePool) -> SeedResult<Vec<Uuid>> {
     let rows = sqlx::query("SELECT id FROM users WHERE is_admin = 0 ORDER BY created_at")
         .fetch_all(pool)
         .await?;
@@ -297,7 +312,7 @@ async fn get_demo_user_ids(pool: &SqlitePool) -> Result<Vec<Uuid>> {
 }
 
 /// Get the admin user ID for testing social features
-async fn get_admin_user_id(pool: &SqlitePool) -> Result<Option<Uuid>> {
+async fn get_admin_user_id(pool: &SqlitePool) -> SeedResult<Option<Uuid>> {
     let row = sqlx::query("SELECT id FROM users WHERE is_admin = 1 ORDER BY created_at LIMIT 1")
         .fetch_optional(pool)
         .await?;
@@ -311,7 +326,7 @@ async fn get_admin_user_id(pool: &SqlitePool) -> Result<Option<Uuid>> {
 }
 
 /// Reset social data tables
-async fn reset_social_data(pool: &SqlitePool) -> Result<()> {
+async fn reset_social_data(pool: &SqlitePool) -> SeedResult<()> {
     // Order matters due to foreign keys
     sqlx::query("DELETE FROM adapted_insights")
         .execute(pool)
@@ -332,7 +347,7 @@ async fn reset_social_data(pool: &SqlitePool) -> Result<()> {
 }
 
 /// Seed user social settings
-async fn seed_social_settings(pool: &SqlitePool, user_ids: &[Uuid]) -> Result<u32> {
+async fn seed_social_settings(pool: &SqlitePool, user_ids: &[Uuid]) -> SeedResult<u32> {
     let mut rng = StdRng::from_entropy();
     let mut count: u32 = 0;
 
@@ -377,7 +392,7 @@ async fn seed_social_settings(pool: &SqlitePool, user_ids: &[Uuid]) -> Result<u3
 }
 
 /// Seed friend connections between demo users
-async fn seed_friend_connections(pool: &SqlitePool, user_ids: &[Uuid]) -> Result<u32> {
+async fn seed_friend_connections(pool: &SqlitePool, user_ids: &[Uuid]) -> SeedResult<u32> {
     let mut rng = StdRng::from_entropy();
     let mut count: u32 = 0;
 
@@ -450,7 +465,7 @@ async fn seed_admin_friend_connections(
     pool: &SqlitePool,
     admin_id: &Uuid,
     user_ids: &[Uuid],
-) -> Result<u32> {
+) -> SeedResult<u32> {
     let mut rng = StdRng::from_entropy();
     let mut count: u32 = 0;
 
@@ -500,7 +515,7 @@ async fn seed_admin_friend_connections(
 }
 
 /// Seed shared insights from demo users
-async fn seed_shared_insights(pool: &SqlitePool, user_ids: &[Uuid]) -> Result<u32> {
+async fn seed_shared_insights(pool: &SqlitePool, user_ids: &[Uuid]) -> SeedResult<u32> {
     let mut rng = StdRng::from_entropy();
     let insights = get_sample_insights();
     let mut count: u32 = 0;
@@ -547,7 +562,7 @@ async fn seed_shared_insights(pool: &SqlitePool, user_ids: &[Uuid]) -> Result<u3
 }
 
 /// Seed reactions on shared insights
-async fn seed_reactions(pool: &SqlitePool, user_ids: &[Uuid]) -> Result<u32> {
+async fn seed_reactions(pool: &SqlitePool, user_ids: &[Uuid]) -> SeedResult<u32> {
     let mut rng = StdRng::from_entropy();
     let mut count: u32 = 0;
 
@@ -604,7 +619,7 @@ async fn seed_reactions(pool: &SqlitePool, user_ids: &[Uuid]) -> Result<u32> {
 }
 
 /// Seed adapted insights
-async fn seed_adapted_insights(pool: &SqlitePool, user_ids: &[Uuid]) -> Result<u32> {
+async fn seed_adapted_insights(pool: &SqlitePool, user_ids: &[Uuid]) -> SeedResult<u32> {
     let mut rng = StdRng::from_entropy();
     let templates = get_adaptation_templates();
     let mut count: u32 = 0;
@@ -671,7 +686,7 @@ async fn seed_adapted_insights(pool: &SqlitePool, user_ids: &[Uuid]) -> Result<u
 }
 
 /// Seed adapted insights for admin user from demo users' shared insights
-async fn seed_admin_adapted_insights(pool: &SqlitePool, admin_id: &Uuid) -> Result<u32> {
+async fn seed_admin_adapted_insights(pool: &SqlitePool, admin_id: &Uuid) -> SeedResult<u32> {
     let mut rng = StdRng::from_entropy();
     let templates = get_adaptation_templates();
     let mut count: u32 = 0;
@@ -733,7 +748,7 @@ async fn seed_admin_adapted_insights(pool: &SqlitePool, admin_id: &Uuid) -> Resu
 }
 
 /// Print summary statistics
-async fn print_summary(pool: &SqlitePool) -> Result<()> {
+async fn print_summary(pool: &SqlitePool) -> SeedResult<()> {
     let counts = [
         (
             "Friend Connections",

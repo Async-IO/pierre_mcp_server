@@ -571,7 +571,7 @@ pub async fn select_sleep_provider(
 ///
 /// Supports two modes:
 /// 1. **Provider mode**: Specify `sleep_provider` to auto-fetch data from connected provider
-/// 2. **Manual mode**: Provide `sleep_data` JSON directly (legacy/fallback)
+/// 2. **Manual mode**: Provide `sleep_data` JSON directly (fallback when no provider)
 ///
 /// # Parameters
 /// - `sleep_provider` (optional): Provider to fetch sleep data from (e.g., "whoop", "fitbit", "garmin")

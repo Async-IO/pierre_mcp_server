@@ -474,8 +474,8 @@ pub type ProviderEnvConfig = (
 /// # Environment Variables
 ///
 /// For each provider (e.g., STRAVA, GARMIN):
-/// - `PIERRE_<PROVIDER>_CLIENT_ID` - OAuth client ID (falls back to legacy var)
-/// - `PIERRE_<PROVIDER>_CLIENT_SECRET` - OAuth client secret (falls back to legacy var)
+/// - `PIERRE_<PROVIDER>_CLIENT_ID` - OAuth client ID
+/// - `PIERRE_<PROVIDER>_CLIENT_SECRET` - OAuth client secret
 /// - `PIERRE_<PROVIDER>_AUTH_URL` - OAuth authorization URL (optional)
 /// - `PIERRE_<PROVIDER>_TOKEN_URL` - OAuth token URL (optional)
 /// - `PIERRE_<PROVIDER>_API_BASE_URL` - Provider API base URL (optional)
@@ -506,7 +506,7 @@ pub fn load_provider_env_config(
 ) -> ProviderEnvConfig {
     let provider_upper = provider.to_uppercase();
 
-    // Load client credentials with fallback to legacy env vars (backward compatible)
+    // Load client credentials (with fallback to non-prefixed env vars for convenience)
     let client_id = env::var(format!("PIERRE_{provider_upper}_CLIENT_ID"))
         .or_else(|_| env::var(format!("{provider_upper}_CLIENT_ID")))
         .ok();

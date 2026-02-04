@@ -89,16 +89,16 @@ pub mod decorators;
 pub mod implementations;
 
 // ============================================================================
-// Legacy Modules - To be migrated in later phases
+// Core Tool Infrastructure
 // ============================================================================
 
-/// Tool execution engine core (legacy)
+/// Tool execution engine core
 pub mod engine;
 
-/// Provider-specific tool implementations (legacy)
+/// Provider-specific tool implementations
 pub mod providers;
 
-/// Tool response formatting utilities (legacy)
+/// Tool response formatting utilities
 pub mod responses;
 
 // ============================================================================

@@ -225,7 +225,7 @@ pub struct TenantRateLimitConfig {
     tenant_configs: HashMap<Uuid, TenantRateLimitTier>,
     /// Default configuration for new tenants
     default_config: TenantRateLimitTier,
-    /// Rate limit configuration source (optional for backward compatibility)
+    /// Rate limit configuration source (optional)
     rate_limit_config: Option<RateLimitConfig>,
 }
 

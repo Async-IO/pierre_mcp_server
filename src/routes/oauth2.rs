@@ -252,8 +252,8 @@ impl OAuth2Routes {
                     claims.email
                 );
                 if let Ok(user_uuid) = uuid::Uuid::parse_str(&claims.sub) {
-                    // Use effective_tenant_id() to get active tenant from claims
-                    Some((user_uuid, claims.effective_tenant_id().map(String::from)))
+                    // Get active tenant from claims
+                    Some((user_uuid, claims.active_tenant_id.clone()))
                 } else {
                     warn!("Invalid user ID format in JWT: {}", claims.sub);
                     None

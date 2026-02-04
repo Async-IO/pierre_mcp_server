@@ -74,7 +74,7 @@ impl TenantIsolation {
         user_id: Uuid,
     ) -> AppResult<Uuid> {
         // Check if active_tenant_id is specified in JWT claims
-        if let Some(tenant_id_str) = claims.effective_tenant_id() {
+        if let Some(tenant_id_str) = claims.active_tenant_id.as_deref() {
             let tenant_id = tenant_id_str.parse().map_err(|e| {
                 warn!(tenant_id = %tenant_id_str, error = %e, "Invalid tenant ID format in JWT claims");
                 AppError::invalid_input("Invalid tenant ID format in token")
@@ -480,7 +480,7 @@ pub async fn validate_jwt_token_for_mcp(
         .ok_or_else(|| AppError::not_found("User"))?;
 
     // Get tenant ID from JWT claims or fall back to user's default tenant
-    let tenant_id = if let Some(tenant_id_str) = claims.effective_tenant_id() {
+    let tenant_id = if let Some(tenant_id_str) = claims.active_tenant_id.as_deref() {
         let tid: Uuid = tenant_id_str.parse().map_err(|e| {
             warn!(tenant_id = %tenant_id_str, error = %e, "Invalid tenant ID format in JWT claims (MCP validation)");
             AppError::invalid_input("Invalid tenant ID format in token")

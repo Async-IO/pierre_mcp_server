@@ -200,7 +200,7 @@ async fn resolve_tenant_id_from_claims(
     user_id: Uuid,
     database: &Arc<Database>,
 ) -> Option<Uuid> {
-    if let Some(tenant_id_str) = claims.effective_tenant_id() {
+    if let Some(tenant_id_str) = claims.active_tenant_id.as_deref() {
         resolve_explicit_tenant_id(tenant_id_str, user_id, database).await
     } else {
         // No tenant ID in claims, get user's default tenant

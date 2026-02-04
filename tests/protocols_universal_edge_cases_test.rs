@@ -268,13 +268,13 @@ async fn test_oauth_configuration_errors() -> Result<()> {
     executor.resources.database.create_tenant(&tenant).await?;
 
     // Test get_activities with missing OAuth config
-    // Must specify a real provider (strava) since default is synthetic which doesn't use OAuth
+    // Must specify a real provider (strava) - default provider is "synthetic" which doesn't need OAuth
     let request = UniversalRequest {
         tool_name: "get_activities".to_owned(),
         parameters: json!({"provider": "strava"}),
         user_id: user_id.to_string(),
         protocol: "test".to_owned(),
-        tenant_id: None,
+        tenant_id: Some(tenant.id.to_string()),
         progress_token: None,
         cancellation_token: None,
         progress_reporter: None,

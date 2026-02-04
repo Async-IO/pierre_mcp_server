@@ -520,18 +520,18 @@ impl UniversalExecutor {
             ProtocolError::InternalError(format!("Tool {tool_id:?} not registered"))
         })?;
 
-        // Convert to legacy UniversalToolExecutor for handler compatibility
-        let legacy_executor = Self::new(self.resources.clone()); // Safe: Arc clone for legacy executor creation
+        // Create executor instance for handler execution
+        let executor = Self::new(self.resources.clone()); // Safe: Arc clone for executor creation
 
         // Execute based on tool type
         match (tool_info.async_handler, tool_info.sync_handler) {
             (Some(async_handler), None) => {
                 // Execute async handler
-                async_handler(&legacy_executor, request).await
+                async_handler(&executor, request).await
             }
             (None, Some(sync_handler)) => {
                 // Execute sync handler
-                sync_handler(&legacy_executor, &request)
+                sync_handler(&executor, &request)
             }
             _ => Err(ProtocolError::InternalError(format!(
                 "Tool {tool_id:?} has invalid handler configuration"

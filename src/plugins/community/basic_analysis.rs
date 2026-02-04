@@ -125,25 +125,6 @@ async fn perform_basic_analysis(
             }
         };
 
-        // Legacy code kept for reference - AppError doesn't support downcast_ref
-        /*
-        e.downcast_ref::<crate::providers::errors::ProviderError>()
-            .map_or_else(
-                || format!("Failed to fetch activity {activity_id}: {e}"),
-                |provider_err| match provider_err {
-                        crate::providers::errors::ProviderError::NotFound {
-                            resource_type,
-                            resource_id,
-                            ..
-                        } => {
-                            format!(
-                                "{resource_type} '{resource_id}' not found. Please use get_activities to retrieve your activity IDs first, then use analyze_activity with a valid ID from the list."
-                            )
-                        }
-                        _ => format!("Failed to fetch activity {activity_id}: {e}"),
-                    },
-                );
-        */
         ProtocolError::InternalError(format!("provider: {error_message}"))
     })?;
 

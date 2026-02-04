@@ -278,7 +278,8 @@ impl TenantRoutes {
             .ok()?;
 
         claims
-            .effective_tenant_id()
+            .active_tenant_id
+            .as_deref()
             .and_then(|tid| tid.parse().ok())
     }
 }

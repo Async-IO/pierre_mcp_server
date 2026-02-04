@@ -11,8 +11,8 @@
 //! - `GetAthleteTool` - Get athlete profile information
 //! - `GetStatsTool` - Get aggregated activity statistics
 //!
-//! These tools wrap the existing universal protocol handlers to maintain
-//! backward compatibility while providing the new `McpTool` interface.
+//! These tools wrap the universal protocol handlers and expose them via the
+//! `McpTool` interface.
 
 use std::collections::HashMap;
 

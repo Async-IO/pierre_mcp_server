@@ -162,26 +162,12 @@ pub struct Claims {
     /// Use POST /api/tenants/switch to change the active tenant.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub active_tenant_id: Option<String>,
-    /// Legacy `tenant_id` field for backward compatibility with existing tokens
-    /// New tokens use `active_tenant_id` instead. This will be removed in future versions.
-    #[serde(skip_serializing_if = "Option::is_none", alias = "tenant_id")]
-    tenant_id: Option<String>,
     /// Original user ID when impersonating (the super admin)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub impersonator_id: Option<String>,
     /// Impersonation session ID for audit trail
     #[serde(skip_serializing_if = "Option::is_none")]
     pub impersonation_session_id: Option<String>,
-}
-
-impl Claims {
-    /// Get the effective tenant ID, preferring `active_tenant_id` over legacy `tenant_id`
-    #[must_use]
-    pub fn effective_tenant_id(&self) -> Option<&str> {
-        self.active_tenant_id
-            .as_deref()
-            .or(self.tenant_id.as_deref())
-    }
 }
 
 /// Authentication result with user context and rate limiting info
@@ -306,7 +292,6 @@ impl AuthManager {
             providers: user.available_providers(),
             aud: MCP.to_owned(),
             active_tenant_id,
-            tenant_id: None, // Legacy field, no longer used
             impersonator_id: None,
             impersonation_session_id: None,
         };
@@ -355,7 +340,6 @@ impl AuthManager {
             providers: target_user.available_providers(),
             aud: MCP.to_owned(),
             active_tenant_id,
-            tenant_id: None, // Legacy field, no longer used
             impersonator_id: Some(impersonator_id.to_string()),
             impersonation_session_id: Some(session_id.to_owned()),
         };
@@ -728,7 +712,6 @@ impl AuthManager {
             providers: scopes.to_vec(),
             aud: MCP.to_owned(),
             active_tenant_id,
-            tenant_id: None, // Legacy field, no longer used
             impersonator_id: None,
             impersonation_session_id: None,
         };
@@ -778,7 +761,6 @@ impl AuthManager {
             providers: scopes.to_vec(),
             aud: MCP.to_owned(),
             active_tenant_id,
-            tenant_id: None, // Legacy field, no longer used
             impersonator_id: None,
             impersonation_session_id: None,
         };

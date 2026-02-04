@@ -3067,7 +3067,7 @@ fn row_to_coach(row: &SqliteRow) -> AppResult<Coach> {
     let is_active: i64 = row.get("is_active");
     let use_count: i64 = row.get("use_count");
 
-    // Fields with defaults for backward compatibility
+    // Fields with defaults when columns are null or missing
     let is_system: i64 = row.try_get("is_system").unwrap_or(0);
     let visibility_str: String = row
         .try_get("visibility")
@@ -3085,7 +3085,7 @@ fn row_to_coach(row: &SqliteRow) -> AppResult<Coach> {
     let prerequisites: CoachPrerequisites =
         serde_json::from_str(&prerequisites_json).unwrap_or_default();
 
-    // Store-related fields with defaults for backward compatibility
+    // Store-related fields with defaults when columns are null or missing
     let publish_status_str: String = row
         .try_get("publish_status")
         .unwrap_or_else(|_| "draft".to_owned());

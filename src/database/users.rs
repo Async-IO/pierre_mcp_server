@@ -430,7 +430,7 @@ impl Database {
         Ok(())
     }
 
-    /// Get users by status (offset-based - legacy)
+    /// Get users by status with offset-based pagination
     ///
     /// # Errors
     ///

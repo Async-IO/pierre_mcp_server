@@ -30,15 +30,39 @@ use std::collections::HashMap;
 use std::env;
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
 use chrono::Utc;
 use clap::Parser;
 use glob::glob;
 use sqlx::{Row, SqlitePool};
+use thiserror::Error;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 use pierre_mcp_server::coaches::{parse_coach_file, CoachDefinition, RelatedCoach, RelationType};
+
+/// CLI-specific error type for the seed binary
+#[derive(Error, Debug)]
+enum SeedError {
+    #[error("Database error: {0}")]
+    Database(#[from] sqlx::Error),
+
+    #[error("UUID parse error: {0}")]
+    Uuid(#[from] uuid::Error),
+
+    #[error("JSON error: {0}")]
+    Json(#[from] serde_json::Error),
+
+    #[error("Glob pattern error: {0}")]
+    GlobPattern(#[from] glob::PatternError),
+
+    #[error("Glob error: {0}")]
+    Glob(#[from] glob::GlobError),
+
+    #[error("{0}")]
+    Validation(String),
+}
+
+type SeedResult<T> = Result<T, SeedError>;
 
 #[derive(Parser)]
 #[command(
@@ -81,7 +105,7 @@ impl SeedStats {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> SeedResult<()> {
     let args = SeedArgs::parse();
 
     // Initialize logging
@@ -312,7 +336,7 @@ fn log_dry_run_status(dry_run: bool) {
 }
 
 /// Discover and parse all coach markdown files
-fn discover_coaches(coaches_dir: &Path) -> Result<Vec<CoachDefinition>> {
+fn discover_coaches(coaches_dir: &Path) -> SeedResult<Vec<CoachDefinition>> {
     let pattern = coaches_dir.join("**/*.md");
     let pattern_str = pattern.to_string_lossy();
 
@@ -362,7 +386,7 @@ struct AdminUser {
 }
 
 /// Find the first admin user and their tenant
-async fn find_admin_user(pool: &SqlitePool) -> Result<AdminUser> {
+async fn find_admin_user(pool: &SqlitePool) -> SeedResult<AdminUser> {
     let row = sqlx::query(
         "SELECT id, email, tenant_id FROM users WHERE is_admin = 1 ORDER BY created_at ASC LIMIT 1",
     )
@@ -370,9 +394,10 @@ async fn find_admin_user(pool: &SqlitePool) -> Result<AdminUser> {
     .await?;
 
     let Some(row) = row else {
-        anyhow::bail!(
+        return Err(SeedError::Validation(
             "No admin user found. Run 'cargo run --bin pierre-cli -- user create' first."
-        );
+                .to_owned(),
+        ));
     };
 
     let id_str: String = row.get("id");
@@ -385,7 +410,9 @@ async fn find_admin_user(pool: &SqlitePool) -> Result<AdminUser> {
         .map(|s| Uuid::parse_str(s))
         .transpose()?
         .ok_or_else(|| {
-            anyhow::anyhow!("Admin user has no tenant_id. Please assign a tenant first.")
+            SeedError::Validation(
+                "Admin user has no tenant_id. Please assign a tenant first.".to_owned(),
+            )
         })?;
 
     Ok(AdminUser {
@@ -408,7 +435,7 @@ async fn upsert_coach(
     coach: &CoachDefinition,
     admin: &AdminUser,
     dry_run: bool,
-) -> Result<(String, UpsertAction)> {
+) -> SeedResult<(String, UpsertAction)> {
     let now = Utc::now().to_rfc3339();
     let slug = &coach.frontmatter.name;
 
@@ -468,7 +495,7 @@ async fn insert_coach(
     coach: &CoachDefinition,
     admin: &AdminUser,
     now: &str,
-) -> Result<()> {
+) -> SeedResult<()> {
     let prerequisites_json = serde_json::to_string(&coach.frontmatter.prerequisites)?;
     let tags_json = serde_json::to_string(&coach.frontmatter.tags)?;
     let sample_prompts_json = parse_sample_prompts(coach.sections.example_inputs.as_ref());
@@ -529,7 +556,7 @@ async fn update_coach(
     id: &str,
     coach: &CoachDefinition,
     now: &str,
-) -> Result<()> {
+) -> SeedResult<()> {
     let prerequisites_json = serde_json::to_string(&coach.frontmatter.prerequisites)?;
     let tags_json = serde_json::to_string(&coach.frontmatter.tags)?;
     let sample_prompts_json = parse_sample_prompts(coach.sections.example_inputs.as_ref());
@@ -577,7 +604,7 @@ async fn create_relation(
     coach_id: &str,
     related_id: &str,
     relation_type: RelationType,
-) -> Result<bool> {
+) -> SeedResult<bool> {
     let id = Uuid::new_v4().to_string();
     let now = Utc::now().to_rfc3339();
 

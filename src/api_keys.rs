@@ -287,7 +287,7 @@ impl ApiKeyManager {
     #[must_use]
     pub const fn new() -> Self {
         Self {
-            key_prefix: key_prefixes::API_KEY_LIVE, // Production keys
+            key_prefix: key_prefixes::LIVE, // Production keys
         }
     }
 
@@ -441,7 +441,7 @@ impl ApiKeyManager {
         Ok((api_key, full_key))
     }
 
-    /// Create a new API key (legacy method with tier)
+    /// Create a new API key with tier-based access
     ///
     /// # Errors
     ///

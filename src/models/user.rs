@@ -162,7 +162,7 @@ pub struct User {
     pub is_active: bool,
     /// User account status for admin approval workflow
     pub user_status: UserStatus,
-    /// Whether this user has admin privileges (legacy - use role instead)
+    /// Whether this user has admin privileges
     pub is_admin: bool,
     /// User role for permission system (`super_admin`, `admin`, `user`)
     pub role: UserRole,

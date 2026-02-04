@@ -90,7 +90,7 @@ impl DashboardRoutes {
                 get(Self::handle_detailed_stats),
             )
             .route("/api/dashboard/tool-usage", get(Self::handle_tool_usage))
-            // Legacy routes for backward compatibility
+            // Alternative routes without /api prefix
             .route("/dashboard/status", get(Self::handle_dashboard_overview))
             .route("/dashboard/user", get(Self::handle_dashboard_overview))
             .route("/dashboard/admin", get(Self::handle_dashboard_overview))

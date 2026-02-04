@@ -781,21 +781,21 @@ pub fn handle_validate_configuration(
             // Perform relationship validations
             let relationships_valid = validate_parameter_relationships(obj, &mut errors);
 
-            // Legacy check for "invalid" string patterns (backward compatibility)
-            let mut legacy_valid = true;
+            // Check for invalid parameter name/value patterns
+            let mut pattern_valid = true;
             for (key, value) in obj {
                 if key.contains("invalid") || key.starts_with("invalid.") {
-                    legacy_valid = false;
+                    pattern_valid = false;
                     errors.push(format!("Invalid parameter name: {key}"));
                 }
 
                 if value.is_string() && value.as_str() == Some("invalid_value") {
-                    legacy_valid = false;
+                    pattern_valid = false;
                     errors.push(format!("Invalid value for parameter: {key}"));
                 }
             }
 
-            let validation_passed = ranges_valid && relationships_valid && legacy_valid;
+            let validation_passed = ranges_valid && relationships_valid && pattern_valid;
 
             return Ok(UniversalResponse {
                 success: true,

@@ -539,7 +539,7 @@ pub async fn handle_calculate_metrics(
         return Ok(apply_format_to_response(result, "metrics", output_format));
     }
 
-    // Fallback path: activity object provided directly (for backward compatibility)
+    // Fallback path: activity object provided directly
     let params = parse_activity_parameters(&request)?;
     let (max_hr, max_hr_source) = determine_max_heart_rate(params.max_hr_provided, params.user_age);
     let metrics = calculate_activity_metrics(&params, max_hr);

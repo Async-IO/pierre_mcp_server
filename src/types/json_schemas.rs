@@ -95,7 +95,7 @@ pub struct A2ATaskCreateParams {
     #[serde(default = "default_client_id")]
     pub client_id: String,
 
-    /// Task type (with backward compatibility alias)
+    /// Task type (accepts both `task_type` and `type` JSON keys)
     #[serde(alias = "type")]
     pub task_type: String,
 

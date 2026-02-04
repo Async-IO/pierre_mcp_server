@@ -31,14 +31,16 @@
 mod commands;
 mod helpers;
 
-use anyhow::Result;
 use clap::{Parser, Subcommand};
 #[cfg(feature = "postgresql")]
 use pierre_mcp_server::config::environment::PostgresPoolConfig;
 use pierre_mcp_server::{
     database_plugins::{factory::Database, DatabaseProvider},
+    errors::AppResult,
     key_management::KeyManager,
 };
+
+type Result<T> = AppResult<T>;
 use std::env;
 use tracing::info;
 

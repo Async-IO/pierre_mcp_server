@@ -138,7 +138,7 @@ impl ApiKeyRoutes {
         })
     }
 
-    /// Create a new API key (legacy method with tier)
+    /// Create a new API key with tier-based access
     ///
     /// # Errors
     ///
