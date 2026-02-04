@@ -1727,9 +1727,8 @@ impl SocialRoutes {
             improved_content: Option<String>,
         }
 
-        let parse_json = |json_str: &str| -> Option<ValidationResponse> {
-            serde_json::from_str(json_str).ok()
-        };
+        let parse_json =
+            |json_str: &str| -> Option<ValidationResponse> { serde_json::from_str(json_str).ok() };
 
         // Try direct JSON parse
         let response = parse_json(raw_content).or_else(|| {
