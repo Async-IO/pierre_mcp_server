@@ -17,6 +17,10 @@
           },
           {
             "type": "command",
+            "command": "echo 'DEV ENVIRONMENT: When testing is needed, run ./bin/setup-db-with-seeds-and-oauth-and-start-servers.sh (--debug for dev builds). This resets the DB, seeds admin/coaches/demo/social/mobility/synthetic data, and starts Pierre (8081), Vite frontend (5173), and Expo (8082). Credentials: admin@example.com/AdminPassword123, webtest@pierre.dev/WebTest123!, mobiletest@pierre.dev/MobileTest123!, alice@acme.com/DemoUser123!. Admin token saved to logs/admin-token.txt. NEVER start the server without this script when login or user data is needed.'"
+          },
+          {
+            "type": "command",
             "command": "bash ./scripts/check-gh-cli.sh"
           }
         ]
