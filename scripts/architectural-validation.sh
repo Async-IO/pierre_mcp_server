@@ -765,6 +765,7 @@ if [ "$DEAD_CODE" -eq 0 ]; then
 else
     FIRST_DEAD=$(get_first_location 'rg "#\[allow\(dead_code\)\]" src/ -n')
     printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_DEAD"
+    VALIDATION_FAILED=true
 fi
 
 printf "│ %-35s │ %5d │ " "Temporary solutions" "$TEMP_SOLUTIONS"

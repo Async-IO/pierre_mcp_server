@@ -141,6 +141,28 @@ cargo run --bin pierre-cli -- token revoke <token_id>
 - Token refresh is transparent to tool execution
 - If refresh fails, user must re-authenticate via OAuth flow
 
+## API Keys and Credentials Lookup
+
+When you need an API key or credential for any service:
+
+1. **Check `.envrc`** — all API keys and tokens live here with comments explaining each one. This file is `.gitignore`d and holds the actual secret values.
+2. **Check `.mcp.json`** to see which env vars are required — it references them as `${VAR_NAME}` placeholders (this file is committed to git, never contains actual secrets)
+3. **If not found in either**, ask ChefFamille — never guess or fabricate credentials
+
+### MCP-First Rule
+
+When a service is configured in `.mcp.json`, **always use its MCP tools first** instead of CLI alternatives or web APIs. For example:
+- **Linear** — use `mcp__linear-server__*` tools, not manual API calls
+- **GitHub** — use `mcp__github__*` tools, not `gh` CLI (unless MCP lacks the needed operation)
+
+### Key credentials in `.envrc`:
+- `LINEAR_API_KEY` — Linear API key for session/issue tracking
+- `GITHUB_PERSONAL_ACCESS_TOKEN` — GitHub PAT for MCP and API access
+- `EXPO_TOKEN` — Expo MCP server token
+- `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` — Strava OAuth credentials
+- `PIERRE_JWT_TOKEN` — JWT token for Pierre MCP server auth
+- `OPENAI_API_KEY` — OpenAI API key for LLM features
+
 ## Development Guides
 
 | Guide | Description |

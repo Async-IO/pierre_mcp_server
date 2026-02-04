@@ -1722,7 +1722,6 @@ impl SocialRoutes {
         #[derive(Deserialize)]
         struct ValidationResponse {
             verdict: String,
-            #[allow(dead_code)]
             reason: Option<String>,
             improved_content: Option<String>,
         }
@@ -1746,11 +1745,20 @@ impl SocialRoutes {
             match v.verdict.as_str() {
                 "valid" => Ok(original_content.to_owned()),
                 "improved" => Ok(v.improved_content.unwrap_or_else(|| original_content.to_owned())),
-                "rejected" => Err(AppError::invalid_input(
-                    "Content does not meet quality standards for sharing. Please include specific training data or achievements.",
-                )),
+                "rejected" => {
+                    let detail = v.reason.as_deref().unwrap_or(
+                        "Please include specific training data or achievements.",
+                    );
+                    Err(AppError::invalid_input(format!(
+                        "Content does not meet quality standards for sharing. {detail}"
+                    )))
+                }
                 _ => {
-                    tracing::warn!("Unknown validation verdict: {}", v.verdict);
+                    tracing::warn!(
+                        verdict = %v.verdict,
+                        reason = ?v.reason,
+                        "Unknown validation verdict"
+                    );
                     Ok(original_content.to_owned())
                 }
             }
