@@ -458,6 +458,36 @@ rg "test_browse_store" tests/ --files-with-matches
 # Then run: cargo test --test store_routes_test test_browse_store
 ```
 
+### Test Output Verification - MANDATORY
+
+**After running ANY test command, you MUST verify tests actually ran.**
+
+The exit code alone is NOT sufficient - `cargo test` exits 0 even when 0 tests run.
+
+**Red Flags - STOP and investigate if you see:**
+- `running 0 tests` - Wrong target or flag used
+- `0 passed; 0 failed` - No tests executed
+- `filtered out` with 0 passed - Filter pattern too restrictive
+
+**Verification checklist:**
+1. Look for `running N tests` where N > 0
+2. Confirm `N passed` in the summary where N > 0
+3. If 0 tests ran, the validation FAILED - do not proceed
+
+**Common mistakes that run 0 tests:**
+```bash
+# ❌ BAD: --lib only runs doc tests in src/, usually 0
+cargo test --lib
+
+# ❌ BAD: Typo in test name matches nothing
+cargo test --test store_test test_brwose  # typo: brwose
+
+# ✅ GOOD: Targeted test with correct name
+cargo test --test store_routes_test test_browse
+```
+
+**Never claim "tests pass" if 0 tests ran - that is a failure, not a success.**
+
 ## Error Handling Requirements
 
 ### Acceptable Error Handling
