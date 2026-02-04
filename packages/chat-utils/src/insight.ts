@@ -55,3 +55,31 @@ export const detectInsightMessages = (messages: Message[]): Set<string> => {
 export const createInsightPrompt = (content: string): string => {
   return `${INSIGHT_PROMPT_PREFIX}:\n\n${stripContextPrefix(content)}`;
 };
+
+/**
+ * Common intro phrases that precede the actual shareable insight content.
+ * These are stripped when extracting the insight for sharing.
+ */
+const INSIGHT_INTRO_PATTERNS = [
+  /^Here's a shareable insight from your recent .*?:\s*/i,
+  /^Here's a shareable insight:\s*/i,
+  /^Here's your shareable insight:\s*/i,
+];
+
+/**
+ * Extract the shareable content from an insight response by stripping intro text.
+ * The LLM often adds intro phrases like "Here's a shareable insight from your
+ * recent training analysis:" before the actual insight content.
+ *
+ * @param content - The full insight response content
+ * @returns The insight content without the intro text
+ */
+export const extractInsightContent = (content: string): string => {
+  let result = content.trim();
+
+  for (const pattern of INSIGHT_INTRO_PATTERNS) {
+    result = result.replace(pattern, '');
+  }
+
+  return result.trim();
+};

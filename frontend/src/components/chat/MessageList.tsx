@@ -6,7 +6,7 @@
 
 import { useRef, useEffect } from 'react';
 import Markdown from 'react-markdown';
-import { isInsightPrompt, detectInsightMessages } from '@pierre/chat-utils';
+import { isInsightPrompt, detectInsightMessages, extractInsightContent } from '@pierre/chat-utils';
 import MessageItem from './MessageItem';
 import type { Message, MessageMetadata, MessageFeedback, OAuthNotification } from './types';
 import { linkifyUrls } from './utils';
@@ -91,7 +91,7 @@ export default function MessageList({
             onCopy={msg.role === 'assistant' ? () => onCopyMessage(msg.content) : undefined}
             onShare={msg.role === 'assistant' ? () => onShareMessage(msg.content) : undefined}
             onCreateInsight={msg.role === 'assistant' ? () => onCreateInsight(msg.content) : undefined}
-            onShareToFeed={msg.role === 'assistant' ? () => onShareToFeed(msg.content) : undefined}
+            onShareToFeed={msg.role === 'assistant' ? () => onShareToFeed(extractInsightContent(msg.content)) : undefined}
             onThumbsUp={msg.role === 'assistant' ? () => onThumbsUp(msg.id) : undefined}
             onThumbsDown={msg.role === 'assistant' ? () => onThumbsDown(msg.id) : undefined}
             onRetry={msg.role === 'assistant' ? () => onRetryMessage(msg.id) : undefined}

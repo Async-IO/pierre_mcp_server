@@ -7,6 +7,7 @@ import {
   isInsightPrompt,
   detectInsightMessages,
   createInsightPrompt,
+  extractInsightContent,
 } from '../src/insight';
 import { stripContextPrefix } from '../src/message';
 import type { Message } from '@pierre/shared-types';
@@ -209,5 +210,63 @@ describe('INSIGHT_PROMPT_PREFIX', () => {
   it('is used consistently by isInsightPrompt', () => {
     expect(isInsightPrompt(INSIGHT_PROMPT_PREFIX)).toBe(true);
     expect(isInsightPrompt(`${INSIGHT_PROMPT_PREFIX}: content`)).toBe(true);
+  });
+});
+
+describe('extractInsightContent', () => {
+  it('strips standard intro phrase from insight content', () => {
+    const content = "Here's a shareable insight from your recent training analysis:\n\n\"Great job!\"";
+    expect(extractInsightContent(content)).toBe('"Great job!"');
+  });
+
+  it('strips shorter intro phrase', () => {
+    const content = "Here's a shareable insight:\n\nYour training is on track.";
+    expect(extractInsightContent(content)).toBe('Your training is on track.');
+  });
+
+  it('strips "your shareable insight" variant', () => {
+    const content = "Here's your shareable insight:\n\nKeep up the great work!";
+    expect(extractInsightContent(content)).toBe('Keep up the great work!');
+  });
+
+  it('handles different activity types in intro', () => {
+    const runContent = "Here's a shareable insight from your recent run analysis:\n\nYou ran well.";
+    expect(extractInsightContent(runContent)).toBe('You ran well.');
+
+    const workoutContent = "Here's a shareable insight from your recent workout:\n\nGreat session!";
+    expect(extractInsightContent(workoutContent)).toBe('Great session!');
+  });
+
+  it('is case insensitive', () => {
+    const content = "HERE'S A SHAREABLE INSIGHT FROM YOUR RECENT TRAINING ANALYSIS:\n\nGood job!";
+    expect(extractInsightContent(content)).toBe('Good job!');
+  });
+
+  it('preserves content without intro text', () => {
+    const content = '"Great job maintaining a balanced training load!"';
+    expect(extractInsightContent(content)).toBe('"Great job maintaining a balanced training load!"');
+  });
+
+  it('handles empty string', () => {
+    expect(extractInsightContent('')).toBe('');
+  });
+
+  it('handles content that is only whitespace', () => {
+    expect(extractInsightContent('   ')).toBe('');
+  });
+
+  it('trims whitespace from result', () => {
+    const content = "Here's a shareable insight:\n\n   Your insight text.   ";
+    expect(extractInsightContent(content)).toBe('Your insight text.');
+  });
+
+  it('handles actual insight content format', () => {
+    const content = `Here's a shareable insight from your recent training analysis:
+
+"Great job maintaining a balanced training load! You're in a 'Building Base' phase, demonstrating impressive consistency with significant volume increases over the past few weeks, while keeping your overtraining risk low. Keep up the excellent work! To continue progressing, aim to gradually increase your weekly training stress score (TSS) by 3-5 points. Consider a light taper if you have any upcoming events!"`;
+
+    const expected = `"Great job maintaining a balanced training load! You're in a 'Building Base' phase, demonstrating impressive consistency with significant volume increases over the past few weeks, while keeping your overtraining risk low. Keep up the excellent work! To continue progressing, aim to gradually increase your weekly training stress score (TSS) by 3-5 points. Consider a light taper if you have any upcoming events!"`;
+
+    expect(extractInsightContent(content)).toBe(expected);
   });
 });
