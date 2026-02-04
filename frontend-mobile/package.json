@@ -25,9 +25,9 @@
     "e2e:build:android": "detox build --configuration android.emu.debug",
     "e2e:test": "detox test --configuration ios.sim.debug",
     "e2e:test:android": "detox test --configuration android.emu.debug",
-    "e2e:integration": "node node_modules/jest/bin/jest.js --config integration/jest.config.js",
-    "e2e:integration:verbose": "node node_modules/jest/bin/jest.js --config integration/jest.config.js --verbose",
-    "e2e:integration:watch": "node node_modules/jest/bin/jest.js --config integration/jest.config.js --watch"
+    "e2e:integration": "bunx jest --config integration/jest.config.js",
+    "e2e:integration:verbose": "bunx jest --config integration/jest.config.js --verbose",
+    "e2e:integration:watch": "bunx jest --config integration/jest.config.js --watch"
   },
   "dependencies": {
     "@pierre/api-client": "file:../packages/api-client",
