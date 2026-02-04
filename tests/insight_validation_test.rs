@@ -6,6 +6,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 #![allow(clippy::missing_panics_doc, clippy::missing_errors_doc)]
 #![allow(clippy::uninlined_format_args)]
+#![allow(missing_docs)]
 
 mod common;
 
