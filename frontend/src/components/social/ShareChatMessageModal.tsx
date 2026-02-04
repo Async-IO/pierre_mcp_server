@@ -4,7 +4,7 @@
 // ABOUTME: Modal for sharing an insight to the social feed
 // ABOUTME: Shows preview mode with Edit button, then allows editing before sharing
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Pencil } from 'lucide-react';
 import { socialApi } from '../../services/api';
 import { Button, Modal, InsightPreview } from '../ui';
@@ -37,6 +37,11 @@ export default function ShareChatMessageModal({
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(content);
+
+  // Sync editedContent when content prop changes (component stays mounted)
+  useEffect(() => {
+    setEditedContent(content);
+  }, [content]);
 
   const handleShare = async () => {
     setIsSubmitting(true);
