@@ -7,7 +7,7 @@ export {
   isInsightPrompt,
   detectInsightMessages,
   createInsightPrompt,
-} from './insight.js';
+} from './insight';
 
 // Message processing utilities
-export { stripContextPrefix } from './message.js';
+export { stripContextPrefix } from './message';

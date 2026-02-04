@@ -2,7 +2,7 @@
 // ABOUTME: Identifies insight prompts and their corresponding assistant responses
 
 import type { Message } from '@pierre/shared-types';
-import { stripContextPrefix } from './message.js';
+import { stripContextPrefix } from './message';
 
 /**
  * The standard prefix used for insight generation prompts.
