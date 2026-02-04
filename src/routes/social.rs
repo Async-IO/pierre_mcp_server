@@ -1744,11 +1744,14 @@ impl SocialRoutes {
         if let Some(v) = response {
             match v.verdict.as_str() {
                 "valid" => Ok(original_content.to_owned()),
-                "improved" => Ok(v.improved_content.unwrap_or_else(|| original_content.to_owned())),
+                "improved" => Ok(v
+                    .improved_content
+                    .unwrap_or_else(|| original_content.to_owned())),
                 "rejected" => {
-                    let detail = v.reason.as_deref().unwrap_or(
-                        "Please include specific training data or achievements.",
-                    );
+                    let detail = v
+                        .reason
+                        .as_deref()
+                        .unwrap_or("Please include specific training data or achievements.");
                     Err(AppError::invalid_input(format!(
                         "Content does not meet quality standards for sharing. {detail}"
                     )))
