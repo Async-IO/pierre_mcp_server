@@ -170,10 +170,13 @@ fn build_fitness_score_response(activities: &[Activity], provider_name: &str) ->
         60.0
     };
 
-    // Calculate overall fitness score
-    let fitness_score =
-        (consistency_score * 0.25 + load_score * 0.35 + volume_score * 0.25 + balance_score * 0.15)
-            .round();
+    // Calculate overall fitness score using fused multiply-add for accuracy
+    let fitness_score = consistency_score
+        .mul_add(
+            0.25,
+            load_score.mul_add(0.35, volume_score.mul_add(0.25, balance_score * 0.15)),
+        )
+        .round();
 
     // fitness_score is clamped to 0-100 range, safe for u32 match
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]

@@ -176,6 +176,233 @@ impl TokenEstimate {
     }
 }
 
+/// Analysis type for activity retrieval - helps determine appropriate data requirements
+/// Each type has different minimum data needs for meaningful analysis
+#[derive(Debug, Clone, Copy, Serialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AnalysisType {
+    /// General overview of recent training (default: 2 weeks minimum)
+    #[default]
+    GeneralOverview,
+    /// Weekly training summary (minimum: 1 week)
+    WeeklySummary,
+    /// Trend analysis over time (minimum: 4 weeks)
+    TrendAnalysis,
+    /// Race preparation assessment (minimum: 8 weeks)
+    RacePreparation,
+    /// Recovery assessment (minimum: 1 week)
+    RecoveryAssessment,
+}
+
+impl AnalysisType {
+    /// Minimum weeks of data needed for meaningful analysis of this type
+    #[must_use]
+    pub const fn minimum_weeks_required(&self) -> u32 {
+        match self {
+            Self::GeneralOverview => 2,
+            Self::WeeklySummary | Self::RecoveryAssessment => 1,
+            Self::TrendAnalysis => 4,
+            Self::RacePreparation => 8,
+        }
+    }
+
+    /// Default activity limit for this analysis type
+    #[must_use]
+    pub const fn default_limit(&self) -> u32 {
+        match self {
+            Self::GeneralOverview => 20,
+            Self::WeeklySummary => 10,
+            Self::TrendAnalysis => 50,
+            Self::RacePreparation => 80,
+            Self::RecoveryAssessment => 15,
+        }
+    }
+}
+
+/// Breakdown of activities by sport type for sufficiency assessment
+#[derive(Debug, Clone, Serialize)]
+pub struct ActivityTypeBreakdown {
+    /// Sport type name (e.g., "run", "ride", "swim")
+    pub sport_type: String,
+    /// Number of activities of this type
+    pub count: usize,
+    /// Percentage of total activities
+    pub percentage: f64,
+}
+
+/// Data sufficiency assessment for activity retrieval
+/// Guides LLMs on whether they have enough data for analysis
+#[derive(Debug, Clone, Serialize)]
+pub struct DataSufficiency {
+    /// Number of full weeks covered by the returned activities
+    pub weeks_covered: u32,
+    /// Total number of activities returned
+    pub total_activities: usize,
+    /// Breakdown by activity type
+    pub activity_type_breakdown: Vec<ActivityTypeBreakdown>,
+    /// Whether data is sufficient for the requested analysis type
+    pub has_sufficient_data: bool,
+    /// Human-readable recommendation for LLM
+    pub recommendation: String,
+}
+
+/// Context metadata for activity retrieval responses
+/// Provides LLMs with guidance on data sufficiency and whether to fetch more
+#[derive(Debug, Clone, Serialize)]
+pub struct ActivityRetrievalContext {
+    /// Type of analysis being performed
+    pub analysis_type: AnalysisType,
+    /// Date range of returned activities
+    pub date_range: DateRange,
+    /// Assessment of data sufficiency
+    pub data_sufficiency: DataSufficiency,
+}
+
+/// Date range for activity retrieval
+#[derive(Debug, Clone, Serialize)]
+pub struct DateRange {
+    /// Earliest activity date in ISO 8601 format
+    pub start: String,
+    /// Latest activity date in ISO 8601 format
+    pub end: String,
+    /// Number of days spanned
+    pub days_spanned: u32,
+}
+
+impl ActivityRetrievalContext {
+    /// Create retrieval context from activities and analysis type
+    /// Calculates date range, sufficiency, and provides recommendation
+    #[must_use]
+    #[allow(clippy::cast_precision_loss)]
+    pub fn from_activities(activities: &[Activity], analysis_type: AnalysisType) -> Self {
+        let date_range = Self::calculate_date_range(activities);
+        let weeks_covered = date_range.days_spanned / 7;
+        let activity_type_breakdown = Self::calculate_type_breakdown(activities);
+
+        let min_weeks = analysis_type.minimum_weeks_required();
+        let has_sufficient_data = weeks_covered >= min_weeks && !activities.is_empty();
+
+        let recommendation = Self::generate_recommendation(
+            activities.len(),
+            weeks_covered,
+            min_weeks,
+            has_sufficient_data,
+            analysis_type,
+        );
+
+        Self {
+            analysis_type,
+            date_range,
+            data_sufficiency: DataSufficiency {
+                weeks_covered,
+                total_activities: activities.len(),
+                activity_type_breakdown,
+                has_sufficient_data,
+                recommendation,
+            },
+        }
+    }
+
+    /// Calculate the date range from activities
+    fn calculate_date_range(activities: &[Activity]) -> DateRange {
+        if activities.is_empty() {
+            let now = chrono::Utc::now();
+            return DateRange {
+                start: now.to_rfc3339(),
+                end: now.to_rfc3339(),
+                days_spanned: 0,
+            };
+        }
+
+        let mut earliest = activities[0].start_date();
+        let mut latest = activities[0].start_date();
+
+        for activity in activities.iter().skip(1) {
+            let date = activity.start_date();
+            if date < earliest {
+                earliest = date;
+            }
+            if date > latest {
+                latest = date;
+            }
+        }
+
+        let duration = latest.signed_duration_since(earliest);
+        let days_spanned = duration.num_days().max(0) as u32;
+
+        DateRange {
+            start: earliest.to_rfc3339(),
+            end: latest.to_rfc3339(),
+            days_spanned,
+        }
+    }
+
+    /// Calculate breakdown of activities by sport type
+    #[allow(clippy::cast_precision_loss)]
+    fn calculate_type_breakdown(activities: &[Activity]) -> Vec<ActivityTypeBreakdown> {
+        use std::collections::BTreeMap;
+
+        if activities.is_empty() {
+            return Vec::new();
+        }
+
+        let mut counts: BTreeMap<String, usize> = BTreeMap::new();
+        for activity in activities {
+            let sport_type = match activity.sport_type() {
+                SportType::Other(s) => s.clone(),
+                other => format!("{other:?}").to_lowercase(),
+            };
+            *counts.entry(sport_type).or_insert(0) += 1;
+        }
+
+        let total = activities.len() as f64;
+        let mut breakdown: Vec<_> = counts
+            .into_iter()
+            .map(|(sport_type, count)| ActivityTypeBreakdown {
+                sport_type,
+                count,
+                percentage: (count as f64 / total) * 100.0,
+            })
+            .collect();
+
+        // Sort by count descending
+        breakdown.sort_by(|a, b| b.count.cmp(&a.count));
+        breakdown
+    }
+
+    /// Generate human-readable recommendation for the LLM
+    fn generate_recommendation(
+        activity_count: usize,
+        weeks_covered: u32,
+        min_weeks: u32,
+        has_sufficient_data: bool,
+        analysis_type: AnalysisType,
+    ) -> String {
+        if activity_count == 0 {
+            return "No activities found. User may not have connected their fitness provider or has no recent activities.".to_owned();
+        }
+
+        if has_sufficient_data {
+            return format!(
+                "Data is sufficient for {analysis_type:?}. You have {activity_count} activities spanning {weeks_covered} weeks. No additional fetches needed."
+            );
+        }
+
+        // Calculate how many more weeks we need
+        let weeks_needed = min_weeks.saturating_sub(weeks_covered);
+
+        if weeks_covered == 0 {
+            format!(
+                "Only {activity_count} activities found but they span less than a week. For {analysis_type:?}, you need at least {min_weeks} weeks of data. Consider fetching with a wider date range."
+            )
+        } else {
+            format!(
+                "Found {activity_count} activities spanning {weeks_covered} weeks, but {analysis_type:?} requires {min_weeks} weeks minimum. Need {weeks_needed} more weeks of data. Consider expanding the date range."
+            )
+        }
+    }
+}
+
 /// Parameters for trying to get cached activities
 struct CachedActivitiesParams<'a> {
     cache: &'a Arc<Cache>,
@@ -188,6 +415,8 @@ struct CachedActivitiesParams<'a> {
     limit: usize,
     offset: usize,
     default_time_window_applied: bool,
+    /// Analysis type for sufficiency calculation
+    analysis_type: AnalysisType,
 }
 
 /// Create metadata for activity analysis responses
@@ -390,6 +619,7 @@ async fn try_get_cached_activities(
             output_format: params.output_format,
             pagination: Some(&pagination),
             default_time_window_applied: params.default_time_window_applied,
+            analysis_type: params.analysis_type,
         });
         // Mark as cached in metadata
         if let Some(ref mut metadata) = response.metadata {
@@ -507,12 +737,13 @@ fn prepare_activity_data(
     }
 }
 
-/// Add common fields (pagination, token estimate, time window flag) to activity response JSON
+/// Add common fields (pagination, token estimate, time window flag, retrieval context) to activity response JSON
 fn add_common_response_fields(
     json_val: &mut Value,
     pagination: Option<&PaginationInfo>,
     token_estimate: &TokenEstimate,
     default_time_window_applied: bool,
+    retrieval_context: &ActivityRetrievalContext,
 ) {
     if let Some(page_info) = pagination {
         json_val["offset"] = json!(page_info.offset);
@@ -521,6 +752,7 @@ fn add_common_response_fields(
     }
     json_val["token_estimate"] = json!(token_estimate);
     json_val["default_time_window_applied"] = json!(default_time_window_applied);
+    json_val["retrieval_context"] = json!(retrieval_context);
 }
 
 /// Parameters for building an activities success response
@@ -533,6 +765,8 @@ struct ActivitiesResponseParams<'a> {
     output_format: OutputFormat,
     pagination: Option<&'a PaginationInfo>,
     default_time_window_applied: bool,
+    /// Analysis type for sufficiency calculation (defaults to `GeneralOverview`)
+    analysis_type: AnalysisType,
 }
 
 /// Build success response for activities with mode and format support
@@ -551,6 +785,7 @@ fn build_activities_success_response(params: ActivitiesResponseParams<'_>) -> Un
         output_format,
         pagination,
         default_time_window_applied,
+        analysis_type,
     } = params;
 
     // Prepare the data based on mode
@@ -572,6 +807,9 @@ fn build_activities_success_response(params: ActivitiesResponseParams<'_>) -> Un
     // Calculate token estimate for context management
     let token_estimate = TokenEstimate::from_activities(activities.len(), mode_used);
 
+    // Calculate retrieval context for LLM data sufficiency guidance
+    let retrieval_context = ActivityRetrievalContext::from_activities(activities, analysis_type);
+
     // Format the activities data according to the requested format
     let (result_json, format_used) = match output_format {
         OutputFormat::Toon => match format_output(&data_value, OutputFormat::Toon) {
@@ -589,6 +827,7 @@ fn build_activities_success_response(params: ActivitiesResponseParams<'_>) -> Un
                     pagination,
                     &token_estimate,
                     default_time_window_applied,
+                    &retrieval_context,
                 );
                 (json_val, "toon")
             }
@@ -609,6 +848,7 @@ fn build_activities_success_response(params: ActivitiesResponseParams<'_>) -> Un
                     pagination,
                     &token_estimate,
                     default_time_window_applied,
+                    &retrieval_context,
                 );
                 (json_val, "json")
             }
@@ -627,6 +867,7 @@ fn build_activities_success_response(params: ActivitiesResponseParams<'_>) -> Un
                 pagination,
                 &token_estimate,
                 default_time_window_applied,
+                &retrieval_context,
             );
             (json_val, "json")
         }
@@ -783,6 +1024,21 @@ pub fn handle_get_activities(
             .and_then(|v| v.as_str())
             .unwrap_or("summary");
 
+        // Extract analysis_type parameter for data sufficiency guidance
+        // Valid values: general_overview (default), weekly_summary, trend_analysis,
+        // race_preparation, recovery_assessment
+        let analysis_type = request
+            .parameters
+            .get("analysis_type")
+            .and_then(|v| v.as_str())
+            .map_or_else(AnalysisType::default, |s| match s {
+                "weekly_summary" => AnalysisType::WeeklySummary,
+                "trend_analysis" => AnalysisType::TrendAnalysis,
+                "race_preparation" => AnalysisType::RacePreparation,
+                "recovery_assessment" => AnalysisType::RecoveryAssessment,
+                _ => AnalysisType::GeneralOverview,
+            });
+
         // Extract output format parameter: "json" (default) or "toon"
         let output_format = request
             .parameters
@@ -904,6 +1160,7 @@ pub fn handle_get_activities(
             limit,
             offset: offset.unwrap_or(0),
             default_time_window_applied,
+            analysis_type,
         })
         .await
         {
@@ -1012,6 +1269,7 @@ pub fn handle_get_activities(
                                 output_format,
                                 pagination: Some(&pagination),
                                 default_time_window_applied,
+                                analysis_type,
                             },
                         ))
                     }
