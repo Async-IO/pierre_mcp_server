@@ -7,7 +7,6 @@ export {
   isInsightPrompt,
   detectInsightMessages,
   createInsightPrompt,
-  extractInsightContent,
 } from './insight';
 
 // Message processing utilities

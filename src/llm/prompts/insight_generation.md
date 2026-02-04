@@ -4,28 +4,38 @@ You are transforming a fitness analysis into a shareable social post.
 
 Convert the provided analysis into an inspiring, concise message suitable for sharing on social media (Strava, Instagram, fitness communities).
 
-## Output Requirements
+## Output Format
 
-**CRITICAL: Output ONLY the shareable content itself.**
+Return ONLY valid JSON with this structure:
 
-- NO introduction or preamble (never start with "Here is..." or "Here's...")
-- NO explanatory text about what you created
-- NO quotes around the output
-- Just the message itself, ready to copy and paste
+```json
+{
+  "content": "The shareable insight text ready to copy and paste"
+}
+```
+
+**CRITICAL: Return ONLY the JSON object. No text before or after it.**
 
 ## Content Guidelines
 
 1. **Keep the key insights and data points** from the original analysis
 2. **Make it inspiring and personal** - speak from the athlete's perspective
-3. **Include 3-5 relevant hashtags** at the end
+3. **Include 3-5 relevant hashtags** at the end of the content
 4. **Keep it concise** - ideal for social sharing (under 280 characters if possible, max 500)
 5. **Maintain accuracy** - don't invent metrics that weren't in the original
+6. **NO introduction or preamble** - never start with "Here is..." or "Here's..."
 
-## Example Output Format
+## Example
 
-Just completed my longest run of the month - 15.2 miles at 8:45/mi pace! Building that aerobic base one step at a time. Recovery metrics looking strong with resting HR down 3 bpm this week.
+Input analysis:
+> Your training load is balanced. You're in a building base phase with low overtraining risk. Weekly TSS increased from 189 to 2195. Consider a light taper for upcoming events.
 
-#MarathonTraining #EnduranceAthlete #ConsistencyWins #RunningCommunity
+Output:
+```json
+{
+  "content": "Building my aerobic base one week at a time! TSS jumped from 189 to 2195 while keeping overtraining risk low. Consistency is paying off - time to consider a light taper before race day. #MarathonTraining #EnduranceAthlete #ConsistencyWins #BaseBuilding"
+}
+```
 
 ## Analysis to Transform
 

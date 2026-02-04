@@ -88,6 +88,41 @@ fn strip_synthetic_function_calls(content: &str) -> Cow<'_, str> {
     }
 }
 
+/// JSON response structure for insight generation
+#[derive(Debug, Deserialize)]
+struct InsightGenerationResponse {
+    content: String,
+}
+
+/// Parse JSON response from insight generation prompt
+///
+/// The insight generation prompt returns JSON: `{"content": "..."}`
+/// This extracts the content field, falling back to raw content if parsing fails.
+fn parse_insight_json_response(raw_content: &str) -> String {
+    // Try to parse as JSON
+    if let Ok(response) = serde_json::from_str::<InsightGenerationResponse>(raw_content) {
+        return response.content;
+    }
+
+    // Sometimes LLMs wrap JSON in markdown code blocks, try to extract
+    let trimmed = raw_content.trim();
+    if let Some(json_start) = trimmed.find('{') {
+        if let Some(json_end) = trimmed.rfind('}') {
+            let json_str = &trimmed[json_start..=json_end];
+            if let Ok(response) = serde_json::from_str::<InsightGenerationResponse>(json_str) {
+                return response.content;
+            }
+        }
+    }
+
+    // Fallback: return raw content with warning
+    warn!(
+        "Failed to parse insight generation JSON response, using raw content: {}",
+        &raw_content[..raw_content.len().min(100)]
+    );
+    raw_content.to_owned()
+}
+
 // ============================================================================
 // Internal Types
 // ============================================================================
@@ -1170,15 +1205,22 @@ impl ChatRoutes {
         // Calculate token count from usage
         let token_count = result.usage.map(|u| u.completion_tokens);
 
+        // For insight requests, parse the JSON response to extract clean content
+        let processed_content = if is_insight_request {
+            parse_insight_json_response(&result.content)
+        } else {
+            result.content.clone()
+        };
+
         // Prepend activity list to content if present (guarantees user sees formatted data)
         let final_content = if let Some(ref list) = result.activity_list {
             info!(
                 "Prepending activity list ({} chars) to LLM response",
                 list.len()
             );
-            format!("{list}\n\n---\n\n**Analysis:**\n\n{}", result.content)
+            format!("{list}\n\n---\n\n**Analysis:**\n\n{processed_content}")
         } else {
-            result.content.clone()
+            processed_content
         };
 
         // Save assistant response
