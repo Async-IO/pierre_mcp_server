@@ -14,12 +14,12 @@ use crate::admin::models::{
 use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
 use crate::config::fitness::FitnessConfig;
 use crate::dashboard_routes::{RequestLog, ToolUsage};
-use crate::database::oauth_notifications::OAuthNotification;
 use crate::database::{
     ConversationRecord, ConversationSummary, CreateUserMcpTokenRequest, MessageRecord,
     UserMcpToken, UserMcpTokenCreated, UserMcpTokenInfo,
 };
 use crate::errors::AppResult;
+use crate::models::OAuthNotification;
 use crate::models::{
     AuthorizationCode, OAuthApp, Tenant, TenantPlan, TenantToolOverride, ToolCatalogEntry,
     ToolCategory, User, UserOAuthApp, UserOAuthToken, UserStatus,

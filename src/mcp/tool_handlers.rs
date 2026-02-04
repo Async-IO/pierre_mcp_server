@@ -18,10 +18,10 @@ use crate::constants::{
     protocol::JSONRPC_VERSION,
     tools::{CONNECT_PROVIDER, DISCONNECT_PROVIDER, GET_CONNECTION_STATUS},
 };
-use crate::database::oauth_notifications::OAuthNotification;
 use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, ErrorCode};
+use crate::models::OAuthNotification;
 use crate::tenant::TenantContext;
 use crate::tools::context::{AuthMethod, ToolExecutionContext};
 use crate::tools::result::ToolResult;
@@ -52,11 +52,14 @@ pub struct McpOAuthCredentials<'a> {
 }
 
 /// Context for routing tool calls with necessary resources and auth information
+///
+/// Tenant context is required for all tool executions to ensure proper
+/// tenant isolation and tool enablement policy enforcement.
 pub struct ToolRoutingContext<'a> {
     /// Server resources for dependency injection
     pub resources: &'a Arc<ServerResources>,
-    /// Optional tenant context for multi-tenant isolation
-    pub tenant_context: &'a Option<TenantContext>,
+    /// Tenant context for multi-tenant isolation (required)
+    pub tenant_context: &'a TenantContext,
     /// Authentication result with user and rate limit info
     pub auth_result: &'a AuthResult,
 }
@@ -136,22 +139,53 @@ impl ToolHandlers {
                 }
 
                 // Extract tenant context from request and auth result
-                let tenant_context = extract_tenant_context_internal(
+                // Tenant context is REQUIRED for tool execution to ensure tenant isolation
+                let tenant_context = match extract_tenant_context_internal(
                     &resources.database,
                     Some(auth_result.user_id),
                     None,
                     None, // MCP transport headers not applicable here
                 )
                 .await
-                .inspect_err(|e| {
-                    warn!(
-                        user_id = %auth_result.user_id,
-                        error = %e,
-                        "Failed to extract tenant context - tool will execute without tenant isolation"
-                    );
-                })
-                .ok()
-                .flatten();
+                {
+                    Ok(Some(ctx)) => ctx,
+                    Ok(None) => {
+                        // User has no tenant membership - cannot execute tools
+                        warn!(
+                            user_id = %auth_result.user_id,
+                            "User has no tenant membership - rejecting tool execution"
+                        );
+                        return McpResponse::error_with_data(
+                            request.id,
+                            ERROR_UNAUTHORIZED,
+                            "User must be assigned to a tenant to execute tools".to_owned(),
+                            serde_json::json!({
+                                "error_type": "tenant_required",
+                                "user_id": auth_result.user_id.to_string()
+                            }),
+                        );
+                    }
+                    Err(e) => {
+                        // Tenant extraction failed - cannot proceed safely
+                        error!(
+                            user_id = %auth_result.user_id,
+                            error = %e,
+                            "Tenant context extraction failed - rejecting tool execution"
+                        );
+                        return McpResponse::error_with_data(
+                            request.id,
+                            ERROR_INTERNAL_ERROR,
+                            "Failed to extract tenant context".to_owned(),
+                            serde_json::json!({
+                                "error_type": "tenant_extraction_failed",
+                                "detailed_error": e.to_string()
+                            }),
+                        );
+                    }
+                };
+
+                // Record tenant context in span now that we have it
+                tracing::Span::current().record("tenant_id", tenant_context.tenant_id.to_string());
 
                 // Use the provided ServerResources directly
                 Self::handle_tool_execution_direct(request, auth_result, tenant_context, resources)
@@ -165,26 +199,30 @@ impl ToolHandlers {
     }
 
     /// Check if a tool is enabled for a tenant, returning an error response if disabled
+    ///
+    /// Tenant context is now required - tool execution without tenant isolation is not allowed.
     async fn check_tool_enabled(
         resources: &Arc<ServerResources>,
-        tenant_context: Option<&TenantContext>,
+        tenant_context: &TenantContext,
         tool_name: &str,
         request_id: Option<Value>,
     ) -> Option<McpResponse> {
-        let ctx = tenant_context?;
         match resources
             .tool_selection
-            .is_tool_enabled(ctx.tenant_id, tool_name)
+            .is_tool_enabled(tenant_context.tenant_id, tool_name)
             .await
         {
             Ok(true) => {
-                debug!("Tool {} is enabled for tenant {}", tool_name, ctx.tenant_id);
+                debug!(
+                    "Tool {} is enabled for tenant {}",
+                    tool_name, tenant_context.tenant_id
+                );
                 None
             }
             Ok(false) => {
                 warn!(
                     "Tool {} not enabled for tenant {} - rejecting",
-                    tool_name, ctx.tenant_id
+                    tool_name, tenant_context.tenant_id
                 );
                 Some(McpResponse {
                     jsonrpc: JSONRPC_VERSION.to_owned(),
@@ -211,12 +249,15 @@ impl ToolHandlers {
     }
 
     /// Handle tool execution directly using provided `ServerResources`
+    ///
+    /// Tenant context is now required for all tool executions to ensure proper
+    /// tenant isolation and tool enablement policy enforcement.
     #[tracing::instrument(
         skip(request, auth_result, tenant_context, resources),
         fields(
             tool_name = Empty,
             user_id = %auth_result.user_id,
-            tenant_id = %auth_result.user_id, // Use user_id as tenant_id for now
+            tenant_id = %tenant_context.tenant_id,
             success = Empty,
             duration_ms = Empty,
         )
@@ -224,7 +265,7 @@ impl ToolHandlers {
     async fn handle_tool_execution_direct(
         request: McpRequest,
         auth_result: AuthResult,
-        tenant_context: Option<TenantContext>,
+        tenant_context: TenantContext,
         resources: &Arc<ServerResources>,
     ) -> McpResponse {
         let Some(params) = request.params else {
@@ -267,13 +308,9 @@ impl ToolHandlers {
         tracing::Span::current().record("tool_name", tool_name.as_str());
 
         // Check if tool is enabled for this tenant
-        if let Some(error_response) = Self::check_tool_enabled(
-            resources,
-            tenant_context.as_ref(),
-            tool_name,
-            request.id.clone(),
-        )
-        .await
+        if let Some(error_response) =
+            Self::check_tool_enabled(resources, &tenant_context, tool_name, request.id.clone())
+                .await
         {
             return error_response;
         }
@@ -368,6 +405,8 @@ impl ToolHandlers {
     }
 
     /// Build a `ToolExecutionContext` from MCP routing context
+    ///
+    /// Tenant context is always available since tool execution requires it.
     fn build_tool_context(
         user_id: Uuid,
         request_id: Option<Value>,
@@ -379,12 +418,8 @@ impl ToolHandlers {
             AuthResultMethod::ApiKey { .. } => AuthMethod::ApiKey,
         };
 
-        let mut tool_ctx = ToolExecutionContext::new(user_id, ctx.resources.clone(), auth_method);
-
-        // Add tenant context if available
-        if let Some(ref tenant_ctx) = ctx.tenant_context {
-            tool_ctx = tool_ctx.with_tenant(tenant_ctx.tenant_id);
-        }
+        let mut tool_ctx = ToolExecutionContext::new(user_id, ctx.resources.clone(), auth_method)
+            .with_tenant(ctx.tenant_context.tenant_id);
 
         // Add request ID if available
         if let Some(req_id) = request_id {
@@ -466,7 +501,7 @@ impl ToolHandlers {
                 return Self::handle_get_connection_status(args, request_id, ctx).await;
             }
             DISCONNECT_PROVIDER => {
-                return Self::handle_disconnect_provider(args, request_id, user_id, ctx).await;
+                return Self::handle_disconnect_provider(args, request_id, ctx).await;
             }
             _ => {}
         }
@@ -486,8 +521,7 @@ impl ToolHandlers {
             }
         } else {
             // Fall back to provider tool routing for tools not in the registry
-            MultiTenantMcpServer::route_provider_tool(tool_name, args, request_id, user_id, ctx)
-                .await
+            MultiTenantMcpServer::route_provider_tool(tool_name, args, request_id, ctx).await
         }
     }
 
@@ -545,53 +579,40 @@ impl ToolHandlers {
     }
 
     /// Handle `get_connection_status` OAuth tool
+    ///
+    /// Tenant context is always available since tool execution requires it.
     async fn handle_get_connection_status(
         args: &Value,
         request_id: Value,
         ctx: &ToolRoutingContext<'_>,
     ) -> McpResponse {
-        if let Some(ref tenant_ctx) = ctx.tenant_context {
-            let params =
-                serde_json::from_value::<json_schemas::GetConnectionStatusParams>(args.clone())
-                    .unwrap_or_default();
+        let params =
+            serde_json::from_value::<json_schemas::GetConnectionStatusParams>(args.clone())
+                .unwrap_or_default();
 
-            let credentials = McpOAuthCredentials {
-                strava_client_id: params.strava_client_id.as_deref(),
-                strava_client_secret: params.strava_client_secret.as_deref(),
-                fitbit_client_id: params.fitbit_client_id.as_deref(),
-                fitbit_client_secret: params.fitbit_client_secret.as_deref(),
-            };
+        let credentials = McpOAuthCredentials {
+            strava_client_id: params.strava_client_id.as_deref(),
+            strava_client_secret: params.strava_client_secret.as_deref(),
+            fitbit_client_id: params.fitbit_client_id.as_deref(),
+            fitbit_client_secret: params.fitbit_client_secret.as_deref(),
+        };
 
-            return MultiTenantMcpServer::handle_tenant_connection_status(
-                tenant_ctx,
-                &ctx.resources.tenant_oauth_client,
-                &ctx.resources.database,
-                request_id,
-                credentials,
-                ctx.resources.config.http_port,
-                &ctx.resources.config,
-            )
-            .await;
-        }
-
-        // No tenant context - require tenant assignment
-        McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_owned(),
-            result: None,
-            error: Some(McpError {
-                code: ERROR_INVALID_PARAMS,
-                message: "No tenant context found. User must be assigned to a tenant.".to_owned(),
-                data: None,
-            }),
-            id: Some(request_id),
-        }
+        MultiTenantMcpServer::handle_tenant_connection_status(
+            ctx.tenant_context,
+            &ctx.resources.tenant_oauth_client,
+            &ctx.resources.database,
+            request_id,
+            credentials,
+            ctx.resources.config.http_port,
+            &ctx.resources.config,
+        )
+        .await
     }
 
     /// Handle `disconnect_provider` OAuth tool
     async fn handle_disconnect_provider(
         args: &Value,
         request_id: Value,
-        user_id: Uuid,
         ctx: &ToolRoutingContext<'_>,
     ) -> McpResponse {
         let params =
@@ -611,8 +632,7 @@ impl ToolHandlers {
                 }
             };
 
-        MultiTenantMcpServer::route_disconnect_tool(&params.provider, user_id, request_id, ctx)
-            .await
+        MultiTenantMcpServer::route_disconnect_tool(&params.provider, request_id, ctx).await
     }
 
     /// Build notification text from a list of OAuth notifications

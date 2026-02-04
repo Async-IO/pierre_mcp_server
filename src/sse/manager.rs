@@ -8,11 +8,11 @@ use super::{
     a2a_task_stream::A2ATaskStream, notifications::NotificationStream, protocol::McpProtocolStream,
 };
 use crate::constants::network_config::SSE_BROADCAST_CHANNEL_SIZE;
-use crate::database::oauth_notifications::OAuthNotification;
 use crate::errors::AppError;
 use crate::mcp::protocol::McpRequest;
 use crate::mcp::resources::ServerResources;
 use crate::mcp::tenant_isolation::validate_jwt_token_for_mcp;
+use crate::models::OAuthNotification;
 use chrono::{Duration, Utc};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{broadcast, RwLock};

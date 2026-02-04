@@ -6,32 +6,13 @@
 
 use super::Database;
 use crate::errors::{AppError, AppResult};
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use tracing::debug;
 use uuid::Uuid;
 
-/// OAuth notification data structure
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OAuthNotification {
-    /// Unique notification ID
-    pub id: String,
-    /// User ID this notification belongs to
-    pub user_id: String,
-    /// Provider name (e.g., "strava", "fitbit")
-    pub provider: String,
-    /// Whether OAuth flow succeeded
-    pub success: bool,
-    /// Notification message text
-    pub message: String,
-    /// Optional expiration timestamp as ISO 8601 string
-    pub expires_at: Option<String>,
-    /// When the notification was created
-    pub created_at: DateTime<Utc>,
-    /// When the notification was read (if read)
-    pub read_at: Option<DateTime<Utc>>,
-}
+// Re-export OAuthNotification from models for backwards compatibility
+// The canonical definition is now in crate::models::OAuthNotification
+pub use crate::models::OAuthNotification;
 
 impl Database {
     /// Store OAuth completion notification

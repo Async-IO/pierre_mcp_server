@@ -44,7 +44,7 @@ impl NotificationRepository for NotificationRepositoryImpl {
     async fn get_unread(
         &self,
         user_id: Uuid,
-    ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>, DatabaseError> {
+    ) -> Result<Vec<crate::models::OAuthNotification>, DatabaseError> {
         self.db
             .get_unread_oauth_notifications(user_id)
             .await
@@ -75,7 +75,7 @@ impl NotificationRepository for NotificationRepositoryImpl {
         &self,
         user_id: Uuid,
         limit: Option<i64>,
-    ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>, DatabaseError> {
+    ) -> Result<Vec<crate::models::OAuthNotification>, DatabaseError> {
         self.db
             .get_all_oauth_notifications(user_id, limit)
             .await

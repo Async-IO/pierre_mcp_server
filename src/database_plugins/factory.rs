@@ -20,12 +20,12 @@ use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
 use crate::config::fitness::FitnessConfig;
 use crate::config::social::SocialInsightsConfig;
 use crate::dashboard_routes::{RequestLog, ToolUsage};
-use crate::database::oauth_notifications::OAuthNotification;
 use crate::database::{
     A2AUsage, A2AUsageStats, ConversationRecord, ConversationSummary, CreateUserMcpTokenRequest,
     MessageRecord, UserMcpToken, UserMcpTokenCreated, UserMcpTokenInfo,
 };
 use crate::errors::{AppError, AppResult};
+use crate::models::OAuthNotification;
 use crate::models::{
     AuthorizationCode, OAuthApp, Tenant, TenantPlan, TenantToolOverride, ToolCatalogEntry,
     ToolCategory, User, UserOAuthApp, UserOAuthToken, UserStatus,

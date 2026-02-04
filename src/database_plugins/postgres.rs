@@ -23,13 +23,13 @@ use crate::config::fitness::FitnessConfig;
 use crate::constants::http_status::{BAD_REQUEST, SUCCESS_MAX, SUCCESS_MIN};
 use crate::constants::tiers;
 use crate::dashboard_routes::{RequestLog, ToolUsage};
-use crate::database::oauth_notifications::OAuthNotification;
 use crate::database::{
     A2AUsage, A2AUsageStats, ConversationRecord, ConversationSummary, CreateUserMcpTokenRequest,
     MessageRecord, UserMcpToken, UserMcpTokenCreated, UserMcpTokenInfo,
 };
 use crate::database_plugins::shared::encryption::HasEncryption;
 use crate::errors::{AppError, AppResult};
+use crate::models::OAuthNotification;
 use crate::models::{
     AuthorizationCode, OAuthApp, Tenant, TenantPlan, TenantToolOverride, ToolCatalogEntry,
     ToolCategory, User, UserOAuthApp, UserOAuthToken, UserStatus, UserTier,

@@ -1,5 +1,5 @@
-// ABOUTME: OAuth token models for secure credential storage
-// ABOUTME: EncryptedToken, DecryptedToken, UserOAuthToken, UserOAuthApp, and session types
+// ABOUTME: OAuth token models for secure credential storage and notifications
+// ABOUTME: EncryptedToken, DecryptedToken, UserOAuthToken, UserOAuthApp, OAuthNotification, and session types
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
@@ -338,4 +338,28 @@ pub struct AuthResponse {
     pub error: Option<String>,
     /// Available fitness providers for this user
     pub available_providers: Vec<String>,
+}
+
+/// OAuth notification data structure for tracking OAuth flow completion events
+///
+/// Used to deliver asynchronous notifications to users about OAuth connection
+/// status changes (success/failure of provider connections).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OAuthNotification {
+    /// Unique notification ID
+    pub id: String,
+    /// User ID this notification belongs to
+    pub user_id: String,
+    /// Provider name (e.g., "strava", "fitbit")
+    pub provider: String,
+    /// Whether OAuth flow succeeded
+    pub success: bool,
+    /// Notification message text
+    pub message: String,
+    /// Optional expiration timestamp as ISO 8601 string
+    pub expires_at: Option<String>,
+    /// When the notification was created
+    pub created_at: DateTime<Utc>,
+    /// When the notification was read (if read)
+    pub read_at: Option<DateTime<Utc>>,
 }

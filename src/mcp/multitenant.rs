@@ -27,8 +27,6 @@ use crate::constants::{
     get_server_config,
     protocol::JSONRPC_VERSION,
 };
-#[cfg(feature = "protocol-rest")]
-use crate::context::ServerContext;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::errors::{AppError, AppResult};
 use crate::jsonrpc::{JsonRpcError, JsonRpcRequest, JsonRpcResponse};
@@ -38,8 +36,6 @@ use crate::protocols::universal::tool_registry::ToolId;
 use crate::protocols::universal::types::{CancellationToken, ProgressReporter};
 use crate::protocols::universal::{UniversalRequest, UniversalToolExecutor};
 use crate::providers::ProviderRegistry;
-#[cfg(feature = "protocol-rest")]
-use crate::routes::OAuthRoutes;
 use crate::security::headers::SecurityConfig;
 use crate::tenant::oauth_client::StoreCredentialsRequest;
 use crate::tenant::{TenantContext, TenantOAuthClient};
@@ -53,7 +49,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
 use tower_http::LatencyUnit;
-use tracing::{debug, error, field::Empty, info, warn, Level};
+use tracing::{debug, error, info, warn, Level};
 use uuid::Uuid;
 
 use crate::constants::service_names::PIERRE_MCP_SERVER;
@@ -144,135 +140,52 @@ impl MultiTenantMcpServer {
         skip(ctx, request_id),
         fields(
             provider = %provider_name,
-            user_id = %user_id,
-            tenant_id = Empty,
+            user_id = %ctx.tenant_context.user_id,
+            tenant_id = %ctx.tenant_context.tenant_id,
         )
     )]
     pub async fn route_disconnect_tool(
         provider_name: &str,
-        user_id: Uuid,
         request_id: Value,
         ctx: &ToolRoutingContext<'_>,
     ) -> McpResponse {
-        if let Some(ref tenant_ctx) = ctx.tenant_context {
-            Self::handle_tenant_disconnect_provider(
-                tenant_ctx,
-                provider_name,
-                &ctx.resources.provider_registry,
-                &ctx.resources.database,
-                request_id,
-            )
-        } else {
-            Self::handle_disconnect_provider(user_id, provider_name, ctx.resources, request_id)
-                .await
-        }
+        // Tenant context is always available since tool execution requires it
+        Self::handle_tenant_disconnect_provider(
+            ctx.tenant_context,
+            provider_name,
+            &ctx.resources.provider_registry,
+            &ctx.resources.database,
+            request_id,
+        )
     }
 
     /// Route provider-specific tool requests to appropriate handlers
+    ///
+    /// Tenant context is always available since tool execution requires it.
     #[tracing::instrument(
-        skip(args, request_id, ctx, user_id),
+        skip(args, request_id, ctx),
         fields(
             tool_name = %tool_name,
-            user_id = %user_id,
-            tenant_id = Empty,
+            user_id = %ctx.tenant_context.user_id,
+            tenant_id = %ctx.tenant_context.tenant_id,
         )
     )]
     pub async fn route_provider_tool(
         tool_name: &str,
         args: &Value,
         request_id: Value,
-        user_id: Uuid,
         ctx: &ToolRoutingContext<'_>,
     ) -> McpResponse {
-        if let Some(ref tenant_ctx) = ctx.tenant_context {
-            Self::handle_tenant_tool_with_provider(
-                tool_name,
-                args,
-                request_id,
-                tenant_ctx,
-                ctx.resources,
-                ctx.auth_result,
-            )
-            .await
-        } else {
-            // No tenant context means no provider access - tenant-aware endpoints required
-            McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_owned(),
-                result: None,
-                error: Some(McpError {
-                    code: ERROR_METHOD_NOT_FOUND,
-                    message: format!("Tool '{tool_name}' requires tenant context - use tenant-aware MCP endpoints"),
-                    data: None,
-                }),
-                id: Some(request_id),
-            }
-        }
-    }
-
-    /// Handle `disconnect_provider` tool call (requires protocol-rest feature)
-    #[cfg(feature = "protocol-rest")]
-    async fn handle_disconnect_provider(
-        user_id: Uuid,
-        provider: &str,
-        resources: &Arc<ServerResources>,
-        id: Value,
-    ) -> McpResponse {
-        // Use existing ServerResources (no fake auth managers or cloning!)
-        let server_context = ServerContext::from(resources.as_ref());
-        let oauth_routes = OAuthRoutes::new(
-            server_context.data().clone(),
-            server_context.config().clone(),
-            server_context.notification().clone(),
-        );
-
-        match oauth_routes.disconnect_provider(user_id, provider).await {
-            Ok(()) => {
-                let response = json_schemas::DisconnectProviderResponse {
-                    success: true,
-                    message: format!("Successfully disconnected {provider}"),
-                    provider: provider.to_owned(),
-                };
-
-                McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_owned(),
-                    result: serde_json::to_value(response).ok(),
-                    error: None,
-                    id: Some(id),
-                }
-            }
-            Err(e) => McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_owned(),
-                result: None,
-                error: Some(McpError {
-                    code: ERROR_INTERNAL_ERROR,
-                    message: format!("Failed to disconnect provider: {e}"),
-                    data: None,
-                }),
-                id: Some(id),
-            },
-        }
-    }
-
-    /// Handle `disconnect_provider` tool call (stub when protocol-rest is disabled)
-    #[cfg(not(feature = "protocol-rest"))]
-    async fn handle_disconnect_provider(
-        _user_id: Uuid,
-        provider: &str,
-        _resources: &Arc<ServerResources>,
-        id: Value,
-    ) -> McpResponse {
-        McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_owned(),
-            result: None,
-            error: Some(McpError {
-                code: ERROR_METHOD_NOT_FOUND,
-                message: format!(
-                    "disconnect_provider for '{provider}' requires the 'protocol-rest' feature"
-                ),
-                data: None,
-            }),
-            id: Some(id),
-        }
+        // Tenant context is always available since tool execution requires it
+        Self::handle_tenant_tool_with_provider(
+            tool_name,
+            args,
+            request_id,
+            ctx.tenant_context,
+            ctx.resources,
+            ctx.auth_result,
+        )
+        .await
     }
 
     /// Record API key usage for billing and analytics

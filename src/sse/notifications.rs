@@ -5,8 +5,8 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::constants::network_config::SSE_BROADCAST_CHANNEL_SIZE;
-use crate::database::oauth_notifications::OAuthNotification;
 use crate::errors::AppError;
+use crate::models::OAuthNotification;
 use serde_json::json;
 use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};

@@ -121,6 +121,9 @@ pub async fn tenant_context_middleware(
 ) -> Response {
     let headers = req.headers();
 
+    // Extract x-tenant-id header for explicit tenant selection (fallback)
+    let explicit_tenant_id = extract_tenant_id_from_header(headers);
+
     // Try to extract JWT token from cookie first (web clients)
     let token = get_cookie_value(headers, "auth_token").or_else(|| {
         // Fall back to Authorization header (API clients)
@@ -132,7 +135,7 @@ pub async fn tenant_context_middleware(
     });
 
     let tenant_context = if let Some(token) = token {
-        extract_tenant_from_token(&token, &resources).await
+        extract_tenant_from_token(&token, &resources, explicit_tenant_id).await
     } else {
         debug!("No authentication token found, proceeding without tenant context");
         None
@@ -152,16 +155,41 @@ pub async fn tenant_context_middleware(
     next.run(req).await
 }
 
+/// Extract tenant ID from x-tenant-id header
+///
+/// This allows clients to explicitly select a tenant for a request,
+/// overriding the default tenant resolution from JWT claims.
+fn extract_tenant_id_from_header(headers: &http::HeaderMap) -> Option<Uuid> {
+    headers
+        .get("x-tenant-id")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|tenant_id_str| {
+            parse_uuid(tenant_id_str)
+                .inspect_err(|e| {
+                    warn!(
+                        tenant_id = %tenant_id_str,
+                        error = %e,
+                        "Invalid tenant ID format in x-tenant-id header"
+                    );
+                })
+                .ok()
+        })
+}
+
 /// Extract tenant context from a validated JWT token
 ///
 /// This function:
 /// 1. Validates the JWT token
 /// 2. Extracts the user ID from claims
-/// 3. Resolves tenant ID from `active_tenant_id` claim or user's default
+/// 3. Resolves tenant ID from (in priority order):
+///    a. `active_tenant_id` claim in JWT token
+///    b. `x-tenant-id` HTTP header (explicit tenant selection)
+///    c. User's default tenant from database
 /// 4. Fetches tenant details and user role from database
 async fn extract_tenant_from_token(
     token: &str,
     resources: &Arc<ServerResources>,
+    explicit_tenant_id: Option<Uuid>,
 ) -> Option<TenantContext> {
     // Validate token and extract claims
     let claims = match resources
@@ -186,32 +214,46 @@ async fn extract_tenant_from_token(
 
     // Resolve tenant ID and build context
     let database = &resources.database;
-    let tenant_id = resolve_tenant_id_from_claims(&claims, user_id, database).await?;
+    let tenant_id =
+        resolve_tenant_id_from_claims(&claims, user_id, explicit_tenant_id, database).await?;
     build_tenant_context(tenant_id, user_id, database).await
 }
 
-/// Resolve the tenant ID from JWT claims or fall back to user's default tenant
+/// Resolve the tenant ID from JWT claims, header, or fall back to user's default tenant
 ///
 /// Priority order:
 /// 1. `active_tenant_id` from JWT claims (verified against membership)
-/// 2. User's default tenant from `tenant_users` table
+/// 2. `x-tenant-id` from HTTP header (verified against membership)
+/// 3. User's default tenant from `tenant_users` table
 async fn resolve_tenant_id_from_claims(
     claims: &Claims,
     user_id: Uuid,
+    explicit_tenant_id: Option<Uuid>,
     database: &Arc<Database>,
 ) -> Option<Uuid> {
+    // Priority 1: JWT claims active_tenant_id
     if let Some(tenant_id_str) = claims.active_tenant_id.as_deref() {
-        resolve_explicit_tenant_id(tenant_id_str, user_id, database).await
-    } else {
-        // No tenant ID in claims, get user's default tenant
-        get_user_default_tenant(user_id, database).await
+        return resolve_explicit_tenant_id_from_str(tenant_id_str, user_id, database).await;
     }
+
+    // Priority 2: x-tenant-id header (already parsed as Uuid)
+    if let Some(header_tenant_id) = explicit_tenant_id {
+        debug!(
+            user_id = %user_id,
+            tenant_id = %header_tenant_id,
+            "Using tenant ID from x-tenant-id header"
+        );
+        return verify_tenant_membership(user_id, header_tenant_id, database).await;
+    }
+
+    // Priority 3: User's default tenant
+    get_user_default_tenant(user_id, database).await
 }
 
-/// Resolve an explicitly specified tenant ID from JWT claims
+/// Resolve an explicitly specified tenant ID from a string (JWT claims)
 ///
 /// Verifies the user belongs to the tenant before accepting it.
-async fn resolve_explicit_tenant_id(
+async fn resolve_explicit_tenant_id_from_str(
     tenant_id_str: &str,
     user_id: Uuid,
     database: &Arc<Database>,
