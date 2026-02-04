@@ -57,7 +57,7 @@ jobs:
 
       - name: Install mobile dependencies
         working-directory: frontend-mobile
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Type check
         working-directory: frontend-mobile
@@ -120,7 +120,7 @@ jobs:
 
       - name: Install mobile dependencies
         working-directory: frontend-mobile
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Create data directory
         run: mkdir -p data
