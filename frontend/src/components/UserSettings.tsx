@@ -8,7 +8,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { useAuth } from '../hooks/useAuth';
-import { userApi, apiClient } from '../services/api';
+import { userApi, apiClient, apiService } from '../services/api';
+import type { ProviderStatus } from '../services/api';
 import { Card, Button, Badge, ConfirmDialog, Input, Modal, ModalActions } from './ui';
 import { clsx } from 'clsx';
 import A2AClientList from './A2AClientList';
@@ -57,7 +58,7 @@ const SETTINGS_TABS: { id: SettingsTab; name: string; icon: React.ReactNode }[] 
   },
   {
     id: 'connections',
-    name: 'Connections',
+    name: 'Data Providers',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
@@ -132,12 +133,26 @@ export default function UserSettings() {
   const [showCreateA2AClient, setShowCreateA2AClient] = useState(false);
   const [showSetupInstructions, setShowSetupInstructions] = useState(false);
 
+  // Fitness provider connection state
+  const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
+  const [providerToDisconnect, setProviderToDisconnect] = useState<string | null>(null);
+  const [providerMessage, setProviderMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   // Change Password state
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Fetch fitness provider connection status
+  const { data: providersResponse, isLoading: isLoadingProviders, refetch: refetchProviders } = useQuery({
+    queryKey: ['provider-connections'],
+    queryFn: () => apiService.getProvidersStatus(),
+    enabled: isAuthenticated,
+  });
+
+  const fitnessProviders: ProviderStatus[] = providersResponse?.providers || [];
 
   // Fetch OAuth apps
   const { data: oauthAppsResponse, isLoading: isLoadingApps } = useQuery({
@@ -297,6 +312,90 @@ export default function UserSettings() {
     });
   };
 
+  // Connect to a fitness provider via OAuth popup
+  const handleConnectProvider = async (providerId: string) => {
+    try {
+      setConnectingProvider(providerId);
+      setProviderMessage(null);
+      const authUrl = await apiService.getOAuthAuthorizeUrlForProvider(providerId);
+
+      // Open OAuth in a popup window
+      const popup = window.open(authUrl, `oauth_${providerId}`, 'width=600,height=700,left=200,top=100');
+
+      // Listen for the OAuth callback result stored in localStorage by OAuthCallback
+      const checkInterval = setInterval(() => {
+        try {
+          const resultStr = localStorage.getItem('pierre_oauth_result');
+          if (resultStr) {
+            const result = JSON.parse(resultStr);
+            // Only process results less than 30 seconds old
+            if (result.timestamp && Date.now() - result.timestamp < 30000 && result.provider === providerId) {
+              localStorage.removeItem('pierre_oauth_result');
+              clearInterval(checkInterval);
+              if (popup && !popup.closed) popup.close();
+              setConnectingProvider(null);
+
+              if (result.success) {
+                setProviderMessage({ type: 'success', text: `${providerId} connected successfully!` });
+                refetchProviders();
+              } else {
+                setProviderMessage({ type: 'error', text: `Failed to connect ${providerId}` });
+              }
+            }
+          }
+          // Also check if popup was closed manually
+          if (popup && popup.closed) {
+            clearInterval(checkInterval);
+            setConnectingProvider(null);
+          }
+        } catch {
+          // Ignore localStorage parse errors
+        }
+      }, 500);
+
+      // Safety timeout: stop checking after 5 minutes
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        setConnectingProvider(null);
+      }, 300000);
+    } catch (error) {
+      setConnectingProvider(null);
+      setProviderMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Failed to start connection',
+      });
+    }
+  };
+
+  // Disconnect a fitness provider
+  const handleDisconnectProvider = async (providerId: string) => {
+    try {
+      setProviderMessage(null);
+      await apiService.disconnectProvider(providerId);
+      setProviderToDisconnect(null);
+      setProviderMessage({ type: 'success', text: `${providerId} disconnected` });
+      refetchProviders();
+    } catch (error) {
+      setProviderToDisconnect(null);
+      setProviderMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Failed to disconnect provider',
+      });
+    }
+  };
+
+  // Display config for fitness providers (matching mobile)
+  const PROVIDER_DISPLAY: Record<string, { color: string; description: string }> = {
+    strava: { color: '#FC4C02', description: 'Running, cycling, and swimming activities' },
+    garmin: { color: '#007CC3', description: 'Activities and health metrics from Garmin devices' },
+    fitbit: { color: '#00B0B9', description: 'Activity, sleep, and heart rate data' },
+    whoop: { color: '#000000', description: 'Recovery, strain, and sleep metrics' },
+    terra: { color: '#16A34A', description: 'Aggregate data from multiple fitness platforms' },
+    coros: { color: '#E91E63', description: 'Training and performance data from COROS devices' },
+    synthetic: { color: '#9C27B0', description: 'Synthetic test data for development' },
+    synthetic_sleep: { color: '#673AB7', description: 'Synthetic sleep data for development' },
+  };
+
   const copyToClipboard = async (text: string) => {
     await navigator.clipboard.writeText(text);
     setCopied(true);
@@ -424,12 +523,125 @@ export default function UserSettings() {
 
         {/* Connections Tab */}
         {activeTab === 'connections' && (
-          <Card variant="dark">
+          <>
+            {/* Fitness Providers - Connection Status */}
+            <Card variant="dark">
+              <h2 className="text-lg font-semibold text-white mb-1">Fitness Providers</h2>
+              <p className="text-sm text-zinc-400 mb-4">
+                Connect your fitness accounts to sync activities, health metrics, and more.
+              </p>
+
+              {providerMessage && (
+                <div
+                  className={clsx(
+                    'p-3 rounded-lg text-sm mb-4',
+                    providerMessage.type === 'success'
+                      ? 'bg-pierre-activity/20 text-pierre-activity border border-pierre-activity/30'
+                      : 'bg-pierre-red-500/20 text-pierre-red-500 border border-pierre-red-500/30'
+                  )}
+                >
+                  {providerMessage.text}
+                </div>
+              )}
+
+              {isLoadingProviders ? (
+                <div className="flex justify-center py-8">
+                  <div className="pierre-spinner w-6 h-6"></div>
+                </div>
+              ) : fitnessProviders.length === 0 ? (
+                <div className="text-center py-8 text-zinc-400">
+                  <p>No providers available</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {fitnessProviders.map((provider) => {
+                    const display = PROVIDER_DISPLAY[provider.provider] || {
+                      color: '#607D8B',
+                      description: 'Fitness data provider',
+                    };
+                    const isConnecting = connectingProvider === provider.provider;
+
+                    return (
+                      <div
+                        key={provider.provider}
+                        className={clsx(
+                          'p-4 rounded-xl border transition-all',
+                          provider.connected
+                            ? 'border-pierre-activity/30 bg-pierre-activity-light/10'
+                            : 'border-white/10 bg-[#151520]'
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                            style={{ backgroundColor: display.color }}
+                          >
+                            <span className="text-white font-bold text-sm">
+                              {provider.display_name.charAt(0)}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-white">{provider.display_name}</p>
+                              {provider.connected && (
+                                <Badge variant="success">Connected</Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-zinc-400 truncate">{display.description}</p>
+                            {provider.capabilities.length > 0 && (
+                              <p className="text-xs text-zinc-500 mt-0.5">
+                                {provider.capabilities.join(', ')}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex-shrink-0">
+                            {provider.connected ? (
+                              provider.requires_oauth && (
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => setProviderToDisconnect(provider.provider)}
+                                  className="text-red-400 hover:bg-red-500/20"
+                                >
+                                  Disconnect
+                                </Button>
+                              )
+                            ) : provider.requires_oauth ? (
+                              <Button
+                                variant="gradient"
+                                size="sm"
+                                onClick={() => handleConnectProvider(provider.provider)}
+                                loading={isConnecting}
+                              >
+                                Connect
+                              </Button>
+                            ) : (
+                              <Badge variant="secondary">Manual</Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Privacy note */}
+              <div className="mt-4 p-3 bg-white/5 border border-white/10 rounded-lg">
+                <p className="text-xs text-zinc-400">
+                  Pierre only accesses the data you authorize. We never share your fitness data with third parties.
+                  You can disconnect any provider at any time.
+                </p>
+              </div>
+            </Card>
+
+            {/* OAuth App Credentials (Advanced) */}
+            <Card variant="dark">
             <div className="flex justify-between items-center mb-4">
               <div>
-                <h2 className="text-lg font-semibold text-white">Provider Credentials</h2>
+                <h2 className="text-lg font-semibold text-white">Custom API Credentials</h2>
                 <p className="text-sm text-zinc-400 mt-1">
-                  Configure your own OAuth app credentials to avoid rate limits
+                  Use your own OAuth app credentials to avoid shared rate limits
                 </p>
               </div>
               {availableProviders.length > 0 && (
@@ -575,6 +787,7 @@ export default function UserSettings() {
               </div>
             )}
           </Card>
+          </>
         )}
 
         {/* Tokens Tab */}
@@ -1053,6 +1266,17 @@ Authorization: Bearer <your-token-here>`}
         cancelLabel="Cancel"
         variant="danger"
         isLoading={revokeTokenMutation.isPending}
+      />
+
+      {/* Disconnect Fitness Provider Confirmation */}
+      <ConfirmDialog
+        isOpen={providerToDisconnect !== null}
+        onClose={() => setProviderToDisconnect(null)}
+        onConfirm={() => providerToDisconnect && handleDisconnectProvider(providerToDisconnect)}
+        title="Disconnect Provider"
+        message={`Are you sure you want to disconnect ${providerToDisconnect}? You will need to reconnect to sync new data.`}
+        confirmLabel="Disconnect"
+        variant="danger"
       />
     </div>
   );

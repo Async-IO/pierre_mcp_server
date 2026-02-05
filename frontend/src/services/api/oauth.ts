@@ -51,4 +51,11 @@ export const oauthApi = {
     const response = await axios.get(`/api/oauth/mobile/init/${provider}`);
     return response.data.authorization_url;
   },
+
+  /**
+   * Disconnect a provider by deleting stored OAuth tokens.
+   */
+  async disconnectProvider(provider: string): Promise<void> {
+    await axios.delete(`/api/oauth/providers/${provider}/disconnect`);
+  },
 };

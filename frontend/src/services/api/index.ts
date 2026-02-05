@@ -139,6 +139,8 @@ export const apiService = {
   getOAuthAuthorizeUrl: pierreApi.oauth.getAuthorizeUrl.bind(pierreApi.oauth),
   // Provider status (local - includes non-OAuth providers like synthetic)
   getProvidersStatus: localOauthApi.getProvidersStatus,
+  disconnectProvider: localOauthApi.disconnectProvider,
+  getOAuthAuthorizeUrlForProvider: localOauthApi.getOAuthAuthorizeUrl,
 
   // A2A (web-only)
   registerA2AClient: a2aApi.registerA2AClient,

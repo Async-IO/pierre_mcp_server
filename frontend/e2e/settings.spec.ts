@@ -256,7 +256,7 @@ test.describe('Settings Page - User Mode', () => {
 
     // Use button role to avoid matching headings with the same text
     await expect(page.getByRole('button', { name: 'Profile' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Connections' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Data Providers' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'API Tokens' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'AI Settings' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'About' })).toBeVisible();
@@ -336,13 +336,14 @@ test.describe('Settings Page - User Mode', () => {
     await expect(page.getByText(/passwords do not match/i).first()).toBeVisible();
   });
 
-  test('connections tab shows provider credentials section', async ({ page }) => {
+  test('data providers tab shows fitness providers and credentials sections', async ({ page }) => {
     await loginAndNavigateToSettings(page);
 
-    await page.getByRole('button', { name: 'Connections' }).click();
+    await page.getByRole('button', { name: 'Data Providers' }).click();
     await page.waitForTimeout(300);
 
-    await expect(page.getByRole('heading', { name: 'Provider Credentials' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Fitness Providers' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Custom API Credentials' })).toBeVisible();
   });
 
   test('tokens tab shows create new token button', async ({ page }) => {

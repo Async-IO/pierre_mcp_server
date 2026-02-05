@@ -90,7 +90,7 @@ describe('UserSettings Component', () => {
       });
 
       expect(screen.getByText('Profile')).toBeInTheDocument();
-      expect(screen.getByText('Connections')).toBeInTheDocument();
+      expect(screen.getByText('Data Providers')).toBeInTheDocument();
       expect(screen.getByText('API Tokens')).toBeInTheDocument();
       expect(screen.getByText('AI Settings')).toBeInTheDocument();
       expect(screen.getByText('About')).toBeInTheDocument();
@@ -291,19 +291,20 @@ describe('UserSettings Component', () => {
     });
   });
 
-  describe('Connections Tab', () => {
-    it('should switch to connections tab', async () => {
+  describe('Data Providers Tab', () => {
+    it('should switch to data providers tab', async () => {
       const user = userEvent.setup();
 
       await act(async () => {
         renderUserSettings();
       });
 
-      await user.click(screen.getByText('Connections'));
+      await user.click(screen.getByText('Data Providers'));
 
       await waitFor(() => {
-        // Should show the connections content with provider credentials section
-        expect(screen.getByText('Provider Credentials')).toBeInTheDocument();
+        // Should show fitness providers and custom API credentials sections
+        expect(screen.getByText('Fitness Providers')).toBeInTheDocument();
+        expect(screen.getByText('Custom API Credentials')).toBeInTheDocument();
       });
     });
   });
