@@ -120,7 +120,7 @@ test.describe('Anti-Hallucination Tests - User Mode', () => {
   test.describe('Coach Library - No Hallucinated Elements', () => {
     test.beforeEach(async ({ page }) => {
       await loginAsUser(page, 'webtest');
-      await navigateToTab(page, 'My Coaches');
+      await navigateToTab(page, 'Coaches');
       await waitForNetworkIdle(page);
     });
 

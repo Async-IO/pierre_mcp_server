@@ -423,8 +423,8 @@ test.describe('Settings Page - Admin Mode', () => {
   test('admin settings shows system settings heading', async ({ page }) => {
     await loginAndNavigateToAdminSettings(page);
 
-    // Admin settings should show "System Settings" heading
-    await expect(page.getByText('System Settings')).toBeVisible({ timeout: 5000 });
+    // Admin settings should show configuration sections
+    await expect(page.getByRole('heading', { name: 'User Registration' })).toBeVisible({ timeout: 5000 });
   });
 
   test('admin settings shows auto-approval toggle', async ({ page }) => {

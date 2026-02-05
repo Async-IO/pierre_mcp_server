@@ -337,8 +337,8 @@ test.describe('LLM Settings - Save Credentials', () => {
     await setupLlmSettingsMocks(page);
 
     let saveCalled = false;
-    // PUT requests go to /api/user/llm-settings/:provider (e.g., /gemini)
-    await page.route('**/api/user/llm-settings/*', async (route) => {
+    // PUT requests go to /api/user/llm-settings (base URL, no provider suffix)
+    await page.route('**/api/user/llm-settings', async (route) => {
       if (route.request().method() === 'PUT') {
         saveCalled = true;
         await route.fulfill({
@@ -347,7 +347,7 @@ test.describe('LLM Settings - Save Credentials', () => {
           body: JSON.stringify(mockSaveSuccess),
         });
       } else {
-        await route.continue();
+        await route.fallback();
       }
     });
 

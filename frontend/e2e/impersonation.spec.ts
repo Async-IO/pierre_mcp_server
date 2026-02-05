@@ -267,7 +267,7 @@ test.describe('Impersonation - Super Admin Access', () => {
     // Navigate to Users tab - use button role for sidebar navigation
     const usersTab = page.locator('button', { hasText: 'Users' }).first();
     await usersTab.click();
-    await expect(page.getByText('User Management')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('h1').filter({ hasText: 'Users' })).toBeVisible({ timeout: 5000 });
   });
 
   test('super admin sees Impersonate User button for active regular users', async ({ page }) => {

@@ -258,10 +258,7 @@ test.describe('System Coaches List View', () => {
     await navigateToTab(page, 'Coaches');
 
     // Wait for content to load
-    await expect(page.getByText('System Coaches')).toBeVisible({ timeout: 10000 });
-
-    // Should display coach cards
-    await expect(page.getByText('Marathon Training Coach')).toBeVisible();
+    await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 10000 });
     await expect(page.getByText('Nutrition Expert')).toBeVisible();
 
     // Should display category badges
@@ -288,7 +285,7 @@ test.describe('System Coaches List View', () => {
     await page.waitForSelector('nav', { timeout: 10000 });
     await navigateToTab(page, 'Coaches');
 
-    await expect(page.getByText('System Coaches')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 10000 });
 
     // Click Create Coach button
     await page.getByRole('button', { name: 'Create Coach' }).click();
@@ -406,7 +403,6 @@ test.describe('Create Coach Form', () => {
     await page.getByText('Back to Coaches').click();
 
     // Should return to list
-    await expect(page.getByText('System Coaches')).toBeVisible();
     await expect(page.getByText('Marathon Training Coach')).toBeVisible();
   });
 
@@ -424,7 +420,7 @@ test.describe('Create Coach Form', () => {
     await page.getByRole('button', { name: 'Cancel' }).click();
 
     // Should return to list
-    await expect(page.getByText('System Coaches')).toBeVisible();
+    await expect(page.getByText('Marathon Training Coach')).toBeVisible();
   });
 });
 
@@ -1004,12 +1000,12 @@ test.describe('User Coaches - Chat Interface', () => {
     await page.waitForSelector('aside', { timeout: 10000 });
 
     // Click the My Coaches tab in sidebar
-    await page.getByRole('list').getByRole('button', { name: 'My Coaches' }).click();
+    await page.getByRole('list').getByRole('button', { name: 'Coaches' }).click();
     await page.waitForTimeout(300);
 
     // Should see My Coaches heading in the main content area (h2)
     // Note: h1 is in the dashboard header, h2 is in CoachLibraryTab content
-    await expect(page.locator('h2:has-text("My Coaches")')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('custom AI personas')).toBeVisible({ timeout: 10000 });
     // User-created coaches are shown in the coach library
     // Note: CoachLibraryTab only shows user-created coaches, system coaches are in PromptSuggestions
     await expect(page.getByText('My Custom Coach')).toBeVisible();
@@ -1022,7 +1018,7 @@ test.describe('User Coaches - Chat Interface', () => {
     await page.waitForSelector('aside', { timeout: 10000 });
 
     // Click the My Coaches tab in sidebar
-    await page.getByRole('list').getByRole('button', { name: 'My Coaches' }).click();
+    await page.getByRole('list').getByRole('button', { name: 'Coaches' }).click();
     await page.waitForTimeout(300);
 
     await expect(page.getByText('My Custom Coach')).toBeVisible({ timeout: 10000 });
@@ -1045,11 +1041,11 @@ test.describe('User Coaches - Chat Interface', () => {
     await page.waitForSelector('main', { timeout: 10000 });
 
     // Click the My Coaches tab in sidebar
-    await page.getByRole('list').getByRole('button', { name: 'My Coaches' }).click();
+    await page.getByRole('list').getByRole('button', { name: 'Coaches' }).click();
     await page.waitForTimeout(300);
 
     // Should see My Coaches heading (h2 in content area)
-    await expect(page.locator('h2:has-text("My Coaches")')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('custom AI personas')).toBeVisible({ timeout: 10000 });
 
     // Verify the coach library loaded
     await expect(page.getByText('My Custom Coach')).toBeVisible({ timeout: 5000 });
@@ -1078,7 +1074,7 @@ test.describe('User Coaches - Chat Interface', () => {
     await page.waitForSelector('main', { timeout: 10000 });
 
     // Click the My Coaches tab in sidebar
-    await page.getByRole('list').getByRole('button', { name: 'My Coaches' }).click();
+    await page.getByRole('list').getByRole('button', { name: 'Coaches' }).click();
     await page.waitForTimeout(300);
 
     await expect(page.getByText('My Custom Coach')).toBeVisible({ timeout: 10000 });
@@ -1125,10 +1121,10 @@ test.describe('User Coaches - Chat Interface', () => {
     await page.waitForSelector('main', { timeout: 10000 });
 
     // Click My Coaches button in sidebar to open the My Coaches panel
-    await page.getByRole('list').getByRole('button', { name: 'My Coaches' }).click();
+    await page.getByRole('list').getByRole('button', { name: 'Coaches' }).click();
 
     // Wait for the My Coaches panel to open
-    await expect(page.locator('h2:has-text("My Coaches")')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('custom AI personas')).toBeVisible({ timeout: 5000 });
 
     // Click Create Coach button in the panel header
     await page.getByRole('button', { name: 'Create Coach' }).click();
@@ -1174,8 +1170,8 @@ test.describe('User Coaches - Chat Interface', () => {
     await page.waitForSelector('main', { timeout: 10000 });
 
     // Open My Coaches panel
-    await page.getByRole('list').getByRole('button', { name: 'My Coaches' }).click();
-    await expect(page.locator('h2:has-text("My Coaches")')).toBeVisible({ timeout: 5000 });
+    await page.getByRole('list').getByRole('button', { name: 'Coaches' }).click();
+    await expect(page.getByText('custom AI personas')).toBeVisible({ timeout: 5000 });
 
     // Click Create Coach
     await page.getByRole('button', { name: 'Create Coach' }).click();
@@ -1209,8 +1205,8 @@ test.describe('User Coaches - Chat Interface', () => {
     await page.waitForSelector('main', { timeout: 10000 });
 
     // Open My Coaches panel
-    await page.getByRole('list').getByRole('button', { name: 'My Coaches' }).click();
-    await expect(page.locator('h2:has-text("My Coaches")')).toBeVisible({ timeout: 5000 });
+    await page.getByRole('list').getByRole('button', { name: 'Coaches' }).click();
+    await expect(page.getByText('custom AI personas')).toBeVisible({ timeout: 5000 });
 
     // Wait for coaches to load first
     await expect(page.getByText('My Custom Coach')).toBeVisible({ timeout: 10000 });
@@ -1275,8 +1271,8 @@ test.describe('User Coaches - Chat Interface', () => {
     await page.waitForSelector('main', { timeout: 10000 });
 
     // Open My Coaches panel
-    await page.getByRole('list').getByRole('button', { name: 'My Coaches' }).click();
-    await expect(page.locator('h2:has-text("My Coaches")')).toBeVisible({ timeout: 5000 });
+    await page.getByRole('list').getByRole('button', { name: 'Coaches' }).click();
+    await expect(page.getByText('custom AI personas')).toBeVisible({ timeout: 5000 });
 
     // Click on coach card to open detail view, then click edit button
     await page.getByText('My Custom Coach').click();

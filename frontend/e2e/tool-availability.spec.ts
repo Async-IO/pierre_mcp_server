@@ -211,7 +211,7 @@ async function navigateToToolAvailability(page: Page) {
   await loginToDashboard(page);
   await page.waitForSelector("nav", { timeout: 10000 });
   await navigateToTab(page, "Configuration");
-  await page.waitForSelector('h1:has-text("Configuration Management")', {
+  await page.waitForSelector('h1:has-text("Configuration")', {
     timeout: 10000,
   });
   // Click on Tool Availability tab
@@ -726,7 +726,7 @@ test.describe("Tool Availability - Error Handling", () => {
     await loginToDashboard(page);
     await page.waitForSelector("nav", { timeout: 10000 });
     await navigateToTab(page, "Configuration");
-    await page.waitForSelector('h1:has-text("Configuration Management")', {
+    await page.waitForSelector('h1:has-text("Configuration")', {
       timeout: 10000,
     });
     await page.getByRole("tab", { name: "Tool Availability" }).click();
@@ -801,7 +801,7 @@ test.describe("Tool Availability - Access Control", () => {
 
     // Navigate to Configuration
     await navigateToTab(page, "Configuration");
-    await page.waitForSelector('h1:has-text("Configuration Management")', {
+    await page.waitForSelector('h1:has-text("Configuration")', {
       timeout: 10000,
     });
 

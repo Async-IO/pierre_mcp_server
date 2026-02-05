@@ -229,7 +229,7 @@ test.describe('Coach Store Access', () => {
     await page.getByRole('button', { name: 'Discover', exact: true }).click();
 
     // Should see store header (use heading role to avoid ambiguity with button)
-    await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Find AI coaching assistants')).toBeVisible({ timeout: 5000 });
     await expect(page.getByText('Find AI coaching assistants')).toBeVisible();
   });
 });
@@ -243,7 +243,7 @@ test.describe('Coach Store Browse', () => {
     await page.getByRole('button', { name: 'Discover', exact: true }).click();
 
     // Wait for store to load
-    await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Find AI coaching assistants')).toBeVisible({ timeout: 5000 });
 
     // Should display coach cards
     await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 10000 });
@@ -258,7 +258,7 @@ test.describe('Coach Store Browse', () => {
     await page.waitForSelector('main', { timeout: 10000 });
     await page.getByRole('button', { name: 'Discover', exact: true }).click();
 
-    await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Find AI coaching assistants')).toBeVisible({ timeout: 5000 });
     await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 10000 });
 
     // Should display user counts
@@ -274,7 +274,7 @@ test.describe('Coach Store Browse', () => {
     await page.waitForSelector('main', { timeout: 10000 });
     await page.getByRole('button', { name: 'Discover', exact: true }).click();
 
-    await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Find AI coaching assistants')).toBeVisible({ timeout: 5000 });
     await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 10000 });
 
     // Should display category badges
@@ -290,7 +290,7 @@ test.describe('Coach Store Browse', () => {
     await page.waitForSelector('main', { timeout: 10000 });
     await page.getByRole('button', { name: 'Discover', exact: true }).click();
 
-    await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Find AI coaching assistants')).toBeVisible({ timeout: 5000 });
     await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 10000 });
 
     // Should display tags
@@ -394,7 +394,7 @@ test.describe('Coach Store Pagination', () => {
     await page.waitForSelector('main', { timeout: 10000 });
     await page.getByRole('button', { name: 'Discover', exact: true }).click();
 
-    await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Find AI coaching assistants')).toBeVisible({ timeout: 5000 });
 
     // Should display first page coaches
     await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 10000 });
@@ -424,7 +424,7 @@ test.describe('Coach Store Filtering', () => {
     await page.waitForSelector('main', { timeout: 10000 });
     await page.getByRole('button', { name: 'Discover', exact: true }).click();
 
-    await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Find AI coaching assistants')).toBeVisible({ timeout: 5000 });
 
     // Should display category filters (use exact: true to avoid matching coach cards)
     await expect(page.getByRole('button', { name: 'All', exact: true })).toBeVisible();
@@ -440,7 +440,7 @@ test.describe('Coach Store Filtering', () => {
     await page.waitForSelector('main', { timeout: 10000 });
     await page.getByRole('button', { name: 'Discover', exact: true }).click();
 
-    await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Find AI coaching assistants')).toBeVisible({ timeout: 5000 });
     await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 10000 });
 
     // Click Training filter (use exact: true to avoid matching coach cards)
@@ -459,7 +459,7 @@ test.describe('Coach Store Filtering', () => {
     await page.waitForSelector('main', { timeout: 10000 });
     await page.getByRole('button', { name: 'Discover', exact: true }).click();
 
-    await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Find AI coaching assistants')).toBeVisible({ timeout: 5000 });
 
     // Should display sort options
     await expect(page.getByRole('button', { name: 'Popular' })).toBeVisible();
@@ -474,7 +474,7 @@ test.describe('Coach Store Filtering', () => {
     await page.waitForSelector('main', { timeout: 10000 });
     await page.getByRole('button', { name: 'Discover', exact: true }).click();
 
-    await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Find AI coaching assistants')).toBeVisible({ timeout: 5000 });
     await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 10000 });
 
     // Click Newest sort
@@ -505,7 +505,7 @@ test.describe('Coach Store Search', () => {
     await page.waitForSelector('main', { timeout: 10000 });
     await page.getByRole('button', { name: 'Discover', exact: true }).click();
 
-    await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Find AI coaching assistants')).toBeVisible({ timeout: 5000 });
     await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 10000 });
 
     // Type in search
@@ -525,7 +525,7 @@ test.describe('Coach Store Search', () => {
     await page.waitForSelector('main', { timeout: 10000 });
     await page.getByRole('button', { name: 'Discover', exact: true }).click();
 
-    await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Find AI coaching assistants')).toBeVisible({ timeout: 5000 });
     await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 10000 });
 
     // Type in search that won't match
@@ -545,7 +545,7 @@ test.describe('Coach Store Detail View', () => {
     await loginToDashboard(page);
     await page.waitForSelector('main', { timeout: 10000 });
     await page.getByRole('button', { name: 'Discover', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Find AI coaching assistants')).toBeVisible({ timeout: 5000 });
     await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 10000 });
 
     // Click on coach card to open detail view
@@ -588,7 +588,7 @@ test.describe('Coach Store Detail View', () => {
     await page.getByRole('button', { name: 'Back to Store' }).click();
 
     // Should return to store browse view - use h2 heading specifically to avoid matching both h1 and h2
-    await expect(page.locator('h2:has-text("Discover")')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Find AI coaching assistants')).toBeVisible({ timeout: 5000 });
     await expect(page.getByText('Marathon Training Coach')).toBeVisible({ timeout: 5000 });
   });
 });

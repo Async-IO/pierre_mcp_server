@@ -210,7 +210,7 @@ test.describe('Admin Store Management Access', () => {
     await page.waitForSelector('main', { timeout: 10000 });
 
     // Should see Coach Store tab in sidebar
-    await expect(page.getByRole('button', { name: /Coach Store/i })).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('nav').getByRole('button', { name: /Coach Store/i })).toBeVisible({ timeout: 5000 });
   });
 
   test('navigates to Coach Store Management when tab is clicked', async ({ page }) => {
