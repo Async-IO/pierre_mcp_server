@@ -24,11 +24,7 @@ test.describe('Admin Configuration Integration Tests', () => {
   test.describe('Configuration Catalog API', () => {
     test('backend returns valid configuration catalog', async ({ page }) => {
       const backendUrl = getBackendUrl();
-      const response = await page.request.get(`${backendUrl}/api/admin/config/catalog`, {
-        headers: {
-          'Authorization': `Bearer ${await page.evaluate(() => localStorage.getItem('pierre_auth_token'))}`,
-        },
-      });
+      const response = await page.request.get(`${backendUrl}/api/admin/config/catalog`);
 
       // API should return success
       expect(response.ok()).toBe(true);
@@ -42,11 +38,7 @@ test.describe('Admin Configuration Integration Tests', () => {
 
     test('catalog contains expected parameter structure', async ({ page }) => {
       const backendUrl = getBackendUrl();
-      const response = await page.request.get(`${backendUrl}/api/admin/config/catalog`, {
-        headers: {
-          'Authorization': `Bearer ${await page.evaluate(() => localStorage.getItem('pierre_auth_token'))}`,
-        },
-      });
+      const response = await page.request.get(`${backendUrl}/api/admin/config/catalog`);
 
       const data = await response.json();
 
@@ -73,11 +65,7 @@ test.describe('Admin Configuration Integration Tests', () => {
 
     test('catalog total_parameters matches actual count', async ({ page }) => {
       const backendUrl = getBackendUrl();
-      const response = await page.request.get(`${backendUrl}/api/admin/config/catalog`, {
-        headers: {
-          'Authorization': `Bearer ${await page.evaluate(() => localStorage.getItem('pierre_auth_token'))}`,
-        },
-      });
+      const response = await page.request.get(`${backendUrl}/api/admin/config/catalog`);
 
       const data = await response.json();
 
@@ -156,13 +144,9 @@ test.describe('Admin Configuration Integration Tests', () => {
 
     test('update endpoint validates parameter values', async ({ page }) => {
       const backendUrl = getBackendUrl();
-      const token = await page.evaluate(() => localStorage.getItem('pierre_auth_token'));
 
       // Try to update with invalid parameter key
       const response = await page.request.put(`${backendUrl}/api/admin/config`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
         data: {
           parameters: { 'nonexistent.invalid.key': 'bad_value' },
         },
@@ -176,11 +160,7 @@ test.describe('Admin Configuration Integration Tests', () => {
   test.describe('Audit Log API', () => {
     test('audit log endpoint returns valid structure', async ({ page }) => {
       const backendUrl = getBackendUrl();
-      const response = await page.request.get(`${backendUrl}/api/admin/config/audit`, {
-        headers: {
-          'Authorization': `Bearer ${await page.evaluate(() => localStorage.getItem('pierre_auth_token'))}`,
-        },
-      });
+      const response = await page.request.get(`${backendUrl}/api/admin/config/audit`);
 
       expect(response.ok()).toBe(true);
 
@@ -193,11 +173,7 @@ test.describe('Admin Configuration Integration Tests', () => {
 
     test('audit log entry has required fields', async ({ page }) => {
       const backendUrl = getBackendUrl();
-      const response = await page.request.get(`${backendUrl}/api/admin/config/audit`, {
-        headers: {
-          'Authorization': `Bearer ${await page.evaluate(() => localStorage.getItem('pierre_auth_token'))}`,
-        },
-      });
+      const response = await page.request.get(`${backendUrl}/api/admin/config/audit`);
 
       const data = await response.json();
 
@@ -214,11 +190,7 @@ test.describe('Admin Configuration Integration Tests', () => {
 
     test('audit log supports pagination with limit', async ({ page }) => {
       const backendUrl = getBackendUrl();
-      const response = await page.request.get(`${backendUrl}/api/admin/config/audit?limit=5`, {
-        headers: {
-          'Authorization': `Bearer ${await page.evaluate(() => localStorage.getItem('pierre_auth_token'))}`,
-        },
-      });
+      const response = await page.request.get(`${backendUrl}/api/admin/config/audit?limit=5`);
 
       expect(response.ok()).toBe(true);
 
@@ -246,12 +218,8 @@ test.describe('Admin Configuration Integration Tests', () => {
 
     test('reset by category validates category name', async ({ page }) => {
       const backendUrl = getBackendUrl();
-      const token = await page.evaluate(() => localStorage.getItem('pierre_auth_token'));
 
       const response = await page.request.post(`${backendUrl}/api/admin/config/reset`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
         data: {
           category: 'invalid_nonexistent_category',
         },
@@ -297,11 +265,7 @@ test.describe('Admin Configuration - Super Admin', () => {
 
   test('super admin can view all configuration categories', async ({ page }) => {
     const backendUrl = getBackendUrl();
-    const response = await page.request.get(`${backendUrl}/api/admin/config/catalog`, {
-      headers: {
-        'Authorization': `Bearer ${await page.evaluate(() => localStorage.getItem('pierre_auth_token'))}`,
-      },
-    });
+    const response = await page.request.get(`${backendUrl}/api/admin/config/catalog`);
 
     expect(response.ok()).toBe(true);
 
