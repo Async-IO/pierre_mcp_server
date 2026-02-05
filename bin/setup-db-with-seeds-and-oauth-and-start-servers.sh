@@ -58,7 +58,7 @@ print_step() {
     echo -e "${GREEN}[$1/$TOTAL_STEPS]${NC} $2"
 }
 
-TOTAL_STEPS=8
+TOTAL_STEPS=9
 
 echo ""
 echo -e "${BLUE}============================================================================${NC}"
@@ -188,8 +188,22 @@ for i in {1..30}; do
     sleep 1
 done
 
-# Step 6: Start web frontend
-print_step 6 "Starting Web Frontend (port $FRONTEND_PORT)..."
+# Step 6: Install frontend dependencies
+print_step 6 "Installing frontend dependencies..."
+if [ -d "$PROJECT_ROOT/frontend" ]; then
+    cd "$PROJECT_ROOT/frontend"
+    bun install --frozen-lockfile > /dev/null 2>&1
+    echo "    frontend/ dependencies installed"
+fi
+if [ -d "$PROJECT_ROOT/frontend-mobile" ]; then
+    cd "$PROJECT_ROOT/frontend-mobile"
+    bun install --frozen-lockfile > /dev/null 2>&1
+    echo "    frontend-mobile/ dependencies installed"
+fi
+cd "$PROJECT_ROOT"
+
+# Step 7: Start web frontend
+print_step 7 "Starting Web Frontend (port $FRONTEND_PORT)..."
 if [ -d "$PROJECT_ROOT/frontend" ]; then
     cd "$PROJECT_ROOT/frontend"
     bun run dev > "$FRONTEND_LOG" 2>&1 &
@@ -201,8 +215,8 @@ else
     FRONTEND_PID=""
 fi
 
-# Step 7: Start Expo
-print_step 7 "Starting Expo Mobile (port $EXPO_PORT)..."
+# Step 8: Start Expo
+print_step 8 "Starting Expo Mobile (port $EXPO_PORT)..."
 if [ -d "$PROJECT_ROOT/frontend-mobile" ]; then
     cd "$PROJECT_ROOT/frontend-mobile"
     bun start > "$EXPO_LOG" 2>&1 &
@@ -214,8 +228,8 @@ else
     EXPO_PID=""
 fi
 
-# Step 8: Generate admin token
-print_step 8 "Generating admin API token..."
+# Step 9: Generate admin token
+print_step 9 "Generating admin API token..."
 ADMIN_LOGIN=$(curl -s -X POST "http://localhost:$SERVER_PORT/oauth/token" \
     -H "Content-Type: application/x-www-form-urlencoded" \
     -d "grant_type=password&username=$ADMIN_EMAIL&password=$ADMIN_PASSWORD")
