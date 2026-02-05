@@ -452,9 +452,9 @@ export default function AdminConfiguration() {
               <p className="text-zinc-500">No parameters found</p>
             </Card>
           ) : (
-          <div className="grid grid-cols-12 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Category sidebar */}
-            <div className="col-span-3">
+            <div className="lg:col-span-3">
               <Card variant="dark" className="sticky top-4">
                 {/* Config group selector */}
                 <div className="mb-4">
@@ -520,7 +520,7 @@ export default function AdminConfiguration() {
             </div>
 
           {/* Parameters list */}
-          <div className="col-span-9 space-y-4">
+          <div className="lg:col-span-9 space-y-4">
             {currentCategory && (
               <>
                 <Card variant="dark">
@@ -581,7 +581,7 @@ export default function AdminConfiguration() {
                               {param.env_variable && (
                                 <span className="flex items-center gap-1">
                                   Env:{' '}
-                                  <code className="bg-white/10 px-1 rounded">{param.env_variable}</code>
+                                  <code className="bg-white/10 px-1 rounded break-all">{param.env_variable}</code>
                                   <button
                                     onClick={() => handleCopyEnvVar(param.env_variable!)}
                                     className="p-0.5 hover:bg-white/10 rounded transition-colors"

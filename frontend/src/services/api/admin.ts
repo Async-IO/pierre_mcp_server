@@ -595,7 +595,7 @@ export const adminApi = {
     total: number;
     metadata: { timestamp: string; api_version: string };
   }> {
-    const response = await axios.get('/api/admin/store/coaches?status=pending_review');
+    const response = await axios.get('/api/admin/store/review-queue');
     return response.data;
   },
 
