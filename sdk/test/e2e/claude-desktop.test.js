@@ -59,8 +59,9 @@ describe('E2E: MCP Client Bridge Integration', () => {
     expect(response.result.tools.length).toBeGreaterThan(0);
 
     const toolNames = response.result.tools.map(t => t.name);
-    // Bridge shows connect_provider tool for connecting to fitness providers
-    expect(toolNames).toContain('connect_provider');
+    // Unauthenticated bridge sees public discovery tools (read-only subset)
+    expect(toolNames).toContain('get_activities');
+    expect(toolNames).toContain('get_athlete');
   }, 30000);
 
   test('should reject batch requests per 2025-06-18 spec', async () => {
