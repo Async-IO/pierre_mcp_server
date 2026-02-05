@@ -72,6 +72,7 @@ module.exports = {
   web: {
     favicon: './assets/favicon.png',
   },
+  owner: 'cheffamille',
   extra: {
     eas: {
       projectId: '6c63325e-a0da-49cf-b4bd-e6aeae6fd981',
