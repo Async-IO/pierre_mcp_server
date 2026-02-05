@@ -119,7 +119,7 @@ export function useMessageStreaming(options: UseMessageStreamingOptions): UseMes
 
     // Store conversation ID if connecting a provider
     if (connectingProvider) {
-      localStorage.setItem('pierre_oauth_conversation', selectedConversation);
+      sessionStorage.setItem('pierre_oauth_conversation', selectedConversation);
     }
 
     const displayContent = newMessage.trim();
