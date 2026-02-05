@@ -374,32 +374,6 @@ test.describe('ASY-312: Web Admin Mode Visual Tests', () => {
     });
   });
 
-  // ========================================
-  // Social Features (Admin View)
-  // ========================================
-  test.describe('Social Features', () => {
-    test.beforeEach(async ({ page }) => {
-      await loginAsUser(page, 'admin');
-    });
-
-    test('friends - displays friends list', async ({ page }) => {
-      await navigateToTab(page, 'Friends');
-      await waitForNetworkIdle(page);
-
-      const mainContent = page.locator('main');
-      await expect(mainContent).toBeVisible();
-
-      await takeVisualScreenshot(page, 'admin-friends', 'list');
-    });
-
-    test('feed - displays insights', async ({ page }) => {
-      await navigateToTab(page, 'Insights');
-      await waitForNetworkIdle(page);
-
-      const mainContent = page.locator('main');
-      await expect(mainContent).toBeVisible();
-
-      await takeVisualScreenshot(page, 'admin-feed', 'insights');
-    });
-  });
+  // Admin users do not have Friends or Insights tabs in sidebar navigation.
+  // Social features are only available to regular users via the Insights tab.
 });

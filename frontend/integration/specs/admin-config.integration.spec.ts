@@ -98,8 +98,8 @@ test.describe('Admin Configuration Integration Tests', () => {
       // Wait for content to load
       await page.waitForLoadState('networkidle', { timeout: timeouts.medium }).catch(() => {});
 
-      // Should show configuration management header (use exact match to avoid strict mode violation)
-      const header = await page.getByRole('heading', { name: 'Configuration Management' }).isVisible();
+      // Should show configuration header (Dashboard h1 shows tab name)
+      const header = await page.getByRole('heading', { name: 'Configuration', level: 1 }).isVisible();
       expect(header).toBe(true);
     });
 

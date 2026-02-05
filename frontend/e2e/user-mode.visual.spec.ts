@@ -140,7 +140,7 @@ test.describe('ASY-313: Web User Mode Visual Tests', () => {
     });
 
     test('library - displays installed coaches', async ({ page }) => {
-      await navigateToTab(page, 'My Coaches');
+      await navigateToTab(page, 'Coaches');
       await waitForNetworkIdle(page);
 
       const mainContent = page.locator('main');
@@ -150,7 +150,7 @@ test.describe('ASY-313: Web User Mode Visual Tests', () => {
     });
 
     test('library - favorites filter toggles', async ({ page }) => {
-      await navigateToTab(page, 'My Coaches');
+      await navigateToTab(page, 'Coaches');
       await waitForNetworkIdle(page);
 
       const favoritesToggle = page.locator('button:has-text("Favorites"), [role="switch"], input[type="checkbox"]');
@@ -163,7 +163,7 @@ test.describe('ASY-313: Web User Mode Visual Tests', () => {
     });
 
     test('library - category filter works', async ({ page }) => {
-      await navigateToTab(page, 'My Coaches');
+      await navigateToTab(page, 'Coaches');
       await waitForNetworkIdle(page);
 
       const categoryFilter = page.locator('select, [role="combobox"], [role="tab"]');
@@ -176,7 +176,7 @@ test.describe('ASY-313: Web User Mode Visual Tests', () => {
     });
 
     test('library - search coaches works', async ({ page }) => {
-      await navigateToTab(page, 'My Coaches');
+      await navigateToTab(page, 'Coaches');
       await waitForNetworkIdle(page);
 
       const searchInput = page.locator('input[type="search"], input[placeholder*="Search"]');
@@ -189,7 +189,7 @@ test.describe('ASY-313: Web User Mode Visual Tests', () => {
     });
 
     test('library - create coach button opens wizard', async ({ page }) => {
-      await navigateToTab(page, 'My Coaches');
+      await navigateToTab(page, 'Coaches');
       await waitForNetworkIdle(page);
 
       const createButton = page.getByRole('button', { name: /create|new|add/i });
@@ -289,16 +289,23 @@ test.describe('ASY-313: Web User Mode Visual Tests', () => {
   });
 
   // ========================================
-  // Friends Tab
+  // Friends (sub-view of Insights Tab)
   // ========================================
-  test.describe('Friends Tab', () => {
+  test.describe('Friends (Insights sub-view)', () => {
     test.beforeEach(async ({ page }) => {
       await loginAsUser(page, 'webtest');
     });
 
     test('friends - displays friends list', async ({ page }) => {
-      await navigateToTab(page, 'Friends');
+      await navigateToTab(page, 'Insights');
       await waitForNetworkIdle(page);
+
+      // Friends is a sub-view within Insights, accessed via the Friends button
+      const friendsButton = page.getByRole('button', { name: 'Friends' });
+      if (await friendsButton.isVisible().catch(() => false)) {
+        await friendsButton.click();
+        await waitForNetworkIdle(page);
+      }
 
       const mainContent = page.locator('main');
       await expect(mainContent).toBeVisible();
@@ -307,8 +314,14 @@ test.describe('ASY-313: Web User Mode Visual Tests', () => {
     });
 
     test('friends - search users works', async ({ page }) => {
-      await navigateToTab(page, 'Friends');
+      await navigateToTab(page, 'Insights');
       await waitForNetworkIdle(page);
+
+      const friendsButton = page.getByRole('button', { name: 'Friends' });
+      if (await friendsButton.isVisible().catch(() => false)) {
+        await friendsButton.click();
+        await waitForNetworkIdle(page);
+      }
 
       const searchInput = page.locator('input[type="search"], input[placeholder*="Search"]');
       if (await searchInput.first().isVisible().catch(() => false)) {
@@ -320,8 +333,14 @@ test.describe('ASY-313: Web User Mode Visual Tests', () => {
     });
 
     test('friends - pending tab shows requests', async ({ page }) => {
-      await navigateToTab(page, 'Friends');
+      await navigateToTab(page, 'Insights');
       await waitForNetworkIdle(page);
+
+      const friendsButton = page.getByRole('button', { name: 'Friends' });
+      if (await friendsButton.isVisible().catch(() => false)) {
+        await friendsButton.click();
+        await waitForNetworkIdle(page);
+      }
 
       const pendingTab = page.locator('[role="tab"]:has-text("Pending"), button:has-text("Pending")');
       if (await pendingTab.first().isVisible().catch(() => false)) {

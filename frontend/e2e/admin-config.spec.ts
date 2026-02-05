@@ -240,7 +240,7 @@ async function navigateToAdminConfig(page: Page) {
   await loginToDashboard(page);
   await page.waitForSelector('nav', { timeout: 10000 });
   await navigateToTab(page, 'Configuration');
-  await page.waitForSelector('h1:has-text("Configuration Management")', { timeout: 10000 });
+  await page.waitForSelector('h1:has-text("Configuration")', { timeout: 10000 });
   // Switch to Intelligence tab since mock data uses Intelligence categories
   // Use locator chain: find button containing the Intelligence text
   await page.locator('button:has-text("Intelligence")').click();
@@ -252,8 +252,8 @@ test.describe('Admin Configuration - Loading and Display', () => {
     await setupAdminConfigMocks(page);
     await navigateToAdminConfig(page);
 
-    // Check header - dashboard h1 shows "Configuration", component has "Configuration Management"
-    await expect(page.getByText('Configuration Management')).toBeVisible();
+    // Check header - dashboard h1 shows "Configuration"
+    await expect(page.locator('h1').filter({ hasText: 'Configuration' })).toBeVisible();
 
     // Check parameter count info for Intelligence view (5 params across 3 categories)
     // Component shows filtered counts based on current view, not API total_parameters

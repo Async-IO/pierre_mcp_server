@@ -113,8 +113,8 @@ test.describe('User Management - Pending Users', () => {
     await setupUserManagementMocks(page);
     await loginAndNavigateToUsers(page);
 
-    // Should see user management content - check for the h2 heading specifically
-    await expect(page.getByRole('heading', { name: 'User Management', level: 2 })).toBeVisible({ timeout: 5000 });
+    // Should see user management content - check for the h1 heading in Dashboard header bar
+    await expect(page.getByRole('heading', { name: 'Users', level: 1 })).toBeVisible({ timeout: 5000 });
   });
 
   test('displays pending users list', async ({ page }) => {
