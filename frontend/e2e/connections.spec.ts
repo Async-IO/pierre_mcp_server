@@ -801,8 +801,8 @@ test.describe('Connections Tab - API Tokens Tab Visibility', () => {
     // Non-admin users see sidebar with tabs (Chat, Friends, Social Feed, Settings, etc.)
     await page.waitForSelector('aside', { timeout: 10000 });
 
-    // Non-admin users see the sidebar with Settings tab, but NOT admin-specific tabs like Connections
-    await expect(page.locator('button').filter({ has: page.locator('span:has-text("Settings")') })).toBeVisible();
+    // Non-admin users see the gear icon (Settings) in bottom profile bar, but NOT admin-specific tabs like Connections
+    await expect(page.getByRole('button', { name: 'Settings', exact: true }).first()).toBeVisible();
     await expect(page.locator('button').filter({ has: page.locator('span:has-text("Connections")') })).not.toBeVisible();
   });
 });

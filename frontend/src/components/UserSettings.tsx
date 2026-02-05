@@ -311,32 +311,30 @@ export default function UserSettings() {
   const availableProviders = PROVIDERS.filter((p) => !configuredProviders.includes(p.id));
 
   return (
-    <div className="flex gap-6">
-      {/* Settings Navigation Sidebar - Dark Glassmorphism */}
-      <div className="w-64 flex-shrink-0">
-        <div className="sticky top-6 card-dark rounded-xl p-4">
-          <nav className="space-y-1">
-            {SETTINGS_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={clsx(
-                  'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200',
-                  activeTab === tab.id
-                    ? 'bg-pierre-violet/15 border-l-[3px] border-pierre-violet text-white shadow-[0_0_15px_rgba(124,58,237,0.15)]'
-                    : 'text-zinc-400 hover:text-white hover:bg-white/5'
-                )}
-              >
-                <span className={activeTab === tab.id ? 'text-pierre-violet' : ''}>{tab.icon}</span>
-                {tab.name}
-              </button>
-            ))}
-          </nav>
-        </div>
+    <div className="space-y-6">
+      {/* Horizontal Tab Navigation */}
+      <div className="border-b border-white/10">
+        <nav className="flex gap-1 -mb-px overflow-x-auto" aria-label="Settings tabs">
+          {SETTINGS_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={clsx(
+                'flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-all duration-200 border-b-2',
+                activeTab === tab.id
+                  ? 'border-pierre-violet text-white'
+                  : 'border-transparent text-zinc-400 hover:text-white hover:border-white/20'
+              )}
+            >
+              <span className={clsx('flex-shrink-0', activeTab === tab.id ? 'text-pierre-violet' : '')}>{tab.icon}</span>
+              {tab.name}
+            </button>
+          ))}
+        </nav>
       </div>
 
-      {/* Settings Content - Dark Theme */}
-      <div className="flex-1 space-y-6">
+      {/* Settings Content */}
+      <div className="space-y-6">
         {/* Profile Tab */}
         {activeTab === 'profile' && (
           <>

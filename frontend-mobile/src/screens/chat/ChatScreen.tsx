@@ -1340,7 +1340,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   };
 
   const renderThinkingIndicator = () => (
-    <View className="mb-4">
+    <View className="mb-4" testID="thinking-indicator">
       <View
         className="flex-row max-w-[85%] rounded-2xl rounded-bl-[4px] p-4"
         style={{

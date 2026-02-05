@@ -6,6 +6,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { BookOpen } from 'lucide-react';
 import { coachesApi } from '../services/api';
 import type { Coach } from '../types/api';
 import { Card, Button } from './ui';
@@ -304,9 +305,9 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
   if (!selectedCoach && !isCreating) {
     return (
       <div className="h-full flex flex-col bg-pierre-dark">
-        {/* Header - matches Discover layout */}
+        {/* Header */}
         <div className="p-6 border-b border-white/5 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             {onBack && (
               <button
                 onClick={onBack}
@@ -318,6 +319,9 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                 Back
               </button>
             )}
+            <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-gradient-to-br from-pierre-cyan to-pierre-blue-600 text-white shadow-glow-sm">
+              <BookOpen className="w-5 h-5" />
+            </div>
             <p className="text-sm text-zinc-400">
               Create custom AI personas to get specialized fitness coaching.
             </p>

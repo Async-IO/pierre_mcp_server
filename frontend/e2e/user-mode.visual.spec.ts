@@ -403,10 +403,10 @@ test.describe('ASY-313: Web User Mode Visual Tests', () => {
     });
 
     test('social settings - displays visibility options', async ({ page }) => {
-      // Navigate to social settings (may be under Settings or separate tab)
-      const settingsTab = page.locator('button:has-text("Settings"), [role="tab"]:has-text("Settings")');
-      if (await settingsTab.first().isVisible().catch(() => false)) {
-        await settingsTab.first().click();
+      // Navigate to settings via gear icon in bottom-left profile bar
+      const settingsGear = page.getByRole('button', { name: 'Settings', exact: true });
+      if (await settingsGear.first().isVisible().catch(() => false)) {
+        await settingsGear.first().click();
         await waitForNetworkIdle(page);
       }
 
@@ -417,9 +417,9 @@ test.describe('ASY-313: Web User Mode Visual Tests', () => {
     });
 
     test('social settings - toggle discoverable', async ({ page }) => {
-      const settingsTab = page.locator('button:has-text("Settings")');
-      if (await settingsTab.first().isVisible().catch(() => false)) {
-        await settingsTab.first().click();
+      const settingsGear = page.getByRole('button', { name: 'Settings', exact: true });
+      if (await settingsGear.first().isVisible().catch(() => false)) {
+        await settingsGear.first().click();
         await waitForNetworkIdle(page);
       }
 

@@ -497,8 +497,8 @@ test.describe('Overview Tab - Quick Actions (Admin Only)', () => {
     // Non-admin users see sidebar with tabs (Chat, Friends, Social Feed, Settings, etc.)
     await page.waitForSelector('aside', { timeout: 10000 });
 
-    // Non-admin users see the sidebar with Settings tab, but NOT admin-specific tabs like Overview
-    await expect(page.locator('button').filter({ has: page.locator('span:has-text("Settings")') })).toBeVisible();
+    // Non-admin users see the gear icon (Settings) in bottom profile bar, but NOT admin-specific tabs like Overview
+    await expect(page.getByRole('button', { name: 'Settings', exact: true }).first()).toBeVisible();
     await expect(page.locator('button').filter({ has: page.locator('span:has-text("Overview")') })).not.toBeVisible();
     // Quick Actions is admin-only (Overview tab not accessible to non-admin)
     await expect(page.getByText('Quick Actions')).not.toBeVisible();
@@ -588,8 +588,8 @@ test.describe('Overview Tab - Alerts (Admin Only)', () => {
     // Non-admin users see sidebar with tabs (Chat, Friends, Social Feed, Settings, etc.)
     await page.waitForSelector('aside', { timeout: 10000 });
 
-    // Non-admin users see the sidebar with Settings tab, but NOT admin-specific tabs like Overview
-    await expect(page.locator('button').filter({ has: page.locator('span:has-text("Settings")') })).toBeVisible();
+    // Non-admin users see the gear icon (Settings) in bottom profile bar, but NOT admin-specific tabs like Overview
+    await expect(page.getByRole('button', { name: 'Settings', exact: true }).first()).toBeVisible();
     await expect(page.locator('button').filter({ has: page.locator('span:has-text("Overview")') })).not.toBeVisible();
     // Alerts section is admin-only (Overview tab not accessible to non-admin)
     await expect(page.getByText('Alerts')).not.toBeVisible();

@@ -84,7 +84,7 @@ describe('UserSettings Component', () => {
   });
 
   describe('Tab Navigation', () => {
-    it('should render settings sidebar with all tabs', async () => {
+    it('should render settings tab bar with all tabs', async () => {
       await act(async () => {
         renderUserSettings();
       });

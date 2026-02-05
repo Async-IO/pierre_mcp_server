@@ -176,7 +176,33 @@ async function setupAuthenticatedMocks(page: import('@playwright/test').Page, is
     });
   });
 
-  // Mock admin settings (used by AdminSettings component for admin users)
+  // Mock admin configuration catalog and audit (used by AdminConfiguration on Configuration tab)
+  await page.route('**/api/admin/config/catalog', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ parameters: [] }),
+    });
+  });
+
+  await page.route('**/api/admin/config/audit**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ entries: [] }),
+    });
+  });
+
+  // Mock tool availability (used by AdminConfiguration)
+  await page.route('**/api/admin/tools**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ tools: [] }),
+    });
+  });
+
+  // Mock admin settings (used by AdminSettings component on Configuration tab)
   await page.route('**/api/admin/settings/auto-approval', async (route) => {
     await route.fulfill({
       status: 200,
@@ -216,10 +242,10 @@ async function loginAndNavigateToSettings(
   // Wait for dashboard to load
   await expect(page.locator('input[name="email"]')).not.toBeVisible({ timeout: 10000 });
 
-  // Click Settings tab in sidebar
-  const settingsButton = page.locator('button:has-text("Settings")');
-  if (await settingsButton.first().isVisible().catch(() => false)) {
-    await settingsButton.first().click();
+  // Click the gear icon (Settings) in the bottom-left profile bar
+  const settingsGear = page.getByRole('button', { name: 'Settings', exact: true });
+  if (await settingsGear.first().isVisible().catch(() => false)) {
+    await settingsGear.first().click();
     await page.waitForTimeout(500);
   }
 }
@@ -352,7 +378,7 @@ test.describe('Settings Page - User Profile Bar Navigation', () => {
     }
   });
 
-  test('clicking user profile bar navigates to admin settings (admin mode)', async ({ page }) => {
+  test('clicking user profile bar navigates to user settings (admin mode)', async ({ page }) => {
     await setupAuthenticatedMocks(page, true);
     await page.goto('/');
     await page.waitForSelector('form', { timeout: 10000 });
@@ -363,14 +389,14 @@ test.describe('Settings Page - User Profile Bar Navigation', () => {
 
     await expect(page.locator('input[name="email"]')).not.toBeVisible({ timeout: 10000 });
 
-    // Look for the user profile bar and click it
+    // Look for the user profile bar and click it — navigates to user settings for all users
     const userProfileBar = page.locator('button:has-text("Admin User")');
     if (await userProfileBar.first().isVisible().catch(() => false)) {
       await userProfileBar.first().click();
       await page.waitForTimeout(500);
 
-      // Should navigate to admin settings (System Settings heading)
-      await expect(page.getByText('System Settings')).toBeVisible({ timeout: 5000 });
+      // Should navigate to user settings (Profile tab visible)
+      await expect(page.getByRole('button', { name: 'Profile' })).toBeVisible({ timeout: 5000 });
     }
   });
 });
@@ -387,9 +413,8 @@ async function loginAndNavigateToAdminSettings(page: import('@playwright/test').
   // Wait for dashboard to load
   await expect(page.locator('input[name="email"]')).not.toBeVisible({ timeout: 10000 });
 
-  // Navigate to admin settings via user profile bar (avoids "Social Settings" ambiguity)
-  const userProfileBar = page.locator('button:has-text("Admin User")');
-  await userProfileBar.first().click();
+  // Navigate to admin settings via Configuration sidebar tab
+  await page.getByRole('button', { name: 'Configuration', exact: true }).click();
   await page.waitForTimeout(500);
 }
 
