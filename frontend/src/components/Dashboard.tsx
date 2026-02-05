@@ -463,7 +463,7 @@ export default function Dashboard() {
               onClick={() => setActiveTab('settings')}
               className={clsx(
                 'text-zinc-500 hover:text-pierre-violet transition-colors flex-shrink-0 flex items-center justify-center',
-                sidebarCollapsed ? 'min-w-[36px] min-h-[36px]' : 'min-w-[36px] min-h-[36px]',
+                sidebarCollapsed ? 'min-w-[44px] min-h-[44px]' : 'min-w-[44px] min-h-[44px]',
                 activeTab === 'settings' && 'text-pierre-violet'
               )}
               title="Settings"
@@ -478,7 +478,7 @@ export default function Dashboard() {
             {/* Sign out button */}
             <button
               onClick={logout}
-              className="text-zinc-500 hover:text-pierre-violet transition-colors flex-shrink-0 min-w-[36px] min-h-[36px] flex items-center justify-center"
+              className="text-zinc-500 hover:text-pierre-violet transition-colors flex-shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center"
               title="Sign out"
               aria-label="Sign out"
             >
