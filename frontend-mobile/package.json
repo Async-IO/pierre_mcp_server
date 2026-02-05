@@ -32,6 +32,7 @@
   "dependencies": {
     "@pierre/api-client": "file:../packages/api-client",
     "@pierre/chat-utils": "file:../packages/chat-utils",
+    "@pierre/domain-utils": "file:../packages/domain-utils",
     "@pierre/shared-types": "file:../packages/shared-types",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-navigation/bottom-tabs": "^7.10.1",

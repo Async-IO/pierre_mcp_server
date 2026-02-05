@@ -24,6 +24,7 @@
   "dependencies": {
     "@pierre/api-client": "*",
     "@pierre/chat-utils": "*",
+    "@pierre/domain-utils": "*",
     "@pierre/shared-constants": "*",
     "@pierre/shared-types": "*",
     "@tailwindcss/forms": "^0.5.10",

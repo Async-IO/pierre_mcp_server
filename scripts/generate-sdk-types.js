@@ -14,7 +14,10 @@ const path = require('path');
  */
 const SERVER_URL = process.env.PIERRE_SERVER_URL || 'http://localhost:8081';
 const SERVER_PORT = process.env.HTTP_PORT || '8081';
-const OUTPUT_FILE = path.join(__dirname, '../sdk/src/types.ts');
+// Output to shared mcp-types package (SDK re-exports from there)
+const OUTPUT_DIR = path.join(__dirname, '../packages/mcp-types/src');
+const OUTPUT_TOOLS_FILE = path.join(OUTPUT_DIR, 'tools.ts');
+const OUTPUT_COMMON_FILE = path.join(OUTPUT_DIR, 'common.ts');
 const JWT_TOKEN = process.env.PIERRE_JWT_TOKEN || null;
 
 /**
@@ -159,29 +162,23 @@ function toPascalCase(str) {
 }
 
 /**
- * Generate TypeScript types from tool schemas
+ * Generate TypeScript tool types from tool schemas
  */
-function generateTypeScript(tools) {
-  const header = `// ABOUTME: Auto-generated TypeScript type definitions for Pierre MCP tools
+function generateToolsTypeScript(tools) {
+  const header = `// ABOUTME: Auto-generated TypeScript type definitions for Pierre MCP tool parameters
 // ABOUTME: Generated from server tool schemas - DO NOT EDIT MANUALLY
 //
 // Generated: ${new Date().toISOString()}
 // Tool count: ${tools.length}
+// To regenerate: bun run generate (from packages/mcp-types)
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-
-/**
- * Pierre MCP Tool Type Definitions
- *
- * This file contains TypeScript interfaces for all ${tools.length} Pierre MCP tools.
- * These types are auto-generated from the server's JSON schemas.
- *
- * To regenerate: npm run generate-types
- */
 
 // ============================================================================
 // TOOL PARAMETER TYPES
 // ============================================================================
+
+// Note: connect_to_pierre removed - SDK bridge handles authentication locally via RFC 8414 discovery
 
 `;
 
@@ -215,7 +212,7 @@ function generateTypeScript(tools) {
 /**
  * Generic MCP tool response wrapper
  */
-export interface McpToolResponse<T = any> {
+export interface McpToolResponse {
   content?: Array<{
     type: string;
     text?: string;
@@ -253,11 +250,22 @@ export type ToolName = ${tools.map(t => `"${t.name}"`).join(' | ')};
 export interface ToolParamsMap {
 ${tools.map(t => `  "${t.name}": ${toPascalCase(t.name)}Params;`).join('\n')}
 }
-
 `;
 
-  // Generate activity and common data types
-  const commonTypes = `
+  return header + paramTypes + responseTypesHeader + toolNamesUnion;
+}
+
+/**
+ * Generate common data types (Activity, Athlete, etc.)
+ */
+function generateCommonTypeScript() {
+  return `// ABOUTME: Common data types for Pierre MCP tools (Activity, Athlete, Stats, etc.)
+// ABOUTME: Generated from server tool schemas - DO NOT EDIT MANUALLY
+//
+// Generated: ${new Date().toISOString()}
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 // ============================================================================
 // COMMON DATA TYPES
 // ============================================================================
@@ -449,17 +457,14 @@ export interface Notification {
   read: boolean;
   [key: string]: any;
 }
-
 `;
-
-  return header + paramTypes + responseTypesHeader + toolNamesUnion + commonTypes;
 }
 
 /**
  * Main execution
  */
 async function main() {
-  console.log('🔧 Pierre SDK Type Generator');
+  console.log('🔧 Pierre MCP Types Generator');
   console.log('==============================\n');
 
   console.log(`📡 Fetching tool schemas from ${SERVER_URL}:${SERVER_PORT}/mcp...`);
@@ -468,21 +473,31 @@ async function main() {
     const tools = await fetchToolSchemas();
     console.log(`✅ Fetched ${tools.length} tool schemas\n`);
 
+    // Ensure output directory exists
+    if (!fs.existsSync(OUTPUT_DIR)) {
+      fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+    }
+
     console.log('🔨 Generating TypeScript definitions...');
-    const typescript = generateTypeScript(tools);
 
-    console.log(`💾 Writing to ${OUTPUT_FILE}...`);
-    fs.writeFileSync(OUTPUT_FILE, typescript, 'utf8');
+    // Generate and write tools.ts
+    const toolsTs = generateToolsTypeScript(tools);
+    console.log(`💾 Writing to ${OUTPUT_TOOLS_FILE}...`);
+    fs.writeFileSync(OUTPUT_TOOLS_FILE, toolsTs, 'utf8');
 
-    console.log(`✅ Successfully generated types for ${tools.length} tools!\n`);
-    console.log('📋 Generated interfaces:');
-    tools.forEach(tool => {
-      console.log(`   - ${toPascalCase(tool.name)}Params`);
-    });
+    // Generate and write common.ts
+    const commonTs = generateCommonTypeScript();
+    console.log(`💾 Writing to ${OUTPUT_COMMON_FILE}...`);
+    fs.writeFileSync(OUTPUT_COMMON_FILE, commonTs, 'utf8');
+
+    console.log(`\n✅ Successfully generated types for ${tools.length} tools!\n`);
+    console.log('📋 Generated files:');
+    console.log(`   - ${OUTPUT_TOOLS_FILE} (${tools.length} tool parameter interfaces)`);
+    console.log(`   - ${OUTPUT_COMMON_FILE} (common data types)`);
 
     console.log('\n✨ Type generation complete!');
     console.log(`\n💡 Import types in your code:`);
-    console.log(`   import { GetActivitiesParams, Activity } from './types';\n`);
+    console.log(`   import { GetActivitiesParams, Activity } from '@pierre/mcp-types';\n`);
 
   } catch (error) {
     console.error('❌ Error generating types:', error.message);
@@ -500,4 +515,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { fetchToolSchemas, generateTypeScript };
+module.exports = { fetchToolSchemas, generateToolsTypeScript, generateCommonTypeScript };

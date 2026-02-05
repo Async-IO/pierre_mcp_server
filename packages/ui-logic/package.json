@@ -1,0 +1,56 @@
+{
+  "name": "@pierre/ui-logic",
+  "version": "1.0.0",
+  "description": "Shared headless UI hooks for Pierre applications (useButton, useToast, useAsyncAction)",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./useButton": {
+      "types": "./src/useButton.ts",
+      "import": "./src/useButton.ts"
+    },
+    "./useAsyncAction": {
+      "types": "./src/useAsyncAction.ts",
+      "import": "./src/useAsyncAction.ts"
+    },
+    "./useToast": {
+      "types": "./src/useToast.ts",
+      "import": "./src/useToast.ts"
+    },
+    "./useFormField": {
+      "types": "./src/useFormField.ts",
+      "import": "./src/useFormField.ts"
+    },
+    "./useModal": {
+      "types": "./src/useModal.ts",
+      "import": "./src/useModal.ts"
+    }
+  },
+  "scripts": {
+    "preinstall": "node -e \"if(!process.env.npm_execpath || !process.env.npm_execpath.includes('bun')) { console.error('\\n\\x1b[31mERROR: Use bun, not npm/yarn!\\x1b[0m\\nRun: bun install\\n'); process.exit(1); }\"",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.0",
+    "@types/react": "^18.2.0",
+    "jsdom": "^26.1.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "typescript": "~5.8.3",
+    "vitest": "^2.1.8"
+  },
+  "files": [
+    "src"
+  ],
+  "private": true
+}

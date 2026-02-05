@@ -177,28 +177,31 @@ async fn test_generated_types_match_schemas() -> Result<()> {
 
     println!("✓ Fetched tool schema: {} tools", tools.len());
 
-    // Read TypeScript types file
-    let types_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("sdk")
-        .join("src")
-        .join("types.ts");
+    // Read TypeScript types from the shared mcp-types package
+    // Types were moved from sdk/src/types.ts to packages/mcp-types/src/
+    let mcp_types_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("packages")
+        .join("mcp-types")
+        .join("src");
 
-    let types_content = fs::read_to_string(&types_path)?;
+    let tools_content = fs::read_to_string(mcp_types_dir.join("tools.ts"))?;
+    let common_content = fs::read_to_string(mcp_types_dir.join("common.ts"))?;
+    let types_content = format!("{tools_content}\n{common_content}");
 
     println!(
-        "✓ Read TypeScript types file ({} bytes)",
+        "✓ Read TypeScript types files ({} bytes total)",
         types_content.len()
     );
 
-    // Validate key types exist in types.ts
+    // Validate key types exist in mcp-types package
     let expected_types = [
         "interface Tool",
         "interface Activity",
         "interface Athlete",
         "interface Stats",
         "type ToolName",
-        "interface McpRequest",
-        "interface McpResponse",
+        "interface McpToolResponse",
+        "interface McpErrorResponse",
     ];
 
     let mut found_types = 0;
@@ -214,20 +217,32 @@ async fn test_generated_types_match_schemas() -> Result<()> {
         expected_types.len()
     );
 
-    // Validate types file has substantial content (not empty stub)
+    // Validate types files have substantial content (not empty stubs)
     assert!(
         types_content.len() > 1000,
-        "types.ts should contain substantial type definitions"
+        "mcp-types package should contain substantial type definitions"
     );
 
     assert!(
         found_types >= 5,
-        "types.ts should contain at least 5 core type definitions"
+        "mcp-types package should contain at least 5 core type definitions"
+    );
+
+    // Validate sdk/src/types.ts re-exports from @pierre/mcp-types
+    let reexport_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("sdk")
+        .join("src")
+        .join("types.ts");
+    let reexport_content = fs::read_to_string(&reexport_path)?;
+    assert!(
+        reexport_content.contains("@pierre/mcp-types"),
+        "sdk/src/types.ts should re-export from @pierre/mcp-types"
     );
 
     println!("✓ Type generation validation complete:");
     println!("  - Server schema contains {} tools", tools.len());
-    println!("  - TypeScript types file contains {found_types} core types");
+    println!("  - Shared mcp-types package contains {found_types} core types");
+    println!("  - SDK re-exports from @pierre/mcp-types");
     println!("  - Types match expected MCP protocol structure");
 
     Ok(())

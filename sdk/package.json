@@ -56,6 +56,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.2",
     "@napi-rs/keyring": "^1.1.9",
+    "@pierre/mcp-types": "file:../packages/mcp-types",
     "@types/node-fetch": "^2.6.13",
     "ajv": "^8.17.1",
     "commander": "^11.0.0",
