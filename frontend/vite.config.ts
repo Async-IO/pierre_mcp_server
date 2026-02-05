@@ -8,7 +8,8 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const backendUrl = env.VITE_BACKEND_URL || 'http://localhost:8081'
+  // Use 127.0.0.1 (IPv4) to avoid IPv6 conflicts with other processes on the same port
+  const backendUrl = env.VITE_BACKEND_URL || 'http://127.0.0.1:8081'
 
   // Disable proxy during E2E tests since Playwright mocks all API routes
   const isE2EMode = process.env.E2E_TEST === 'true'
