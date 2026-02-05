@@ -121,20 +121,9 @@ jobs:
           STRAVA_CLIENT_SECRET: "test_client_secret_ci"
           STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
 
-      - name: Generate snapshot baselines
-        working-directory: sdk
-        run: bun run test:integration -- --testPathPattern=tools-list-snapshot --updateSnapshot
-        env:
-          DATABASE_URL: "sqlite::memory:"
-          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
-          PIERRE_RSA_KEY_SIZE: "2048"
-          STRAVA_CLIENT_ID: "test_client_id_ci"
-          STRAVA_CLIENT_SECRET: "test_client_secret_ci"
-          STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
-
       - name: Run SDK integration tests
         working-directory: sdk
-        run: bun run test:integration
+        run: bun run test:integration -- --updateSnapshot
         env:
           DATABASE_URL: "sqlite::memory:"
           PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
