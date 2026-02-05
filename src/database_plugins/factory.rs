@@ -30,6 +30,7 @@ use crate::models::{
     AuthorizationCode, OAuthApp, Tenant, TenantPlan, TenantToolOverride, ToolCatalogEntry,
     ToolCategory, User, UserOAuthApp, UserOAuthToken, UserStatus,
 };
+use crate::oauth2_client::OAuthClientState;
 use crate::oauth2_server::models::{OAuth2AuthCode, OAuth2Client, OAuth2RefreshToken, OAuth2State};
 use crate::pagination::{CursorPage, PaginationParams};
 use crate::permissions::impersonation::ImpersonationSession;
@@ -1713,6 +1714,37 @@ impl DatabaseProvider for Database {
             Self::SQLite(db) => db.consume_oauth2_state(state_value, client_id, now).await,
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => db.consume_oauth2_state(state_value, client_id, now).await,
+        }
+    }
+
+    // ================================
+    // OAuth Client State (CSRF + PKCE)
+    // ================================
+
+    async fn store_oauth_client_state(&self, state: &OAuthClientState) -> AppResult<()> {
+        match self {
+            Self::SQLite(db) => db.store_oauth_client_state(state).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.store_oauth_client_state(state).await,
+        }
+    }
+
+    async fn consume_oauth_client_state(
+        &self,
+        state_value: &str,
+        provider: &str,
+        now: DateTime<Utc>,
+    ) -> AppResult<Option<OAuthClientState>> {
+        match self {
+            Self::SQLite(db) => {
+                db.consume_oauth_client_state(state_value, provider, now)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.consume_oauth_client_state(state_value, provider, now)
+                    .await
+            }
         }
     }
 

@@ -19,7 +19,7 @@ pub mod client;
 pub mod tenant_client;
 
 // Re-export main OAuth 2.0 client types
-pub use client::{OAuth2Client, OAuth2Config, OAuth2Token, PkceParams};
+pub use client::{OAuth2Client, OAuth2Config, OAuth2Token, OAuthClientState, PkceParams};
 
 /// Re-export tenant-aware OAuth client types
 pub use tenant_client::{StoreCredentialsRequest, TenantOAuthClient};

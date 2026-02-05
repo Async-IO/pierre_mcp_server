@@ -24,6 +24,7 @@ use crate::models::{
     AuthorizationCode, OAuthApp, Tenant, TenantPlan, TenantToolOverride, ToolCatalogEntry,
     ToolCategory, User, UserOAuthApp, UserOAuthToken, UserStatus,
 };
+use crate::oauth2_client::OAuthClientState;
 use crate::oauth2_server::models::{OAuth2AuthCode, OAuth2Client, OAuth2RefreshToken, OAuth2State};
 use crate::pagination::{CursorPage, PaginationParams};
 use crate::permissions::impersonation::ImpersonationSession;
@@ -746,6 +747,25 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         client_id: &str,
         now: DateTime<Utc>,
     ) -> AppResult<Option<OAuth2State>>;
+
+    // ================================
+    // OAuth Client State (CSRF + PKCE)
+    // ================================
+
+    /// Store OAuth client-side state for CSRF protection and PKCE verifier storage
+    ///
+    /// Used when Pierre acts as an OAuth client connecting to external providers.
+    async fn store_oauth_client_state(&self, state: &OAuthClientState) -> AppResult<()>;
+
+    /// Consume OAuth client state atomically (verify and mark as used)
+    ///
+    /// Returns the state if valid, not expired, and not already used.
+    async fn consume_oauth_client_state(
+        &self,
+        state_value: &str,
+        provider: &str,
+        now: DateTime<Utc>,
+    ) -> AppResult<Option<OAuthClientState>>;
 
     // ================================
     // Key Rotation & Security

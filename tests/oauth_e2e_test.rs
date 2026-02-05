@@ -679,15 +679,12 @@ async fn test_oauth_callback_error_handling() {
         server_context.notification().clone(),
     );
 
-    // Test invalid state parameter
+    // Test invalid state parameter (not stored server-side, so consumed state fails)
     let result = oauth_routes
         .handle_callback("test_code", "invalid_state", "strava")
         .await;
     assert!(result.is_err());
-    assert!(result
-        .unwrap_err()
-        .to_string()
-        .contains("Invalid state parameter"));
+    assert!(result.unwrap_err().to_string().contains("OAuth state"));
 
     // Test malformed state (missing UUID)
     let result = oauth_routes

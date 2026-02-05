@@ -34,6 +34,7 @@ use crate::models::{
     AuthorizationCode, OAuthApp, Tenant, TenantPlan, TenantToolOverride, ToolCatalogEntry,
     ToolCategory, User, UserOAuthApp, UserOAuthToken, UserStatus, UserTier,
 };
+use crate::oauth2_client::OAuthClientState;
 use crate::oauth2_server::models::{OAuth2AuthCode, OAuth2Client, OAuth2RefreshToken, OAuth2State};
 use crate::pagination::{Cursor, CursorPage, PaginationParams};
 use crate::permissions::impersonation::ImpersonationSession;
@@ -5447,6 +5448,93 @@ impl DatabaseProvider for PostgresDatabase {
                 })?,
                 code_challenge_method: row.try_get("code_challenge_method").map_err(|e| {
                     AppError::database(format!("Failed to parse code_challenge_method column: {e}"))
+                })?,
+                created_at: row.try_get("created_at").map_err(|e| {
+                    AppError::database(format!("Failed to parse created_at column: {e}"))
+                })?,
+                expires_at: row.try_get("expires_at").map_err(|e| {
+                    AppError::database(format!("Failed to parse expires_at column: {e}"))
+                })?,
+                used: row
+                    .try_get("used")
+                    .map_err(|e| AppError::database(format!("Failed to parse used column: {e}")))?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    // ================================
+    // OAuth Client State (CSRF + PKCE)
+    // ================================
+
+    async fn store_oauth_client_state(&self, state: &OAuthClientState) -> AppResult<()> {
+        sqlx::query(
+            "INSERT INTO oauth_client_states (state, provider, user_id, tenant_id, redirect_uri, scope, pkce_code_verifier, created_at, expires_at, used)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+        )
+        .bind(&state.state)
+        .bind(&state.provider)
+        .bind(state.user_id)
+        .bind(&state.tenant_id)
+        .bind(&state.redirect_uri)
+        .bind(&state.scope)
+        .bind(&state.pkce_code_verifier)
+        .bind(state.created_at)
+        .bind(state.expires_at)
+        .bind(state.used)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to store OAuth client state: {e}")))?;
+
+        Ok(())
+    }
+
+    async fn consume_oauth_client_state(
+        &self,
+        state_value: &str,
+        provider: &str,
+        now: DateTime<Utc>,
+    ) -> AppResult<Option<OAuthClientState>> {
+        let row = sqlx::query(
+            "UPDATE oauth_client_states
+             SET used = true
+             WHERE state = $1
+               AND provider = $2
+               AND used = false
+               AND expires_at > $3
+             RETURNING state, provider, user_id, tenant_id, redirect_uri, scope, pkce_code_verifier, created_at, expires_at, used",
+        )
+        .bind(state_value)
+        .bind(provider)
+        .bind(now)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to consume OAuth client state: {e}")))?;
+
+        if let Some(row) = row {
+            use sqlx::Row;
+            Ok(Some(OAuthClientState {
+                state: row.try_get("state").map_err(|e| {
+                    AppError::database(format!("Failed to parse state column: {e}"))
+                })?,
+                provider: row.try_get("provider").map_err(|e| {
+                    AppError::database(format!("Failed to parse provider column: {e}"))
+                })?,
+                user_id: row.try_get("user_id").map_err(|e| {
+                    AppError::database(format!("Failed to parse user_id column: {e}"))
+                })?,
+                tenant_id: row.try_get("tenant_id").map_err(|e| {
+                    AppError::database(format!("Failed to parse tenant_id column: {e}"))
+                })?,
+                redirect_uri: row.try_get("redirect_uri").map_err(|e| {
+                    AppError::database(format!("Failed to parse redirect_uri column: {e}"))
+                })?,
+                scope: row.try_get("scope").map_err(|e| {
+                    AppError::database(format!("Failed to parse scope column: {e}"))
+                })?,
+                pkce_code_verifier: row.try_get("pkce_code_verifier").map_err(|e| {
+                    AppError::database(format!("Failed to parse pkce_code_verifier column: {e}"))
                 })?,
                 created_at: row.try_get("created_at").map_err(|e| {
                     AppError::database(format!("Failed to parse created_at column: {e}"))

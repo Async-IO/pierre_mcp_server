@@ -56,15 +56,15 @@ use crate::{
     errors::{AppError, AppResult, ErrorCode},
     mcp::{resources::ServerResources, schema::OAuthCompletedNotification},
     models::{Tenant, User, UserOAuthToken, UserStatus, UserTier},
-    oauth2_client::{OAuth2Client, OAuth2Config, OAuth2Token},
+    oauth2_client::{OAuth2Client, OAuth2Config, OAuth2Token, OAuthClientState, PkceParams},
     permissions::UserRole,
+    providers::ProviderDescriptor,
     security::cookies::{clear_auth_cookie, get_cookie_value, set_auth_cookie, set_csrf_cookie},
     tenant::{TenantContext, TenantRole},
     utils::{
         auth::extract_bearer_token_owned,
         errors::{auth_error, user_state_error, validation_error},
         http_client::get_oauth_callback_notification_timeout_secs,
-        uuid::parse_user_id,
     },
 };
 
@@ -574,6 +574,8 @@ struct ParsedOAuthState {
     user_id: uuid::Uuid,
     /// Optional redirect URL for mobile OAuth flows (base64 encoded in state)
     mobile_redirect_url: Option<String>,
+    /// PKCE code verifier recovered from server-side state storage
+    pkce_code_verifier: Option<String>,
 }
 
 impl OAuthService {
@@ -599,30 +601,32 @@ impl OAuthService {
 
     /// Handle OAuth callback
     ///
+    /// Validates the state parameter against server-side storage to prevent CSRF attacks,
+    /// then exchanges the authorization code for tokens. Uses PKCE when the code verifier
+    /// was stored with the state during authorization URL generation.
+    ///
     /// # Errors
-    /// Returns error if OAuth state is invalid or callback processing fails
+    /// Returns error if OAuth state is invalid/expired/reused or callback processing fails
     pub async fn handle_callback(
         &self,
         code: &str,
         state: &str,
         provider: &str,
     ) -> AppResult<OAuthCallbackResponse> {
-        // Use async block to satisfy clippy
-        task::yield_now().await;
-
-        // Validate state and extract user ID and optional mobile redirect URL
-        let parsed_state = Self::validate_oauth_state(state)?;
-        let user_id = parsed_state.user_id;
-        let mobile_redirect_url = parsed_state.mobile_redirect_url;
-
-        // Validate provider is supported
+        // Validate provider is supported before consuming state
         self.validate_provider(provider)?;
 
+        // Consume state atomically from database (verifies it was server-issued,
+        // not expired, not reused, and matches the expected provider)
+        let parsed_state = self.consume_and_validate_state(state, provider).await?;
+        let user_id = parsed_state.user_id;
+        let mobile_redirect_url = parsed_state.mobile_redirect_url;
+        let pkce_code_verifier = parsed_state.pkce_code_verifier;
+
         info!(
-            "Processing OAuth callback for user {} provider {} with code {}{}",
+            "Processing OAuth callback for user {} provider {}{}",
             user_id,
             provider,
-            code,
             if mobile_redirect_url.is_some() {
                 " (mobile flow)"
             } else {
@@ -633,9 +637,15 @@ impl OAuthService {
         // Get user and tenant from database
         let (user, tenant_id) = self.get_user_and_tenant(user_id, provider).await?;
 
-        // Exchange OAuth code for access token
+        // Exchange OAuth code for access token (with PKCE if verifier was stored)
         let token = self
-            .exchange_oauth_code(code, provider, user_id, &user)
+            .exchange_oauth_code(
+                code,
+                provider,
+                user_id,
+                &user,
+                pkce_code_verifier.as_deref(),
+            )
             .await?;
 
         info!(
@@ -660,41 +670,66 @@ impl OAuthService {
         })
     }
 
-    /// Validate OAuth state parameter and extract user ID and optional redirect URL
+    /// Consume and validate OAuth state from server-side storage
+    ///
+    /// Atomically verifies the state was issued by this server, has not expired,
+    /// and has not been used before (one-time use). Uses the provider name as the
+    /// `client_id` for additional validation that the callback matches the initiated flow.
     ///
     /// State format: `{user_id}:{random}` or `{user_id}:{random}:{base64_redirect_url}`
     /// The redirect URL allows mobile apps to specify where to redirect after OAuth completes.
-    fn validate_oauth_state(state: &str) -> AppResult<ParsedOAuthState> {
-        let parts: Vec<&str> = state.splitn(3, ':').collect();
-        if parts.len() < 2 {
-            return Err(AppError::invalid_input("Invalid state parameter format"));
-        }
+    async fn consume_and_validate_state(
+        &self,
+        state: &str,
+        provider: &str,
+    ) -> AppResult<ParsedOAuthState> {
+        // Atomically consume the state from database (marks as used, checks expiry)
+        let consumed = self
+            .data
+            .database()
+            .consume_oauth_client_state(state, provider, Utc::now())
+            .await
+            .map_err(|e| {
+                warn!("Failed to consume OAuth state from database: {}", e);
+                AppError::auth_invalid("OAuth state validation failed")
+            })?;
 
-        let user_id_str = parts[0];
-        let random_part = parts[1];
+        let client_state = consumed.ok_or_else(|| {
+            warn!(
+                "OAuth state not found, expired, or already used for provider {}",
+                provider
+            );
+            AppError::auth_invalid("Invalid, expired, or already used OAuth state parameter")
+        })?;
 
-        // Validate state for CSRF protection
-        if random_part.len() < 16
-            || !random_part
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || c == '-')
-        {
-            return Err(AppError::invalid_input("Invalid OAuth state parameter"));
-        }
+        let user_id = client_state.user_id.ok_or_else(|| {
+            error!("OAuth state missing user_id for provider {}", provider);
+            AppError::auth_invalid("OAuth state missing user identity")
+        })?;
 
-        let user_id = parse_user_id(user_id_str)
-            .map_err(|e| AppError::invalid_input(format!("Invalid user ID in state: {e}")))?;
+        // Extract optional mobile redirect URL from the state string
+        // (embedded as base64 in the third segment of the state format)
+        let mobile_redirect_url = Self::extract_mobile_redirect_from_state_str(state);
 
-        // Extract optional mobile redirect URL (base64 encoded, third part of state)
-        let mobile_redirect_url = parts
-            .get(2)
-            .filter(|s| !s.is_empty())
-            .and_then(|encoded| Self::decode_mobile_redirect_url(encoded));
+        // PKCE code verifier stored server-side during authorization URL generation
+        let pkce_code_verifier = client_state.pkce_code_verifier;
 
         Ok(ParsedOAuthState {
             user_id,
             mobile_redirect_url,
+            pkce_code_verifier,
         })
+    }
+
+    /// Extract mobile redirect URL from state string format
+    ///
+    /// State format: `{user_id}:{random}:{base64_redirect_url}`
+    fn extract_mobile_redirect_from_state_str(state: &str) -> Option<String> {
+        let parts: Vec<&str> = state.splitn(3, ':').collect();
+        parts
+            .get(2)
+            .filter(|s| !s.is_empty())
+            .and_then(|encoded| Self::decode_mobile_redirect_url(encoded))
     }
 
     /// Decode and validate a base64-encoded mobile redirect URL
@@ -780,24 +815,44 @@ impl OAuthService {
         Ok((user, tenant_id))
     }
 
-    /// Exchange OAuth code for access token
+    /// Exchange OAuth code for access token, using PKCE when a code verifier is available
     async fn exchange_oauth_code(
         &self,
         code: &str,
         provider: &str,
         user_id: uuid::Uuid,
         user: &User,
+        pkce_code_verifier: Option<&str>,
     ) -> AppResult<OAuth2Token> {
         let oauth_config = self.create_oauth_config(provider)?;
-        let oauth_client = OAuth2Client::new(oauth_config.clone());
+        let oauth_client = OAuth2Client::new(oauth_config);
 
-        let token = oauth_client.exchange_code(code).await.map_err(|e| {
-            error!(
-                "OAuth token exchange failed for {provider} - user_id: {user_id}, email: {}, code: {code}, error: {e}",
-                user.email
-            );
-            AppError::internal(format!("Failed to exchange OAuth code for token: {e}"))
-        })?;
+        let token = if let Some(verifier) = pkce_code_verifier {
+            // Use PKCE-enhanced token exchange when verifier was stored with the state
+            let pkce = PkceParams {
+                code_verifier: verifier.to_owned(),
+                code_challenge: String::new(),
+                code_challenge_method: "S256".to_owned(),
+            };
+            oauth_client
+                .exchange_code_with_pkce(code, &pkce)
+                .await
+                .map_err(|e| {
+                    error!(
+                        "OAuth PKCE token exchange failed for {provider} - user_id: {user_id}, email: {}, error: {e}",
+                        user.email
+                    );
+                    AppError::internal(format!("Failed to exchange OAuth code for token: {e}"))
+                })?
+        } else {
+            oauth_client.exchange_code(code).await.map_err(|e| {
+                error!(
+                    "OAuth token exchange failed for {provider} - user_id: {user_id}, email: {}, error: {e}",
+                    user.email
+                );
+                AppError::internal(format!("Failed to exchange OAuth code for token: {e}"))
+            })?
+        };
 
         Ok(token)
     }
@@ -1101,6 +1156,9 @@ impl OAuthService {
     /// - Multi-tenant: Uses tenant-specific OAuth credentials from database
     /// - Single-tenant: Falls back to server-level configuration
     ///
+    /// Stores the OAuth state server-side with TTL for CSRF protection, and generates
+    /// PKCE parameters when the provider declares `use_pkce=true`.
+    ///
     /// # Errors
     /// Returns error if provider is unsupported or OAuth credentials not configured
     pub async fn get_auth_url(
@@ -1124,6 +1182,8 @@ impl OAuthService {
             AppError::invalid_input(format!("Provider {provider} OAuth params not configured"))
         })?;
 
+        let use_pkce = params.use_pkce;
+
         // Check for tenant-specific OAuth credentials first (multi-tenant mode)
         let tenant_creds = self
             .data
@@ -1140,6 +1200,13 @@ impl OAuthService {
         let base_url = env::var("BASE_URL")
             .unwrap_or_else(|_| format!("http://localhost:{}", self.config.config().http_port));
         let redirect_uri = format!("{base_url}/api/oauth/callback/{provider}");
+
+        // Generate PKCE parameters when provider supports it
+        let pkce = if use_pkce {
+            Some(PkceParams::generate())
+        } else {
+            None
+        };
 
         // URL-encode parameters for OAuth URLs
         let encoded_state = encode(&state);
@@ -1170,6 +1237,17 @@ impl OAuthService {
             endpoints.auth_url, client_id, encoded_redirect_uri, encoded_scope, encoded_state
         );
 
+        // Add PKCE code_challenge to authorization URL when enabled
+        if let Some(ref pkce_params) = pkce {
+            use Write;
+            let _ = write!(
+                &mut auth_url,
+                "&code_challenge={}&code_challenge_method={}",
+                encode(&pkce_params.code_challenge),
+                encode(&pkce_params.code_challenge_method)
+            );
+        }
+
         // Add provider-specific additional parameters
         for (key, value) in params.additional_auth_params {
             use Write;
@@ -1178,6 +1256,32 @@ impl OAuthService {
         }
 
         let authorization_url = auth_url;
+
+        // Store state server-side for CSRF protection with 10-minute TTL.
+        // The code_challenge field stores the PKCE code_verifier (needed during
+        // token exchange to prove we initiated the authorization request).
+        let now = Utc::now();
+        let client_state = OAuthClientState {
+            state: state.clone(),
+            provider: provider.to_owned(),
+            user_id: Some(user_id),
+            tenant_id: Some(tenant_id.to_string()),
+            redirect_uri,
+            scope: Some(scope),
+            pkce_code_verifier: pkce.as_ref().map(|p| p.code_verifier.clone()),
+            created_at: now,
+            expires_at: now + chrono::Duration::minutes(10),
+            used: false,
+        };
+
+        self.data
+            .database()
+            .store_oauth_client_state(&client_state)
+            .await
+            .map_err(|e| {
+                error!("Failed to store OAuth state for CSRF protection: {}", e);
+                AppError::internal(format!("Failed to initiate OAuth flow: {e}"))
+            })?;
 
         debug!(
             "Generated OAuth authorization URL for user {} tenant {} provider {}",
@@ -2363,8 +2467,8 @@ impl AuthRoutes {
             })?;
 
         info!(
-            "Generated OAuth URL for {} user {}: {}",
-            provider, user_id, auth_response.authorization_url
+            "Generated OAuth URL for {} user {} (state issued)",
+            provider, user_id
         );
 
         Ok((
@@ -2449,20 +2553,76 @@ impl AuthRoutes {
             user_role: TenantRole::Member,
         };
 
-        let authorization_url = resources
-            .tenant_oauth_client
-            .get_authorization_url(&ctx, &provider, &state, resources.database.as_ref())
+        // Check if the provider supports PKCE for enhanced security
+        let use_pkce = resources
+            .provider_registry
+            .get_descriptor(&provider)
+            .and_then(ProviderDescriptor::oauth_params)
+            .is_some_and(|p| p.use_pkce);
+
+        let pkce = if use_pkce {
+            Some(PkceParams::generate())
+        } else {
+            None
+        };
+
+        let authorization_url = if let Some(ref pkce_params) = pkce {
+            resources
+                .tenant_oauth_client
+                .get_authorization_url_with_pkce(
+                    &ctx,
+                    &provider,
+                    &state,
+                    pkce_params,
+                    resources.database.as_ref(),
+                )
+                .await
+        } else {
+            resources
+                .tenant_oauth_client
+                .get_authorization_url(&ctx, &provider, &state, resources.database.as_ref())
+                .await
+        }
+        .map_err(|e| {
+            error!(
+                "Failed to generate OAuth URL for {} user {}: {}",
+                provider, user_id, e
+            );
+            AppError::internal(format!("Failed to generate OAuth URL for {provider}: {e}"))
+        })?;
+
+        // Build redirect URI for state storage
+        let base_url = env::var("BASE_URL")
+            .unwrap_or_else(|_| format!("http://localhost:{}", resources.config.http_port));
+        let oauth_redirect_uri = format!("{base_url}/api/oauth/callback/{provider}");
+
+        // Store state server-side for CSRF protection with 10-minute TTL.
+        // The pkce_code_verifier is stored alongside the state for PKCE token exchange.
+        let now = Utc::now();
+        let client_state = OAuthClientState {
+            state: state.clone(),
+            provider: provider.clone(),
+            user_id: Some(user_id),
+            tenant_id: Some(tenant_id.to_string()),
+            redirect_uri: oauth_redirect_uri,
+            scope: None,
+            pkce_code_verifier: pkce.as_ref().map(|p| p.code_verifier.clone()),
+            created_at: now,
+            expires_at: now + chrono::Duration::minutes(10),
+            used: false,
+        };
+
+        resources
+            .database
+            .store_oauth_client_state(&client_state)
             .await
             .map_err(|e| {
-                error!(
-                    "Failed to generate OAuth URL for {} user {}: {}",
-                    provider, user_id, e
-                );
-                AppError::internal(format!("Failed to generate OAuth URL for {provider}: {e}"))
+                error!("Failed to store OAuth state for CSRF protection: {}", e);
+                AppError::internal("Failed to initiate OAuth flow")
             })?;
 
         info!(
-            "Generated mobile OAuth URL for {} user {}{}",
+            "Generated mobile OAuth URL for {} user {} (state issued){}",
             provider,
             user_id,
             if redirect_url.is_some() {
@@ -2473,6 +2633,7 @@ impl AuthRoutes {
         );
 
         // Return JSON response with OAuth URL (mobile apps need this for in-app browsers)
+        // State is returned so mobile apps can correlate the callback
         Ok((
             StatusCode::OK,
             Json(json!({

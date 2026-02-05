@@ -87,6 +87,7 @@ use crate::models::{
     AuthorizationCode, OAuthApp, Tenant, TenantPlan, TenantToolOverride, ToolCatalogEntry,
     ToolCategory, User, UserOAuthApp, UserOAuthToken, UserStatus,
 };
+use crate::oauth2_client::OAuthClientState;
 use crate::oauth2_server::models::{OAuth2AuthCode, OAuth2Client, OAuth2RefreshToken, OAuth2State};
 use crate::pagination::{CursorPage, PaginationParams};
 use crate::permissions::impersonation::ImpersonationSession;
@@ -1848,6 +1849,102 @@ impl Database {
         }
     }
 
+    /// Store OAuth client-side state for CSRF protection (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    pub async fn store_oauth_client_state_impl(&self, state: &OAuthClientState) -> AppResult<()> {
+        sqlx::query(
+            r"
+            INSERT INTO oauth_client_states (state, provider, user_id, tenant_id, redirect_uri, scope, pkce_code_verifier, created_at, expires_at, used)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+            ",
+        )
+        .bind(&state.state)
+        .bind(&state.provider)
+        .bind(state.user_id)
+        .bind(&state.tenant_id)
+        .bind(&state.redirect_uri)
+        .bind(&state.scope)
+        .bind(&state.pkce_code_verifier)
+        .bind(state.created_at)
+        .bind(state.expires_at)
+        .bind(state.used)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to store OAuth client state: {e}")))?;
+
+        Ok(())
+    }
+
+    /// Atomically consume OAuth client state (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    pub async fn consume_oauth_client_state_impl(
+        &self,
+        state_value: &str,
+        provider: &str,
+        now: DateTime<Utc>,
+    ) -> AppResult<Option<OAuthClientState>> {
+        let row = sqlx::query(
+            r"
+            UPDATE oauth_client_states
+            SET used = 1
+            WHERE state = ?1
+              AND provider = ?2
+              AND used = 0
+              AND expires_at > ?3
+            RETURNING state, provider, user_id, tenant_id, redirect_uri, scope, pkce_code_verifier, created_at, expires_at, used
+            ",
+        )
+        .bind(state_value)
+        .bind(provider)
+        .bind(now)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to consume OAuth client state: {e}")))?;
+
+        if let Some(row) = row {
+            Ok(Some(OAuthClientState {
+                state: row
+                    .try_get("state")
+                    .map_err(|e| AppError::database(format!("Failed to get state: {e}")))?,
+                provider: row
+                    .try_get("provider")
+                    .map_err(|e| AppError::database(format!("Failed to get provider: {e}")))?,
+                user_id: row
+                    .try_get("user_id")
+                    .map_err(|e| AppError::database(format!("Failed to get user_id: {e}")))?,
+                tenant_id: row
+                    .try_get("tenant_id")
+                    .map_err(|e| AppError::database(format!("Failed to get tenant_id: {e}")))?,
+                redirect_uri: row
+                    .try_get("redirect_uri")
+                    .map_err(|e| AppError::database(format!("Failed to get redirect_uri: {e}")))?,
+                scope: row
+                    .try_get("scope")
+                    .map_err(|e| AppError::database(format!("Failed to get scope: {e}")))?,
+                pkce_code_verifier: row.try_get("pkce_code_verifier").map_err(|e| {
+                    AppError::database(format!("Failed to get pkce_code_verifier: {e}"))
+                })?,
+                created_at: row
+                    .try_get("created_at")
+                    .map_err(|e| AppError::database(format!("Failed to get created_at: {e}")))?,
+                expires_at: row
+                    .try_get("expires_at")
+                    .map_err(|e| AppError::database(format!("Failed to get expires_at: {e}")))?,
+                used: row
+                    .try_get("used")
+                    .map_err(|e| AppError::database(format!("Failed to get used: {e}")))?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Get authorization code (internal implementation)
     ///
     /// # Errors
@@ -3063,6 +3160,19 @@ impl DatabaseProvider for Database {
         now: DateTime<Utc>,
     ) -> AppResult<Option<OAuth2State>> {
         Self::consume_oauth2_state_impl(self, state_value, client_id, now).await
+    }
+
+    async fn store_oauth_client_state(&self, state: &OAuthClientState) -> AppResult<()> {
+        Self::store_oauth_client_state_impl(self, state).await
+    }
+
+    async fn consume_oauth_client_state(
+        &self,
+        state_value: &str,
+        provider: &str,
+        now: DateTime<Utc>,
+    ) -> AppResult<Option<OAuthClientState>> {
+        Self::consume_oauth_client_state_impl(self, state_value, provider, now).await
     }
 
     async fn store_key_version(&self, version: &KeyVersion) -> AppResult<()> {
