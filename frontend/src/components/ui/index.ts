@@ -30,6 +30,8 @@ export type { ConfirmDialogProps, ConfirmDialogVariant } from './ConfirmDialog';
 export { InsightPreview } from './InsightPreview';
 
 // Navigation components
+export { TabHeader } from './TabHeader';
+export type { TabHeaderProps } from './TabHeader';
 export { Tabs, TabPanel } from './Tabs';
 export type { TabsProps, TabPanelProps, Tab } from './Tabs';
 

@@ -518,21 +518,23 @@ export default function Dashboard() {
           sidebarCollapsed ? 'ml-[72px]' : 'ml-[260px]'
         )}
       >
-        {/* Top Header Bar - Dark with glassmorphism */}
-        <header className="bg-pierre-slate/80 backdrop-blur-lg shadow-sm border-b border-white/10 sticky top-0 z-30 flex-shrink-0">
-          <div className="px-6 py-4 flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-medium text-white">
-                {tabs.find(t => t.id === activeTab)?.name || (activeTab === 'settings' ? 'Settings' : '')}
-              </h1>
+        {/* Top Header Bar - only for admin tabs; user tabs have their own TabHeader */}
+        {isAdminUser && (
+          <header className="bg-pierre-slate/80 backdrop-blur-lg shadow-sm border-b border-white/10 sticky top-0 z-30 flex-shrink-0">
+            <div className="px-6 py-4 flex items-center justify-between">
+              <div>
+                <h1 className="text-xl font-medium text-white">
+                  {tabs.find(t => t.id === activeTab)?.name || (activeTab === 'settings' ? 'Settings' : '')}
+                </h1>
+              </div>
             </div>
-          </div>
-        </header>
+          </header>
+        )}
 
-        {/* Content Area - Full height for chat, padded for other tabs */}
+        {/* Content Area - full height, no extra padding for user tabs that manage their own layout */}
         <div className={clsx(
           'flex-1 overflow-auto',
-          activeTab === 'chat' ? '' : 'p-6'
+          isAdminUser && activeTab !== 'chat' ? 'p-6' : ''
         )}>
 
           {/* Content */}

@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ConfirmDialog } from './ui';
+import { ConfirmDialog, TabHeader } from './ui';
 import { chatApi, providersApi, coachesApi } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import PromptSuggestions from './PromptSuggestions';
@@ -595,28 +595,27 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
         {!selectedConversation ? (
           /* Welcome View */
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="p-6 border-b border-white/5 flex items-center justify-between flex-shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-gradient-to-br from-pierre-violet to-pierre-cyan text-white shadow-glow-sm">
-                  <MessageCircle className="w-5 h-5" />
-                </div>
-                <p className="text-sm text-zinc-400">
-                  {hasConnectedProvider
-                    ? providersData?.providers?.filter(p => p.connected).map(p =>
-                        p.display_name
-                      ).join(', ') + ' connected'
-                    : 'No provider connected'}
-                </p>
-              </div>
-              <button
-                onClick={() => createConversation.mutate()}
-                disabled={createConversation.isPending}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-pierre-violet rounded-lg hover:bg-pierre-violet-dark transition-colors shadow-glow-sm hover:shadow-glow"
-              >
-                <Plus className="w-4 h-4" />
-                New Chat
-              </button>
-            </div>
+            <TabHeader
+              icon={<MessageCircle className="w-5 h-5" />}
+              gradient="from-pierre-violet to-pierre-cyan"
+              description={
+                hasConnectedProvider
+                  ? providersData?.providers?.filter(p => p.connected).map(p =>
+                      p.display_name
+                    ).join(', ') + ' connected'
+                  : 'No provider connected'
+              }
+              actions={
+                <button
+                  onClick={() => createConversation.mutate()}
+                  disabled={createConversation.isPending}
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-pierre-violet rounded-lg hover:bg-pierre-violet-dark transition-colors shadow-glow-sm hover:shadow-glow disabled:opacity-50"
+                >
+                  <Plus className="w-4 h-4" />
+                  New Chat
+                </button>
+              }
+            />
 
             <div className="flex-1 overflow-y-auto">
               <div className="w-full max-w-5xl mx-auto px-6 py-8">

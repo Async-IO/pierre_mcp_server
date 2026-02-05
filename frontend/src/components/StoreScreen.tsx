@@ -9,6 +9,7 @@ import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tansta
 import { clsx } from 'clsx';
 import { Compass, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { storeApi } from '../services/api';
+import { TabHeader } from './ui';
 
 // Category filter options
 const CATEGORY_FILTERS = [
@@ -236,15 +237,11 @@ export default function StoreScreen({ onNavigateToCoaches }: StoreScreenProps) {
 
   return (
     <div className="h-full flex flex-col bg-pierre-dark">
-      {/* Header - matches Chat and My Coaches layout */}
-      <div className="p-6 border-b border-white/5 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-gradient-to-br from-pierre-activity to-pierre-activity-dark text-white shadow-glow-sm">
-            <Compass className="w-5 h-5" />
-          </div>
-          <p className="text-sm text-zinc-400">Find AI coaching assistants</p>
-        </div>
-      </div>
+      <TabHeader
+        icon={<Compass className="w-5 h-5" />}
+        gradient="from-pierre-activity to-pierre-activity-dark"
+        description="Find AI coaching assistants"
+      />
 
       {/* Search Bar */}
       <div className="px-6 py-4 border-b border-white/10">

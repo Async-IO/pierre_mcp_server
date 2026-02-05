@@ -9,7 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { BookOpen } from 'lucide-react';
 import { coachesApi } from '../services/api';
 import type { Coach } from '../types/api';
-import { Card, Button } from './ui';
+import { Card, Button, TabHeader } from './ui';
 import { clsx } from 'clsx';
 
 // Coach category options
@@ -305,62 +305,57 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
   if (!selectedCoach && !isCreating) {
     return (
       <div className="h-full flex flex-col bg-pierre-dark">
-        {/* Header */}
-        <div className="p-6 border-b border-white/5 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-3">
-            {onBack && (
+        <TabHeader
+          icon={<BookOpen className="w-5 h-5" />}
+          gradient="from-pierre-cyan to-pierre-blue-600"
+          description="Create custom AI personas to get specialized fitness coaching."
+          actions={
+            <>
+              {onBack && (
+                <button
+                  onClick={onBack}
+                  className="flex items-center gap-2 text-zinc-400 hover:text-pierre-violet transition-colors text-sm"
+                >
+                  <svg className="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Back
+                </button>
+              )}
               <button
-                onClick={onBack}
-                className="flex items-center gap-2 text-zinc-400 hover:text-pierre-violet transition-colors"
+                onClick={() => setShowHidden(!showHidden)}
+                className={clsx(
+                  'p-2 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center',
+                  showHidden
+                    ? 'bg-pierre-violet/20 text-pierre-violet-light'
+                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
+                )}
+                title={showHidden ? 'Hide hidden coaches' : 'Show hidden coaches'}
+                aria-label={showHidden ? 'Hide hidden coaches' : 'Show hidden coaches'}
+              >
+                <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  {showHidden ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                  )}
+                </svg>
+              </button>
+              <button
+                onClick={() => {
+                  setFormData(defaultFormData);
+                  setIsCreating(true);
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-pierre-violet rounded-lg hover:bg-pierre-violet-dark transition-colors shadow-glow-sm hover:shadow-glow"
               >
                 <svg className="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                Back
+                Create Coach
               </button>
-            )}
-            <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-gradient-to-br from-pierre-cyan to-pierre-blue-600 text-white shadow-glow-sm">
-              <BookOpen className="w-5 h-5" />
-            </div>
-            <p className="text-sm text-zinc-400">
-              Create custom AI personas to get specialized fitness coaching.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Show hidden toggle */}
-            <button
-              onClick={() => setShowHidden(!showHidden)}
-              className={clsx(
-                'p-2 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center',
-                showHidden
-                  ? 'bg-pierre-violet/20 text-pierre-violet-light'
-                  : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
-              )}
-              title={showHidden ? 'Hide hidden coaches' : 'Show hidden coaches'}
-              aria-label={showHidden ? 'Hide hidden coaches' : 'Show hidden coaches'}
-            >
-              <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                {showHidden ? (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                ) : (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                )}
-              </svg>
-            </button>
-            <Button
-              onClick={() => {
-                setFormData(defaultFormData);
-                setIsCreating(true);
-              }}
-              className="flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Create Coach
-            </Button>
-          </div>
-        </div>
+            </>
+          }
+        />
 
         {/* Search Bar */}
         <div className="px-6 py-4 border-b border-white/10">
