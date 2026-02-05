@@ -27,8 +27,8 @@
     "test:legacy:stdio": "node test/test_claude_desktop.js",
     "test:legacy:oauth": "node test/test_oauth_flow.js",
     "test:legacy:tools": "node test/test_tools_list.js",
-    "inspect": "npx @modelcontextprotocol/inspector node dist/cli.js",
-    "inspect:cli": "npx @modelcontextprotocol/inspector --cli node dist/cli.js"
+    "inspect": "bunx @modelcontextprotocol/inspector node dist/cli.js",
+    "inspect:cli": "bunx @modelcontextprotocol/inspector --cli node dist/cli.js"
   },
   "keywords": [
     "mcp",

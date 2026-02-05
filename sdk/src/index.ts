@@ -19,7 +19,7 @@ export { PierreMcpClient, BridgeConfig } from './bridge';
  * Export all TypeScript type definitions for Pierre MCP tools
  *
  * These types are auto-generated from server tool schemas.
- * To regenerate: npm run generate-types
+ * To regenerate: bun run generate-types
  */
 export * from './types';
 

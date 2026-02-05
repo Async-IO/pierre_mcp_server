@@ -76,7 +76,7 @@ export default defineConfig({
       },
     },
     {
-      command: `cd ${frontendRoot} && npm run dev`,
+      command: `cd ${frontendRoot} && bun run dev`,
       url: 'http://localhost:5173',
       timeout: 30000,
       reuseExistingServer: !process.env.CI,
