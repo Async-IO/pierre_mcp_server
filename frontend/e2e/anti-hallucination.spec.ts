@@ -148,9 +148,9 @@ test.describe('Anti-Hallucination Tests - User Mode', () => {
       await navigateToTab(page, 'Settings');
       await waitForNetworkIdle(page);
 
-      // Click Connections tab
-      const connectionsTab = page.getByRole('button', { name: 'Connections' });
-      await connectionsTab.click();
+      // Click Data Providers tab
+      const dataProvidersTab = page.getByRole('button', { name: 'Data Providers' });
+      await dataProvidersTab.click();
       await page.waitForTimeout(300);
     });
 

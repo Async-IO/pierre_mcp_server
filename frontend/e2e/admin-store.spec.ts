@@ -114,8 +114,8 @@ async function setupAdminStoreMocks(page: Page) {
     });
   });
 
-  // Mock review queue
-  await page.route('**/api/admin/store/coaches?status=pending_review', async (route) => {
+  // Mock review queue (dedicated endpoint, not query param)
+  await page.route('**/api/admin/store/review-queue', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',

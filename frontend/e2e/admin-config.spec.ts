@@ -255,10 +255,10 @@ test.describe('Admin Configuration - Loading and Display', () => {
     // Check header - dashboard h1 shows "Configuration"
     await expect(page.locator('h1').filter({ hasText: 'Configuration' })).toBeVisible();
 
-    // Check parameter count info for Intelligence view (5 params across 3 categories)
-    // Component shows filtered counts based on current view, not API total_parameters
-    await expect(page.getByText(/5 parameters/)).toBeVisible();
-    await expect(page.getByText(/3 categories/)).toBeVisible();
+    // Check Intelligence categories are visible with individual parameter counts
+    // Each category shows its own count in the sidebar navigation
+    await expect(page.getByText('Training Stress Balance')).toBeVisible();
+    await expect(page.getByText('2 parameters').first()).toBeVisible();
   });
 
   test('displays all configuration categories', async ({ page }) => {

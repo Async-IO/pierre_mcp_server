@@ -230,9 +230,10 @@ test.describe('System Coaches Tab Visibility', () => {
     // Non-admin users see chat-first layout (no admin sidebar)
     await page.waitForSelector('main', { timeout: 10000 });
 
-    // Admin Coaches tab should NOT be visible (user may see "My Coaches" button instead)
-    // Look specifically in nav for the admin tab - non-admins don't have nav with admin tabs
-    await expect(page.locator('nav button').filter({ hasText: /^Coaches$/ })).not.toBeVisible();
+    // Admin-only tabs should NOT be visible for non-admin users
+    // User mode also has a "Coaches" button, so check for admin-specific tabs instead
+    await expect(page.locator('nav button').filter({ hasText: /^Coach Store$/ })).not.toBeVisible();
+    await expect(page.locator('nav button').filter({ hasText: /^Users$/ })).not.toBeVisible();
   });
 });
 
