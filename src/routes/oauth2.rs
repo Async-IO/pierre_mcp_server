@@ -24,6 +24,7 @@ use crate::{
         },
         rate_limiting::OAuth2RateLimiter,
     },
+    utils::html::escape_html_attribute,
 };
 use axum::{
     extract::{ConnectInfo, Form, Query, State},
@@ -128,7 +129,7 @@ impl OAuth2Routes {
                 "jwks_uri": format!("{issuer_url}/.well-known/jwks.json"),
                 "grant_types_supported": ["authorization_code", "client_credentials", "refresh_token"],
                 "response_types_supported": ["code"],
-                "token_endpoint_auth_methods_supported": ["client_secret_post", "client_secret_basic"],
+                "token_endpoint_auth_methods_supported": ["client_secret_post"],
                 "scopes_supported": ["fitness:read", "activities:read", "profile:read"],
                 "response_modes_supported": ["query"],
                 "code_challenge_methods_supported": ["S256"]
@@ -284,10 +285,19 @@ impl OAuth2Routes {
             .await
         {
             Ok(response) => {
-                let mut final_redirect_url = format!("{}?code={}", redirect_uri, response.code);
+                let mut final_redirect_url = format!(
+                    "{}?code={}",
+                    redirect_uri,
+                    urlencoding::encode(&response.code)
+                );
                 if let Some(state) = response.state {
                     use std::fmt::Write;
-                    write!(&mut final_redirect_url, "&state={state}").ok();
+                    write!(
+                        &mut final_redirect_url,
+                        "&state={}",
+                        urlencoding::encode(&state)
+                    )
+                    .ok();
                 }
 
                 info!(
@@ -539,15 +549,33 @@ impl OAuth2Routes {
         };
 
         Self::OAUTH_LOGIN_TEMPLATE
-            .replace("{{CLIENT_ID}}", params.client_id)
-            .replace("{{REDIRECT_URI}}", params.redirect_uri)
-            .replace("{{RESPONSE_TYPE}}", params.response_type)
-            .replace("{{STATE}}", params.state)
-            .replace("{{SCOPE}}", displayed_scope)
-            .replace("{{CODE_CHALLENGE}}", params.code_challenge)
-            .replace("{{CODE_CHALLENGE_METHOD}}", params.code_challenge_method)
-            .replace("{{DEFAULT_EMAIL}}", params.default_email)
-            .replace("{{DEFAULT_PASSWORD}}", params.default_password)
+            .replace("{{CLIENT_ID}}", &escape_html_attribute(params.client_id))
+            .replace(
+                "{{REDIRECT_URI}}",
+                &escape_html_attribute(params.redirect_uri),
+            )
+            .replace(
+                "{{RESPONSE_TYPE}}",
+                &escape_html_attribute(params.response_type),
+            )
+            .replace("{{STATE}}", &escape_html_attribute(params.state))
+            .replace("{{SCOPE}}", &escape_html_attribute(displayed_scope))
+            .replace(
+                "{{CODE_CHALLENGE}}",
+                &escape_html_attribute(params.code_challenge),
+            )
+            .replace(
+                "{{CODE_CHALLENGE_METHOD}}",
+                &escape_html_attribute(params.code_challenge_method),
+            )
+            .replace(
+                "{{DEFAULT_EMAIL}}",
+                &escape_html_attribute(params.default_email),
+            )
+            .replace(
+                "{{DEFAULT_PASSWORD}}",
+                &escape_html_attribute(params.default_password),
+            )
     }
 
     /// Handle OAuth login page (GET /oauth2/login)
@@ -668,8 +696,19 @@ impl OAuth2Routes {
                 // Set session cookie and redirect to authorization endpoint
                 // Cookie security: HttpOnly prevents XSS, Secure enforces HTTPS, SameSite=Lax prevents CSRF
                 // Max-Age matches JWT expiration (24 hours = 86400 seconds)
+                // Only set Secure flag when issuer URL uses HTTPS (allows HTTP in development)
+                let secure_flag = if context
+                    .config
+                    .oauth2_server
+                    .issuer_url
+                    .starts_with("https://")
+                {
+                    "; Secure"
+                } else {
+                    ""
+                };
                 let cookie_header = format!(
-                    "pierre_session={token}; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=86400"
+                    "pierre_session={token}; HttpOnly{secure_flag}; Path=/; SameSite=Lax; Max-Age=86400"
                 );
 
                 (
@@ -685,32 +724,62 @@ impl OAuth2Routes {
                 warn!("Authentication failed for OAuth login: {}", e);
 
                 // Use embedded template - zero filesystem IO, guaranteed to exist at compile-time
+                // Values go into an <a href> URL attribute — URL-encode for URL
+                // correctness, then HTML-escape for attribute safety (XSS prevention)
                 let error_html = Self::OAUTH_LOGIN_ERROR_TEMPLATE
                     .replace(
                         "{{ERROR_MESSAGE}}",
-                        "Authentication Failed: Invalid email or password. Please try again.",
+                        &escape_html_attribute(
+                            "Authentication Failed: Invalid email or password. Please try again.",
+                        ),
                     )
-                    .replace("{{CLIENT_ID}}", form.get("client_id").map_or("", |v| v))
+                    .replace(
+                        "{{CLIENT_ID}}",
+                        &escape_html_attribute(
+                            urlencoding::encode(form.get("client_id").map_or("", |v| v)).as_ref(),
+                        ),
+                    )
                     .replace(
                         "{{REDIRECT_URI}}",
-                        urlencoding::encode(form.get("redirect_uri").map_or("", |v| v)).as_ref(),
+                        &escape_html_attribute(
+                            urlencoding::encode(form.get("redirect_uri").map_or("", |v| v))
+                                .as_ref(),
+                        ),
                     )
                     .replace(
                         "{{RESPONSE_TYPE}}",
-                        form.get("response_type").map_or("", |v| v),
+                        &escape_html_attribute(
+                            urlencoding::encode(form.get("response_type").map_or("", |v| v))
+                                .as_ref(),
+                        ),
                     )
-                    .replace("{{STATE}}", form.get("state").map_or("", |v| v))
+                    .replace(
+                        "{{STATE}}",
+                        &escape_html_attribute(
+                            urlencoding::encode(form.get("state").map_or("", |v| v)).as_ref(),
+                        ),
+                    )
                     .replace(
                         "{{SCOPE}}",
-                        urlencoding::encode(form.get("scope").map_or("", |v| v)).as_ref(),
+                        &escape_html_attribute(
+                            urlencoding::encode(form.get("scope").map_or("", |v| v)).as_ref(),
+                        ),
                     )
                     .replace(
                         "{{CODE_CHALLENGE}}",
-                        urlencoding::encode(form.get("code_challenge").map_or("", |v| v)).as_ref(),
+                        &escape_html_attribute(
+                            urlencoding::encode(form.get("code_challenge").map_or("", |v| v))
+                                .as_ref(),
+                        ),
                     )
                     .replace(
                         "{{CODE_CHALLENGE_METHOD}}",
-                        form.get("code_challenge_method").map_or("", |v| v),
+                        &escape_html_attribute(
+                            urlencoding::encode(
+                                form.get("code_challenge_method").map_or("", |v| v),
+                            )
+                            .as_ref(),
+                        ),
                     );
 
                 (StatusCode::UNAUTHORIZED, Html(error_html)).into_response()
@@ -918,10 +987,10 @@ impl OAuth2Routes {
     fn build_login_url_with_oauth_params(request: &AuthorizeRequest) -> String {
         let mut login_url = format!(
             "/oauth2/login?client_id={}&redirect_uri={}&response_type={}&state={}",
-            request.client_id,
+            urlencoding::encode(&request.client_id),
             urlencoding::encode(&request.redirect_uri),
-            request.response_type,
-            request.state.as_deref().unwrap_or("")
+            urlencoding::encode(&request.response_type),
+            urlencoding::encode(request.state.as_deref().unwrap_or(""))
         );
 
         if let Some(ref scope) = request.scope {
@@ -963,10 +1032,10 @@ impl OAuth2Routes {
     ) -> String {
         let mut auth_url = format!(
             "/oauth2/authorize?client_id={}&redirect_uri={}&response_type={}&state={}",
-            client_id,
+            urlencoding::encode(client_id),
             urlencoding::encode(redirect_uri),
-            response_type,
-            state
+            urlencoding::encode(response_type),
+            urlencoding::encode(state)
         );
 
         if !scope.is_empty() {
@@ -1043,28 +1112,18 @@ impl OAuth2Routes {
             .ok_or_else(|| OAuth2Error::invalid_request("Missing grant_type parameter"))?
             .clone(); // Safe: String ownership required for OAuth2 request struct
 
-        // For refresh_token grants, client credentials are optional (RFC 6749 recommends but doesn't require)
-        // The refresh_token itself authenticates the request
-        let is_refresh = grant_type == "refresh_token";
+        // Client credentials are REQUIRED for all grant types.
+        // Pierre MCP clients are confidential clients (RFC 6749 Section 2.1),
+        // so client authentication is mandatory including for refresh_token grants.
+        let client_id = form
+            .get("client_id")
+            .ok_or_else(|| OAuth2Error::invalid_request("Missing client_id parameter"))?
+            .clone(); // Safe: String ownership for OAuth validation
 
-        let client_id = if is_refresh {
-            form.get("client_id").cloned().unwrap_or_default()
-        } else {
-            form.get("client_id")
-                .ok_or_else(|| OAuth2Error::invalid_request("Missing client_id parameter"))?
-                .clone() // Safe: String ownership for OAuth validation
-        };
-
-        let client_secret = if is_refresh {
-            form.get("client_secret")
-                .cloned()
-                .unwrap_or_default()
-                .replace(' ', "+")
-        } else {
-            form.get("client_secret")
-                .ok_or_else(|| OAuth2Error::invalid_request("Missing client_secret parameter"))?
-                .replace(' ', "+")
-        };
+        let client_secret = form
+            .get("client_secret")
+            .ok_or_else(|| OAuth2Error::invalid_request("Missing client_secret parameter"))?
+            .replace(' ', "+");
 
         let code = form.get("code").cloned();
         let redirect_uri = form.get("redirect_uri").cloned();
@@ -1171,12 +1230,15 @@ impl OAuth2Routes {
             .unwrap_or(&default_description);
 
         let html = Self::OAUTH_ERROR_TEMPLATE
-            .replace("{{error_title}}", error_title)
-            .replace("{{ERROR}}", &error.error)
+            .replace("{{error_title}}", &escape_html_attribute(error_title))
+            .replace("{{ERROR}}", &escape_html_attribute(&error.error))
             .replace("{{PROVIDER}}", "Pierre MCP Server")
             .replace(
                 "{{DESCRIPTION}}",
-                &format!(r#"<div class="description">{error_description}</div>"#),
+                &format!(
+                    r#"<div class="description">{}</div>"#,
+                    escape_html_attribute(error_description)
+                ),
             );
 
         (StatusCode::BAD_REQUEST, Html(html)).into_response()

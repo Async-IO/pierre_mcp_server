@@ -8,6 +8,8 @@
 pub mod auth;
 /// Error handling utilities
 pub mod errors;
+/// HTML escaping utilities for XSS prevention in templates
+pub mod html;
 /// HTTP client configuration and helpers
 pub mod http_client;
 /// JSON response formatting utilities

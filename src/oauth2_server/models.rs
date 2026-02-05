@@ -167,6 +167,32 @@ impl OAuth2Error {
             error_uri: Some("https://datatracker.ietf.org/doc/html/rfc6749#section-5.2".to_owned()),
         }
     }
+
+    /// Create an `unauthorized_client` error (RFC 6749 Section 4.1.2.1)
+    /// Used when a client attempts to use a `grant_type` or `response_type` it was not registered for
+    #[must_use]
+    pub fn unauthorized_client(description: &str) -> Self {
+        Self {
+            error: "unauthorized_client".to_owned(),
+            error_description: Some(description.to_owned()),
+            error_uri: Some(
+                "https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.2.1".to_owned(),
+            ),
+        }
+    }
+
+    /// Create an `invalid_scope` error (RFC 6749 Section 4.1.2.1)
+    /// Used when a client requests scopes beyond what it was registered for
+    #[must_use]
+    pub fn invalid_scope(description: &str) -> Self {
+        Self {
+            error: "invalid_scope".to_owned(),
+            error_description: Some(description.to_owned()),
+            error_uri: Some(
+                "https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.2.1".to_owned(),
+            ),
+        }
+    }
 }
 
 /// Stored OAuth 2.0 Client

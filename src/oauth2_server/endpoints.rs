@@ -21,6 +21,7 @@ use base64::{engine::general_purpose, Engine as _};
 use chrono::{Duration, Utc};
 use ring::rand::{SecureRandom, SystemRandom};
 use sha2::{Digest, Sha256};
+use std::collections::HashSet;
 use std::sync::Arc;
 use subtle::ConstantTimeEq;
 use tracing::{debug, error, info, warn};
@@ -155,11 +156,33 @@ impl OAuth2AuthorizationServer {
                 OAuth2Error::invalid_client()
             })?;
 
-        // Validate response type
+        // Validate response type is supported by the server
         if request.response_type != "code" {
             return Err(OAuth2Error::invalid_request(
                 "Only 'code' response_type is supported",
             ));
+        }
+
+        // Validate client is registered for this response_type (RFC 6749 Section 3.1.1)
+        if !client.response_types.contains(&request.response_type) {
+            return Err(OAuth2Error::unauthorized_client(
+                "Client is not registered for the requested response_type",
+            ));
+        }
+
+        // Validate requested scope is within client's registered scope (RFC 6749 Section 3.3)
+        // If client has no registered scope (None), any requested scope is allowed (no restriction)
+        if let Some(ref requested_scope) = request.scope {
+            if let Some(ref allowed_scope) = client.scope {
+                let allowed_scopes: HashSet<&str> = allowed_scope.split(' ').collect();
+                for scope in requested_scope.split(' ') {
+                    if !allowed_scopes.contains(scope) {
+                        return Err(OAuth2Error::invalid_scope(&format!(
+                            "Client is not authorized for scope '{scope}'"
+                        )));
+                    }
+                }
+            }
         }
 
         // Validate redirect URI
@@ -232,7 +255,8 @@ impl OAuth2AuthorizationServer {
         // RFC 6749 §6 states: "If the client type is confidential or the client was issued
         // client credentials, the client MUST authenticate with the authorization server"
         // MCP clients are confidential clients, so authentication is REQUIRED
-        self.client_manager
+        let client = self
+            .client_manager
             .validate_client(&request.client_id, &request.client_secret)
             .await
             .inspect_err(|e| {
@@ -243,6 +267,26 @@ impl OAuth2AuthorizationServer {
                     "OAuth client validation failed"
                 );
             })?;
+
+        // Enforce client's registered grant_types (RFC 6749 Section 2)
+        // Clients can only use grant types they were registered for.
+        // Per RFC 6749 Section 6, refresh_token is implicitly allowed when the client
+        // is registered for authorization_code (since the auth code flow issues refresh tokens).
+        let grant_allowed = client.grant_types.contains(&request.grant_type)
+            || (request.grant_type == "refresh_token"
+                && client
+                    .grant_types
+                    .iter()
+                    .any(|gt| gt == "authorization_code"));
+        if !grant_allowed {
+            warn!(
+                "Client {} attempted grant_type '{}' but is only registered for {:?}",
+                request.client_id, request.grant_type, client.grant_types
+            );
+            return Err(OAuth2Error::unauthorized_client(
+                "Client is not registered for the requested grant_type",
+            ));
+        }
 
         match request.grant_type.as_str() {
             "authorization_code" => self.handle_authorization_code_grant(request).await,

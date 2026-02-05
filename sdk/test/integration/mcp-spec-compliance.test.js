@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-// ABOUTME: MCP specification compliance tests - tools/list, authentication, tool calls
-// ABOUTME: Validates that bridge follows MCP protocol: ALL tools visible, auth checked at call time
+// ABOUTME: MCP specification compliance tests - tools/list visibility tiers, authentication, tool calls
+// ABOUTME: Validates auth-gated tools/list (public subset vs full set) and call-time auth checks
 //
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
@@ -49,10 +49,9 @@ describe('MCP Spec Compliance: tools/list Visibility', () => {
     }
   });
 
-  test('MCP SPEC: tools/list MUST return ALL tools WITHOUT authentication', async () => {
-    // Per MCP spec: tools/list does NOT require authentication
-    // All tools must be visible for discovery
-    // Authentication is checked when CALLING tools, not listing them
+  test('tools/list returns public discovery tools WITHOUT authentication', async () => {
+    // Server returns a curated subset of read-only tools for unauthenticated requests
+    // This enables tool discovery while protecting auth-gated capabilities
 
     bridgeClient = new MockMCPClient('node', [
       bridgePath,
@@ -69,17 +68,19 @@ describe('MCP Spec Compliance: tools/list Visibility', () => {
 
     console.log(`Unauthenticated tools/list returned: ${toolNames.length} tools`);
 
-    // CRITICAL: ALL tools must be visible, including:
-    // Note: connect_to_pierre removed from server - SDK bridge handles authentication locally via RFC 8414 discovery
-    expect(toolNames).toContain('connect_provider');
+    // Public discovery tools include read-only data retrieval and analytics
     expect(toolNames).toContain('get_activities');
     expect(toolNames).toContain('get_athlete');
-    expect(toolNames).toContain('disconnect_provider');
+    expect(toolNames).toContain('get_stats');
 
-    // Should have full toolset (30+ tools)
-    expect(toolNames.length).toBeGreaterThan(20);
+    // Auth-gated tools should NOT be visible without authentication
+    expect(toolNames).not.toContain('connect_provider');
+    expect(toolNames).not.toContain('disconnect_provider');
 
-    console.log('✅ MCP SPEC COMPLIANT: All tools visible without authentication');
+    // Should have public discovery subset (15+ tools)
+    expect(toolNames.length).toBeGreaterThanOrEqual(15);
+
+    console.log('✅ Public discovery tools returned without authentication');
   }, 60000);
 
   test('MCP SPEC: tools/list MUST return SAME tools WITH authentication', async () => {
@@ -127,9 +128,9 @@ describe('MCP Spec Compliance: tools/list Visibility', () => {
     console.log('✅ MCP SPEC COMPLIANT: Same tools visible with authentication');
   }, 60000);
 
-  test('MCP SPEC: tools/list results MUST be IDENTICAL regardless of auth state', async () => {
-    // This test explicitly verifies that tools/list returns EXACTLY the same
-    // tools whether authenticated or not
+  test('authenticated tools/list returns superset of unauthenticated tools', async () => {
+    // Authenticated users see all tools; unauthenticated see public discovery subset
+    // The authenticated set must be a strict superset of the unauthenticated set
 
     // First: Get tools WITHOUT auth
     const unauthClient = new MockMCPClient('node', [
@@ -158,16 +159,23 @@ describe('MCP Spec Compliance: tools/list Visibility', () => {
     await bridgeClient.start();
     await bridgeClient.send(MCPMessages.initialize);
 
+    // Wait for proactive connection to complete
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
     const authTools = await bridgeClient.send(MCPMessages.toolsList);
     const authToolNames = authTools.result.tools.map(t => t.name).sort();
 
     console.log(`Unauthenticated: ${unauthToolNames.length} tools`);
     console.log(`Authenticated: ${authToolNames.length} tools`);
 
-    // CRITICAL: Tools lists must be IDENTICAL
-    expect(authToolNames).toEqual(unauthToolNames);
+    // Authenticated must have MORE tools than unauthenticated
+    expect(authToolNames.length).toBeGreaterThan(unauthToolNames.length);
 
-    console.log('✅ MCP SPEC COMPLIANT: Identical tools lists regardless of auth');
+    // Every public tool must also be visible when authenticated (superset)
+    const missingFromAuth = unauthToolNames.filter(t => !authToolNames.includes(t));
+    expect(missingFromAuth).toEqual([]);
+
+    console.log('✅ Authenticated tools are a superset of public discovery tools');
   }, 120000);
 });
 

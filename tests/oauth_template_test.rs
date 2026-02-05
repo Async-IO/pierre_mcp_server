@@ -413,6 +413,122 @@ fn test_templates_security_features() {
     );
 }
 
+// ============================================================================
+// HTML Escaping Tests
+// ============================================================================
+
+use pierre_mcp_server::utils::html::escape_html_attribute;
+
+#[test]
+fn test_escape_html_attribute_no_special_chars() {
+    assert_eq!(escape_html_attribute("hello world"), "hello world");
+}
+
+#[test]
+fn test_escape_html_attribute_quotes() {
+    assert_eq!(
+        escape_html_attribute(r#"value"with"quotes"#),
+        "value&quot;with&quot;quotes"
+    );
+}
+
+#[test]
+fn test_escape_html_attribute_xss_payload() {
+    assert_eq!(
+        escape_html_attribute(r#""><script>alert(1)</script>"#),
+        "&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;"
+    );
+}
+
+#[test]
+fn test_escape_html_attribute_ampersand() {
+    assert_eq!(escape_html_attribute("a&b=c"), "a&amp;b=c");
+}
+
+#[test]
+fn test_escape_html_attribute_single_quotes() {
+    assert_eq!(escape_html_attribute("it's"), "it&#x27;s");
+}
+
+#[test]
+fn test_escape_html_attribute_empty_string() {
+    assert_eq!(escape_html_attribute(""), "");
+}
+
+#[test]
+fn test_escape_html_attribute_base64url_safe() {
+    // Base64url characters should pass through unchanged
+    assert_eq!(
+        escape_html_attribute("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"),
+        "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+    );
+}
+
+// ============================================================================
+// XSS Prevention Tests
+// ============================================================================
+
+/// Test that XSS payloads in the state parameter are properly escaped in login HTML
+#[tokio::test]
+async fn test_login_html_escapes_xss_in_state() {
+    common::init_server_config();
+
+    let xss_state = r#""><script>alert('xss')</script>"#;
+    let html =
+        OAuth2Routes::generate_login_html(pierre_mcp_server::routes::oauth2::LoginHtmlParams {
+            client_id: "test_client",
+            redirect_uri: "https://example.com/callback",
+            response_type: "code",
+            state: xss_state,
+            scope: "fitness:read",
+            code_challenge: "challenge",
+            code_challenge_method: "S256",
+            default_email: "",
+            default_password: "",
+        });
+
+    // The XSS payload should NOT appear unescaped
+    assert!(
+        !html.contains("<script>"),
+        "XSS payload in state was not HTML-escaped"
+    );
+    // The escaped version should appear
+    assert!(
+        html.contains("&lt;script&gt;"),
+        "State value should be HTML-escaped"
+    );
+}
+
+/// Test that XSS payloads in `redirect_uri` are properly escaped in login HTML
+#[tokio::test]
+async fn test_login_html_escapes_xss_in_redirect_uri() {
+    common::init_server_config();
+
+    let xss_redirect = r#"https://evil.com" onload="alert(1)"#;
+    let html =
+        OAuth2Routes::generate_login_html(pierre_mcp_server::routes::oauth2::LoginHtmlParams {
+            client_id: "test_client",
+            redirect_uri: xss_redirect,
+            response_type: "code",
+            state: "safe_state",
+            scope: "fitness:read",
+            code_challenge: "challenge",
+            code_challenge_method: "S256",
+            default_email: "",
+            default_password: "",
+        });
+
+    // The attribute breakout should NOT appear unescaped
+    assert!(
+        !html.contains(r#"" onload="#),
+        "XSS payload in redirect_uri was not HTML-escaped"
+    );
+    assert!(
+        html.contains("&quot;"),
+        "Quotes in redirect_uri should be HTML-escaped"
+    );
+}
+
 /// Integration test: Full OAuth login page rendering flow
 #[tokio::test]
 async fn test_oauth_login_page_integration() {
