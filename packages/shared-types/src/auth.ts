@@ -67,6 +67,13 @@ export interface FirebaseLoginResponse {
   is_new_user: boolean;
 }
 
+/** Response from session restore endpoint */
+export interface SessionResponse {
+  user: User;
+  access_token: string;
+  csrf_token: string;
+}
+
 // ========== OAUTH TYPES ==========
 
 /** Status of a provider connection */

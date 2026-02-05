@@ -149,11 +149,11 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
         const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
 
         if (result.type === 'oauth_completed' && result.success && result.timestamp > fiveMinutesAgo) {
-          const savedConversation = localStorage.getItem('pierre_oauth_conversation');
-          const savedCoachAction = localStorage.getItem('pierre_pending_coach_action');
+          const savedConversation = sessionStorage.getItem('pierre_oauth_conversation');
+          const savedCoachAction = sessionStorage.getItem('pierre_pending_coach_action');
 
-          if (savedConversation) localStorage.removeItem('pierre_oauth_conversation');
-          if (savedCoachAction) localStorage.removeItem('pierre_pending_coach_action');
+          if (savedConversation) sessionStorage.removeItem('pierre_oauth_conversation');
+          if (savedCoachAction) sessionStorage.removeItem('pierre_pending_coach_action');
 
           return {
             result,
@@ -161,8 +161,8 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
             savedCoachAction: savedCoachAction ? JSON.parse(savedCoachAction) : null,
           };
         } else if (result.timestamp <= fiveMinutesAgo) {
-          localStorage.removeItem('pierre_oauth_conversation');
-          localStorage.removeItem('pierre_pending_coach_action');
+          sessionStorage.removeItem('pierre_oauth_conversation');
+          sessionStorage.removeItem('pierre_pending_coach_action');
         }
       } catch {
         // Ignore parse errors
@@ -206,14 +206,16 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
     };
 
     const handleOAuthMessage = (event: MessageEvent) => {
+      // Validate origin to prevent cross-origin message injection
+      if (event.origin !== window.location.origin) return;
       if (event.data?.type === 'oauth_completed') {
         const { provider, success } = event.data;
         if (success && !isProcessingOAuth) {
-          const savedConversation = localStorage.getItem('pierre_oauth_conversation');
-          const savedCoachActionStr = localStorage.getItem('pierre_pending_coach_action');
+          const savedConversation = sessionStorage.getItem('pierre_oauth_conversation');
+          const savedCoachActionStr = sessionStorage.getItem('pierre_pending_coach_action');
 
-          if (savedConversation) localStorage.removeItem('pierre_oauth_conversation');
-          if (savedCoachActionStr) localStorage.removeItem('pierre_pending_coach_action');
+          if (savedConversation) sessionStorage.removeItem('pierre_oauth_conversation');
+          if (savedCoachActionStr) sessionStorage.removeItem('pierre_pending_coach_action');
 
           let savedCoachAction = null;
           if (savedCoachActionStr) {
@@ -318,7 +320,7 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
     if (!newMessage.trim() || !selectedConversation || isStreaming) return;
 
     if (connectingProvider) {
-      localStorage.setItem('pierre_oauth_conversation', selectedConversation);
+      sessionStorage.setItem('pierre_oauth_conversation', selectedConversation);
     }
 
     const displayContent = newMessage.trim();
@@ -396,7 +398,7 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
     void coachId; // Acknowledge unused parameter - may be used for coach tracking later
     if (!hasConnectedProvider) {
       setPendingCoachAction({ prompt, systemPrompt });
-      localStorage.setItem('pierre_pending_coach_action', JSON.stringify({ prompt, systemPrompt }));
+      sessionStorage.setItem('pierre_pending_coach_action', JSON.stringify({ prompt, systemPrompt }));
       setShowProviderModal(true);
       return;
     }
@@ -438,7 +440,7 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
   const handleConnectProvider = (provider: string) => {
     setConnectingProvider(provider);
     if (selectedConversation) {
-      localStorage.setItem('pierre_oauth_conversation', selectedConversation);
+      sessionStorage.setItem('pierre_oauth_conversation', selectedConversation);
     }
     window.open(`/api/oauth/${provider}/connect`, '_blank');
   };
@@ -557,7 +559,7 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
   const handleProviderModalClose = () => {
     setShowProviderModal(false);
     setPendingCoachAction(null);
-    localStorage.removeItem('pierre_pending_coach_action');
+    sessionStorage.removeItem('pierre_pending_coach_action');
   };
 
   const handleProviderModalSkip = () => {
@@ -570,7 +572,7 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
       createConversation.mutate(pendingCoachAction.systemPrompt);
     }
     setPendingCoachAction(null);
-    localStorage.removeItem('pierre_pending_coach_action');
+    sessionStorage.removeItem('pierre_pending_coach_action');
   };
 
   // Coach form handlers

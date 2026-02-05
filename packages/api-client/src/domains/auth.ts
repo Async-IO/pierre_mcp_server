@@ -5,7 +5,7 @@
 // ABOUTME: Platform-agnostic auth logic using the adapter for token storage
 
 import type { AxiosInstance } from 'axios';
-import type { User, LoginResponse, RegisterResponse, FirebaseLoginResponse } from '@pierre/shared-types';
+import type { User, LoginResponse, RegisterResponse, FirebaseLoginResponse, SessionResponse } from '@pierre/shared-types';
 import type { AuthStorage } from '../types/platform';
 import { ENDPOINTS } from '../core/endpoints';
 
@@ -133,6 +133,16 @@ export function createAuthApi(axios: AxiosInstance, authStorage: AuthStorage) {
       }
 
       return data;
+    },
+
+    /**
+     * Restore session using httpOnly cookie authentication.
+     * Returns user info and a fresh JWT for WebSocket auth.
+     * Throws on 401 if no valid session exists.
+     */
+    async getSession(): Promise<SessionResponse> {
+      const response = await axios.get<SessionResponse>(ENDPOINTS.AUTH.SESSION);
+      return response.data;
     },
 
     /**

@@ -103,6 +103,20 @@ pub struct ChangePasswordRequest {
     pub new_password: String,
 }
 
+/// Session restore response for authenticated users
+///
+/// Returned by `GET /api/auth/session` to restore sessions using httpOnly cookies.
+/// Provides user info and a fresh JWT for WebSocket authentication.
+#[derive(Debug, Serialize)]
+pub struct SessionResponse {
+    /// Authenticated user information
+    pub user: UserInfo,
+    /// Fresh JWT token for WebSocket authentication (not stored in cookies)
+    pub access_token: String,
+    /// Fresh CSRF token for request validation
+    pub csrf_token: String,
+}
+
 /// User stats response for dashboard
 #[derive(Debug, Serialize)]
 pub struct UserStatsResponse {

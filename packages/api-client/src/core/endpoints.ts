@@ -21,6 +21,8 @@ export const ENDPOINTS = {
     REGISTER: '/api/auth/register',
     /** Token refresh */
     REFRESH: '/api/auth/refresh',
+    /** Restore session from httpOnly cookie */
+    SESSION: '/api/auth/session',
   },
 
   // ==================== CHAT ====================

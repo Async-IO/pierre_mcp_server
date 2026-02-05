@@ -16,21 +16,27 @@ const STORAGE_KEYS = {
 const AUTH_FAILURE_EVENT = 'pierre:auth:failure';
 
 /**
- * Creates an AuthStorage implementation using browser localStorage.
- * All methods are async for API compatibility with mobile adapter.
+ * Creates an AuthStorage implementation for browser environment.
+ *
+ * JWT tokens are NOT stored in localStorage (security: prevents XSS token theft).
+ * REST auth uses httpOnly cookies set by the server. JWT is only held in React
+ * state for WebSocket authentication. User data stays in localStorage for instant
+ * UI rendering before session restore completes.
  */
 function createWebAuthStorage(): AuthStorage {
   return {
+    // Token methods are no-ops — httpOnly cookies handle REST auth,
+    // React state holds JWT for WebSocket only
     async getToken(): Promise<string | null> {
-      return localStorage.getItem(STORAGE_KEYS.TOKEN);
+      return null;
     },
 
-    async setToken(token: string): Promise<void> {
-      localStorage.setItem(STORAGE_KEYS.TOKEN, token);
+    async setToken(): Promise<void> {
+      // No-op: JWT stored in React state, not localStorage
     },
 
     async removeToken(): Promise<void> {
-      localStorage.removeItem(STORAGE_KEYS.TOKEN);
+      // No-op: JWT not stored in localStorage
     },
 
     async getCsrfToken(): Promise<string | null> {
@@ -59,17 +65,16 @@ function createWebAuthStorage(): AuthStorage {
       localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
     },
 
+    // Refresh token is no-op — session restore uses httpOnly cookie
     async getRefreshToken(): Promise<string | null> {
-      return localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+      return null;
     },
 
-    async setRefreshToken(token: string): Promise<void> {
-      localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, token);
+    async setRefreshToken(): Promise<void> {
+      // No-op: refresh handled via httpOnly cookie session
     },
 
     async clear(): Promise<void> {
-      localStorage.removeItem(STORAGE_KEYS.TOKEN);
-      localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
       localStorage.removeItem(STORAGE_KEYS.CSRF_TOKEN);
       localStorage.removeItem(STORAGE_KEYS.USER);
     },

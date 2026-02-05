@@ -7,7 +7,6 @@ import { AuthContext } from './auth';
 import type { User, ImpersonationState } from './auth';
 
 const STORAGE_KEYS = {
-  TOKEN: 'pierre_auth_token',
   USER: 'pierre_user',
   IMPERSONATION: 'pierre_impersonation',
 } as const;
@@ -26,32 +25,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [impersonation, setImpersonation] = useState<ImpersonationState>(defaultImpersonationState);
 
   useEffect(() => {
-    // Check for stored user info on app start
+    // Show cached user immediately for instant UI render
     const storedUser = localStorage.getItem(STORAGE_KEYS.USER);
-    const storedToken = localStorage.getItem(STORAGE_KEYS.TOKEN);
     const storedImpersonation = localStorage.getItem(STORAGE_KEYS.IMPERSONATION);
 
     if (storedUser) {
       setUser(JSON.parse(storedUser));
     }
-    if (storedToken) {
-      setToken(storedToken);
-    }
     if (storedImpersonation) {
       setImpersonation(JSON.parse(storedImpersonation));
     }
 
-    setIsLoading(false);
+    // Restore session from httpOnly cookie (gets fresh JWT for WebSocket)
+    if (storedUser) {
+      authApi.getSession()
+        .then((session) => {
+          setUser(session.user);
+          setToken(session.access_token);
+          apiClient.setCsrfToken(session.csrf_token);
+          localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(session.user));
+        })
+        .catch(() => {
+          // Cookie expired or invalid — clear cached user
+          setUser(null);
+          setToken(null);
+          localStorage.removeItem(STORAGE_KEYS.USER);
+        })
+        .finally(() => {
+          setIsLoading(false);
+        });
+    } else {
+      setIsLoading(false);
+    }
 
     // Listen for auth failures from API service
     const handleAuthFailure = () => {
       logout();
     };
 
+    // Listen for both legacy event name and api-client event name
     window.addEventListener('auth-failure', handleAuthFailure);
+    window.addEventListener('pierre:auth:failure', handleAuthFailure);
 
     return () => {
       window.removeEventListener('auth-failure', handleAuthFailure);
+      window.removeEventListener('pierre:auth:failure', handleAuthFailure);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -64,13 +82,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Store CSRF token in API service
     apiClient.setCsrfToken(csrf_token);
 
-    // Store JWT token for WebSocket authentication
+    // Keep JWT in React state only (for WebSocket auth) — httpOnly cookie handles REST
     if (access_token) {
       setToken(access_token);
-      localStorage.setItem(STORAGE_KEYS.TOKEN, access_token);
     }
 
-    // Store user info in state and localStorage
+    // Store user info in state and localStorage (for instant UI render on refresh)
     setUser(userData);
     localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(userData));
   };
@@ -82,13 +99,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Store CSRF token in API service
     apiClient.setCsrfToken(csrf_token);
 
-    // Store JWT token for WebSocket authentication
+    // Keep JWT in React state only (for WebSocket auth) — httpOnly cookie handles REST
     if (jwt_token) {
       setToken(jwt_token);
-      localStorage.setItem(STORAGE_KEYS.TOKEN, jwt_token);
     }
 
-    // Store user info in state and localStorage
+    // Store user info in state and localStorage (for instant UI render on refresh)
     setUser(userData);
     localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(userData));
 
@@ -105,9 +121,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     setToken(null);
 
-    // Clear user info and token from localStorage
+    // Clear user info from localStorage
     localStorage.removeItem(STORAGE_KEYS.USER);
-    localStorage.removeItem(STORAGE_KEYS.TOKEN);
 
     // Clear CSRF token from API service
     apiClient.clearCsrfToken();
@@ -138,9 +153,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setImpersonation(newImpersonationState);
     localStorage.setItem(STORAGE_KEYS.IMPERSONATION, JSON.stringify(newImpersonationState));
 
-    // Update token to impersonation token
+    // Update token to impersonation token (React state only)
     setToken(response.token);
-    localStorage.setItem(STORAGE_KEYS.TOKEN, response.token);
   }, [user]);
 
   const endImpersonation = useCallback(async () => {

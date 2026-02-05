@@ -146,7 +146,7 @@
 
             // Send message to parent window (works for popups opened by window.open)
             if (window.opener) {
-                window.opener.postMessage(message, '*');
+                window.opener.postMessage(message, window.location.origin);
             }
 
             // Also try localStorage for same-origin communication (works for new tabs)

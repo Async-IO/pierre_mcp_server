@@ -100,18 +100,18 @@ class ApiClient {
     this.csrfToken = null;
   }
 
-  // User info management (still using localStorage for user data, not auth tokens)
+  // User info management (using localStorage for user data, not auth tokens)
   getUser(): { id: string; email: string; display_name?: string } | null {
-    const user = localStorage.getItem('user');
+    const user = localStorage.getItem('pierre_user');
     return user ? JSON.parse(user) : null;
   }
 
   setUser(user: { id: string; email: string; display_name?: string }) {
-    localStorage.setItem('user', JSON.stringify(user));
+    localStorage.setItem('pierre_user', JSON.stringify(user));
   }
 
   clearUser() {
-    localStorage.removeItem('user');
+    localStorage.removeItem('pierre_user');
   }
 }
 

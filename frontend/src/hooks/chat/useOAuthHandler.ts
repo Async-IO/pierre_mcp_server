@@ -80,7 +80,7 @@ export function useOAuthHandler(): UseOAuthHandlerReturn {
 
     // If we have a pending coach action, store it for after OAuth completes
     if (pendingCoachAction) {
-      localStorage.setItem('pierre_pending_coach_action', JSON.stringify(pendingCoachAction));
+      sessionStorage.setItem('pierre_pending_coach_action', JSON.stringify(pendingCoachAction));
     }
 
     try {
@@ -114,12 +114,12 @@ export function useOAuthHandler(): UseOAuthHandlerReturn {
         const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
 
         if (result.type === 'oauth_completed' && result.success && result.timestamp > fiveMinutesAgo) {
-          const savedConversation = localStorage.getItem('pierre_oauth_conversation');
-          const savedCoachAction = localStorage.getItem('pierre_pending_coach_action');
+          const savedConversation = sessionStorage.getItem('pierre_oauth_conversation');
+          const savedCoachAction = sessionStorage.getItem('pierre_pending_coach_action');
 
           // Remove immediately
-          if (savedConversation) localStorage.removeItem('pierre_oauth_conversation');
-          if (savedCoachAction) localStorage.removeItem('pierre_pending_coach_action');
+          if (savedConversation) sessionStorage.removeItem('pierre_oauth_conversation');
+          if (savedCoachAction) sessionStorage.removeItem('pierre_pending_coach_action');
 
           return {
             result,
@@ -128,8 +128,8 @@ export function useOAuthHandler(): UseOAuthHandlerReturn {
           };
         } else if (result.timestamp <= fiveMinutesAgo) {
           // Clean up stale entries
-          localStorage.removeItem('pierre_oauth_conversation');
-          localStorage.removeItem('pierre_pending_coach_action');
+          sessionStorage.removeItem('pierre_oauth_conversation');
+          sessionStorage.removeItem('pierre_pending_coach_action');
         }
       } catch {
         // Ignore parse errors
@@ -178,14 +178,16 @@ export function useOAuthHandler(): UseOAuthHandlerReturn {
     };
 
     const handleOAuthMessage = (event: MessageEvent) => {
+      // Validate origin to prevent cross-origin message injection
+      if (event.origin !== window.location.origin) return;
       if (event.data?.type === 'oauth_completed') {
         const { provider, success } = event.data;
         if (success && !isProcessingOAuth) {
-          const savedConversation = localStorage.getItem('pierre_oauth_conversation');
-          const savedCoachActionStr = localStorage.getItem('pierre_pending_coach_action');
+          const savedConversation = sessionStorage.getItem('pierre_oauth_conversation');
+          const savedCoachActionStr = sessionStorage.getItem('pierre_pending_coach_action');
 
-          if (savedConversation) localStorage.removeItem('pierre_oauth_conversation');
-          if (savedCoachActionStr) localStorage.removeItem('pierre_pending_coach_action');
+          if (savedConversation) sessionStorage.removeItem('pierre_oauth_conversation');
+          if (savedCoachActionStr) sessionStorage.removeItem('pierre_pending_coach_action');
 
           let savedCoachAction = null;
           if (savedCoachActionStr) {

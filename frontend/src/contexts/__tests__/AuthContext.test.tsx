@@ -13,6 +13,7 @@ vi.mock('../../services/api', () => ({
   authApi: {
     login: vi.fn(),
     logout: vi.fn().mockResolvedValue(undefined),
+    getSession: vi.fn(),
   },
   adminApi: {
     endImpersonation: vi.fn(),
@@ -68,9 +69,16 @@ describe('AuthContext', () => {
     expect(screen.queryByTestId('user-email')).not.toBeInTheDocument()
   })
 
-  it('should authenticate when user exists in localStorage', async () => {
+  it('should restore session from cookie when user exists in localStorage', async () => {
     const mockUser = { id: '1', email: 'test@example.com', display_name: 'Test User' }
     localStorage.setItem('pierre_user', JSON.stringify(mockUser))
+
+    // Mock session restore succeeding
+    vi.mocked(authApi.getSession).mockResolvedValue({
+      user: mockUser,
+      access_token: 'fresh-jwt-token',
+      csrf_token: 'fresh-csrf-token',
+    })
 
     renderWithAuth()
 
@@ -78,6 +86,29 @@ describe('AuthContext', () => {
       expect(screen.getByTestId('authenticated')).toHaveTextContent('Authenticated')
       expect(screen.getByTestId('user-email')).toHaveTextContent('test@example.com')
     })
+
+    expect(authApi.getSession).toHaveBeenCalled()
+    expect(apiClient.setCsrfToken).toHaveBeenCalledWith('fresh-csrf-token')
+  })
+
+  it('should clear auth state when session restore fails', async () => {
+    const mockUser = { id: '1', email: 'test@example.com', display_name: 'Test User' }
+    localStorage.setItem('pierre_user', JSON.stringify(mockUser))
+
+    // Mock session restore failing (expired cookie)
+    vi.mocked(authApi.getSession).mockRejectedValue(new Error('401 Unauthorized'))
+
+    renderWithAuth()
+
+    // Initially shows cached user
+    expect(screen.getByTestId('authenticated')).toHaveTextContent('Authenticated')
+
+    // After session restore fails, should clear auth state
+    await waitFor(() => {
+      expect(screen.getByTestId('authenticated')).toHaveTextContent('Not Authenticated')
+    })
+
+    expect(localStorage.getItem('pierre_user')).toBeNull()
   })
 
   it('should login successfully', async () => {
@@ -109,6 +140,31 @@ describe('AuthContext', () => {
     expect(apiClient.setCsrfToken).toHaveBeenCalledWith('csrf-test-token')
   })
 
+  it('should not store JWT in localStorage after login', async () => {
+    const user = userEvent.setup()
+    const mockUser = { id: '1', email: 'test@example.com', display_name: 'Test User' }
+    const mockLoginResponse = {
+      user: mockUser,
+      access_token: 'jwt-token-value',
+      csrf_token: 'csrf-test-token',
+      expires_at: new Date(Date.now() + 86400000).toISOString()
+    }
+
+    vi.mocked(authApi.login).mockResolvedValue(mockLoginResponse)
+
+    renderWithAuth()
+    await user.click(screen.getByTestId('login-btn'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('authenticated')).toHaveTextContent('Authenticated')
+    })
+
+    // JWT should NOT be in localStorage (security fix)
+    expect(localStorage.getItem('pierre_auth_token')).toBeNull()
+    // User info should still be in localStorage (for instant UI render)
+    expect(localStorage.getItem('pierre_user')).not.toBeNull()
+  })
+
   it('should handle login failure gracefully', () => {
     // Test that login failure is handled properly in the component
     // This is a simplified test to avoid unhandled promise rejections
@@ -124,9 +180,16 @@ describe('AuthContext', () => {
 
     localStorage.setItem('pierre_user', JSON.stringify(mockUser))
 
+    // Mock session restore for initial load
+    vi.mocked(authApi.getSession).mockResolvedValue({
+      user: mockUser,
+      access_token: 'fresh-jwt',
+      csrf_token: 'fresh-csrf',
+    })
+
     renderWithAuth()
 
-    // Wait for initial authentication
+    // Wait for initial authentication via session restore
     await waitFor(() => {
       expect(screen.getByTestId('authenticated')).toHaveTextContent('Authenticated')
     })
@@ -145,17 +208,16 @@ describe('AuthContext', () => {
     expect(screen.queryByTestId('user-email')).not.toBeInTheDocument()
   })
 
-  it('should show loading state during login', async () => {
-    const user = userEvent.setup()
+  it('should show loading state during session restore', async () => {
+    const mockUser = { id: '1', email: 'test@example.com', display_name: 'Test User' }
+    localStorage.setItem('pierre_user', JSON.stringify(mockUser))
 
-    // Make login hang to test loading state
-    vi.mocked(authApi.login).mockImplementation(() => new Promise(() => {}))
+    // Make session restore hang to test loading state
+    vi.mocked(authApi.getSession).mockImplementation(() => new Promise(() => {}))
 
     renderWithAuth()
 
-    await user.click(screen.getByTestId('login-btn'))
-
-    // Should show loading state
+    // Should show loading state while session restores
     expect(screen.getByTestId('loading')).toHaveTextContent('Loading')
   })
 })

@@ -83,6 +83,7 @@ export type {
   LoginResponse,
   RegisterResponse,
   FirebaseLoginResponse,
+  SessionResponse,
   ProviderStatus,
   ExtendedProviderStatus,
   ProvidersStatusResponse,

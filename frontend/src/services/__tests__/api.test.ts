@@ -55,11 +55,11 @@ describe('API Service', () => {
 
       apiService.setUser(testUser)
       expect(apiService.getUser()).toEqual(testUser)
-      expect(localStorage.getItem('user')).toBe(JSON.stringify(testUser))
+      expect(localStorage.getItem('pierre_user')).toBe(JSON.stringify(testUser))
 
       apiService.clearUser()
       expect(apiService.getUser()).toBeNull()
-      expect(localStorage.getItem('user')).toBeNull()
+      expect(localStorage.getItem('pierre_user')).toBeNull()
     })
   })
 

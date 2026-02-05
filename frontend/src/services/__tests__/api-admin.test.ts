@@ -459,37 +459,13 @@ describe('API Service - Admin Functionality', () => {
   });
 
   describe('Token Refresh Integration', () => {
-    it('should refresh JWT token successfully', async () => {
-      const mockRefreshResponse = {
-        access_token: 'new.jwt.token',
-        expires_at: '2025-01-08T10:00:00Z'
-      };
-
-      // With the shared api-client, need to provide refresh token in localStorage
-      localStorageMock.getItem.mockImplementation((key: string) => {
-        if (key === 'auth_token') return 'old.jwt.token';
-        if (key === 'user') return JSON.stringify({ id: 'user-1', email: 'test@example.com' });
-        if (key === 'pierre_refresh_token') return 'stored.refresh.token';
-        return null;
-      });
-
-      mockedAxios.post.mockResolvedValueOnce({ data: mockRefreshResponse });
-
-      const result = await apiService.refreshToken();
-
-      // Shared auth API uses OAuth2 token endpoint with form-urlencoded data
-      expect(mockedAxios.post).toHaveBeenCalled();
-      const [calledUrl, calledData, calledConfig] = vi.mocked(mockedAxios.post).mock.calls[0];
-      expect(calledUrl).toBe('/oauth/token');
-      expect(calledData.toString()).toContain('grant_type=refresh_token');
-      expect(calledData.toString()).toContain('refresh_token=stored.refresh.token');
-      expect(calledConfig?.headers?.['Content-Type']).toBe('application/x-www-form-urlencoded');
-
-      expect(result).toEqual(mockRefreshResponse);
+    it('should reject refresh on web since httpOnly cookies handle session restore', async () => {
+      // Web adapter returns null for getRefreshToken (refresh handled via httpOnly cookie session)
+      await expect(apiService.refreshToken()).rejects.toThrow('No refresh token available');
     });
 
     it('should handle token refresh failure when no refresh token', async () => {
-      // With the shared api-client, refreshToken checks for stored refresh token first
+      // Web adapter's getRefreshToken is a no-op — session restore uses cookies
       localStorageMock.getItem.mockImplementation((key: string) => {
         if (key === 'auth_token') return 'expired.jwt.token';
         if (key === 'user') return JSON.stringify({ id: 'user-1' });

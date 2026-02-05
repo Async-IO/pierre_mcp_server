@@ -19,7 +19,8 @@ pub use types::{
     ChangePasswordRequest, ConnectionStatus, FirebaseLoginRequest, LoginRequest, LoginResponse,
     OAuth2ErrorResponse, OAuth2TokenRequest, OAuth2TokenResponse, OAuthAuthorizationResponse,
     OAuthStatus, ProviderStatus, ProvidersStatusResponse, RefreshTokenRequest, RegisterRequest,
-    RegisterResponse, UpdateProfileRequest, UpdateProfileResponse, UserInfo, UserStatsResponse,
+    RegisterResponse, SessionResponse, UpdateProfileRequest, UpdateProfileResponse, UserInfo,
+    UserStatsResponse,
 };
 
 // Re-export OAuthCallbackResponse from types module (moved for proper layering)
@@ -1265,6 +1266,7 @@ impl AuthRoutes {
             .route("/api/auth/admin/register", post(Self::handle_register))
             .route("/api/auth/firebase", post(Self::handle_firebase_login))
             .route("/api/auth/logout", post(Self::handle_logout))
+            .route("/api/auth/session", get(Self::handle_session))
             .route("/api/auth/refresh", post(Self::handle_refresh))
             .route("/api/user/profile", put(Self::handle_update_profile))
             .route(
@@ -1561,6 +1563,79 @@ impl AuthRoutes {
             })),
         )
             .into_response())
+    }
+
+    /// Restore session from httpOnly cookie authentication
+    ///
+    /// Returns the authenticated user's info along with a fresh JWT (for WebSocket auth)
+    /// and CSRF token. This allows the frontend to restore sessions on page refresh
+    /// without storing JWT tokens in localStorage.
+    #[tracing::instrument(
+        skip(resources, headers),
+        fields(
+            route = "session",
+            user_id = Empty,
+            success = Empty,
+        )
+    )]
+    async fn handle_session(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+    ) -> Result<Response, AppError> {
+        // Authenticate using cookie or Authorization header
+        let auth_result = resources
+            .auth_middleware
+            .authenticate_request_with_headers(&headers)
+            .await?;
+
+        let user_id = auth_result.user_id;
+        Span::current().record("user_id", user_id.to_string());
+
+        // Look up user details from database
+        let user = resources
+            .database
+            .get_user(user_id)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to fetch user: {e}")))?
+            .ok_or_else(|| AppError::not_found(format!("User {user_id}")))?;
+
+        // Generate a fresh JWT token for WebSocket authentication
+        let server_context = ServerContext::from(resources.as_ref());
+        let jwt_token = server_context
+            .auth()
+            .auth_manager()
+            .generate_token(&user, server_context.auth().jwks_manager())
+            .map_err(|e| AppError::auth_invalid(format!("Failed to generate token: {e}")))?;
+
+        // Generate fresh CSRF token
+        let csrf_token = resources
+            .csrf_manager
+            .generate_token(user_id)
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to generate CSRF token: {e}")))?;
+
+        // Refresh the httpOnly auth cookie with the new JWT
+        let mut response_headers = HeaderMap::new();
+        set_auth_cookie(&mut response_headers, &jwt_token, 24 * 60 * 60);
+        set_csrf_cookie(&mut response_headers, &csrf_token, 30 * 60);
+
+        Span::current().record("success", true);
+        info!("Session restored for user: {}", user_id);
+
+        let session_response = SessionResponse {
+            user: UserInfo {
+                user_id: user.id.to_string(),
+                email: user.email.clone(),
+                display_name: user.display_name,
+                is_admin: user.is_admin,
+                role: user.role.as_str().to_owned(),
+                user_status: user.user_status.to_string(),
+            },
+            access_token: jwt_token,
+            csrf_token,
+        };
+
+        Ok((StatusCode::OK, response_headers, Json(session_response)).into_response())
     }
 
     /// Handle user profile update (Axum)
