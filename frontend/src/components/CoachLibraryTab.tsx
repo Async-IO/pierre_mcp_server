@@ -314,12 +314,13 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
               {onBack && (
                 <button
                   onClick={onBack}
-                  className="flex items-center gap-2 text-zinc-400 hover:text-pierre-violet transition-colors text-sm"
+                  className="p-2 rounded-lg text-zinc-400 hover:text-pierre-violet hover:bg-white/5 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
+                  title="Back"
+                  aria-label="Back"
                 >
                   <svg className="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                   </svg>
-                  Back
                 </button>
               )}
               <button
@@ -346,12 +347,13 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                   setFormData(defaultFormData);
                   setIsCreating(true);
                 }}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-pierre-violet rounded-lg hover:bg-pierre-violet-dark transition-colors shadow-glow-sm hover:shadow-glow"
+                className="p-2 rounded-lg text-white bg-pierre-violet hover:bg-pierre-violet-dark transition-colors shadow-glow-sm hover:shadow-glow min-w-[36px] min-h-[36px] flex items-center justify-center"
+                title="Create Coach"
+                aria-label="Create Coach"
               >
                 <svg className="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                Create Coach
               </button>
             </>
           }

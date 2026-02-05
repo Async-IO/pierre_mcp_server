@@ -272,18 +272,20 @@ export default function SocialFeedTab({ onNavigateToFriends }: SocialFeedTabProp
             {onNavigateToFriends && (
               <button
                 onClick={onNavigateToFriends}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-zinc-300 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors"
+                className="p-2 rounded-lg text-zinc-300 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
+                title="Friends"
+                aria-label="Friends"
               >
                 <Users className="w-4 h-4" />
-                Friends
               </button>
             )}
             <button
               onClick={() => setShowShareModal(true)}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-pierre-violet rounded-lg hover:bg-pierre-violet-dark transition-colors shadow-glow-sm hover:shadow-glow"
+              className="p-2 rounded-lg text-white bg-pierre-violet hover:bg-pierre-violet-dark transition-colors shadow-glow-sm hover:shadow-glow min-w-[36px] min-h-[36px] flex items-center justify-center"
+              title="Share Insight"
+              aria-label="Share Insight"
             >
               <Plus className="w-4 h-4" />
-              Share Insight
             </button>
           </>
         }

@@ -609,10 +609,11 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
                 <button
                   onClick={() => createConversation.mutate()}
                   disabled={createConversation.isPending}
-                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-pierre-violet rounded-lg hover:bg-pierre-violet-dark transition-colors shadow-glow-sm hover:shadow-glow disabled:opacity-50"
+                  className="p-2 rounded-lg text-white bg-pierre-violet hover:bg-pierre-violet-dark transition-colors shadow-glow-sm hover:shadow-glow disabled:opacity-50 min-w-[36px] min-h-[36px] flex items-center justify-center"
+                  title="New Chat"
+                  aria-label="New Chat"
                 >
                   <Plus className="w-4 h-4" />
-                  New Chat
                 </button>
               }
             />
@@ -624,7 +625,7 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
                   <p className="text-zinc-400 text-sm">
                     {hasConnectedProvider
                       ? 'Get personalized insights from your activity data'
-                    : 'Select a coach to get started - connect your data anytime'}
+                    : 'Or ask a question to Pierre'}
                 </p>
 
                 <form

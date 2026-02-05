@@ -323,8 +323,8 @@ describe('CoachLibraryTab Component', () => {
       expect(screen.getByText('Create custom AI personas to get specialized fitness coaching.')).toBeInTheDocument();
     });
 
-    // Find and click back button
-    const backButton = screen.getByText('Back');
+    // Find and click back button (icon-only, use aria-label)
+    const backButton = screen.getByRole('button', { name: 'Back' });
     await user.click(backButton);
 
     expect(onBack).toHaveBeenCalledTimes(1);
