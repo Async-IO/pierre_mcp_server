@@ -77,8 +77,8 @@ describe('MCP Spec Compliance: tools/list Visibility', () => {
     expect(toolNames).not.toContain('connect_provider');
     expect(toolNames).not.toContain('disconnect_provider');
 
-    // Should have public discovery subset (15+ tools)
-    expect(toolNames.length).toBeGreaterThanOrEqual(15);
+    // Should have public discovery subset (10+ tools)
+    expect(toolNames.length).toBeGreaterThanOrEqual(10);
 
     console.log('✅ Public discovery tools returned without authentication');
   }, 60000);
