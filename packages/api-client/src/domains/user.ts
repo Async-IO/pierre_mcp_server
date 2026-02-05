@@ -82,8 +82,8 @@ export function createUserApi(axios: AxiosInstance) {
     /**
      * Change password.
      */
-    async changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean }> {
-      const response = await axios.post<{ success: boolean }>(ENDPOINTS.USER.CHANGE_PASSWORD, {
+    async changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
+      const response = await axios.put<{ message: string }>(ENDPOINTS.USER.CHANGE_PASSWORD, {
         current_password: currentPassword,
         new_password: newPassword,
       });

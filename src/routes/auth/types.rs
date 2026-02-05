@@ -94,6 +94,15 @@ pub struct UpdateProfileResponse {
     pub user: UserInfo,
 }
 
+/// Change password request for authenticated users
+#[derive(Debug, Deserialize)]
+pub struct ChangePasswordRequest {
+    /// Current password for verification
+    pub current_password: String,
+    /// New password to set
+    pub new_password: String,
+}
+
 /// User stats response for dashboard
 #[derive(Debug, Serialize)]
 pub struct UserStatsResponse {

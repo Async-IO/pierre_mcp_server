@@ -1,5 +1,5 @@
 // ABOUTME: Comprehensive user settings with tabbed navigation
-// ABOUTME: Includes Profile, Connections, Tokens, and Account sections
+// ABOUTME: Includes Profile, Connections, Tokens, About, and Account sections
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
@@ -9,7 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { useAuth } from '../hooks/useAuth';
 import { userApi, apiClient } from '../services/api';
-import { Card, Button, Badge, ConfirmDialog } from './ui';
+import { Card, Button, Badge, ConfirmDialog, Input, Modal, ModalActions } from './ui';
 import { clsx } from 'clsx';
 import A2AClientList from './A2AClientList';
 import CreateA2AClient from './CreateA2AClient';
@@ -41,7 +41,9 @@ const PROVIDERS = [
   { id: 'terra', name: 'Terra', color: 'bg-pierre-green-600' },
 ];
 
-type SettingsTab = 'profile' | 'connections' | 'tokens' | 'llm' | 'account';
+const MIN_PASSWORD_LENGTH = 8;
+
+type SettingsTab = 'profile' | 'connections' | 'tokens' | 'llm' | 'about' | 'account';
 
 const SETTINGS_TABS: { id: SettingsTab; name: string; icon: React.ReactNode }[] = [
   {
@@ -77,6 +79,15 @@ const SETTINGS_TABS: { id: SettingsTab; name: string; icon: React.ReactNode }[] 
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'about',
+    name: 'About',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     ),
   },
@@ -120,6 +131,13 @@ export default function UserSettings() {
   const [copied, setCopied] = useState(false);
   const [showCreateA2AClient, setShowCreateA2AClient] = useState(false);
   const [showSetupInstructions, setShowSetupInstructions] = useState(false);
+
+  // Change Password state
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Fetch OAuth apps
   const { data: oauthAppsResponse, isLoading: isLoadingApps } = useQuery({
@@ -213,6 +231,25 @@ export default function UserSettings() {
     },
   });
 
+  // Change password mutation
+  const changePasswordMutation = useMutation({
+    mutationFn: (data: { current_password: string; new_password: string }) =>
+      userApi.changePassword(data.current_password, data.new_password),
+    onSuccess: () => {
+      setPasswordMessage({ type: 'success', text: 'Password changed successfully' });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setTimeout(() => {
+        setShowChangePassword(false);
+        setPasswordMessage(null);
+      }, 2000);
+    },
+    onError: (error: Error) => {
+      setPasswordMessage({ type: 'error', text: error.message || 'Failed to change password' });
+    },
+  });
+
   const handleSaveProfile = async () => {
     setIsSaving(true);
     setMessage(null);
@@ -240,6 +277,26 @@ export default function UserSettings() {
     });
   };
 
+  const handleChangePassword = () => {
+    setPasswordMessage(null);
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordMessage({ type: 'error', text: 'All fields are required' });
+      return;
+    }
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      setPasswordMessage({ type: 'error', text: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage({ type: 'error', text: 'Passwords do not match' });
+      return;
+    }
+    changePasswordMutation.mutate({
+      current_password: currentPassword,
+      new_password: newPassword,
+    });
+  };
+
   const copyToClipboard = async (text: string) => {
     await navigator.clipboard.writeText(text);
     setCopied(true);
@@ -257,13 +314,7 @@ export default function UserSettings() {
     <div className="flex gap-6">
       {/* Settings Navigation Sidebar - Dark Glassmorphism */}
       <div className="w-64 flex-shrink-0">
-        <div
-          className="sticky top-6 rounded-xl border border-white/10 p-4"
-          style={{
-            background: 'rgba(15, 15, 26, 0.7)',
-            backdropFilter: 'blur(12px)',
-          }}
-        >
+        <div className="sticky top-6 card-dark rounded-xl p-4">
           <nav className="space-y-1">
             {SETTINGS_TABS.map((tab) => (
               <button
@@ -272,11 +323,11 @@ export default function UserSettings() {
                 className={clsx(
                   'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200',
                   activeTab === tab.id
-                    ? 'bg-pierre-violet/15 border-l-[3px] border-pierre-violet text-pierre-violet shadow-[0_0_15px_rgba(124,58,237,0.15)]'
+                    ? 'bg-pierre-violet/15 border-l-[3px] border-pierre-violet text-white shadow-[0_0_15px_rgba(124,58,237,0.15)]'
                     : 'text-zinc-400 hover:text-white hover:bg-white/5'
                 )}
               >
-                {tab.icon}
+                <span className={activeTab === tab.id ? 'text-pierre-violet' : ''}>{tab.icon}</span>
                 {tab.name}
               </button>
             ))}
@@ -292,28 +343,34 @@ export default function UserSettings() {
             <Card variant="dark">
               <h2 className="text-lg font-semibold text-white mb-4">Profile Information</h2>
               <div className="space-y-4">
+                {/* Gradient ring avatar */}
                 <div className="flex items-center gap-4 pb-4 border-b border-white/10">
-                  <div className="w-16 h-16 bg-gradient-to-br from-pierre-violet to-pierre-cyan rounded-full flex items-center justify-center flex-shrink-0 shadow-glow">
-                    <span className="text-2xl font-bold text-white">
-                      {(user?.display_name || user?.email)?.charAt(0).toUpperCase()}
-                    </span>
+                  <div className="relative flex-shrink-0">
+                    <div className="w-24 h-24 rounded-full p-[3px] bg-gradient-to-br from-pierre-violet to-pierre-cyan">
+                      <div className="w-full h-full bg-pierre-slate rounded-full flex items-center justify-center">
+                        <span className="text-3xl font-bold text-white">
+                          {(user?.display_name || user?.email)?.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                   <div>
-                    <p className="font-medium text-white">{user?.display_name || 'No name set'}</p>
+                    <p className="text-xl font-semibold text-white">{user?.display_name || 'No name set'}</p>
                     <p className="text-sm text-zinc-400">{user?.email}</p>
+                    <Badge variant={user?.user_status === 'active' ? 'success' : 'warning'} className="mt-1">
+                      {user?.user_status?.charAt(0).toUpperCase()}{user?.user_status?.slice(1)}
+                    </Badge>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-zinc-300 mb-2">Display Name</label>
-                  <input
-                    type="text"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="Enter your display name"
-                    className="w-full px-4 py-3 bg-[#151520] border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-pierre-violet/50 focus:ring-1 focus:ring-pierre-violet/50 transition-all"
-                  />
-                </div>
+                <Input
+                  variant="dark"
+                  label="Display Name"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Enter your display name"
+                  size="lg"
+                />
 
                 <div>
                   <label className="block text-sm font-medium text-zinc-300 mb-2">Email</label>
@@ -345,24 +402,24 @@ export default function UserSettings() {
               </div>
             </Card>
 
-            {/* Quick Stats */}
+            {/* Quick Stats with gradient accent */}
             <div className="grid grid-cols-2 gap-4">
-              <Card variant="dark">
+              <div className="stat-card-dark rounded-xl border border-white/10 p-6">
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-pierre-violet">
+                  <div className="text-3xl font-bold bg-gradient-to-r from-pierre-violet to-pierre-cyan bg-clip-text text-transparent">
                     {statsLoading ? '...' : (stats?.connected_providers ?? 0)}
                   </div>
                   <div className="text-sm text-zinc-400 mt-1">Connected Providers</div>
                 </div>
-              </Card>
-              <Card variant="dark">
+              </div>
+              <div className="stat-card-dark rounded-xl border border-white/10 p-6">
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-pierre-nutrition">
+                  <div className="text-3xl font-bold bg-gradient-to-r from-pierre-nutrition to-pierre-activity bg-clip-text text-transparent">
                     {statsLoading ? '...' : (stats?.days_active ?? 0)}
                   </div>
                   <div className="text-sm text-zinc-400 mt-1">Days Active</div>
                 </div>
-              </Card>
+              </div>
             </div>
           </>
         )}
@@ -457,7 +514,7 @@ export default function UserSettings() {
                     <select
                       value={selectedProvider}
                       onChange={(e) => setSelectedProvider(e.target.value)}
-                      className="w-full px-4 py-3 bg-[#0F0F1A] border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-pierre-violet focus:border-transparent"
+                      className="select-dark w-full px-4 py-3 bg-[#0F0F1A] border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-pierre-violet focus:ring-opacity-30 focus:border-pierre-violet transition-all"
                     >
                       <option value="">Select a provider</option>
                       {availableProviders.map((provider) => (
@@ -468,38 +525,30 @@ export default function UserSettings() {
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-zinc-300 mb-2">Client ID</label>
-                    <input
-                      type="text"
-                      value={clientId}
-                      onChange={(e) => setClientId(e.target.value)}
-                      placeholder="Enter your OAuth client ID"
-                      className="w-full px-4 py-3 bg-[#0F0F1A] border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-pierre-violet/50 focus:ring-1 focus:ring-pierre-violet/50"
-                    />
-                  </div>
+                  <Input
+                    variant="dark"
+                    label="Client ID"
+                    value={clientId}
+                    onChange={(e) => setClientId(e.target.value)}
+                    placeholder="Enter your OAuth client ID"
+                  />
 
-                  <div>
-                    <label className="block text-sm font-medium text-zinc-300 mb-2">Client Secret</label>
-                    <input
-                      type="password"
-                      value={clientSecret}
-                      onChange={(e) => setClientSecret(e.target.value)}
-                      placeholder="Enter your OAuth client secret"
-                      className="w-full px-4 py-3 bg-[#0F0F1A] border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-pierre-violet/50 focus:ring-1 focus:ring-pierre-violet/50"
-                    />
-                  </div>
+                  <Input
+                    variant="dark"
+                    label="Client Secret"
+                    type="password"
+                    value={clientSecret}
+                    onChange={(e) => setClientSecret(e.target.value)}
+                    placeholder="Enter your OAuth client secret"
+                  />
 
-                  <div>
-                    <label className="block text-sm font-medium text-zinc-300 mb-2">Redirect URI</label>
-                    <input
-                      type="text"
-                      value={redirectUri}
-                      onChange={(e) => setRedirectUri(e.target.value)}
-                      placeholder="e.g., http://localhost:8081/api/oauth/callback/strava"
-                      className="w-full px-4 py-3 bg-[#0F0F1A] border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-pierre-violet/50 focus:ring-1 focus:ring-pierre-violet/50"
-                    />
-                  </div>
+                  <Input
+                    variant="dark"
+                    label="Redirect URI"
+                    value={redirectUri}
+                    onChange={(e) => setRedirectUri(e.target.value)}
+                    placeholder="e.g., http://localhost:8081/api/oauth/callback/strava"
+                  />
 
                   <div className="flex gap-2 justify-end">
                     <Button
@@ -584,22 +633,19 @@ export default function UserSettings() {
                   <div className="bg-white/5 border border-white/10 rounded-lg p-4 space-y-4">
                     <h4 className="font-medium text-white">Create Token</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Input
+                        variant="dark"
+                        label="Token Name"
+                        value={newTokenName}
+                        onChange={(e) => setNewTokenName(e.target.value)}
+                        placeholder="e.g., Claude Desktop, Cursor IDE"
+                      />
                       <div>
-                        <label className="block text-sm font-medium text-zinc-300 mb-1">Token Name</label>
-                        <input
-                          type="text"
-                          value={newTokenName}
-                          onChange={(e) => setNewTokenName(e.target.value)}
-                          placeholder="e.g., Claude Desktop, Cursor IDE"
-                          className="w-full px-3 py-2 bg-[#151520] border border-white/10 rounded-md text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-pierre-violet/30 focus:border-pierre-violet"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-zinc-300 mb-1">Expires In (days)</label>
+                        <label className="block text-sm font-medium text-zinc-300 mb-1.5">Expires In (days)</label>
                         <select
                           value={expiresInDays || ''}
                           onChange={(e) => setExpiresInDays(e.target.value ? Number(e.target.value) : undefined)}
-                          className="w-full px-3 py-2 bg-[#151520] border border-white/10 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-pierre-violet/30 focus:border-pierre-violet"
+                          className="select-dark w-full px-4 py-2.5 bg-[#151520] border border-white/10 rounded-lg text-white text-sm focus:ring-2 focus:ring-pierre-violet focus:ring-opacity-30 focus:border-pierre-violet transition-all"
                         >
                           <option value="">Never expires</option>
                           <option value="30">30 days</option>
@@ -632,7 +678,9 @@ export default function UserSettings() {
                 </div>
               ) : tokens.length === 0 ? (
                 <div className="text-center py-8 text-zinc-400">
-                  <div className="text-4xl mb-4">🔑</div>
+                  <svg className="w-12 h-12 text-zinc-600 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                  </svg>
                   <p className="text-lg mb-2 text-white">No tokens yet</p>
                   <p>Create a token to connect AI clients like Claude Desktop or Cursor to Pierre</p>
                 </div>
@@ -780,6 +828,69 @@ Authorization: Bearer <your-token-here>`}
         {/* AI Settings Tab */}
         {activeTab === 'llm' && <LlmSettingsTab />}
 
+        {/* About Tab */}
+        {activeTab === 'about' && (
+          <Card variant="dark">
+            <h2 className="text-lg font-semibold text-white mb-6">About Pierre</h2>
+            <div className="space-y-3">
+              {/* Version */}
+              <div className="flex items-center gap-4 p-4 bg-white/5 rounded-xl border border-white/10">
+                <div className="w-10 h-10 rounded-xl bg-pierre-violet/15 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-pierre-violet" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-zinc-400">Version</p>
+                  <p className="text-white font-medium">1.0.0</p>
+                </div>
+              </div>
+
+              {/* Help Center */}
+              <a
+                href="https://pierre.fitness/help"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-4 p-4 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition-colors group"
+              >
+                <div className="w-10 h-10 rounded-xl bg-pierre-cyan/15 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-pierre-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="text-white font-medium">Help Center</p>
+                  <p className="text-sm text-zinc-400">Documentation and support</p>
+                </div>
+                <svg className="w-5 h-5 text-zinc-500 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </a>
+
+              {/* Terms & Privacy */}
+              <a
+                href="https://pierre.fitness/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-4 p-4 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition-colors group"
+              >
+                <div className="w-10 h-10 rounded-xl bg-pierre-activity/15 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-pierre-activity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="text-white font-medium">Terms & Privacy</p>
+                  <p className="text-sm text-zinc-400">Legal information and data policy</p>
+                </div>
+                <svg className="w-5 h-5 text-zinc-500 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </a>
+            </div>
+          </Card>
+        )}
+
         {/* Account Tab */}
         {activeTab === 'account' && (
           <>
@@ -805,7 +916,11 @@ Authorization: Bearer <your-token-here>`}
                 </div>
                 <div className="flex justify-between items-center py-2">
                   <span className="text-zinc-400">Member Since</span>
-                  <span className="text-white">N/A</span>
+                  <span className="text-white">
+                    {user?.created_at
+                      ? format(new Date(user.created_at), 'MMM d, yyyy')
+                      : 'Unknown'}
+                  </span>
                 </div>
               </div>
             </Card>
@@ -816,10 +931,9 @@ Authorization: Bearer <your-token-here>`}
                 <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
                   <h3 className="font-medium text-white mb-2">Password</h3>
                   <p className="text-sm text-zinc-400 mb-3">Change your password to keep your account secure.</p>
-                  <Button variant="secondary" size="sm" disabled>
+                  <Button variant="secondary" size="sm" onClick={() => setShowChangePassword(true)}>
                     Change Password
                   </Button>
-                  <p className="text-xs text-zinc-500 mt-2">Coming soon</p>
                 </div>
               </div>
             </Card>
@@ -839,6 +953,84 @@ Authorization: Bearer <your-token-here>`}
           </>
         )}
       </div>
+
+      {/* Change Password Modal */}
+      <Modal
+        isOpen={showChangePassword}
+        onClose={() => {
+          setShowChangePassword(false);
+          setCurrentPassword('');
+          setNewPassword('');
+          setConfirmPassword('');
+          setPasswordMessage(null);
+        }}
+        title="Change Password"
+        size="sm"
+        footer={
+          <ModalActions>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setShowChangePassword(false);
+                setCurrentPassword('');
+                setNewPassword('');
+                setConfirmPassword('');
+                setPasswordMessage(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="gradient"
+              onClick={handleChangePassword}
+              loading={changePasswordMutation.isPending}
+              disabled={!currentPassword || !newPassword || !confirmPassword}
+            >
+              Update Password
+            </Button>
+          </ModalActions>
+        }
+      >
+        <div className="space-y-4">
+          {passwordMessage && (
+            <div
+              className={`p-3 rounded-lg text-sm ${
+                passwordMessage.type === 'success'
+                  ? 'bg-pierre-activity/20 text-pierre-activity border border-pierre-activity/30'
+                  : 'bg-pierre-red-500/20 text-pierre-red-500 border border-pierre-red-500/30'
+              }`}
+            >
+              {passwordMessage.text}
+            </div>
+          )}
+          <Input
+            variant="dark"
+            label="Current Password"
+            type="password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            placeholder="Enter current password"
+          />
+          <Input
+            variant="dark"
+            label="New Password"
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="Enter new password"
+            helpText={`Minimum ${MIN_PASSWORD_LENGTH} characters`}
+          />
+          <Input
+            variant="dark"
+            label="Confirm New Password"
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="Confirm new password"
+            error={confirmPassword && newPassword !== confirmPassword ? 'Passwords do not match' : undefined}
+          />
+        </div>
+      </Modal>
 
       {/* Delete Provider Confirmation Dialog */}
       <ConfirmDialog

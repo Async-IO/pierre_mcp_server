@@ -453,27 +453,38 @@ export default function Dashboard() {
             'flex items-center',
             sidebarCollapsed ? 'flex-col gap-1' : 'gap-2'
           )}>
-            {/* User Avatar with online indicator */}
-            <div className="relative flex-shrink-0">
-              <div className="w-5 h-5 bg-gradient-to-br from-pierre-violet to-pierre-cyan rounded-full flex items-center justify-center">
-                <span className="text-[9px] font-bold text-white">
-                  {(user?.display_name || user?.email)?.charAt(0).toUpperCase()}
-                </span>
+            {/* Clickable user area - navigates to Settings */}
+            <button
+              onClick={() => setActiveTab(isAdminUser ? 'admin-settings' : 'settings')}
+              className={clsx(
+                'flex items-center gap-2 rounded-lg transition-all duration-200 hover:bg-white/5',
+                sidebarCollapsed ? 'p-1 flex-col' : 'flex-1 min-w-0 p-1.5'
+              )}
+              title="Open Settings"
+              aria-label="Open Settings"
+            >
+              {/* User Avatar with online indicator */}
+              <div className="relative flex-shrink-0">
+                <div className="w-8 h-8 bg-gradient-to-br from-pierre-violet to-pierre-cyan rounded-full flex items-center justify-center">
+                  <span className="text-xs font-bold text-white">
+                    {(user?.display_name || user?.email)?.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                {/* Online status dot */}
+                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-pierre-activity rounded-full border-2 border-pierre-slate" />
               </div>
-              {/* Online status dot */}
-              <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-pierre-activity rounded-full border border-pierre-slate" />
-            </div>
 
-            {!sidebarCollapsed && (
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-medium text-white truncate leading-none">
-                  {user?.display_name || user?.email}
-                </p>
-                <span className="text-[8px] text-zinc-300 uppercase">
-                  {user?.role === 'super_admin' ? 'Super Admin' : user?.role === 'admin' ? 'Admin' : 'User'}
-                </span>
-              </div>
-            )}
+              {!sidebarCollapsed && (
+                <div className="flex-1 min-w-0 text-left">
+                  <p className="text-[11px] font-medium text-white truncate leading-tight">
+                    {user?.display_name || user?.email}
+                  </p>
+                  <span className="text-[9px] text-zinc-400 uppercase">
+                    {user?.role === 'super_admin' ? 'Super Admin' : user?.role === 'admin' ? 'Admin' : 'User'}
+                  </span>
+                </div>
+              )}
+            </button>
 
             {!sidebarCollapsed && (
               <button

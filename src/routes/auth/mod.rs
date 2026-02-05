@@ -16,9 +16,9 @@
 mod types;
 
 pub use types::{
-    ConnectionStatus, FirebaseLoginRequest, LoginRequest, LoginResponse, OAuth2ErrorResponse,
-    OAuth2TokenRequest, OAuth2TokenResponse, OAuthAuthorizationResponse, OAuthStatus,
-    ProviderStatus, ProvidersStatusResponse, RefreshTokenRequest, RegisterRequest,
+    ChangePasswordRequest, ConnectionStatus, FirebaseLoginRequest, LoginRequest, LoginResponse,
+    OAuth2ErrorResponse, OAuth2TokenRequest, OAuth2TokenResponse, OAuthAuthorizationResponse,
+    OAuthStatus, ProviderStatus, ProvidersStatusResponse, RefreshTokenRequest, RegisterRequest,
     RegisterResponse, UpdateProfileRequest, UpdateProfileResponse, UserInfo, UserStatsResponse,
 };
 
@@ -1267,6 +1267,10 @@ impl AuthRoutes {
             .route("/api/auth/logout", post(Self::handle_logout))
             .route("/api/auth/refresh", post(Self::handle_refresh))
             .route("/api/user/profile", put(Self::handle_update_profile))
+            .route(
+                "/api/user/change-password",
+                put(Self::handle_change_password),
+            )
             .route("/api/user/stats", get(Self::handle_user_stats))
             // OAuth2 ROPC endpoint (RFC 6749 Section 4.3) - unified login for all clients
             .route("/oauth/token", post(Self::handle_oauth2_token))
@@ -1630,6 +1634,96 @@ impl AuthRoutes {
         info!(user_id = %user_id, "User profile updated successfully");
 
         Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Handle password change for authenticated users
+    ///
+    /// Verifies the current password, validates the new password,
+    /// then hashes and stores the new password.
+    #[tracing::instrument(
+        skip(resources, headers, request),
+        fields(
+            route = "change_password",
+            success = Empty,
+        )
+    )]
+    async fn handle_change_password(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Json(request): Json<ChangePasswordRequest>,
+    ) -> Result<Response, AppError> {
+        // Extract JWT from cookie or Authorization header
+        let auth_value =
+            if let Some(auth_header) = headers.get("authorization").and_then(|h| h.to_str().ok()) {
+                auth_header.to_owned()
+            } else if let Some(token) = get_cookie_value(&headers, "auth_token") {
+                format!("Bearer {token}")
+            } else {
+                return Err(AppError::auth_invalid(
+                    "Missing authorization header or cookie",
+                ));
+            };
+
+        // Authenticate and get user ID
+        let auth = resources
+            .auth_middleware
+            .authenticate_request(Some(&auth_value))
+            .await
+            .map_err(|e| AppError::auth_invalid(format!("Authentication failed: {e}")))?;
+
+        let user_id = auth.user_id;
+
+        // Fetch user to get current password hash
+        let user = resources
+            .database
+            .get_user(user_id)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("User {user_id}")))?;
+
+        // Verify current password using spawn_blocking to avoid blocking async executor
+        let current_password = request.current_password;
+        let stored_hash = user.password_hash.clone();
+        let is_valid =
+            task::spawn_blocking(move || bcrypt::verify(&current_password, &stored_hash))
+                .await
+                .map_err(|e| AppError::internal(format!("Password verification task failed: {e}")))?
+                .map_err(|_| AppError::auth_invalid("Current password is incorrect"))?;
+
+        if !is_valid {
+            return Err(AppError::auth_invalid("Current password is incorrect"));
+        }
+
+        // Validate new password strength
+        if !AuthService::is_valid_password(&request.new_password) {
+            return Err(AppError::invalid_input(error_messages::PASSWORD_TOO_WEAK));
+        }
+
+        // Hash new password using spawn_blocking
+        let password_to_hash = request.new_password;
+        let password_hash =
+            task::spawn_blocking(move || bcrypt::hash(&password_to_hash, bcrypt::DEFAULT_COST))
+                .await
+                .map_err(|e| AppError::internal(format!("Password hashing task failed: {e}")))?
+                .map_err(|e| AppError::internal(format!("Password hashing failed: {e}")))?;
+
+        // Update password in database
+        resources
+            .database
+            .update_user_password(user_id, &password_hash)
+            .await
+            .map_err(|e| {
+                error!(error = %e, "Failed to update user password");
+                AppError::internal(format!("Failed to update password: {e}"))
+            })?;
+
+        Span::current().record("success", true);
+        info!(user_id = %user_id, "User password changed successfully");
+
+        Ok((
+            StatusCode::OK,
+            Json(json!({ "message": "Password changed successfully" })),
+        )
+            .into_response())
     }
 
     /// Handle user stats request for dashboard

@@ -25,6 +25,14 @@ export const userApi = {
     return response.data;
   },
 
+  async changePassword(data: {
+    current_password: string;
+    new_password: string;
+  }): Promise<{ message: string }> {
+    const response = await axios.put('/api/user/change-password', data);
+    return response.data;
+  },
+
   // MCP Token Management
   async createMcpToken(data: {
     name: string;
