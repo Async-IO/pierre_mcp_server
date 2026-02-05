@@ -32,7 +32,7 @@ export const StatusFilter: React.FC<StatusFilterProps> = ({
   ];
 
   return (
-    <div className={`inline-flex rounded-lg border border-pierre-gray-200 bg-pierre-gray-50 p-1 ${className}`}>
+    <div className={`inline-flex rounded-lg border border-white/10 bg-pierre-slate/60 p-1 ${className}`}>
       {options.map((option) => (
         <button
           key={option.value}
@@ -40,14 +40,14 @@ export const StatusFilter: React.FC<StatusFilterProps> = ({
           className={`
             px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-150
             ${value === option.value
-              ? 'bg-white text-pierre-gray-900 shadow-sm'
-              : 'text-pierre-gray-600 hover:text-pierre-gray-900'
+              ? 'bg-white/10 text-white shadow-sm'
+              : 'text-zinc-400 hover:text-white hover:bg-white/5'
             }
           `}
         >
           {option.label}
           {option.count !== undefined && (
-            <span className={`ml-1.5 text-xs ${value === option.value ? 'text-pierre-gray-500' : 'text-pierre-gray-400'}`}>
+            <span className={`ml-1.5 text-xs ${value === option.value ? 'text-zinc-500' : 'text-zinc-500'}`}>
               ({option.count})
             </span>
           )}

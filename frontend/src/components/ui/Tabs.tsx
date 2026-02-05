@@ -59,14 +59,14 @@ export const Tabs: React.FC<TabsProps> = ({
         return `${baseClasses} rounded-lg ${
           isActive
             ? 'bg-pierre-violet text-white'
-            : 'text-pierre-gray-600 hover:bg-pierre-gray-100 hover:text-pierre-gray-900'
+            : 'text-zinc-400 hover:bg-white/10 hover:text-white'
         }`;
 
       case 'bordered':
         return `${baseClasses} border-2 rounded-lg ${
           isActive
             ? 'border-pierre-violet text-pierre-violet bg-pierre-violet/5'
-            : 'border-transparent text-pierre-gray-600 hover:border-pierre-gray-200 hover:text-pierre-gray-900'
+            : 'border-transparent text-zinc-400 hover:border-white/10 hover:text-white'
         }`;
 
       case 'underline':
@@ -74,14 +74,14 @@ export const Tabs: React.FC<TabsProps> = ({
         return `${baseClasses} border-b-2 ${
           isActive
             ? 'border-pierre-violet text-pierre-violet'
-            : 'border-transparent text-pierre-gray-600 hover:text-pierre-gray-900 hover:border-pierre-gray-300'
+            : 'border-transparent text-zinc-400 hover:text-white hover:border-zinc-600'
         }`;
     }
   };
 
   const containerClasses = {
-    underline: 'flex border-b border-pierre-gray-200',
-    pills: 'flex gap-2 p-1 bg-pierre-gray-100 rounded-lg',
+    underline: 'flex border-b border-white/10',
+    pills: 'flex gap-2 p-1 bg-pierre-slate/60 rounded-lg',
     bordered: 'flex gap-2',
   };
 
@@ -108,7 +108,7 @@ export const Tabs: React.FC<TabsProps> = ({
                     ? variant === 'pills'
                       ? 'bg-white/20 text-white'
                       : 'bg-pierre-violet/10 text-pierre-violet-light'
-                    : 'bg-pierre-gray-200 text-pierre-gray-600'
+                    : 'bg-white/10 text-zinc-400'
                 }
               `}
             >
