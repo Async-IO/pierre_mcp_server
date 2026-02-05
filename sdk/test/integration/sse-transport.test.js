@@ -10,7 +10,6 @@
 const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
 const { StreamableHTTPClientTransport } = require('@modelcontextprotocol/sdk/client/streamableHttp.js');
 const { ensureServerRunning } = require('../helpers/server');
-const { generateTestToken } = require('../helpers/token-generator');
 const { TestConfig } = require('../helpers/fixtures');
 
 // Use native fetch
@@ -28,11 +27,7 @@ describe('SSE/Streamable HTTP Transport Tests (Claude Desktop Mode)', () => {
       database: TestConfig.testDatabase,
       encryptionKey: TestConfig.testEncryptionKey
     });
-
-    // Generate a test JWT token
-    const crypto = require('crypto');
-    const userId = crypto.randomUUID();
-    testToken = generateTestToken(userId, 'sse-transport-test@example.com', 3600);
+    testToken = serverHandle?.testToken;
   }, 60000);
 
   afterAll(async () => {
@@ -356,9 +351,7 @@ describe('SSE/Streamable HTTP Transport Tests (Claude Desktop Mode)', () => {
       try {
         // Create multiple clients
         for (let i = 0; i < 3; i++) {
-          const crypto = require('crypto');
-          const userId = crypto.randomUUID();
-          const token = generateTestToken(userId, `concurrent-test-${i}@example.com`, 3600);
+          const token = testToken;
 
           const client = new Client(
             { name: `concurrent-client-${i}`, version: '1.0.0' },

@@ -9,12 +9,12 @@
 
 const { ensureServerRunning } = require('../helpers/server');
 const { TestConfig } = require('../helpers/fixtures');
-const { generateTestToken } = require('../helpers/token-generator');
 
 const fetch = global.fetch;
 
 describe('Rate Limiting - 429 Response Detection', () => {
   let serverHandle;
+  let testToken;
   const serverUrl = `http://localhost:${TestConfig.defaultServerPort}`;
 
   beforeAll(async () => {
@@ -23,6 +23,7 @@ describe('Rate Limiting - 429 Response Detection', () => {
       database: TestConfig.testDatabase,
       encryptionKey: TestConfig.testEncryptionKey
     });
+    testToken = serverHandle?.testToken;
   }, 90000);
 
   afterAll(async () => {
@@ -32,7 +33,7 @@ describe('Rate Limiting - 429 Response Detection', () => {
   });
 
   test('should handle 429 response from provider with structured error', async () => {
-    const tokenData = generateTestToken('user-ratelimit', 'ratelimit@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     const response = await fetch(mcpEndpoint, {
@@ -64,7 +65,7 @@ describe('Rate Limiting - 429 Response Detection', () => {
   }, 30000);
 
   test('should extract Retry-After header information when available', async () => {
-    const tokenData = generateTestToken('user-retryafter', 'retryafter@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     const response = await fetch(mcpEndpoint, {
@@ -95,7 +96,7 @@ describe('Rate Limiting - 429 Response Detection', () => {
   }, 30000);
 
   test('should differentiate between provider rate limits and Pierre rate limits', async () => {
-    const tokenData = generateTestToken('user-difflimit', 'difflimit@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     const response = await fetch(mcpEndpoint, {
@@ -128,7 +129,7 @@ describe('Rate Limiting - 429 Response Detection', () => {
   }, 30000);
 
   test('should include rate limit type in error (daily, hourly, minute)', async () => {
-    const tokenData = generateTestToken('user-limittype', 'limittype@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     const response = await fetch(mcpEndpoint, {
@@ -156,6 +157,7 @@ describe('Rate Limiting - 429 Response Detection', () => {
 
 describe('Rate Limiting - Backoff Behavior', () => {
   let serverHandle;
+  let testToken;
   const serverUrl = `http://localhost:${TestConfig.defaultServerPort}`;
 
   beforeAll(async () => {
@@ -164,6 +166,7 @@ describe('Rate Limiting - Backoff Behavior', () => {
       database: TestConfig.testDatabase,
       encryptionKey: TestConfig.testEncryptionKey
     });
+    testToken = serverHandle?.testToken;
   }, 90000);
 
   afterAll(async () => {
@@ -173,7 +176,7 @@ describe('Rate Limiting - Backoff Behavior', () => {
   });
 
   test('should respect exponential backoff for retries', async () => {
-    const tokenData = generateTestToken('user-backoff', 'backoff@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     // Make multiple requests and measure timing
@@ -210,7 +213,7 @@ describe('Rate Limiting - Backoff Behavior', () => {
   }, 100000);
 
   test('should cap maximum backoff time', async () => {
-    const tokenData = generateTestToken('user-maxbackoff', 'maxbackoff@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     const startTime = Date.now();
@@ -240,7 +243,7 @@ describe('Rate Limiting - Backoff Behavior', () => {
   }, 130000);
 
   test('should add jitter to backoff to prevent thundering herd', async () => {
-    const tokenData = generateTestToken('user-jitter', 'jitter@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     // Send multiple concurrent requests
@@ -272,7 +275,7 @@ describe('Rate Limiting - Backoff Behavior', () => {
   }, 60000);
 
   test('should reset backoff after successful request', async () => {
-    const tokenData = generateTestToken('user-resetbackoff', 'resetbackoff@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     // First request
@@ -315,6 +318,7 @@ describe('Rate Limiting - Backoff Behavior', () => {
 
 describe('Rate Limiting - Multi-Tenant Isolation', () => {
   let serverHandle;
+  let testToken;
   const serverUrl = `http://localhost:${TestConfig.defaultServerPort}`;
 
   beforeAll(async () => {
@@ -323,6 +327,7 @@ describe('Rate Limiting - Multi-Tenant Isolation', () => {
       database: TestConfig.testDatabase,
       encryptionKey: TestConfig.testEncryptionKey
     });
+    testToken = serverHandle?.testToken;
   }, 90000);
 
   afterAll(async () => {
@@ -332,8 +337,8 @@ describe('Rate Limiting - Multi-Tenant Isolation', () => {
   });
 
   test('should track rate limits separately per tenant', async () => {
-    const tenant1Token = generateTestToken('user-tenant1', 'tenant1@example.com', 3600);
-    const tenant2Token = generateTestToken('user-tenant2', 'tenant2@example.com', 3600);
+    const tenant1Token = testToken;
+    const tenant2Token = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     // Request from tenant 1
@@ -384,8 +389,8 @@ describe('Rate Limiting - Multi-Tenant Isolation', () => {
   }, 30000);
 
   test('should not leak rate limit state between tenants', async () => {
-    const tenant1Token = generateTestToken('user-leak1', 'leak1@example.com', 3600);
-    const tenant2Token = generateTestToken('user-leak2', 'leak2@example.com', 3600);
+    const tenant1Token = testToken;
+    const tenant2Token = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     // Exhaust requests for tenant 1 (simulated)
@@ -430,8 +435,8 @@ describe('Rate Limiting - Multi-Tenant Isolation', () => {
   }, 60000);
 
   test('should apply tenant-specific rate limit tiers', async () => {
-    const freeToken = generateTestToken('user-free', 'free@example.com', 3600, { tier: 'free' });
-    const proToken = generateTestToken('user-pro', 'pro@example.com', 3600, { tier: 'professional' });
+    const freeToken = testToken;
+    const proToken = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     // Both tiers should be able to make requests
@@ -468,7 +473,7 @@ describe('Rate Limiting - Multi-Tenant Isolation', () => {
   }, 30000);
 
   test('should handle rate limit recovery per tenant', async () => {
-    const tenantToken = generateTestToken('user-recovery', 'recovery@example.com', 3600);
+    const tenantToken = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     // Make request
@@ -517,6 +522,7 @@ describe('Rate Limiting - Multi-Tenant Isolation', () => {
 
 describe('Rate Limiting - Error Response Format', () => {
   let serverHandle;
+  let testToken;
   const serverUrl = `http://localhost:${TestConfig.defaultServerPort}`;
 
   beforeAll(async () => {
@@ -525,6 +531,7 @@ describe('Rate Limiting - Error Response Format', () => {
       database: TestConfig.testDatabase,
       encryptionKey: TestConfig.testEncryptionKey
     });
+    testToken = serverHandle?.testToken;
   }, 90000);
 
   afterAll(async () => {
@@ -534,7 +541,7 @@ describe('Rate Limiting - Error Response Format', () => {
   });
 
   test('should return JSON-RPC compliant rate limit error', async () => {
-    const tokenData = generateTestToken('user-jsonrpc', 'jsonrpc@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     const response = await fetch(mcpEndpoint, {
@@ -562,7 +569,7 @@ describe('Rate Limiting - Error Response Format', () => {
   }, 30000);
 
   test('should include helpful message for rate limit resolution', async () => {
-    const tokenData = generateTestToken('user-helpful', 'helpful@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     const response = await fetch(mcpEndpoint, {
@@ -591,7 +598,7 @@ describe('Rate Limiting - Error Response Format', () => {
   }, 30000);
 
   test('should not expose internal rate limit counters', async () => {
-    const tokenData = generateTestToken('user-internal', 'internal@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     const response = await fetch(mcpEndpoint, {
@@ -620,7 +627,7 @@ describe('Rate Limiting - Error Response Format', () => {
   }, 30000);
 
   test('should include retry timing in machine-readable format', async () => {
-    const tokenData = generateTestToken('user-timing', 'timing@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     const response = await fetch(mcpEndpoint, {

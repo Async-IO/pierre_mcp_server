@@ -7,13 +7,13 @@
 const { ensureServerRunning } = require('../helpers/server');
 const { MockMCPClient } = require('../helpers/mock-client');
 const { MCPMessages, TestConfig } = require('../helpers/fixtures');
-const { generateTestToken } = require('../helpers/token-generator');
 const { clearKeychainTokens } = require('../helpers/keychain-cleanup');
 const path = require('path');
 
 describe('All Tools Response Validation', () => {
   let serverHandle;
   let bridgeClient;
+  let testToken;
   const bridgePath = path.join(__dirname, '../../dist/cli.js');
   const serverUrl = `http://localhost:${TestConfig.defaultServerPort}`;
 
@@ -23,6 +23,7 @@ describe('All Tools Response Validation', () => {
       database: TestConfig.testDatabase,
       encryptionKey: TestConfig.testEncryptionKey
     });
+    testToken = serverHandle?.testToken;
   }, 60000);
 
   beforeEach(async () => {
@@ -68,8 +69,6 @@ describe('All Tools Response Validation', () => {
   // ============================================================================
 
   test('tools/list returns all expected tools', async () => {
-    const testToken = generateTestToken('list-test', 'list@example.com', 3600);
-
     bridgeClient = new MockMCPClient('node', [
       bridgePath,
       '--server', serverUrl,
@@ -188,10 +187,7 @@ describe('All Tools Response Validation', () => {
   // ============================================================================
 
   describe('Non-Authentication Tools Response Shapes', () => {
-    let testToken;
-
     beforeEach(async () => {
-      testToken = generateTestToken('shape-test', 'shape@example.com', 3600);
       bridgeClient = new MockMCPClient('node', [
         bridgePath,
         '--server', serverUrl,
@@ -380,10 +376,7 @@ describe('All Tools Response Validation', () => {
   // ============================================================================
 
   describe('Error Response Shapes', () => {
-    let testToken;
-
     beforeEach(async () => {
-      testToken = generateTestToken('error-test', 'error@example.com', 3600);
       bridgeClient = new MockMCPClient('node', [
         bridgePath,
         '--server', serverUrl,
@@ -496,10 +489,7 @@ describe('All Tools Response Validation', () => {
   // ============================================================================
 
   describe('Tool Schema Consistency', () => {
-    let testToken;
-
     beforeEach(async () => {
-      testToken = generateTestToken('schema-test', 'schema@example.com', 3600);
       bridgeClient = new MockMCPClient('node', [
         bridgePath,
         '--server', serverUrl,
@@ -558,10 +548,7 @@ describe('All Tools Response Validation', () => {
   // ============================================================================
 
   describe('Cross-Provider Tool Compatibility', () => {
-    let testToken;
-
     beforeEach(async () => {
-      testToken = generateTestToken('provider-test', 'provider@example.com', 3600);
       bridgeClient = new MockMCPClient('node', [
         bridgePath,
         '--server', serverUrl,

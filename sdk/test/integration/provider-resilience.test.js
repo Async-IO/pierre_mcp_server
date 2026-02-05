@@ -9,7 +9,6 @@
 
 const { ensureServerRunning } = require('../helpers/server');
 const { TestConfig } = require('../helpers/fixtures');
-const { generateTestToken } = require('../helpers/token-generator');
 const http = require('http');
 
 const fetch = global.fetch;
@@ -32,6 +31,7 @@ function createMockProviderServer(port, behavior) {
 
 describe('Provider Resilience - API Unavailability (503)', () => {
   let serverHandle;
+  let testToken;
   const serverUrl = `http://localhost:${TestConfig.defaultServerPort}`;
 
   beforeAll(async () => {
@@ -40,6 +40,7 @@ describe('Provider Resilience - API Unavailability (503)', () => {
       database: TestConfig.testDatabase,
       encryptionKey: TestConfig.testEncryptionKey
     });
+    testToken = serverHandle?.testToken;
   }, 90000);
 
   afterAll(async () => {
@@ -51,7 +52,7 @@ describe('Provider Resilience - API Unavailability (503)', () => {
   test('should return structured error when provider returns 503', async () => {
     // Send a request that would trigger provider call
     // Server should handle 503 from provider gracefully
-    const tokenData = generateTestToken('user-503', 'provider503@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     const response = await fetch(mcpEndpoint, {
@@ -86,7 +87,7 @@ describe('Provider Resilience - API Unavailability (503)', () => {
   }, 30000);
 
   test('should include provider name in error context', async () => {
-    const tokenData = generateTestToken('user-ctx', 'providerctx@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     const response = await fetch(mcpEndpoint, {
@@ -117,7 +118,7 @@ describe('Provider Resilience - API Unavailability (503)', () => {
   }, 30000);
 
   test('should not expose internal provider details in error messages', async () => {
-    const tokenData = generateTestToken('user-security', 'security@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     const response = await fetch(mcpEndpoint, {
@@ -150,7 +151,7 @@ describe('Provider Resilience - API Unavailability (503)', () => {
 
   test('should recover after provider becomes available again', async () => {
     // First request during simulated outage
-    const tokenData = generateTestToken('user-recovery', 'recovery@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     const request1 = await fetch(mcpEndpoint, {
@@ -199,6 +200,7 @@ describe('Provider Resilience - API Unavailability (503)', () => {
 
 describe('Provider Resilience - Timeout Handling', () => {
   let serverHandle;
+  let testToken;
   const serverUrl = `http://localhost:${TestConfig.defaultServerPort}`;
 
   beforeAll(async () => {
@@ -207,6 +209,7 @@ describe('Provider Resilience - Timeout Handling', () => {
       database: TestConfig.testDatabase,
       encryptionKey: TestConfig.testEncryptionKey
     });
+    testToken = serverHandle?.testToken;
   }, 90000);
 
   afterAll(async () => {
@@ -216,7 +219,7 @@ describe('Provider Resilience - Timeout Handling', () => {
   });
 
   test('should handle slow provider responses without hanging', async () => {
-    const tokenData = generateTestToken('user-slow', 'slow@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     const startTime = Date.now();
@@ -246,7 +249,7 @@ describe('Provider Resilience - Timeout Handling', () => {
   }, 65000);
 
   test('should return timeout error with appropriate message', async () => {
-    const tokenData = generateTestToken('user-timeout-msg', 'timeout@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     const response = await fetch(mcpEndpoint, {
@@ -276,7 +279,7 @@ describe('Provider Resilience - Timeout Handling', () => {
   }, 65000);
 
   test('should not block other requests during timeout', async () => {
-    const tokenData = generateTestToken('user-nonblock', 'nonblock@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
     const healthEndpoint = `${serverUrl}/health`;
 
@@ -307,7 +310,7 @@ describe('Provider Resilience - Timeout Handling', () => {
   }, 30000);
 
   test('should handle multiple concurrent timeout scenarios', async () => {
-    const tokenData = generateTestToken('user-concurrent', 'concurrent@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     // Fire multiple requests concurrently
@@ -343,6 +346,7 @@ describe('Provider Resilience - Timeout Handling', () => {
 
 describe('Provider Resilience - Partial Response Handling', () => {
   let serverHandle;
+  let testToken;
   const serverUrl = `http://localhost:${TestConfig.defaultServerPort}`;
 
   beforeAll(async () => {
@@ -351,6 +355,7 @@ describe('Provider Resilience - Partial Response Handling', () => {
       database: TestConfig.testDatabase,
       encryptionKey: TestConfig.testEncryptionKey
     });
+    testToken = serverHandle?.testToken;
   }, 90000);
 
   afterAll(async () => {
@@ -360,7 +365,7 @@ describe('Provider Resilience - Partial Response Handling', () => {
   });
 
   test('should handle malformed JSON from provider gracefully', async () => {
-    const tokenData = generateTestToken('user-malformed', 'malformed@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     const response = await fetch(mcpEndpoint, {
@@ -387,7 +392,7 @@ describe('Provider Resilience - Partial Response Handling', () => {
   }, 30000);
 
   test('should handle empty response from provider', async () => {
-    const tokenData = generateTestToken('user-empty', 'empty@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     const response = await fetch(mcpEndpoint, {
@@ -417,7 +422,7 @@ describe('Provider Resilience - Partial Response Handling', () => {
   }, 30000);
 
   test('should handle provider returning wrong data type', async () => {
-    const tokenData = generateTestToken('user-wrongtype', 'wrongtype@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     const response = await fetch(mcpEndpoint, {
@@ -443,7 +448,7 @@ describe('Provider Resilience - Partial Response Handling', () => {
   }, 30000);
 
   test('should validate and sanitize provider response data', async () => {
-    const tokenData = generateTestToken('user-sanitize', 'sanitize@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     const response = await fetch(mcpEndpoint, {
@@ -473,6 +478,7 @@ describe('Provider Resilience - Partial Response Handling', () => {
 
 describe('Provider Resilience - Graceful Multi-Provider Degradation', () => {
   let serverHandle;
+  let testToken;
   const serverUrl = `http://localhost:${TestConfig.defaultServerPort}`;
 
   beforeAll(async () => {
@@ -481,6 +487,7 @@ describe('Provider Resilience - Graceful Multi-Provider Degradation', () => {
       database: TestConfig.testDatabase,
       encryptionKey: TestConfig.testEncryptionKey
     });
+    testToken = serverHandle?.testToken;
   }, 90000);
 
   afterAll(async () => {
@@ -490,7 +497,7 @@ describe('Provider Resilience - Graceful Multi-Provider Degradation', () => {
   });
 
   test('should continue serving other providers when one fails', async () => {
-    const tokenData = generateTestToken('user-degrade', 'degrade@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     // Request from Strava (may fail)
@@ -551,7 +558,7 @@ describe('Provider Resilience - Graceful Multi-Provider Degradation', () => {
   }, 10000);
 
   test('should not cascade failures between providers', async () => {
-    const tokenData = generateTestToken('user-cascade', 'cascade@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     // Sequential requests to different providers
@@ -591,7 +598,7 @@ describe('Provider Resilience - Graceful Multi-Provider Degradation', () => {
   }, 60000);
 
   test('should provide clear error message when no providers available', async () => {
-    const tokenData = generateTestToken('user-noprovider', 'noprovider@example.com', 3600);
+    const tokenData = testToken;
     const mcpEndpoint = `${serverUrl}/mcp`;
 
     const response = await fetch(mcpEndpoint, {

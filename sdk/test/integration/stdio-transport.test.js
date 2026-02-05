@@ -9,13 +9,13 @@
 
 const { ensureServerRunning } = require('../helpers/server');
 const { MockMCPClient } = require('../helpers/mock-client');
-const { generateTestToken } = require('../helpers/token-generator');
 const { MCPMessages, TestConfig } = require('../helpers/fixtures');
 const { clearKeychainTokens } = require('../helpers/keychain-cleanup');
 const path = require('path');
 
 describe('Stdio Transport Integration Tests (Claude Desktop Path)', () => {
   let serverHandle;
+  let testToken;
   const bridgePath = path.join(__dirname, '../../dist/cli.js');
   const serverUrl = `http://localhost:${TestConfig.defaultServerPort}`;
 
@@ -25,6 +25,7 @@ describe('Stdio Transport Integration Tests (Claude Desktop Path)', () => {
       database: TestConfig.testDatabase,
       encryptionKey: TestConfig.testEncryptionKey
     });
+    testToken = serverHandle?.testToken;
   }, 60000);
 
   beforeEach(async () => {
@@ -49,8 +50,6 @@ describe('Stdio Transport Integration Tests (Claude Desktop Path)', () => {
     }, 30000);
 
     test('should handle bridge startup with authentication token', async () => {
-      const testToken = generateTestToken('stdio-auth-user', 'stdio@example.com', 3600);
-
       const client = new MockMCPClient('node', [
         bridgePath,
         '--server', serverUrl,
@@ -182,7 +181,6 @@ describe('Stdio Transport Integration Tests (Claude Desktop Path)', () => {
     let client;
 
     beforeEach(async () => {
-      const testToken = generateTestToken('roundtrip-user', 'roundtrip@example.com', 3600);
       client = new MockMCPClient('node', [
         bridgePath,
         '--server', serverUrl,
@@ -290,7 +288,6 @@ describe('Stdio Transport Integration Tests (Claude Desktop Path)', () => {
     let client;
 
     beforeEach(async () => {
-      const testToken = generateTestToken('completeness-user', 'completeness@example.com', 3600);
       client = new MockMCPClient('node', [
         bridgePath,
         '--server', serverUrl,

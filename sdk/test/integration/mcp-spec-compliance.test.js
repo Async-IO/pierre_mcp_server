@@ -10,13 +10,13 @@
 const { ensureServerRunning } = require('../helpers/server');
 const { MockMCPClient } = require('../helpers/mock-client');
 const { MCPMessages, TestConfig } = require('../helpers/fixtures');
-const { generateTestToken } = require('../helpers/token-generator');
 const { clearKeychainTokens } = require('../helpers/keychain-cleanup');
 const path = require('path');
 
 describe('MCP Spec Compliance: tools/list Visibility', () => {
   let serverHandle;
   let bridgeClient;
+  let testToken;
   const bridgePath = path.join(__dirname, '../../dist/cli.js');
   const serverUrl = `http://localhost:${TestConfig.defaultServerPort}`;
 
@@ -26,6 +26,7 @@ describe('MCP Spec Compliance: tools/list Visibility', () => {
       database: TestConfig.testDatabase,
       encryptionKey: TestConfig.testEncryptionKey
     });
+    testToken = serverHandle?.testToken;
   }, 60000);
 
   beforeEach(async () => {
@@ -84,8 +85,6 @@ describe('MCP Spec Compliance: tools/list Visibility', () => {
   test('MCP SPEC: tools/list MUST return SAME tools WITH authentication', async () => {
     // Per MCP spec: tools/list returns same tools regardless of auth status
     // The presence of a token should NOT change the tools list
-
-    const testToken = generateTestToken('auth-user', 'auth@example.com', 3600);
 
     bridgeClient = new MockMCPClient('node', [
       bridgePath,
@@ -148,8 +147,6 @@ describe('MCP Spec Compliance: tools/list Visibility', () => {
     await unauthClient.stop();
 
     // Second: Get tools WITH auth
-    const testToken = generateTestToken('compare-user', 'compare@example.com', 3600);
-
     bridgeClient = new MockMCPClient('node', [
       bridgePath,
       '--server',
@@ -177,6 +174,7 @@ describe('MCP Spec Compliance: tools/list Visibility', () => {
 describe('MCP Spec Compliance: Authentication at Call Time', () => {
   let serverHandle;
   let bridgeClient;
+  let testToken;
   const bridgePath = path.join(__dirname, '../../dist/cli.js');
   const serverUrl = `http://localhost:${TestConfig.defaultServerPort}`;
 
@@ -186,6 +184,7 @@ describe('MCP Spec Compliance: Authentication at Call Time', () => {
       database: TestConfig.testDatabase,
       encryptionKey: TestConfig.testEncryptionKey
     });
+    testToken = serverHandle?.testToken;
   }, 60000);
 
   beforeEach(async () => {
@@ -209,8 +208,6 @@ describe('MCP Spec Compliance: Authentication at Call Time', () => {
     // Per MCP spec: Authentication checked at CALL time, not discovery time
     // Calling a tool WITH valid credentials should work
     // Using tools/list as the test tool since it's always available
-
-    const testToken = generateTestToken('call-auth-user', 'call-auth@example.com', 3600);
 
     bridgeClient = new MockMCPClient('node', [
       bridgePath,
@@ -292,6 +289,7 @@ describe('MCP Spec Compliance: Authentication at Call Time', () => {
 
 describe('MCP Spec Compliance: Tools List Consistency', () => {
   let serverHandle;
+  let testToken;
   const bridgePath = path.join(__dirname, '../../dist/cli.js');
   const serverUrl = `http://localhost:${TestConfig.defaultServerPort}`;
 
@@ -300,6 +298,7 @@ describe('MCP Spec Compliance: Tools List Consistency', () => {
       port: TestConfig.defaultServerPort,
       database: TestConfig.testEncryptionKey
     });
+    testToken = serverHandle?.testToken;
   }, 60000);
 
   beforeEach(async () => {
@@ -314,8 +313,6 @@ describe('MCP Spec Compliance: Tools List Consistency', () => {
 
   test('MCP SPEC: Multiple tools/list calls MUST return consistent results', async () => {
     // Per MCP spec: tools/list should return stable, cacheable results
-
-    const testToken = generateTestToken('consistency-user', 'consistency@example.com', 3600);
 
     const bridgeClient = new MockMCPClient('node', [
       bridgePath,
@@ -348,8 +345,6 @@ describe('MCP Spec Compliance: Tools List Consistency', () => {
 
   test('MCP SPEC: tools/list MUST be fast (cacheable)', async () => {
     // Per MCP spec: tools/list should be cacheable and fast
-
-    const testToken = generateTestToken('perf-user', 'perf@example.com', 3600);
 
     const bridgeClient = new MockMCPClient('node', [
       bridgePath,
@@ -385,6 +380,7 @@ describe('MCP Spec Compliance: Tools List Consistency', () => {
 
 describe('MCP Spec Compliance: Critical Tools Availability', () => {
   let serverHandle;
+  let testToken;
   const bridgePath = path.join(__dirname, '../../dist/cli.js');
   const serverUrl = `http://localhost:${TestConfig.defaultServerPort}`;
 
@@ -394,6 +390,7 @@ describe('MCP Spec Compliance: Critical Tools Availability', () => {
       database: TestConfig.testDatabase,
       encryptionKey: TestConfig.testEncryptionKey
     });
+    testToken = serverHandle?.testToken;
   }, 60000);
 
   beforeEach(async () => {
@@ -410,8 +407,6 @@ describe('MCP Spec Compliance: Critical Tools Availability', () => {
     // This is the EXACT regression from user report:
     // User completed OAuth but couldn't connect Strava because
     // connect_provider was not visible
-
-    const testToken = generateTestToken('regression-user', 'regression@example.com', 3600);
 
     const bridgeClient = new MockMCPClient('node', [
       bridgePath,
@@ -443,8 +438,6 @@ describe('MCP Spec Compliance: Critical Tools Availability', () => {
 
   test('REGRESSION PREVENTION: All provider management tools visible', async () => {
     // Verify all provider-related tools are visible
-
-    const testToken = generateTestToken('provider-user', 'provider@example.com', 3600);
 
     const bridgeClient = new MockMCPClient('node', [
       bridgePath,

@@ -11,7 +11,6 @@ const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
 const { StreamableHTTPClientTransport } = require('@modelcontextprotocol/sdk/client/streamableHttp.js');
 const { ensureServerRunning } = require('../helpers/server');
 const { MockMCPClient } = require('../helpers/mock-client');
-const { generateTestToken } = require('../helpers/token-generator');
 const { MCPMessages, TestConfig } = require('../helpers/fixtures');
 const { clearKeychainTokens } = require('../helpers/keychain-cleanup');
 const path = require('path');
@@ -29,10 +28,7 @@ describe('Tools List Snapshot Tests', () => {
       database: TestConfig.testDatabase,
       encryptionKey: TestConfig.testEncryptionKey
     });
-
-    const crypto = require('crypto');
-    const userId = crypto.randomUUID();
-    testToken = generateTestToken(userId, 'snapshot-test@example.com', 3600);
+    testToken = serverHandle?.testToken;
   }, 60000);
 
   beforeEach(async () => {

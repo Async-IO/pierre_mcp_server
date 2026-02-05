@@ -7,13 +7,13 @@
 const { ensureServerRunning } = require('../helpers/server');
 const { MockMCPClient } = require('../helpers/mock-client');
 const { MCPMessages, TestConfig } = require('../helpers/fixtures');
-const { generateTestToken } = require('../helpers/token-generator');
 const { clearKeychainTokens } = require('../helpers/keychain-cleanup');
 const path = require('path');
 
 describe('Tool Call Validation: Schema Compliance', () => {
   let serverHandle;
   let bridgeClient;
+  let testToken;
   const bridgePath = path.join(__dirname, '../../dist/cli.js');
   const serverUrl = `http://localhost:${TestConfig.defaultServerPort}`;
 
@@ -23,6 +23,7 @@ describe('Tool Call Validation: Schema Compliance', () => {
       database: TestConfig.testDatabase,
       encryptionKey: TestConfig.testEncryptionKey
     });
+    testToken = serverHandle?.testToken;
   }, 60000);
 
   beforeEach(async () => {
@@ -134,8 +135,6 @@ describe('Tool Call Validation: Schema Compliance', () => {
   test.each(toolCallTests)(
     'Tool call: $name - $description',
     async ({ name, arguments: args, expectedError }) => {
-      const testToken = generateTestToken('tool-test-user', 'tool@example.com', 3600);
-
       bridgeClient = new MockMCPClient('node', [
         bridgePath,
         '--server',
@@ -199,8 +198,6 @@ describe('Tool Call Validation: Schema Compliance', () => {
     // This test specifically validates the fix for image #1 error:
     // "Failed to parse JSON in get_activity_intelligence parameters: unknown field `provider`, expected `activity_id`"
 
-    const testToken = generateTestToken('regression-test', 'regression@example.com', 3600);
-
     bridgeClient = new MockMCPClient('node', [
       bridgePath,
       '--server',
@@ -241,8 +238,6 @@ describe('Tool Call Validation: Schema Compliance', () => {
   test('REGRESSION: calculate_recovery_score MUST be registered as tool', async () => {
     // This test specifically validates the fix for image #2 error:
     // "Unknown tool: calculate_recovery_score"
-
-    const testToken = generateTestToken('regression-test-2', 'regression2@example.com', 3600);
 
     bridgeClient = new MockMCPClient('node', [
       bridgePath,

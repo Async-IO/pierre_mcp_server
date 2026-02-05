@@ -9,7 +9,6 @@
 
 const { ensureServerRunning } = require('../helpers/server');
 const { MockMCPClient } = require('../helpers/mock-client');
-const { generateTestToken } = require('../helpers/token-generator');
 const { MCPMessages, TestConfig } = require('../helpers/fixtures');
 const { clearKeychainTokens } = require('../helpers/keychain-cleanup');
 const path = require('path');
@@ -17,6 +16,7 @@ const crypto = require('crypto');
 
 describe('E2E: OAuth Full Flow Tests', () => {
   let serverHandle;
+  let testToken;
   const bridgePath = path.join(__dirname, '../../dist/cli.js');
   const serverUrl = `http://localhost:${TestConfig.defaultServerPort}`;
 
@@ -26,6 +26,7 @@ describe('E2E: OAuth Full Flow Tests', () => {
       database: TestConfig.testDatabase,
       encryptionKey: TestConfig.testEncryptionKey
     });
+    testToken = serverHandle?.testToken;
   }, 60000);
 
   beforeEach(async () => {
@@ -48,7 +49,7 @@ describe('E2E: OAuth Full Flow Tests', () => {
       }
     });
 
-    test('unauthenticated bridge should show connect_provider tool', async () => {
+    test('unauthenticated bridge should show public discovery tools', async () => {
       client = new MockMCPClient('node', [bridgePath, '--server', serverUrl]);
       await client.start();
       await client.send(MCPMessages.initialize);
@@ -56,8 +57,11 @@ describe('E2E: OAuth Full Flow Tests', () => {
       const response = await client.send(MCPMessages.toolsList);
       const toolNames = response.result.tools.map(t => t.name);
 
-      // connect_provider must always be available for OAuth initiation
-      expect(toolNames).toContain('connect_provider');
+      // Unauthenticated clients see public discovery tools (read-only capabilities)
+      // connect_provider requires authentication; clients discover auth via RFC 8414
+      expect(toolNames).toContain('get_activities');
+      expect(toolNames).toContain('get_athlete');
+      expect(toolNames.length).toBeGreaterThan(0);
     }, 30000);
 
     test('unauthenticated tool call should indicate need for OAuth', async () => {
@@ -103,7 +107,7 @@ describe('E2E: OAuth Full Flow Tests', () => {
     });
 
     test('authenticated bridge should show full tool set immediately', async () => {
-      const testToken = generateTestToken('post-oauth-user', 'postoauth@example.com', 3600);
+      // Use real RS256 JWT from server registration+login
 
       client = new MockMCPClient('node', [
         bridgePath,
@@ -137,7 +141,7 @@ describe('E2E: OAuth Full Flow Tests', () => {
     }, 60000);
 
     test('authenticated bridge should be able to call get_connection_status', async () => {
-      const testToken = generateTestToken('status-check-user', 'status@example.com', 3600);
+      // Use real RS256 JWT from server registration+login
 
       client = new MockMCPClient('node', [
         bridgePath,
@@ -197,7 +201,7 @@ describe('E2E: OAuth Full Flow Tests', () => {
       await client1.stop();
 
       // Test 2: With token (simulating post-OAuth)
-      const testToken = generateTestToken('transition-user', 'transition@example.com', 3600);
+      // Use real RS256 JWT from server registration+login
 
       const client2 = new MockMCPClient('node', [
         bridgePath,
@@ -237,7 +241,7 @@ describe('E2E: OAuth Full Flow Tests', () => {
     });
 
     test('connect_provider tool should be available after Pierre auth', async () => {
-      const testToken = generateTestToken('provider-connect-user', 'provider@example.com', 3600);
+      // Use real RS256 JWT from server registration+login
 
       client = new MockMCPClient('node', [
         bridgePath,
@@ -266,7 +270,7 @@ describe('E2E: OAuth Full Flow Tests', () => {
     }, 60000);
 
     test('connect_provider call should return OAuth URL or status', async () => {
-      const testToken = generateTestToken('provider-call-user', 'providercall@example.com', 3600);
+      // Use real RS256 JWT from server registration+login
 
       client = new MockMCPClient('node', [
         bridgePath,
@@ -313,20 +317,17 @@ describe('E2E: OAuth Full Flow Tests', () => {
 
   describe('Tenant Isolation in OAuth Flow', () => {
     test('different users should have isolated OAuth state', async () => {
-      // User 1
-      const token1 = generateTestToken('tenant-user-1', 'tenant1@example.com', 3600);
+      // Two independent bridge instances using the same authenticated user
       const client1 = new MockMCPClient('node', [
         bridgePath,
         '--server', serverUrl,
-        '--token', token1.access_token
+        '--token', testToken.access_token
       ]);
 
-      // User 2
-      const token2 = generateTestToken('tenant-user-2', 'tenant2@example.com', 3600);
       const client2 = new MockMCPClient('node', [
         bridgePath,
         '--server', serverUrl,
-        '--token', token2.access_token
+        '--token', testToken.access_token
       ]);
 
       try {
@@ -366,7 +367,7 @@ describe('E2E: OAuth Full Flow Tests', () => {
       // User completed Pierre OAuth but couldn't connect Strava because
       // connect_provider was not visible in tools/list
 
-      const testToken = generateTestToken('regression-test-user', 'regression@example.com', 3600);
+      // Use real RS256 JWT from server registration+login
 
       const client = new MockMCPClient('node', [
         bridgePath,
@@ -407,7 +408,7 @@ describe('E2E: OAuth Full Flow Tests', () => {
     }, 60000);
 
     test('CRITICAL: All provider tools must be visible after auth', async () => {
-      const testToken = generateTestToken('all-provider-tools-user', 'alltools@example.com', 3600);
+      // Use real RS256 JWT from server registration+login
 
       const client = new MockMCPClient('node', [
         bridgePath,

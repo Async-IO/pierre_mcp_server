@@ -39,7 +39,8 @@ async function ensureServerRunning(config = {}) {
 
     if (response.ok) {
       console.log('✅ Using existing Pierre server');
-      return null;
+      const testToken = await registerAndGetToken(port);
+      return { process: null, port, logs: [], testToken, cleanup: null };
     }
   } catch (error) {
     // Server not running
@@ -124,10 +125,14 @@ async function startServer(config) {
     throw error;
   }
 
+  // Register a test user and get a real RS256 JWT token for authenticated tests
+  const testToken = await registerAndGetToken(port);
+
   return {
     process: serverProcess,
     port,
     logs,
+    testToken,
     cleanup: async () => {
       return new Promise((resolve) => {
         serverProcess.on('exit', resolve);
@@ -140,6 +145,77 @@ async function startServer(config) {
         }, 5000);
       });
     }
+  };
+}
+
+/**
+ * Register a test user and login to get a real RS256 JWT token.
+ * The server uses RS256 (RSA) JWT validation, so test tokens must come from
+ * the actual server login endpoint rather than being locally generated.
+ */
+async function registerAndGetToken(port) {
+  const baseUrl = `http://localhost:${port}`;
+  const testEmail = `sdk-test-${Date.now()}@example.com`;
+  const testPassword = 'SdkTestPassword123!';
+
+  // Register user (may be auto-approved or pending depending on config)
+  try {
+    const registerResponse = await fetch(`${baseUrl}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: testEmail,
+        password: testPassword,
+        display_name: 'SDK Test User'
+      })
+    });
+
+    if (!registerResponse.ok) {
+      const errorText = await registerResponse.text();
+      console.warn(`⚠️ Registration returned ${registerResponse.status}: ${errorText}`);
+    }
+  } catch (error) {
+    console.warn(`⚠️ Registration failed: ${error.message}`);
+  }
+
+  // Login via OAuth2 ROPC (RFC 6749 §4.3) to get RS256 JWT
+  try {
+    const loginResponse = await fetch(`${baseUrl}/oauth/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'password',
+        username: testEmail,
+        password: testPassword
+      }).toString()
+    });
+
+    if (loginResponse.ok) {
+      const tokenData = await loginResponse.json();
+      console.log('✅ Test user authenticated with RS256 JWT');
+      return {
+        access_token: tokenData.access_token,
+        token_type: tokenData.token_type || 'Bearer',
+        expires_in: tokenData.expires_in || 86400,
+        scope: tokenData.scope || 'read:fitness write:fitness',
+        saved_at: Math.floor(Date.now() / 1000)
+      };
+    }
+
+    const errorText = await loginResponse.text();
+    console.warn(`⚠️ Login returned ${loginResponse.status}: ${errorText}`);
+  } catch (error) {
+    console.warn(`⚠️ Login failed: ${error.message}`);
+  }
+
+  // Fallback: return a placeholder token (tests that require auth will fail with clear errors)
+  console.warn('⚠️ Could not get RS256 token - tests requiring auth will fail');
+  return {
+    access_token: 'INVALID_NO_RS256_TOKEN_AVAILABLE',
+    token_type: 'Bearer',
+    expires_in: 3600,
+    scope: 'read:fitness write:fitness',
+    saved_at: Math.floor(Date.now() / 1000)
   };
 }
 
@@ -176,6 +252,7 @@ function sleep(ms) {
 module.exports = {
   ensureServerRunning,
   startServer,
+  registerAndGetToken,
   waitForHealth,
   sleep
 };

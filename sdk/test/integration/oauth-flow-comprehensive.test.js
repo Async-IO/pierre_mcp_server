@@ -9,7 +9,6 @@
 
 const { ensureServerRunning } = require('../helpers/server');
 const { TestConfig } = require('../helpers/fixtures');
-const { generateTestToken } = require('../helpers/token-generator');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');

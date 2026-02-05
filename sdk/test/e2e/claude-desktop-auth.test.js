@@ -10,13 +10,13 @@
 const { ensureServerRunning } = require('../helpers/server');
 const { MockMCPClient } = require('../helpers/mock-client');
 const { MCPMessages, TestConfig } = require('../helpers/fixtures');
-const { generateTestToken } = require('../helpers/token-generator');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
 describe('E2E: Claude Desktop Token Refresh During Session', () => {
   let serverHandle;
+  let testToken;
   let bridgeClient;
   const bridgePath = path.join(__dirname, '../../dist/cli.js');
 
@@ -26,6 +26,7 @@ describe('E2E: Claude Desktop Token Refresh During Session', () => {
       database: TestConfig.testDatabase,
       encryptionKey: TestConfig.testEncryptionKey
     });
+    testToken = serverHandle?.testToken;
 
     bridgeClient = new MockMCPClient('node', [
       bridgePath,
@@ -127,6 +128,7 @@ describe('E2E: Claude Desktop Token Refresh During Session', () => {
 
 describe('E2E: Claude Desktop Session Persistence', () => {
   let serverHandle;
+  let testToken;
   const bridgePath = path.join(__dirname, '../../dist/cli.js');
   const testTokenFile = path.join(os.tmpdir(), `test-tokens-${Date.now()}.json`);
 
@@ -136,6 +138,7 @@ describe('E2E: Claude Desktop Session Persistence', () => {
       database: TestConfig.testDatabase,
       encryptionKey: TestConfig.testEncryptionKey
     });
+    testToken = serverHandle?.testToken;
   }, 90000);
 
   afterAll(async () => {
@@ -150,7 +153,7 @@ describe('E2E: Claude Desktop Session Persistence', () => {
 
   test('should persist session across bridge restarts', async () => {
     // Write test tokens to file
-    const tokenData = generateTestToken('user-persist', 'persist@example.com', 3600);
+    const tokenData = testToken;
     const tokens = {
       pierre: tokenData,
       providers: {}
@@ -194,7 +197,7 @@ describe('E2E: Claude Desktop Session Persistence', () => {
 
   test('should load saved tokens on startup', async () => {
     // Create token file
-    const tokenData = generateTestToken('user-load', 'load@example.com', 3600);
+    const tokenData = testToken;
     const tokens = {
       pierre: tokenData,
       providers: {}
@@ -217,7 +220,7 @@ describe('E2E: Claude Desktop Session Persistence', () => {
 
   test('should save tokens after refresh', async () => {
     // Write initial tokens
-    const tokenData = generateTestToken('user-save', 'save@example.com', 3600);
+    const tokenData = testToken;
     const tokens = {
       pierre: tokenData,
       providers: {}

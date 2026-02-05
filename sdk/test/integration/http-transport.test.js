@@ -10,7 +10,6 @@
 const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
 const { StreamableHTTPClientTransport } = require('@modelcontextprotocol/sdk/client/streamableHttp.js');
 const { ensureServerRunning } = require('../helpers/server');
-const { generateTestToken } = require('../helpers/token-generator');
 const { TestConfig } = require('../helpers/fixtures');
 
 describe('HTTP Transport Integration Tests', () => {
@@ -25,11 +24,7 @@ describe('HTTP Transport Integration Tests', () => {
       database: TestConfig.testDatabase,
       encryptionKey: TestConfig.testEncryptionKey
     });
-
-    // Generate a test JWT token
-    const crypto = require('crypto');
-    const userId = crypto.randomUUID();
-    testToken = generateTestToken(userId, 'http-transport-test@example.com', 3600);
+    testToken = serverHandle?.testToken;
   }, 60000);
 
   afterAll(async () => {
