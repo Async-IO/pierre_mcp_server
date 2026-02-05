@@ -140,11 +140,11 @@ export default function LlmSettingsTab() {
 
   if (isLoading) {
     return (
-      <Card>
+      <Card variant="dark">
         <div className="animate-pulse space-y-4">
-          <div className="h-6 bg-pierre-gray-200 rounded w-1/3"></div>
-          <div className="h-20 bg-pierre-gray-100 rounded"></div>
-          <div className="h-20 bg-pierre-gray-100 rounded"></div>
+          <div className="h-6 bg-white/10 rounded w-1/3"></div>
+          <div className="h-20 bg-white/5 rounded"></div>
+          <div className="h-20 bg-white/5 rounded"></div>
         </div>
       </Card>
     );
@@ -156,9 +156,9 @@ export default function LlmSettingsTab() {
   return (
     <>
       {/* Current Status */}
-      <Card>
-        <h2 className="text-lg font-semibold text-pierre-gray-900 mb-4">AI Provider Configuration</h2>
-        <p className="text-sm text-pierre-gray-600 mb-6">
+      <Card variant="dark">
+        <h2 className="text-lg font-semibold text-white mb-4">AI Provider Configuration</h2>
+        <p className="text-sm text-white/60 mb-6">
           Configure your preferred AI provider for chat conversations. You can use your own API keys
           or rely on organization-wide settings.
         </p>
@@ -196,19 +196,19 @@ export default function LlmSettingsTab() {
                 'p-4 rounded-lg border transition-all',
                 provider.has_credentials
                   ? 'border-pierre-activity/30 bg-pierre-activity-light/10'
-                  : 'border-pierre-gray-200 bg-white hover:border-pierre-gray-300'
+                  : 'border-white/10 bg-white/5 hover:border-white/20'
               )}
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-medium text-pierre-gray-900">{provider.display_name}</h3>
+                    <h3 className="font-medium text-white">{provider.display_name}</h3>
                     {provider.has_credentials && getSourceBadge(provider.credential_source ?? null)}
                     {provider.name === currentProvider && (
                       <Badge variant="success">Active</Badge>
                     )}
                   </div>
-                  <p className="text-sm text-pierre-gray-600">
+                  <p className="text-sm text-white/60">
                     {PROVIDER_INFO[provider.name]?.description}
                   </p>
                   <a
@@ -250,14 +250,14 @@ export default function LlmSettingsTab() {
 
       {/* Configuration Form */}
       {selectedProvider && (
-        <Card>
+        <Card variant="dark">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-pierre-gray-900">
+            <h2 className="text-lg font-semibold text-white">
               Configure {providers.find((p) => p.name === selectedProvider)?.display_name}
             </h2>
             <button
               onClick={resetForm}
-              className="text-pierre-gray-500 hover:text-pierre-gray-700"
+              className="text-white/40 hover:text-white/70"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -327,7 +327,7 @@ export default function LlmSettingsTab() {
                       API key is valid!
                     </div>
                     {validationResult.models && validationResult.models.length > 0 && (
-                      <div className="text-sm text-pierre-gray-600">
+                      <div className="text-sm text-white/60">
                         Available models: {validationResult.models.slice(0, 5).join(', ')}
                         {validationResult.models.length > 5 && ` (+${validationResult.models.length - 5} more)`}
                       </div>
@@ -374,7 +374,7 @@ export default function LlmSettingsTab() {
 
       {/* Success/Error Message - displayed outside form so it persists after save */}
       {message && (
-        <Card>
+        <Card variant="dark">
           <div
             className={clsx(
               'p-3 rounded-lg text-sm',

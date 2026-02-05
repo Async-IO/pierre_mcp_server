@@ -303,9 +303,9 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
   // Coach list view
   if (!selectedCoach && !isCreating) {
     return (
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
+      <div className="h-full flex flex-col bg-pierre-dark">
+        {/* Header - matches Discover layout */}
+        <div className="p-6 border-b border-white/5 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-4">
             {onBack && (
               <button
@@ -318,7 +318,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                 Back
               </button>
             )}
-            <p className="text-zinc-400">
+            <p className="text-sm text-zinc-400">
               Create custom AI personas to get specialized fitness coaching.
             </p>
           </div>
@@ -358,9 +358,9 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
           </div>
         </div>
 
-        {/* Search Bar - top placement following F-pattern reading */}
-        <div className="border-b border-white/10 pb-4">
-          <div className="relative max-w-md">
+        {/* Search Bar */}
+        <div className="px-6 py-4 border-b border-white/10">
+          <div className="relative">
             <svg
               className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-zinc-500"
               fill="none"
@@ -392,17 +392,16 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-4">
-          {/* Category filter */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2">
+        {/* Category Filters - inline with Favorites */}
+        <div className="px-6 py-3 border-b border-white/10 overflow-x-auto">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setCategoryFilter(null)}
               className={clsx(
-                'px-3 py-1.5 text-sm font-medium rounded-full transition-colors whitespace-nowrap min-h-[44px] flex items-center',
+                'px-4 py-1.5 text-sm font-medium rounded-full whitespace-nowrap transition-colors min-h-[44px] flex items-center',
                 categoryFilter === null
-                  ? 'bg-pierre-violet text-white'
-                  : 'bg-white/5 text-zinc-400 hover:bg-white/10'
+                  ? 'bg-pierre-violet text-white shadow-glow-sm'
+                  : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-zinc-300'
               )}
             >
               All
@@ -412,55 +411,54 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                 key={cat}
                 onClick={() => setCategoryFilter(cat)}
                 className={clsx(
-                  'px-3 py-1.5 text-sm font-medium rounded-full transition-colors whitespace-nowrap min-h-[44px] flex items-center',
+                  'px-4 py-1.5 text-sm font-medium rounded-full whitespace-nowrap transition-colors min-h-[44px] flex items-center',
                   categoryFilter === cat
-                    ? 'bg-pierre-violet text-white'
-                    : 'bg-white/5 text-zinc-400 hover:bg-white/10'
+                    ? 'bg-pierre-violet text-white shadow-glow-sm'
+                    : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-zinc-300'
                 )}
               >
                 {cat}
               </button>
             ))}
-          </div>
-
-          {/* Favorites toggle */}
-          <button
-            onClick={() => setFavoritesOnly(!favoritesOnly)}
-            className={clsx(
-              'flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-full transition-colors min-h-[44px]',
-              favoritesOnly
-                ? 'bg-pierre-yellow-500/20 text-pierre-yellow-400'
-                : 'bg-white/5 text-zinc-400 hover:bg-white/10'
-            )}
-          >
-            <svg
-              className={clsx('w-4 h-4', favoritesOnly ? 'fill-pierre-yellow-500' : 'fill-none')}
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
+            {/* Favorites toggle - inline with categories */}
+            <button
+              onClick={() => setFavoritesOnly(!favoritesOnly)}
+              className={clsx(
+                'flex items-center gap-1 px-4 py-1.5 text-sm font-medium rounded-full whitespace-nowrap transition-colors min-h-[44px]',
+                favoritesOnly
+                  ? 'bg-pierre-yellow-500/20 text-pierre-yellow-400'
+                  : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-zinc-300'
+              )}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
-              />
-            </svg>
-            Favorites
-          </button>
+              <svg
+                className={clsx('w-4 h-4', favoritesOnly ? 'fill-pierre-yellow-500' : 'fill-none')}
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                />
+              </svg>
+              Favorites
+            </button>
+          </div>
         </div>
 
         {/* Source filter (All Sources / My Coaches / System) */}
-        <div className="flex justify-center items-center gap-3">
+        <div className="px-6 py-2 bg-white/5 border-b border-white/10 flex justify-center items-center gap-3">
           {SOURCE_FILTERS.map((filter) => (
             <button
               key={filter.key}
               onClick={() => setSelectedSource(filter.key)}
               className={clsx(
-                'px-3 py-1.5 text-xs font-medium rounded-full transition-colors border min-h-[44px] flex items-center',
+                'px-3 py-1 text-sm font-medium rounded transition-colors min-h-[44px] flex items-center',
                 selectedSource === filter.key
-                  ? 'bg-pierre-violet/20 text-pierre-violet-light border-pierre-violet'
-                  : 'text-zinc-400 border-transparent hover:text-zinc-300'
+                  ? 'bg-pierre-violet/20 text-pierre-violet-light font-medium'
+                  : 'text-zinc-400 hover:text-pierre-violet-light'
               )}
             >
               {filter.label}
@@ -468,7 +466,8 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
           ))}
         </div>
 
-        {/* Coaches Grid */}
+        {/* Coaches Grid - scrollable content area */}
+        <div className="flex-1 overflow-y-auto p-6">
         {coachesLoading ? (
           <div className="flex justify-center py-12">
             <div className="pierre-spinner w-8 h-8"></div>
@@ -649,6 +648,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
             })}
           </div>
         )}
+        </div>
 
         {/* Context Menu Modal */}
         {actionMenuCoach && (
