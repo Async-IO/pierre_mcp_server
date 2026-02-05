@@ -297,12 +297,14 @@ pierre's mcp server validates jwt on every request:
 | endpoint | auth required | notes |
 |----------|---------------|-------|
 | `POST /mcp` (initialize) | no | discovery only |
-| `POST /mcp` (tools/list) | no | unauthenticated tool listing |
+| `POST /mcp` (tools/list) | no | returns filtered tool list based on auth state (see below) |
 | `POST /mcp` (tools/call) | yes | requires valid jwt |
 | `POST /mcp` (prompts/list) | no | discovery only |
 | `POST /mcp` (resources/list) | no | discovery only |
 
-implementation: `src/mcp/mcp_request_processor.rs:95-106`
+**tools/list visibility gating**: while `tools/list` does not *require* authentication, the response varies based on auth state. Unauthenticated clients see a curated subset of 17 public discovery tools. Authenticated users see the full set available to them based on role and tenant plan. See [MCP Tool Discovery](mcp-tool-discovery.md) for details.
+
+implementation: `src/mcp/mcp_request_processor.rs`
 
 ### Token Expiry and Refresh
 

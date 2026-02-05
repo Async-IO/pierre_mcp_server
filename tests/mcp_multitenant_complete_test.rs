@@ -23,6 +23,7 @@ use pierre_mcp_server::{
         SecurityConfig, SecurityHeadersConfig, ServerConfig, SseConfig, StravaApiConfig, TlsConfig,
         WeatherServiceConfig,
     },
+    constants::tools::PUBLIC_DISCOVERY_TOOLS,
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::{
@@ -752,7 +753,7 @@ async fn test_mcp_authentication_required() -> Result<()> {
     // Try to list tools without authentication (should succeed - MCP discovery pattern)
     let tools_response = client.list_tools().await?;
 
-    // Tools list should succeed and return all 35 tools
+    // Tools list should succeed and return only public discovery tools (unauthenticated)
     println!(
         "Tools response: {}",
         serde_json::to_string_pretty(&tools_response)?
@@ -762,14 +763,18 @@ async fn test_mcp_authentication_required() -> Result<()> {
     assert!(tools_response["error"].is_null());
     assert!(!tools_response["result"]["tools"].is_null());
     let tools = tools_response["result"]["tools"].as_array().unwrap();
-    // 67 total tools exposed for discovery
-    // Categories: connection(3), data(3), analytics(3), goals(4), config(6), fitness_config(4),
-    //             nutrition(5), sleep(5), recipes(7), coaches(13), admin(8), mobility(6) = 67 total
-    // Admin tools are discoverable; admin privileges checked at tools/call time
-    assert_eq!(
-        tools.len(),
-        67,
-        "Should expose all 67 tools for discovery (admin privileges checked at call time)"
+    // Unauthenticated clients receive only PUBLIC_DISCOVERY_TOOLS (safe read-only subset).
+    // Sensitive tools (connection management, admin, write operations) are hidden until auth.
+    let tool_names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
+    for name in &tool_names {
+        assert!(
+            PUBLIC_DISCOVERY_TOOLS.contains(name),
+            "Unauthenticated tools/list returned non-public tool: {name}"
+        );
+    }
+    assert!(
+        !tool_names.is_empty(),
+        "Public discovery tool list should not be empty"
     );
 
     // Try to call a tool without authentication (this should fail)

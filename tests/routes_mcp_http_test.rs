@@ -22,6 +22,7 @@ use pierre_mcp_server::{
         AppBehaviorConfig, BackupConfig, DatabaseConfig, DatabaseUrl, Environment, SecurityConfig,
         SecurityHeadersConfig, ServerConfig,
     },
+    constants::tools::PUBLIC_DISCOVERY_TOOLS,
     mcp::resources::{ServerResources, ServerResourcesOptions},
     routes::mcp::McpRoutes,
 };
@@ -502,4 +503,266 @@ async fn test_mcp_session_persistence() {
 
     // Session-based auth should work
     assert!(response2.status() == 200 || response2.status() == 202);
+}
+
+// ============================================================================
+// tools/list Visibility Gating Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_tools_list_unauthenticated_returns_public_tools_only() {
+    let setup = McpTestSetup::new().await.expect("Setup failed");
+    let routes = setup.routes();
+
+    let mcp_request = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/list",
+        "params": {}
+    });
+
+    // Send request WITHOUT auth header
+    let response = AxumTestRequest::post("/mcp")
+        .json(&mcp_request)
+        .send(routes)
+        .await;
+
+    assert_eq!(response.status(), 200);
+
+    let body: serde_json::Value = response.json();
+    let tools = body["result"]["tools"]
+        .as_array()
+        .expect("tools should be an array");
+
+    // Verify only public discovery tools are returned
+    let tool_names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
+
+    // Every returned tool must be in PUBLIC_DISCOVERY_TOOLS
+    for name in &tool_names {
+        assert!(
+            PUBLIC_DISCOVERY_TOOLS.contains(name),
+            "Unauthenticated tools/list returned non-public tool: {name}"
+        );
+    }
+
+    // Sensitive tools must NOT appear
+    assert!(
+        !tool_names.contains(&"connect_provider"),
+        "connect_provider should not appear in unauthenticated tools/list"
+    );
+    assert!(
+        !tool_names.contains(&"disconnect_provider"),
+        "disconnect_provider should not appear in unauthenticated tools/list"
+    );
+    assert!(
+        !tool_names.iter().any(|n| n.starts_with("admin_")),
+        "Admin tools should not appear in unauthenticated tools/list"
+    );
+    assert!(
+        !tool_names.contains(&"set_goal"),
+        "Write tool set_goal should not appear in unauthenticated tools/list"
+    );
+    assert!(
+        !tool_names.contains(&"save_recipe"),
+        "Write tool save_recipe should not appear in unauthenticated tools/list"
+    );
+
+    // At least some public tools should be present
+    assert!(
+        !tool_names.is_empty(),
+        "Public tool list should not be empty"
+    );
+    assert!(
+        tool_names.contains(&"get_activities"),
+        "get_activities should be in public tools"
+    );
+}
+
+#[tokio::test]
+async fn test_tools_list_authenticated_returns_more_tools() {
+    let setup = McpTestSetup::new().await.expect("Setup failed");
+    let routes_unauth = setup.routes();
+    let routes_auth = setup.routes();
+
+    let mcp_request = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/list",
+        "params": {}
+    });
+
+    // Unauthenticated request
+    let response_unauth = AxumTestRequest::post("/mcp")
+        .json(&mcp_request)
+        .send(routes_unauth)
+        .await;
+
+    assert_eq!(response_unauth.status(), 200);
+    let body_unauth: serde_json::Value = response_unauth.json();
+    let tools_unauth = body_unauth["result"]["tools"]
+        .as_array()
+        .expect("tools should be an array");
+
+    // Authenticated request
+    let response_auth = AxumTestRequest::post("/mcp")
+        .header("authorization", &setup.auth_header())
+        .json(&mcp_request)
+        .send(routes_auth)
+        .await;
+
+    assert_eq!(response_auth.status(), 200);
+    let body_auth: serde_json::Value = response_auth.json();
+    let tools_auth = body_auth["result"]["tools"]
+        .as_array()
+        .expect("tools should be an array");
+
+    // Authenticated user should see at least as many tools as unauthenticated
+    assert!(
+        tools_auth.len() >= tools_unauth.len(),
+        "Authenticated should see >= tools than unauthenticated ({} vs {})",
+        tools_auth.len(),
+        tools_unauth.len()
+    );
+}
+
+#[tokio::test]
+async fn test_tools_list_invalid_token_falls_back_to_public() {
+    let setup = McpTestSetup::new().await.expect("Setup failed");
+    let routes = setup.routes();
+
+    let mcp_request = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/list",
+        "params": {}
+    });
+
+    // Send request with invalid auth token
+    let response = AxumTestRequest::post("/mcp")
+        .header("authorization", "Bearer invalid_token_12345")
+        .json(&mcp_request)
+        .send(routes)
+        .await;
+
+    assert_eq!(response.status(), 200);
+
+    let body: serde_json::Value = response.json();
+    let tools = body["result"]["tools"]
+        .as_array()
+        .expect("tools should be an array");
+
+    let tool_names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
+
+    // Should fall back to public tools (not error out)
+    for name in &tool_names {
+        assert!(
+            PUBLIC_DISCOVERY_TOOLS.contains(name),
+            "Invalid-token tools/list returned non-public tool: {name}"
+        );
+    }
+
+    // Should not contain sensitive tools
+    assert!(
+        !tool_names.contains(&"connect_provider"),
+        "connect_provider should not appear with invalid token"
+    );
+}
+
+#[tokio::test]
+async fn test_tools_list_admin_user_sees_all_tools_including_admin() {
+    let setup = McpTestSetup::new().await.expect("Setup failed");
+    let routes = setup.routes();
+
+    // McpTestSetup creates an owner user, which has admin privileges
+    let mcp_request = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/list",
+        "params": {}
+    });
+
+    let response = AxumTestRequest::post("/mcp")
+        .header("authorization", &setup.auth_header())
+        .json(&mcp_request)
+        .send(routes)
+        .await;
+
+    assert_eq!(response.status(), 200);
+
+    let body: serde_json::Value = response.json();
+    let tools = body["result"]["tools"]
+        .as_array()
+        .expect("tools should be an array");
+
+    let tool_names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
+
+    // Admin user should see admin tools
+    assert!(
+        tool_names.iter().any(|n| n.starts_with("admin_")),
+        "Admin user should see admin tools in tools/list, got: {:?}",
+        tool_names
+    );
+
+    // Admin user should also see all non-admin tools
+    assert!(
+        tool_names.contains(&"get_activities"),
+        "Admin should see get_activities"
+    );
+    assert!(
+        tool_names.contains(&"connect_provider"),
+        "Admin should see connect_provider"
+    );
+
+    // Admin should see more tools than the public set
+    assert!(
+        tool_names.len() > PUBLIC_DISCOVERY_TOOLS.len(),
+        "Admin should see more tools ({}) than public discovery ({})",
+        tool_names.len(),
+        PUBLIC_DISCOVERY_TOOLS.len()
+    );
+}
+
+#[tokio::test]
+async fn test_tools_list_params_token_auth_path() {
+    let setup = McpTestSetup::new().await.expect("Setup failed");
+    let routes = setup.routes();
+
+    // Send token via params.token instead of Authorization header
+    let mcp_request = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/list",
+        "params": {
+            "token": setup.jwt_token
+        }
+    });
+
+    // No Authorization header - token is in params
+    let response = AxumTestRequest::post("/mcp")
+        .json(&mcp_request)
+        .send(routes)
+        .await;
+
+    assert_eq!(response.status(), 200);
+
+    let body: serde_json::Value = response.json();
+    let tools = body["result"]["tools"]
+        .as_array()
+        .expect("tools should be an array");
+
+    let tool_names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
+
+    // params.token auth should return authenticated tool set (more than public)
+    assert!(
+        tool_names.len() > PUBLIC_DISCOVERY_TOOLS.len(),
+        "params.token auth should return more tools ({}) than public discovery ({})",
+        tool_names.len(),
+        PUBLIC_DISCOVERY_TOOLS.len()
+    );
+
+    // Should include tools that are NOT in the public set (e.g. connection management)
+    assert!(
+        tool_names.contains(&"connect_provider"),
+        "params.token auth should include connect_provider"
+    );
 }

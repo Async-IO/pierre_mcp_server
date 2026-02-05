@@ -13,18 +13,20 @@ use super::{
     multitenant::{McpError, McpRequest, McpResponse},
     protocol::ProtocolHandler,
     resources::ServerResources,
-    schema::CreateMessageRequest,
+    schema::{CreateMessageRequest, ToolSchema},
+    tenant_isolation::extract_tenant_context_internal,
     tool_handlers::ToolHandlers,
 };
 use crate::constants::errors::{ERROR_INTERNAL_ERROR, ERROR_METHOD_NOT_FOUND};
 use crate::constants::protocol::{mcp_protocol_version, JSONRPC_VERSION};
+use crate::constants::tools::PUBLIC_DISCOVERY_TOOLS;
 use crate::errors::{AppError, AppResult};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::io::{AsyncWriteExt, Stdout};
 use tokio::sync::Mutex;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 
 /// Processes MCP protocol requests with validation, routing, and execution
 pub struct McpRequestProcessor {
@@ -95,7 +97,7 @@ impl McpRequestProcessor {
         match request.method.as_str() {
             "initialize" => Ok(Self::handle_initialize(&request)),
             "ping" => Ok(Self::handle_ping(&request)),
-            "tools/list" => Ok(self.handle_tools_list(&request)),
+            "tools/list" => Ok(self.handle_tools_list(&request).await),
             "tools/call" => self.handle_tools_call(&request).await,
             "authenticate" => Ok(Self::handle_authenticate(&request)),
             method if method.starts_with("resources/") => Ok(Self::handle_resources(&request)),
@@ -185,24 +187,174 @@ impl McpRequestProcessor {
         }
     }
 
-    /// Handle tools/list request
+    /// Handle tools/list request with tiered visibility based on authentication state
     ///
-    /// Per MCP specification, tools/list does NOT require authentication.
-    /// All tools are returned for discovery regardless of authentication status.
-    /// Individual tool calls will check authentication and admin privileges at execution time.
-    fn handle_tools_list(&self, request: &McpRequest) -> McpResponse {
+    /// Tool discovery is filtered by authentication context:
+    /// - **Unauthenticated**: Returns only public discovery tools (safe, read-only capabilities)
+    /// - **Authenticated + tenant**: Returns tenant-filtered tools via `ToolSelectionService`
+    /// - **Authenticated + admin**: Returns all tools including admin tools
+    ///
+    /// This ensures sensitive tools (connection management, admin operations, future social tools)
+    /// are not exposed to unauthenticated MCP clients while still allowing capability discovery.
+    async fn handle_tools_list(&self, request: &McpRequest) -> McpResponse {
         debug!("Handling tools/list request");
 
-        // Return all tools for discovery (including admin tools)
-        // MCP spec: tools/list must work without authentication
-        // Admin privileges are checked at tools/call time, not discovery time
-        let tools = self.resources.tool_registry.all_schemas();
+        let tools = self.resolve_tools_for_request(request).await;
 
         McpResponse {
             jsonrpc: JSONRPC_VERSION.to_owned(),
             id: request.id.clone(),
             result: Some(serde_json::json!({ "tools": tools })),
             error: None,
+        }
+    }
+
+    /// Resolve which tools to return based on authentication state in the request
+    async fn resolve_tools_for_request(&self, request: &McpRequest) -> Vec<ToolSchema> {
+        // Extract auth token (same pattern as tools/call in tool_handlers.rs)
+        let auth_token_string = request
+            .params
+            .as_ref()
+            .and_then(|params| params.get("token"))
+            .and_then(|token| token.as_str())
+            .map(|mcp_token| format!("Bearer {mcp_token}"));
+
+        let auth_token = request
+            .auth_token
+            .as_deref()
+            .or(auth_token_string.as_deref());
+
+        let Some(token) = auth_token else {
+            debug!("tools/list: no auth token, returning public discovery tools");
+            return self.public_discovery_tools();
+        };
+
+        match self
+            .resources
+            .auth_middleware
+            .authenticate_request(Some(token))
+            .await
+        {
+            Ok(auth_result) => {
+                info!(
+                    "tools/list: authenticated user {} (method: {})",
+                    auth_result.user_id,
+                    auth_result.auth_method.display_name()
+                );
+                self.resolve_tools_for_authenticated_user(
+                    auth_result.user_id,
+                    auth_result.active_tenant_id,
+                )
+                .await
+            }
+            Err(e) => {
+                debug!(
+                    "tools/list: auth failed ({}), returning public discovery tools",
+                    e
+                );
+                self.public_discovery_tools()
+            }
+        }
+    }
+
+    /// Resolve tools for an authenticated user based on their tenant context
+    async fn resolve_tools_for_authenticated_user(
+        &self,
+        user_id: uuid::Uuid,
+        active_tenant_id: Option<uuid::Uuid>,
+    ) -> Vec<ToolSchema> {
+        if let Ok(Some(tenant_ctx)) = extract_tenant_context_internal(
+            &self.resources.database,
+            Some(user_id),
+            active_tenant_id,
+            None,
+        )
+        .await
+        {
+            if tenant_ctx.is_admin() {
+                debug!(
+                    "tools/list: admin user in tenant {}, returning all tools",
+                    tenant_ctx.tenant_id
+                );
+                return self.resources.tool_registry.all_schemas();
+            }
+
+            debug!(
+                "tools/list: user in tenant {}, returning tenant-filtered tools",
+                tenant_ctx.tenant_id
+            );
+            return self.tenant_filtered_tools(tenant_ctx.tenant_id).await;
+        }
+
+        // Authenticated but no tenant context: return user-visible tools
+        // (non-admin tools from registry, no tenant filtering)
+        debug!("tools/list: authenticated user without tenant, returning user-visible tools");
+        self.resources.tool_registry.user_visible_schemas()
+    }
+
+    /// Return public discovery tools (safe subset for unauthenticated clients)
+    fn public_discovery_tools(&self) -> Vec<ToolSchema> {
+        self.resources
+            .tool_registry
+            .list_schemas_by_names(PUBLIC_DISCOVERY_TOOLS)
+    }
+
+    /// Get tenant-filtered tool schemas for non-admin users
+    ///
+    /// Combines two sources to build the tool list:
+    /// 1. Enabled tools from `ToolSelectionService` (catalog-based, tenant-aware)
+    /// 2. Uncatalogued tools from the registry (feature-flag tools like coaches/mobility)
+    ///
+    /// Admin-only tools are excluded in both paths to prevent non-admin users
+    /// from seeing them even if they appear in the catalog.
+    async fn tenant_filtered_tools(&self, tenant_id: uuid::Uuid) -> Vec<ToolSchema> {
+        match self
+            .resources
+            .tool_selection
+            .get_effective_tools(tenant_id)
+            .await
+        {
+            Ok(all_effective_tools) => {
+                // Separate enabled tool names from full catalog for uncatalogued detection
+                let enabled_names: Vec<String> = all_effective_tools
+                    .iter()
+                    .filter(|t| t.is_enabled)
+                    .map(|t| t.tool_name.clone())
+                    .collect();
+                let all_catalogued_names: Vec<String> = all_effective_tools
+                    .into_iter()
+                    .map(|t| t.tool_name)
+                    .collect();
+
+                // Get catalog-based enabled tools, filtered to non-admin only
+                let mut schemas = self
+                    .resources
+                    .tool_registry
+                    .list_schemas_by_name_set(&enabled_names);
+                schemas.retain(|s| {
+                    self.resources
+                        .tool_registry
+                        .get(&s.name)
+                        .is_none_or(|tool| !tool.capabilities().is_admin_only())
+                });
+
+                // Include feature-flag tools not tracked by tool_catalog (coaches, mobility, etc.)
+                // Uses all_catalogued_names so disabled-in-catalog tools aren't re-added
+                let uncatalogued = self
+                    .resources
+                    .tool_registry
+                    .uncatalogued_user_schemas(&all_catalogued_names);
+                schemas.extend(uncatalogued);
+
+                schemas
+            }
+            Err(e) => {
+                warn!(
+                    "tools/list: failed to get tenant tools for {}: {}, falling back to user-visible",
+                    tenant_id, e
+                );
+                self.resources.tool_registry.user_visible_schemas()
+            }
         }
     }
 

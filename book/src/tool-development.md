@@ -343,6 +343,59 @@ self.register_analytics_tools();
 pub mod analytics;
 ```
 
+## Tool Visibility
+
+Tools appear in MCP `tools/list` responses based on the caller's authentication state. When adding a new tool, you need to consider how it should appear in each visibility tier. See [MCP Tool Discovery](mcp-tool-discovery.md) for the full architecture.
+
+### How Visibility is Determined
+
+Three mechanisms control whether a tool appears in `tools/list`:
+
+1. **`ToolCapabilities::ADMIN_ONLY`** -- tools with this flag are hidden from all non-admin users, regardless of tier
+2. **`tool_catalog` database table** -- determines default enablement and plan restrictions for tenant-filtered responses
+3. **`PUBLIC_DISCOVERY_TOOLS` constant** -- controls which tools appear for unauthenticated clients (`src/constants/tools/identifiers.rs`)
+
+### Checklist: Adding a New Tool
+
+When you create a new tool, decide:
+
+- [ ] **Should it be admin-only?** If yes, add `ToolCapabilities::ADMIN_ONLY` to its capabilities. It will only appear for admin/owner users.
+- [ ] **Should it appear in the public discovery list?** If the tool is a safe, read-only capability that helps MCP clients understand what Pierre offers, add its constant to `PUBLIC_DISCOVERY_TOOLS` in `src/constants/tools/identifiers.rs`. Most write/mutation tools and tools managing sensitive state (OAuth tokens, social connections) should NOT be in this list.
+- [ ] **Does it need a `tool_catalog` entry?** Tools tracked in `tool_catalog` participate in the `ToolSelectionService` precedence system (global disable, plan restrictions, tenant overrides). Feature-flag tools without catalog entries are handled separately via `uncatalogued_user_schemas()`.
+- [ ] **Add a constant in `src/constants/tools/identifiers.rs`** for the tool name to avoid hardcoded strings.
+
+### Admin-Only Tools
+
+The `ADMIN_ONLY` capability flag is the primary mechanism for hiding tools from regular users:
+
+```rust
+fn capabilities(&self) -> ToolCapabilities {
+    ToolCapabilities::REQUIRES_AUTH
+        | ToolCapabilities::ADMIN_ONLY  // Hidden from non-admin users in tools/list
+        | ToolCapabilities::WRITES_DATA
+}
+```
+
+Admin-only tools are:
+- Excluded from the public discovery list
+- Excluded from tenant-filtered tool lists (non-admin users)
+- Included only when the caller is an admin or owner in a tenant context
+
+### Public Discovery Tools
+
+The `PUBLIC_DISCOVERY_TOOLS` array controls what unauthenticated MCP clients see. Tools in this list are *discoverable but not necessarily executable* -- calling them without authentication returns an auth error. The list exists so clients like Claude Desktop can learn about Pierre's capabilities before the user logs in.
+
+Current guidelines for inclusion:
+- Read-only data retrieval tools (e.g., `get_activities`, `get_athlete`)
+- Analytics and calculation tools (e.g., `analyze_activity`, `calculate_metrics`)
+- Configuration catalog tools (auth-exempt per `ToolId::requires_auth()`)
+
+Excluded:
+- Connection management (OAuth token operations)
+- Write/mutation tools (goals, recipes, coach management)
+- Admin tools
+- Social/friends features
+
 ## Testing Tools
 
 ### Unit Tests

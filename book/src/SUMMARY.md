@@ -14,6 +14,7 @@
 - [Architecture](architecture.md)
 - [Protocols](protocols.md)
 - [Authentication](authentication.md)
+- [MCP Tool Discovery](mcp-tool-discovery.md)
 
 # Intelligence & Analytics
 
@@ -29,6 +30,7 @@
 - [OAuth2 Server](oauth2-server.md)
 - [OAuth Client](oauth-client.md)
 - [LLM Providers](llm-providers.md)
+- [Admin Tool Management](admin-tool-management.md)
 
 # Development
 

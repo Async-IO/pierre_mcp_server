@@ -61,6 +61,22 @@ pub const GENERATE_RECOMMENDATIONS: &str = "generate_recommendations";
 /// Tool identifier for goal suggestion functionality
 pub const SUGGEST_GOALS: &str = "suggest_goals";
 
+/// Nutrition analysis tools
+pub const CALCULATE_DAILY_NUTRITION: &str = "calculate_daily_nutrition";
+/// Tool identifier for searching food items
+pub const SEARCH_FOOD: &str = "search_food";
+/// Tool identifier for retrieving detailed food information
+pub const GET_FOOD_DETAILS: &str = "get_food_details";
+/// Tool identifier for analyzing meal nutrition
+pub const ANALYZE_MEAL_NUTRITION: &str = "analyze_meal_nutrition";
+
+/// Configuration tools
+pub const GET_CONFIGURATION_CATALOG: &str = "get_configuration_catalog";
+/// Tool identifier for retrieving configuration profiles
+pub const GET_CONFIGURATION_PROFILES: &str = "get_configuration_profiles";
+/// Tool identifier for validating configuration values
+pub const VALIDATE_CONFIGURATION: &str = "validate_configuration";
+
 /// Recipe management tools (Combat des Chefs)
 pub const GET_RECIPE_CONSTRAINTS: &str = "get_recipe_constraints";
 /// Tool identifier for listing user recipes
@@ -134,3 +150,39 @@ pub const LIST_YOGA_POSES: &str = "list_yoga_poses";
 pub const GET_YOGA_POSE: &str = "get_yoga_pose";
 /// Tool identifier for suggesting a yoga sequence
 pub const SUGGEST_YOGA_SEQUENCE: &str = "suggest_yoga_sequence";
+
+/// Tools visible in `tools/list` for unauthenticated MCP clients.
+///
+/// These tools describe Pierre's core capabilities so that MCP clients (e.g. Claude Desktop)
+/// can discover what Pierre offers. Calling most of these tools still requires authentication;
+/// this list only controls discovery visibility, not execution authorization.
+///
+/// Excluded from public discovery:
+/// - Connection management tools (manage OAuth tokens — sensitive)
+/// - Admin tools (`admin_*` prefix)
+/// - Write/mutation tools (`set_goal`, `save_recipe`, `update_*`, `delete_*`, etc.)
+/// - Future social/friends/insights tools
+pub const PUBLIC_DISCOVERY_TOOLS: &[&str] = &[
+    // Core data retrieval
+    GET_ACTIVITIES,
+    GET_ATHLETE,
+    GET_STATS,
+    GET_ACTIVITY_INTELLIGENCE,
+    // Analytics (read-only analysis)
+    ANALYZE_ACTIVITY,
+    CALCULATE_METRICS,
+    ANALYZE_PERFORMANCE_TRENDS,
+    COMPARE_ACTIVITIES,
+    DETECT_PATTERNS,
+    // Goal suggestions (read-only)
+    SUGGEST_GOALS,
+    // Nutrition (read-only)
+    CALCULATE_DAILY_NUTRITION,
+    SEARCH_FOOD,
+    GET_FOOD_DETAILS,
+    ANALYZE_MEAL_NUTRITION,
+    // Configuration (catalog and profiles are auth-exempt per ToolId::requires_auth)
+    GET_CONFIGURATION_CATALOG,
+    GET_CONFIGURATION_PROFILES,
+    VALIDATE_CONFIGURATION,
+];

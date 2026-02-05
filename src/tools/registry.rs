@@ -15,7 +15,7 @@
 //! This design mirrors `ProviderRegistry` from `src/providers/registry.rs`
 //! to maintain consistency across the codebase.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::sync::Arc;
 
@@ -217,6 +217,64 @@ impl ToolRegistry {
     #[must_use]
     pub fn all_schemas(&self) -> Vec<ToolSchema> {
         self.list_schemas_for_role(true)
+    }
+
+    /// List schemas for tools whose names appear in the given set
+    ///
+    /// Only returns schemas for tools that are both in `allowed_names` and
+    /// registered in the registry. Tools not in the registry are silently skipped.
+    #[must_use]
+    pub fn list_schemas_by_names(&self, allowed_names: &[&str]) -> Vec<ToolSchema> {
+        self.tools
+            .iter()
+            .filter(|(name, _)| allowed_names.contains(&name.as_str()))
+            .map(|(_, tool)| ToolSchema {
+                name: tool.name().to_owned(),
+                description: tool.description().to_owned(),
+                input_schema: tool.input_schema(),
+            })
+            .collect()
+    }
+
+    /// List schemas for tools whose names appear in the given string set
+    ///
+    /// Same as `list_schemas_by_names` but accepts owned String references,
+    /// useful when filtering against dynamic sets (e.g. from `ToolSelectionService`).
+    /// Uses `HashSet` for O(1) lookup instead of O(n) linear scan.
+    #[must_use]
+    pub fn list_schemas_by_name_set(&self, allowed_names: &[String]) -> Vec<ToolSchema> {
+        let name_set: HashSet<&str> = allowed_names.iter().map(String::as_str).collect();
+        self.tools
+            .iter()
+            .filter(|(name, _)| name_set.contains(name.as_str()))
+            .map(|(_, tool)| ToolSchema {
+                name: tool.name().to_owned(),
+                description: tool.description().to_owned(),
+                input_schema: tool.input_schema(),
+            })
+            .collect()
+    }
+
+    /// List schemas for non-admin tools NOT present in the given catalog name set
+    ///
+    /// Returns tools registered via feature flags (coaches, mobility, etc.) that
+    /// are not tracked by `tool_catalog`. This prevents feature-flag tools from
+    /// disappearing for authenticated users when `ToolSelectionService` is used.
+    /// Uses `HashSet` for O(1) lookup instead of O(n) linear scan.
+    #[must_use]
+    pub fn uncatalogued_user_schemas(&self, catalogued_names: &[String]) -> Vec<ToolSchema> {
+        let catalogued_set: HashSet<&str> = catalogued_names.iter().map(String::as_str).collect();
+        self.tools
+            .iter()
+            .filter(|(name, tool)| {
+                !catalogued_set.contains(name.as_str()) && !tool.capabilities().is_admin_only()
+            })
+            .map(|(_, tool)| ToolSchema {
+                name: tool.name().to_owned(),
+                description: tool.description().to_owned(),
+                input_schema: tool.input_schema(),
+            })
+            .collect()
     }
 
     /// Filter tools by capabilities
