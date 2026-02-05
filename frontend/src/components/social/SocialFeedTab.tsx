@@ -80,7 +80,11 @@ const INSIGHT_TYPE_CONFIG: Record<string, { icon: string; color: string; label: 
   motivation: { icon: '☀️', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30', label: 'Motivation' },
 };
 
-export default function SocialFeedTab() {
+interface SocialFeedTabProps {
+  onNavigateToFriends?: () => void;
+}
+
+export default function SocialFeedTab({ onNavigateToFriends }: SocialFeedTabProps) {
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -258,22 +262,31 @@ export default function SocialFeedTab() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Toolbar */}
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-white">Social Feed</h2>
-          <p className="text-sm text-zinc-400 mt-1">
-            Coach insights from your friends
-          </p>
+        <p className="text-sm text-zinc-400">
+          Coach insights from your friends
+        </p>
+        <div className="flex items-center gap-2">
+          {onNavigateToFriends && (
+            <Button variant="outline" onClick={onNavigateToFriends}>
+              <span className="flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+                Friends
+              </span>
+            </Button>
+          )}
+          <Button variant="primary" onClick={() => setShowShareModal(true)}>
+            <span className="flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Share Insight
+            </span>
+          </Button>
         </div>
-        <Button variant="primary" onClick={() => setShowShareModal(true)}>
-          <span className="flex items-center gap-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Share Insight
-          </span>
-        </Button>
       </div>
 
       {/* Suggestions Banner */}

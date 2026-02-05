@@ -318,12 +318,9 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                 Back
               </button>
             )}
-            <div>
-              <h2 className="text-2xl font-semibold text-white">My Coaches</h2>
-              <p className="text-zinc-400 mt-1">
-                Create custom AI personas to get specialized fitness coaching.
-              </p>
-            </div>
+            <p className="text-zinc-400">
+              Create custom AI personas to get specialized fitness coaching.
+            </p>
           </div>
           <div className="flex items-center gap-2">
             {/* Show hidden toggle */}

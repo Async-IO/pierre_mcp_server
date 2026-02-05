@@ -32,7 +32,6 @@ const CoachLibraryTab = lazy(() => import('./CoachLibraryTab'));
 const StoreScreen = lazy(() => import('./StoreScreen'));
 const FriendsTab = lazy(() => import('./social/FriendsTab'));
 const SocialFeedTab = lazy(() => import('./social/SocialFeedTab'));
-const SocialSettingsTab = lazy(() => import('./social/SocialSettingsTab'));
 
 // Tab definition type with optional badge for notification counts
 interface TabDefinition {
@@ -68,6 +67,8 @@ export default function Dashboard() {
   const isAdminUser = user?.role === 'admin' || user?.role === 'super_admin';
   const isSuperAdmin = user?.role === 'super_admin';
   const [activeTab, setActiveTab] = useState(isAdminUser ? 'overview' : 'chat');
+  // Sub-view state for insights tab (feed vs friends), matching mobile's social stack
+  const [insightsView, setInsightsView] = useState<'feed' | 'friends'>('feed');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedAdminToken, setSelectedAdminToken] = useState<AdminToken | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -256,28 +257,6 @@ export default function Dashboard() {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
       </svg>
     ), badge: (storeStats?.pending_count ?? 0) > 0 ? storeStats?.pending_count : undefined },
-    { id: 'social-friends', name: 'Friends', icon: (
-      <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-      </svg>
-    ) },
-    { id: 'insights', name: 'Insights', icon: (
-      <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
-      </svg>
-    ) },
-    { id: 'social-settings', name: 'Social Settings', icon: (
-      <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-      </svg>
-    ) },
-    { id: 'admin-settings', name: 'Settings', icon: (
-      <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-      </svg>
-    ) },
   ], [pendingUsers.length, storeStats?.pending_count]);
 
   // Super admin tabs extend admin tabs with admin token management
@@ -290,14 +269,14 @@ export default function Dashboard() {
     ) },
   ], [adminTabs]);
 
-  // Regular user tabs - Chat, My Coaches, Discover, Insights, Friends, Settings
+  // Regular user tabs - matches mobile: Chat, Coaches, Discover, Insights, Settings
   const regularTabs: TabDefinition[] = useMemo(() => [
     { id: 'chat', name: 'Chat', icon: (
       <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
       </svg>
     ) },
-    { id: 'my-coaches', name: 'My Coaches', icon: (
+    { id: 'my-coaches', name: 'Coaches', icon: (
       <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
       </svg>
@@ -310,11 +289,6 @@ export default function Dashboard() {
     { id: 'insights', name: 'Insights', icon: (
       <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
-      </svg>
-    ) },
-    { id: 'social-friends', name: 'Friends', icon: (
-      <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
       </svg>
     ) },
     { id: 'settings', name: 'Settings', icon: (
@@ -370,6 +344,10 @@ export default function Dashboard() {
                     // Reset conversation selection when clicking Chat tab to show coach selection
                     if (tab.id === 'chat') {
                       setSelectedConversation(null);
+                    }
+                    // Reset insights sub-view when navigating back to insights
+                    if (tab.id === 'insights') {
+                      setInsightsView('feed');
                     }
                   }}
                   className={clsx(
@@ -453,9 +431,9 @@ export default function Dashboard() {
             'flex items-center',
             sidebarCollapsed ? 'flex-col gap-1' : 'gap-2'
           )}>
-            {/* Clickable user area - navigates to Settings */}
+            {/* Clickable user area - navigates to user Settings */}
             <button
-              onClick={() => setActiveTab(isAdminUser ? 'admin-settings' : 'settings')}
+              onClick={() => setActiveTab('settings')}
               className={clsx(
                 'flex items-center gap-2 rounded-lg transition-all duration-200 hover:bg-white/5',
                 sidebarCollapsed ? 'p-1 flex-col' : 'flex-1 min-w-0 p-1.5'
@@ -486,31 +464,34 @@ export default function Dashboard() {
               )}
             </button>
 
-            {!sidebarCollapsed && (
-              <button
-                onClick={logout}
-                className="text-zinc-500 hover:text-pierre-violet transition-colors flex-shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center"
-                title="Sign out"
-                aria-label="Sign out"
-              >
-                <svg className="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-              </button>
-            )}
+            {/* Settings gear icon - visible shortcut to user settings */}
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={clsx(
+                'text-zinc-500 hover:text-pierre-violet transition-colors flex-shrink-0 flex items-center justify-center',
+                sidebarCollapsed ? 'min-w-[36px] min-h-[36px]' : 'min-w-[36px] min-h-[36px]',
+                activeTab === 'settings' && 'text-pierre-violet'
+              )}
+              title="Settings"
+              aria-label="Settings"
+            >
+              <svg className="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
 
-            {sidebarCollapsed && (
-              <button
-                onClick={logout}
-                className="text-zinc-500 hover:text-pierre-violet transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
-                title="Sign out"
-                aria-label="Sign out"
-              >
-                <svg className="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-              </button>
-            )}
+            {/* Sign out button */}
+            <button
+              onClick={logout}
+              className="text-zinc-500 hover:text-pierre-violet transition-colors flex-shrink-0 min-w-[36px] min-h-[36px] flex items-center justify-center"
+              title="Sign out"
+              aria-label="Sign out"
+            >
+              <svg className="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -548,7 +529,7 @@ export default function Dashboard() {
           <div className="px-6 py-4 flex items-center justify-between">
             <div>
               <h1 className="text-xl font-medium text-white">
-                {tabs.find(t => t.id === activeTab)?.name}
+                {tabs.find(t => t.id === activeTab)?.name || (activeTab === 'settings' ? 'Settings' : '')}
               </h1>
             </div>
           </div>
@@ -570,6 +551,7 @@ export default function Dashboard() {
               weeklyUsage={weeklyUsage}
               a2aOverview={a2aOverview}
               pendingUsersCount={pendingUsers.length}
+              pendingCoachReviews={storeStats?.pending_count ?? 0}
               onNavigate={setActiveTab}
             />
           </Suspense>
@@ -612,35 +594,19 @@ export default function Dashboard() {
           </div>
         )}
         {activeTab === 'users' && (
-          <div className="space-y-6">
-            <Card variant="dark">
-              <h2 className="text-xl font-semibold mb-4 text-white">User Management</h2>
-              <p className="text-zinc-400 mb-4">
-                Manage user registrations, approve pending users, and monitor user activity across the platform.
-              </p>
-            </Card>
-            <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
-              <UserManagement />
-            </Suspense>
-          </div>
+          <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
+            <UserManagement />
+          </Suspense>
         )}
-        {activeTab === 'admin-settings' && (
+        {activeTab === 'configuration' && (
           <div className="space-y-6">
-            <Card variant="dark">
-              <h2 className="text-xl font-semibold mb-4 text-white">System Settings</h2>
-              <p className="text-zinc-400 mb-4">
-                Configure system-wide settings for user registration, security, and platform behavior.
-              </p>
-            </Card>
+            <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
+              <AdminConfiguration />
+            </Suspense>
             <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
               <AdminSettings />
             </Suspense>
           </div>
-        )}
-        {activeTab === 'configuration' && (
-          <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
-            <AdminConfiguration />
-          </Suspense>
         )}
         {activeTab === 'coaches' && (
           <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
@@ -652,19 +618,13 @@ export default function Dashboard() {
             <CoachStoreManagement />
           </Suspense>
         )}
-        {activeTab === 'social-friends' && (
-          <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
-            <FriendsTab />
-          </Suspense>
-        )}
         {activeTab === 'insights' && (
           <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
-            <SocialFeedTab />
-          </Suspense>
-        )}
-        {activeTab === 'social-settings' && (
-          <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
-            <SocialSettingsTab />
+            {insightsView === 'friends' ? (
+              <FriendsTab onBack={() => setInsightsView('feed')} />
+            ) : (
+              <SocialFeedTab onNavigateToFriends={() => setInsightsView('friends')} />
+            )}
           </Suspense>
         )}
         {activeTab === 'chat' && (

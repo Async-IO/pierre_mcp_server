@@ -85,10 +85,9 @@ describe('SocialFeedTab', () => {
     vi.mocked(socialApi.removeReaction).mockResolvedValue(undefined);
   });
 
-  it('should render the Social Feed tab with title', async () => {
+  it('should render the Social Feed tab with subtitle', async () => {
     render(<SocialFeedTab />);
 
-    expect(screen.getByText('Social Feed')).toBeInTheDocument();
     expect(screen.getByText('Coach insights from your friends')).toBeInTheDocument();
   });
 

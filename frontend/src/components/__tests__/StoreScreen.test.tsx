@@ -125,9 +125,9 @@ describe('StoreScreen', () => {
   });
 
   describe('rendering', () => {
-    it('should render the header with title', async () => {
+    it('should render the header with subtitle', async () => {
       renderStoreScreen();
-      expect(screen.getByText('Discover')).toBeInTheDocument();
+      expect(screen.getByText('Find AI coaching assistants')).toBeInTheDocument();
     });
 
     it('should render the search input', async () => {

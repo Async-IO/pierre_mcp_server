@@ -102,11 +102,9 @@ describe('FriendsTab', () => {
     vi.mocked(socialApi.removeFriend).mockResolvedValue(undefined);
   });
 
-  it('should render the Friends tab with title', async () => {
+  it('should render the Friends tab with subtitle', async () => {
     render(<FriendsTab />);
 
-    // Use getByRole to get the specific heading element, not the tab button
-    expect(screen.getByRole('heading', { name: 'Friends', level: 2 })).toBeInTheDocument();
     expect(screen.getByText('Connect with other athletes and share coach insights')).toBeInTheDocument();
   });
 

@@ -20,6 +20,7 @@ interface OverviewTabProps {
   weeklyUsage: AnalyticsData | undefined;
   a2aOverview: { total_clients: number; active_clients: number; requests_today: number; requests_this_month: number } | undefined;
   pendingUsersCount?: number;
+  pendingCoachReviews?: number;
   onNavigate?: (tab: string) => void;
 }
 
@@ -32,7 +33,7 @@ const tierConfig: Record<string, { color: string; bg: string; border: string; ic
 };
 
 
-export default function OverviewTab({ overview, overviewLoading, rateLimits, weeklyUsage, a2aOverview, pendingUsersCount = 0, onNavigate }: OverviewTabProps) {
+export default function OverviewTab({ overview, overviewLoading, rateLimits, weeklyUsage, a2aOverview, pendingUsersCount = 0, pendingCoachReviews = 0, onNavigate }: OverviewTabProps) {
   const { user } = useAuth();
 
   // Mini chart data
@@ -338,6 +339,15 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
                 </svg>
                 Users
               </button>
+              <button
+                onClick={() => onNavigate?.('coach-store')}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 hover:bg-pierre-violet/20 text-zinc-300 hover:text-pierre-violet-light transition-colors text-sm font-medium border border-white/5 hover:border-pierre-violet/30"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                Coach Store
+              </button>
             </div>
           </Card>
 
@@ -368,6 +378,24 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
                 </button>
               ) : null}
 
+              {/* Pending Coach Reviews Alert */}
+              {pendingCoachReviews > 0 ? (
+                <button
+                  onClick={() => onNavigate?.('coach-store')}
+                  className="w-full flex items-center justify-between p-3 rounded-lg bg-pierre-violet/15 border border-pierre-violet/30 hover:bg-pierre-violet/25 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-pierre-violet animate-pulse" />
+                    <span className="text-sm font-medium text-white">
+                      {pendingCoachReviews} coach{pendingCoachReviews !== 1 ? 'es' : ''} pending review
+                    </span>
+                  </div>
+                  <svg className="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              ) : null}
+
               {/* Rate Limit Warning */}
               {rateLimits?.some((rl: RateLimitOverview) => rl.usage_percentage > 90) ? (
                 <button
@@ -387,7 +415,7 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
               ) : null}
 
               {/* All Clear State */}
-              {pendingUsersCount === 0 && !rateLimits?.some((rl: RateLimitOverview) => rl.usage_percentage > 90) && (
+              {pendingUsersCount === 0 && pendingCoachReviews === 0 && !rateLimits?.some((rl: RateLimitOverview) => rl.usage_percentage > 90) && (
                 <div className="flex items-center gap-2 p-3 rounded-lg bg-pierre-activity/15 border border-pierre-activity/30">
                   <svg className="w-4 h-4 text-pierre-activity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />

@@ -600,16 +600,13 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
                 <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-gradient-to-br from-pierre-violet to-pierre-cyan text-white shadow-glow-sm">
                   <MessageCircle className="w-5 h-5" />
                 </div>
-                <div>
-                  <h2 className="text-xl font-semibold text-white">Chat</h2>
-                  <p className="text-sm text-zinc-400">
-                    {hasConnectedProvider
-                      ? providersData?.providers?.filter(p => p.connected).map(p =>
-                          p.display_name
-                        ).join(', ') + ' connected'
-                      : 'No provider connected'}
-                  </p>
-                </div>
+                <p className="text-sm text-zinc-400">
+                  {hasConnectedProvider
+                    ? providersData?.providers?.filter(p => p.connected).map(p =>
+                        p.display_name
+                      ).join(', ') + ' connected'
+                    : 'No provider connected'}
+                </p>
               </div>
               <button
                 onClick={() => createConversation.mutate()}

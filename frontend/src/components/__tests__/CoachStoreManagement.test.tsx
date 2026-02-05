@@ -67,13 +67,11 @@ describe('CoachStoreManagement', () => {
     });
   });
 
-  it('renders the header correctly', async () => {
+  it('renders the stats dashboard', async () => {
     renderCoachStoreManagement();
 
-    expect(screen.getByText('Coach Store Management')).toBeInTheDocument();
-    expect(
-      screen.getByText(/Review coach submissions, manage published coaches/)
-    ).toBeInTheDocument();
+    // Stats cards are the first visible elements after header removal
+    expect(screen.getByText('Pending Reviews')).toBeInTheDocument();
   });
 
   it('displays stats cards with correct values', async () => {

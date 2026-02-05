@@ -191,14 +191,8 @@ export default function SystemCoachesTab() {
   if (!selectedCoach && !isCreating) {
     return (
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-semibold text-white">System Coaches</h2>
-            <p className="text-zinc-400 mt-1">
-              Manage AI coaching personas available to all users in your organization.
-            </p>
-          </div>
+        {/* Toolbar */}
+        <div className="flex items-center justify-end">
           <Button
             onClick={() => {
               setFormData(defaultFormData);

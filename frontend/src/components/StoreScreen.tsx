@@ -242,10 +242,7 @@ export default function StoreScreen({ onNavigateToCoaches }: StoreScreenProps) {
           <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-gradient-to-br from-pierre-activity to-pierre-activity-dark text-white shadow-glow-sm">
             <Compass className="w-5 h-5" />
           </div>
-          <div>
-            <h2 className="text-xl font-semibold text-white">Discover</h2>
-            <p className="text-sm text-zinc-400">Find AI coaching assistants</p>
-          </div>
+          <p className="text-sm text-zinc-400">Find AI coaching assistants</p>
         </div>
       </div>
 

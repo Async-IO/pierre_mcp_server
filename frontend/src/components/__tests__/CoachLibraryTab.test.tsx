@@ -174,7 +174,7 @@ describe('CoachLibraryTab Component', () => {
 
     // Should show header (using heading role to differentiate from filter button)
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'My Coaches' })).toBeInTheDocument();
+      expect(screen.getByText('Create custom AI personas to get specialized fitness coaching.')).toBeInTheDocument();
     });
 
     // Should show Create Coach button
@@ -236,7 +236,7 @@ describe('CoachLibraryTab Component', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'My Coaches' })).toBeInTheDocument();
+      expect(screen.getByText('Create custom AI personas to get specialized fitness coaching.')).toBeInTheDocument();
     });
 
     // Should show category filter buttons
@@ -252,7 +252,7 @@ describe('CoachLibraryTab Component', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'My Coaches' })).toBeInTheDocument();
+      expect(screen.getByText('Create custom AI personas to get specialized fitness coaching.')).toBeInTheDocument();
     });
 
     // Should show favorites filter button (exact text match to avoid matching favorite icons)
@@ -267,7 +267,7 @@ describe('CoachLibraryTab Component', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'My Coaches' })).toBeInTheDocument();
+      expect(screen.getByText('Create custom AI personas to get specialized fitness coaching.')).toBeInTheDocument();
     });
 
     // Click the first Create Coach button (the one in the header)
@@ -320,7 +320,7 @@ describe('CoachLibraryTab Component', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'My Coaches' })).toBeInTheDocument();
+      expect(screen.getByText('Create custom AI personas to get specialized fitness coaching.')).toBeInTheDocument();
     });
 
     // Find and click back button

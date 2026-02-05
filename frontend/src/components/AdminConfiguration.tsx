@@ -381,16 +381,13 @@ export default function AdminConfiguration() {
 
   return (
     <div className="space-y-6">
-      {/* Header with stats */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Configuration Management</h1>
-          <p className="text-sm text-zinc-500 mt-1">
+      {/* Toolbar for pending changes */}
+      {hasPendingChanges && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-zinc-400">
             {filteredCategories.reduce((sum, cat) => sum + cat.parameters.length, 0)} parameters &bull;{' '}
             {filteredCategories.length} categories
           </p>
-        </div>
-        {hasPendingChanges && (
           <div className="flex items-center gap-3">
             <Badge variant="warning">{Object.keys(pendingChanges).length} unsaved changes</Badge>
             <Button
@@ -408,8 +405,8 @@ export default function AdminConfiguration() {
               Review &amp; Save Changes
             </Button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <Tabs

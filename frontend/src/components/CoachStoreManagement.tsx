@@ -74,14 +74,6 @@ export default function CoachStoreManagement() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-semibold text-white">Coach Store Management</h2>
-        <p className="text-zinc-400 mt-1">
-          Review coach submissions, manage published coaches, and monitor store activity.
-        </p>
-      </div>
-
       {/* Stats Dashboard */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Pending Reviews */}

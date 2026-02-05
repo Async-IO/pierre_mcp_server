@@ -16,7 +16,11 @@ import type {
 
 type TabView = 'friends' | 'search' | 'pending';
 
-export default function FriendsTab() {
+interface FriendsTabProps {
+  onBack?: () => void;
+}
+
+export default function FriendsTab({ onBack }: FriendsTabProps) {
   const [activeTab, setActiveTab] = useState<TabView>('friends');
   const [friends, setFriends] = useState<FriendWithInfo[]>([]);
   const [searchResults, setSearchResults] = useState<DiscoverableUser[]>([]);
@@ -161,11 +165,21 @@ export default function FriendsTab() {
 
   return (
     <div className="space-y-6">
-      {/* Header with tabs */}
+      {/* Toolbar */}
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-white">Friends</h2>
-          <p className="text-sm text-zinc-400 mt-1">
+        <div className="flex items-center gap-3">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="flex items-center gap-1 text-zinc-400 hover:text-pierre-violet transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Insights
+            </button>
+          )}
+          <p className="text-sm text-zinc-400">
             Connect with other athletes and share coach insights
           </p>
         </div>
