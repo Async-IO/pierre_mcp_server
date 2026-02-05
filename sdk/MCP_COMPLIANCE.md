@@ -31,10 +31,10 @@ Without this, `../scripts/lint-and-test.sh` will FAST FAIL.
 
 ```bash
 # Visual testing (opens web UI)
-npm run inspect
+bun run inspect
 
 # CLI testing (for automation)
-npm run inspect:cli
+bun run inspect:cli
 ```
 
 ## Tools
@@ -44,8 +44,8 @@ npm run inspect:cli
 Interactive visual testing tool installed as dev dependency.
 
 **Usage:**
-- `npm run inspect` - Visual mode (http://localhost:6274)
-- `npm run inspect:cli` - CLI mode for scripting
+- `bun run inspect` - Visual mode (http://localhost:6274)
+- `bun run inspect:cli` - CLI mode for scripting
 
 **Tests:** Real-time tool execution, resources, prompts, OAuth flows
 

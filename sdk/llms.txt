@@ -9,8 +9,8 @@ The SDK provides a bridge between Claude Desktop (MCP client) and Pierre MCP Ser
 ## Quick Start
 
 ```bash
-npm install
-npm run build
+bun install
+bun run build
 node dist/cli.js --server http://localhost:8081 --verbose
 ```
 
@@ -201,7 +201,7 @@ interface BridgeConfig {
 
 ### First-Time Setup
 1. Start Pierre server
-2. Build SDK: `npm run build`
+2. Build SDK: `bun run build`
 3. Configure Claude Desktop config
 4. Launch Claude Desktop
 5. Bridge starts and shows connect_to_pierre tool
@@ -328,8 +328,8 @@ curl http://localhost:8081/mcp/tools/list
 
 ### Build and Test
 ```bash
-npm run build
-npm run test  # If tests exist
+bun run build
+bun run test  # If tests exist
 ```
 
 ### Add New Tool Handler

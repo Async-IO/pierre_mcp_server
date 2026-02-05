@@ -34,7 +34,7 @@ Wait for the server to fully start (you'll see "Server listening on..." message)
 ```bash
 # In terminal 2
 cd sdk
-npm run generate-types
+bun run generate-types
 ```
 
 ### 3. Verify Output
@@ -102,7 +102,7 @@ async function getRecentActivities(limit: number): Promise<Activity[]> {
 ```bash
 export PIERRE_SERVER_URL=http://localhost:8081
 export HTTP_PORT=8081
-npm run generate-types
+bun run generate-types
 ```
 
 ### With Authentication
@@ -115,7 +115,7 @@ cargo run --bin pierre-cli -- token generate --service type_gen --expires-days 1
 
 # Use the token
 export PIERRE_JWT_TOKEN="your_jwt_token_here"
-npm run generate-types
+bun run generate-types
 ```
 
 ### Regenerate After Server Changes
@@ -131,10 +131,10 @@ cargo build --release
 
 # 3. Regenerate types
 cd sdk
-npm run generate-types
+bun run generate-types
 
 # 4. Rebuild SDK
-npm run build
+bun run build
 ```
 
 ## Troubleshooting
@@ -163,7 +163,7 @@ cargo run --bin pierre-cli -- token generate --service type_gen
 
 # Export and retry
 export PIERRE_JWT_TOKEN="your_token"
-npm run generate-types
+bun run generate-types
 ```
 
 ### Error: "Failed to parse response"
@@ -190,13 +190,13 @@ To run type generation in CI:
     sleep 5
 
 - name: Generate types
-  run: cd sdk && npm run generate-types
+  run: cd sdk && bun run generate-types
 
 - name: Verify types compile
-  run: cd sdk && npm run build
+  run: cd sdk && bun run build
 ```
 
-## Manual Generation (Without npm script)
+## Manual Generation (Without bun script)
 
 ```bash
 node ../scripts/generate-sdk-types.js
@@ -206,7 +206,7 @@ node ../scripts/generate-sdk-types.js
 
 - **Generator Script**: `scripts/generate-sdk-types.js`
 - **Output File**: `sdk/src/types.ts`
-- **npm Script**: `npm run generate-types` (defined in `sdk/package.json`)
+- **bun Script**: `bun run generate-types` (defined in `sdk/package.json`)
 
 ## What Gets Generated
 
