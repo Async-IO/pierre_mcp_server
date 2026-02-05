@@ -49,10 +49,10 @@ fi
 # Kill any existing tunnel
 pkill -f 'cloudflared tunnel' 2>/dev/null || true
 
-echo -e "\033[0;32m[INFO]\033[0m Starting Cloudflare tunnel to localhost:8081..."
+echo -e "\033[0;32m[INFO]\033[0m Starting Cloudflare tunnel to localhost:8082..."
 
 # Start tunnel in background
-cloudflared tunnel --url http://localhost:8081 > "$TUNNEL_LOG" 2>&1 &
+cloudflared tunnel --url http://localhost:8082 > "$TUNNEL_LOG" 2>&1 &
 TUNNEL_PID=$!
 
 # Wait for tunnel URL to be available
