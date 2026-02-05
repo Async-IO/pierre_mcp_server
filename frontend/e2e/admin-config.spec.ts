@@ -257,7 +257,7 @@ test.describe('Admin Configuration - Loading and Display', () => {
 
     // Check Intelligence categories are visible with individual parameter counts
     // Each category shows its own count in the sidebar navigation
-    await expect(page.getByText('Training Stress Balance')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Training Stress Balance' })).toBeVisible();
     await expect(page.getByText('2 parameters').first()).toBeVisible();
   });
 
