@@ -314,7 +314,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
               {onBack && (
                 <button
                   onClick={onBack}
-                  className="p-2 rounded-lg text-zinc-400 hover:text-pierre-violet hover:bg-white/5 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
+                  className="p-2 rounded-lg text-zinc-400 hover:text-pierre-violet hover:bg-white/5 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
                   title="Back"
                   aria-label="Back"
                 >
@@ -347,7 +347,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                   setFormData(defaultFormData);
                   setIsCreating(true);
                 }}
-                className="p-2 rounded-lg text-white bg-pierre-violet hover:bg-pierre-violet-dark transition-colors shadow-glow-sm hover:shadow-glow min-w-[36px] min-h-[36px] flex items-center justify-center"
+                className="p-2 rounded-lg text-white bg-pierre-violet hover:bg-pierre-violet-dark transition-colors shadow-glow-sm hover:shadow-glow min-w-[44px] min-h-[44px] flex items-center justify-center"
                 title="Create Coach"
                 aria-label="Create Coach"
               >
@@ -559,7 +559,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                         ))}
                         <button
                           onClick={(e) => handleToggleFavorite(e, coach.id)}
-                          className="ml-2 p-0.5 text-zinc-500 hover:text-pierre-violet transition-colors"
+                          className="ml-2 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-zinc-500 hover:text-pierre-violet transition-colors"
                           title={coach.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
                         >
                           <svg className="w-4 h-4" aria-hidden="true" fill={coach.is_favorite ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
