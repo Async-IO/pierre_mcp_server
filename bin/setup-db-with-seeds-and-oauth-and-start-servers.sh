@@ -267,18 +267,22 @@ else
     printf "%-15s %-35s ${RED}%-10s${NC} %-8s\n" "Pierre Server" "http://localhost:$SERVER_PORT" "Down" "-"
 fi
 
-# Check frontend
-if [ -n "$FRONTEND_PID" ] && kill -0 $FRONTEND_PID 2>/dev/null; then
+# Check frontend (port-based: bun/vite may spawn child processes with different PIDs)
+if [ -z "$FRONTEND_PID" ]; then
+    printf "%-15s %-35s ${YELLOW}%-10s${NC} %-8s\n" "Web Frontend" "http://localhost:$FRONTEND_PORT" "Skipped" "-"
+elif curl -s -o /dev/null --connect-timeout 2 "http://localhost:$FRONTEND_PORT" 2>/dev/null; then
     printf "%-15s %-35s ${GREEN}%-10s${NC} %-8s\n" "Web Frontend" "http://localhost:$FRONTEND_PORT" "Running" "$FRONTEND_PID"
 else
-    printf "%-15s %-35s ${YELLOW}%-10s${NC} %-8s\n" "Web Frontend" "http://localhost:$FRONTEND_PORT" "Skipped" "-"
+    printf "%-15s %-35s ${YELLOW}%-10s${NC} %-8s\n" "Web Frontend" "http://localhost:$FRONTEND_PORT" "Starting" "$FRONTEND_PID"
 fi
 
-# Check Expo
-if [ -n "$EXPO_PID" ] && kill -0 $EXPO_PID 2>/dev/null; then
+# Check Expo (port-based: bun spawns Metro as a child process with a different PID)
+if [ -z "$EXPO_PID" ]; then
+    printf "%-15s %-35s ${YELLOW}%-10s${NC} %-8s\n" "Expo Mobile" "http://localhost:$EXPO_PORT" "Skipped" "-"
+elif curl -s -o /dev/null --connect-timeout 2 "http://localhost:$EXPO_PORT" 2>/dev/null; then
     printf "%-15s %-35s ${GREEN}%-10s${NC} %-8s\n" "Expo Mobile" "http://localhost:$EXPO_PORT" "Running" "$EXPO_PID"
 else
-    printf "%-15s %-35s ${YELLOW}%-10s${NC} %-8s\n" "Expo Mobile" "http://localhost:$EXPO_PORT" "Skipped" "-"
+    printf "%-15s %-35s ${YELLOW}%-10s${NC} %-8s\n" "Expo Mobile" "http://localhost:$EXPO_PORT" "Starting" "$EXPO_PID"
 fi
 
 echo ""
