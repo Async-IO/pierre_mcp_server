@@ -26,7 +26,7 @@ test.describe('Admin Configuration Integration Tests', () => {
       const backendUrl = getBackendUrl();
       const response = await page.request.get(`${backendUrl}/api/admin/config/catalog`, {
         headers: {
-          'Authorization': `Bearer ${await page.evaluate(() => localStorage.getItem('jwt_token'))}`,
+          'Authorization': `Bearer ${await page.evaluate(() => localStorage.getItem('pierre_auth_token'))}`,
         },
       });
 
@@ -44,7 +44,7 @@ test.describe('Admin Configuration Integration Tests', () => {
       const backendUrl = getBackendUrl();
       const response = await page.request.get(`${backendUrl}/api/admin/config/catalog`, {
         headers: {
-          'Authorization': `Bearer ${await page.evaluate(() => localStorage.getItem('jwt_token'))}`,
+          'Authorization': `Bearer ${await page.evaluate(() => localStorage.getItem('pierre_auth_token'))}`,
         },
       });
 
@@ -75,7 +75,7 @@ test.describe('Admin Configuration Integration Tests', () => {
       const backendUrl = getBackendUrl();
       const response = await page.request.get(`${backendUrl}/api/admin/config/catalog`, {
         headers: {
-          'Authorization': `Bearer ${await page.evaluate(() => localStorage.getItem('jwt_token'))}`,
+          'Authorization': `Bearer ${await page.evaluate(() => localStorage.getItem('pierre_auth_token'))}`,
         },
       });
 
@@ -141,7 +141,7 @@ test.describe('Admin Configuration Integration Tests', () => {
 
       // Clear all authentication (cookies and localStorage) to truly test unauthenticated access
       await page.context().clearCookies();
-      await page.evaluate(() => localStorage.removeItem('jwt_token'));
+      await page.evaluate(() => localStorage.removeItem('pierre_auth_token'));
 
       // Try without any authentication
       const response = await page.request.put(`${backendUrl}/api/admin/config`, {
@@ -156,7 +156,7 @@ test.describe('Admin Configuration Integration Tests', () => {
 
     test('update endpoint validates parameter values', async ({ page }) => {
       const backendUrl = getBackendUrl();
-      const token = await page.evaluate(() => localStorage.getItem('jwt_token'));
+      const token = await page.evaluate(() => localStorage.getItem('pierre_auth_token'));
 
       // Try to update with invalid parameter key
       const response = await page.request.put(`${backendUrl}/api/admin/config`, {
@@ -178,7 +178,7 @@ test.describe('Admin Configuration Integration Tests', () => {
       const backendUrl = getBackendUrl();
       const response = await page.request.get(`${backendUrl}/api/admin/config/audit`, {
         headers: {
-          'Authorization': `Bearer ${await page.evaluate(() => localStorage.getItem('jwt_token'))}`,
+          'Authorization': `Bearer ${await page.evaluate(() => localStorage.getItem('pierre_auth_token'))}`,
         },
       });
 
@@ -195,7 +195,7 @@ test.describe('Admin Configuration Integration Tests', () => {
       const backendUrl = getBackendUrl();
       const response = await page.request.get(`${backendUrl}/api/admin/config/audit`, {
         headers: {
-          'Authorization': `Bearer ${await page.evaluate(() => localStorage.getItem('jwt_token'))}`,
+          'Authorization': `Bearer ${await page.evaluate(() => localStorage.getItem('pierre_auth_token'))}`,
         },
       });
 
@@ -216,7 +216,7 @@ test.describe('Admin Configuration Integration Tests', () => {
       const backendUrl = getBackendUrl();
       const response = await page.request.get(`${backendUrl}/api/admin/config/audit?limit=5`, {
         headers: {
-          'Authorization': `Bearer ${await page.evaluate(() => localStorage.getItem('jwt_token'))}`,
+          'Authorization': `Bearer ${await page.evaluate(() => localStorage.getItem('pierre_auth_token'))}`,
         },
       });
 
@@ -233,7 +233,7 @@ test.describe('Admin Configuration Integration Tests', () => {
 
       // Clear all authentication (cookies and localStorage) to truly test unauthenticated access
       await page.context().clearCookies();
-      await page.evaluate(() => localStorage.removeItem('jwt_token'));
+      await page.evaluate(() => localStorage.removeItem('pierre_auth_token'));
 
       const response = await page.request.post(`${backendUrl}/api/admin/config/reset`, {
         data: {
@@ -246,7 +246,7 @@ test.describe('Admin Configuration Integration Tests', () => {
 
     test('reset by category validates category name', async ({ page }) => {
       const backendUrl = getBackendUrl();
-      const token = await page.evaluate(() => localStorage.getItem('jwt_token'));
+      const token = await page.evaluate(() => localStorage.getItem('pierre_auth_token'));
 
       const response = await page.request.post(`${backendUrl}/api/admin/config/reset`, {
         headers: {
@@ -270,7 +270,7 @@ test.describe('Admin Configuration Integration Tests', () => {
 
       // Clear all authentication (cookies and localStorage) to truly test unauthenticated access
       await page.context().clearCookies();
-      await page.evaluate(() => localStorage.removeItem('jwt_token'));
+      await page.evaluate(() => localStorage.removeItem('pierre_auth_token'));
 
       const response = await page.request.get(`${backendUrl}/api/admin/config/catalog`);
 
@@ -299,7 +299,7 @@ test.describe('Admin Configuration - Super Admin', () => {
     const backendUrl = getBackendUrl();
     const response = await page.request.get(`${backendUrl}/api/admin/config/catalog`, {
       headers: {
-        'Authorization': `Bearer ${await page.evaluate(() => localStorage.getItem('jwt_token'))}`,
+        'Authorization': `Bearer ${await page.evaluate(() => localStorage.getItem('pierre_auth_token'))}`,
       },
     });
 
