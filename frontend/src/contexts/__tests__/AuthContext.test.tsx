@@ -70,7 +70,7 @@ describe('AuthContext', () => {
 
   it('should authenticate when user exists in localStorage', async () => {
     const mockUser = { id: '1', email: 'test@example.com', display_name: 'Test User' }
-    localStorage.setItem('user', JSON.stringify(mockUser))
+    localStorage.setItem('pierre_user', JSON.stringify(mockUser))
 
     renderWithAuth()
 
@@ -122,7 +122,7 @@ describe('AuthContext', () => {
     const user = userEvent.setup()
     const mockUser = { id: '1', email: 'test@example.com', display_name: 'Test User' }
 
-    localStorage.setItem('user', JSON.stringify(mockUser))
+    localStorage.setItem('pierre_user', JSON.stringify(mockUser))
 
     renderWithAuth()
 

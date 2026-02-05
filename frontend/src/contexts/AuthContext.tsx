@@ -6,6 +6,12 @@ import { authApi, adminApi, apiClient } from '../services/api';
 import { AuthContext } from './auth';
 import type { User, ImpersonationState } from './auth';
 
+const STORAGE_KEYS = {
+  TOKEN: 'pierre_auth_token',
+  USER: 'pierre_user',
+  IMPERSONATION: 'pierre_impersonation',
+} as const;
+
 const defaultImpersonationState: ImpersonationState = {
   isImpersonating: false,
   targetUser: null,
@@ -21,9 +27,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Check for stored user info on app start
-    const storedUser = localStorage.getItem('user');
-    const storedToken = localStorage.getItem('jwt_token');
-    const storedImpersonation = localStorage.getItem('impersonation');
+    const storedUser = localStorage.getItem(STORAGE_KEYS.USER);
+    const storedToken = localStorage.getItem(STORAGE_KEYS.TOKEN);
+    const storedImpersonation = localStorage.getItem(STORAGE_KEYS.IMPERSONATION);
 
     if (storedUser) {
       setUser(JSON.parse(storedUser));
@@ -61,12 +67,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Store JWT token for WebSocket authentication
     if (access_token) {
       setToken(access_token);
-      localStorage.setItem('jwt_token', access_token);
+      localStorage.setItem(STORAGE_KEYS.TOKEN, access_token);
     }
 
     // Store user info in state and localStorage
     setUser(userData);
-    localStorage.setItem('user', JSON.stringify(userData));
+    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(userData));
   };
 
   const loginWithFirebase = async (idToken: string) => {
@@ -79,12 +85,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Store JWT token for WebSocket authentication
     if (jwt_token) {
       setToken(jwt_token);
-      localStorage.setItem('jwt_token', jwt_token);
+      localStorage.setItem(STORAGE_KEYS.TOKEN, jwt_token);
     }
 
     // Store user info in state and localStorage
     setUser(userData);
-    localStorage.setItem('user', JSON.stringify(userData));
+    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(userData));
 
     return response;
   };
@@ -93,15 +99,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // If impersonating, also clear impersonation state
     if (impersonation.isImpersonating) {
       setImpersonation(defaultImpersonationState);
-      localStorage.removeItem('impersonation');
+      localStorage.removeItem(STORAGE_KEYS.IMPERSONATION);
     }
 
     setUser(null);
     setToken(null);
 
     // Clear user info and token from localStorage
-    localStorage.removeItem('user');
-    localStorage.removeItem('jwt_token');
+    localStorage.removeItem(STORAGE_KEYS.USER);
+    localStorage.removeItem(STORAGE_KEYS.TOKEN);
 
     // Clear CSRF token from API service
     apiClient.clearCsrfToken();
@@ -130,11 +136,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     setImpersonation(newImpersonationState);
-    localStorage.setItem('impersonation', JSON.stringify(newImpersonationState));
+    localStorage.setItem(STORAGE_KEYS.IMPERSONATION, JSON.stringify(newImpersonationState));
 
     // Update token to impersonation token
     setToken(response.token);
-    localStorage.setItem('jwt_token', response.token);
+    localStorage.setItem(STORAGE_KEYS.TOKEN, response.token);
   }, [user]);
 
   const endImpersonation = useCallback(async () => {
@@ -152,12 +158,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Restore original user
     if (impersonation.originalUser) {
       setUser(impersonation.originalUser);
-      localStorage.setItem('user', JSON.stringify(impersonation.originalUser));
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(impersonation.originalUser));
     }
 
     // Clear impersonation state
     setImpersonation(defaultImpersonationState);
-    localStorage.removeItem('impersonation');
+    localStorage.removeItem(STORAGE_KEYS.IMPERSONATION);
 
     // Re-login to get fresh tokens for the original user
     // The user will need to log in again for simplicity

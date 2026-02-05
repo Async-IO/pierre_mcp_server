@@ -8,6 +8,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ConfirmDialog } from './ui';
 import { chatApi, providersApi, coachesApi } from '../services/api';
+import { useAuth } from '../hooks/useAuth';
 import PromptSuggestions from './PromptSuggestions';
 import { MessageCircle, Plus, Sparkles } from 'lucide-react';
 import { createInsightPrompt, stripContextPrefix } from '@pierre/chat-utils';
@@ -40,6 +41,7 @@ interface ChatTabProps {
 
 export default function ChatTab({ selectedConversation, onSelectConversation, onNavigateToInsights }: ChatTabProps) {
   const queryClient = useQueryClient();
+  const { token } = useAuth();
   const showSuccessToast = useSuccessToast();
   const showInfoToast = useInfoToast();
   const [newMessage, setNewMessage] = useState('');
@@ -352,7 +354,7 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({ content: messageContent }),
       });
@@ -386,7 +388,7 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
       setIsStreaming(false);
       setStreamingContent('');
     }
-  }, [newMessage, selectedConversation, isStreaming, connectingProvider, oauthNotification, hasConnectedProvider, messagesData?.messages, providersData?.providers, queryClient]);
+  }, [newMessage, selectedConversation, isStreaming, connectingProvider, oauthNotification, hasConnectedProvider, messagesData?.messages, providersData?.providers, queryClient, token]);
 
   // Coach handlers
   // Note: coachId is passed by PromptSuggestions but not currently used here
@@ -485,7 +487,7 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({ content: insightPrompt }),
       });
@@ -505,7 +507,7 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
       setIsStreaming(false);
       setStreamingContent('');
     }
-  }, [isGeneratingInsight, selectedConversation, isStreaming, queryClient]);
+  }, [isGeneratingInsight, selectedConversation, isStreaming, queryClient, token]);
 
   const handleThumbsUp = useCallback((messageId: string) => {
     setMessageFeedback(prev => {
