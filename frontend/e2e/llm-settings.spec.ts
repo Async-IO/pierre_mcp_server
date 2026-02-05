@@ -8,29 +8,36 @@ import { test, expect, type Page } from '@playwright/test';
 import { setupDashboardMocks, loginToDashboard } from './test-helpers';
 
 // Mock LLM settings data - no credentials configured
-// Format matches api-client LlmSettingsResponse: { settings: LlmSettings[] }
+// Format matches backend LlmSettingsResponse
 const mockLlmSettingsEmpty = {
-  settings: [
-    { provider: 'gemini', enabled: false },
-    { provider: 'groq', enabled: false },
-    { provider: 'local', enabled: false },
+  current_provider: null,
+  providers: [
+    { name: 'gemini', display_name: 'Google Gemini', has_credentials: false, credential_source: null, is_active: false },
+    { name: 'groq', display_name: 'Groq (Llama/Mixtral)', has_credentials: false, credential_source: null, is_active: false },
+    { name: 'local', display_name: 'Local LLM (Ollama/vLLM)', has_credentials: false, credential_source: null, is_active: false },
   ],
+  user_credentials: [],
+  tenant_credentials: [],
 };
 
 // Mock LLM settings with user credentials configured
-// Format matches api-client LlmSettingsResponse: { settings: LlmSettings[] }
+// Format matches backend LlmSettingsResponse
 const mockLlmSettingsWithCredentials = {
-  settings: [
-    { provider: 'gemini', api_key: 'sk-***', model: 'gemini-1.5-flash', enabled: true },
-    { provider: 'groq', enabled: false },
-    { provider: 'local', enabled: false },
+  current_provider: 'gemini',
+  providers: [
+    { name: 'gemini', display_name: 'Google Gemini', has_credentials: true, credential_source: 'user_specific', is_active: true },
+    { name: 'groq', display_name: 'Groq (Llama/Mixtral)', has_credentials: false, credential_source: null, is_active: false },
+    { name: 'local', display_name: 'Local LLM (Ollama/vLLM)', has_credentials: false, credential_source: null, is_active: false },
   ],
+  user_credentials: [{ id: 'cred-1', provider: 'gemini', user_id: 'user-1', created_at: '2025-01-01', updated_at: '2025-01-01' }],
+  tenant_credentials: [],
 };
 
 // Mock validation response - valid
-// Format matches api-client: { valid: boolean; error?: string }
 const mockValidationSuccess = {
   valid: true,
+  provider: 'gemini',
+  models: ['gemini-1.5-flash', 'gemini-1.5-pro'],
 };
 
 // Mock validation response - invalid
@@ -39,43 +46,51 @@ const mockValidationFailure = {
   error: 'API key is invalid or expired',
 };
 
-// Mock save response - matches api-client LlmSettings format
+// Mock save response - matches backend SaveCredentialsResponse
 const mockSaveSuccess = {
-  provider: 'gemini',
-  api_key: 'sk-***',
-  model: 'gemini-1.5-flash',
-  enabled: true,
+  success: true,
+  id: 'cred-new',
+  message: 'GEMINI API key saved successfully',
 };
 
-// Note: Delete operations use PUT with { enabled: false }, not DELETE
-// The response is the updated LlmSettings
+// Mock delete response
+const mockDeleteSuccess = {
+  success: true,
+  message: 'GEMINI API key deleted',
+};
 
 async function setupLlmSettingsMocks(page: Page, withCredentials: boolean = false) {
   // Set up base dashboard mocks with user role
   await setupDashboardMocks(page, { role: 'user' });
 
-  // Mock LLM settings GET endpoint (base path for fetching all settings)
+  // Mock LLM settings endpoint (GET to fetch, PUT to save credentials)
   await page.route('**/api/user/llm-settings', async (route) => {
-    if (route.request().method() === 'GET') {
+    const method = route.request().method();
+    if (method === 'GET') {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(withCredentials ? mockLlmSettingsWithCredentials : mockLlmSettingsEmpty),
+      });
+    } else if (method === 'PUT') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mockSaveSuccess),
       });
     } else {
       await route.continue();
     }
   });
 
-  // Mock provider-specific endpoints (PUT goes to /api/user/llm-settings/:provider)
-  // Note: Delete operations also use PUT with { enabled: false }
+  // Mock provider-specific endpoints (DELETE /api/user/llm-settings/:provider)
   // Register BEFORE validate so validate takes precedence (Playwright routes are LIFO)
   await page.route('**/api/user/llm-settings/*', async (route) => {
-    if (route.request().method() === 'PUT') {
+    if (route.request().method() === 'DELETE') {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(mockSaveSuccess),
+        body: JSON.stringify(mockDeleteSuccess),
       });
     } else {
       await route.continue();
@@ -98,9 +113,9 @@ async function navigateToAiSettings(page: Page) {
   // Wait for dashboard to load - all users now have sidebar
   await page.waitForSelector('aside', { timeout: 10000 });
 
-  // Click on Settings tab in sidebar (works for both admin and non-admin users)
-  const settingsTab = page.locator('button').filter({ has: page.locator('span:has-text("Settings")') });
-  await settingsTab.click();
+  // Click the gear icon (Settings) in the bottom-left profile bar
+  const settingsGear = page.getByRole('button', { name: 'Settings', exact: true });
+  await settingsGear.first().click();
   await page.waitForTimeout(500);
 
   // Click on AI Settings tab
@@ -114,9 +129,9 @@ test.describe('LLM Settings - Display and Navigation', () => {
     await loginToDashboard(page);
     await page.waitForSelector('aside', { timeout: 10000 });
 
-    // Click on Settings tab in sidebar
-    const settingsTab = page.locator('button').filter({ has: page.locator('span:has-text("Settings")') });
-    await settingsTab.click();
+    // Click the gear icon (Settings) in the bottom-left profile bar
+    const settingsGear = page.getByRole('button', { name: 'Settings', exact: true });
+    await settingsGear.first().click();
     await page.waitForTimeout(500);
 
     // Check AI Settings tab exists
@@ -399,21 +414,17 @@ test.describe('LLM Settings - Delete Credentials', () => {
     await expect(page.getByText(/Are you sure/i)).toBeVisible();
   });
 
-  test('confirming delete calls update API with enabled=false', async ({ page }) => {
+  test('confirming delete calls DELETE API endpoint', async ({ page }) => {
     await setupLlmSettingsMocks(page, true);
 
-    let deleteUpdateCalled = false;
-    // Delete operation uses PUT with { enabled: false }, not DELETE
+    let deleteCalled = false;
     await page.route('**/api/user/llm-settings/gemini', async (route) => {
-      if (route.request().method() === 'PUT') {
-        const body = route.request().postDataJSON();
-        if (body?.enabled === false) {
-          deleteUpdateCalled = true;
-        }
+      if (route.request().method() === 'DELETE') {
+        deleteCalled = true;
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({ provider: 'gemini', enabled: false }),
+          body: JSON.stringify(mockDeleteSuccess),
         });
       } else {
         await route.continue();
@@ -430,7 +441,7 @@ test.describe('LLM Settings - Delete Credentials', () => {
     await page.getByRole('button', { name: 'Remove' }).last().click();
 
     await page.waitForTimeout(500);
-    expect(deleteUpdateCalled).toBe(true);
+    expect(deleteCalled).toBe(true);
   });
 
   test('canceling delete closes dialog', async ({ page }) => {
@@ -465,9 +476,9 @@ test.describe('LLM Settings - Error Handling', () => {
     await loginToDashboard(page);
     await page.waitForSelector('aside', { timeout: 10000 });
 
-    // Click on Settings tab in sidebar
-    const settingsTab = page.locator('button').filter({ has: page.locator('span:has-text("Settings")') });
-    await settingsTab.click();
+    // Click the gear icon (Settings) in the bottom-left profile bar
+    const settingsGear = page.getByRole('button', { name: 'Settings', exact: true });
+    await settingsGear.first().click();
     await page.waitForTimeout(500);
 
     // Click on AI Settings tab
@@ -486,22 +497,16 @@ test.describe('LLM Settings - Error Handling', () => {
   test('shows error when save fails', async ({ page }) => {
     await setupDashboardMocks(page, { role: 'user' });
 
-    // Mock settings GET endpoint
+    // Mock settings endpoint - GET returns data, PUT fails
     await page.route('**/api/user/llm-settings', async (route) => {
-      if (route.request().method() === 'GET') {
+      const method = route.request().method();
+      if (method === 'GET') {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify(mockLlmSettingsEmpty),
         });
-      } else {
-        await route.continue();
-      }
-    });
-
-    // Mock PUT endpoint to fail (PUT goes to /api/user/llm-settings/:provider)
-    await page.route('**/api/user/llm-settings/*', async (route) => {
-      if (route.request().method() === 'PUT') {
+      } else if (method === 'PUT') {
         await route.fulfill({
           status: 500,
           contentType: 'application/json',

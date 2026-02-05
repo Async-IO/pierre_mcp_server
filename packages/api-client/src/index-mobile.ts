@@ -77,7 +77,11 @@ export type {
   McpTokensResponse,
   CreateMcpTokenRequest,
   UserOAuthApp,
-  LlmSettings,
+  LlmProviderStatus,
+  LlmCredentialSummary,
+  LlmSettingsResponse,
+  SaveLlmCredentialsRequest,
+  SaveLlmCredentialsResponse,
 } from './domains/user';
 
 // Re-export mobile adapter only (web adapter excluded for Hermes compatibility)

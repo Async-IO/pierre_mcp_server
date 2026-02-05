@@ -34,15 +34,41 @@ export interface UserOAuthAppsResponse {
   apps: UserOAuthApp[];
 }
 
-export interface LlmSettings {
+export interface LlmProviderStatus {
+  name: string;
+  display_name: string;
+  has_credentials: boolean;
+  credential_source: string | null;
+  is_active: boolean;
+}
+
+export interface LlmCredentialSummary {
+  id: string;
   provider: string;
-  api_key?: string;
-  model?: string;
-  enabled: boolean;
+  user_id: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface LlmSettingsResponse {
-  settings: LlmSettings[];
+  current_provider: string | null;
+  providers: LlmProviderStatus[];
+  user_credentials: LlmCredentialSummary[];
+  tenant_credentials: LlmCredentialSummary[];
+}
+
+export interface SaveLlmCredentialsRequest {
+  provider: string;
+  api_key: string;
+  base_url?: string;
+  default_model?: string;
+  scope?: 'user' | 'tenant';
+}
+
+export interface SaveLlmCredentialsResponse {
+  success: boolean;
+  id: string | null;
+  message: string;
 }
 
 export interface UpdateProfileResponse {
@@ -160,29 +186,39 @@ export function createUserApi(axios: AxiosInstance) {
     },
 
     /**
-     * Update LLM settings for a provider.
+     * Save LLM credentials for a provider.
      */
-    async updateLlmSettings(
-      provider: string,
-      settings: Partial<LlmSettings>
-    ): Promise<LlmSettings> {
-      const response = await axios.put<LlmSettings>(
-        ENDPOINTS.USER.LLM_SETTINGS_PROVIDER(provider),
-        settings
+    async saveLlmCredentials(
+      data: SaveLlmCredentialsRequest
+    ): Promise<SaveLlmCredentialsResponse> {
+      const response = await axios.put<SaveLlmCredentialsResponse>(
+        ENDPOINTS.USER.LLM_SETTINGS,
+        data
       );
       return response.data;
     },
 
     /**
-     * Validate LLM settings.
+     * Validate LLM credentials without saving.
      */
-    async validateLlmSettings(
-      provider: string,
-      apiKey: string
-    ): Promise<{ valid: boolean; error?: string }> {
-      const response = await axios.post<{ valid: boolean; error?: string }>(
+    async validateLlmCredentials(
+      data: { provider: string; api_key: string; base_url?: string }
+    ): Promise<{ valid: boolean; provider?: string; models?: string[]; error?: string }> {
+      const response = await axios.post<{ valid: boolean; provider?: string; models?: string[]; error?: string }>(
         ENDPOINTS.USER.LLM_SETTINGS_VALIDATE,
-        { provider, api_key: apiKey }
+        data
+      );
+      return response.data;
+    },
+
+    /**
+     * Delete LLM credentials for a provider.
+     */
+    async deleteLlmCredentials(
+      provider: string
+    ): Promise<{ success: boolean; message: string }> {
+      const response = await axios.delete<{ success: boolean; message: string }>(
+        ENDPOINTS.USER.LLM_SETTINGS_PROVIDER(provider)
       );
       return response.data;
     },

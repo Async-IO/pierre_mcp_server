@@ -105,42 +105,15 @@ export const apiService = {
   getUserOAuthApps: pierreApi.user.getOAuthApps.bind(pierreApi.user),
   registerUserOAuthApp: pierreApi.user.registerOAuthApp.bind(pierreApi.user),
   deleteUserOAuthApp: pierreApi.user.deleteOAuthApp.bind(pierreApi.user),
-  getLlmSettings: async () => {
-    const response = await pierreApi.user.getLlmSettings();
-    // Transform to expected frontend format
-    const PROVIDER_NAMES: Record<string, string> = {
-      gemini: 'Google Gemini',
-      groq: 'Groq (Llama/Mixtral)',
-      local: 'Local LLM (Ollama/vLLM)',
-    };
-    const providers = response.settings.map((s: { provider: string; api_key?: string; model?: string; enabled: boolean }) => ({
-      provider: s.provider,
-      name: s.provider,
-      display_name: PROVIDER_NAMES[s.provider] || s.provider,
-      has_api_key: !!s.api_key,
-      has_credentials: !!s.api_key,
-      credential_source: s.api_key ? 'user_specific' : undefined,
-      default_model: s.model,
-      enabled: s.enabled,
-    }));
-    const enabledProvider = response.settings.find((s: { enabled: boolean }) => s.enabled);
-    return {
-      providers,
-      current_provider: enabledProvider?.provider || null,
-    };
-  },
+  getLlmSettings: pierreApi.user.getLlmSettings.bind(pierreApi.user),
   saveLlmCredentials: async (data: { provider: string; api_key: string; base_url?: string; default_model?: string }) => {
-    const { provider, ...settings } = data;
-    const result = await pierreApi.user.updateLlmSettings(provider, settings);
-    return { ...result, message: 'Credentials saved successfully' };
+    return pierreApi.user.saveLlmCredentials(data);
   },
   validateLlmCredentials: async (data: { provider: string; api_key: string; base_url?: string }) => {
-    const result = await pierreApi.user.validateLlmSettings(data.provider, data.api_key);
-    return result;
+    return pierreApi.user.validateLlmCredentials(data);
   },
   deleteLlmCredentials: async (provider: string) => {
-    await pierreApi.user.updateLlmSettings(provider, { enabled: false });
-    return { message: 'Credentials deleted successfully' };
+    return pierreApi.user.deleteLlmCredentials(provider);
   },
 
   // Coaches (from @pierre/api-client)
