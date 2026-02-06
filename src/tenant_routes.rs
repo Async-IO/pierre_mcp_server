@@ -15,14 +15,15 @@ use crate::{
         oauth_providers,
         time::{DAY_SECONDS, HOUR_SECONDS},
     },
-    database_plugins::{factory::Database, DatabaseProvider},
+    database_plugins::{factory::Database, shared::encryption::HasEncryption, DatabaseProvider},
     errors::{AppError, AppResult, ErrorCode},
-    models::{OAuthApp, Tenant},
+    models::{AuthorizationCode, OAuthApp, Tenant},
     tenant::TenantOAuthCredentials,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{info, warn};
+use urlencoding::encode as urlencode;
 use uuid::Uuid;
 
 // Tenant Management Request/Response Types
@@ -502,6 +503,7 @@ pub async fn register_oauth_app(
     app_request: RegisterOAuthAppRequest,
     auth_result: AuthResult,
     database: Arc<Database>,
+    base_url: &str,
 ) -> AppResult<RegisterOAuthAppResponse> {
     info!("Registering OAuth app: {}", app_request.name);
 
@@ -509,11 +511,16 @@ pub async fn register_oauth_app(
     let client_id = format!("app_{}", Uuid::new_v4().simple());
     let client_secret = format!("secret_{}", Uuid::new_v4().simple());
 
-    // Store OAuth app in database
+    // Hash the client secret for storage (plaintext is only returned once)
+    let secret_hash = database
+        .hash_token_for_storage(&client_secret)
+        .map_err(|e| AppError::internal(format!("Failed to hash client secret: {e}")))?;
+
+    // Store OAuth app in database with hashed secret
     let oauth_app = OAuthApp {
         id: Uuid::new_v4(),
         client_id: client_id.clone(), // Safe: String ownership for OAuth app struct
-        client_secret: client_secret.clone(), // Safe: String ownership for OAuth app struct
+        client_secret: secret_hash,
         name: app_request.name.clone(), // Safe: String ownership for OAuth app struct
         description: app_request.description,
         redirect_uris: app_request.redirect_uris,
@@ -536,8 +543,8 @@ pub async fn register_oauth_app(
         client_secret,
         name: app_request.name,
         app_type: app_request.app_type,
-        authorization_url: "https://your-server.com/oauth/authorize".to_owned(),
-        token_url: "https://your-server.com/oauth/token".to_owned(),
+        authorization_url: format!("{base_url}/oauth/authorize"),
+        token_url: format!("{base_url}/oauth/token"),
         created_at: chrono::Utc::now().to_rfc3339(),
     })
 }
@@ -552,11 +559,12 @@ pub async fn register_oauth_app(
 /// - Database operations fail
 pub async fn oauth_authorize(
     auth_params: OAuthAuthorizeRequest,
+    auth_result: AuthResult,
     database: Arc<Database>,
 ) -> AppResult<OAuthAuthorizeResponse> {
     info!(
-        "OAuth authorization request for client: {}",
-        auth_params.client_id
+        "OAuth authorization request for client: {} by user: {}",
+        auth_params.client_id, auth_result.user_id
     );
 
     // Validate client_id exists
@@ -581,29 +589,124 @@ pub async fn oauth_authorize(
     let auth_code = format!("code_{}", Uuid::new_v4().simple());
 
     // Store auth code in database with expiration (10 minutes)
-    // Use the OAuth app owner as the user_id (validated through JWT authentication)
+    // Bind the code to the authenticated end-user who is approving access
     database
         .store_authorization_code(
             &auth_code,
             &auth_params.client_id,
             &auth_params.redirect_uri,
             &auth_params.scope,
-            oauth_app.owner_user_id, // Use the app owner's user_id
+            auth_result.user_id,
         )
         .await
         .map_err(|e| AppError::database(e.to_string()))?;
 
-    // Build authorization URL
+    // Build authorization URL with URL-encoded state parameter
+    let state_value = auth_params.state.unwrap_or_default();
+    let encoded_state = urlencode(&state_value);
     let auth_url = format!(
         "{}?code={}&state={}",
-        auth_params.redirect_uri,
-        auth_code,
-        auth_params.state.unwrap_or_default()
+        auth_params.redirect_uri, auth_code, encoded_state
     );
 
     Ok(OAuthAuthorizeResponse {
         authorization_url: auth_url,
         expires_in: 600, // 10 minutes
+    })
+}
+
+/// Validate that an authorization code belongs to the requesting client and
+/// that the `redirect_uri` matches the original authorization request.
+///
+/// # Errors
+///
+/// Returns an error if `client_id` or `redirect_uri` mismatches are detected.
+fn validate_authorization_code(
+    code_record: &AuthorizationCode,
+    token_request: &OAuthTokenRequest,
+) -> AppResult<()> {
+    if code_record.client_id != token_request.client_id {
+        warn!(
+            expected_client_id = %code_record.client_id,
+            actual_client_id = %token_request.client_id,
+            "Authorization code client_id mismatch - possible code substitution attack"
+        );
+        return Err(AppError::new(
+            ErrorCode::AuthInvalid,
+            "Authorization code was not issued to this client",
+        ));
+    }
+
+    if let Some(ref request_redirect_uri) = token_request.redirect_uri {
+        if *request_redirect_uri != code_record.redirect_uri {
+            warn!("Authorization code redirect_uri mismatch - possible redirect attack");
+            return Err(AppError::new(
+                ErrorCode::AuthInvalid,
+                "redirect_uri does not match the authorization request",
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+/// Exchange an authorization code for an access token.
+///
+/// Validates the code belongs to the requesting client and `redirect_uri`,
+/// extracts the authorized user, generates a JWT, and deletes the code.
+///
+/// # Errors
+///
+/// Returns an error if the code is invalid/expired, bound to a different
+/// client, or the `redirect_uri` doesn't match the original authorization.
+async fn exchange_authorization_code(
+    token_request: &OAuthTokenRequest,
+    oauth_app: &OAuthApp,
+    database: &Database,
+    auth_manager: &AuthManager,
+    jwks_manager: &JwksManager,
+) -> AppResult<OAuthTokenResponse> {
+    let code = token_request
+        .code
+        .as_deref()
+        .ok_or_else(|| AppError::invalid_input("Missing authorization code".to_owned()))?;
+
+    let code_record = database.get_authorization_code(code).await.map_err(|e| {
+        warn!(
+            error = %e,
+            "Failed to retrieve authorization code from database"
+        );
+        AppError::invalid_input("Invalid or expired authorization code".to_owned())
+    })?;
+
+    validate_authorization_code(&code_record, token_request)?;
+
+    // Use the user_id from the authorization code (the user who approved access)
+    let authorized_user_id = code_record
+        .user_id
+        .ok_or_else(|| AppError::internal("Authorization code missing user binding"))?;
+
+    // Generate access token (JWT) bound to the authorized user
+    let access_token = auth_manager
+        .generate_oauth_access_token(jwks_manager, &authorized_user_id, &oauth_app.scopes, None)
+        .map_err(|e| {
+            AppError::auth_invalid(format!("Failed to generate OAuth access token: {e}"))
+        })?;
+
+    // Clean up authorization code (single-use)
+    if let Err(e) = database.delete_authorization_code(code).await {
+        warn!(
+            client_id = %oauth_app.client_id,
+            error = %e,
+            "Failed to delete authorization code after token exchange (potential security issue - code not cleaned up)"
+        );
+    }
+
+    Ok(OAuthTokenResponse {
+        access_token,
+        token_type: "Bearer".to_owned(),
+        expires_in: DAY_SECONDS as u64, // 24 hours
+        scope: oauth_app.scopes.join(" "),
     })
 }
 
@@ -640,7 +743,12 @@ pub async fn oauth_token(
             AppError::invalid_input(format!("Invalid client_id: {e}"))
         })?;
 
-    if oauth_app.client_secret != token_request.client_secret {
+    // Hash the provided secret and compare against stored hash (constant-time via HMAC)
+    let provided_secret_hash = database
+        .hash_token_for_storage(&token_request.client_secret)
+        .map_err(|e| AppError::internal(format!("Failed to hash client secret: {e}")))?;
+
+    if oauth_app.client_secret != provided_secret_hash {
         return Err(AppError::new(
             ErrorCode::AuthInvalid,
             "Invalid client_secret",
@@ -649,48 +757,14 @@ pub async fn oauth_token(
 
     match token_request.grant_type.as_str() {
         "authorization_code" => {
-            // Exchange authorization code for access token
-            let code = token_request
-                .code
-                .ok_or_else(|| AppError::invalid_input("Missing authorization code".to_owned()))?;
-
-            database.get_authorization_code(&code).await.map_err(|e| {
-                warn!(
-                    code = %code,
-                    error = %e,
-                    "Failed to retrieve authorization code from database"
-                );
-                AppError::invalid_input("Invalid or expired authorization code".to_owned())
-            })?;
-
-            // Generate access token (JWT)
-            let access_token = auth_manager
-                .generate_oauth_access_token(
-                    &jwks_manager,
-                    &oauth_app.owner_user_id,
-                    &oauth_app.scopes,
-                    None, // tenant_id
-                )
-                .map_err(|e| {
-                    AppError::auth_invalid(format!("Failed to generate OAuth access token: {e}"))
-                })?;
-
-            // Clean up authorization code
-            if let Err(e) = database.delete_authorization_code(&code).await {
-                warn!(
-                    code = %code,
-                    client_id = %oauth_app.client_id,
-                    error = %e,
-                    "Failed to delete authorization code after token exchange (potential security issue - code not cleaned up)"
-                );
-            }
-
-            Ok(OAuthTokenResponse {
-                access_token,
-                token_type: "Bearer".to_owned(),
-                expires_in: DAY_SECONDS as u64, // 24 hours
-                scope: oauth_app.scopes.join(" "),
-            })
+            exchange_authorization_code(
+                &token_request,
+                &oauth_app,
+                &database,
+                &auth_manager,
+                &jwks_manager,
+            )
+            .await
         }
         "client_credentials" => {
             // Direct client credentials grant (for A2A)

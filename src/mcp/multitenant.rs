@@ -949,7 +949,9 @@ impl MultiTenantMcpServer {
     /// documented and the structure follows the feature flag hierarchy.
     #[allow(clippy::too_many_lines)]
     fn setup_axum_router(resources: &Arc<ServerResources>) -> axum::Router {
-        use axum::Router;
+        use axum::{middleware::from_fn_with_state, Router};
+
+        use crate::middleware::csrf_protection_layer;
 
         // ═══════════════════════════════════════════════════════════════
         // CONDITIONAL IMPORTS - Based on feature flags
@@ -1161,7 +1163,16 @@ impl MultiTenantMcpServer {
         #[cfg(feature = "openapi")]
         let app = app.merge(OpenApiRoutes::routes());
 
-        app
+        // ═══════════════════════════════════════════════════════════════
+        // CSRF PROTECTION LAYER
+        // ═══════════════════════════════════════════════════════════════
+        // Applied globally but only activates for cookie-authenticated
+        // state-changing requests (POST/PUT/DELETE/PATCH). Bearer token
+        // and API key requests pass through without CSRF validation.
+        app.layer(from_fn_with_state(
+            Arc::clone(resources),
+            csrf_protection_layer,
+        ))
     }
 
     /// Create health check routes for Axum

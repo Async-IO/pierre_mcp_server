@@ -25,6 +25,8 @@ pub mod tracing;
 
 /// MCP authentication middleware
 pub use auth::McpAuthMiddleware;
+/// CSRF protection layer for Axum router (validates cookie-auth state-changing requests)
+pub use csrf::csrf_protection_layer;
 /// CSRF validation middleware
 pub use csrf::CsrfMiddleware;
 

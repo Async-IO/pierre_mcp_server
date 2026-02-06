@@ -300,12 +300,25 @@ impl LlmSettingsRoutes {
         // For now, we allow any authenticated user to set their own credentials
         // and tenant owners to set tenant-level defaults
         let scope_user_id = if request.scope == "tenant" {
-            // Only allow tenant-level if user is the tenant (single-tenant mode)
-            // or if they have admin role (to be checked via user lookup if needed)
+            // Allow tenant-level credentials for tenant admins/owners.
+            // In single-tenant mode, tenant_id == user_id (always allowed).
+            // In multi-tenant mode, check the user's role in the tenant.
             if tenant_id != user_id {
-                return Err(AppError::auth_invalid(
-                    "Only tenant administrators can set tenant-level credentials",
-                ));
+                let role = resources
+                    .database
+                    .get_user_tenant_role(user_id, tenant_id)
+                    .await
+                    .map_err(|e| AppError::database(format!("Failed to check tenant role: {e}")))?;
+
+                let is_tenant_admin = role
+                    .as_deref()
+                    .is_some_and(|r| r == "owner" || r == "admin");
+
+                if !is_tenant_admin {
+                    return Err(AppError::auth_invalid(
+                        "Only tenant administrators can set tenant-level credentials",
+                    ));
+                }
             }
             None
         } else {
