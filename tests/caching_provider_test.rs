@@ -51,6 +51,7 @@ fn test_activity_list_cache_key_with_time_filters() {
             per_page: 50,
             before: Some(1_700_000_000),
             after: Some(1_600_000_000),
+            sport_type: None,
         },
     );
 

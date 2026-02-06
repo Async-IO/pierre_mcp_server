@@ -391,6 +391,7 @@ impl<C: CacheProvider> CachingFitnessProvider<C> {
             per_page: u32::try_from(per_page).unwrap_or(50),
             before: params.before,
             after: params.after,
+            sport_type: None,
         });
 
         // Clone params for the closure

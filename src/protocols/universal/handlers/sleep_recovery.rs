@@ -13,75 +13,21 @@ use chrono::{Duration, Utc};
 use tracing::{debug, warn};
 use uuid::Uuid;
 
-use crate::config::environment::ServerConfig;
 use crate::config::intelligence::IntelligenceConfig;
 use crate::intelligence::algorithms::RecoveryAggregationAlgorithm;
 use crate::intelligence::{RecoveryCalculator, SleepAnalyzer, SleepData, TrainingLoadCalculator};
 use crate::models::{Activity, SleepSession, SleepStageType};
 use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalToolExecutor};
 use crate::protocols::ProtocolError;
-use crate::providers::OAuth2Credentials;
 use crate::utils::uuid::parse_user_id_for_protocol;
 
 use super::{apply_format_to_response, extract_output_format};
 
-/// Get OAuth credentials for a specific provider from configuration
-///
-/// Returns (`client_id`, `client_secret`) for the requested provider, or None if not configured.
-fn get_provider_oauth_config(
-    config: &ServerConfig,
-    provider_name: &str,
-) -> Option<(String, String)> {
-    let oauth_config = match provider_name {
-        "strava" => &config.oauth.strava,
-        "fitbit" => &config.oauth.fitbit,
-        "garmin" => &config.oauth.garmin,
-        "whoop" => &config.oauth.whoop,
-        "terra" => &config.oauth.terra,
-        _ => return None,
-    };
-
-    let client_id = oauth_config.client_id.clone()?;
-    let client_secret = oauth_config.client_secret.clone()?;
-
-    if client_id.is_empty() || client_secret.is_empty() {
-        return None;
-    }
-
-    Some((client_id, client_secret))
-}
-
-/// Get default OAuth scopes for a provider
-fn get_provider_default_scopes(provider_name: &str) -> Vec<String> {
-    match provider_name {
-        "strava" => "activity:read_all".split(',').map(str::to_owned).collect(),
-        "fitbit" => vec![
-            "activity".to_owned(),
-            "profile".to_owned(),
-            "sleep".to_owned(),
-            "heartrate".to_owned(),
-        ],
-        "garmin" => vec![
-            "activity:read".to_owned(),
-            "sleep:read".to_owned(),
-            "health:read".to_owned(),
-        ],
-        "whoop" => vec![
-            "offline".to_owned(),
-            "read:profile".to_owned(),
-            "read:workout".to_owned(),
-            "read:sleep".to_owned(),
-            "read:recovery".to_owned(),
-        ],
-        "terra" => vec!["activity".to_owned(), "sleep".to_owned(), "body".to_owned()],
-        _ => vec![],
-    }
-}
-
 /// Provider-agnostic activity fetcher
 ///
 /// Fetches activities from any supported fitness provider based on the provider name.
-/// Uses dynamic credential lookup and provider instantiation.
+/// Uses `AuthService` for tenant-aware credential lookup and provider instantiation,
+/// falling back to environment credentials when tenant-specific ones are not configured.
 ///
 /// # Arguments
 /// * `executor` - The tool executor with access to auth service and provider registry
@@ -97,113 +43,33 @@ async fn fetch_provider_activities(
     tenant_id: Option<&str>,
     provider_name: &str,
 ) -> Result<Vec<Activity>, UniversalResponse> {
-    // Validate provider is supported
-    if !executor
-        .resources
-        .provider_registry
-        .is_supported(provider_name)
-    {
-        let supported = executor
-            .resources
-            .provider_registry
-            .supported_providers()
-            .join(", ");
-        return Err(UniversalResponse {
-            success: false,
-            result: None,
-            error: Some(format!(
-                "Provider '{provider_name}' is not supported. Available providers: {supported}"
-            )),
-            metadata: None,
-        });
-    }
-
-    // Get valid OAuth token for the provider
-    match executor
+    // Use AuthService for tenant-aware authenticated provider creation
+    let provider = executor
         .auth_service
-        .get_valid_token(user_uuid, provider_name, tenant_id)
+        .create_authenticated_provider(provider_name, user_uuid, tenant_id)
+        .await?;
+
+    #[allow(clippy::cast_possible_truncation)]
+    provider
+        .get_activities(
+            Some(executor.resources.config.sleep_tool_params.activity_limit as usize),
+            None,
+        )
         .await
-    {
-        Ok(Some(token_data)) => {
-            let provider = executor
-                .resources
-                .provider_registry
-                .create_provider(provider_name)
-                .map_err(|e| UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(format!("Failed to create provider '{provider_name}': {e}")),
-                    metadata: None,
-                })?;
-
-            // Get OAuth config for this provider
-            let (client_id, client_secret) =
-                get_provider_oauth_config(&executor.resources.config, provider_name).ok_or_else(
-                    || UniversalResponse {
-                        success: false,
-                        result: None,
-                        error: Some(format!(
-                            "OAuth configuration missing for provider '{provider_name}'"
-                        )),
-                        metadata: None,
-                    },
-                )?;
-
-            let credentials = OAuth2Credentials {
-                client_id,
-                client_secret,
-                access_token: Some(token_data.access_token),
-                refresh_token: Some(token_data.refresh_token),
-                expires_at: Some(token_data.expires_at),
-                scopes: get_provider_default_scopes(provider_name),
-            };
-
-            provider
-                .set_credentials(credentials)
-                .await
-                .map_err(|e| UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(format!("Failed to set credentials for '{provider_name}': {e}")),
-                    metadata: None,
-                })?;
-
-            #[allow(clippy::cast_possible_truncation)]
-            provider
-                .get_activities(
-                    Some(executor.resources.config.sleep_tool_params.activity_limit as usize),
-                    None,
-                )
-                .await
-                .map_err(|e| UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(format!(
-                        "Failed to fetch activities from '{provider_name}': {e}"
-                    )),
-                    metadata: None,
-                })
-        }
-        Ok(None) => Err(UniversalResponse {
+        .map_err(|e| UniversalResponse {
             success: false,
             result: None,
             error: Some(format!(
-                "No valid {provider_name} token found. Please connect your {provider_name} account using the connect_provider tool with provider='{provider_name}'."
+                "Failed to fetch activities from '{provider_name}': {e}"
             )),
             metadata: None,
-        }),
-        Err(e) => Err(UniversalResponse {
-            success: false,
-            result: None,
-            error: Some(format!("Authentication error for '{provider_name}': {e}")),
-            metadata: None,
-        }),
-    }
+        })
 }
 
 /// Provider-agnostic sleep data fetcher
 ///
 /// Fetches sleep data from any provider that supports sleep tracking (Fitbit, Garmin, WHOOP, Terra).
+/// Uses `AuthService` for tenant-aware credential lookup and provider instantiation.
 /// Automatically converts provider-specific `SleepSession` to the unified `SleepData` format.
 ///
 /// # Arguments
@@ -215,8 +81,6 @@ async fn fetch_provider_activities(
 ///
 /// # Errors
 /// Returns `UniversalResponse` with error if provider doesn't support sleep or fetch fails
-// Long function: Provider fetcher requires validation, auth, credential setup, API call, and conversion
-#[allow(clippy::too_many_lines)]
 pub async fn fetch_provider_sleep_data(
     executor: &UniversalToolExecutor,
     user_uuid: Uuid,
@@ -248,99 +112,42 @@ pub async fn fetch_provider_sleep_data(
         });
     }
 
-    // Get valid OAuth token for the provider
-    match executor
+    // Use AuthService for tenant-aware authenticated provider creation
+    let provider = executor
         .auth_service
-        .get_valid_token(user_uuid, provider_name, tenant_id)
+        .create_authenticated_provider(provider_name, user_uuid, tenant_id)
+        .await?;
+
+    // Fetch sleep sessions for the requested date range
+    let end_date = Utc::now();
+    let start_date = end_date - Duration::days(i64::from(days_back));
+
+    let sessions = provider
+        .get_sleep_sessions(start_date, end_date)
         .await
-    {
-        Ok(Some(token_data)) => {
-            let provider = executor
-                .resources
-                .provider_registry
-                .create_provider(provider_name)
-                .map_err(|e| UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(format!("Failed to create provider '{provider_name}': {e}")),
-                    metadata: None,
-                })?;
-
-            // Get OAuth config for this provider
-            let (client_id, client_secret) =
-                get_provider_oauth_config(&executor.resources.config, provider_name).ok_or_else(
-                    || UniversalResponse {
-                        success: false,
-                        result: None,
-                        error: Some(format!(
-                            "OAuth configuration missing for provider '{provider_name}'"
-                        )),
-                        metadata: None,
-                    },
-                )?;
-
-            let credentials = OAuth2Credentials {
-                client_id,
-                client_secret,
-                access_token: Some(token_data.access_token),
-                refresh_token: Some(token_data.refresh_token),
-                expires_at: Some(token_data.expires_at),
-                scopes: get_provider_default_scopes(provider_name),
-            };
-
-            provider
-                .set_credentials(credentials)
-                .await
-                .map_err(|e| UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(format!("Failed to set credentials for '{provider_name}': {e}")),
-                    metadata: None,
-                })?;
-
-            // Fetch sleep sessions for the requested date range
-            let end_date = Utc::now();
-            let start_date = end_date - Duration::days(i64::from(days_back));
-
-            let sessions = provider
-                .get_sleep_sessions(start_date, end_date)
-                .await
-                .map_err(|e| UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(format!(
-                        "Failed to fetch sleep data from '{provider_name}': {e}"
-                    )),
-                    metadata: None,
-                })?;
-
-            // Get most recent session and convert to SleepData
-            let session = sessions.into_iter().next().ok_or_else(|| UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(format!(
-                    "No sleep data available from '{provider_name}' for the last {days_back} day(s)"
-                )),
-                metadata: None,
-            })?;
-
-            Ok(convert_sleep_session_to_data(&session))
-        }
-        Ok(None) => Err(UniversalResponse {
+        .map_err(|e| UniversalResponse {
             success: false,
             result: None,
             error: Some(format!(
-                "No valid {provider_name} token found. Please connect your {provider_name} account using the connect_provider tool with provider='{provider_name}'."
+                "Failed to fetch sleep data from '{provider_name}': {e}"
             )),
             metadata: None,
-        }),
-        Err(e) => Err(UniversalResponse {
+        })?;
+
+    // Get most recent session and convert to SleepData
+    let session = sessions
+        .into_iter()
+        .next()
+        .ok_or_else(|| UniversalResponse {
             success: false,
             result: None,
-            error: Some(format!("Authentication error for '{provider_name}': {e}")),
+            error: Some(format!(
+                "No sleep data available from '{provider_name}' for the last {days_back} day(s)"
+            )),
             metadata: None,
-        }),
-    }
+        })?;
+
+    Ok(convert_sleep_session_to_data(&session))
 }
 
 /// Convert a provider `SleepSession` to the intelligence layer `SleepData` format
@@ -385,6 +192,7 @@ fn convert_sleep_session_to_data(session: &SleepSession) -> SleepData {
 
 /// Fetch sleep history from a provider for trend analysis
 ///
+/// Uses `AuthService` for tenant-aware credential lookup and provider instantiation.
 /// Returns multiple sleep sessions converted to `SleepData` for trend tracking.
 async fn fetch_provider_sleep_history(
     executor: &UniversalToolExecutor,
@@ -416,83 +224,26 @@ async fn fetch_provider_sleep_history(
         });
     }
 
-    // Get valid OAuth token for the provider
-    match executor
+    // Use AuthService for tenant-aware authenticated provider creation
+    let provider = executor
         .auth_service
-        .get_valid_token(user_uuid, provider_name, tenant_id)
+        .create_authenticated_provider(provider_name, user_uuid, tenant_id)
+        .await?;
+
+    let end_date = Utc::now();
+    let start_date = end_date - Duration::days(i64::from(days));
+
+    let sessions = provider
+        .get_sleep_sessions(start_date, end_date)
         .await
-    {
-        Ok(Some(token_data)) => {
-            let provider = executor
-                .resources
-                .provider_registry
-                .create_provider(provider_name)
-                .map_err(|e| UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(format!("Failed to create provider '{provider_name}': {e}")),
-                    metadata: None,
-                })?;
-
-            let (client_id, client_secret) =
-                get_provider_oauth_config(&executor.resources.config, provider_name).ok_or_else(
-                    || UniversalResponse {
-                        success: false,
-                        result: None,
-                        error: Some(format!(
-                            "OAuth configuration missing for provider '{provider_name}'"
-                        )),
-                        metadata: None,
-                    },
-                )?;
-
-            let credentials = OAuth2Credentials {
-                client_id,
-                client_secret,
-                access_token: Some(token_data.access_token),
-                refresh_token: Some(token_data.refresh_token),
-                expires_at: Some(token_data.expires_at),
-                scopes: get_provider_default_scopes(provider_name),
-            };
-
-            provider
-                .set_credentials(credentials)
-                .await
-                .map_err(|e| UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(format!("Failed to set credentials: {e}")),
-                    metadata: None,
-                })?;
-
-            let end_date = Utc::now();
-            let start_date = end_date - Duration::days(i64::from(days));
-
-            let sessions = provider
-                .get_sleep_sessions(start_date, end_date)
-                .await
-                .map_err(|e| UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(format!("Failed to fetch sleep history: {e}")),
-                    metadata: None,
-                })?;
-
-            Ok(sessions.iter().map(convert_sleep_session_to_data).collect())
-        }
-        Ok(None) => Err(UniversalResponse {
+        .map_err(|e| UniversalResponse {
             success: false,
             result: None,
-            error: Some(format!("No valid {provider_name} token found.")),
+            error: Some(format!("Failed to fetch sleep history: {e}")),
             metadata: None,
-        }),
-        Err(e) => Err(UniversalResponse {
-            success: false,
-            result: None,
-            error: Some(format!("Authentication error: {e}")),
-            metadata: None,
-        }),
-    }
+        })?;
+
+    Ok(sessions.iter().map(convert_sleep_session_to_data).collect())
 }
 
 /// Select the best available activity provider for a user

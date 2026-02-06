@@ -575,8 +575,8 @@ pub fn handle_search_food(
             .and_then(Value::as_u64)
             .unwrap_or(10);
 
-        #[allow(clippy::cast_possible_truncation)] // Page size validated to be <= 200
-        let page_size = if page_size_u64 <= 200 {
+        #[allow(clippy::cast_possible_truncation)] // Page size validated to be 1..=200
+        let page_size = if (1..=200).contains(&page_size_u64) {
             page_size_u64 as u32
         } else {
             return Ok(UniversalResponse {
@@ -587,7 +587,7 @@ pub fn handle_search_food(
             });
         };
 
-        // Extract page_number (1-indexed, default: 1)
+        // Extract page_number (1-indexed, default: 1, minimum: 1)
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let page_number = request
             .parameters
@@ -597,7 +597,8 @@ pub fn handle_search_food(
                     .map(|n| n.min(u64::from(u32::MAX)) as u32)
                     .or_else(|| v.as_f64().map(|f| f as u32))
             })
-            .unwrap_or(1);
+            .unwrap_or(1)
+            .max(1);
 
         // Search foods using USDA API
         let api_key = executor

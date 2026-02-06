@@ -405,7 +405,7 @@ impl fmt::Display for CacheKey {
 pub enum CacheResource {
     /// Athlete profile (24h TTL)
     AthleteProfile,
-    /// Activity list with pagination and optional time filters (15min TTL)
+    /// Activity list with pagination and optional time/sport filters (15min TTL)
     ActivityList {
         /// Page number for pagination
         page: u32,
@@ -415,6 +415,8 @@ pub enum CacheResource {
         before: Option<i64>,
         /// Optional Unix timestamp (seconds) - return activities after this time
         after: Option<i64>,
+        /// Optional sport type filter (e.g., "run", "ride") for server-side filtering
+        sport_type: Option<String>,
     },
     /// Single activity summary (1h TTL)
     Activity {
@@ -457,12 +459,16 @@ impl fmt::Display for CacheResource {
                 per_page,
                 before,
                 after,
+                sport_type,
             } => {
                 let before_str = before.map_or(String::new(), |t| format!(":before:{t}"));
                 let after_str = after.map_or(String::new(), |t| format!(":after:{t}"));
+                let sport_str = sport_type
+                    .as_ref()
+                    .map_or(String::new(), |s| format!(":sport:{s}"));
                 write!(
                     f,
-                    "activity_list:page:{page}:per_page:{per_page}{before_str}{after_str}"
+                    "activity_list:page:{page}:per_page:{per_page}{before_str}{after_str}{sport_str}"
                 )
             }
             Self::Activity { activity_id } => write!(f, "activity:{activity_id}"),

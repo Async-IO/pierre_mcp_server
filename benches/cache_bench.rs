@@ -84,6 +84,7 @@ fn make_cache_key(index: usize) -> CacheKey {
             per_page: 20,
             before: None,
             after: None,
+            sport_type: None,
         },
     )
 }

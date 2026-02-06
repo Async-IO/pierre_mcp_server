@@ -6,15 +6,18 @@
 
 use crate::constants::oauth_config::AUTHORIZATION_EXPIRES_MINUTES;
 use crate::database_plugins::DatabaseProvider;
+use crate::oauth2_client::OAuthClientState;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalToolExecutor};
 use crate::protocols::ProtocolError;
 use crate::tenant::{TenantContext, TenantRole};
 use crate::utils::uuid::parse_user_id_for_protocol;
+use chrono::{Duration, Utc};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
+use std::env;
 use std::future::Future;
 use std::pin::Pin;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 /// Handle `get_connection_status` tool - check OAuth connection status
 #[must_use]
@@ -378,6 +381,33 @@ pub fn handle_connect_provider(
             .await
         {
             Ok(url) => {
+                // Store state server-side for CSRF protection with 10-minute TTL
+                let now = Utc::now();
+                let base_url = env::var("BASE_URL").unwrap_or_else(|_| {
+                    format!("http://localhost:{}", executor.resources.config.http_port)
+                });
+                let oauth_callback_uri = format!("{base_url}/api/oauth/callback/{provider}");
+                let client_state = OAuthClientState {
+                    state: state.clone(),
+                    provider: provider.to_owned(),
+                    user_id: Some(user_uuid),
+                    tenant_id: Some(tenant_id.to_string()),
+                    redirect_uri: oauth_callback_uri,
+                    scope: None,
+                    pkce_code_verifier: None,
+                    created_at: now,
+                    expires_at: now + Duration::minutes(i64::from(AUTHORIZATION_EXPIRES_MINUTES)),
+                    used: false,
+                };
+
+                if let Err(e) = db.store_oauth_client_state(&client_state).await {
+                    warn!("Failed to store OAuth state for CSRF protection: {}", e);
+                    return Ok(build_oauth_error_response(
+                        provider,
+                        &format!("Failed to initiate OAuth flow: {e}"),
+                    ));
+                }
+
                 let flow_type = if redirect_url.is_some() {
                     " (mobile flow)"
                 } else {

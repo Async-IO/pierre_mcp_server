@@ -643,6 +643,7 @@ async fn cache_activities_result(
         per_page,
         before: None,
         after: None,
+        sport_type: None,
     }
     .recommended_ttl();
     if let Err(e) = cache.set(cache_key, activities, ttl).await {
@@ -1136,6 +1137,7 @@ pub fn handle_get_activities(
                 per_page,
                 before,
                 after,
+                sport_type: sport_type_filter.clone(),
             },
         );
 
@@ -1247,7 +1249,7 @@ pub fn handle_get_activities(
                             );
                         }
 
-                        // Cache the original unfiltered activities
+                        // Cache the filtered activities (cache key includes sport_type)
                         cache_activities_result(
                             &executor.resources.cache,
                             &cache_key,

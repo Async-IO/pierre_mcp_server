@@ -447,7 +447,7 @@ impl McpTool for SearchFoodTool {
         let page_size = args
             .get("page_size")
             .and_then(Value::as_u64)
-            .map_or(10_u32, |s| s.min(50) as u32);
+            .map_or(10_u32, |s| s.clamp(1, 50) as u32);
 
         #[allow(clippy::cast_possible_truncation)]
         let page_number = args

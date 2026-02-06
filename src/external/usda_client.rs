@@ -273,7 +273,13 @@ impl UsdaClient {
             ));
         }
 
-        let page_num = if page_number == 0 { 1 } else { page_number };
+        if page_number == 0 {
+            return Err(AppError::invalid_input(
+                "Page number must be at least 1 (1-indexed)",
+            ));
+        }
+
+        let page_num = page_number;
 
         // Check cache first
         let cache_key = format!("{query}:{page_size}:{page_num}");

@@ -16,8 +16,11 @@ use std::collections::HashMap;
 use async_trait::async_trait;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
+use std::env;
+
+use chrono::{Duration, Utc};
 use serde_json::{json, Map, Value};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use crate::constants::oauth_config::AUTHORIZATION_EXPIRES_MINUTES;
@@ -25,6 +28,7 @@ use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult, ErrorCode};
 use crate::mcp::schema::{JsonSchema, PropertySchema};
+use crate::oauth2_client::OAuthClientState;
 use crate::protocols::universal::auth_service::AuthService;
 use crate::tenant::{TenantContext, TenantRole};
 use crate::tools::context::ToolExecutionContext;
@@ -227,6 +231,37 @@ impl McpTool for ConnectProviderTool {
             .await
         {
             Ok(url) => {
+                // Store state server-side for CSRF protection with 10-minute TTL
+                let now = Utc::now();
+                let base_url = env::var("BASE_URL").unwrap_or_else(|_| {
+                    format!("http://localhost:{}", context.resources.config.http_port)
+                });
+                let oauth_callback_uri = format!("{base_url}/api/oauth/callback/{provider}");
+                let client_state = OAuthClientState {
+                    state: state.clone(),
+                    provider: provider.to_owned(),
+                    user_id: Some(context.user_id),
+                    tenant_id: context
+                        .tenant_id
+                        .as_ref()
+                        .map(ToString::to_string)
+                        .or_else(|| Some(tenant_context.tenant_id.to_string())),
+                    redirect_uri: oauth_callback_uri,
+                    scope: None,
+                    pkce_code_verifier: None,
+                    created_at: now,
+                    expires_at: now + Duration::minutes(i64::from(AUTHORIZATION_EXPIRES_MINUTES)),
+                    used: false,
+                };
+
+                if let Err(e) = database.store_oauth_client_state(&client_state).await {
+                    warn!("Failed to store OAuth state for CSRF protection: {}", e);
+                    return Ok(build_oauth_error_response(
+                        provider,
+                        &AppError::internal(format!("Failed to initiate OAuth flow: {e}")),
+                    ));
+                }
+
                 let flow_type = if redirect_url.is_some() {
                     " (mobile flow)"
                 } else {
