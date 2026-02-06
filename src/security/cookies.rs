@@ -9,6 +9,8 @@
 //! This module provides helpers for creating secure HTTP cookies with proper
 //! security flags to prevent XSS, CSRF, and session hijacking attacks.
 
+use std::env;
+
 use axum::http::{header, HeaderMap, HeaderValue};
 
 /// Cookie security configuration
@@ -42,14 +44,20 @@ pub enum SameSitePolicy {
 
 impl SecureCookieConfig {
     /// Create a new secure cookie configuration with defaults
+    ///
+    /// The `Secure` flag is derived from the `BASE_URL` environment variable:
+    /// - `https://` URLs set `Secure=true` (production, Cloudflare tunnels)
+    /// - `http://` URLs set `Secure=false` (local development)
+    /// - If `BASE_URL` is unset, defaults to `Secure=true` (fail-secure)
     #[must_use]
     pub fn new(name: String, value: String, max_age_secs: i64) -> Self {
+        let secure = infer_secure_flag();
         Self {
             name,
             value,
             max_age_secs,
             http_only: true,
-            secure: true, // Should be true in production
+            secure,
             same_site: SameSitePolicy::Strict,
             path: "/".to_owned(),
         }
@@ -126,11 +134,22 @@ pub fn set_csrf_cookie(headers: &mut HeaderMap, csrf_token: &str, max_age_secs: 
 /// # Arguments
 /// * `headers` - HTTP headers to modify
 pub fn clear_auth_cookie(headers: &mut HeaderMap) {
-    let cookie = "auth_token=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Strict";
+    let mut cookie = "auth_token=; Max-Age=0; Path=/; HttpOnly; SameSite=Strict".to_owned();
+    if infer_secure_flag() {
+        cookie.push_str("; Secure");
+    }
 
-    if let Ok(header_value) = HeaderValue::from_str(cookie) {
+    if let Ok(header_value) = HeaderValue::from_str(&cookie) {
         headers.insert(header::SET_COOKIE, header_value);
     }
+}
+
+/// Derive the `Secure` cookie flag from the `BASE_URL` environment variable.
+///
+/// Returns `true` when `BASE_URL` starts with `https://` or is unset (fail-secure),
+/// `false` when `BASE_URL` starts with `http://` (plain HTTP dev environments).
+fn infer_secure_flag() -> bool {
+    env::var("BASE_URL").map_or(true, |url| url.starts_with("https://"))
 }
 
 /// Extract cookie value from request headers

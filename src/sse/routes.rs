@@ -173,7 +173,7 @@ impl SseRoutes {
 
     /// Handle MCP protocol SSE connection
     ///
-    /// REQUIRES: JWT authentication (Bearer token in Authorization header or Mcp-Session-Id)
+    /// REQUIRES: JWT authentication (Bearer token in Authorization header)
     ///
     /// Security: Only authenticated users can establish SSE streams for MCP protocol
     /// to prevent unauthorized access to protocol messages and session hijacking.

@@ -419,10 +419,7 @@ impl OpenAiCompatibleProvider {
                 msg.content.len()
             );
             if msg.role == "system" {
-                debug!(
-                    "System prompt preview: {}...",
-                    msg.content.chars().take(200).collect::<String>()
-                );
+                debug!("System prompt present (content redacted for security)");
             }
         }
         debug!(
@@ -472,19 +469,21 @@ impl OpenAiCompatibleProvider {
             }
         } else {
             // Handle non-JSON error responses (common with local servers)
-            match status.as_u16() {
-                502..=504 => AppError::external_service(
+            if (502..=504).contains(&status.as_u16()) {
+                AppError::external_service(
                     "LocalLLM",
                     "Local LLM server is not responding. Is Ollama/vLLM running?".to_owned(),
-                ),
-                _ => AppError::external_service(
+                )
+            } else {
+                debug!(
+                    "Non-JSON error response body ({}): {}",
+                    status,
+                    body.chars().take(200).collect::<String>()
+                );
+                AppError::external_service(
                     "LocalLLM",
-                    format!(
-                        "API error ({}): {}",
-                        status,
-                        body.chars().take(200).collect::<String>()
-                    ),
-                ),
+                    format!("API error ({status}): non-JSON response from server"),
+                )
             }
         }
     }
