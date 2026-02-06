@@ -3599,9 +3599,9 @@ impl DatabaseProvider for Database {
 
     async fn get_active_impersonation_session(
         &self,
-        impersonator_id: Uuid,
+        user_id: Uuid,
     ) -> AppResult<Option<ImpersonationSession>> {
-        Self::get_active_impersonation_session(self, impersonator_id).await
+        Self::get_active_impersonation_session(self, user_id).await
     }
 
     async fn end_impersonation_session(&self, session_id: &str) -> AppResult<()> {

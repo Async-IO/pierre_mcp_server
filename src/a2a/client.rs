@@ -233,7 +233,6 @@ impl A2AClientManager {
         // Generate client credentials
         let client_id = format!("a2a_client_{}", Uuid::new_v4());
         let client_secret = format!("a2a_secret_{}", Uuid::new_v4());
-        let api_key = format!("a2a_{}", uuid::Uuid::new_v4());
 
         // Generate Ed25519 keypair for the client
         let keypair = A2AKeyManager::generate_keypair()
@@ -263,8 +262,9 @@ impl A2AClientManager {
             updated_at: chrono::Utc::now(),
         };
 
-        // Store client in database
-        self.store_client_secure(&client, &client_secret, &api_key, system_user_id)
+        // Store client in database and retrieve the actual generated API key
+        let generated_api_key = self
+            .store_client_secure(&client, &client_secret, system_user_id)
             .await?;
 
         info!(
@@ -277,7 +277,7 @@ impl A2AClientManager {
         Ok(ClientCredentials {
             client_id,
             client_secret,
-            api_key,
+            api_key: generated_api_key,
             public_key: keypair.public_key,
             private_key: keypair.private_key,
             key_type: "ed25519".into(),
@@ -317,14 +317,14 @@ impl A2AClientManager {
         Ok(())
     }
 
-    /// Store client in database with proper security
+    /// Store client in database with proper security.
+    /// Returns the generated API key so callers can pass it to the registrant.
     async fn store_client_secure(
         &self,
         client: &A2AClient,
         client_secret: &str,
-        api_key_for_link: &str,
         system_user_id: Uuid,
-    ) -> Result<(), A2AError> {
+    ) -> Result<String, A2AError> {
         // Create API key using the proper system user
         let api_key_manager = ApiKeyManager::new();
 
@@ -346,14 +346,9 @@ impl A2AClientManager {
             .await
             .map_err(|e| A2AError::InternalError(format!("Failed to store API key: {e}")))?;
 
-        // Log the generated API key for audit purposes
         debug!(
-            "Generated API key: {} (hidden for security)",
-            if generated_key.len() > 8 {
-                &generated_key[..8]
-            } else {
-                "[too_short]"
-            }
+            api_key_id = %api_key_obj.id,
+            "Generated API key for A2A client"
         );
 
         // Create A2A client entry linked to the API key
@@ -366,10 +361,10 @@ impl A2AClientManager {
             client_id = %client.id,
             client_name = %client.name,
             system_user_id = %system_user_id,
-            api_key_link = %api_key_for_link,
+            api_key_id = %api_key_obj.id,
             "A2A client stored securely in database"
         );
-        Ok(())
+        Ok(generated_key)
     }
 
     /// Get client by ID

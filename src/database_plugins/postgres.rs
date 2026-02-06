@@ -5738,18 +5738,20 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn get_active_impersonation_session(
         &self,
-        impersonator_id: Uuid,
+        user_id: Uuid,
     ) -> AppResult<Option<ImpersonationSession>> {
         let query = r"
             SELECT id, impersonator_id, target_user_id, reason,
                    started_at, ended_at, is_active, created_at
             FROM impersonation_sessions
-            WHERE impersonator_id = $1 AND is_active = true
+            WHERE (impersonator_id = $1 OR target_user_id = $2) AND is_active = true
             ORDER BY started_at DESC LIMIT 1
         ";
 
+        let user_id_str = user_id.to_string();
         let row = sqlx::query(query)
-            .bind(impersonator_id.to_string())
+            .bind(&user_id_str)
+            .bind(&user_id_str)
             .fetch_optional(&self.pool)
             .await
             .map_err(|e| {

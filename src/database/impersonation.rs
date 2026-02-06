@@ -74,25 +74,28 @@ impl Database {
             .transpose()
     }
 
-    /// Get active impersonation session for impersonator
+    /// Get active impersonation session where the given user is either
+    /// the impersonator (super admin) or the target (impersonated user).
     ///
     /// # Errors
     ///
     /// Returns an error if database query fails
     pub async fn get_active_impersonation_session(
         &self,
-        impersonator_id: Uuid,
+        user_id: Uuid,
     ) -> AppResult<Option<ImpersonationSession>> {
         let query = r"
             SELECT id, impersonator_id, target_user_id, reason,
                    started_at, ended_at, is_active, created_at
             FROM impersonation_sessions
-            WHERE impersonator_id = ? AND is_active = 1
+            WHERE (impersonator_id = ? OR target_user_id = ?) AND is_active = 1
             ORDER BY started_at DESC LIMIT 1
         ";
 
+        let user_id_str = user_id.to_string();
         let row = sqlx::query(query)
-            .bind(impersonator_id.to_string())
+            .bind(&user_id_str)
+            .bind(&user_id_str)
             .fetch_optional(&self.pool)
             .await
             .map_err(|e| {

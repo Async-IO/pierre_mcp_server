@@ -281,8 +281,10 @@ impl ImpersonationRoutes {
             .await
             .map_err(|e| AppError::auth_invalid(format!("Authentication failed: {e}")))?;
 
-        // Check if this is an impersonation session by looking for active session
-        // where the authenticated user_id matches either impersonator or target
+        // Find the active impersonation session for this user.
+        // The query matches if the authenticated user is either the impersonator
+        // (super admin ending via their own token) or the target user (using the
+        // impersonation token whose sub is the target_user_id).
         let session = resources
             .database
             .get_active_impersonation_session(auth.user_id)

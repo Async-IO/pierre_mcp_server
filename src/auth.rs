@@ -14,7 +14,6 @@
 //! This module provides JWT-based authentication and session management
 //! for the multi-tenant Pierre MCP Server.
 
-use std::cmp::min;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 
@@ -476,11 +475,7 @@ impl AuthManager {
         token: &str,
         jwks_manager: &JwksManager,
     ) -> Result<Claims, JwtValidationError> {
-        debug!(
-            "Validating RS256 JWT token (length: {} chars): {}",
-            token.len(),
-            &token[..min(100, token.len())]
-        );
+        debug!("Validating RS256 JWT token (length: {} chars)", token.len());
 
         let claims = Self::decode_token_claims(token, jwks_manager)?;
         Self::validate_claims_expiry(&claims)?;

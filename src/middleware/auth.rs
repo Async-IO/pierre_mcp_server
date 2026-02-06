@@ -92,9 +92,13 @@ impl McpAuthMiddleware {
                     return Ok(result);
                 }
                 Err(e) => {
-                    tracing::Span::current().record("success", false);
-                    warn!("JWT cookie authentication failed: {}", e);
-                    return Err(e);
+                    // Cookie auth failed — fall through to Authorization header
+                    // instead of returning immediately. This handles cases where a
+                    // stale/invalid cookie is present alongside a valid header.
+                    debug!(
+                        "JWT cookie authentication failed ({}), trying Authorization header",
+                        e
+                    );
                 }
             }
         }

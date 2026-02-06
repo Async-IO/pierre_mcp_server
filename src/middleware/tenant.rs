@@ -124,18 +124,29 @@ pub async fn tenant_context_middleware(
     // Extract x-tenant-id header for explicit tenant selection (fallback)
     let explicit_tenant_id = extract_tenant_id_from_header(headers);
 
-    // Try to extract JWT token from cookie first (web clients)
-    let token = get_cookie_value(headers, "auth_token").or_else(|| {
-        // Fall back to Authorization header (API clients)
-        headers
-            .get("authorization")
-            .and_then(|h| h.to_str().ok())
-            .and_then(|auth| auth.strip_prefix("Bearer "))
-            .map(ToOwned::to_owned)
-    });
+    // Try cookie token first, then fall back to Authorization header.
+    // If the cookie token is present but invalid, we still attempt the header
+    // token so that API clients with a valid Bearer token are not blocked by
+    // a stale browser cookie.
+    let cookie_token = get_cookie_value(headers, "auth_token");
+    let header_token = headers
+        .get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|auth| auth.strip_prefix("Bearer "))
+        .map(ToOwned::to_owned);
 
-    let tenant_context = if let Some(token) = token {
-        extract_tenant_from_token(&token, &resources, explicit_tenant_id).await
+    let tenant_context = if let Some(ref token) = cookie_token {
+        let ctx = extract_tenant_from_token(token, &resources, explicit_tenant_id).await;
+        if ctx.is_some() {
+            ctx
+        } else if let Some(ref hdr_token) = header_token {
+            debug!("Cookie token failed tenant extraction, trying Authorization header");
+            extract_tenant_from_token(hdr_token, &resources, explicit_tenant_id).await
+        } else {
+            None
+        }
+    } else if let Some(ref token) = header_token {
+        extract_tenant_from_token(token, &resources, explicit_tenant_id).await
     } else {
         debug!("No authentication token found, proceeding without tenant context");
         None

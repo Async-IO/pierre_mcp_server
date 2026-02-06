@@ -964,10 +964,10 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         session_id: &str,
     ) -> AppResult<Option<ImpersonationSession>>;
 
-    /// Get active impersonation session for an impersonator
+    /// Get active impersonation session where user is impersonator or target
     async fn get_active_impersonation_session(
         &self,
-        impersonator_id: Uuid,
+        user_id: Uuid,
     ) -> AppResult<Option<ImpersonationSession>>;
 
     /// End an impersonation session

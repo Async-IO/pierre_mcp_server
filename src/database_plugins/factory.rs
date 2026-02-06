@@ -2449,15 +2449,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    /// Get active impersonation session for an impersonator
+    /// Get active impersonation session where user is impersonator or target
     async fn get_active_impersonation_session(
         &self,
-        impersonator_id: Uuid,
+        user_id: Uuid,
     ) -> AppResult<Option<ImpersonationSession>> {
         match self {
-            Self::SQLite(db) => db.get_active_impersonation_session(impersonator_id).await,
+            Self::SQLite(db) => db.get_active_impersonation_session(user_id).await,
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(db) => db.get_active_impersonation_session(impersonator_id).await,
+            Self::PostgreSQL(db) => db.get_active_impersonation_session(user_id).await,
         }
     }
 
