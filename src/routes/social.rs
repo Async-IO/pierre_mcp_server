@@ -1145,7 +1145,7 @@ impl SocialRoutes {
         }
 
         social
-            .update_friend_connection_status(connection_id, FriendStatus::Accepted)
+            .update_friend_connection_status(connection_id, auth.user_id, FriendStatus::Accepted)
             .await?;
 
         let updated = social
@@ -1190,7 +1190,7 @@ impl SocialRoutes {
         }
 
         social
-            .update_friend_connection_status(connection_id, FriendStatus::Declined)
+            .update_friend_connection_status(connection_id, auth.user_id, FriendStatus::Declined)
             .await?;
 
         Ok((StatusCode::NO_CONTENT, ()).into_response())
@@ -1221,7 +1221,9 @@ impl SocialRoutes {
             ));
         }
 
-        social.delete_friend_connection(connection_id).await?;
+        social
+            .delete_friend_connection(connection_id, auth.user_id)
+            .await?;
 
         Ok((StatusCode::NO_CONTENT, ()).into_response())
     }
@@ -1392,7 +1394,7 @@ impl SocialRoutes {
             Uuid::parse_str(&id).map_err(|_| AppError::invalid_input("Invalid insight ID"))?;
 
         let insight = social
-            .get_shared_insight(insight_id)
+            .get_shared_insight(insight_id, auth.user_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("Insight {id}")))?;
 
@@ -1427,7 +1429,7 @@ impl SocialRoutes {
             Uuid::parse_str(&id).map_err(|_| AppError::invalid_input("Invalid insight ID"))?;
 
         let insight = social
-            .get_shared_insight(insight_id)
+            .get_shared_insight(insight_id, auth.user_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("Insight {id}")))?;
 
@@ -1439,7 +1441,9 @@ impl SocialRoutes {
             ));
         }
 
-        social.delete_shared_insight(insight_id).await?;
+        social
+            .delete_shared_insight(insight_id, auth.user_id)
+            .await?;
 
         Ok((StatusCode::NO_CONTENT, ()).into_response())
     }
@@ -1927,15 +1931,15 @@ impl SocialRoutes {
         Path(id): Path<String>,
     ) -> Result<Response, AppError> {
         // Authenticate user (must be logged in to view reactions)
-        Self::authenticate(&headers, &resources).await?;
+        let auth = Self::authenticate(&headers, &resources).await?;
         let social = Self::get_social_manager(&resources)?;
 
         let insight_id =
             Uuid::parse_str(&id).map_err(|_| AppError::invalid_input("Invalid insight ID"))?;
 
-        // Verify insight exists
+        // Verify insight exists and user can view it
         social
-            .get_shared_insight(insight_id)
+            .get_shared_insight(insight_id, auth.user_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("Insight {id}")))?;
 
@@ -1978,7 +1982,7 @@ impl SocialRoutes {
 
         // Verify insight exists
         social
-            .get_shared_insight(insight_id)
+            .get_shared_insight(insight_id, auth.user_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("Insight {id}")))?;
 
@@ -2108,7 +2112,7 @@ impl SocialRoutes {
 
         // Verify insight exists
         let source_insight = social
-            .get_shared_insight(insight_id)
+            .get_shared_insight(insight_id, auth.user_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("Insight {id}")))?;
 

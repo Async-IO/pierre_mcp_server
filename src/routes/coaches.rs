@@ -573,7 +573,7 @@ impl CoachesRoutes {
         let user_providers = if check_prereqs {
             resources
                 .database
-                .get_user_oauth_tokens(auth.user_id)
+                .get_user_oauth_tokens(auth.user_id, None)
                 .await
                 .map(|tokens| {
                     tokens
@@ -822,7 +822,9 @@ impl CoachesRoutes {
             .ok_or_else(|| AppError::not_found("Conversation"))?;
 
         // Get conversation messages
-        let messages = chat_manager.get_messages(&body.conversation_id).await?;
+        let messages = chat_manager
+            .get_messages(&body.conversation_id, &auth.user_id.to_string())
+            .await?;
         let total_messages = messages.len();
 
         if messages.is_empty() {

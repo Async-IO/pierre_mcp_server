@@ -152,7 +152,7 @@ async fn test_get_pending_users() -> Result<()> {
     database.create_user(&active_user).await?;
 
     // Test getting pending users via database query
-    let pending_users = database.get_users_by_status("pending").await?;
+    let pending_users = database.get_users_by_status("pending", None).await?;
     assert_eq!(pending_users.len(), 1);
     assert_eq!(pending_users[0].email, "pending@test.com");
 

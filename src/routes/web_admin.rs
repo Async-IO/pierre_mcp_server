@@ -238,6 +238,76 @@ async fn assign_user_to_admin_tenant(
     Ok(())
 }
 
+/// Get the admin user's tenant scope for listing queries.
+///
+/// Super-admins see all tenants (returns None). Regular admins are scoped
+/// to their first tenant membership (returns `Some(tenant_id)`).
+async fn get_admin_tenant_scope(
+    resources: &Arc<ServerResources>,
+    admin_user_id: Uuid,
+) -> Result<Option<Uuid>, AppError> {
+    let user = resources
+        .database
+        .get_user(admin_user_id)
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to fetch admin user: {e}")))?
+        .ok_or_else(|| AppError::not_found("Admin user not found"))?;
+
+    // Super-admins see all tenants
+    if user.role.is_super_admin() {
+        return Ok(None);
+    }
+
+    // Regular admins are scoped to their tenant
+    let admin_tenants = resources
+        .database
+        .list_tenants_for_user(admin_user_id)
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to get admin tenants: {e}")))?;
+
+    Ok(admin_tenants.first().map(|t| t.id))
+}
+
+/// Verify an admin user belongs to the target tenant.
+///
+/// Super-admin users can access any tenant. Regular admins are restricted
+/// to tenants they belong to via the `tenant_users` junction table.
+async fn verify_admin_tenant_access(
+    resources: &Arc<ServerResources>,
+    admin_user_id: Uuid,
+    target_tenant_id: Uuid,
+) -> Result<(), AppError> {
+    let user = resources
+        .database
+        .get_user(admin_user_id)
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to fetch admin user: {e}")))?
+        .ok_or_else(|| AppError::not_found("Admin user not found"))?;
+
+    // Super-admins can access any tenant
+    if user.role.is_super_admin() {
+        return Ok(());
+    }
+
+    // Regular admins must belong to the target tenant
+    let admin_tenants = resources
+        .database
+        .list_tenants_for_user(admin_user_id)
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to get admin tenants: {e}")))?;
+
+    let belongs_to_tenant = admin_tenants.iter().any(|t| t.id == target_tenant_id);
+
+    if belongs_to_tenant {
+        Ok(())
+    } else {
+        Err(AppError::new(
+            ErrorCode::PermissionDenied,
+            "Admin does not belong to the target tenant",
+        ))
+    }
+}
+
 /// Web admin routes - accessible via browser for admin users
 pub struct WebAdminRoutes;
 
@@ -369,10 +439,13 @@ impl WebAdminRoutes {
             "Web admin listing pending users"
         );
 
+        // Scope listing to admin's tenant (super-admins see all tenants)
+        let admin_tenant_id = get_admin_tenant_scope(&resources, auth.user_id).await?;
+
         // Fetch users with Pending status
         let users = resources
             .database
-            .get_users_by_status("pending")
+            .get_users_by_status("pending", admin_tenant_id)
             .await
             .map_err(|e| {
                 error!(error = %e, "Failed to fetch pending users from database");
@@ -419,13 +492,16 @@ impl WebAdminRoutes {
             "Web admin listing all users"
         );
 
+        // Scope listing to admin's tenant (super-admins see all tenants)
+        let admin_tenant_id = get_admin_tenant_scope(&resources, auth.user_id).await?;
+
         // Fetch users by status and combine (no get_all_users method exists)
         let mut all_users = Vec::new();
 
         for status in ["active", "pending", "suspended"] {
             let users = resources
                 .database
-                .get_users_by_status(status)
+                .get_users_by_status(status, admin_tenant_id)
                 .await
                 .map_err(|e| {
                     error!(error = %e, status = status, "Failed to fetch users from database");
@@ -1253,7 +1329,8 @@ impl WebAdminRoutes {
         headers: HeaderMap,
         Path(tenant_id): Path<uuid::Uuid>,
     ) -> Result<Response, AppError> {
-        Self::authenticate_admin(&headers, &resources).await?;
+        let auth = Self::authenticate_admin(&headers, &resources).await?;
+        verify_admin_tenant_access(&resources, auth.user_id, tenant_id).await?;
 
         let tools = resources
             .tool_selection
@@ -1279,6 +1356,7 @@ impl WebAdminRoutes {
         Json(request): Json<SetToolOverrideRequest>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate_admin(&headers, &resources).await?;
+        verify_admin_tenant_access(&resources, auth.user_id, tenant_id).await?;
 
         info!(
             "Setting tool override: tenant={}, tool={}, enabled={}, by={}",
@@ -1320,6 +1398,7 @@ impl WebAdminRoutes {
         Path((tenant_id, tool_name)): Path<(uuid::Uuid, String)>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate_admin(&headers, &resources).await?;
+        verify_admin_tenant_access(&resources, auth.user_id, tenant_id).await?;
 
         info!(
             "Removing tool override: tenant={}, tool={}, by={}",
@@ -1353,7 +1432,8 @@ impl WebAdminRoutes {
         headers: HeaderMap,
         Path(tenant_id): Path<uuid::Uuid>,
     ) -> Result<Response, AppError> {
-        Self::authenticate_admin(&headers, &resources).await?;
+        let auth = Self::authenticate_admin(&headers, &resources).await?;
+        verify_admin_tenant_access(&resources, auth.user_id, tenant_id).await?;
 
         let summary = resources
             .tool_selection

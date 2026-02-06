@@ -27,9 +27,25 @@ use uuid::Uuid;
 
 use crate::{
     admin::models::{AdminPermission, ValidatedAdminToken},
-    errors::{AppError, AppResult},
+    errors::{AppError, AppResult, ErrorCode},
     mcp::ToolSelectionService,
 };
+
+/// Require super-admin for tenant-scoped operations.
+///
+/// Admin API tokens have no tenant binding, so non-super-admin tokens cannot
+/// prove they belong to the target tenant. Only super-admin tokens can safely
+/// perform cross-tenant operations.
+fn require_super_admin_for_tenant_access(admin_token: &ValidatedAdminToken) -> AppResult<()> {
+    if admin_token.is_super_admin {
+        Ok(())
+    } else {
+        Err(AppError::new(
+            ErrorCode::PermissionDenied,
+            "Tenant-scoped tool operations require super-admin privileges",
+        ))
+    }
+}
 
 /// Context for tool selection routes
 #[derive(Clone)]
@@ -157,6 +173,8 @@ impl ToolSelectionRoutes {
         Path(tenant_id): Path<Uuid>,
     ) -> AppResult<impl IntoResponse> {
         admin_token.require_permission(&AdminPermission::ViewConfiguration)?;
+        // Admin API tokens have no tenant binding; require super-admin for tenant-scoped access
+        require_super_admin_for_tenant_access(&admin_token)?;
 
         let tools = context
             .tool_selection
@@ -183,6 +201,8 @@ impl ToolSelectionRoutes {
         Json(request): Json<SetOverrideRequest>,
     ) -> AppResult<impl IntoResponse> {
         admin_token.require_permission(&AdminPermission::ManageConfiguration)?;
+        // Admin API tokens have no tenant binding; require super-admin for tenant-scoped access
+        require_super_admin_for_tenant_access(&admin_token)?;
 
         info!(
             "Setting tool override: tenant={}, tool={}, enabled={}, by={}",
@@ -228,6 +248,8 @@ impl ToolSelectionRoutes {
         Path((tenant_id, tool_name)): Path<(Uuid, String)>,
     ) -> AppResult<impl IntoResponse> {
         admin_token.require_permission(&AdminPermission::ManageConfiguration)?;
+        // Admin API tokens have no tenant binding; require super-admin for tenant-scoped access
+        require_super_admin_for_tenant_access(&admin_token)?;
 
         info!(
             "Removing tool override: tenant={}, tool={}, by={}",
@@ -261,6 +283,8 @@ impl ToolSelectionRoutes {
         Path(tenant_id): Path<Uuid>,
     ) -> AppResult<impl IntoResponse> {
         admin_token.require_permission(&AdminPermission::ViewConfiguration)?;
+        // Admin API tokens have no tenant binding; require super-admin for tenant-scoped access
+        require_super_admin_for_tenant_access(&admin_token)?;
 
         let summary = context
             .tool_selection

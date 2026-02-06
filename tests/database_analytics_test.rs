@@ -92,7 +92,7 @@ async fn test_goals_management() {
     assert_eq!(goals[0]["type"], "weekly_distance");
 
     // Update goal progress
-    db.update_goal_progress(&goal_id, 25.0)
+    db.update_goal_progress(&goal_id, user.id, 25.0)
         .await
         .expect("Failed to update goal progress");
 }
@@ -145,7 +145,7 @@ async fn test_system_stats() {
 
     // Get system stats (user_count, api_key_count)
     let (user_count, api_key_count) = db
-        .get_system_stats()
+        .get_system_stats(None)
         .await
         .expect("Failed to get system stats");
 

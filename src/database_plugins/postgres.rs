@@ -644,7 +644,11 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(row.get("count"))
     }
 
-    async fn get_users_by_status(&self, status: &str) -> AppResult<Vec<User>> {
+    async fn get_users_by_status(
+        &self,
+        status: &str,
+        tenant_id: Option<Uuid>,
+    ) -> AppResult<Vec<User>> {
         // Query users by status from PostgreSQL
         let status_enum = match status {
             "active" => "active",
@@ -657,19 +661,36 @@ impl DatabaseProvider for PostgresDatabase {
             }
         };
 
-        let rows = sqlx::query(
-            r"
-            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
-                   role, COALESCE(user_status, 'active') as user_status, approved_by, approved_at,
-                   created_at, last_active, firebase_uid, auth_provider
-            FROM users
-            WHERE COALESCE(user_status, 'active') = $1
-            ORDER BY created_at DESC
-            ",
-        )
-        .bind(status_enum)
-        .fetch_all(&self.pool)
-        .await
+        let rows = if let Some(tid) = tenant_id {
+            sqlx::query(
+                r"
+                SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
+                       role, COALESCE(user_status, 'active') as user_status, approved_by, approved_at,
+                       created_at, last_active, firebase_uid, auth_provider
+                FROM users
+                WHERE COALESCE(user_status, 'active') = $1 AND tenant_id = $2
+                ORDER BY created_at DESC
+                ",
+            )
+            .bind(status_enum)
+            .bind(tid.to_string())
+            .fetch_all(&self.pool)
+            .await
+        } else {
+            sqlx::query(
+                r"
+                SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
+                       role, COALESCE(user_status, 'active') as user_status, approved_by, approved_at,
+                       created_at, last_active, firebase_uid, auth_provider
+                FROM users
+                WHERE COALESCE(user_status, 'active') = $1
+                ORDER BY created_at DESC
+                ",
+            )
+            .bind(status_enum)
+            .fetch_all(&self.pool)
+            .await
+        }
         .map_err(|e| AppError::database(format!("Failed to get users by status: {e}")))?;
 
         let mut users = Vec::new();
@@ -1017,8 +1038,12 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(rows.into_iter().map(|row| row.get("goal_data")).collect())
     }
 
-    async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> AppResult<()> {
-        // This would need to update the JSONB field - simplified implementation
+    async fn update_goal_progress(
+        &self,
+        goal_id: &str,
+        user_id: Uuid,
+        current_value: f64,
+    ) -> AppResult<()> {
         // Use const to avoid clippy warning about format-like strings
         const JSON_PATH: &str = "{current_value}";
         sqlx::query(
@@ -1026,12 +1051,13 @@ impl DatabaseProvider for PostgresDatabase {
             UPDATE goals
             SET goal_data = jsonb_set(goal_data, $3::text, $1::text::jsonb),
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = $2
+            WHERE id = $2 AND user_id = $4
             ",
         )
         .bind(current_value)
         .bind(goal_id)
         .bind(JSON_PATH)
+        .bind(user_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to update goal progress: {e}")))?;
@@ -1333,19 +1359,40 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(())
     }
 
-    async fn get_api_key_by_id(&self, api_key_id: &str) -> AppResult<Option<ApiKey>> {
-        let row = sqlx::query(
-            r"
-            SELECT id, user_id, name, description, key_prefix, key_hash, tier,
-                   rate_limit_requests, rate_limit_window_seconds, is_active,
-                   created_at, last_used_at, expires_at, updated_at
-            FROM api_keys
-            WHERE id = $1
-            ",
-        )
-        .bind(api_key_id)
-        .fetch_optional(&self.pool)
-        .await
+    async fn get_api_key_by_id(
+        &self,
+        api_key_id: &str,
+        user_id: Option<Uuid>,
+    ) -> AppResult<Option<ApiKey>> {
+        let row = if let Some(uid) = user_id {
+            sqlx::query(
+                r"
+                SELECT id, user_id, name, description, key_prefix, key_hash, tier,
+                       rate_limit_requests, rate_limit_window_seconds, is_active,
+                       created_at, last_used_at, expires_at, updated_at
+                FROM api_keys
+                WHERE id = $1 AND user_id = $2
+                ",
+            )
+            .bind(api_key_id)
+            .bind(uid)
+            .fetch_optional(&self.pool)
+            .await
+        } else {
+            // Admin callers that legitimately need cross-user access pass None
+            sqlx::query(
+                r"
+                SELECT id, user_id, name, description, key_prefix, key_hash, tier,
+                       rate_limit_requests, rate_limit_window_seconds, is_active,
+                       created_at, last_used_at, expires_at, updated_at
+                FROM api_keys
+                WHERE id = $1
+                ",
+            )
+            .bind(api_key_id)
+            .fetch_optional(&self.pool)
+            .await
+        }
         .map_err(|e| AppError::database(format!("Failed to get API key by ID: {e}")))?;
 
         row.map_or_else(
@@ -1818,21 +1865,36 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(results)
     }
 
-    async fn get_system_stats(&self) -> AppResult<(u64, u64)> {
-        let user_count_row = sqlx::query("SELECT COUNT(*) as count FROM users")
+    async fn get_system_stats(&self, tenant_id: Option<Uuid>) -> AppResult<(u64, u64)> {
+        let user_count_row = if let Some(tid) = tenant_id {
+            sqlx::query("SELECT COUNT(*) as count FROM users WHERE tenant_id = $1")
+                .bind(tid.to_string())
+                .fetch_one(&self.pool)
+                .await
+        } else {
+            sqlx::query("SELECT COUNT(*) as count FROM users")
+                .fetch_one(&self.pool)
+                .await
+        }
+        .map_err(|e| {
+            AppError::database(format!("Failed to get user count for system stats: {e}"))
+        })?;
+
+        let api_key_count_row = if let Some(tid) = tenant_id {
+            sqlx::query(
+                "SELECT COUNT(*) as count FROM api_keys ak JOIN users u ON ak.user_id = u.id WHERE ak.is_active = true AND u.tenant_id = $1",
+            )
+            .bind(tid.to_string())
             .fetch_one(&self.pool)
             .await
-            .map_err(|e| {
-                AppError::database(format!("Failed to get user count for system stats: {e}"))
-            })?;
-
-        let api_key_count_row =
+        } else {
             sqlx::query("SELECT COUNT(*) as count FROM api_keys WHERE is_active = true")
                 .fetch_one(&self.pool)
                 .await
-                .map_err(|e| {
-                    AppError::database(format!("Failed to get API key count for system stats: {e}"))
-                })?;
+        }
+        .map_err(|e| {
+            AppError::database(format!("Failed to get API key count for system stats: {e}"))
+        })?;
 
         let user_count = u64::try_from(user_count_row.get::<i64, _>("count").max(0)).unwrap_or(0);
         let api_key_count =
@@ -4325,19 +4387,40 @@ impl DatabaseProvider for PostgresDatabase {
         )
     }
 
-    async fn get_user_oauth_tokens(&self, user_id: uuid::Uuid) -> AppResult<Vec<UserOAuthToken>> {
-        let rows = sqlx::query(
-            r"
-            SELECT id, user_id, tenant_id, provider, access_token, refresh_token,
-                   token_type, expires_at, scope, created_at, updated_at
-            FROM user_oauth_tokens
-            WHERE user_id = $1
-            ORDER BY created_at DESC
-            ",
-        )
-        .bind(user_id)
-        .fetch_all(&self.pool)
-        .await
+    async fn get_user_oauth_tokens(
+        &self,
+        user_id: uuid::Uuid,
+        tenant_id: Option<&str>,
+    ) -> AppResult<Vec<UserOAuthToken>> {
+        let rows = if let Some(tid) = tenant_id {
+            sqlx::query(
+                r"
+                SELECT id, user_id, tenant_id, provider, access_token, refresh_token,
+                       token_type, expires_at, scope, created_at, updated_at
+                FROM user_oauth_tokens
+                WHERE user_id = $1 AND tenant_id = $2
+                ORDER BY created_at DESC
+                ",
+            )
+            .bind(user_id)
+            .bind(tid)
+            .fetch_all(&self.pool)
+            .await
+        } else {
+            // Intentional cross-tenant view for OAuth status checks (e.g. admin views)
+            sqlx::query(
+                r"
+                SELECT id, user_id, tenant_id, provider, access_token, refresh_token,
+                       token_type, expires_at, scope, created_at, updated_at
+                FROM user_oauth_tokens
+                WHERE user_id = $1
+                ORDER BY created_at DESC
+                ",
+            )
+            .bind(user_id)
+            .fetch_all(&self.pool)
+            .await
+        }
         .map_err(|e| AppError::database(format!("Failed to fetch records: {e}")))?;
 
         let mut tokens = Vec::with_capacity(rows.len());
@@ -4396,14 +4479,19 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(())
     }
 
-    async fn delete_user_oauth_tokens(&self, user_id: uuid::Uuid) -> AppResult<()> {
+    async fn delete_user_oauth_tokens(
+        &self,
+        user_id: uuid::Uuid,
+        tenant_id: &str,
+    ) -> AppResult<()> {
         sqlx::query(
             r"
             DELETE FROM user_oauth_tokens
-            WHERE user_id = $1
+            WHERE user_id = $1 AND tenant_id = $2
             ",
         )
         .bind(user_id)
+        .bind(tenant_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
@@ -6593,6 +6681,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn chat_add_message(
         &self,
         conversation_id: &str,
+        user_id: &str,
         role: &str,
         content: &str,
         token_count: Option<u32>,
@@ -6600,11 +6689,16 @@ impl DatabaseProvider for PostgresDatabase {
     ) -> AppResult<MessageRecord> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now();
+        let user_uuid = parse_uuid(user_id)?;
 
-        sqlx::query(
+        // Insert message only if the conversation belongs to the user
+        let result = sqlx::query(
             r"
             INSERT INTO chat_messages (id, conversation_id, role, content, token_count, finish_reason, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            SELECT $1, $2, $3, $4, $5, $6, $7
+            WHERE EXISTS (
+                SELECT 1 FROM chat_conversations WHERE id = $2 AND user_id = $8
+            )
             ",
         )
         .bind(&id)
@@ -6614,22 +6708,30 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(token_count.map(i64::from))
         .bind(finish_reason)
         .bind(now)
+        .bind(user_uuid)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to add message: {e}")))?;
 
-        // Update conversation's updated_at and total_tokens
+        if result.rows_affected() == 0 {
+            return Err(AppError::not_found(
+                "Conversation not found or access denied",
+            ));
+        }
+
+        // Update conversation's updated_at and total_tokens (ownership already verified above)
         if let Some(tokens) = token_count {
             sqlx::query(
                 r"
                 UPDATE chat_conversations
                 SET updated_at = $1, total_tokens = total_tokens + $2
-                WHERE id = $3
+                WHERE id = $3 AND user_id = $4
                 ",
             )
             .bind(now)
             .bind(i64::from(tokens))
             .bind(conversation_id)
+            .bind(user_uuid)
             .execute(&self.pool)
             .await
             .map_err(|e| {
@@ -6640,11 +6742,12 @@ impl DatabaseProvider for PostgresDatabase {
                 r"
                 UPDATE chat_conversations
                 SET updated_at = $1
-                WHERE id = $2
+                WHERE id = $2 AND user_id = $3
                 ",
             )
             .bind(now)
             .bind(conversation_id)
+            .bind(user_uuid)
             .execute(&self.pool)
             .await
             .map_err(|e| {
@@ -6663,16 +6766,22 @@ impl DatabaseProvider for PostgresDatabase {
         })
     }
 
-    async fn chat_get_messages(&self, conversation_id: &str) -> AppResult<Vec<MessageRecord>> {
+    async fn chat_get_messages(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+    ) -> AppResult<Vec<MessageRecord>> {
         let rows = sqlx::query(
             r"
-            SELECT id, conversation_id, role, content, token_count, finish_reason, created_at
-            FROM chat_messages
-            WHERE conversation_id = $1
-            ORDER BY created_at ASC
+            SELECT m.id, m.conversation_id, m.role, m.content, m.token_count, m.finish_reason, m.created_at
+            FROM chat_messages m
+            JOIN chat_conversations c ON m.conversation_id = c.id
+            WHERE m.conversation_id = $1 AND c.user_id = $2
+            ORDER BY m.created_at ASC
             ",
         )
         .bind(conversation_id)
+        .bind(parse_uuid(user_id)?)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get messages: {e}")))?;
@@ -6700,18 +6809,21 @@ impl DatabaseProvider for PostgresDatabase {
     async fn chat_get_recent_messages(
         &self,
         conversation_id: &str,
+        user_id: &str,
         limit: i64,
     ) -> AppResult<Vec<MessageRecord>> {
         let rows = sqlx::query(
             r"
-            SELECT id, conversation_id, role, content, token_count, finish_reason, created_at
-            FROM chat_messages
-            WHERE conversation_id = $1
-            ORDER BY created_at DESC
-            LIMIT $2
+            SELECT m.id, m.conversation_id, m.role, m.content, m.token_count, m.finish_reason, m.created_at
+            FROM chat_messages m
+            JOIN chat_conversations c ON m.conversation_id = c.id
+            WHERE m.conversation_id = $1 AND c.user_id = $2
+            ORDER BY m.created_at DESC
+            LIMIT $3
             ",
         )
         .bind(conversation_id)
+        .bind(parse_uuid(user_id)?)
         .bind(limit)
         .fetch_all(&self.pool)
         .await
@@ -6739,15 +6851,17 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(messages)
     }
 
-    async fn chat_get_message_count(&self, conversation_id: &str) -> AppResult<i64> {
+    async fn chat_get_message_count(&self, conversation_id: &str, user_id: &str) -> AppResult<i64> {
         let count: i64 = sqlx::query_scalar(
             r"
             SELECT COUNT(*)
-            FROM chat_messages
-            WHERE conversation_id = $1
+            FROM chat_messages m
+            JOIN chat_conversations c ON m.conversation_id = c.id
+            WHERE m.conversation_id = $1 AND c.user_id = $2
             ",
         )
         .bind(conversation_id)
+        .bind(parse_uuid(user_id)?)
         .fetch_one(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get message count: {e}")))?;

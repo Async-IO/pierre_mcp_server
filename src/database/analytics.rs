@@ -211,15 +211,17 @@ impl Database {
     pub async fn update_goal_progress_impl(
         &self,
         goal_id: &str,
+        user_id: Uuid,
         current_value: f64,
     ) -> AppResult<()> {
-        // Get the current goal data
+        // Get the current goal data, scoped to the owning user
         let row = sqlx::query(
             r"
-            SELECT goal_data FROM goals WHERE id = $1
+            SELECT goal_data FROM goals WHERE id = $1 AND user_id = $2
             ",
         )
         .bind(goal_id)
+        .bind(user_id.to_string())
         .fetch_one(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get goal data for update: {e}")))?;
@@ -267,11 +269,12 @@ impl Database {
             r"
             UPDATE goals
             SET goal_data = $1, updated_at = CURRENT_TIMESTAMP
-            WHERE id = $2
+            WHERE id = $2 AND user_id = $3
             ",
         )
         .bind(updated_goal_json)
         .bind(goal_id)
+        .bind(user_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to update goal progress: {e}")))?;
@@ -492,18 +495,34 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails.
-    pub async fn get_system_stats_impl(&self) -> AppResult<(u64, u64)> {
-        // Get total users
-        let user_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
-            .fetch_one(&self.pool)
-            .await
-            .map_err(|e| AppError::database(format!("Failed to get user count: {e}")))?;
+    pub async fn get_system_stats_impl(&self, tenant_id: Option<Uuid>) -> AppResult<(u64, u64)> {
+        // Get total users (optionally scoped to tenant)
+        let user_count: i64 = if let Some(tid) = tenant_id {
+            sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE tenant_id = ?1")
+                .bind(tid.to_string())
+                .fetch_one(&self.pool)
+                .await
+        } else {
+            sqlx::query_scalar("SELECT COUNT(*) FROM users")
+                .fetch_one(&self.pool)
+                .await
+        }
+        .map_err(|e| AppError::database(format!("Failed to get user count: {e}")))?;
 
-        // Get total API keys
-        let api_key_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM api_keys")
+        // Get total API keys (optionally scoped to tenant via user ownership)
+        let api_key_count: i64 = if let Some(tid) = tenant_id {
+            sqlx::query_scalar(
+                "SELECT COUNT(*) FROM api_keys ak JOIN users u ON ak.user_id = u.id WHERE u.tenant_id = ?1",
+            )
+            .bind(tid.to_string())
             .fetch_one(&self.pool)
             .await
-            .map_err(|e| AppError::database(format!("Failed to get API key count: {e}")))?;
+        } else {
+            sqlx::query_scalar("SELECT COUNT(*) FROM api_keys")
+                .fetch_one(&self.pool)
+                .await
+        }
+        .map_err(|e| AppError::database(format!("Failed to get API key count: {e}")))?;
 
         Ok((
             u64::try_from(user_count).unwrap_or_else(|e| {
@@ -564,12 +583,18 @@ impl Database {
         self.get_user_goals_impl(user_id).await
     }
 
-    /// Update goal progress (public API)
+    /// Update goal progress, scoped to the owning user (public API)
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> AppResult<()> {
-        self.update_goal_progress_impl(goal_id, current_value).await
+    pub async fn update_goal_progress(
+        &self,
+        goal_id: &str,
+        user_id: Uuid,
+        current_value: f64,
+    ) -> AppResult<()> {
+        self.update_goal_progress_impl(goal_id, user_id, current_value)
+            .await
     }
 
     /// Store user insight (public API)
@@ -588,8 +613,8 @@ impl Database {
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn get_system_stats(&self) -> AppResult<(u64, u64)> {
-        self.get_system_stats_impl().await
+    pub async fn get_system_stats(&self, tenant_id: Option<Uuid>) -> AppResult<(u64, u64)> {
+        self.get_system_stats_impl(tenant_id).await
     }
 
     /// Get top tools analysis for a user within a time range (internal implementation)

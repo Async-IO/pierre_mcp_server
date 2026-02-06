@@ -188,7 +188,7 @@ async fn test_api_key_expiration() {
 
     // Verify key is deactivated
     let updated = db
-        .get_api_key_by_id(&api_key.id)
+        .get_api_key_by_id(&api_key.id, None)
         .await
         .expect("Failed to get API key")
         .expect("API key not found");

@@ -494,11 +494,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_users_by_status(&self, status: &str) -> AppResult<Vec<User>> {
+    async fn get_users_by_status(
+        &self,
+        status: &str,
+        tenant_id: Option<Uuid>,
+    ) -> AppResult<Vec<User>> {
         match self {
-            Self::SQLite(db) => db.get_users_by_status(status).await,
+            Self::SQLite(db) => db.get_users_by_status(status, tenant_id).await,
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(db) => db.get_users_by_status(status).await,
+            Self::PostgreSQL(db) => db.get_users_by_status(status, tenant_id).await,
         }
     }
 
@@ -671,11 +675,22 @@ impl DatabaseProvider for Database {
     /// - Goal does not exist
     /// - Database update fails
     /// - Database connection issues
-    async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> AppResult<()> {
+    async fn update_goal_progress(
+        &self,
+        goal_id: &str,
+        user_id: Uuid,
+        current_value: f64,
+    ) -> AppResult<()> {
         match self {
-            Self::SQLite(db) => db.update_goal_progress(goal_id, current_value).await,
+            Self::SQLite(db) => {
+                db.update_goal_progress(goal_id, user_id, current_value)
+                    .await
+            }
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(db) => db.update_goal_progress(goal_id, current_value).await,
+            Self::PostgreSQL(db) => {
+                db.update_goal_progress(goal_id, user_id, current_value)
+                    .await
+            }
         }
     }
 
@@ -841,11 +856,15 @@ impl DatabaseProvider for Database {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
-    async fn get_api_key_by_id(&self, api_key_id: &str) -> AppResult<Option<ApiKey>> {
+    async fn get_api_key_by_id(
+        &self,
+        api_key_id: &str,
+        user_id: Option<Uuid>,
+    ) -> AppResult<Option<ApiKey>> {
         match self {
-            Self::SQLite(db) => db.get_api_key_by_id(api_key_id).await,
+            Self::SQLite(db) => db.get_api_key_by_id(api_key_id, user_id).await,
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(db) => db.get_api_key_by_id(api_key_id).await,
+            Self::PostgreSQL(db) => db.get_api_key_by_id(api_key_id, user_id).await,
         }
     }
 
@@ -981,11 +1000,11 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_system_stats(&self) -> AppResult<(u64, u64)> {
+    async fn get_system_stats(&self, tenant_id: Option<Uuid>) -> AppResult<(u64, u64)> {
         match self {
-            Self::SQLite(db) => db.get_system_stats().await,
+            Self::SQLite(db) => db.get_system_stats(tenant_id).await,
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(db) => db.get_system_stats().await,
+            Self::PostgreSQL(db) => db.get_system_stats(tenant_id).await,
         }
     }
 
@@ -1881,11 +1900,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_user_oauth_tokens(&self, user_id: Uuid) -> AppResult<Vec<UserOAuthToken>> {
+    async fn get_user_oauth_tokens(
+        &self,
+        user_id: Uuid,
+        tenant_id: Option<&str>,
+    ) -> AppResult<Vec<UserOAuthToken>> {
         match self {
-            Self::SQLite(db) => db.get_user_oauth_tokens(user_id).await,
+            Self::SQLite(db) => db.get_user_oauth_tokens(user_id, tenant_id).await,
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(db) => db.get_user_oauth_tokens(user_id).await,
+            Self::PostgreSQL(db) => db.get_user_oauth_tokens(user_id, tenant_id).await,
         }
     }
 
@@ -1920,11 +1943,11 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn delete_user_oauth_tokens(&self, user_id: Uuid) -> AppResult<()> {
+    async fn delete_user_oauth_tokens(&self, user_id: Uuid, tenant_id: &str) -> AppResult<()> {
         match self {
-            Self::SQLite(db) => db.delete_user_oauth_tokens(user_id).await,
+            Self::SQLite(db) => db.delete_user_oauth_tokens(user_id, tenant_id).await,
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(db) => db.delete_user_oauth_tokens(user_id).await,
+            Self::PostgreSQL(db) => db.delete_user_oauth_tokens(user_id, tenant_id).await,
         }
     }
 
@@ -2802,6 +2825,7 @@ impl DatabaseProvider for Database {
     async fn chat_add_message(
         &self,
         conversation_id: &str,
+        user_id: &str,
         role: &str,
         content: &str,
         token_count: Option<u32>,
@@ -2809,45 +2833,70 @@ impl DatabaseProvider for Database {
     ) -> AppResult<MessageRecord> {
         match self {
             Self::SQLite(db) => {
-                db.chat_add_message_impl(conversation_id, role, content, token_count, finish_reason)
-                    .await
+                db.chat_add_message_impl(
+                    conversation_id,
+                    user_id,
+                    role,
+                    content,
+                    token_count,
+                    finish_reason,
+                )
+                .await
             }
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => {
-                db.chat_add_message(conversation_id, role, content, token_count, finish_reason)
-                    .await
+                db.chat_add_message(
+                    conversation_id,
+                    user_id,
+                    role,
+                    content,
+                    token_count,
+                    finish_reason,
+                )
+                .await
             }
         }
     }
 
-    async fn chat_get_messages(&self, conversation_id: &str) -> AppResult<Vec<MessageRecord>> {
+    async fn chat_get_messages(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+    ) -> AppResult<Vec<MessageRecord>> {
         match self {
-            Self::SQLite(db) => db.chat_get_messages_impl(conversation_id).await,
+            Self::SQLite(db) => db.chat_get_messages_impl(conversation_id, user_id).await,
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(db) => db.chat_get_messages(conversation_id).await,
+            Self::PostgreSQL(db) => db.chat_get_messages(conversation_id, user_id).await,
         }
     }
 
     async fn chat_get_recent_messages(
         &self,
         conversation_id: &str,
+        user_id: &str,
         limit: i64,
     ) -> AppResult<Vec<MessageRecord>> {
         match self {
             Self::SQLite(db) => {
-                db.chat_get_recent_messages_impl(conversation_id, limit)
+                db.chat_get_recent_messages_impl(conversation_id, user_id, limit)
                     .await
             }
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(db) => db.chat_get_recent_messages(conversation_id, limit).await,
+            Self::PostgreSQL(db) => {
+                db.chat_get_recent_messages(conversation_id, user_id, limit)
+                    .await
+            }
         }
     }
 
-    async fn chat_get_message_count(&self, conversation_id: &str) -> AppResult<i64> {
+    async fn chat_get_message_count(&self, conversation_id: &str, user_id: &str) -> AppResult<i64> {
         match self {
-            Self::SQLite(db) => db.chat_get_message_count_impl(conversation_id).await,
+            Self::SQLite(db) => {
+                db.chat_get_message_count_impl(conversation_id, user_id)
+                    .await
+            }
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(db) => db.chat_get_message_count(conversation_id).await,
+            Self::PostgreSQL(db) => db.chat_get_message_count(conversation_id, user_id).await,
         }
     }
 

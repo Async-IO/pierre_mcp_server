@@ -118,6 +118,7 @@ impl SocialManager {
     pub async fn update_friend_connection_status(
         &self,
         id: Uuid,
+        user_id: Uuid,
         status: FriendStatus,
     ) -> AppResult<()> {
         let now = Utc::now();
@@ -127,17 +128,19 @@ impl SocialManager {
             None
         };
 
+        // Only the receiver of a friend request can accept/reject it
         sqlx::query(
             r"
             UPDATE friend_connections
             SET status = $1, updated_at = $2, accepted_at = $3
-            WHERE id = $4
+            WHERE id = $4 AND receiver_id = $5
             ",
         )
         .bind(status.as_str())
         .bind(now.to_rfc3339())
         .bind(accepted_at)
         .bind(id.to_string())
+        .bind(user_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to update friend connection: {e}")))?;
@@ -229,12 +232,16 @@ impl SocialManager {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn delete_friend_connection(&self, id: Uuid) -> AppResult<bool> {
-        let result = sqlx::query("DELETE FROM friend_connections WHERE id = $1")
-            .bind(id.to_string())
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AppError::database(format!("Failed to delete friend connection: {e}")))?;
+    pub async fn delete_friend_connection(&self, id: Uuid, user_id: Uuid) -> AppResult<bool> {
+        // Only the two parties involved (initiator or receiver) can delete the connection
+        let result = sqlx::query(
+            "DELETE FROM friend_connections WHERE id = $1 AND (initiator_id = $2 OR receiver_id = $2)",
+        )
+        .bind(id.to_string())
+        .bind(user_id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to delete friend connection: {e}")))?;
 
         Ok(result.rows_affected() > 0)
     }
@@ -441,17 +448,34 @@ impl SocialManager {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn get_shared_insight(&self, id: Uuid) -> AppResult<Option<SharedInsight>> {
+    pub async fn get_shared_insight(
+        &self,
+        id: Uuid,
+        user_id: Uuid,
+    ) -> AppResult<Option<SharedInsight>> {
+        // Scope visibility: the insight creator or friends who can see it via visibility rules
+        // For now, we check the creator OR friends (via friend_connections)
         let row = sqlx::query(
             r"
-            SELECT id, user_id, visibility, insight_type, sport_type, content, title,
-                   training_phase, reaction_count, adapt_count, created_at, updated_at, expires_at,
-                   source_activity_id, coach_generated
-            FROM shared_insights
-            WHERE id = $1
+            SELECT si.id, si.user_id, si.visibility, si.insight_type, si.sport_type, si.content,
+                   si.title, si.training_phase, si.reaction_count, si.adapt_count, si.created_at,
+                   si.updated_at, si.expires_at, si.source_activity_id, si.coach_generated
+            FROM shared_insights si
+            WHERE si.id = $1
+              AND (
+                si.user_id = $2
+                OR si.visibility = 'public'
+                OR (si.visibility = 'friends' AND EXISTS (
+                    SELECT 1 FROM friend_connections fc
+                    WHERE fc.status = 'accepted'
+                      AND ((fc.initiator_id = $2 AND fc.receiver_id = si.user_id)
+                        OR (fc.receiver_id = $2 AND fc.initiator_id = si.user_id))
+                ))
+              )
             ",
         )
         .bind(id.to_string())
+        .bind(user_id.to_string())
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get shared insight: {e}")))?;
@@ -690,9 +714,11 @@ impl SocialManager {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn delete_shared_insight(&self, id: Uuid) -> AppResult<bool> {
-        let result = sqlx::query("DELETE FROM shared_insights WHERE id = $1")
+    pub async fn delete_shared_insight(&self, id: Uuid, user_id: Uuid) -> AppResult<bool> {
+        // Only the creator of the insight can delete it
+        let result = sqlx::query("DELETE FROM shared_insights WHERE id = $1 AND user_id = $2")
             .bind(id.to_string())
+            .bind(user_id.to_string())
             .execute(&self.pool)
             .await
             .map_err(|e| AppError::database(format!("Failed to delete shared insight: {e}")))?;

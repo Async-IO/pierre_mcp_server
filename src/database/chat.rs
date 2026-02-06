@@ -299,6 +299,7 @@ impl ChatManager {
     pub async fn add_message(
         &self,
         conversation_id: &str,
+        user_id: &str,
         role: MessageRole,
         content: &str,
         token_count: Option<u32>,
@@ -308,10 +309,14 @@ impl ChatManager {
         let now = chrono::Utc::now().to_rfc3339();
         let role_str = role.as_str();
 
-        sqlx::query(
+        // Insert message only if the conversation belongs to the user
+        let result = sqlx::query(
             r"
             INSERT INTO chat_messages (id, conversation_id, role, content, token_count, finish_reason, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            SELECT $1, $2, $3, $4, $5, $6, $7
+            WHERE EXISTS (
+                SELECT 1 FROM chat_conversations WHERE id = $2 AND user_id = $8
+            )
             ",
         )
         .bind(&id)
@@ -321,22 +326,30 @@ impl ChatManager {
         .bind(token_count.map(i64::from))
         .bind(finish_reason)
         .bind(&now)
+        .bind(user_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to add message: {e}")))?;
 
-        // Update conversation's updated_at and total_tokens
+        if result.rows_affected() == 0 {
+            return Err(AppError::not_found(
+                "Conversation not found or access denied",
+            ));
+        }
+
+        // Update conversation's updated_at and total_tokens (ownership already verified above)
         if let Some(tokens) = token_count {
             sqlx::query(
                 r"
                 UPDATE chat_conversations
                 SET updated_at = $1, total_tokens = total_tokens + $2
-                WHERE id = $3
+                WHERE id = $3 AND user_id = $4
                 ",
             )
             .bind(&now)
             .bind(i64::from(tokens))
             .bind(conversation_id)
+            .bind(user_id)
             .execute(&self.pool)
             .await
             .map_err(|e| {
@@ -347,11 +360,12 @@ impl ChatManager {
                 r"
                 UPDATE chat_conversations
                 SET updated_at = $1
-                WHERE id = $2
+                WHERE id = $2 AND user_id = $3
                 ",
             )
             .bind(&now)
             .bind(conversation_id)
+            .bind(user_id)
             .execute(&self.pool)
             .await
             .map_err(|e| {
@@ -375,16 +389,22 @@ impl ChatManager {
     /// # Errors
     ///
     /// Returns an error if database operation fails
-    pub async fn get_messages(&self, conversation_id: &str) -> AppResult<Vec<MessageRecord>> {
+    pub async fn get_messages(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+    ) -> AppResult<Vec<MessageRecord>> {
         let rows = sqlx::query(
             r"
-            SELECT id, conversation_id, role, content, token_count, finish_reason, created_at
-            FROM chat_messages
-            WHERE conversation_id = $1
-            ORDER BY created_at ASC
+            SELECT m.id, m.conversation_id, m.role, m.content, m.token_count, m.finish_reason, m.created_at
+            FROM chat_messages m
+            JOIN chat_conversations c ON m.conversation_id = c.id
+            WHERE m.conversation_id = $1 AND c.user_id = $2
+            ORDER BY m.created_at ASC
             ",
         )
         .bind(conversation_id)
+        .bind(user_id)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get messages: {e}")))?;
@@ -413,18 +433,21 @@ impl ChatManager {
     pub async fn get_recent_messages(
         &self,
         conversation_id: &str,
+        user_id: &str,
         limit: i64,
     ) -> AppResult<Vec<MessageRecord>> {
         let rows = sqlx::query(
             r"
-            SELECT id, conversation_id, role, content, token_count, finish_reason, created_at
-            FROM chat_messages
-            WHERE conversation_id = $1
-            ORDER BY created_at DESC
-            LIMIT $2
+            SELECT m.id, m.conversation_id, m.role, m.content, m.token_count, m.finish_reason, m.created_at
+            FROM chat_messages m
+            JOIN chat_conversations c ON m.conversation_id = c.id
+            WHERE m.conversation_id = $1 AND c.user_id = $2
+            ORDER BY m.created_at DESC
+            LIMIT $3
             ",
         )
         .bind(conversation_id)
+        .bind(user_id)
         .bind(limit)
         .fetch_all(&self.pool)
         .await
@@ -453,15 +476,17 @@ impl ChatManager {
     /// # Errors
     ///
     /// Returns an error if database operation fails
-    pub async fn get_message_count(&self, conversation_id: &str) -> AppResult<i64> {
+    pub async fn get_message_count(&self, conversation_id: &str, user_id: &str) -> AppResult<i64> {
         let row = sqlx::query(
             r"
             SELECT COUNT(*) as count
-            FROM chat_messages
-            WHERE conversation_id = $1
+            FROM chat_messages m
+            JOIN chat_conversations c ON m.conversation_id = c.id
+            WHERE m.conversation_id = $1 AND c.user_id = $2
             ",
         )
         .bind(conversation_id)
+        .bind(user_id)
         .fetch_one(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get message count: {e}")))?;

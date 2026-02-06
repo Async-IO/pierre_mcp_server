@@ -211,7 +211,7 @@ async fn test_cross_tenant_api_key_access_blocked() -> Result<()> {
     assert!(user2_keys.is_empty(), "User 2 should not see any API keys");
 
     // Try to access User 1's API key directly by ID (should fail)
-    let unauthorized_access = database.get_api_key_by_id(&user1_api_key.id).await?;
+    let unauthorized_access = database.get_api_key_by_id(&user1_api_key.id, None).await?;
 
     // This should succeed (the key exists) but we need to verify it belongs to user1
     if let Some(retrieved_key) = unauthorized_access {

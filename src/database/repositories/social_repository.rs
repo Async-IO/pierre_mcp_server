@@ -70,10 +70,11 @@ impl SocialRepository for SocialRepositoryImpl {
     async fn update_friend_connection_status(
         &self,
         id: Uuid,
+        user_id: Uuid,
         status: FriendStatus,
     ) -> Result<(), DatabaseError> {
         self.db
-            .update_friend_connection_status(id, status)
+            .update_friend_connection_status(id, user_id, status)
             .await
             .map_err(|e| DatabaseError::QueryError {
                 context: e.to_string(),
@@ -122,9 +123,9 @@ impl SocialRepository for SocialRepositoryImpl {
             })
     }
 
-    async fn delete_friend_connection(&self, id: Uuid) -> Result<bool, DatabaseError> {
+    async fn delete_friend_connection(&self, id: Uuid, user_id: Uuid) -> Result<bool, DatabaseError> {
         self.db
-            .delete_friend_connection(id)
+            .delete_friend_connection(id, user_id)
             .await
             .map_err(|e| DatabaseError::QueryError {
                 context: e.to_string(),
@@ -176,9 +177,13 @@ impl SocialRepository for SocialRepositoryImpl {
             })
     }
 
-    async fn get_shared_insight(&self, id: Uuid) -> Result<Option<SharedInsight>, DatabaseError> {
+    async fn get_shared_insight(
+        &self,
+        id: Uuid,
+        user_id: Uuid,
+    ) -> Result<Option<SharedInsight>, DatabaseError> {
         self.db
-            .get_shared_insight(id)
+            .get_shared_insight(id, user_id)
             .await
             .map_err(|e| DatabaseError::QueryError {
                 context: e.to_string(),

@@ -102,9 +102,9 @@ impl UsageRepository for UsageRepositoryImpl {
             })
     }
 
-    async fn get_system_stats(&self) -> Result<(u64, u64), DatabaseError> {
+    async fn get_system_stats(&self, tenant_id: Option<Uuid>) -> Result<(u64, u64), DatabaseError> {
         self.db
-            .get_system_stats()
+            .get_system_stats(tenant_id)
             .await
             .map_err(|e| DatabaseError::QueryError {
                 context: e.to_string(),

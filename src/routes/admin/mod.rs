@@ -365,7 +365,7 @@ async fn record_provisioning_audit(
 async fn check_no_admin_exists(
     database: &Database,
 ) -> AppResult<Option<(StatusCode, Json<AdminResponse>)>> {
-    match database.get_users_by_status("active").await {
+    match database.get_users_by_status("active", None).await {
         Ok(users) => {
             let admin_exists = users.iter().any(|u| u.is_admin);
             if admin_exists {
@@ -775,7 +775,12 @@ impl AdminRoutes {
         let ctx = context.as_ref();
 
         // Get the API key to find the user_id
-        let api_key = match ctx.database.get_api_key_by_id(&request.api_key_id).await {
+        // Admin cross-user access: pass None for user_id
+        let api_key = match ctx
+            .database
+            .get_api_key_by_id(&request.api_key_id, None)
+            .await
+        {
             Ok(Some(key)) => key,
             Ok(None) => {
                 return Ok(json_response(
@@ -963,7 +968,7 @@ impl AdminRoutes {
         // Fetch users from database by status
         let users = ctx
             .database
-            .get_users_by_status(status)
+            .get_users_by_status(status, None)
             .await
             .map_err(|e| {
                 error!(error = %e, "Failed to fetch users from database");
@@ -1031,7 +1036,7 @@ impl AdminRoutes {
         // Fetch users with Pending status
         let users = ctx
             .database
-            .get_users_by_status("pending")
+            .get_users_by_status("pending", None)
             .await
             .map_err(|e| {
                 error!(error = %e, "Failed to fetch pending users from database");
@@ -1982,6 +1987,18 @@ impl AdminRoutes {
             .get("is_super_admin")
             .and_then(Value::as_bool)
             .unwrap_or(false);
+
+        // Prevent privilege escalation: only super-admin tokens can mint super-admin tokens
+        if is_super_admin && !admin_token.is_super_admin {
+            return Ok(json_response(
+                AdminResponse {
+                    success: false,
+                    message: "Only super-admin tokens can create super-admin tokens".to_owned(),
+                    data: None,
+                },
+                StatusCode::FORBIDDEN,
+            ));
+        }
 
         let expires_in_days = request.get("expires_in_days").and_then(Value::as_u64);
 

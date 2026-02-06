@@ -2427,6 +2427,7 @@ impl Database {
     pub async fn chat_add_message_impl(
         &self,
         conversation_id: &str,
+        user_id: &str,
         role: &str,
         content: &str,
         token_count: Option<u32>,
@@ -2445,6 +2446,7 @@ impl Database {
         chat_manager
             .add_message(
                 conversation_id,
+                user_id,
                 message_role,
                 content,
                 token_count,
@@ -2460,9 +2462,10 @@ impl Database {
     pub async fn chat_get_messages_impl(
         &self,
         conversation_id: &str,
+        user_id: &str,
     ) -> AppResult<Vec<MessageRecord>> {
         let chat_manager = ChatManager::new(self.pool.clone());
-        chat_manager.get_messages(conversation_id).await
+        chat_manager.get_messages(conversation_id, user_id).await
     }
 
     /// Get recent messages (impl for trait)
@@ -2472,11 +2475,12 @@ impl Database {
     pub async fn chat_get_recent_messages_impl(
         &self,
         conversation_id: &str,
+        user_id: &str,
         limit: i64,
     ) -> AppResult<Vec<MessageRecord>> {
         let chat_manager = ChatManager::new(self.pool.clone());
         chat_manager
-            .get_recent_messages(conversation_id, limit)
+            .get_recent_messages(conversation_id, user_id, limit)
             .await
     }
 
@@ -2484,9 +2488,15 @@ impl Database {
     ///
     /// # Errors
     /// Returns an error if the database query fails.
-    pub async fn chat_get_message_count_impl(&self, conversation_id: &str) -> AppResult<i64> {
+    pub async fn chat_get_message_count_impl(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+    ) -> AppResult<i64> {
         let chat_manager = ChatManager::new(self.pool.clone());
-        chat_manager.get_message_count(conversation_id).await
+        chat_manager
+            .get_message_count(conversation_id, user_id)
+            .await
     }
 
     /// Delete all conversations for a user (impl for trait)
@@ -2565,8 +2575,12 @@ impl DatabaseProvider for Database {
         Self::get_user_count_impl(self).await
     }
 
-    async fn get_users_by_status(&self, status: &str) -> AppResult<Vec<User>> {
-        Self::get_users_by_status_impl(self, status).await
+    async fn get_users_by_status(
+        &self,
+        status: &str,
+        tenant_id: Option<Uuid>,
+    ) -> AppResult<Vec<User>> {
+        Self::get_users_by_status_impl(self, status, tenant_id).await
     }
 
     async fn get_users_by_status_cursor(
@@ -2622,8 +2636,13 @@ impl DatabaseProvider for Database {
         Self::get_user_goals_impl(self, user_id).await
     }
 
-    async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> AppResult<()> {
-        Self::update_goal_progress_impl(self, goal_id, current_value).await
+    async fn update_goal_progress(
+        &self,
+        goal_id: &str,
+        user_id: Uuid,
+        current_value: f64,
+    ) -> AppResult<()> {
+        Self::update_goal_progress_impl(self, goal_id, user_id, current_value).await
     }
 
     async fn get_user_configuration(&self, user_id: &str) -> AppResult<Option<String>> {
@@ -2667,8 +2686,12 @@ impl DatabaseProvider for Database {
         Self::deactivate_api_key_impl(self, api_key_id, user_id).await
     }
 
-    async fn get_api_key_by_id(&self, api_key_id: &str) -> AppResult<Option<ApiKey>> {
-        Self::get_api_key_by_id_impl(self, api_key_id).await
+    async fn get_api_key_by_id(
+        &self,
+        api_key_id: &str,
+        user_id: Option<Uuid>,
+    ) -> AppResult<Option<ApiKey>> {
+        Self::get_api_key_by_id_impl(self, api_key_id, user_id).await
     }
 
     async fn get_api_keys_filtered(
@@ -2808,8 +2831,8 @@ impl DatabaseProvider for Database {
         Ok(logs)
     }
 
-    async fn get_system_stats(&self) -> AppResult<(u64, u64)> {
-        Self::get_system_stats_impl(self).await
+    async fn get_system_stats(&self, tenant_id: Option<Uuid>) -> AppResult<(u64, u64)> {
+        Self::get_system_stats_impl(self, tenant_id).await
     }
 
     async fn create_a2a_client(
@@ -3474,8 +3497,12 @@ impl DatabaseProvider for Database {
         Self::get_user_oauth_token(self, user_id, tenant_id, provider).await
     }
 
-    async fn get_user_oauth_tokens(&self, user_id: Uuid) -> AppResult<Vec<UserOAuthToken>> {
-        Self::get_user_oauth_tokens_impl(self, user_id).await
+    async fn get_user_oauth_tokens(
+        &self,
+        user_id: Uuid,
+        tenant_id: Option<&str>,
+    ) -> AppResult<Vec<UserOAuthToken>> {
+        Self::get_user_oauth_tokens_impl(self, user_id, tenant_id).await
     }
 
     async fn get_tenant_provider_tokens(
@@ -3495,8 +3522,8 @@ impl DatabaseProvider for Database {
         Self::delete_user_oauth_token(self, user_id, tenant_id, provider).await
     }
 
-    async fn delete_user_oauth_tokens(&self, user_id: Uuid) -> AppResult<()> {
-        Self::delete_user_oauth_tokens_impl(self, user_id).await
+    async fn delete_user_oauth_tokens(&self, user_id: Uuid, tenant_id: &str) -> AppResult<()> {
+        Self::delete_user_oauth_tokens_impl(self, user_id, tenant_id).await
     }
 
     async fn refresh_user_oauth_token(
@@ -3945,6 +3972,7 @@ impl DatabaseProvider for Database {
     async fn chat_add_message(
         &self,
         conversation_id: &str,
+        user_id: &str,
         role: &str,
         content: &str,
         token_count: Option<u32>,
@@ -3953,6 +3981,7 @@ impl DatabaseProvider for Database {
         Self::chat_add_message_impl(
             self,
             conversation_id,
+            user_id,
             role,
             content,
             token_count,
@@ -3961,20 +3990,25 @@ impl DatabaseProvider for Database {
         .await
     }
 
-    async fn chat_get_messages(&self, conversation_id: &str) -> AppResult<Vec<MessageRecord>> {
-        Self::chat_get_messages_impl(self, conversation_id).await
+    async fn chat_get_messages(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+    ) -> AppResult<Vec<MessageRecord>> {
+        Self::chat_get_messages_impl(self, conversation_id, user_id).await
     }
 
     async fn chat_get_recent_messages(
         &self,
         conversation_id: &str,
+        user_id: &str,
         limit: i64,
     ) -> AppResult<Vec<MessageRecord>> {
-        Self::chat_get_recent_messages_impl(self, conversation_id, limit).await
+        Self::chat_get_recent_messages_impl(self, conversation_id, user_id, limit).await
     }
 
-    async fn chat_get_message_count(&self, conversation_id: &str) -> AppResult<i64> {
-        Self::chat_get_message_count_impl(self, conversation_id).await
+    async fn chat_get_message_count(&self, conversation_id: &str, user_id: &str) -> AppResult<i64> {
+        Self::chat_get_message_count_impl(self, conversation_id, user_id).await
     }
 
     async fn chat_delete_all_user_conversations(

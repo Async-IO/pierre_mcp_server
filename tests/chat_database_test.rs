@@ -309,7 +309,14 @@ async fn test_add_message() {
         .unwrap();
 
     let msg = manager
-        .add_message(&conv.id, MessageRole::User, "Hello, world!", Some(5), None)
+        .add_message(
+            &conv.id,
+            "user-1",
+            MessageRole::User,
+            "Hello, world!",
+            Some(5),
+            None,
+        )
         .await
         .unwrap();
 
@@ -333,6 +340,7 @@ async fn test_add_assistant_message_with_finish_reason() {
     let msg = manager
         .add_message(
             &conv.id,
+            "user-1",
             MessageRole::Assistant,
             "I'm here to help!",
             Some(10),
@@ -357,19 +365,40 @@ async fn test_get_messages() {
 
     // Add messages
     manager
-        .add_message(&conv.id, MessageRole::User, "Hello", Some(2), None)
+        .add_message(
+            &conv.id,
+            "user-1",
+            MessageRole::User,
+            "Hello",
+            Some(2),
+            None,
+        )
         .await
         .unwrap();
     manager
-        .add_message(&conv.id, MessageRole::Assistant, "Hi there!", Some(3), None)
+        .add_message(
+            &conv.id,
+            "user-1",
+            MessageRole::Assistant,
+            "Hi there!",
+            Some(3),
+            None,
+        )
         .await
         .unwrap();
     manager
-        .add_message(&conv.id, MessageRole::User, "How are you?", Some(4), None)
+        .add_message(
+            &conv.id,
+            "user-1",
+            MessageRole::User,
+            "How are you?",
+            Some(4),
+            None,
+        )
         .await
         .unwrap();
 
-    let messages = manager.get_messages(&conv.id).await.unwrap();
+    let messages = manager.get_messages(&conv.id, "user-1").await.unwrap();
 
     assert_eq!(messages.len(), 3);
     assert_eq!(messages[0].content, "Hello");
@@ -392,6 +421,7 @@ async fn test_get_recent_messages() {
         manager
             .add_message(
                 &conv.id,
+                "user-1",
                 MessageRole::User,
                 &format!("Message {i}"),
                 Some(2),
@@ -402,7 +432,10 @@ async fn test_get_recent_messages() {
     }
 
     // Get last 3
-    let recent = manager.get_recent_messages(&conv.id, 3).await.unwrap();
+    let recent = manager
+        .get_recent_messages(&conv.id, "user-1", 3)
+        .await
+        .unwrap();
 
     assert_eq!(recent.len(), 3);
     // Should be in chronological order
@@ -425,11 +458,25 @@ async fn test_message_updates_conversation_tokens() {
 
     // Add messages with token counts
     manager
-        .add_message(&conv.id, MessageRole::User, "Hello", Some(10), None)
+        .add_message(
+            &conv.id,
+            "user-1",
+            MessageRole::User,
+            "Hello",
+            Some(10),
+            None,
+        )
         .await
         .unwrap();
     manager
-        .add_message(&conv.id, MessageRole::Assistant, "Hi!", Some(15), None)
+        .add_message(
+            &conv.id,
+            "user-1",
+            MessageRole::Assistant,
+            "Hi!",
+            Some(15),
+            None,
+        )
         .await
         .unwrap();
 
@@ -454,20 +501,20 @@ async fn test_get_message_count() {
         .unwrap();
 
     // Initially 0
-    let count = manager.get_message_count(&conv.id).await.unwrap();
+    let count = manager.get_message_count(&conv.id, "user-1").await.unwrap();
     assert_eq!(count, 0);
 
     // Add messages
     manager
-        .add_message(&conv.id, MessageRole::User, "1", None, None)
+        .add_message(&conv.id, "user-1", MessageRole::User, "1", None, None)
         .await
         .unwrap();
     manager
-        .add_message(&conv.id, MessageRole::Assistant, "2", None, None)
+        .add_message(&conv.id, "user-1", MessageRole::Assistant, "2", None, None)
         .await
         .unwrap();
 
-    let count = manager.get_message_count(&conv.id).await.unwrap();
+    let count = manager.get_message_count(&conv.id, "user-1").await.unwrap();
     assert_eq!(count, 2);
 }
 
@@ -483,16 +530,23 @@ async fn test_cascade_delete_messages() {
 
     // Add messages
     manager
-        .add_message(&conv.id, MessageRole::User, "Hello", None, None)
+        .add_message(&conv.id, "user-1", MessageRole::User, "Hello", None, None)
         .await
         .unwrap();
     manager
-        .add_message(&conv.id, MessageRole::Assistant, "Hi!", None, None)
+        .add_message(
+            &conv.id,
+            "user-1",
+            MessageRole::Assistant,
+            "Hi!",
+            None,
+            None,
+        )
         .await
         .unwrap();
 
     // Verify messages exist
-    let count = manager.get_message_count(&conv.id).await.unwrap();
+    let count = manager.get_message_count(&conv.id, "user-1").await.unwrap();
     assert_eq!(count, 2);
 
     // Delete conversation (should cascade delete messages)
@@ -502,7 +556,7 @@ async fn test_cascade_delete_messages() {
         .unwrap();
 
     // Messages should be gone (foreign key cascade)
-    let messages = manager.get_messages(&conv.id).await.unwrap();
+    let messages = manager.get_messages(&conv.id, "user-1").await.unwrap();
     assert!(messages.is_empty());
 }
 

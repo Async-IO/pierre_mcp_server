@@ -381,7 +381,7 @@ impl WebSocketManager {
         // Query the database for real statistics
         let (today_count, month_count) = self
             .database
-            .get_system_stats()
+            .get_system_stats(None)
             .await
             .map_err(|e| AppError::database(e.to_string()))?;
 

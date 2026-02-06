@@ -65,10 +65,11 @@ impl ProfileRepository for ProfileRepositoryImpl {
     async fn update_goal_progress(
         &self,
         goal_id: &str,
+        user_id: Uuid,
         current_value: f64,
     ) -> Result<(), DatabaseError> {
         self.db
-            .update_goal_progress(goal_id, current_value)
+            .update_goal_progress(goal_id, user_id, current_value)
             .await
             .map_err(|e| DatabaseError::QueryError {
                 context: e.to_string(),

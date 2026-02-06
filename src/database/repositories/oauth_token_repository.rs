@@ -50,9 +50,13 @@ impl OAuthTokenRepository for OAuthTokenRepositoryImpl {
             })
     }
 
-    async fn list_by_user(&self, user_id: Uuid) -> Result<Vec<UserOAuthToken>, DatabaseError> {
+    async fn list_by_user(
+        &self,
+        user_id: Uuid,
+        tenant_id: Option<&str>,
+    ) -> Result<Vec<UserOAuthToken>, DatabaseError> {
         self.db
-            .get_user_oauth_tokens(user_id)
+            .get_user_oauth_tokens(user_id, tenant_id)
             .await
             .map_err(|e| DatabaseError::QueryError {
                 context: e.to_string(),
@@ -86,9 +90,13 @@ impl OAuthTokenRepository for OAuthTokenRepositoryImpl {
             })
     }
 
-    async fn delete_all_for_user(&self, user_id: Uuid) -> Result<(), DatabaseError> {
+    async fn delete_all_for_user(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+    ) -> Result<(), DatabaseError> {
         self.db
-            .delete_user_oauth_tokens(user_id)
+            .delete_user_oauth_tokens(user_id, tenant_id)
             .await
             .map_err(|e| DatabaseError::QueryError {
                 context: e.to_string(),

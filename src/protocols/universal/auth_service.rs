@@ -528,7 +528,9 @@ impl AuthService {
         tenant_id: Option<&str>,
     ) -> Result<(), OAuthError> {
         // Use database to delete tokens directly (like original implementation)
-        let tenant_id_str = tenant_id.unwrap_or("default");
+        let tenant_id_str = tenant_id.ok_or_else(|| {
+            OAuthError::DatabaseError("tenant_id is required to disconnect a provider".to_owned())
+        })?;
         (*self.resources.database)
             .delete_user_oauth_token(user_id, tenant_id_str, provider)
             .await

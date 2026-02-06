@@ -133,7 +133,11 @@ impl Database {
         )
     }
 
-    /// Get all OAuth tokens for a user
+    /// Get all OAuth tokens for a user, optionally scoped to a specific tenant
+    ///
+    /// When `tenant_id` is `Some`, only tokens for that tenant are returned.
+    /// When `None`, returns tokens across all tenants (intentional cross-tenant view
+    /// for OAuth status checks, e.g. admin dashboards).
     ///
     /// Decrypts provider tokens using AAD binding for security.
     ///
@@ -145,19 +149,37 @@ impl Database {
     pub async fn get_user_oauth_tokens_impl(
         &self,
         user_id: Uuid,
+        tenant_id: Option<&str>,
     ) -> AppResult<Vec<UserOAuthToken>> {
-        let rows = sqlx::query(
-            r"
-            SELECT id, user_id, tenant_id, provider, access_token, refresh_token,
-                   token_type, expires_at, scope, created_at, updated_at
-            FROM user_oauth_tokens
-            WHERE user_id = $1
-            ORDER BY created_at DESC
-            ",
-        )
-        .bind(user_id.to_string())
-        .fetch_all(&self.pool)
-        .await
+        let rows = if let Some(tid) = tenant_id {
+            sqlx::query(
+                r"
+                SELECT id, user_id, tenant_id, provider, access_token, refresh_token,
+                       token_type, expires_at, scope, created_at, updated_at
+                FROM user_oauth_tokens
+                WHERE user_id = $1 AND tenant_id = $2
+                ORDER BY created_at DESC
+                ",
+            )
+            .bind(user_id.to_string())
+            .bind(tid)
+            .fetch_all(&self.pool)
+            .await
+        } else {
+            // Intentional cross-tenant view for OAuth status checks (e.g. admin dashboards)
+            sqlx::query(
+                r"
+                SELECT id, user_id, tenant_id, provider, access_token, refresh_token,
+                       token_type, expires_at, scope, created_at, updated_at
+                FROM user_oauth_tokens
+                WHERE user_id = $1
+                ORDER BY created_at DESC
+                ",
+            )
+            .bind(user_id.to_string())
+            .fetch_all(&self.pool)
+            .await
+        }
         .map_err(|e| AppError::database(format!("Failed to query user OAuth tokens: {e}")))?;
 
         let mut tokens = Vec::with_capacity(rows.len());
@@ -230,19 +252,24 @@ impl Database {
         Ok(())
     }
 
-    /// Delete all OAuth tokens for a user
+    /// Delete all OAuth tokens for a user within a specific tenant scope
     ///
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn delete_user_oauth_tokens_impl(&self, user_id: Uuid) -> AppResult<()> {
+    pub async fn delete_user_oauth_tokens_impl(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+    ) -> AppResult<()> {
         sqlx::query(
             r"
             DELETE FROM user_oauth_tokens
-            WHERE user_id = $1
+            WHERE user_id = $1 AND tenant_id = $2
             ",
         )
         .bind(user_id.to_string())
+        .bind(tenant_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to delete user OAuth tokens: {e}")))?;
@@ -346,19 +373,23 @@ impl Database {
     }
     // Public wrapper methods (delegate to _impl versions)
 
-    /// Get user OAuth tokens (public API)
+    /// Get user OAuth tokens, optionally scoped to a tenant (public API)
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn get_user_oauth_tokens(&self, user_id: Uuid) -> AppResult<Vec<UserOAuthToken>> {
-        self.get_user_oauth_tokens_impl(user_id).await
+    pub async fn get_user_oauth_tokens(
+        &self,
+        user_id: Uuid,
+        tenant_id: Option<&str>,
+    ) -> AppResult<Vec<UserOAuthToken>> {
+        self.get_user_oauth_tokens_impl(user_id, tenant_id).await
     }
 
-    /// Delete user OAuth tokens (public API)
+    /// Delete user OAuth tokens within a tenant scope (public API)
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn delete_user_oauth_tokens(&self, user_id: Uuid) -> AppResult<()> {
-        self.delete_user_oauth_tokens_impl(user_id).await
+    pub async fn delete_user_oauth_tokens(&self, user_id: Uuid, tenant_id: &str) -> AppResult<()> {
+        self.delete_user_oauth_tokens_impl(user_id, tenant_id).await
     }
 }

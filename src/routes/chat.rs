@@ -363,7 +363,12 @@ impl ChatRoutes {
         let mut connected = Vec::new();
 
         // Check OAuth providers
-        if let Ok(oauth_tokens) = resources.database.get_user_oauth_tokens(user_id).await {
+        // Cross-tenant view: check all connected providers for the user
+        if let Ok(oauth_tokens) = resources
+            .database
+            .get_user_oauth_tokens(user_id, None)
+            .await
+        {
             let oauth_providers: HashSet<String> =
                 oauth_tokens.into_iter().map(|t| t.provider).collect();
 
@@ -1078,7 +1083,7 @@ impl ChatRoutes {
 
         let messages = resources
             .database
-            .chat_get_messages(&conversation_id)
+            .chat_get_messages(&conversation_id, &auth.user_id.to_string())
             .await?;
 
         let messages_list: Vec<MessageResponse> = messages
@@ -1119,13 +1124,20 @@ impl ChatRoutes {
         // Save user message
         let user_msg = resources
             .database
-            .chat_add_message(&conversation_id, "user", &request.content, None, None)
+            .chat_add_message(
+                &conversation_id,
+                &auth.user_id.to_string(),
+                "user",
+                &request.content,
+                None,
+                None,
+            )
             .await?;
 
         // Get conversation history and build LLM messages with system prompt
         let history = resources
             .database
-            .chat_get_messages(&conversation_id)
+            .chat_get_messages(&conversation_id, &auth.user_id.to_string())
             .await?;
 
         // Check if this is an insight generation request
@@ -1228,6 +1240,7 @@ impl ChatRoutes {
             .database
             .chat_add_message(
                 &conversation_id,
+                &auth.user_id.to_string(),
                 "assistant",
                 &final_content,
                 token_count,

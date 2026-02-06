@@ -445,13 +445,26 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn get_users_by_status_impl(&self, status: &str) -> AppResult<Vec<User>> {
-        let rows =
+    pub async fn get_users_by_status_impl(
+        &self,
+        status: &str,
+        tenant_id: Option<Uuid>,
+    ) -> AppResult<Vec<User>> {
+        let rows = if let Some(tid) = tenant_id {
+            sqlx::query(
+                "SELECT * FROM users WHERE user_status = ?1 AND tenant_id = ?2 ORDER BY created_at DESC",
+            )
+            .bind(status)
+            .bind(tid.to_string())
+            .fetch_all(&self.pool)
+            .await
+        } else {
             sqlx::query("SELECT * FROM users WHERE user_status = ?1 ORDER BY created_at DESC")
                 .bind(status)
                 .fetch_all(&self.pool)
                 .await
-                .map_err(|e| AppError::database(format!("Failed to get users by status: {e}")))?;
+        }
+        .map_err(|e| AppError::database(format!("Failed to get users by status: {e}")))?;
 
         let mut users = Vec::new();
         for row in rows {
@@ -745,8 +758,12 @@ impl Database {
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn get_users_by_status(&self, status: &str) -> AppResult<Vec<User>> {
-        self.get_users_by_status_impl(status).await
+    pub async fn get_users_by_status(
+        &self,
+        status: &str,
+        tenant_id: Option<Uuid>,
+    ) -> AppResult<Vec<User>> {
+        self.get_users_by_status_impl(status, tenant_id).await
     }
 
     /// Get the first admin user in the database

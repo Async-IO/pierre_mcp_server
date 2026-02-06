@@ -157,20 +157,40 @@ impl Database {
         Ok(())
     }
 
-    /// Get an `API` key by `ID`
+    /// Get an `API` key by `ID`, optionally scoped to a specific user for ownership enforcement
+    ///
+    /// When `user_id` is `Some`, the query enforces ownership by including `AND user_id = $2`.
+    /// When `None`, the query returns any key matching the ID (for admin cross-user access).
     ///
     /// # Errors
     ///
     /// Returns an error if the database operation fails
-    pub async fn get_api_key_by_id_impl(&self, api_key_id: &str) -> AppResult<Option<ApiKey>> {
-        let row = sqlx::query(
-            r"
-            SELECT * FROM api_keys WHERE id = $1
-            ",
-        )
-        .bind(api_key_id)
-        .fetch_optional(&self.pool)
-        .await
+    pub async fn get_api_key_by_id_impl(
+        &self,
+        api_key_id: &str,
+        user_id: Option<Uuid>,
+    ) -> AppResult<Option<ApiKey>> {
+        let row = if let Some(uid) = user_id {
+            sqlx::query(
+                r"
+                SELECT * FROM api_keys WHERE id = $1 AND user_id = $2
+                ",
+            )
+            .bind(api_key_id)
+            .bind(uid.to_string())
+            .fetch_optional(&self.pool)
+            .await
+        } else {
+            // Admin callers that legitimately need cross-user access pass None
+            sqlx::query(
+                r"
+                SELECT * FROM api_keys WHERE id = $1
+                ",
+            )
+            .bind(api_key_id)
+            .fetch_optional(&self.pool)
+            .await
+        }
         .map_err(|e| AppError::database(format!("Failed to get API key by ID: {e}")))?;
 
         row.as_ref().map(Self::row_to_api_key).transpose()
@@ -333,9 +353,9 @@ impl Database {
     ///
     /// Returns an error if the database operation fails or the API key is not found
     pub async fn get_api_key_current_usage_impl(&self, api_key_id: &str) -> AppResult<u32> {
-        // Get the API key to determine its rate limit window
+        // Get the API key to determine its rate limit window (system-level lookup, no user scoping)
         let api_key = self
-            .get_api_key_by_id(api_key_id)
+            .get_api_key_by_id(api_key_id, None)
             .await?
             .ok_or_else(|| AppError::not_found("API key"))?;
 
@@ -565,12 +585,16 @@ impl Database {
         self.deactivate_api_key_impl(api_key_id, user_id).await
     }
 
-    /// Get API key by ID (public API)
+    /// Get API key by ID, optionally scoped to a user (public API)
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn get_api_key_by_id(&self, api_key_id: &str) -> AppResult<Option<ApiKey>> {
-        self.get_api_key_by_id_impl(api_key_id).await
+    pub async fn get_api_key_by_id(
+        &self,
+        api_key_id: &str,
+        user_id: Option<Uuid>,
+    ) -> AppResult<Option<ApiKey>> {
+        self.get_api_key_by_id_impl(api_key_id, user_id).await
     }
 
     /// Cleanup expired API keys (public API)

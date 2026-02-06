@@ -346,7 +346,7 @@ async fn test_goal_tracking_integration() -> Result<()> {
 
     // Update goal progress
     database
-        .update_goal_progress(&goal_id, total_distance)
+        .update_goal_progress(&goal_id, user.id, total_distance)
         .await?;
 
     // Verify goal was updated correctly

@@ -100,8 +100,12 @@ pub trait UserRepository: Send + Sync {
     /// Get total number of users
     async fn get_count(&self) -> Result<i64, DatabaseError>;
 
-    /// Get users by status (pending, active, suspended)
-    async fn list_by_status(&self, status: &str) -> Result<Vec<User>, DatabaseError>;
+    /// Get users by status (pending, active, suspended), optionally scoped to a tenant
+    async fn list_by_status(
+        &self,
+        status: &str,
+        tenant_id: Option<Uuid>,
+    ) -> Result<Vec<User>, DatabaseError>;
 
     /// Get users by status with cursor-based pagination
     async fn list_by_status_paginated(
@@ -141,8 +145,12 @@ pub trait OAuthTokenRepository: Send + Sync {
         provider: &str,
     ) -> Result<Option<UserOAuthToken>, DatabaseError>;
 
-    /// Get all OAuth tokens for a user across all tenants
-    async fn list_by_user(&self, user_id: Uuid) -> Result<Vec<UserOAuthToken>, DatabaseError>;
+    /// Get all OAuth tokens for a user, optionally scoped to a tenant
+    async fn list_by_user(
+        &self,
+        user_id: Uuid,
+        tenant_id: Option<&str>,
+    ) -> Result<Vec<UserOAuthToken>, DatabaseError>;
 
     /// Get all OAuth tokens for a tenant-provider combination
     async fn list_by_tenant_provider(
@@ -159,8 +167,12 @@ pub trait OAuthTokenRepository: Send + Sync {
         provider: &str,
     ) -> Result<(), DatabaseError>;
 
-    /// Delete all OAuth tokens for a user (when user is deleted)
-    async fn delete_all_for_user(&self, user_id: Uuid) -> Result<(), DatabaseError>;
+    /// Delete all OAuth tokens for a user within a tenant scope
+    async fn delete_all_for_user(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+    ) -> Result<(), DatabaseError>;
 
     /// Update OAuth token expiration and refresh info
     async fn refresh(
@@ -227,8 +239,12 @@ pub trait ApiKeyRepository: Send + Sync {
         hash: &str,
     ) -> Result<Option<ApiKey>, DatabaseError>;
 
-    /// Get API key by ID
-    async fn get_by_id(&self, id: &str) -> Result<Option<ApiKey>, DatabaseError>;
+    /// Get API key by ID, optionally scoped to a user for ownership enforcement
+    async fn get_by_id(
+        &self,
+        id: &str,
+        user_id: Option<Uuid>,
+    ) -> Result<Option<ApiKey>, DatabaseError>;
 
     /// Get all API keys for a user
     async fn list_by_user(&self, user_id: Uuid) -> Result<Vec<ApiKey>, DatabaseError>;
@@ -291,8 +307,8 @@ pub trait UsageRepository: Send + Sync {
         tool_filter: Option<&str>,
     ) -> Result<Vec<crate::dashboard_routes::RequestLog>, DatabaseError>;
 
-    /// Get system-wide statistics (total requests, total users)
-    async fn get_system_stats(&self) -> Result<(u64, u64), DatabaseError>;
+    /// Get system statistics, optionally scoped to a tenant
+    async fn get_system_stats(&self, tenant_id: Option<Uuid>) -> Result<(u64, u64), DatabaseError>;
 
     /// Get top tools analysis for dashboard
     async fn get_top_tools_analysis(
@@ -429,10 +445,11 @@ pub trait ProfileRepository: Send + Sync {
     /// Get all goals for a user
     async fn list_goals(&self, user_id: Uuid) -> Result<Vec<Value>, DatabaseError>;
 
-    /// Update progress on a goal
+    /// Update progress on a goal, scoped to the owning user
     async fn update_goal_progress(
         &self,
         goal_id: &str,
+        user_id: Uuid,
         current_value: f64,
     ) -> Result<(), DatabaseError>;
 
@@ -1172,6 +1189,7 @@ pub trait SocialRepository: Send + Sync {
     async fn update_friend_connection_status(
         &self,
         id: Uuid,
+        user_id: Uuid,
         status: crate::models::FriendStatus,
     ) -> Result<(), DatabaseError>;
 
@@ -1197,7 +1215,7 @@ pub trait SocialRepository: Send + Sync {
     async fn are_friends(&self, user_a: Uuid, user_b: Uuid) -> Result<bool, DatabaseError>;
 
     /// Delete a friend connection
-    async fn delete_friend_connection(&self, id: Uuid) -> Result<bool, DatabaseError>;
+    async fn delete_friend_connection(&self, id: Uuid, user_id: Uuid) -> Result<bool, DatabaseError>;
 
     /// Get or create social settings for a user
     async fn get_or_create_social_settings(
@@ -1227,6 +1245,7 @@ pub trait SocialRepository: Send + Sync {
     async fn get_shared_insight(
         &self,
         id: Uuid,
+        user_id: Uuid,
     ) -> Result<Option<crate::models::SharedInsight>, DatabaseError>;
 
     /// Get friends' shared insights for feed

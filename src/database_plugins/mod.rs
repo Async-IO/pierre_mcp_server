@@ -96,8 +96,12 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Get total number of users
     async fn get_user_count(&self) -> AppResult<i64>;
 
-    /// Get users by status (pending, active, suspended)
-    async fn get_users_by_status(&self, status: &str) -> AppResult<Vec<User>>;
+    /// Get users by status (pending, active, suspended), optionally scoped to a tenant
+    async fn get_users_by_status(
+        &self,
+        status: &str,
+        tenant_id: Option<Uuid>,
+    ) -> AppResult<Vec<User>>;
 
     /// Get users by status with cursor-based pagination
     async fn get_users_by_status_cursor(
@@ -154,8 +158,12 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         provider: &str,
     ) -> AppResult<Option<UserOAuthToken>>;
 
-    /// Get all OAuth tokens for a user across all tenants
-    async fn get_user_oauth_tokens(&self, user_id: Uuid) -> AppResult<Vec<UserOAuthToken>>;
+    /// Get all OAuth tokens for a user, optionally scoped to a specific tenant
+    async fn get_user_oauth_tokens(
+        &self,
+        user_id: Uuid,
+        tenant_id: Option<&str>,
+    ) -> AppResult<Vec<UserOAuthToken>>;
 
     /// Get all OAuth tokens for a tenant-provider combination
     async fn get_tenant_provider_tokens(
@@ -172,8 +180,8 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         provider: &str,
     ) -> AppResult<()>;
 
-    /// Delete all OAuth tokens for a user (when user is deleted)
-    async fn delete_user_oauth_tokens(&self, user_id: Uuid) -> AppResult<()>;
+    /// Delete all OAuth tokens for a user within a tenant scope
+    async fn delete_user_oauth_tokens(&self, user_id: Uuid, tenant_id: &str) -> AppResult<()>;
 
     /// Update OAuth token expiration and refresh info
     async fn refresh_user_oauth_token(
@@ -229,8 +237,13 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Get all goals for a user
     async fn get_user_goals(&self, user_id: Uuid) -> AppResult<Vec<Value>>;
 
-    /// Update progress on a goal
-    async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> AppResult<()>;
+    /// Update progress on a goal, scoped to the owning user
+    async fn update_goal_progress(
+        &self,
+        goal_id: &str,
+        user_id: Uuid,
+        current_value: f64,
+    ) -> AppResult<()>;
 
     /// Get user configuration data
     async fn get_user_configuration(&self, user_id: &str) -> AppResult<Option<String>>;
@@ -272,8 +285,12 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Deactivate an API key
     async fn deactivate_api_key(&self, api_key_id: &str, user_id: Uuid) -> AppResult<()>;
 
-    /// Get API key by ID
-    async fn get_api_key_by_id(&self, api_key_id: &str) -> AppResult<Option<ApiKey>>;
+    /// Get API key by ID, optionally scoped to a specific user for ownership enforcement
+    async fn get_api_key_by_id(
+        &self,
+        api_key_id: &str,
+        user_id: Option<Uuid>,
+    ) -> AppResult<Option<ApiKey>>;
 
     /// Get API keys with optional filters
     async fn get_api_keys_filtered(
@@ -333,8 +350,8 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         tool_filter: Option<&str>,
     ) -> AppResult<Vec<RequestLog>>;
 
-    /// Get system-wide statistics
-    async fn get_system_stats(&self) -> AppResult<(u64, u64)>;
+    /// Get system statistics, optionally scoped to a tenant
+    async fn get_system_stats(&self, tenant_id: Option<Uuid>) -> AppResult<(u64, u64)>;
 
     // ================================
     // A2A (Agent-to-Agent) Support
@@ -1134,28 +1151,34 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         tenant_id: &str,
     ) -> AppResult<bool>;
 
-    /// Add a message to a conversation
+    /// Add a message to a conversation (verifies user owns the conversation)
     async fn chat_add_message(
         &self,
         conversation_id: &str,
+        user_id: &str,
         role: &str,
         content: &str,
         token_count: Option<u32>,
         finish_reason: Option<&str>,
     ) -> AppResult<MessageRecord>;
 
-    /// Get all messages for a conversation
-    async fn chat_get_messages(&self, conversation_id: &str) -> AppResult<Vec<MessageRecord>>;
+    /// Get all messages for a conversation (verifies user owns the conversation)
+    async fn chat_get_messages(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+    ) -> AppResult<Vec<MessageRecord>>;
 
-    /// Get recent messages for a conversation (for context window)
+    /// Get recent messages for a conversation (verifies user owns the conversation)
     async fn chat_get_recent_messages(
         &self,
         conversation_id: &str,
+        user_id: &str,
         limit: i64,
     ) -> AppResult<Vec<MessageRecord>>;
 
-    /// Get message count for a conversation
-    async fn chat_get_message_count(&self, conversation_id: &str) -> AppResult<i64>;
+    /// Get message count for a conversation (verifies user owns the conversation)
+    async fn chat_get_message_count(&self, conversation_id: &str, user_id: &str) -> AppResult<i64>;
 
     /// Delete all conversations for a user
     async fn chat_delete_all_user_conversations(

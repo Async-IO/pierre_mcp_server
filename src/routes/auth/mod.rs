@@ -1223,9 +1223,9 @@ impl OAuthService {
             .await
             .map_err(|e| AppError::database(format!("Failed to get user tenants: {e}")))?;
 
-        let tenant_id = tenants
-            .first()
-            .map_or_else(|| "default".to_owned(), |t| t.id.to_string());
+        let tenant_id = tenants.first().map(|t| t.id.to_string()).ok_or_else(|| {
+            AppError::auth_invalid("User has no tenant association — cannot disconnect provider")
+        })?;
 
         // Delete OAuth tokens from database
         self.data
@@ -1395,11 +1395,11 @@ impl OAuthService {
     ) -> AppResult<Vec<ConnectionStatus>> {
         debug!("Getting OAuth connection status for user {}", user_id);
 
-        // Get all OAuth tokens for the user from database
+        // Get all OAuth tokens for the user from database (cross-tenant view for connection status)
         let tokens = self
             .data
             .database()
-            .get_user_oauth_tokens(user_id)
+            .get_user_oauth_tokens(user_id, None)
             .await
             .map_err(|e| AppError::database(format!("Failed to get user OAuth tokens: {e}")))?;
 
@@ -2030,8 +2030,11 @@ impl AuthRoutes {
         let user_id = auth.user_id;
         Span::current().record("user_id", user_id.to_string());
 
-        // Get connected providers count from OAuth tokens
-        let oauth_tokens = resources.database.get_user_oauth_tokens(user_id).await?;
+        // Get connected providers count from OAuth tokens (cross-tenant view for user stats)
+        let oauth_tokens = resources
+            .database
+            .get_user_oauth_tokens(user_id, None)
+            .await?;
         let connected_providers = i64::try_from(oauth_tokens.len()).unwrap_or(0);
 
         // Get user creation date to calculate days active
@@ -2314,10 +2317,10 @@ impl AuthRoutes {
 
         let user_id = auth_result.user_id;
 
-        // Check OAuth provider connection status for the user
+        // Check OAuth provider connection status for the user (cross-tenant view)
         let provider_statuses = resources
             .database
-            .get_user_oauth_tokens(user_id)
+            .get_user_oauth_tokens(user_id, None)
             .await
             .map_or_else(
                 |_| {
@@ -2390,10 +2393,10 @@ impl AuthRoutes {
         let registry = global_registry();
         let supported_providers = registry.supported_providers();
 
-        // Get user's OAuth tokens to check connection status
+        // Get user's OAuth tokens to check connection status (cross-tenant view)
         let oauth_tokens = resources
             .database
-            .get_user_oauth_tokens(user_id)
+            .get_user_oauth_tokens(user_id, None)
             .await
             .unwrap_or_default();
 

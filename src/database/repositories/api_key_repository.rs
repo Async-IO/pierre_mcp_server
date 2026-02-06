@@ -48,9 +48,13 @@ impl ApiKeyRepository for ApiKeyRepositoryImpl {
             })
     }
 
-    async fn get_by_id(&self, id: &str) -> Result<Option<ApiKey>, DatabaseError> {
+    async fn get_by_id(
+        &self,
+        id: &str,
+        user_id: Option<Uuid>,
+    ) -> Result<Option<ApiKey>, DatabaseError> {
         self.db
-            .get_api_key_by_id(id)
+            .get_api_key_by_id(id, user_id)
             .await
             .map_err(|e| DatabaseError::QueryError {
                 context: e.to_string(),

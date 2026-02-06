@@ -458,7 +458,10 @@ async fn test_sdk_api_key_management() -> Result<()> {
     assert_eq!(api_key.user_id, user_id);
 
     // Test 3: Verify API key in database
-    let api_key_details = database.get_api_key_by_id(&api_key.id).await?.unwrap();
+    let api_key_details = database
+        .get_api_key_by_id(&api_key.id, None)
+        .await?
+        .unwrap();
     assert_eq!(api_key_details.name, "SDK Test Key");
     assert_eq!(api_key_details.user_id, user_id);
 
@@ -599,7 +602,10 @@ async fn test_sdk_complete_onboarding_simulation() -> Result<()> {
     // Skip OAuth app verification for now due to type mismatch
     // The OAuth URLs are generated successfully using environment variables
 
-    let stored_api_key = database.get_api_key_by_id(&api_key.id).await?.unwrap();
+    let stored_api_key = database
+        .get_api_key_by_id(&api_key.id, None)
+        .await?
+        .unwrap();
     assert_eq!(stored_api_key.name, "Complete Test API Key");
     assert_eq!(stored_api_key.user_id, user_id);
 

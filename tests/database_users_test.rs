@@ -315,17 +315,17 @@ async fn test_get_users_by_status() {
     db.create_user(&pending_user).await.unwrap();
 
     // Get active users
-    let active_users = db.get_users_by_status("active").await.unwrap();
+    let active_users = db.get_users_by_status("active", None).await.unwrap();
     assert_eq!(active_users.len(), 1);
     assert_eq!(active_users[0].email, "active@example.com");
 
     // Get pending users
-    let pending_users = db.get_users_by_status("pending").await.unwrap();
+    let pending_users = db.get_users_by_status("pending", None).await.unwrap();
     assert_eq!(pending_users.len(), 1);
     assert_eq!(pending_users[0].email, "pending@example.com");
 
     // Get non-existent status
-    let suspended_users = db.get_users_by_status("suspended").await.unwrap();
+    let suspended_users = db.get_users_by_status("suspended", None).await.unwrap();
     assert_eq!(suspended_users.len(), 0);
 }
 

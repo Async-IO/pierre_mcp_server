@@ -81,9 +81,13 @@ impl UserRepository for UserRepositoryImpl {
             })
     }
 
-    async fn list_by_status(&self, status: &str) -> Result<Vec<User>, DatabaseError> {
+    async fn list_by_status(
+        &self,
+        status: &str,
+        tenant_id: Option<Uuid>,
+    ) -> Result<Vec<User>, DatabaseError> {
         self.db
-            .get_users_by_status(status)
+            .get_users_by_status(status, tenant_id)
             .await
             .map_err(|e| DatabaseError::QueryError {
                 context: e.to_string(),

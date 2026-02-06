@@ -1678,13 +1678,7 @@ pub fn handle_admin_list_coach_assignments(
         }
 
         let admin_user_id = parse_user_id_for_protocol(&request.user_id)?;
-        verify_admin_access(executor, admin_user_id).await?;
-
-        let admin_user_id_string = admin_user_id.to_string();
-        let tenant_id = request
-            .tenant_id
-            .as_deref()
-            .unwrap_or(&admin_user_id_string);
+        let tenant_id = verify_admin_access(executor, admin_user_id).await?;
 
         let coach_id = request.parameters.get("coach_id").and_then(Value::as_str);
 
@@ -1703,7 +1697,7 @@ pub fn handle_admin_list_coach_assignments(
 
         // Verify the coach belongs to the admin's tenant
         manager
-            .get_system_coach(coach_id, tenant_id)
+            .get_system_coach(coach_id, &tenant_id)
             .await
             .map_err(|e| {
                 ProtocolError::InternalError(format!("Failed to verify coach tenant: {e}"))
@@ -1714,7 +1708,7 @@ pub fn handle_admin_list_coach_assignments(
 
         // List assignments scoped to the admin's tenant
         let assignments = manager
-            .list_assignments_for_tenant(coach_id, tenant_id)
+            .list_assignments_for_tenant(coach_id, &tenant_id)
             .await
             .map_err(|e| {
                 ProtocolError::InternalError(format!("Failed to list assignments: {e}"))
