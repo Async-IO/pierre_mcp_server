@@ -683,18 +683,27 @@ impl GeminiProvider {
     /// that exposes the actual message from Gemini.
     fn map_api_error(status: u16, response_text: &str) -> AppError {
         // Try to extract error message from JSON response
-        let message = serde_json::from_str::<GeminiResponse>(response_text)
+        let parsed_message = serde_json::from_str::<GeminiResponse>(response_text)
             .ok()
             .and_then(|r| r.error)
-            .map_or_else(|| response_text.to_owned(), |e| e.message);
+            .map(|e| e.message);
 
-        match status {
-            429 => {
-                // Extract user-friendly quota message
-                let user_message = Self::extract_quota_message(&message);
-                AppError::new(ErrorCode::ExternalRateLimited, user_message)
+        if status == 429 {
+            // For rate limits, extract user-friendly quota message from the parsed error
+            let quota_source = parsed_message.as_deref().unwrap_or("");
+            let user_message = Self::extract_quota_message(quota_source);
+            AppError::new(ErrorCode::ExternalRateLimited, user_message)
+        } else {
+            // Log the raw response at debug level for troubleshooting,
+            // but keep it out of the user-facing error message
+            if parsed_message.is_none() {
+                debug!(
+                    status,
+                    body_preview = %response_text.chars().take(200).collect::<String>(),
+                    "Gemini API returned non-JSON error response"
+                );
             }
-            _ => AppError::internal(format!("Gemini API error ({status}): {message}")),
+            AppError::external_service("Gemini", format!("API error (HTTP {status})"))
         }
     }
 

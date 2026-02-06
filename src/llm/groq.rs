@@ -370,14 +370,12 @@ impl GroqProvider {
                 ),
             }
         } else {
-            AppError::external_service(
-                "Groq",
-                format!(
-                    "API error ({}): {}",
-                    status,
-                    body.chars().take(200).collect::<String>()
-                ),
-            )
+            debug!(
+                status = %status,
+                body_preview = %body.chars().take(200).collect::<String>(),
+                "Groq API returned non-JSON error response"
+            );
+            AppError::external_service("Groq", format!("unexpected error response (HTTP {status})"))
         }
     }
 
