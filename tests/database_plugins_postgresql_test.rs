@@ -532,9 +532,9 @@ async fn test_pg_chat_messages() {
         .await
         .expect("Failed to create conversation");
 
-    // Add messages
+    // Add messages (user_id required for ownership verification)
     let msg1 = db
-        .chat_add_message(&conv.id, "user", "Hello!", None, None)
+        .chat_add_message(&conv.id, &user_id_str, "user", "Hello!", None, None)
         .await
         .expect("Failed to add user message");
 
@@ -542,7 +542,7 @@ async fn test_pg_chat_messages() {
     assert_eq!(msg1.content, "Hello!");
 
     let msg2 = db
-        .chat_add_message(&conv.id, "assistant", "Hi there!", Some(10), Some("stop"))
+        .chat_add_message(&conv.id, &user_id_str, "assistant", "Hi there!", Some(10), Some("stop"))
         .await
         .expect("Failed to add assistant message");
 
@@ -550,25 +550,25 @@ async fn test_pg_chat_messages() {
     assert_eq!(msg2.token_count, Some(10));
     assert_eq!(msg2.finish_reason, Some("stop".to_owned()));
 
-    // Get all messages
+    // Get all messages (user_id required for ownership verification)
     let messages = db
-        .chat_get_messages(&conv.id)
+        .chat_get_messages(&conv.id, &user_id_str)
         .await
         .expect("Failed to get messages");
 
     assert_eq!(messages.len(), 2, "Should have 2 messages");
 
-    // Get recent messages
+    // Get recent messages (user_id required for ownership verification)
     let recent = db
-        .chat_get_recent_messages(&conv.id, 1)
+        .chat_get_recent_messages(&conv.id, &user_id_str, 1)
         .await
         .expect("Failed to get recent messages");
 
     assert_eq!(recent.len(), 1, "Should return only 1 recent message");
 
-    // Get message count
+    // Get message count (user_id required for ownership verification)
     let count = db
-        .chat_get_message_count(&conv.id)
+        .chat_get_message_count(&conv.id, &user_id_str)
         .await
         .expect("Failed to get message count");
 
