@@ -43,6 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(session.user);
           setToken(session.access_token);
           apiClient.setCsrfToken(session.csrf_token);
+          localStorage.setItem('pierre_csrf_token', session.csrf_token);
           localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(session.user));
         })
         .catch(() => {
@@ -79,8 +80,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // OAuth2 ROPC response uses access_token, csrf_token, and user
     const { access_token, csrf_token, user: userData } = response;
 
-    // Store CSRF token in API service
+    // Store CSRF token in both legacy client and localStorage (for pierreApi)
     apiClient.setCsrfToken(csrf_token);
+    localStorage.setItem('pierre_csrf_token', csrf_token);
 
     // Keep JWT in React state only (for WebSocket auth) — httpOnly cookie handles REST
     if (access_token) {
@@ -96,8 +98,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const response = await authApi.loginWithFirebase({ idToken });
     const { csrf_token, jwt_token, user: userData } = response;
 
-    // Store CSRF token in API service
+    // Store CSRF token in both legacy client and localStorage (for pierreApi)
     apiClient.setCsrfToken(csrf_token);
+    localStorage.setItem('pierre_csrf_token', csrf_token);
 
     // Keep JWT in React state only (for WebSocket auth) — httpOnly cookie handles REST
     if (jwt_token) {
@@ -124,9 +127,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Clear user info from localStorage
     localStorage.removeItem(STORAGE_KEYS.USER);
 
-    // Clear CSRF token from API service
+    // Clear CSRF token from both legacy client and localStorage (pierreApi)
     apiClient.clearCsrfToken();
     apiClient.clearUser();
+    localStorage.removeItem('pierre_csrf_token');
 
     // Optionally call logout endpoint to clear cookies
     authApi.logout().catch((error) => {
