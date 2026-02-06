@@ -852,10 +852,11 @@ async fn test_delete_insight_not_owner() {
         .expect("Failed to create second user");
     let routes = setup.routes();
 
-    // Create an insight as main user
+    // Create a public insight as main user so the friend can see it
     let create_body = json!({
         "insight_type": "milestone",
-        "content": "This is the main user's fitness insight"
+        "content": "This is the main user's fitness insight",
+        "visibility": "public"
     });
 
     let create_response = AxumTestRequest::post("/api/social/insights")
@@ -928,10 +929,11 @@ async fn test_add_reaction_success() {
         .expect("Failed to create second user");
     let routes = setup.routes();
 
-    // Create an insight
+    // Create a public insight so the friend can see and react to it
     let create_body = json!({
         "insight_type": "milestone",
-        "content": "This is a test insight for validation"
+        "content": "This is a test insight for validation",
+        "visibility": "public"
     });
 
     let create_response = AxumTestRequest::post("/api/social/insights")
@@ -1006,10 +1008,11 @@ async fn test_add_duplicate_reaction() {
         .expect("Failed to create second user");
     let routes = setup.routes();
 
-    // Create an insight
+    // Create a public insight so the friend can see and react to it
     let create_body = json!({
         "insight_type": "milestone",
-        "content": "This is a test insight for validation"
+        "content": "This is a test insight for validation",
+        "visibility": "public"
     });
 
     let create_response = AxumTestRequest::post("/api/social/insights")
@@ -1061,10 +1064,11 @@ async fn test_remove_reaction_success() {
         .expect("Failed to create second user");
     let routes = setup.routes();
 
-    // Create an insight
+    // Create a public insight so the friend can see and react to it
     let create_body = json!({
         "insight_type": "milestone",
-        "content": "This is a test insight for validation"
+        "content": "This is a test insight for validation",
+        "visibility": "public"
     });
 
     let create_response = AxumTestRequest::post("/api/social/insights")
@@ -1155,10 +1159,11 @@ async fn test_adapt_insight_success() {
         .expect("Failed to create second user");
     let routes = setup.routes();
 
-    // Create an insight
+    // Create a public insight so the friend can see and adapt it
     let create_body = json!({
         "insight_type": "training_tip",
-        "content": "Increase mileage gradually by 10% per week"
+        "content": "Increase mileage gradually by 10% per week",
+        "visibility": "public"
     });
 
     let create_response = AxumTestRequest::post("/api/social/insights")
@@ -1201,10 +1206,11 @@ async fn test_adapt_insight_without_context() {
         .expect("Failed to create second user");
     let routes = setup.routes();
 
-    // Create an insight
+    // Create a public insight so the friend can see and adapt it
     let create_body = json!({
         "insight_type": "training_tip",
-        "content": "Rest is as important as training"
+        "content": "Rest is as important as training",
+        "visibility": "public"
     });
 
     let create_response = AxumTestRequest::post("/api/social/insights")
@@ -1292,10 +1298,11 @@ async fn test_update_helpful_success() {
         .expect("Failed to create second user");
     let routes = setup.routes();
 
-    // Create an insight
+    // Create a public insight so the friend can see and adapt it
     let create_body = json!({
         "insight_type": "training_tip",
-        "content": "This is a helpful training tip for you"
+        "content": "This is a helpful training tip for you",
+        "visibility": "public"
     });
 
     let create_response = AxumTestRequest::post("/api/social/insights")
