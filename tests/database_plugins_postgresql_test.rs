@@ -542,7 +542,14 @@ async fn test_pg_chat_messages() {
     assert_eq!(msg1.content, "Hello!");
 
     let msg2 = db
-        .chat_add_message(&conv.id, &user_id_str, "assistant", "Hi there!", Some(10), Some("stop"))
+        .chat_add_message(
+            &conv.id,
+            &user_id_str,
+            "assistant",
+            "Hi there!",
+            Some(10),
+            Some("stop"),
+        )
         .await
         .expect("Failed to add assistant message");
 
