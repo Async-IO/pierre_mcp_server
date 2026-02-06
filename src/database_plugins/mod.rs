@@ -319,8 +319,13 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     // ================================
 
     /// Get request logs with filtering options
+    ///
+    /// When `user_id` is provided, results are scoped to that user's logs only.
+    /// Filters on `api_key_id`, `status_filter`, and `tool_filter` are applied
+    /// in the database query to avoid returning unrelated data.
     async fn get_request_logs(
         &self,
+        user_id: Option<Uuid>,
         api_key_id: Option<&str>,
         start_time: Option<DateTime<Utc>>,
         end_time: Option<DateTime<Utc>>,

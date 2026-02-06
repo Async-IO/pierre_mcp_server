@@ -532,6 +532,7 @@ impl DashboardRoutes {
                 .resources
                 .database
                 .get_request_logs(
+                    Some(user_id),
                     Some(&api_key.id),
                     Some(start_time),
                     Some(Utc::now()),
@@ -709,11 +710,18 @@ impl DashboardRoutes {
             _ => Utc::now() - Duration::hours(1), // Default to 1 hour (includes "1h")
         };
 
-        // Query real data from the database
+        // Query real data from the database, scoped to the authenticated user
         let logs = self
             .resources
             .database
-            .get_request_logs(api_key_id, Some(start_time), Some(Utc::now()), status, tool)
+            .get_request_logs(
+                Some(user_id),
+                api_key_id,
+                Some(start_time),
+                Some(Utc::now()),
+                status,
+                tool,
+            )
             .await
             .map_err(|e| AppError::database(format!("Failed to get request logs: {e}")))?;
 

@@ -1712,15 +1712,32 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn get_request_logs(
         &self,
+        user_id: Option<Uuid>,
         api_key_id: Option<&str>,
         start_time: Option<DateTime<Utc>>,
         end_time: Option<DateTime<Utc>>,
         status_filter: Option<&str>,
         tool_filter: Option<&str>,
     ) -> AppResult<Vec<RequestLog>> {
-        // Build query with proper column mapping for RequestLog struct
-        let base_query = r"
-            SELECT 
+        // Build query with proper column mapping for RequestLog struct.
+        // When user_id is provided, join with api_keys to scope by ownership.
+        let base_query = if user_id.is_some() {
+            r"SELECT
+                uuid_generate_v4()::text as id,
+                u.timestamp,
+                u.api_key_id,
+                'Unknown' as api_key_name,
+                COALESCE(u.endpoint, 'unknown') as tool_name,
+                u.status_code::integer as status_code,
+                u.response_time_ms,
+                NULL::text as error_message,
+                u.request_size_bytes,
+                u.response_size_bytes
+              FROM api_key_usage u
+              JOIN api_keys k ON u.api_key_id = k.id
+              WHERE 1=1"
+        } else {
+            r"SELECT
                 uuid_generate_v4()::text as id,
                 timestamp,
                 api_key_id,
@@ -1731,41 +1748,43 @@ impl DatabaseProvider for PostgresDatabase {
                 NULL::text as error_message,
                 request_size_bytes,
                 response_size_bytes
-            FROM api_key_usage 
-            WHERE 1=1
-        ";
+              FROM api_key_usage
+              WHERE 1=1"
+        };
 
         let mut condition_strings = Vec::new();
+        let col_prefix = if user_id.is_some() { "u." } else { "" };
 
         let mut param_count = 0;
+        if user_id.is_some() {
+            param_count += 1;
+            condition_strings.push(format!(" AND k.user_id = ${param_count}"));
+        }
         if api_key_id.is_some() {
             param_count += 1;
-            let condition = format!(" AND api_key_id = ${param_count}");
-            condition_strings.push(condition);
+            condition_strings.push(format!(" AND {col_prefix}api_key_id = ${param_count}"));
         }
         if start_time.is_some() {
             param_count += 1;
-            let condition = format!(" AND timestamp >= ${param_count}");
-            condition_strings.push(condition);
+            condition_strings.push(format!(" AND {col_prefix}timestamp >= ${param_count}"));
         }
         if end_time.is_some() {
             param_count += 1;
-            let condition = format!(" AND timestamp <= ${param_count}");
-            condition_strings.push(condition);
+            condition_strings.push(format!(" AND {col_prefix}timestamp <= ${param_count}"));
         }
         if status_filter.is_some() {
             param_count += 1;
-            let condition = format!(" AND status_code::text LIKE ${param_count}");
-            condition_strings.push(condition);
+            condition_strings.push(format!(
+                " AND {col_prefix}status_code::text LIKE ${param_count}"
+            ));
         }
         if tool_filter.is_some() {
             param_count += 1;
-            let condition = format!(" AND endpoint ILIKE ${param_count}");
-            condition_strings.push(condition);
+            condition_strings.push(format!(" AND {col_prefix}endpoint ILIKE ${param_count}"));
         }
 
         let full_query = format!(
-            "{}{} ORDER BY timestamp DESC LIMIT 1000",
+            "{}{} ORDER BY {col_prefix}timestamp DESC LIMIT 1000",
             base_query,
             condition_strings.join("")
         );
@@ -1773,6 +1792,9 @@ impl DatabaseProvider for PostgresDatabase {
         // Build query with proper parameter binding
         let mut query_builder = sqlx::query_as::<_, RequestLog>(&full_query);
 
+        if let Some(uid) = user_id {
+            query_builder = query_builder.bind(uid);
+        }
         if let Some(key_id) = api_key_id {
             query_builder = query_builder.bind(key_id);
         }

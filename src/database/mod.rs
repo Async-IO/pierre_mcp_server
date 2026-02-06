@@ -2693,32 +2693,88 @@ impl DatabaseProvider for Database {
 
     async fn get_request_logs(
         &self,
-        _api_key_id: Option<&str>,
+        user_id: Option<Uuid>,
+        api_key_id: Option<&str>,
         start_time: Option<DateTime<Utc>>,
         end_time: Option<DateTime<Utc>>,
-        _status_filter: Option<&str>,
-        _tool_filter: Option<&str>,
+        status_filter: Option<&str>,
+        tool_filter: Option<&str>,
     ) -> AppResult<Vec<RequestLog>> {
-        let analytics_logs = self
-            .get_request_logs(None, start_time, end_time, 10, 0)
-            .await?;
+        let max_results: i32 = 1000;
 
-        // Convert analytics::RequestLog to dashboard_routes::RequestLog
-        Ok(analytics_logs
-            .into_iter()
-            .map(|log| RequestLog {
-                id: log.id,
-                timestamp: log.timestamp,
-                api_key_id: log.api_key_id.unwrap_or_default(),
+        let mut query = String::from(
+            r"SELECT id, user_id, api_key_id, timestamp, method, endpoint,
+                     status_code, response_time_ms, error_message
+              FROM request_logs
+              WHERE 1=1",
+        );
+        let mut bind_values: Vec<String> = vec![];
+
+        if let Some(uid) = user_id {
+            query.push_str(" AND user_id = ?");
+            bind_values.push(uid.to_string());
+        }
+
+        if let Some(key_id) = api_key_id {
+            query.push_str(" AND api_key_id = ?");
+            bind_values.push(key_id.to_owned());
+        }
+
+        if let Some(start) = start_time {
+            query.push_str(" AND timestamp >= ?");
+            bind_values.push(start.to_rfc3339());
+        }
+
+        if let Some(end) = end_time {
+            query.push_str(" AND timestamp <= ?");
+            bind_values.push(end.to_rfc3339());
+        }
+
+        if let Some(status) = status_filter {
+            query.push_str(" AND CAST(status_code AS TEXT) LIKE ?");
+            bind_values.push(format!("{status}%"));
+        }
+
+        if let Some(tool) = tool_filter {
+            query.push_str(" AND endpoint LIKE ?");
+            bind_values.push(format!("%{tool}%"));
+        }
+
+        query.push_str(" ORDER BY timestamp DESC LIMIT ?");
+
+        let mut sql_query = sqlx::query(&query);
+        for value in &bind_values {
+            sql_query = sql_query.bind(value);
+        }
+        sql_query = sql_query.bind(max_results);
+
+        let rows = sql_query
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get request logs: {e}")))?;
+
+        let mut logs = Vec::with_capacity(rows.len());
+        for row in rows {
+            let status_raw: i32 = row.get("status_code");
+            logs.push(RequestLog {
+                id: row.get("id"),
+                timestamp: row.get("timestamp"),
+                api_key_id: row
+                    .get::<Option<String>, _>("api_key_id")
+                    .unwrap_or_default(),
                 api_key_name: "Unknown".into(),
-                tool_name: "Unknown".into(),
-                status_code: i32::from(log.status_code),
-                response_time_ms: log.response_time_ms.and_then(|ms| i32::try_from(ms).ok()),
-                error_message: log.error_message,
+                tool_name: row
+                    .get::<Option<String>, _>("endpoint")
+                    .unwrap_or_else(|| "Unknown".into()),
+                status_code: status_raw,
+                response_time_ms: row.get::<Option<i32>, _>("response_time_ms"),
+                error_message: row.get("error_message"),
                 request_size_bytes: None,
                 response_size_bytes: None,
-            })
-            .collect())
+            });
+        }
+
+        Ok(logs)
     }
 
     async fn get_system_stats(&self) -> AppResult<(u64, u64)> {

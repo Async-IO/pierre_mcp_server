@@ -39,8 +39,12 @@ const fn default_days() -> u32 {
 struct RequestLogsQuery {
     #[serde(default)]
     api_key: Option<String>,
-    // Note: limit parameter not used by get_request_logs
-    // Removed to avoid unused field warning
+    #[serde(default)]
+    time_range: Option<String>,
+    #[serde(default)]
+    status: Option<String>,
+    #[serde(default)]
+    tool: Option<String>,
 }
 
 /// Query parameters for tool usage
@@ -188,10 +192,14 @@ impl DashboardRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
 
         let service = DashboardService::new(resources);
-        // Note: get_request_logs takes time_range, status, tool, not limit
-        // Ignoring limit parameter for now - needs proper implementation
         let response = service
-            .get_request_logs(auth, params.api_key.as_deref(), None, None, None)
+            .get_request_logs(
+                auth,
+                params.api_key.as_deref(),
+                params.time_range.as_deref(),
+                params.status.as_deref(),
+                params.tool.as_deref(),
+            )
             .await?;
 
         Ok((StatusCode::OK, Json(response)).into_response())

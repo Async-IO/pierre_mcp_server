@@ -277,8 +277,11 @@ pub trait UsageRepository: Send + Sync {
     async fn get_jwt_current_usage(&self, user_id: Uuid) -> Result<u32, DatabaseError>;
 
     /// Get request logs with filtering options
+    ///
+    /// When `user_id` is provided, results are scoped to that user's logs.
     async fn get_request_logs(
         &self,
+        user_id: Option<Uuid>,
         api_key_id: Option<&str>,
         start_time: Option<DateTime<Utc>>,
         end_time: Option<DateTime<Utc>>,

@@ -80,6 +80,7 @@ impl UsageRepository for UsageRepositoryImpl {
 
     async fn get_request_logs(
         &self,
+        user_id: Option<Uuid>,
         api_key_id: Option<&str>,
         start_time: Option<DateTime<Utc>>,
         end_time: Option<DateTime<Utc>>,
@@ -87,7 +88,14 @@ impl UsageRepository for UsageRepositoryImpl {
         tool_filter: Option<&str>,
     ) -> Result<Vec<crate::dashboard_routes::RequestLog>, DatabaseError> {
         self.db
-            .get_request_logs(api_key_id, start_time, end_time, status_filter, tool_filter)
+            .get_request_logs(
+                user_id,
+                api_key_id,
+                start_time,
+                end_time,
+                status_filter,
+                tool_filter,
+            )
             .await
             .map_err(|e| DatabaseError::QueryError {
                 context: e.to_string(),

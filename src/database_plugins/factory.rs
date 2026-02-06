@@ -946,6 +946,7 @@ impl DatabaseProvider for Database {
 
     async fn get_request_logs(
         &self,
+        user_id: Option<uuid::Uuid>,
         api_key_id: Option<&str>,
         start_time: Option<chrono::DateTime<chrono::Utc>>,
         end_time: Option<chrono::DateTime<chrono::Utc>>,
@@ -956,6 +957,7 @@ impl DatabaseProvider for Database {
             Self::SQLite(db) => {
                 DatabaseProvider::get_request_logs(
                     db,
+                    user_id,
                     api_key_id,
                     start_time,
                     end_time,
@@ -966,8 +968,15 @@ impl DatabaseProvider for Database {
             }
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => {
-                db.get_request_logs(api_key_id, start_time, end_time, status_filter, tool_filter)
-                    .await
+                db.get_request_logs(
+                    user_id,
+                    api_key_id,
+                    start_time,
+                    end_time,
+                    status_filter,
+                    tool_filter,
+                )
+                .await
             }
         }
     }
