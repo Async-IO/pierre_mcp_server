@@ -11,8 +11,8 @@
 
 use crate::{
     api_key_routes::ApiKeyRoutes as ApiKeyService, api_keys::CreateApiKeyRequestSimple,
-    auth::AuthResult, database_plugins::DatabaseProvider, errors::AppError,
-    mcp::resources::ServerResources, security::cookies::get_cookie_value,
+    auth::AuthResult, errors::AppError, mcp::resources::ServerResources,
+    security::cookies::get_cookie_value,
 };
 use axum::{
     extract::{Path, Query, State},
@@ -137,14 +137,15 @@ impl ApiKeyRoutes {
         headers: HeaderMap,
     ) -> Result<Response, AppError> {
         // Authenticate user from JWT token
-        Self::authenticate(&headers, &resources).await?;
+        let auth = Self::authenticate(&headers, &resources).await?;
 
-        let stats = resources
-            .database
-            .get_api_key_usage_stats(&key_id, query.start_date, query.end_date)
+        // Use the service layer which enforces ownership verification
+        let service = ApiKeyService::new(resources);
+        let response = service
+            .get_api_key_usage(&auth, &key_id, query.start_date, query.end_date)
             .await
             .map_err(|e| AppError::internal(format!("Failed to get API key usage: {e}")))?;
 
-        Ok((StatusCode::OK, Json(stats)).into_response())
+        Ok((StatusCode::OK, Json(response)).into_response())
     }
 }

@@ -158,10 +158,29 @@ pub fn handle_disconnect_provider(
             )));
         };
 
-        // Disconnect by deleting the token directly
-        let tenant_id_str = request.tenant_id.as_deref().unwrap_or("default");
+        // Resolve tenant ID: use request tenant_id, or look up user's default tenant
+        let tenant_id_str = if let Some(tid) = request.tenant_id.as_deref() {
+            tid.to_owned()
+        } else {
+            let tenants = executor
+                .resources
+                .database
+                .list_tenants_for_user(user_uuid)
+                .await
+                .unwrap_or_default();
+            match tenants.first() {
+                Some(t) => t.id.to_string(),
+                None => {
+                    return Ok(connection_error(
+                        "Cannot disconnect: user does not belong to any tenant",
+                    ));
+                }
+            }
+        };
+
+        // Disconnect by deleting the token
         match (*executor.resources.database)
-            .delete_user_oauth_token(user_uuid, tenant_id_str, provider)
+            .delete_user_oauth_token(user_uuid, &tenant_id_str, provider)
             .await
         {
             Ok(()) => Ok(UniversalResponse {

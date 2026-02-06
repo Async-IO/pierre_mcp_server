@@ -115,10 +115,10 @@ fn parse_insight_json_response(raw_content: &str) -> String {
         }
     }
 
-    // Fallback: return raw content with warning
+    // Fallback: return raw content with warning (avoid logging raw content which may contain user data)
     warn!(
-        "Failed to parse insight generation JSON response, using raw content: {}",
-        &raw_content[..raw_content.len().min(100)]
+        "Failed to parse insight generation JSON response, using raw content ({} bytes)",
+        raw_content.len()
     );
     raw_content.to_owned()
 }
