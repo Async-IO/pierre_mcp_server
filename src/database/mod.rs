@@ -101,6 +101,7 @@ use base64::Engine;
 use chrono::{DateTime, Utc};
 use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 use ring::digest::{digest, SHA256};
+use ring::hmac;
 use ring::rand::{SecureRandom, SystemRandom};
 use serde_json::Value;
 use sqlx::{Pool, Row, Sqlite, SqlitePool};
@@ -399,6 +400,16 @@ impl Database {
         String::from_utf8(decrypted.to_vec()).map_err(|e| {
             AppError::internal(format!("Failed to convert decrypted data to string: {e}"))
         })
+    }
+
+    /// Compute HMAC-SHA256 of a token for secure storage (internal implementation)
+    ///
+    /// Used for refresh tokens where we need deterministic lookups but don't
+    /// need to recover the original value.
+    fn hash_token_for_storage_impl(&self, token: &str) -> String {
+        let key = hmac::Key::new(hmac::HMAC_SHA256, &self.encryption_key);
+        let tag = hmac::sign(&key, token.as_bytes());
+        general_purpose::STANDARD.encode(tag.as_ref())
     }
 
     /// Get user role for a specific tenant
@@ -1291,12 +1302,16 @@ impl Database {
 
     /// Revoke `OAuth2` refresh token (internal implementation)
     ///
+    /// The input token is HMAC-SHA256 hashed before querying.
+    ///
     /// # Errors
     ///
     /// Returns an error if the database query fails
     async fn revoke_oauth2_refresh_token_impl(&self, token: &str) -> AppResult<()> {
+        let token_hash = self.hash_token_for_storage_impl(token);
+
         sqlx::query("UPDATE oauth2_refresh_tokens SET revoked = 1 WHERE token = ?1")
-            .bind(token)
+            .bind(&token_hash)
             .execute(&self.pool)
             .await
             .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
@@ -1520,6 +1535,9 @@ impl Database {
 
     /// Store `OAuth2` refresh token (internal implementation)
     ///
+    /// The refresh token value is HMAC-SHA256 hashed before storage so that
+    /// plaintext tokens are never persisted to disk.
+    ///
     /// # Errors
     ///
     /// Returns an error if the database query fails
@@ -1527,13 +1545,15 @@ impl Database {
         &self,
         refresh_token: &OAuth2RefreshToken,
     ) -> AppResult<()> {
+        let token_hash = self.hash_token_for_storage_impl(&refresh_token.token);
+
         sqlx::query(
             r"
             INSERT INTO oauth2_refresh_tokens (token, client_id, user_id, tenant_id, scope, created_at, expires_at, revoked)
             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
             "
         )
-        .bind(&refresh_token.token)
+        .bind(&token_hash)
         .bind(&refresh_token.client_id)
         .bind(refresh_token.user_id.to_string())
         .bind(&refresh_token.tenant_id)
@@ -1542,15 +1562,16 @@ impl Database {
         .bind(refresh_token.expires_at)
         .bind(refresh_token.revoked)
         .execute(&self.pool)
-
-            .await
-
-            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
 
     /// Get `OAuth2` refresh token (internal implementation)
+    ///
+    /// The input token is HMAC-SHA256 hashed before querying, matching the
+    /// hashed value stored by `store_oauth2_refresh_token_impl`.
     ///
     /// # Errors
     ///
@@ -1559,6 +1580,8 @@ impl Database {
         &self,
         token: &str,
     ) -> AppResult<Option<OAuth2RefreshToken>> {
+        let token_hash = self.hash_token_for_storage_impl(token);
+
         let row = sqlx::query(
             r"
             SELECT token, client_id, user_id, tenant_id, scope, created_at, expires_at, revoked
@@ -1566,7 +1589,7 @@ impl Database {
             WHERE token = ?1
             ",
         )
-        .bind(token)
+        .bind(&token_hash)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
@@ -1684,6 +1707,8 @@ impl Database {
 
     /// Atomically consume `OAuth2` refresh token (internal implementation)
     ///
+    /// The input token is HMAC-SHA256 hashed before querying.
+    ///
     /// # Errors
     ///
     /// Returns an error if the database query fails
@@ -1693,6 +1718,8 @@ impl Database {
         client_id: &str,
         now: DateTime<Utc>,
     ) -> AppResult<Option<OAuth2RefreshToken>> {
+        let token_hash = self.hash_token_for_storage_impl(token);
+
         let row = sqlx::query(
             r"
             UPDATE oauth2_refresh_tokens
@@ -1704,7 +1731,7 @@ impl Database {
             RETURNING token, client_id, user_id, tenant_id, scope, expires_at, created_at, revoked
             ",
         )
-        .bind(token)
+        .bind(&token_hash)
         .bind(client_id)
         .bind(now)
         .fetch_optional(&self.pool)
@@ -2489,6 +2516,10 @@ impl shared::encryption::HasEncryption for Database {
         // Call inherent impl directly to avoid infinite recursion
         Self::decrypt_data_with_aad_impl(self, encrypted, aad)
     }
+
+    fn hash_token_for_storage(&self, token: &str) -> AppResult<String> {
+        Ok(Self::hash_token_for_storage_impl(self, token))
+    }
 }
 
 // Implement DatabaseProvider trait for Database (eliminates sqlite.rs wrapper)
@@ -2909,18 +2940,20 @@ impl DatabaseProvider for Database {
     async fn get_provider_last_sync(
         &self,
         user_id: Uuid,
+        tenant_id: &str,
         provider: &str,
     ) -> AppResult<Option<DateTime<Utc>>> {
-        Self::get_provider_last_sync(self, user_id, provider).await
+        Self::get_provider_last_sync(self, user_id, tenant_id, provider).await
     }
 
     async fn update_provider_last_sync(
         &self,
         user_id: Uuid,
+        tenant_id: &str,
         provider: &str,
         sync_time: DateTime<Utc>,
     ) -> AppResult<()> {
-        Self::update_provider_last_sync(self, user_id, provider, sync_time).await
+        Self::update_provider_last_sync(self, user_id, tenant_id, provider, sync_time).await
     }
 
     async fn get_top_tools_analysis(
@@ -3183,7 +3216,8 @@ impl DatabaseProvider for Database {
         &self,
         token: &str,
     ) -> AppResult<Option<OAuth2RefreshToken>> {
-        Self::get_refresh_token_by_value(self, token).await
+        // Delegate to get_oauth2_refresh_token_impl which handles token hashing
+        Self::get_oauth2_refresh_token_impl(self, token).await
     }
 
     async fn store_authorization_code(

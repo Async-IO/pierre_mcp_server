@@ -201,4 +201,46 @@ pub trait HasEncryption {
     /// # Errors
     /// Returns error if AAD doesn't match or data is tampered/corrupted
     fn decrypt_data_with_aad(&self, encrypted: &str, aad: &str) -> AppResult<String>;
+
+    /// Compute a keyed HMAC-SHA256 hash for secure token storage
+    ///
+    /// Used for refresh tokens where we need deterministic lookups but don't
+    /// need to recover the original value. The HMAC key is the database encryption
+    /// key, so even if the DB is compromised, tokens cannot be verified without it.
+    ///
+    /// # Arguments
+    /// * `token` - The plaintext token to hash
+    ///
+    /// # Returns
+    /// Base64-encoded HMAC-SHA256 digest
+    ///
+    /// # Errors
+    /// Returns error if HMAC computation fails
+    fn hash_token_for_storage(&self, token: &str) -> AppResult<String>;
+}
+
+/// Hash a refresh token for secure database storage using HMAC-SHA256
+///
+/// Refresh tokens are hashed (not encrypted) because they only need to be
+/// verified, never recovered. This provides defense-in-depth: if the database
+/// is compromised, the attacker cannot replay refresh tokens because they
+/// only have the HMAC digest, not the original token value.
+///
+/// The HMAC is keyed with the database encryption key, preventing offline
+/// brute-force attacks even with database access.
+///
+/// # Arguments
+/// * `db` - Database implementing `HasEncryption` trait
+/// * `token` - The plaintext refresh token to hash
+///
+/// # Returns
+/// * `Ok(String)` - Base64-encoded HMAC-SHA256 digest for storage/lookup
+///
+/// # Errors
+/// Returns error if HMAC computation fails
+pub fn hash_refresh_token<D>(db: &D, token: &str) -> AppResult<String>
+where
+    D: HasEncryption,
+{
+    db.hash_token_for_storage(token)
 }

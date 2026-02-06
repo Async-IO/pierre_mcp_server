@@ -196,17 +196,19 @@ pub trait OAuthTokenRepository: Send + Sync {
     /// Remove user OAuth app credentials for a provider
     async fn remove_app(&self, user_id: Uuid, provider: &str) -> Result<(), DatabaseError>;
 
-    /// Get last sync timestamp for a provider
+    /// Get last sync timestamp for a provider within a specific tenant
     async fn get_last_sync(
         &self,
         user_id: Uuid,
+        tenant_id: &str,
         provider: &str,
     ) -> Result<Option<DateTime<Utc>>, DatabaseError>;
 
-    /// Update last sync timestamp for a provider
+    /// Update last sync timestamp for a provider within a specific tenant
     async fn update_last_sync(
         &self,
         user_id: Uuid,
+        tenant_id: &str,
         provider: &str,
         sync_time: DateTime<Utc>,
     ) -> Result<(), DatabaseError>;

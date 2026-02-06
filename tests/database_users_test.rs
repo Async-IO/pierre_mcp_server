@@ -456,14 +456,17 @@ async fn test_provider_last_sync() {
     };
     db.upsert_user_oauth_token(&token_data).await.unwrap();
 
-    // Update last sync
+    // Update last sync (scoped to tenant)
     let update_result = db
-        .update_provider_last_sync(user.id, provider, sync_time)
+        .update_provider_last_sync(user.id, "test_tenant", provider, sync_time)
         .await;
     assert!(update_result.is_ok());
 
-    // Get last sync
-    let retrieved_sync = db.get_provider_last_sync(user.id, provider).await.unwrap();
+    // Get last sync (scoped to tenant)
+    let retrieved_sync = db
+        .get_provider_last_sync(user.id, "test_tenant", provider)
+        .await
+        .unwrap();
     assert!(retrieved_sync.is_some());
 
     // Times should be very close (within a few seconds)
@@ -477,7 +480,7 @@ async fn test_get_provider_last_sync_nonexistent() {
     let non_existent_id = Uuid::new_v4();
 
     let result = db
-        .get_provider_last_sync(non_existent_id, "strava")
+        .get_provider_last_sync(non_existent_id, "default", "strava")
         .await
         .unwrap();
     assert!(result.is_none());

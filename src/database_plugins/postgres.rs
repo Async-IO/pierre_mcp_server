@@ -2630,12 +2630,14 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_provider_last_sync(
         &self,
         user_id: Uuid,
+        tenant_id: &str,
         provider: &str,
     ) -> AppResult<Option<DateTime<Utc>>> {
         let last_sync: Option<DateTime<Utc>> = sqlx::query_scalar(
-            "SELECT last_sync FROM user_oauth_tokens WHERE user_id = $1 AND provider = $2",
+            "SELECT last_sync FROM user_oauth_tokens WHERE user_id = $1 AND tenant_id = $2 AND provider = $3",
         )
         .bind(user_id)
+        .bind(tenant_id)
         .bind(provider)
         .fetch_optional(&self.pool)
         .await
@@ -2647,14 +2649,16 @@ impl DatabaseProvider for PostgresDatabase {
     async fn update_provider_last_sync(
         &self,
         user_id: Uuid,
+        tenant_id: &str,
         provider: &str,
         sync_time: DateTime<Utc>,
     ) -> AppResult<()> {
         sqlx::query(
-            "UPDATE user_oauth_tokens SET last_sync = $1 WHERE user_id = $2 AND provider = $3",
+            "UPDATE user_oauth_tokens SET last_sync = $1 WHERE user_id = $2 AND tenant_id = $3 AND provider = $4",
         )
         .bind(sync_time)
         .bind(user_id)
+        .bind(tenant_id)
         .bind(provider)
         .execute(&self.pool)
         .await
@@ -5172,15 +5176,20 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     /// Store OAuth 2.0 refresh token
+    ///
+    /// The refresh token value is HMAC-SHA256 hashed before storage so that
+    /// plaintext tokens are never persisted to disk.
     async fn store_oauth2_refresh_token(
         &self,
         refresh_token: &OAuth2RefreshToken,
     ) -> AppResult<()> {
+        let token_hash = HasEncryption::hash_token_for_storage(self, &refresh_token.token)?;
+
         sqlx::query(
             "INSERT INTO oauth2_refresh_tokens (token, client_id, user_id, tenant_id, scope, expires_at, created_at, revoked)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
         )
-        .bind(&refresh_token.token)
+        .bind(&token_hash)
         .bind(&refresh_token.client_id)
         .bind(refresh_token.user_id)
         .bind(&refresh_token.tenant_id)
@@ -5194,13 +5203,17 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     /// Get OAuth 2.0 refresh token
+    ///
+    /// The input token is HMAC-SHA256 hashed before querying.
     async fn get_oauth2_refresh_token(&self, token: &str) -> AppResult<Option<OAuth2RefreshToken>> {
+        let token_hash = HasEncryption::hash_token_for_storage(self, token)?;
+
         let row = sqlx::query(
             "SELECT token, client_id, user_id, tenant_id, scope, expires_at, created_at, revoked
              FROM oauth2_refresh_tokens
              WHERE token = $1",
         )
-        .bind(token)
+        .bind(&token_hash)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
@@ -5239,9 +5252,13 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     /// Revoke OAuth 2.0 refresh token
+    ///
+    /// The input token is HMAC-SHA256 hashed before querying.
     async fn revoke_oauth2_refresh_token(&self, token: &str) -> AppResult<()> {
+        let token_hash = HasEncryption::hash_token_for_storage(self, token)?;
+
         sqlx::query("UPDATE oauth2_refresh_tokens SET revoked = true WHERE token = $1")
-            .bind(token)
+            .bind(&token_hash)
             .execute(&self.pool)
             .await
             .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
@@ -5301,12 +5318,15 @@ impl DatabaseProvider for PostgresDatabase {
     ///
     /// Implements atomic check-and-revoke using UPDATE...RETURNING
     /// to prevent TOCTOU race conditions in concurrent refresh requests.
+    /// The input token is HMAC-SHA256 hashed before querying.
     async fn consume_refresh_token(
         &self,
         token: &str,
         client_id: &str,
         now: DateTime<Utc>,
     ) -> AppResult<Option<OAuth2RefreshToken>> {
+        let token_hash = HasEncryption::hash_token_for_storage(self, token)?;
+
         let row = sqlx::query(
             "UPDATE oauth2_refresh_tokens
              SET revoked = true
@@ -5316,7 +5336,7 @@ impl DatabaseProvider for PostgresDatabase {
                AND expires_at > $3
              RETURNING token, client_id, user_id, tenant_id, scope, expires_at, created_at, revoked",
         )
-        .bind(token)
+        .bind(&token_hash)
         .bind(client_id)
         .bind(now)
         .fetch_optional(&self.pool).await.map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
@@ -5354,16 +5374,21 @@ impl DatabaseProvider for PostgresDatabase {
         }
     }
 
+    /// Look up a refresh token by value (without `client_id` constraint)
+    ///
+    /// The input token is HMAC-SHA256 hashed before querying.
     async fn get_refresh_token_by_value(
         &self,
         token: &str,
     ) -> AppResult<Option<OAuth2RefreshToken>> {
+        let token_hash = HasEncryption::hash_token_for_storage(self, token)?;
+
         let row = sqlx::query(
             "SELECT token, client_id, user_id, tenant_id, scope, expires_at, created_at, revoked
              FROM oauth2_refresh_tokens
              WHERE token = $1",
         )
-        .bind(token)
+        .bind(&token_hash)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
@@ -8463,5 +8488,18 @@ impl shared::encryption::HasEncryption for PostgresDatabase {
         String::from_utf8(decrypted.to_vec()).map_err(|e| {
             AppError::database(format!("Failed to convert decrypted data to string: {e}"))
         })
+    }
+
+    /// Compute HMAC-SHA256 of a token for secure storage
+    ///
+    /// Used for refresh tokens where we need deterministic lookups but don't
+    /// need to recover the original value.
+    fn hash_token_for_storage(&self, token: &str) -> AppResult<String> {
+        use base64::{engine::general_purpose, Engine as _};
+        use ring::hmac;
+
+        let key = hmac::Key::new(hmac::HMAC_SHA256, &self.encryption_key);
+        let tag = hmac::sign(&key, token.as_bytes());
+        Ok(general_purpose::STANDARD.encode(tag.as_ref()))
     }
 }

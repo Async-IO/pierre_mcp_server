@@ -169,10 +169,11 @@ impl OAuthTokenRepository for OAuthTokenRepositoryImpl {
     async fn get_last_sync(
         &self,
         user_id: Uuid,
+        tenant_id: &str,
         provider: &str,
     ) -> Result<Option<DateTime<Utc>>, DatabaseError> {
         self.db
-            .get_provider_last_sync(user_id, provider)
+            .get_provider_last_sync(user_id, tenant_id, provider)
             .await
             .map_err(|e| DatabaseError::QueryError {
                 context: e.to_string(),
@@ -182,11 +183,12 @@ impl OAuthTokenRepository for OAuthTokenRepositoryImpl {
     async fn update_last_sync(
         &self,
         user_id: Uuid,
+        tenant_id: &str,
         provider: &str,
         sync_time: DateTime<Utc>,
     ) -> Result<(), DatabaseError> {
         self.db
-            .update_provider_last_sync(user_id, provider, sync_time)
+            .update_provider_last_sync(user_id, tenant_id, provider, sync_time)
             .await
             .map_err(|e| DatabaseError::QueryError {
                 context: e.to_string(),

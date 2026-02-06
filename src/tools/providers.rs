@@ -194,10 +194,10 @@ impl ProviderManager {
             None => ConnectionStatus::Disconnected,
         };
 
-        // Get last sync timestamp
+        // Get last sync timestamp (scoped to tenant for multi-tenant isolation)
         let last_sync = self
             .database
-            .get_provider_last_sync(user_id, &provider_type.to_string())
+            .get_provider_last_sync(user_id, &tenant_id, &provider_type.to_string())
             .await
             .unwrap_or(None);
 
@@ -313,6 +313,10 @@ impl ProviderManager {
     }
 
     /// Update sync timestamp for a provider after successful data fetch
+    ///
+    /// Resolves the user's tenant and scopes the update to prevent
+    /// cross-tenant sync timestamp collisions.
+    ///
     /// # Errors
     ///
     /// Returns an error if database operations fail
@@ -321,9 +325,19 @@ impl ProviderManager {
         user_id: Uuid,
         provider_type: ProviderType,
     ) -> Result<(), AppError> {
+        let tenants = self
+            .database
+            .list_tenants_for_user(user_id)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user tenants: {e}")))?;
+        let tenant_id = tenants
+            .first()
+            .map(|t| t.id.to_string())
+            .ok_or_else(|| AppError::invalid_input("User has no tenant"))?;
+
         let sync_time = chrono::Utc::now();
         self.database
-            .update_provider_last_sync(user_id, &provider_type.to_string(), sync_time)
+            .update_provider_last_sync(user_id, &tenant_id, &provider_type.to_string(), sync_time)
             .await
             .map_err(|e| AppError::internal(format!("Failed to update sync timestamp: {e}")))?;
         Ok(())

@@ -1255,29 +1255,37 @@ impl DatabaseProvider for Database {
     async fn get_provider_last_sync(
         &self,
         user_id: uuid::Uuid,
+        tenant_id: &str,
         provider: &str,
     ) -> AppResult<Option<chrono::DateTime<chrono::Utc>>> {
         match self {
-            Self::SQLite(db) => db.get_provider_last_sync(user_id, provider).await,
+            Self::SQLite(db) => {
+                db.get_provider_last_sync(user_id, tenant_id, provider)
+                    .await
+            }
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(db) => db.get_provider_last_sync(user_id, provider).await,
+            Self::PostgreSQL(db) => {
+                db.get_provider_last_sync(user_id, tenant_id, provider)
+                    .await
+            }
         }
     }
 
     async fn update_provider_last_sync(
         &self,
         user_id: uuid::Uuid,
+        tenant_id: &str,
         provider: &str,
         sync_time: chrono::DateTime<chrono::Utc>,
     ) -> AppResult<()> {
         match self {
             Self::SQLite(db) => {
-                db.update_provider_last_sync(user_id, provider, sync_time)
+                db.update_provider_last_sync(user_id, tenant_id, provider, sync_time)
                     .await
             }
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => {
-                db.update_provider_last_sync(user_id, provider, sync_time)
+                db.update_provider_last_sync(user_id, tenant_id, provider, sync_time)
                     .await
             }
         }
