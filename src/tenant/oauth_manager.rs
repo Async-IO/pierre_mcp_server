@@ -14,6 +14,7 @@ use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::errors::{AppError, AppResult};
 use chrono::Utc;
 use std::collections::HashMap;
+use std::env;
 use std::sync::Arc;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
@@ -155,7 +156,7 @@ impl TenantOAuthManager {
             client_secret: config.client_secret,
             redirect_uri: config.redirect_uri,
             scopes: config.scopes,
-            rate_limit_per_day: STRAVA_DEFAULT_DAILY_RATE_LIMIT,
+            rate_limit_per_day: Self::default_rate_limit_for_provider(provider),
         };
 
         self.credentials
@@ -180,7 +181,10 @@ impl TenantOAuthManager {
         let daily_limit = self
             .credentials
             .get(&(tenant_id, provider.to_owned()))
-            .map_or(STRAVA_DEFAULT_DAILY_RATE_LIMIT, |c| c.rate_limit_per_day);
+            .map_or_else(
+                || Self::default_rate_limit_for_provider(provider),
+                |c| c.rate_limit_per_day,
+            );
 
         Ok((usage, daily_limit))
     }
@@ -234,7 +238,7 @@ impl TenantOAuthManager {
             let redirect_uri = strava_config
                 .redirect_uri
                 .clone()
-                .unwrap_or_else(|| "http://localhost:8080/api/oauth/callback/strava".to_owned());
+                .unwrap_or_else(|| Self::default_redirect_uri("strava"));
             info!(
                 "Using server-level Strava OAuth credentials for tenant {}",
                 tenant_id
@@ -270,7 +274,7 @@ impl TenantOAuthManager {
             let redirect_uri = fitbit_config
                 .redirect_uri
                 .clone()
-                .unwrap_or_else(|| "http://localhost:8080/api/oauth/callback/fitbit".to_owned());
+                .unwrap_or_else(|| Self::default_redirect_uri("fitbit"));
             info!(
                 "Using server-level Fitbit OAuth credentials for tenant {}",
                 tenant_id
@@ -316,7 +320,7 @@ impl TenantOAuthManager {
             let redirect_uri = garmin_config
                 .redirect_uri
                 .clone()
-                .unwrap_or_else(|| "http://localhost:8080/api/oauth/callback/garmin".to_owned());
+                .unwrap_or_else(|| Self::default_redirect_uri("garmin"));
             info!(
                 "Using server-level Garmin OAuth credentials for tenant {}",
                 tenant_id
@@ -352,7 +356,7 @@ impl TenantOAuthManager {
             let redirect_uri = whoop_config
                 .redirect_uri
                 .clone()
-                .unwrap_or_else(|| "http://localhost:8080/api/oauth/callback/whoop".to_owned());
+                .unwrap_or_else(|| Self::default_redirect_uri("whoop"));
             info!(
                 "Using server-level WHOOP OAuth credentials for tenant {}",
                 tenant_id
@@ -396,7 +400,7 @@ impl TenantOAuthManager {
             let redirect_uri = terra_config
                 .redirect_uri
                 .clone()
-                .unwrap_or_else(|| "http://localhost:8080/api/oauth/callback/terra".to_owned());
+                .unwrap_or_else(|| Self::default_redirect_uri("terra"));
             info!(
                 "Using server-level Terra OAuth credentials for tenant {}",
                 tenant_id
@@ -518,6 +522,15 @@ impl TenantOAuthManager {
             "terra" => TERRA_DEFAULT_DAILY_RATE_LIMIT,
             _ => 1000, // Default fallback
         }
+    }
+
+    /// Build the default OAuth callback redirect URI for a provider.
+    ///
+    /// Uses the `BASE_URL` environment variable (falling back to `http://localhost:8081`)
+    /// to construct the redirect URI, matching the server's configured external address.
+    fn default_redirect_uri(provider: &str) -> String {
+        let base_url = env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8081".to_owned());
+        format!("{base_url}/api/oauth/callback/{provider}")
     }
 
     /// Try to load tenant-specific OAuth credentials from memory cache and database

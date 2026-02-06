@@ -654,9 +654,9 @@ impl OpenAiCompatibleProvider {
 
         let openai_response: OpenAiResponse = serde_json::from_str(&body).map_err(|e| {
             error!(
-                "Failed to parse API response: {} - body: {}",
+                "Failed to parse API response: {} (response_len={})",
                 e,
-                &body[..body.len().min(500)]
+                body.len()
             );
             AppError::external_service("LocalLLM", format!("Failed to parse response: {e}"))
         })?;

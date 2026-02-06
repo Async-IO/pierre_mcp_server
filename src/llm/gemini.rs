@@ -471,7 +471,7 @@ impl GeminiProvider {
 
         let gemini_response: GeminiResponse =
             serde_json::from_str(&response_text).map_err(|e| {
-                error!(error = %e, response = %response_text, "Failed to parse response");
+                error!(error = %e, response_len = response_text.len(), "Failed to parse Gemini response (body redacted)");
                 AppError::internal(format!("Failed to parse Gemini response: {e}"))
             })?;
 
@@ -881,7 +881,7 @@ impl LlmProvider for GeminiProvider {
             let gemini_response: GeminiResponse = match serde_json::from_str(&response_text) {
                 Ok(r) => r,
                 Err(e) => {
-                    error!(error = %e, response = %response_text, "Failed to parse response");
+                    error!(error = %e, response_len = response_text.len(), "Failed to parse Gemini response (body redacted)");
                     return Err(AppError::internal(format!(
                         "Failed to parse Gemini response: {e}"
                     )));
