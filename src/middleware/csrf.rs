@@ -145,11 +145,17 @@ pub async fn csrf_protection_layer(
         return Ok(next.run(request).await);
     };
 
-    // Extract user_id from the cookie JWT to validate CSRF token ownership
-    let claims = resources
+    // Extract user_id from the cookie JWT to validate CSRF token ownership.
+    // If the cookie JWT is invalid (expired, stale RSA key, etc.), treat the
+    // request as unauthenticated — there is no valid session to protect with
+    // CSRF. The actual endpoint handler will perform its own authentication.
+    let Ok(claims) = resources
         .auth_manager
         .validate_token(&auth_token, &resources.jwks_manager)
-        .map_err(|_| AppError::auth_invalid("Invalid authentication cookie"))?;
+    else {
+        debug!("Stale or invalid auth cookie in CSRF check, treating as unauthenticated");
+        return Ok(next.run(request).await);
+    };
 
     let user_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AppError::auth_invalid("Invalid user ID in authentication token"))?;
