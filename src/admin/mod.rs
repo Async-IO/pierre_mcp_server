@@ -53,6 +53,8 @@ pub use models::AdminPermission;
 pub use models::AdminPermissions;
 /// Admin token with metadata
 pub use models::AdminToken;
+/// Redacted admin token for API responses (excludes sensitive hashes)
+pub use models::AdminTokenSummary;
 /// Admin token usage tracking
 pub use models::AdminTokenUsage;
 /// Request to provision API key

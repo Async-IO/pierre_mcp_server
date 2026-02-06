@@ -55,9 +55,6 @@ use crate::routes::coaches::{
             CreateCoachBody,
             UpdateCoachBody,
         )
-    ),
-    servers(
-        (url = "http://localhost:8081", description = "Local development server")
     )
 )]
 pub struct ApiDoc;

@@ -359,8 +359,13 @@ impl LlmSettingsRoutes {
 
     /// Validate LLM credentials without saving
     async fn validate_llm_credentials(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
         Json(request): Json<ValidateLlmCredentialsRequest>,
     ) -> Result<Json<ValidationResponse>, AppError> {
+        // Require authentication to prevent unauthenticated abuse
+        let auth = Self::authenticate(&headers, &resources).await?;
+
         // Parse provider
         let provider = LlmProvider::parse_str(&request.provider).ok_or_else(|| {
             AppError::invalid_input(format!(
@@ -369,10 +374,12 @@ impl LlmSettingsRoutes {
             ))
         })?;
 
+        let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
+
         // Create credentials for validation
         let credentials = LlmCredentials {
-            tenant_id: Uuid::nil(),
-            user_id: None,
+            tenant_id,
+            user_id: Some(auth.user_id),
             provider,
             api_key: request.api_key,
             base_url: request.base_url,

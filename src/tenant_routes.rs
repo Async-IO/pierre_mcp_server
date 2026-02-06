@@ -567,6 +567,14 @@ pub async fn oauth_authorize(
         auth_params.client_id, auth_result.user_id
     );
 
+    // Validate response_type is "code" (only authorization code flow is supported)
+    if auth_params.response_type != "code" {
+        return Err(AppError::invalid_input(format!(
+            "Unsupported response_type '{}'. Only 'code' is supported",
+            auth_params.response_type
+        )));
+    }
+
     // Validate client_id exists
     let oauth_app = database
         .get_oauth_app_by_client_id(&auth_params.client_id)
@@ -583,6 +591,16 @@ pub async fn oauth_authorize(
     // Validate redirect_uri matches registered URIs
     if !oauth_app.redirect_uris.contains(&auth_params.redirect_uri) {
         return Err(AppError::invalid_input("Invalid redirect_uri".to_owned()));
+    }
+
+    // Validate requested scopes are a subset of the app's registered scopes
+    let requested_scopes: Vec<&str> = auth_params.scope.split_whitespace().collect();
+    for requested_scope in &requested_scopes {
+        if !oauth_app.scopes.iter().any(|s| s == requested_scope) {
+            return Err(AppError::invalid_input(format!(
+                "Scope '{requested_scope}' is not authorized for this application"
+            )));
+        }
     }
 
     // Generate authorization code and store it temporarily

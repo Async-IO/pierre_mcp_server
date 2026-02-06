@@ -971,10 +971,11 @@ async fn test_create_super_admin_token() -> Result<()> {
         "expires_in_days": 0  // Never expires
     });
 
+    // Creating super-admin tokens requires the caller to be a super-admin
     let response = AxumTestRequest::post("/admin/tokens")
         .header(
             "authorization",
-            &setup.auth_header(&setup.admin_token.jwt_token),
+            &setup.auth_header(&setup.super_admin_token.jwt_token),
         )
         .header("content-type", "application/json")
         .json(&request_body)

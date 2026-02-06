@@ -44,7 +44,9 @@ use crate::{
         auth::AdminAuthService,
         jwks::JwksManager,
         middleware::admin_auth_middleware,
-        models::{AdminPermission, CreateAdminTokenRequest, ValidatedAdminToken},
+        models::{
+            AdminPermission, AdminTokenSummary, CreateAdminTokenRequest, ValidatedAdminToken,
+        },
         AdminPermission as AdminPerm,
     },
     api_keys::{ApiKey, ApiKeyManager, ApiKeyTier, CreateApiKeyRequest},
@@ -1949,15 +1951,15 @@ impl AdminRoutes {
         Extension(admin_token): Extension<ValidatedAdminToken>,
         Json(request): Json<serde_json::Value>,
     ) -> AppResult<impl IntoResponse> {
-        // Check required permission
+        // Check required permission - token management requires ManageAdminTokens
         if !admin_token
             .permissions
-            .has_permission(&AdminPerm::ProvisionKeys)
+            .has_permission(&AdminPerm::ManageAdminTokens)
         {
             return Ok(json_response(
                 AdminResponse {
                     success: false,
-                    message: "Permission denied: ProvisionKeys required".to_owned(),
+                    message: "Permission denied: ManageAdminTokens required".to_owned(),
                     data: None,
                 },
                 StatusCode::FORBIDDEN,
@@ -2072,15 +2074,15 @@ impl AdminRoutes {
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
     ) -> AppResult<impl IntoResponse> {
-        // Check required permission
+        // Check required permission - token management requires ManageAdminTokens
         if !admin_token
             .permissions
-            .has_permission(&AdminPerm::ProvisionKeys)
+            .has_permission(&AdminPerm::ManageAdminTokens)
         {
             return Ok(json_response(
                 AdminResponse {
                     success: false,
-                    message: "Permission denied: ProvisionKeys required".to_owned(),
+                    message: "Permission denied: ManageAdminTokens required".to_owned(),
                     data: None,
                 },
                 StatusCode::FORBIDDEN,
@@ -2101,13 +2103,17 @@ impl AdminRoutes {
 
         info!("Retrieved {} admin tokens", tokens.len());
 
+        // Redact sensitive hash fields before returning
+        let redacted_tokens: Vec<AdminTokenSummary> =
+            tokens.into_iter().map(AdminTokenSummary::from).collect();
+
         Ok(json_response(
             AdminResponse {
                 success: true,
-                message: format!("Retrieved {} admin tokens", tokens.len()),
+                message: format!("Retrieved {} admin tokens", redacted_tokens.len()),
                 data: to_value(json!({
-                    "count": tokens.len(),
-                    "tokens": tokens
+                    "count": redacted_tokens.len(),
+                    "tokens": redacted_tokens
                 }))
                 .ok(),
             },
@@ -2121,15 +2127,15 @@ impl AdminRoutes {
         Extension(admin_token): Extension<ValidatedAdminToken>,
         Path(token_id): Path<String>,
     ) -> AppResult<impl IntoResponse> {
-        // Check required permission
+        // Check required permission - token management requires ManageAdminTokens
         if !admin_token
             .permissions
-            .has_permission(&AdminPerm::ProvisionKeys)
+            .has_permission(&AdminPerm::ManageAdminTokens)
         {
             return Ok(json_response(
                 AdminResponse {
                     success: false,
-                    message: "Permission denied: ProvisionKeys required".to_owned(),
+                    message: "Permission denied: ManageAdminTokens required".to_owned(),
                     data: None,
                 },
                 StatusCode::FORBIDDEN,
@@ -2168,11 +2174,14 @@ impl AdminRoutes {
             }
         };
 
+        // Redact sensitive hash fields before returning
+        let redacted_token = AdminTokenSummary::from(token);
+
         Ok(json_response(
             AdminResponse {
                 success: true,
                 message: "Admin token retrieved successfully".to_owned(),
-                data: to_value(token).ok(),
+                data: to_value(redacted_token).ok(),
             },
             StatusCode::OK,
         ))
@@ -2184,15 +2193,15 @@ impl AdminRoutes {
         Extension(admin_token): Extension<ValidatedAdminToken>,
         Path(token_id): Path<String>,
     ) -> AppResult<impl IntoResponse> {
-        // Check required permission
+        // Check required permission - token management requires ManageAdminTokens
         if !admin_token
             .permissions
-            .has_permission(&AdminPerm::ProvisionKeys)
+            .has_permission(&AdminPerm::ManageAdminTokens)
         {
             return Ok(json_response(
                 AdminResponse {
                     success: false,
-                    message: "Permission denied: ProvisionKeys required".to_owned(),
+                    message: "Permission denied: ManageAdminTokens required".to_owned(),
                     data: None,
                 },
                 StatusCode::FORBIDDEN,
@@ -2236,15 +2245,15 @@ impl AdminRoutes {
         Extension(admin_token): Extension<ValidatedAdminToken>,
         Path(token_id): Path<String>,
     ) -> AppResult<impl IntoResponse> {
-        // Check required permission
+        // Check required permission - token management requires ManageAdminTokens
         if !admin_token
             .permissions
-            .has_permission(&AdminPerm::ProvisionKeys)
+            .has_permission(&AdminPerm::ManageAdminTokens)
         {
             return Ok(json_response(
                 AdminResponse {
                     success: false,
-                    message: "Permission denied: ProvisionKeys required".to_owned(),
+                    message: "Permission denied: ManageAdminTokens required".to_owned(),
                     data: None,
                 },
                 StatusCode::FORBIDDEN,

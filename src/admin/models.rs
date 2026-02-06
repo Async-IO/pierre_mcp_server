@@ -49,6 +49,51 @@ pub struct AdminToken {
     pub usage_count: u64,
 }
 
+/// Redacted admin token for API responses (excludes sensitive hash fields)
+#[derive(Debug, Clone, Serialize)]
+pub struct AdminTokenSummary {
+    /// Unique token identifier (UUID)
+    pub id: String,
+    /// Service or system name using this token
+    pub service_name: String,
+    /// Optional description of the service
+    pub service_description: Option<String>,
+    /// First 8 characters of token for identification
+    pub token_prefix: String,
+    /// Granted admin permissions
+    pub permissions: AdminPermissions,
+    /// Whether this is a super admin token
+    pub is_super_admin: bool,
+    /// Whether the token is active
+    pub is_active: bool,
+    /// When the token was created
+    pub created_at: DateTime<Utc>,
+    /// Optional token expiration time
+    pub expires_at: Option<DateTime<Utc>>,
+    /// When the token was last used
+    pub last_used_at: Option<DateTime<Utc>>,
+    /// Total number of times token has been used
+    pub usage_count: u64,
+}
+
+impl From<AdminToken> for AdminTokenSummary {
+    fn from(token: AdminToken) -> Self {
+        Self {
+            id: token.id,
+            service_name: token.service_name,
+            service_description: token.service_description,
+            token_prefix: token.token_prefix,
+            permissions: token.permissions,
+            is_super_admin: token.is_super_admin,
+            is_active: token.is_active,
+            created_at: token.created_at,
+            expires_at: token.expires_at,
+            last_used_at: token.last_used_at,
+            usage_count: token.usage_count,
+        }
+    }
+}
+
 /// Admin permissions with strong typing
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AdminPermissions {
