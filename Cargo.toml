@@ -288,6 +288,7 @@ rand_chacha = "0.3"
 utoipa = { version = "5.3", features = ["axum_extras", "chrono", "uuid"], optional = true }
 utoipa-axum = { version = "0.2", optional = true }
 utoipa-swagger-ui = { version = "8.1", features = ["axum"], optional = true }
+html-escape = "0.2.13"
 [dev-dependencies]
 tempfile = "3.20"
 serial_test = "3.1"
