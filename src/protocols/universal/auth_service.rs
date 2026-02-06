@@ -451,9 +451,13 @@ impl AuthService {
         provider: &str,
         refresh_token: &str,
     ) -> Result<TokenData, OAuthError> {
-        // Get OAuth credentials for the provider
-        let (client_id, client_secret) = Self::get_default_oauth_credentials(provider)
-            .map_err(|e| OAuthError::TokenRefreshFailed(e.error.unwrap_or_default()))?;
+        // Get tenant-specific OAuth credentials, falling back to defaults
+        let (client_id, client_secret) = if tenant_id.is_empty() {
+            Self::get_default_oauth_credentials(provider)
+        } else {
+            self.get_tenant_oauth_credentials(tenant_id, provider).await
+        }
+        .map_err(|e| OAuthError::TokenRefreshFailed(e.error.unwrap_or_default()))?;
 
         // Call provider-specific token refresh
         let new_token = match provider.to_lowercase().as_str() {

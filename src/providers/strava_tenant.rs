@@ -85,7 +85,7 @@ impl TenantFitnessProvider for TenantStravaProvider {
         provider: &str,
         database: &dyn DatabaseProvider,
     ) -> AppResult<()> {
-        // Get tenant credentials
+        // Get tenant OAuth app credentials (client_id / client_secret)
         let credentials = self
             .oauth_client
             .get_tenant_credentials(tenant_context.tenant_id, provider, database)
@@ -98,7 +98,15 @@ impl TenantFitnessProvider for TenantStravaProvider {
                 ))
             })?;
 
-        // Store credentials for later use
+        // Fetch the user's access token from the database
+        let tenant_id_str = tenant_context.tenant_id.to_string();
+        let oauth_token = database
+            .get_user_oauth_token(tenant_context.user_id, &tenant_id_str, provider)
+            .await?
+            .ok_or_else(|| AppError::auth_required())?;
+
+        // Store credentials and access token for subsequent API calls
+        self.access_token = Some(oauth_token.access_token);
         self.credentials = Some(credentials);
 
         Ok(())

@@ -2023,7 +2023,7 @@ impl Database {
         .map_err(|e| AppError::database(format!("Failed to delete authorization code: {e}")))?;
 
         if result.rows_affected() == 0 {
-            warn!("Authorization code not found for deletion: {}", code);
+            warn!("Authorization code not found for deletion (code redacted)");
         }
 
         Ok(())

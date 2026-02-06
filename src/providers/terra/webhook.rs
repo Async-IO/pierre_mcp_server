@@ -40,6 +40,8 @@ pub enum SignatureValidation {
     Invalid,
     /// Signature header is missing
     Missing,
+    /// No signing secret configured — validation cannot be performed
+    NotConfigured,
 }
 
 /// Validates Terra webhook signatures
@@ -162,7 +164,7 @@ impl TerraWebhookHandler {
     ) -> SignatureValidation {
         self.validator
             .as_ref()
-            .map_or(SignatureValidation::Valid, |v| {
+            .map_or(SignatureValidation::NotConfigured, |v| {
                 v.validate(signature_header, body)
             })
     }

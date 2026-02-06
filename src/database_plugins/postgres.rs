@@ -50,6 +50,7 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine as Base64Engine;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use sqlx::postgres::{PgPoolOptions, PgRow};
 use sqlx::{Pool, Postgres, Row};
 use std::collections::HashMap;
@@ -1910,20 +1911,24 @@ impl DatabaseProvider for PostgresDatabase {
         client_secret: &str,
         api_key_id: &str,
     ) -> AppResult<String> {
+        // Hash secrets before storage (never store plaintext credentials)
+        let secret_hash = format!("{:x}", Sha256::digest(client_secret.as_bytes()));
+        let key_hash = format!("{:x}", Sha256::digest(api_key_id.as_bytes()));
+
         sqlx::query(
             r"
-            INSERT INTO a2a_clients (client_id, user_id, name, description, client_secret_hash, 
-                                    api_key_hash, capabilities, redirect_uris, 
+            INSERT INTO a2a_clients (client_id, user_id, name, description, client_secret_hash,
+                                    api_key_hash, capabilities, redirect_uris,
                                     is_active, rate_limit_per_minute, rate_limit_per_day)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             ",
         )
         .bind(&client.id)
-        .bind(Uuid::new_v4()) // Generate a user_id since A2AClient doesn't have one
+        .bind(client.user_id)
         .bind(&client.name)
         .bind(&client.description)
-        .bind(client_secret) // Use actual client_secret
-        .bind(api_key_id) // Using api_key_id as api_key_hash
+        .bind(&secret_hash)
+        .bind(&key_hash)
         .bind(&client.capabilities)
         .bind(&client.redirect_uris)
         .bind(client.is_active)
@@ -1959,7 +1964,7 @@ impl DatabaseProvider for PostgresDatabase {
                     user_id: row.get("user_id"),
                     name: row.get("name"),
                     description: row.get("description"),
-                    public_key: row.get("client_secret_hash"), // Map client_secret_hash to public_key
+                    public_key: String::new(), // Postgres schema does not store public_key separately
                     capabilities: row.get("capabilities"),
                     redirect_uris: row.get("redirect_uris"),
                     is_active: row.get("is_active"),
@@ -2040,7 +2045,7 @@ impl DatabaseProvider for PostgresDatabase {
                     user_id: row.get("user_id"),
                     name: row.get("name"),
                     description: row.get("description"),
-                    public_key: row.get("client_secret_hash"), // Map client_secret_hash to public_key
+                    public_key: String::new(), // Postgres schema does not store public_key separately
                     capabilities: row.get("capabilities"),
                     redirect_uris: row.get("redirect_uris"),
                     is_active: row.get("is_active"),
@@ -2362,11 +2367,12 @@ impl DatabaseProvider for PostgresDatabase {
                 Value::Null
             });
 
-            // Validate input data structure
+            // Validate input data structure (log type only, never log raw content)
             if !input_data.is_null() && !input_data.is_object() {
                 warn!(
-                    "Invalid input data structure for task, expected object but got: {:?}",
-                    input_data
+                    task_id = %task_id,
+                    value_type = %input_data.as_str().map_or_else(|| "non-object", |_| "string"),
+                    "Invalid input data structure for task, expected object"
                 );
             }
 
@@ -3784,7 +3790,9 @@ impl DatabaseProvider for PostgresDatabase {
                     is_used: false, // Will be marked as used when deleted
                 })
             }
-            None => Err(AppError::not_found(format!("Authorization code {code}"))),
+            None => Err(AppError::not_found(
+                "Authorization code not found or expired".to_owned(),
+            )),
         }
     }
 
@@ -3802,7 +3810,7 @@ impl DatabaseProvider for PostgresDatabase {
         .map_err(|e| AppError::database(format!("Failed to delete authorization code: {e}")))?;
 
         if result.rows_affected() == 0 {
-            warn!("Authorization code not found for deletion: {}", code);
+            warn!("Authorization code not found for deletion (code redacted)");
         }
 
         Ok(())
@@ -6905,7 +6913,6 @@ impl PostgresDatabase {
 
     /// Hash a token for storage
     fn hash_mcp_token(token: &str) -> String {
-        use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         hasher.update(token.as_bytes());
         hex::encode(hasher.finalize())

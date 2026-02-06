@@ -18,6 +18,7 @@ use crate::errors::{AppError, AppResult};
 use chrono::{DateTime, Duration, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use sqlx::Row;
 use tracing::{debug, warn};
 use uuid::Uuid;
@@ -156,6 +157,9 @@ impl Database {
             .map_err(|e| AppError::database(format!("Failed to begin transaction: {e}")))?;
         let mut guard = SqliteTransactionGuard::new(tx);
 
+        // Hash the client secret before storage (never store plaintext secrets)
+        let secret_hash = format!("{:x}", Sha256::digest(client_secret.as_bytes()));
+
         // Insert A2A client within transaction
         sqlx::query(
             r"
@@ -172,7 +176,7 @@ impl Database {
         .bind(&client.name)
         .bind(&client.description)
         .bind(&client.public_key)
-        .bind(client_secret)
+        .bind(&secret_hash)
         .bind(serde_json::to_string(&client.permissions)?)
         .bind(serde_json::to_string(&client.capabilities)?)
         .bind(serde_json::to_string(&client.redirect_uris)?)
