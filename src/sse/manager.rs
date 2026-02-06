@@ -19,6 +19,8 @@ use tokio::sync::{broadcast, RwLock};
 use tracing::{info, warn};
 use uuid::Uuid;
 
+use crate::middleware::redact_session_id;
+
 /// Connection types for different SSE streams
 #[derive(Debug, Clone)]
 pub enum ConnectionType {
@@ -161,10 +163,14 @@ impl SseManager {
                 .push(session_id.clone());
             info!(
                 "Registered protocol stream for session {} belonging to user {}",
-                session_id, user_id
+                redact_session_id(&session_id),
+                user_id
             );
         } else {
-            info!("Registered protocol stream for session: {}", session_id);
+            info!(
+                "Registered protocol stream for session: {}",
+                redact_session_id(&session_id)
+            );
         }
 
         let connection_id = format!("protocol_{session_id}");
@@ -241,7 +247,8 @@ impl SseManager {
                     if let Err(e) = stream.send_oauth_notification(notification).await {
                         warn!(
                             "Failed to send OAuth notification to session {}: {}",
-                            session_id, e
+                            redact_session_id(session_id),
+                            e
                         );
                     } else {
                         sent_count += 1;
@@ -340,7 +347,10 @@ impl SseManager {
             });
         }
 
-        info!("Unregistered protocol stream for session: {}", session_id);
+        info!(
+            "Unregistered protocol stream for session: {}",
+            redact_session_id(session_id)
+        );
     }
 
     /// Get count of active notification streams

@@ -8,8 +8,8 @@
 #![allow(missing_docs)]
 
 use pierre_mcp_server::middleware::redaction::{
-    mask_email, redact_headers, redact_json_fields, redact_token_patterns, BoundedTenantLabel,
-    BoundedUserLabel, RedactionConfig,
+    mask_email, redact_headers, redact_json_fields, redact_session_id, redact_token_patterns,
+    BoundedTenantLabel, BoundedUserLabel, RedactionConfig,
 };
 
 #[test]
@@ -131,6 +131,42 @@ fn test_redaction_disabled() {
     let redacted = redact_headers(headers.iter().map(|(k, v)| (*k, *v)), &config);
 
     assert_eq!(redacted[0].1, "Bearer secret_token");
+}
+
+#[test]
+fn test_redact_session_id_typical() {
+    let sid = "session_a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+    let redacted = redact_session_id(sid);
+    assert_eq!(redacted, "session_a1b2...");
+    assert!(!redacted.contains("ef1234567890"));
+}
+
+#[test]
+fn test_redact_session_id_preserves_short_ids() {
+    let short = "session_abc";
+    let redacted = redact_session_id(short);
+    assert_eq!(redacted, "session_abc");
+}
+
+#[test]
+fn test_redact_session_id_exactly_at_boundary() {
+    // Exactly 12 chars should not get ellipsis
+    let exactly_12 = "session_abcd";
+    assert_eq!(exactly_12.len(), 12);
+    let redacted = redact_session_id(exactly_12);
+    assert_eq!(redacted, "session_abcd");
+
+    // 13 chars should get truncated
+    let thirteen = "session_abcde";
+    let redacted = redact_session_id(thirteen);
+    assert_eq!(redacted, "session_abcd...");
+}
+
+#[test]
+fn test_redact_session_id_empty() {
+    let empty = "";
+    let redacted = redact_session_id(empty);
+    assert_eq!(redacted, "");
 }
 
 #[test]

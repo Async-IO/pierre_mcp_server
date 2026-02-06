@@ -23,6 +23,8 @@ use tokio::sync::broadcast;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
+use crate::middleware::redact_session_id;
+
 /// SSE routes implementation
 pub struct SseRoutes;
 
@@ -182,7 +184,7 @@ impl SseRoutes {
     ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
         info!(
             "New MCP protocol SSE connection for session: {}",
-            session_id
+            redact_session_id(&session_id)
         );
 
         // Extract authorization header for session validation
@@ -194,7 +196,7 @@ impl SseRoutes {
         // Validate authentication if provided
         if let Some(ref auth) = auth_header {
             let token = extract_token(auth).map_err(|_| {
-                warn!(session_id = %session_id, "Invalid Authorization header format for MCP SSE");
+                warn!(session_id = %redact_session_id(&session_id), "Invalid Authorization header format for MCP SSE");
                 AppError::auth_invalid("Invalid Authorization header format")
             })?;
 
@@ -204,12 +206,12 @@ impl SseRoutes {
                 .authenticate_request(Some(&format!("Bearer {token}")))
                 .await
                 .map_err(|e| {
-                    warn!(session_id = %session_id, error = %e, "Failed to authenticate JWT token for MCP SSE");
+                    warn!(session_id = %redact_session_id(&session_id), error = %e, "Failed to authenticate JWT token for MCP SSE");
                     AppError::auth_invalid(format!("Authentication failed: {e}"))
                 })?;
         } else {
             // MCP SSE requires authentication
-            warn!(session_id = %session_id, "Missing Authorization header for MCP SSE connection");
+            warn!(session_id = %redact_session_id(&session_id), "Missing Authorization header for MCP SSE connection");
             return Err(AppError::auth_invalid(
                 "Missing Authorization header - JWT token required for MCP SSE",
             ));
@@ -247,12 +249,12 @@ impl SseRoutes {
                     Err(broadcast::error::RecvError::Lagged(skipped)) => {
                         warn!(
                             "SSE buffer overflow for session {}: {} messages dropped",
-                            session_id_clone, skipped
+                            redact_session_id(&session_id_clone), skipped
                         );
                         // Continue operation for protocol streams
                     }
                     Err(broadcast::error::RecvError::Closed) => {
-                        info!("SSE channel closed for session: {}", session_id_clone);
+                        info!("SSE channel closed for session: {}", redact_session_id(&session_id_clone));
                         break;
                     }
                 }

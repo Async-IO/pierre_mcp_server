@@ -52,6 +52,8 @@ pub use redaction::mask_email;
 pub use redaction::redact_headers;
 /// Redact JSON fields by pattern
 pub use redaction::redact_json_fields;
+/// Redact session IDs for safe logging
+pub use redaction::redact_session_id;
 /// Redact token patterns from strings
 pub use redaction::redact_token_patterns;
 /// Bounded tenant label for tracing

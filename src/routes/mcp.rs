@@ -28,6 +28,7 @@ use crate::{
         schema::get_tools,
         tenant_isolation::validate_jwt_token_for_mcp,
     },
+    middleware::redact_session_id,
     middleware::RequestId,
 };
 
@@ -223,12 +224,18 @@ impl McpRoutes {
         if headers.auth_header.is_some() {
             // Always generate server-controlled session ID when authenticating
             let new_session_id = format!("session_{}", uuid::Uuid::new_v4());
-            info!("Generated server-side MCP session: {}", new_session_id);
+            info!(
+                "Generated server-side MCP session: {}",
+                redact_session_id(&new_session_id)
+            );
             new_session_id
         } else {
             headers.session_id.clone().unwrap_or_else(|| {
                 let new_session_id = format!("session_{}", uuid::Uuid::new_v4());
-                info!("Generated new MCP session: {}", new_session_id);
+                info!(
+                    "Generated new MCP session: {}",
+                    redact_session_id(&new_session_id)
+                );
                 new_session_id
             })
         }
@@ -325,7 +332,7 @@ impl McpRoutes {
         info!(
             user_id = %jwt_result.user_id,
             user_email = %user.email,
-            session_id = %session_id,
+            session_id = %redact_session_id(session_id),
             "Session stored for authenticated user"
         );
     }
