@@ -20,6 +20,7 @@ use tokio::{sync::Mutex, task::yield_now};
 use tracing::{debug, error, field::Empty, info, info_span, warn, Instrument};
 
 use crate::{
+    constants::mcp_transport::MAX_REQUEST_BODY_BYTES,
     database_plugins::DatabaseProvider,
     mcp::{
         multitenant::{McpRequest, MultiTenantMcpServer},
@@ -190,14 +191,16 @@ impl McpRoutes {
     }
 
     /// Parse request body as JSON
+    ///
+    /// Enforces a maximum body size to prevent memory exhaustion from oversized payloads.
     async fn parse_body(request: Request<Body>) -> Result<Value, Response> {
         use axum::body::to_bytes;
 
-        let body_bytes = to_bytes(request.into_body(), usize::MAX)
+        let body_bytes = to_bytes(request.into_body(), MAX_REQUEST_BODY_BYTES)
             .await
             .map_err(|e| {
-                error!(error = %e, "Failed to read request body");
-                (StatusCode::BAD_REQUEST, "Failed to read request body").into_response()
+                warn!(error = %e, max_bytes = MAX_REQUEST_BODY_BYTES, "Request body exceeds size limit or read failed");
+                (StatusCode::PAYLOAD_TOO_LARGE, "Request body too large").into_response()
             })?;
 
         if body_bytes.is_empty() {
@@ -210,13 +213,25 @@ impl McpRoutes {
         })
     }
 
-    /// Determine session ID (use provided or generate new)
+    /// Determine session ID with server-side generation
+    ///
+    /// When an auth header is present, always generates a new server-side session ID
+    /// to prevent session fixation attacks where an attacker pre-selects a session ID
+    /// and tricks a victim into authenticating with it. Client-provided session IDs are
+    /// only used for subsequent unauthenticated requests to resume an existing session.
     fn determine_session_id(headers: &McpRequestHeaders) -> String {
-        headers.session_id.clone().unwrap_or_else(|| {
+        if headers.auth_header.is_some() {
+            // Always generate server-controlled session ID when authenticating
             let new_session_id = format!("session_{}", uuid::Uuid::new_v4());
-            info!("Generated new MCP session: {}", new_session_id);
+            info!("Generated server-side MCP session: {}", new_session_id);
             new_session_id
-        })
+        } else {
+            headers.session_id.clone().unwrap_or_else(|| {
+                let new_session_id = format!("session_{}", uuid::Uuid::new_v4());
+                info!("Generated new MCP session: {}", new_session_id);
+                new_session_id
+            })
+        }
     }
 
     /// Resolve effective auth header from current request or stored session

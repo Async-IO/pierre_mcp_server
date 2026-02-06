@@ -787,6 +787,10 @@ pub mod mcp_transport {
     /// Notification broadcast channel size
     /// Buffer size for MCP notification messages across transports
     pub const NOTIFICATION_CHANNEL_SIZE: usize = 100;
+
+    /// Maximum allowed MCP request body size in bytes (5 MB)
+    /// Prevents memory exhaustion from oversized JSON-RPC payloads
+    pub const MAX_REQUEST_BODY_BYTES: usize = 5 * 1024 * 1024;
 }
 
 /// Rate limit header constants

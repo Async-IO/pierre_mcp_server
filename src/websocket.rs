@@ -169,17 +169,16 @@ impl WebSocketManager {
     /// Handle subscribe message and update subscriptions
     fn handle_subscribe_message(
         topics: Vec<String>,
-        authenticated_user: Option<Uuid>,
+        is_authenticated: bool,
         tx: &UnboundedSender<Message>,
     ) -> Vec<String> {
-        if authenticated_user.is_some() {
+        if is_authenticated {
             let success_msg = WebSocketMessage::Success {
                 message: format!("Subscribed to {} topics", topics.len()),
             };
             if let Ok(json) = serde_json::to_string(&success_msg) {
                 if let Err(e) = tx.send(Message::Text(json)) {
                     warn!(
-                        user_id = ?authenticated_user,
                         topic_count = topics.len(),
                         error = ?e,
                         "Failed to send subscription confirmation over WebSocket"
@@ -204,13 +203,16 @@ impl WebSocketManager {
     }
 
     /// Handle incoming WebSocket connection
+    ///
+    /// Registers the client in the shared clients map upon authentication so that
+    /// broadcast messages reach connected users in real-time. The client is removed
+    /// from the map when the connection closes.
     pub async fn handle_connection(&self, ws: WebSocket) {
         let (mut ws_tx, mut ws_rx) = ws.split();
         let (tx, mut rx) = unbounded_channel();
 
         let connection_id = Uuid::new_v4();
-        let mut authenticated_user: Option<Uuid> = None;
-        let mut subscriptions: Vec<String> = Vec::new();
+        let clients = self.clients.clone(); // Safe: Arc clone for async access
 
         // Spawn task to forward messages to `WebSocket`
         let ws_send_task = tokio::spawn(async move {
@@ -226,11 +228,24 @@ impl WebSocketManager {
             match msg {
                 Ok(Message::Text(text)) => match serde_json::from_str::<WebSocketMessage>(&text) {
                     Ok(WebSocketMessage::Authentication { token }) => {
-                        authenticated_user = self.handle_auth_message(&token, &tx).await;
+                        if let Some(user_id) = self.handle_auth_message(&token, &tx).await {
+                            // Register client immediately so broadcasts reach this connection
+                            let client = ClientConnection {
+                                user_id,
+                                subscriptions: Vec::new(),
+                                tx: tx.clone(), // Safe: mpsc::Sender clone for client storage
+                            };
+                            clients.write().await.insert(connection_id, client);
+                        }
                     }
                     Ok(WebSocketMessage::Subscribe { topics }) => {
-                        subscriptions =
-                            Self::handle_subscribe_message(topics, authenticated_user, &tx);
+                        let is_authenticated = clients.read().await.contains_key(&connection_id);
+                        let new_subscriptions =
+                            Self::handle_subscribe_message(topics, is_authenticated, &tx);
+                        // Update subscriptions in the shared map
+                        if let Some(client) = clients.write().await.get_mut(&connection_id) {
+                            client.subscriptions = new_subscriptions;
+                        }
                     }
                     Err(e) => {
                         let error_msg = WebSocketMessage::Error {
@@ -251,16 +266,6 @@ impl WebSocketManager {
                 Ok(Message::Close(_)) | Err(_) => break,
                 _ => {}
             }
-        }
-
-        // Store authenticated connection
-        if let Some(user_id) = authenticated_user {
-            let client = ClientConnection {
-                user_id,
-                subscriptions,
-                tx: tx.clone(), // Safe: mpsc::Sender clone for client storage
-            };
-            self.clients.write().await.insert(connection_id, client);
         }
 
         // Clean up on disconnect
