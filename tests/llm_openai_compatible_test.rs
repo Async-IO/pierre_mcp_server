@@ -290,19 +290,19 @@ fn test_llm_provider_type_case_insensitive() {
 }
 
 #[test]
-fn test_llm_provider_type_default_is_groq() {
-    assert_eq!(LlmProviderType::default(), LlmProviderType::Groq);
+fn test_llm_provider_type_default_is_gemini() {
+    assert_eq!(LlmProviderType::default(), LlmProviderType::Gemini);
 }
 
 #[test]
-fn test_llm_provider_type_unknown_falls_back_to_groq() {
+fn test_llm_provider_type_unknown_falls_back_to_gemini() {
     assert_eq!(
         LlmProviderType::from_str_or_default("unknown"),
-        LlmProviderType::Groq
+        LlmProviderType::Gemini
     );
     assert_eq!(
         LlmProviderType::from_str_or_default("invalid"),
-        LlmProviderType::Groq
+        LlmProviderType::Gemini
     );
 }
 

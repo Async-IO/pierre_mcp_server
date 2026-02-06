@@ -171,7 +171,7 @@ fn test_groq_capabilities() {
 #[test]
 fn test_llm_provider_type_default() {
     let provider_type = LlmProviderType::default();
-    assert_eq!(provider_type, LlmProviderType::Groq);
+    assert_eq!(provider_type, LlmProviderType::Gemini);
 }
 
 #[test]
@@ -188,10 +188,10 @@ fn test_llm_provider_type_from_str() {
         LlmProviderType::from_str_or_default("google"),
         LlmProviderType::Gemini
     );
-    // Unknown values default to Groq
+    // Unknown values default to Gemini
     assert_eq!(
         LlmProviderType::from_str_or_default("unknown"),
-        LlmProviderType::Groq
+        LlmProviderType::Gemini
     );
 }
 

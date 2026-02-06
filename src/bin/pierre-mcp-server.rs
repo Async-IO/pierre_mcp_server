@@ -18,7 +18,7 @@ use pierre_mcp_server::providers::set_synthetic_database_pool;
 use pierre_mcp_server::{
     auth::AuthManager,
     cache::factory::Cache,
-    config::environment::{ServerConfig, TokioRuntimeConfig},
+    config::environment::{LlmProviderType, ServerConfig, TokioRuntimeConfig},
     constants::init_server_config,
     database_plugins::{factory::Database, DatabaseProvider},
     errors::{AppError, AppResult},
@@ -159,7 +159,7 @@ struct EnvValidation {
 /// Fails fast with clear error messages if critical variables are missing.
 /// This prevents cryptic errors later in the startup process.
 fn validate_required_environment() -> Result<()> {
-    let validations = vec![
+    let mut validations = vec![
         EnvValidation {
             name: "DATABASE_URL",
             value: env::var("DATABASE_URL").ok(),
@@ -187,6 +187,16 @@ fn validate_required_environment() -> Result<()> {
         },
     ];
 
+    // Append LLM provider-specific validations.
+    // Only enforce as required when PIERRE_LLM_PROVIDER is explicitly set —
+    // CI environments don't set it and don't need LLM to start the server.
+    let explicitly_configured = env::var(LlmProviderType::ENV_VAR).is_ok();
+    let llm_provider = LlmProviderType::from_env();
+    validations.extend(llm_provider_validations(
+        llm_provider,
+        explicitly_configured,
+    ));
+
     let mut missing_required = Vec::new();
     let mut missing_optional = Vec::new();
 
@@ -211,7 +221,9 @@ fn validate_required_environment() -> Result<()> {
     // Fail fast if required variables are missing
     if !missing_required.is_empty() {
         eprintln!();
-        eprintln!("ERROR: Required environment variables are missing!");
+        eprintln!(
+            "ERROR: Required environment variables are missing! (LLM provider: {llm_provider})"
+        );
         eprintln!();
         for validation in &missing_required {
             eprintln!("  {} - {}", validation.name, validation.description);
@@ -230,6 +242,48 @@ fn validate_required_environment() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Return provider-specific environment variable validations for the configured LLM provider
+///
+/// When `required` is true (`PIERRE_LLM_PROVIDER` explicitly set), missing keys are fatal.
+/// When false (env var not set, e.g. CI), missing keys produce warnings only.
+fn llm_provider_validations(provider: LlmProviderType, required: bool) -> Vec<EnvValidation> {
+    match provider {
+        LlmProviderType::Groq => vec![EnvValidation {
+            name: "GROQ_API_KEY",
+            value: env::var("GROQ_API_KEY").ok(),
+            required,
+            description: "Groq API key (get one at https://console.groq.com/keys)",
+        }],
+        LlmProviderType::Gemini => vec![
+            EnvValidation {
+                name: "GEMINI_API_KEY",
+                value: env::var("GEMINI_API_KEY").ok(),
+                required,
+                description:
+                    "Google Gemini API key (get one at https://makersuite.google.com/app/apikey)",
+            },
+            EnvValidation {
+                name: "PIERRE_LLM_DEFAULT_MODEL",
+                value: env::var("PIERRE_LLM_DEFAULT_MODEL").ok(),
+                required,
+                description: "Default Gemini model name (e.g., gemini-2.0-flash)",
+            },
+            EnvValidation {
+                name: "PIERRE_LLM_FALLBACK_MODEL",
+                value: env::var("PIERRE_LLM_FALLBACK_MODEL").ok(),
+                required,
+                description: "Fallback Gemini model name (e.g., gemini-2.0-flash-lite)",
+            },
+        ],
+        LlmProviderType::Local => vec![EnvValidation {
+            name: "LOCAL_LLM_BASE_URL",
+            value: env::var("LOCAL_LLM_BASE_URL").ok(),
+            required: false,
+            description: "Local LLM base URL (defaults to http://localhost:11434/v1 for Ollama)",
+        }],
+    }
 }
 
 /// Validate OAuth provider credentials at startup

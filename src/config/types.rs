@@ -120,10 +120,10 @@ impl Display for Environment {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum LlmProviderType {
-    /// Groq provider - LPU-accelerated inference for Llama/Mixtral models (default)
-    #[default]
+    /// Groq provider - LPU-accelerated inference for Llama/Mixtral models
     Groq,
-    /// Google Gemini provider - full-featured with vision support
+    /// Google Gemini provider - full-featured with vision support (default)
+    #[default]
     Gemini,
     /// Local LLM provider - `OpenAI`-compatible endpoint (Ollama, vLLM, `LocalAI`)
     Local,
@@ -137,9 +137,9 @@ impl LlmProviderType {
     #[must_use]
     pub fn from_str_or_default(s: &str) -> Self {
         match s.to_lowercase().as_str() {
-            "gemini" | "google" => Self::Gemini,
+            "groq" => Self::Groq,
             "local" | "ollama" | "vllm" | "localai" => Self::Local,
-            _ => Self::Groq, // Default fallback (including "groq")
+            _ => Self::Gemini, // Default fallback (including "gemini", "google")
         }
     }
 
