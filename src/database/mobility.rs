@@ -407,22 +407,27 @@ impl MobilityManager {
         let limit_val = i32::try_from(filter.limit.unwrap_or(50)).unwrap_or(50);
         let offset_val = i32::try_from(filter.offset.unwrap_or(0)).unwrap_or(0);
 
-        // Build dynamic query parts
+        // Build dynamic query with parameterized conditions to prevent SQL injection
         let mut conditions = Vec::new();
+        let mut bind_values: Vec<String> = Vec::new();
 
         if let Some(ref cat) = filter.category {
-            conditions.push(format!("category = '{}'", cat.as_str()));
+            conditions.push("category = ?".to_owned());
+            bind_values.push(cat.as_str().to_owned());
         }
         if let Some(ref diff) = filter.difficulty {
-            conditions.push(format!("difficulty = '{}'", diff.as_str()));
+            conditions.push("difficulty = ?".to_owned());
+            bind_values.push(diff.as_str().to_owned());
         }
         if let Some(ref muscle) = filter.muscle_group {
-            conditions.push(format!(
-                "(primary_muscles LIKE '%\"{muscle}\"' OR secondary_muscles LIKE '%\"{muscle}\"')"
-            ));
+            conditions.push("(primary_muscles LIKE ? OR secondary_muscles LIKE ?)".to_owned());
+            let pattern = format!("%\"{muscle}\"");
+            bind_values.push(pattern.clone());
+            bind_values.push(pattern);
         }
         if let Some(ref activity) = filter.activity_type {
-            conditions.push(format!("recommended_for_activities LIKE '%\"{activity}\"'"));
+            conditions.push("recommended_for_activities LIKE ?".to_owned());
+            bind_values.push(format!("%\"{activity}\""));
         }
 
         let where_clause = if conditions.is_empty() {
@@ -440,13 +445,17 @@ impl MobilityManager {
             FROM stretching_exercises
             {where_clause}
             ORDER BY name ASC
-            LIMIT $1 OFFSET $2
+            LIMIT ? OFFSET ?
             "
         );
 
-        let rows = sqlx::query(&query)
-            .bind(limit_val)
-            .bind(offset_val)
+        let mut sql_query = sqlx::query(&query);
+        for value in &bind_values {
+            sql_query = sql_query.bind(value);
+        }
+        sql_query = sql_query.bind(limit_val).bind(offset_val);
+
+        let rows = sql_query
             .fetch_all(&self.pool)
             .await
             .map_err(|e| AppError::database(format!("Failed to list stretching exercises: {e}")))?;
@@ -562,28 +571,35 @@ impl MobilityManager {
         let limit_val = i32::try_from(filter.limit.unwrap_or(50)).unwrap_or(50);
         let offset_val = i32::try_from(filter.offset.unwrap_or(0)).unwrap_or(0);
 
-        // Build dynamic query parts
+        // Build dynamic query with parameterized conditions to prevent SQL injection
         let mut conditions = Vec::new();
+        let mut bind_values: Vec<String> = Vec::new();
 
         if let Some(ref cat) = filter.category {
-            conditions.push(format!("category = '{}'", cat.as_str()));
+            conditions.push("category = ?".to_owned());
+            bind_values.push(cat.as_str().to_owned());
         }
         if let Some(ref diff) = filter.difficulty {
-            conditions.push(format!("difficulty = '{}'", diff.as_str()));
+            conditions.push("difficulty = ?".to_owned());
+            bind_values.push(diff.as_str().to_owned());
         }
         if let Some(ref pt) = filter.pose_type {
-            conditions.push(format!("pose_type = '{}'", pt.as_str()));
+            conditions.push("pose_type = ?".to_owned());
+            bind_values.push(pt.as_str().to_owned());
         }
         if let Some(ref muscle) = filter.muscle_group {
-            conditions.push(format!(
-                "(primary_muscles LIKE '%\"{muscle}\"' OR secondary_muscles LIKE '%\"{muscle}\"')"
-            ));
+            conditions.push("(primary_muscles LIKE ? OR secondary_muscles LIKE ?)".to_owned());
+            let pattern = format!("%\"{muscle}\"");
+            bind_values.push(pattern.clone());
+            bind_values.push(pattern);
         }
         if let Some(ref activity) = filter.activity_type {
-            conditions.push(format!("recommended_for_activities LIKE '%\"{activity}\"'"));
+            conditions.push("recommended_for_activities LIKE ?".to_owned());
+            bind_values.push(format!("%\"{activity}\""));
         }
         if let Some(ref recovery) = filter.recovery_context {
-            conditions.push(format!("recommended_for_recovery LIKE '%\"{recovery}\"'"));
+            conditions.push("recommended_for_recovery LIKE ?".to_owned());
+            bind_values.push(format!("%\"{recovery}\""));
         }
 
         let where_clause = if conditions.is_empty() {
@@ -604,13 +620,17 @@ impl MobilityManager {
             FROM yoga_poses
             {where_clause}
             ORDER BY english_name ASC
-            LIMIT $1 OFFSET $2
+            LIMIT ? OFFSET ?
             "
         );
 
-        let rows = sqlx::query(&query)
-            .bind(limit_val)
-            .bind(offset_val)
+        let mut sql_query = sqlx::query(&query);
+        for value in &bind_values {
+            sql_query = sql_query.bind(value);
+        }
+        sql_query = sql_query.bind(limit_val).bind(offset_val);
+
+        let rows = sql_query
             .fetch_all(&self.pool)
             .await
             .map_err(|e| AppError::database(format!("Failed to list yoga poses: {e}")))?;
