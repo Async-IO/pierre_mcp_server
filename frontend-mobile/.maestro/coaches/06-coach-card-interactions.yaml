@@ -1,0 +1,57 @@
+# ABOUTME: Test coach card interactions (create, tap, edit, long press)
+# ABOUTME: Converted from coaches.test.js "coach card interactions" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to coach library
+- runFlow:
+    file: ../helpers/navigate-to-coaches.yaml
+
+# Create a test coach first
+- tapOn:
+    id: "create-coach-button"
+
+- extendedWaitUntil:
+    visible:
+      id: "coach-title-input"
+    timeout: 5000
+
+- tapOn:
+    id: "coach-title-input"
+- inputText: "E2E Test Coach"
+
+- tapOn:
+    id: "coach-prompt-input"
+- inputText: "You are a helpful test coach."
+
+- tapOn:
+    id: "save-coach-button"
+
+# Wait to return to library
+- extendedWaitUntil:
+    visible:
+      id: "coach-library-screen"
+    timeout: 5000
+
+# Find and tap the coach card
+- extendedWaitUntil:
+    visible:
+      text: "E2E Test Coach"
+    timeout: 5000
+- tapOn: "E2E Test Coach"
+
+# Should see coach editor
+- extendedWaitUntil:
+    visible:
+      text: "Edit Coach"
+    timeout: 5000
+
+# Navigate back
+- back

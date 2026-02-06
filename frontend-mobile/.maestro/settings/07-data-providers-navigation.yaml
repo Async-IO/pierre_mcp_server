@@ -1,0 +1,34 @@
+# ABOUTME: Test navigation to Connections screen via Data Providers
+# ABOUTME: Converted from settings.test.js "Data Providers navigation"
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Settings
+- runFlow:
+    file: ../helpers/navigate-to-settings.yaml
+
+# Test: should navigate to Connections screen when Data Providers is tapped
+- tapOn:
+    id: "settings-data-providers-button"
+
+# Should navigate to Connections screen
+- extendedWaitUntil:
+    visible:
+      text: "Connections"
+    timeout: 5000
+
+# Navigate back
+- back
+
+# Should be back on settings
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000

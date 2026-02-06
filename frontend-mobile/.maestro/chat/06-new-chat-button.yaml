@@ -1,0 +1,36 @@
+# ABOUTME: Test creating new chat from + button
+# ABOUTME: Converted from chat.test.js "should create new chat when + button is pressed"
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Send a message first to create a conversation
+- tapOn:
+    id: "message-input"
+- inputText: "Test message"
+- tapOn:
+    id: "send-button"
+
+# Wait for response to complete
+- extendedWaitUntil:
+    visible:
+      id: "thinking-indicator"
+    timeout: 5000
+- extendedWaitUntil:
+    notVisible:
+      id: "thinking-indicator"
+    timeout: 30000
+
+# Now create new chat
+- tapOn:
+    id: "new-chat-button"
+
+# Should show New Chat title
+- assertVisible:
+    id: "chat-title"

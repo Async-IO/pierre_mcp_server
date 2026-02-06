@@ -1,0 +1,46 @@
+# ABOUTME: Test Social Settings toggle and save functionality
+# ABOUTME: Converted from social.test.js "Social Settings Screen" interaction tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Social Settings via Settings tab
+- tapOn:
+    id: "tab-settings"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+- tapOn: "Social Settings"
+- extendedWaitUntil:
+    visible:
+      id: "social-settings-screen"
+    timeout: 5000
+
+# Test: should toggle discoverable setting
+- tapOn:
+    id: "discoverable-switch"
+
+# Save button should appear
+- extendedWaitUntil:
+    visible:
+      text: "Save"
+    timeout: 3000
+
+# Test: should change default visibility
+- tapOn: "Public"
+
+# Test: should save settings changes
+- tapOn: "Save"
+
+# Should show success or button should disappear
+- extendedWaitUntil:
+    notVisible:
+      text: "Save"
+    timeout: 5000

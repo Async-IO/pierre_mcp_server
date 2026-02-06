@@ -1,0 +1,35 @@
+# ABOUTME: Test validation error for invalid email format
+# ABOUTME: Converted from login.test.js "should show validation error for invalid email format"
+
+appId: com.pierre.fitness
+
+---
+# Launch app fresh
+- runFlow:
+    file: ../helpers/launch-app.yaml
+
+# Enter invalid email
+- tapOn:
+    id: "email-input"
+- inputText: "invalid-email"
+
+# Enter a password
+- tapOn:
+    id: "password-input"
+- inputText: "password123"
+
+# Hide keyboard
+- hideKeyboard
+
+# Scroll to make login button visible and tap
+- scrollUntilVisible:
+    element:
+      id: "login-button"
+    direction: DOWN
+    timeout: 5000
+
+- tapOn:
+    id: "login-button"
+
+# Verify validation error is shown
+- assertVisible: "Please enter a valid email"

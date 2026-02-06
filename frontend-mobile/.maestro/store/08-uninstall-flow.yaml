@@ -1,0 +1,64 @@
+# ABOUTME: Test coach uninstall flow from the store
+# ABOUTME: Converted from store.test.js "install/uninstall flow" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Discover
+- runFlow:
+    file: ../helpers/navigate-to-discover.yaml
+
+# Navigate to a coach detail
+- runFlow:
+    when:
+      visible:
+        id: "coach-card-0"
+    commands:
+      - tapOn:
+          id: "coach-card-0"
+      - extendedWaitUntil:
+          visible:
+            id: "store-coach-detail-screen"
+          timeout: 5000
+
+      # Check if Uninstall is available
+      - runFlow:
+          when:
+            visible: "Uninstall"
+          commands:
+            # Tap uninstall
+            - tapOn: "Uninstall"
+
+            # Confirm uninstall in alert
+            - extendedWaitUntil:
+                visible:
+                  text: "Uninstall Coach?"
+                timeout: 3000
+
+            # Tap the Uninstall button in the dialog
+            - tapOn: "Uninstall"
+
+            # Should show confirmation
+            - extendedWaitUntil:
+                visible:
+                  text: "Uninstalled"
+                timeout: 5000
+
+            # Dismiss alert
+            - tapOn: "OK"
+
+            # Should now show Install button
+            - extendedWaitUntil:
+                visible:
+                  text: "Install Coach"
+                timeout: 5000
+
+      # Navigate back
+      - tapOn:
+          id: "back-button"

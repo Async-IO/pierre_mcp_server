@@ -1,0 +1,26 @@
+# ABOUTME: Test that settings screen renders properly (not blank)
+# ABOUTME: Converted from settings.test.js "screen rendering - prevents blank screen regression"
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Settings
+- runFlow:
+    file: ../helpers/navigate-to-settings.yaml
+
+# Test: should show settings screen (not blank)
+- assertVisible:
+    id: "settings-screen"
+
+# Test: should show profile section with user info
+- assertVisible:
+    id: "settings-profile-section"
+
+# Test: should show Edit Profile button
+- assertVisible: "Edit Profile"

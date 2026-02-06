@@ -1,0 +1,46 @@
+# ABOUTME: Test that hallucinated/unimplemented UI elements do NOT exist
+# ABOUTME: Converted from settings.test.js "hallucinated elements - must NOT exist"
+# ABOUTME: If any of these tests fail, a hallucinated element was added - remove it or implement backend first
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Settings
+- runFlow:
+    file: ../helpers/navigate-to-settings.yaml
+
+# Test: should NOT show Apple Health (not implemented)
+- extendedWaitUntil:
+    notVisible:
+      text: "Apple Health"
+    timeout: 2000
+
+# Test: should NOT show Export Data (not implemented)
+- extendedWaitUntil:
+    notVisible:
+      text: "Export Data"
+    timeout: 2000
+
+# Test: should NOT show Push Notifications (not implemented - ASY-355)
+- extendedWaitUntil:
+    notVisible:
+      text: "Push Notifications"
+    timeout: 2000
+
+# Test: should NOT show Email Updates (not implemented - ASY-356)
+- extendedWaitUntil:
+    notVisible:
+      text: "Email Updates"
+    timeout: 2000
+
+# Test: should NOT show Notifications section (not implemented)
+- extendedWaitUntil:
+    notVisible:
+      text: "Notifications"
+    timeout: 2000

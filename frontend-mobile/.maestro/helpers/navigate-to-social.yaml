@@ -1,0 +1,15 @@
+# ABOUTME: Helper flow to navigate from any screen to Social Feed
+# ABOUTME: Uses bottom tab navigation to reach the Social Feed screen
+
+appId: com.pierre.fitness
+
+---
+# Tap the Insights tab in bottom navigation
+- tapOn:
+    id: "tab-insights"
+
+# Wait for social feed screen to load
+- extendedWaitUntil:
+    visible:
+      id: "social-feed-screen"
+    timeout: 5000

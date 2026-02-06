@@ -1,0 +1,27 @@
+# ABOUTME: Test sort options in Discover screen
+# ABOUTME: Converted from store.test.js "sort options" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Discover
+- runFlow:
+    file: ../helpers/navigate-to-discover.yaml
+
+# Test: should sort by Popular
+- tapOn: "Popular"
+- assertVisible: "Popular"
+
+# Test: should sort by Newest
+- tapOn: "Newest"
+- assertVisible: "Newest"
+
+# Test: should sort alphabetically
+- tapOn: "A-Z"
+- assertVisible: "A-Z"

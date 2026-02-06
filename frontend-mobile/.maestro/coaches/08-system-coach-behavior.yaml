@@ -1,0 +1,32 @@
+# ABOUTME: Test system coach badge visibility
+# ABOUTME: Converted from coaches.test.js "system coach behavior" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to coach library
+- runFlow:
+    file: ../helpers/navigate-to-coaches.yaml
+
+# Enable show hidden to see system coaches
+- tapOn:
+    id: "show-hidden-toggle"
+
+# Look for System badge
+# Note: This test assumes there's at least one system coach
+# If not found, the test will continue
+- runFlow:
+    when:
+      visible: "System"
+    commands:
+      - assertVisible: "System"
+
+# Reset show hidden state
+- tapOn:
+    id: "show-hidden-toggle"

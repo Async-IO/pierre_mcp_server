@@ -1,0 +1,53 @@
+# ABOUTME: Visual tests for connection modal
+# ABOUTME: Converted from mobile-visual.test.js "Connection Modal" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to settings
+- runFlow:
+    when:
+      visible:
+        id: "settings-tab"
+    commands:
+      - tapOn:
+          id: "settings-tab"
+
+- runFlow:
+    when:
+      notVisible:
+        id: "settings-tab"
+    commands:
+      - tapOn: "Settings"
+
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+
+# Test: connections - opens from settings
+- runFlow:
+    when:
+      visible: "Connections"
+    commands:
+      - tapOn: "Connections"
+      - runFlow:
+          when:
+            visible:
+              id: "connections-modal"
+          commands:
+            - assertVisible:
+                id: "connections-modal"
+
+# Test: connections - displays Strava provider
+- runFlow:
+    when:
+      visible: "Strava"
+    commands:
+      - assertVisible: "Strava"

@@ -1,0 +1,36 @@
+# ABOUTME: Visual tests for social settings
+# ABOUTME: Converted from mobile-visual.test.js "Social Settings" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Social Settings via Settings tab
+- tapOn:
+    id: "tab-settings"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+- tapOn: "Social Settings"
+
+# Test: social settings - displays screen
+- extendedWaitUntil:
+    visible:
+      id: "social-settings-screen"
+    timeout: 5000
+
+# Test: social settings - displays visibility options
+- assertVisible: "Discoverable"
+
+# Test: social settings - toggle discoverable
+- tapOn:
+    id: "discoverable-switch"
+
+# Test: social settings - displays notification options
+- assertVisible: "Notifications"

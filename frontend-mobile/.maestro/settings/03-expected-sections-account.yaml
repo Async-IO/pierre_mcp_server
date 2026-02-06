@@ -1,0 +1,29 @@
+# ABOUTME: Test Account section is visible with expected elements
+# ABOUTME: Converted from settings.test.js "expected sections - data from backend"
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Settings
+- runFlow:
+    file: ../helpers/navigate-to-settings.yaml
+
+# Test: should show Account section
+- assertVisible:
+    id: "settings-account-section"
+- assertVisible: "Account"
+
+# Test: should show Personal Information option
+- assertVisible: "Personal Information"
+
+# Test: should show Change Password option
+- assertVisible: "Change Password"
+
+# Test: should show MCP Tokens option
+- assertVisible: "MCP Tokens"

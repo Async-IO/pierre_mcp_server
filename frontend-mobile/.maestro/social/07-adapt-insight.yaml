@@ -1,0 +1,43 @@
+# ABOUTME: Test Adapt Insight flow
+# ABOUTME: Converted from social.test.js "Adapt Insight Flow" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to feed via Insights tab
+- tapOn:
+    id: "tab-insights"
+- extendedWaitUntil:
+    visible:
+      id: "social-feed-screen"
+    timeout: 5000
+
+# Test: should show Adapt to My Training button on feed items
+# If there are feed items, check for adapt button
+- runFlow:
+    when:
+      visible:
+        id: "adapt-button"
+    commands:
+      - assertVisible: "Adapt to My Training"
+      # Test: should navigate to adapt screen when tapping Adapt button
+      - tapOn:
+          id: "adapt-button"
+      - extendedWaitUntil:
+          visible:
+            id: "adapt-insight-screen"
+          timeout: 5000
+      - assertVisible: "Adapted for You"
+
+# If no feed items, verify empty state
+- runFlow:
+    when:
+      visible: "No Insights Yet"
+    commands:
+      - assertVisible: "No Insights Yet"

@@ -1,0 +1,35 @@
+# ABOUTME: Test coach card long press action menu
+# ABOUTME: Converted from coaches.test.js "should show action menu on long press"
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to coach library
+- runFlow:
+    file: ../helpers/navigate-to-coaches.yaml
+
+# Look for E2E Test Coach (created in previous test)
+# If not present, the test will fail gracefully
+- extendedWaitUntil:
+    visible:
+      text: "E2E Test Coach"
+    timeout: 5000
+
+# Long press on the coach card
+- longPressOn: "E2E Test Coach"
+
+# Should see action menu with options
+- extendedWaitUntil:
+    visible:
+      text: "Add to favorites"
+    timeout: 3000
+
+# Close menu by tapping coach library screen
+- tapOn:
+    id: "coach-library-screen"

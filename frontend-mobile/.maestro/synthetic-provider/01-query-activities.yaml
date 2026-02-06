@@ -1,0 +1,32 @@
+# ABOUTME: Test querying recent activities with synthetic provider
+# ABOUTME: Converted from synthetic-provider.test.js "should query recent activities"
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Start fresh conversation
+- runFlow:
+    file: ../helpers/new-chat.yaml
+
+# Query recent activities
+- tapOn:
+    id: "message-input"
+- inputText: "Show my recent activities from synthetic provider"
+- tapOn:
+    id: "send-button"
+
+# Wait for response (thinking indicator disappears)
+- extendedWaitUntil:
+    notVisible:
+      id: "thinking-indicator"
+    timeout: 30000
+
+# Response should be received
+- assertVisible:
+    id: "chat-screen"

@@ -1,0 +1,33 @@
+# ABOUTME: Test Privacy, About, and Logout are visible
+# ABOUTME: Converted from settings.test.js "expected sections - data from backend"
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Settings
+- runFlow:
+    file: ../helpers/navigate-to-settings.yaml
+
+# Test: should show Privacy section
+- assertVisible: "Privacy"
+
+# Test: should show About section
+- assertVisible: "About"
+
+# Scroll down to see logout button
+- scrollUntilVisible:
+    element:
+      id: "settings-logout-button"
+    direction: DOWN
+    timeout: 5000
+
+# Test: should show Log Out button
+- assertVisible:
+    id: "settings-logout-button"
+- assertVisible: "Log Out"

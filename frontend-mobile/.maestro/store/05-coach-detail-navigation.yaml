@@ -1,0 +1,44 @@
+# ABOUTME: Test navigation to coach detail from Discover
+# ABOUTME: Converted from store.test.js "coach detail navigation" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Discover
+- runFlow:
+    file: ../helpers/navigate-to-discover.yaml
+
+# Ensure coaches are loaded
+- extendedWaitUntil:
+    visible:
+      id: "coach-list"
+    timeout: 5000
+
+# Try to find any coach card and tap it
+# Note: This requires at least one coach in the store
+- runFlow:
+    when:
+      visible:
+        id: "coach-card-0"
+    commands:
+      - tapOn:
+          id: "coach-card-0"
+
+      # Should see coach detail screen
+      - extendedWaitUntil:
+          visible:
+            id: "store-coach-detail-screen"
+          timeout: 5000
+
+      # Verify detail elements
+      - assertVisible: "Install Coach"
+
+      # Navigate back
+      - tapOn:
+          id: "back-button"

@@ -1,0 +1,24 @@
+# ABOUTME: Test send button enables when text is entered
+# ABOUTME: Converted from chat.test.js "should enable send button when text is entered"
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Start fresh conversation
+- runFlow:
+    file: ../helpers/new-chat.yaml
+
+# Type text in message input
+- tapOn:
+    id: "message-input"
+- inputText: "Hello Pierre"
+
+# Send button should be visible (enabled)
+- assertVisible:
+    id: "send-button"

@@ -1,0 +1,28 @@
+# ABOUTME: Test coach creation navigation
+# ABOUTME: Converted from coaches.test.js "coach creation" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to coach library
+- runFlow:
+    file: ../helpers/navigate-to-coaches.yaml
+
+# Test: should navigate to coach editor when FAB is pressed
+- tapOn:
+    id: "create-coach-button"
+
+# Should see coach editor screen
+- extendedWaitUntil:
+    visible:
+      text: "Create Coach"
+    timeout: 5000
+
+# Navigate back
+- back

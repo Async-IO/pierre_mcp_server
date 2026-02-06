@@ -1,0 +1,38 @@
+# ABOUTME: Test search functionality in Discover screen
+# ABOUTME: Converted from store.test.js "search functionality" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Discover
+- runFlow:
+    file: ../helpers/navigate-to-discover.yaml
+
+# Test: should search for coaches
+- tapOn:
+    id: "search-input"
+- eraseText
+- inputText: "training"
+
+# Wait for search results
+- extendedWaitUntil:
+    visible:
+      id: "coach-list"
+    timeout: 5000
+
+# Test: should clear search
+- tapOn:
+    id: "search-input"
+- eraseText
+
+# Should show all coaches again
+- extendedWaitUntil:
+    visible:
+      id: "coach-list"
+    timeout: 5000

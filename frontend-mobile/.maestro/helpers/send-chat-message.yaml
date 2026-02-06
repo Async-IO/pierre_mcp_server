@@ -1,0 +1,14 @@
+# ABOUTME: Helper flow to send a chat message
+# ABOUTME: Types a message and sends it, optionally waits for response
+
+appId: com.pierre.fitness
+
+---
+# Type message in the input field
+- tapOn:
+    id: "message-input"
+- inputText: ${MESSAGE}
+
+# Tap send button
+- tapOn:
+    id: "send-button"

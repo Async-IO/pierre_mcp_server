@@ -1,0 +1,58 @@
+# ABOUTME: Visual tests for friends screen
+# ABOUTME: Converted from mobile-visual.test.js "Friends Screen" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Friends via Insights tab then Find Friends
+- tapOn:
+    id: "tab-insights"
+- extendedWaitUntil:
+    visible:
+      id: "social-feed-screen"
+    timeout: 5000
+- tapOn: "Find Friends"
+
+# Test: friends - displays screen
+- extendedWaitUntil:
+    visible:
+      id: "friends-screen"
+    timeout: 5000
+
+# Test: friends - displays friend list or empty state
+- runFlow:
+    when:
+      visible:
+        id: "friend-card"
+    commands:
+      - assertVisible:
+          id: "friend-card"
+
+- runFlow:
+    when:
+      visible: "No Friends"
+    commands:
+      - assertVisible: "No Friends"
+
+# Test: friends - search button opens search
+- tapOn:
+    id: "search-friends-button"
+- extendedWaitUntil:
+    visible:
+      id: "search-friends-screen"
+    timeout: 5000
+
+# Test: friends - search finds users
+- tapOn:
+    id: "user-search-input"
+- inputText: "alice"
+- extendedWaitUntil:
+    visible:
+      id: "search-results-list"
+    timeout: 5000

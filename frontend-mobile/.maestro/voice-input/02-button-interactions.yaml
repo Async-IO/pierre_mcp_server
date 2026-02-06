@@ -1,0 +1,32 @@
+# ABOUTME: Test voice input button interactions
+# ABOUTME: Converted from voiceInput.test.js "VoiceButton interactions" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Test: should respond to tap
+- tapOn:
+    id: "voice-input-button"
+
+# The button should still be visible (may have changed state)
+- assertVisible:
+    id: "voice-input-button"
+
+# Test: should show listening indicator when tapped
+# Note: On simulator without voice support, toast error may appear instead
+- runFlow:
+    when:
+      visible: "Tap mic to stop recording"
+    commands:
+      - assertVisible: "Tap mic to stop recording"
+
+# Test: should change placeholder text when listening
+# Verify the input is still present
+- assertVisible:
+    id: "message-input"

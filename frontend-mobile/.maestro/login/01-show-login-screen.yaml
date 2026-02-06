@@ -1,0 +1,13 @@
+# ABOUTME: Test that login screen is visible on app launch
+# ABOUTME: Converted from login.test.js "should show login screen on app launch"
+
+appId: com.pierre.fitness
+
+---
+# Launch app fresh
+- runFlow:
+    file: ../helpers/launch-app.yaml
+
+# Verify login screen is visible
+- assertVisible:
+    id: "login-screen"

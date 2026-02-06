@@ -1,0 +1,31 @@
+# ABOUTME: Test basic chat screen visibility after login
+# ABOUTME: Converted from chat.test.js basic visibility tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Start fresh conversation
+- runFlow:
+    file: ../helpers/new-chat.yaml
+
+# Test: should show chat screen after login
+- assertVisible:
+    id: "chat-screen"
+
+# Test: should show header elements with proper visibility (safe area handling)
+- assertVisible:
+    id: "history-button"
+- assertVisible:
+    id: "chat-title"
+- assertVisible:
+    id: "new-chat-button"
+
+# Test: should show New Chat title initially
+- assertVisible:
+    id: "chat-title"

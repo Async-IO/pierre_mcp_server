@@ -27,7 +27,19 @@
     "e2e:test:android": "detox test --configuration android.emu.debug",
     "e2e:integration": "bunx jest --config integration/jest.config.js",
     "e2e:integration:verbose": "bunx jest --config integration/jest.config.js --verbose",
-    "e2e:integration:watch": "bunx jest --config integration/jest.config.js --watch"
+    "e2e:integration:watch": "bunx jest --config integration/jest.config.js --watch",
+    "maestro": "maestro test .maestro/",
+    "maestro:login": "maestro test .maestro/login/",
+    "maestro:settings": "maestro test .maestro/settings/",
+    "maestro:chat": "maestro test .maestro/chat/",
+    "maestro:coaches": "maestro test .maestro/coaches/",
+    "maestro:store": "maestro test .maestro/store/",
+    "maestro:social": "maestro test .maestro/social/",
+    "maestro:coach-wizard": "maestro test .maestro/coach-wizard/",
+    "maestro:voice": "maestro test .maestro/voice-input/",
+    "maestro:synthetic": "maestro test .maestro/synthetic-provider/",
+    "maestro:visual": "maestro test .maestro/visual/",
+    "maestro:ci": "maestro test .maestro/ --format junit --output maestro-results.xml"
   },
   "dependencies": {
     "@pierre/api-client": "file:../packages/api-client",

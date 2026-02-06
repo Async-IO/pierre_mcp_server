@@ -1,0 +1,31 @@
+# ABOUTME: Test recovery recommendation based on synthetic data
+# ABOUTME: Converted from synthetic-provider.test.js "should recommend recovery"
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Start fresh conversation
+- runFlow:
+    file: ../helpers/new-chat.yaml
+
+# Get recovery recommendation
+- tapOn:
+    id: "message-input"
+- inputText: "Do I need a rest day? Use synthetic data"
+- tapOn:
+    id: "send-button"
+
+# Wait for response (thinking indicator disappears)
+- extendedWaitUntil:
+    notVisible:
+      id: "thinking-indicator"
+    timeout: 30000
+
+- assertVisible:
+    id: "chat-screen"

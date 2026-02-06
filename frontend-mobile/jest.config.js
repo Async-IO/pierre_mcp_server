@@ -1,6 +1,12 @@
 // ABOUTME: Jest configuration for Pierre Mobile app testing
 // ABOUTME: Uses jest-expo preset with React Native Testing Library
 
+const path = require('path');
+
+// Resolve React to a single instance to prevent dual-instance hooks crash
+// in bun workspaces where react can exist in both local and root node_modules
+const reactDir = path.dirname(require.resolve('react/package.json'));
+
 module.exports = {
   preset: 'jest-expo',
   setupFilesAfterEnv: [
@@ -33,5 +39,9 @@ module.exports = {
     '^@pierre/shared-types$': '<rootDir>/../packages/shared-types/src/index.ts',
     // Mock expo virtual modules for packages outside node_modules
     '^expo/virtual/(.*)$': '<rootDir>/jest.setup.js',
+    // Ensure a single React instance across components and test renderer
+    // Bun workspace hoisting can create duplicate react copies (local + root)
+    '^react$': path.join(reactDir, 'index.js'),
+    '^react/(.*)$': path.join(reactDir, '$1'),
   },
 };

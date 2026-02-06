@@ -1,0 +1,32 @@
+# ABOUTME: Test that hardcoded user stats do NOT exist
+# ABOUTME: Converted from settings.test.js "hallucinated elements - must NOT exist"
+# ABOUTME: These were previously hardcoded values that don't come from backend
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Settings
+- runFlow:
+    file: ../helpers/navigate-to-settings.yaml
+
+# Test: should NOT show hardcoded user stats (activities, hours, insights)
+- extendedWaitUntil:
+    notVisible:
+      text: "127"
+    timeout: 2000
+
+- extendedWaitUntil:
+    notVisible:
+      text: "89"
+    timeout: 2000
+
+- extendedWaitUntil:
+    notVisible:
+      text: "12"
+    timeout: 2000

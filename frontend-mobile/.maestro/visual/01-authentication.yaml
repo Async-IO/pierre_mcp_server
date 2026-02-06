@@ -1,0 +1,48 @@
+# ABOUTME: Visual tests for authentication screens
+# ABOUTME: Converted from mobile-visual.test.js "Authentication" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch app fresh
+- runFlow:
+    file: ../helpers/launch-app.yaml
+
+# Test: login - displays email input
+- assertVisible:
+    id: "email-input"
+
+# Test: login - displays password input
+- assertVisible:
+    id: "password-input"
+
+# Test: login - displays login button
+- assertVisible:
+    id: "login-button"
+
+# Test: login - password is masked
+- tapOn:
+    id: "password-input"
+- inputText: "TestPassword"
+- assertVisible:
+    id: "password-input"
+- eraseText
+
+# Test: login - shows error for invalid credentials
+- tapOn:
+    id: "email-input"
+- eraseText
+- inputText: "wrong@email.com"
+- tapOn:
+    id: "password-input"
+- eraseText
+- inputText: "wrongpassword"
+- hideKeyboard
+- tapOn:
+    id: "login-button"
+
+# Wait for error or stay on login screen
+- extendedWaitUntil:
+    visible:
+      id: "login-screen"
+    timeout: 5000

@@ -1,0 +1,45 @@
+# ABOUTME: Visual tests for share insight modal
+# ABOUTME: Converted from mobile-visual.test.js "Share Insight Modal" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Feed via Insights tab
+- tapOn:
+    id: "tab-insights"
+- extendedWaitUntil:
+    visible:
+      id: "social-feed-screen"
+    timeout: 5000
+
+# Test: share - opens from feed
+- tapOn:
+    id: "share-insight-button"
+- extendedWaitUntil:
+    visible:
+      id: "share-insight-screen"
+    timeout: 5000
+
+# Test: share - displays visibility options
+- assertVisible: "Friends"
+
+# Test: share - caption input works
+- runFlow:
+    when:
+      visible:
+        id: "insight-content-input"
+    commands:
+      - tapOn:
+          id: "insight-content-input"
+      - inputText: "Test caption"
+      - eraseText
+
+# Test: share - publish button visible
+- assertVisible:
+    id: "share-button"

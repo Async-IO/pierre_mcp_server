@@ -1,0 +1,48 @@
+# ABOUTME: Test Search Friends functionality
+# ABOUTME: Converted from social.test.js "Friends Screen" search tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Friends via Insights tab then Find Friends
+- tapOn:
+    id: "tab-insights"
+- extendedWaitUntil:
+    visible:
+      id: "social-feed-screen"
+    timeout: 5000
+- tapOn: "Find Friends"
+- extendedWaitUntil:
+    visible:
+      id: "friends-screen"
+    timeout: 5000
+
+# Test: should navigate to Search Friends
+- extendedWaitUntil:
+    visible:
+      id: "search-friends-button"
+    timeout: 5000
+- tapOn:
+    id: "search-friends-button"
+- extendedWaitUntil:
+    visible:
+      id: "search-friends-screen"
+    timeout: 5000
+- assertVisible: "Search Friends"
+
+# Test: should search for users
+- tapOn:
+    id: "user-search-input"
+- inputText: "test"
+
+# Wait for results
+- extendedWaitUntil:
+    visible:
+      id: "search-results-list"
+    timeout: 5000

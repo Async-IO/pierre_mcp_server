@@ -1,0 +1,46 @@
+# ABOUTME: Test successful login with valid credentials
+# ABOUTME: Converted from login.test.js "should login successfully with valid credentials"
+# ABOUTME: NOTE: This test requires the Pierre backend server running with test user
+
+appId: com.pierre.fitness
+
+---
+# Launch app fresh
+- runFlow:
+    file: ../helpers/launch-app.yaml
+
+# Clear inputs and enter test credentials
+- tapOn:
+    id: "email-input"
+- eraseText
+- inputText: ${TEST_EMAIL}
+
+- tapOn:
+    id: "password-input"
+- eraseText
+- inputText: ${TEST_PASSWORD}
+
+# Hide keyboard
+- hideKeyboard
+
+# Wait for login button to be visible and tap
+- extendedWaitUntil:
+    visible:
+      id: "login-button"
+    timeout: 5000
+
+- tapOn:
+    id: "login-button"
+
+# After successful login, should navigate away from login screen
+# Using longer timeout since login involves API call
+- extendedWaitUntil:
+    notVisible:
+      id: "login-screen"
+    timeout: 15000
+
+# Verify we're on the chat screen
+- extendedWaitUntil:
+    visible:
+      id: "chat-screen"
+    timeout: 5000

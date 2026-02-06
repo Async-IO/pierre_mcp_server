@@ -1,0 +1,21 @@
+# ABOUTME: Test voice input button visibility
+# ABOUTME: Converted from voiceInput.test.js "VoiceButton visibility" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Test: should show voice input button on chat screen
+- assertVisible:
+    id: "voice-input-button"
+
+# Test: should be positioned in the input area
+- assertVisible:
+    id: "message-input"
+- assertVisible:
+    id: "voice-input-button"

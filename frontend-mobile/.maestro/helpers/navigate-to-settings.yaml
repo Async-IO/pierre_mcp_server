@@ -1,0 +1,15 @@
+# ABOUTME: Helper flow to navigate from any screen to Settings
+# ABOUTME: Uses bottom tab navigation to reach the Settings screen
+
+appId: com.pierre.fitness
+
+---
+# Tap the Settings tab in bottom navigation
+- tapOn:
+    id: "tab-settings"
+
+# Wait for settings screen to load
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000

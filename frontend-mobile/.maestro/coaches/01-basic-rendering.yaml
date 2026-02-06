@@ -1,0 +1,39 @@
+# ABOUTME: Test basic coach library screen rendering
+# ABOUTME: Converted from coaches.test.js "basic rendering" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to coach library
+- runFlow:
+    file: ../helpers/navigate-to-coaches.yaml
+
+# Test: should show coach library screen
+- assertVisible:
+    id: "coach-library-screen"
+
+# Test: should show Coaches title
+- assertVisible: "Coaches"
+
+# Test: should show category filters
+- assertVisible: "All"
+- assertVisible: "Training"
+- assertVisible: "Nutrition"
+
+# Test: should show create coach button in header
+- assertVisible:
+    id: "create-coach-button"
+
+# Test: should show show hidden toggle button
+- assertVisible:
+    id: "show-hidden-toggle"
+
+# Test: should show floating search bar at bottom
+- assertVisible:
+    id: "coach-search-input"

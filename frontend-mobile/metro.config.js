@@ -50,6 +50,15 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
       type: 'sourceFile',
     };
   }
+  // Force single React instance across all workspace packages
+  // Bun workspace hoisting can place react in both local and root node_modules,
+  // causing "Cannot read property 'useState' of null" hooks crash at runtime
+  if (moduleName === 'react' || moduleName.startsWith('react/')) {
+    return {
+      filePath: require.resolve(moduleName, { paths: [projectRoot] }),
+      type: 'sourceFile',
+    };
+  }
   return context.resolveRequest(context, moduleName, platform);
 };
 

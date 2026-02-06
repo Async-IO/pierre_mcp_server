@@ -1,0 +1,31 @@
+# ABOUTME: Test performance prediction from synthetic history
+# ABOUTME: Converted from synthetic-provider.test.js "should predict performance"
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Start fresh conversation
+- runFlow:
+    file: ../helpers/new-chat.yaml
+
+# Get performance prediction
+- tapOn:
+    id: "message-input"
+- inputText: "Predict my 5K time based on synthetic training data"
+- tapOn:
+    id: "send-button"
+
+# Wait for response (longer timeout for complex prediction)
+- extendedWaitUntil:
+    notVisible:
+      id: "thinking-indicator"
+    timeout: 45000
+
+- assertVisible:
+    id: "chat-screen"

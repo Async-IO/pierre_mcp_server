@@ -1,0 +1,29 @@
+# ABOUTME: Test pull to refresh in Discover screen
+# ABOUTME: Converted from store.test.js "pull to refresh" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Discover
+- runFlow:
+    file: ../helpers/navigate-to-discover.yaml
+
+# Test: should refresh coaches on pull down
+# Scroll down first, then scroll up to trigger refresh
+- scroll
+
+- swipe:
+    direction: UP
+    duration: 400
+
+# Wait for refresh to complete
+- extendedWaitUntil:
+    visible:
+      id: "coach-list"
+    timeout: 5000

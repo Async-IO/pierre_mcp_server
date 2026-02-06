@@ -1,0 +1,14 @@
+# ABOUTME: Template helper for ensuring we're on a specific screen
+# ABOUTME: If not on the expected screen, navigates there
+
+appId: com.pierre.fitness
+
+---
+# This is a template - copy and customize for specific screens
+# Example for settings screen:
+#
+# - runFlow:
+#     when:
+#       notVisible:
+#         id: "settings-screen"
+#     file: ../helpers/navigate-to-settings.yaml

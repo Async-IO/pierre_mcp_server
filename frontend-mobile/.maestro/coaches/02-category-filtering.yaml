@@ -1,0 +1,27 @@
+# ABOUTME: Test category filtering in coach library
+# ABOUTME: Converted from coaches.test.js "category filtering" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to coach library
+- runFlow:
+    file: ../helpers/navigate-to-coaches.yaml
+
+# Test: should filter coaches by Training category
+- tapOn: "Training"
+- assertVisible: "Training"
+
+# Test: should filter coaches by Nutrition category
+- tapOn: "Nutrition"
+- assertVisible: "Nutrition"
+
+# Test: should reset filters when All is selected
+- tapOn: "All"
+- assertVisible: "All"

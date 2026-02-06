@@ -1,0 +1,31 @@
+# ABOUTME: Test search functionality in coach library
+# ABOUTME: Converted from coaches.test.js "search functionality" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to coach library
+- runFlow:
+    file: ../helpers/navigate-to-coaches.yaml
+
+# Test: should filter coaches when typing in search
+- tapOn:
+    id: "coach-search-input"
+- inputText: "Marathon"
+
+# Should still see search input
+- assertVisible:
+    id: "coach-search-input"
+
+# Clear search
+- eraseText
+
+# Test: should show placeholder text in search
+- assertVisible:
+    id: "coach-search-input"

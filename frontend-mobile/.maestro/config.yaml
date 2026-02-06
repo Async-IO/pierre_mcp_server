@@ -1,0 +1,36 @@
+# ABOUTME: Maestro E2E test configuration for Pierre mobile app
+# ABOUTME: Defines global settings, app ID, and test flow organization
+
+appId: com.pierre.fitness
+tags:
+  - pierre
+  - e2e
+
+# Test flow organization by feature area
+flows:
+  - helpers/**
+  - login/**
+  - settings/**
+  - chat/**
+  - coaches/**
+  - store/**
+  - social/**
+  - coach-wizard/**
+  - voice-input/**
+  - synthetic-provider/**
+  - visual/**
+
+# Default environment variables for test execution
+env:
+  TEST_EMAIL: "mobiletest@pierre.dev"
+  TEST_PASSWORD: "MobileTest123!"
+
+# Timeouts (in milliseconds)
+# These match the Detox timeouts for consistency
+initTimeout: 120000
+actionTimeout: 10000
+
+# Screenshot and recording settings
+screenshots:
+  enabled: true
+  onFailure: true

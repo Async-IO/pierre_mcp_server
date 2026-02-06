@@ -1,0 +1,45 @@
+# ABOUTME: Visual tests for coach store
+# ABOUTME: Converted from mobile-visual.test.js "Coach Store" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to store via Discover tab
+- tapOn:
+    id: "tab-discover"
+
+# Test: store - displays coach grid
+- extendedWaitUntil:
+    visible:
+      id: "store-screen"
+    timeout: 5000
+
+# Test: store - category tabs filter content
+- runFlow:
+    when:
+      visible: "Training"
+    commands:
+      - tapOn: "Training"
+      - tapOn: "Nutrition"
+      - runFlow:
+          when:
+            visible: "Recovery"
+          commands:
+            - tapOn: "Recovery"
+
+# Test: store - search coaches works
+- runFlow:
+    when:
+      visible:
+        id: "store-search-input"
+    commands:
+      - tapOn:
+          id: "store-search-input"
+      - inputText: "training"
+      - eraseText

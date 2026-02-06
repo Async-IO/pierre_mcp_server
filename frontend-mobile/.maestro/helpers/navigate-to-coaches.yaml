@@ -1,0 +1,15 @@
+# ABOUTME: Helper flow to navigate from any screen to Coaches
+# ABOUTME: Uses bottom tab navigation to reach the Coach Library screen
+
+appId: com.pierre.fitness
+
+---
+# Tap the Coaches tab in bottom navigation
+- tapOn:
+    id: "tab-coaches"
+
+# Wait for coach library screen to load
+- extendedWaitUntil:
+    visible:
+      id: "coach-library-screen"
+    timeout: 5000

@@ -1,0 +1,33 @@
+# ABOUTME: Helper flow to log out of the application
+# ABOUTME: Navigates to Settings and taps the logout button
+
+appId: com.pierre.fitness
+
+---
+# Navigate to Settings
+- runFlow:
+    file: navigate-to-settings.yaml
+
+# Scroll down if needed to see logout button
+- scrollUntilVisible:
+    element:
+      id: "settings-logout-button"
+    direction: DOWN
+    timeout: 5000
+
+# Tap logout button
+- tapOn:
+    id: "settings-logout-button"
+
+# Confirm logout if a confirmation dialog appears
+- runFlow:
+    when:
+      visible: "Log Out"
+    commands:
+      - tapOn: "Log Out"
+
+# Verify we're back on login screen
+- extendedWaitUntil:
+    visible:
+      id: "login-screen"
+    timeout: 5000

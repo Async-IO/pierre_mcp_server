@@ -1,0 +1,41 @@
+# ABOUTME: Test Friends screen functionality
+# ABOUTME: Converted from social.test.js "Friends Screen" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Friends via Insights tab then Find Friends
+- tapOn:
+    id: "tab-insights"
+- extendedWaitUntil:
+    visible:
+      id: "social-feed-screen"
+    timeout: 5000
+- tapOn: "Find Friends"
+- extendedWaitUntil:
+    visible:
+      id: "friends-screen"
+    timeout: 5000
+
+# Test: should display Friends screen header
+- assertVisible: "Friends"
+
+# Test: should show empty state or friends list
+- runFlow:
+    when:
+      visible: "No Friends Yet"
+    commands:
+      - assertVisible: "No Friends Yet"
+
+- runFlow:
+    when:
+      notVisible: "No Friends Yet"
+    commands:
+      - assertVisible:
+          id: "friends-search-input"

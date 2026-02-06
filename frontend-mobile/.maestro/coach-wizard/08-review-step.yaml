@@ -1,0 +1,70 @@
+# ABOUTME: Test review step displays all entered information
+# ABOUTME: Converted from coach-wizard.test.js "review step" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to coach library
+- runFlow:
+    file: ../helpers/navigate-to-coaches.yaml
+
+# Open wizard
+- tapOn:
+    id: "create-coach-button"
+- extendedWaitUntil:
+    visible:
+      id: "coach-wizard-screen"
+    timeout: 5000
+
+# Step 1: Basic Info
+- tapOn:
+    id: "coach-title-input"
+- inputText: "Review Test Coach"
+- tapOn:
+    id: "coach-description-input"
+- inputText: "A test description"
+- tapOn:
+    id: "next-button"
+
+# Step 2: Category & Tags
+- tapOn:
+    id: "tag-input"
+- inputText: "test"
+- tapOn:
+    id: "add-tag-button"
+- tapOn:
+    id: "next-button"
+
+# Step 3: System Prompt
+- tapOn:
+    id: "system-prompt-input"
+- inputText: "You are a test coach."
+- tapOn:
+    id: "next-button"
+
+# Step 4: Review
+- extendedWaitUntil:
+    visible:
+      id: "step-review"
+    timeout: 3000
+
+- assertVisible:
+    id: "review-title"
+- assertVisible:
+    id: "review-coach-title"
+- assertVisible:
+    id: "review-description"
+- assertVisible:
+    id: "review-category"
+- assertVisible:
+    id: "review-tags"
+- assertVisible:
+    id: "review-prompt"
+
+- back

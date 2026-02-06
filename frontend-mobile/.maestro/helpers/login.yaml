@@ -1,0 +1,39 @@
+# ABOUTME: Helper flow to perform login with test credentials
+# ABOUTME: Logs in using mobiletest@pierre.dev / MobileTest123! and waits for chat screen
+
+appId: com.pierre.fitness
+
+---
+# Wait for login screen to be visible
+- extendedWaitUntil:
+    visible:
+      id: "login-screen"
+    timeout: 10000
+
+# Clear any pre-filled values and enter test credentials
+- tapOn:
+    id: "email-input"
+- eraseText
+- inputText: ${TEST_EMAIL}
+
+- tapOn:
+    id: "password-input"
+- eraseText
+- inputText: ${TEST_PASSWORD}
+
+# Hide keyboard
+- hideKeyboard
+
+# Wait for login button to be visible and tap
+- extendedWaitUntil:
+    visible:
+      id: "login-button"
+    timeout: 5000
+- tapOn:
+    id: "login-button"
+
+# Wait for successful login (chat screen should appear)
+- extendedWaitUntil:
+    visible:
+      id: "chat-screen"
+    timeout: 15000

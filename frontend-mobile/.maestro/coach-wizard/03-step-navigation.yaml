@@ -1,0 +1,46 @@
+# ABOUTME: Test wizard step navigation (Next/Back buttons)
+# ABOUTME: Converted from coach-wizard.test.js "step navigation" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to coach library
+- runFlow:
+    file: ../helpers/navigate-to-coaches.yaml
+
+# Open wizard
+- tapOn:
+    id: "create-coach-button"
+- extendedWaitUntil:
+    visible:
+      id: "coach-wizard-screen"
+    timeout: 5000
+
+# Fill required field first
+- tapOn:
+    id: "coach-title-input"
+- inputText: "Test Wizard Coach"
+
+# Test: should navigate to next step when Next is tapped
+- tapOn:
+    id: "next-button"
+
+# Should be on step 2
+- assertVisible: "Category & Tags"
+- assertVisible:
+    id: "step-category-tags"
+
+# Test: should navigate back when Back is tapped
+- tapOn:
+    id: "back-button"
+
+# Should be back on step 1
+- assertVisible: "Basic Info"
+
+- back

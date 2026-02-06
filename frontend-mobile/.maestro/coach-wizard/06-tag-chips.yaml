@@ -1,0 +1,58 @@
+# ABOUTME: Test tag chips add/remove functionality
+# ABOUTME: Converted from coach-wizard.test.js "tag chips" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to coach library
+- runFlow:
+    file: ../helpers/navigate-to-coaches.yaml
+
+# Open wizard
+- tapOn:
+    id: "create-coach-button"
+- extendedWaitUntil:
+    visible:
+      id: "coach-wizard-screen"
+    timeout: 5000
+
+# Go to category step
+- tapOn:
+    id: "coach-title-input"
+- inputText: "Tag Test"
+- tapOn:
+    id: "next-button"
+
+- extendedWaitUntil:
+    visible:
+      id: "tag-input"
+    timeout: 3000
+
+# Test: should add tag when input is submitted
+- tapOn:
+    id: "tag-input"
+- inputText: "intervals"
+- tapOn:
+    id: "add-tag-button"
+
+# Tag should appear as a chip
+- assertVisible:
+    id: "tag-chip-intervals"
+
+# Test: should remove tag when X is tapped
+- tapOn:
+    id: "remove-tag-intervals"
+
+# Tag should be gone
+- extendedWaitUntil:
+    notVisible:
+      id: "tag-chip-intervals"
+    timeout: 2000
+
+- back

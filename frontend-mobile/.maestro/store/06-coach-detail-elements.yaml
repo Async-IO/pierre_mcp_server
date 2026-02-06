@@ -1,0 +1,47 @@
+# ABOUTME: Test coach detail screen elements
+# ABOUTME: Converted from store.test.js "coach detail screen" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Discover
+- runFlow:
+    file: ../helpers/navigate-to-discover.yaml
+
+# Navigate to a coach detail if possible
+- runFlow:
+    when:
+      visible:
+        id: "coach-card-0"
+    commands:
+      - tapOn:
+          id: "coach-card-0"
+      - extendedWaitUntil:
+          visible:
+            id: "store-coach-detail-screen"
+          timeout: 5000
+
+      # Test: should show coach title
+      - assertVisible:
+          id: "coach-title"
+
+      # Test: should show category badge
+      - assertVisible:
+          id: "category-badge"
+
+      # Test: should show install count
+      - assertVisible:
+          id: "install-count"
+
+      # Test: should show system prompt section
+      - assertVisible: "System Prompt"
+
+      # Navigate back
+      - tapOn:
+          id: "back-button"

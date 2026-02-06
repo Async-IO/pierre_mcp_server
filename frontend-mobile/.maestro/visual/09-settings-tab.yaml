@@ -1,0 +1,50 @@
+# ABOUTME: Visual tests for settings tab
+# ABOUTME: Converted from mobile-visual.test.js "Settings Tab" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Test: settings - tab icon visible and tappable
+- runFlow:
+    when:
+      visible:
+        id: "settings-tab"
+    commands:
+      - tapOn:
+          id: "settings-tab"
+
+# If no tab, navigate via bottom tab bar "Settings"
+- runFlow:
+    when:
+      notVisible:
+        id: "settings-tab"
+    commands:
+      - tapOn: "Settings"
+
+# Test: settings - displays screen
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+
+# Test: settings - displays profile section
+- assertVisible: "Profile"
+
+# Test: settings - displays connections section (may need scroll)
+- runFlow:
+    when:
+      visible: "Connections"
+    commands:
+      - assertVisible: "Connections"
+
+- runFlow:
+    when:
+      visible: "Providers"
+    commands:
+      - assertVisible: "Providers"

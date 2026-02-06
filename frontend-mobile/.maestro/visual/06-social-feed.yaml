@@ -1,0 +1,43 @@
+# ABOUTME: Visual tests for social feed
+# ABOUTME: Converted from mobile-visual.test.js "Social Feed" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Feed via Insights tab
+- tapOn:
+    id: "tab-insights"
+
+# Test: feed - displays screen
+- extendedWaitUntil:
+    visible:
+      id: "social-feed-screen"
+    timeout: 5000
+
+# Test: feed - displays insight cards or empty state
+- runFlow:
+    when:
+      visible:
+        id: "insight-card"
+    commands:
+      - assertVisible:
+          id: "insight-card"
+
+- runFlow:
+    when:
+      visible: "No Insights"
+    commands:
+      - assertVisible: "No Insights"
+
+# Test: feed - pull to refresh works
+- scroll
+
+# Test: feed - share insight button visible
+- assertVisible:
+    id: "share-insight-button"

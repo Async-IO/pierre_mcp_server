@@ -1,5 +1,5 @@
 # ABOUTME: CI workflow for Pierre Mobile app (React Native/Expo)
-# ABOUTME: Runs unit tests, type checking, and linting on push/PR
+# ABOUTME: Runs unit tests, type checking, linting, and Maestro E2E tests on push/PR
 
 name: Mobile Tests
 
@@ -162,11 +162,12 @@ jobs:
           path: frontend-mobile/integration/
           retention-days: 7
 
-  mobile-e2e-tests:
-    name: Mobile E2E Tests (Detox)
+  mobile-e2e-maestro:
+    name: Mobile E2E Tests (Maestro - iOS/Expo Go)
     runs-on: macos-latest
-    # Temporarily disabled due to GitHub Actions outage
-    if: false
+    # Run on main, claude/* branches, or when explicitly triggered
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/claude/') || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 45
 
     steps:
       - name: Checkout code
@@ -183,9 +184,9 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-mobile-e2e-1.92.0-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-maestro-1.92.0-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-mobile-e2e-1.92.0-
+            ${{ runner.os }}-cargo-maestro-1.92.0-
             ${{ runner.os }}-cargo-
 
       - name: Build Pierre server (release for performance)
@@ -206,26 +207,23 @@ jobs:
         working-directory: packages/api-client
         run: bun install
 
-      - name: Install mobile dependencies
-        working-directory: frontend-mobile
-        run: bun install --frozen-lockfile
-
-      - name: Remove expo-dev-client packages for E2E
+      - name: Remove expo-dev-client for E2E build
         working-directory: frontend-mobile
         run: |
-          # Completely remove expo-dev-client and related packages
-          # These packages interfere with Detox's WebSocket communication
-          echo "Removing expo-dev-client packages..."
-          bun remove expo-dev-client expo-dev-launcher expo-dev-menu expo-dev-menu-interface || true
-          # Clean node_modules to ensure no remnants
-          rm -rf node_modules/.cache
-          # Verify removal
-          echo "Verifying removal..."
-          ! grep -r "expo-dev-client" node_modules/.package-lock.json 2>/dev/null || echo "Warning: expo-dev-client may still be in dependencies"
+          # Remove expo-dev-client from package.json BEFORE install
+          # This package interferes with Maestro testing - its native code
+          # tries to connect to a dev server that doesn't exist in CI
+          cat package.json | jq 'del(.dependencies["expo-dev-client"])' > package.json.tmp
+          mv package.json.tmp package.json
 
-      - name: Setup Expo
+      - name: Install mobile dependencies
         working-directory: frontend-mobile
-        run: bunx expo install
+        run: bun install
+
+      - name: Install Maestro CLI
+        run: |
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> $GITHUB_PATH
 
       - name: Create data directory
         run: mkdir -p data
@@ -243,7 +241,7 @@ jobs:
             sleep 2
           done
         env:
-          DATABASE_URL: "sqlite:${{ github.workspace }}/data/mobile-e2e-test.db"
+          DATABASE_URL: "sqlite:${{ github.workspace }}/data/maestro-test.db"
           PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
           PIERRE_RSA_KEY_SIZE: "2048"
           HTTP_PORT: "8081"
@@ -252,19 +250,24 @@ jobs:
           STRAVA_CLIENT_SECRET: "test_client_secret_ci"
           STRAVA_REDIRECT_URI: "http://localhost:8081/auth/strava/callback"
 
+      - name: Seed test user for Maestro tests
+        run: |
+          ./target/release/pierre-cli user create --email mobiletest@pierre.dev --password MobileTest123!
+        env:
+          DATABASE_URL: "sqlite:${{ github.workspace }}/data/maestro-test.db"
+          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+          RUST_LOG: "warn"
+
       - name: List available simulators
         run: xcrun simctl list devices available
 
       - name: Boot iOS Simulator
         run: |
-          # Try iPhone 16 first, then fall back to any iPhone
           SIMULATOR_UDID=$(xcrun simctl list devices available | grep "iPhone 16 Pro (" | head -1 | grep -oE '[0-9A-Fa-f-]{36}')
           if [ -z "$SIMULATOR_UDID" ]; then
-            echo "iPhone 16 Pro not found, trying iPhone 16..."
             SIMULATOR_UDID=$(xcrun simctl list devices available | grep "iPhone 16 (" | head -1 | grep -oE '[0-9A-Fa-f-]{36}')
           fi
           if [ -z "$SIMULATOR_UDID" ]; then
-            echo "iPhone 16 not found, using any available iPhone..."
             SIMULATOR_UDID=$(xcrun simctl list devices available | grep "iPhone" | head -1 | grep -oE '[0-9A-Fa-f-]{36}')
           fi
           if [ -z "$SIMULATOR_UDID" ]; then
@@ -273,63 +276,79 @@ jobs:
           fi
           echo "Booting simulator: $SIMULATOR_UDID"
           xcrun simctl boot "$SIMULATOR_UDID" || echo "Simulator may already be booted"
+          echo "SIMULATOR_UDID=$SIMULATOR_UDID" >> $GITHUB_ENV
 
-      - name: Install applesimutils
+      - name: Adapt Maestro tests for Expo Go
         run: |
-          brew tap wix/brew
-          brew install applesimutils
+          # Replace native app ID with Expo Go app ID in all Maestro YAML files
+          find frontend-mobile/.maestro -name "*.yaml" -exec sed -i '' 's/appId: com.pierre.fitness/appId: host.exp.Exponent/g' {} +
+          # Override launch helper for Expo Go deep linking
+          cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
+          # ABOUTME: Helper flow to launch the Pierre app via Expo Go
+          # ABOUTME: Uses deep link to connect Expo Go to Metro bundler
 
-      - name: Prebuild iOS (without expo-dev-client for E2E)
+          appId: host.exp.Exponent
+
+          ---
+          - clearState
+          - launchApp
+          - openLink: "exp://localhost:8082"
+          - extendedWaitUntil:
+              visible:
+                id: "login-screen"
+              timeout: 30000
+          LAUNCH_EOF
+
+      - name: Start Metro and install Expo Go
         working-directory: frontend-mobile
-        run: bunx expo prebuild --platform ios --clean
-        env:
-          DETOX_E2E: 'true'
-
-      - name: Verify no expo-dev-client in iOS build
-        working-directory: frontend-mobile/ios
         run: |
-          # Verify expo-dev-client is not in Podfile
-          if grep -q "expo-dev-client\|expo-dev-launcher\|expo-dev-menu" Podfile 2>/dev/null; then
-            echo "ERROR: expo-dev-client found in Podfile!"
-            grep "expo-dev" Podfile
-            exit 1
-          fi
-          echo "Verified: No expo-dev-client in Podfile"
-          # Run pod install to ensure clean state
-          pod install
+          # Start Metro in Expo Go mode; --ios flag installs Expo Go and opens the app
+          npx expo start --go --ios --port 8082 &
+          echo "METRO_PID=$!" >> $GITHUB_ENV
+          echo "Waiting for Metro bundler to be ready..."
+          for i in {1..90}; do
+            if curl -s http://localhost:8082 > /dev/null 2>&1; then
+              echo "Metro is ready!"
+              break
+            fi
+            if [ "$i" -eq 90 ]; then
+              echo "Metro failed to start within timeout!"
+              exit 1
+            fi
+            echo "Attempt $i: Metro not ready yet..."
+            sleep 2
+          done
+          # Give Expo Go time to install and load the initial bundle
+          sleep 15
         env:
-          DETOX_E2E: 'true'
+          CI: "true"
+          EXPO_PUBLIC_API_URL: "http://localhost:8081"
 
-      - name: Build Detox
+      - name: Run Maestro tests
         working-directory: frontend-mobile
-        # Use release configuration to avoid expo-dev-client polling in CI
-        run: bunx detox build --configuration ios.sim.release
+        run: |
+          $HOME/.maestro/bin/maestro test .maestro/ --format junit --output maestro-results.xml
         env:
-          RCT_NO_LAUNCH_PACKAGER: 1
-          DETOX_E2E: 'true'
-
-      - name: Run Detox E2E tests
-        working-directory: frontend-mobile
-        # Use release configuration to avoid expo-dev-client polling in CI
-        run: bunx detox test --configuration ios.sim.release --headless
-        env:
-          RCT_NO_LAUNCH_PACKAGER: 1
+          TEST_EMAIL: "mobiletest@pierre.dev"
+          TEST_PASSWORD: "MobileTest123!"
           BACKEND_URL: "http://localhost:8081"
-          DETOX_E2E: 'true'
 
-      - name: Upload E2E test artifacts
+      - name: Upload Maestro test results
         uses: actions/upload-artifact@v4
-        if: failure()
+        if: always()
         with:
-          name: detox-artifacts-ios
-          path: frontend-mobile/artifacts/
+          name: maestro-test-results-ios
+          path: |
+            frontend-mobile/maestro-results.xml
+            frontend-mobile/.maestro/
           retention-days: 7
 
-  mobile-e2e-tests-android:
-    name: Mobile E2E Tests - Android (Detox)
+  mobile-e2e-maestro-android:
+    name: Mobile E2E Tests - Android (Maestro)
     runs-on: ubuntu-latest
-    # Temporarily disabled due to GitHub Actions outage
-    if: false
+    # Run on main, claude/* branches, or when explicitly triggered
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/claude/') || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 60
 
     steps:
       - name: Checkout code
@@ -346,9 +365,9 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-mobile-e2e-android-1.92.0-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-maestro-android-1.92.0-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-mobile-e2e-android-1.92.0-
+            ${{ runner.os }}-cargo-maestro-android-1.92.0-
             ${{ runner.os }}-cargo-
 
       - name: Build Pierre server (release for performance)
@@ -375,52 +394,28 @@ jobs:
         working-directory: packages/api-client
         run: bun install
 
+      - name: Remove expo-dev-client for E2E build
+        working-directory: frontend-mobile
+        run: |
+          # Remove expo-dev-client from package.json BEFORE install
+          # This package interferes with Maestro testing - its native code
+          # tries to connect to a dev server that doesn't exist in CI
+          cat package.json | jq 'del(.dependencies["expo-dev-client"])' > package.json.tmp
+          mv package.json.tmp package.json
+
       - name: Install mobile dependencies
         working-directory: frontend-mobile
-        run: bun install --frozen-lockfile
+        run: bun install
 
-      - name: Remove expo-dev-client packages for E2E
-        working-directory: frontend-mobile
+      - name: Install Maestro CLI
         run: |
-          # Completely remove expo-dev-client and related packages
-          # These packages interfere with Detox's WebSocket communication
-          echo "Removing expo-dev-client packages..."
-          bun remove expo-dev-client expo-dev-launcher expo-dev-menu expo-dev-menu-interface || true
-          # Clean node_modules to ensure no remnants
-          rm -rf node_modules/.cache
-          # Verify removal
-          echo "Verifying removal..."
-          ! grep -r "expo-dev-client" node_modules/.package-lock.json 2>/dev/null || echo "Warning: expo-dev-client may still be in dependencies"
-
-      - name: Setup Expo
-        working-directory: frontend-mobile
-        run: bunx expo install
-
-      - name: Prebuild Android (without expo-dev-client for E2E)
-        working-directory: frontend-mobile
-        run: bunx expo prebuild --platform android --clean
-        env:
-          DETOX_E2E: 'true'
-
-      - name: Verify no expo-dev-client in Android build
-        working-directory: frontend-mobile/android
-        run: |
-          # Verify expo-dev-client is not in settings.gradle
-          if grep -q "expo-dev-client\|expo-dev-launcher\|expo-dev-menu" settings.gradle 2>/dev/null; then
-            echo "ERROR: expo-dev-client found in settings.gradle!"
-            grep "expo-dev" settings.gradle
-            exit 1
-          fi
-          echo "Verified: No expo-dev-client in Android build"
-        env:
-          DETOX_E2E: 'true'
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> $GITHUB_PATH
 
       - name: Free disk space for Android build
         run: |
-          # Free up disk space to prevent "No space left on device" errors
           echo "Disk space before cleanup:"
           df -h
-          # Remove unnecessary large directories
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /usr/local/lib/android/sdk/ndk
           sudo rm -rf /opt/ghc
@@ -444,7 +439,7 @@ jobs:
             sleep 2
           done
         env:
-          DATABASE_URL: "sqlite:${{ github.workspace }}/data/mobile-e2e-android-test.db"
+          DATABASE_URL: "sqlite:${{ github.workspace }}/data/maestro-android-test.db"
           PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
           PIERRE_RSA_KEY_SIZE: "2048"
           HTTP_PORT: "8081"
@@ -453,40 +448,58 @@ jobs:
           STRAVA_CLIENT_SECRET: "test_client_secret_ci"
           STRAVA_REDIRECT_URI: "http://localhost:8081/auth/strava/callback"
 
+      - name: Seed test user for Maestro tests
+        run: |
+          ./target/release/pierre-cli user create --email mobiletest@pierre.dev --password MobileTest123!
+        env:
+          DATABASE_URL: "sqlite:${{ github.workspace }}/data/maestro-android-test.db"
+          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+          RUST_LOG: "warn"
+
       - name: Enable KVM for Android emulator
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Build Detox APK
+      - name: Prebuild Android
         working-directory: frontend-mobile
-        # Use release configuration to avoid expo-dev-menu issues and reduce build complexity
-        run: bunx detox build --configuration android.emu.release
+        run: bunx expo prebuild --platform android --clean
+
+      - name: Build Android APK
+        working-directory: frontend-mobile
+        run: |
+          cd android
+          ./gradlew assembleDebug
         env:
-          RCT_NO_LAUNCH_PACKAGER: 1
-          DETOX_E2E: 'true'
-          # Increase Java heap to prevent OOM during Android build
           GRADLE_OPTS: "-Xmx4g -XX:+UseParallelGC"
 
-      - name: Run Android E2E tests
+      - name: Run Maestro tests on Android
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 33
           target: google_apis
           arch: x86_64
-          avd-name: detox_test_emulator
+          avd-name: maestro_test_emulator
           force-avd-creation: true
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            cd frontend-mobile
-            DETOX_AVD_NAME=detox_test_emulator BACKEND_URL=http://localhost:8081 bunx detox test --configuration android.emu.release --headless
+            # Install the APK
+            adb install frontend-mobile/android/app/build/outputs/apk/debug/app-debug.apk
+            # Run Maestro tests (cd and test must be chained - each line runs in separate shell)
+            cd frontend-mobile && $HOME/.maestro/bin/maestro test .maestro/ --format junit --output maestro-results-android.xml
+        env:
+          TEST_EMAIL: "mobiletest@pierre.dev"
+          TEST_PASSWORD: "MobileTest123!"
+          BACKEND_URL: "http://10.0.2.2:8081"
 
-      - name: Upload Android E2E test artifacts
+      - name: Upload Maestro test results
         uses: actions/upload-artifact@v4
-        if: failure()
+        if: always()
         with:
-          name: detox-artifacts-android
-          path: frontend-mobile/artifacts/
+          name: maestro-test-results-android
+          path: |
+            frontend-mobile/maestro-results-android.xml
+            frontend-mobile/.maestro/
           retention-days: 7

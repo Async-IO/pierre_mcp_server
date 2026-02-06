@@ -1,0 +1,40 @@
+# ABOUTME: Test fork option for system coaches
+# ABOUTME: Converted from coach-wizard.test.js "Coach Forking" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to coach library
+- runFlow:
+    file: ../helpers/navigate-to-coaches.yaml
+
+# Enable showing hidden/system coaches
+- tapOn:
+    id: "show-hidden-toggle"
+
+# Look for a system coach and check for Fork option
+- runFlow:
+    when:
+      visible: "System"
+    commands:
+      # Long press on a system coach to show action menu
+      - longPressOn:
+          id: "coach-card"
+      # Should see Fork option in action menu
+      - extendedWaitUntil:
+          visible:
+            text: "Fork"
+          timeout: 3000
+      # Dismiss the menu
+      - tapOn:
+          id: "coach-library-screen"
+
+# Reset show hidden state
+- tapOn:
+    id: "show-hidden-toggle"

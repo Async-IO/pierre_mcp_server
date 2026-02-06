@@ -1,0 +1,58 @@
+# ABOUTME: Test wizard step validation
+# ABOUTME: Converted from coach-wizard.test.js "step validation" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to coach library
+- runFlow:
+    file: ../helpers/navigate-to-coaches.yaml
+
+# Open wizard
+- tapOn:
+    id: "create-coach-button"
+- extendedWaitUntil:
+    visible:
+      id: "coach-wizard-screen"
+    timeout: 5000
+
+# Test: should show error when title is empty and Next is tapped
+- tapOn:
+    id: "next-button"
+
+# Should show error
+- assertVisible:
+    id: "title-error"
+- assertVisible: "Title is required"
+
+# Fix the title and navigate to system prompt step
+- tapOn:
+    id: "coach-title-input"
+- inputText: "Validation Test"
+- tapOn:
+    id: "next-button"
+- tapOn:
+    id: "next-button"
+
+# Should be on system prompt step
+- extendedWaitUntil:
+    visible:
+      text: "System Prompt"
+    timeout: 3000
+
+# Test: should show error when system prompt is empty
+- tapOn:
+    id: "next-button"
+
+# Should show error
+- assertVisible:
+    id: "prompt-error"
+- assertVisible: "System prompt is required"
+
+- back

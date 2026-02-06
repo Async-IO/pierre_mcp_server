@@ -1,0 +1,15 @@
+# ABOUTME: Helper flow to navigate from any screen to Discover (Store)
+# ABOUTME: Uses bottom tab navigation to reach the Store screen
+
+appId: com.pierre.fitness
+
+---
+# Tap the Discover tab in bottom navigation
+- tapOn:
+    id: "tab-discover"
+
+# Wait for store screen to load
+- extendedWaitUntil:
+    visible:
+      id: "store-screen"
+    timeout: 5000

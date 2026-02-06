@@ -1,0 +1,82 @@
+# ABOUTME: Test complete wizard flow to create a coach
+# ABOUTME: Converted from coach-wizard.test.js "full wizard flow" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to coach library
+- runFlow:
+    file: ../helpers/navigate-to-coaches.yaml
+
+# Open wizard
+- tapOn:
+    id: "create-coach-button"
+- extendedWaitUntil:
+    visible:
+      id: "coach-wizard-screen"
+    timeout: 5000
+
+# Step 1: Basic Info
+- tapOn:
+    id: "coach-title-input"
+- inputText: "E2E Wizard Coach"
+- tapOn:
+    id: "coach-description-input"
+- inputText: "Created via E2E test"
+- tapOn:
+    id: "next-button"
+
+# Step 2: Category & Tags
+- extendedWaitUntil:
+    visible:
+      id: "category-picker"
+    timeout: 3000
+- tapOn:
+    id: "category-picker"
+- tapOn: "Training"
+- tapOn:
+    id: "tag-input"
+- inputText: "e2e"
+- tapOn:
+    id: "add-tag-button"
+- tapOn:
+    id: "next-button"
+
+# Step 3: System Prompt
+- extendedWaitUntil:
+    visible:
+      id: "system-prompt-input"
+    timeout: 3000
+- tapOn:
+    id: "system-prompt-input"
+- inputText: "You are an E2E test coach created by Maestro."
+- tapOn:
+    id: "next-button"
+
+# Step 4: Review & Save
+- extendedWaitUntil:
+    visible:
+      id: "step-review"
+    timeout: 3000
+- tapOn:
+    id: "save-button"
+
+# Should return to library with success message
+- extendedWaitUntil:
+    visible:
+      text: "Coach created successfully"
+    timeout: 5000
+
+- extendedWaitUntil:
+    visible:
+      id: "coach-library-screen"
+    timeout: 5000
+
+# Verify coach appears in list
+- assertVisible: "E2E Wizard Coach"

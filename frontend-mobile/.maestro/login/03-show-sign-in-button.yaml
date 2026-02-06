@@ -1,0 +1,13 @@
+# ABOUTME: Test that sign in button is visible
+# ABOUTME: Converted from login.test.js "should show sign in button"
+
+appId: com.pierre.fitness
+
+---
+# Launch app fresh
+- runFlow:
+    file: ../helpers/launch-app.yaml
+
+# Verify login button is visible
+- assertVisible:
+    id: "login-button"

@@ -1,0 +1,25 @@
+# ABOUTME: Test Data section is visible with expected elements
+# ABOUTME: Converted from settings.test.js "expected sections - data from backend"
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Settings
+- runFlow:
+    file: ../helpers/navigate-to-settings.yaml
+
+# Test: should show Data section
+- assertVisible:
+    id: "settings-data-section"
+- assertVisible: "Data"
+
+# Test: should show Data Providers button
+- assertVisible:
+    id: "settings-data-providers-button"
+- assertVisible: "Data Providers"

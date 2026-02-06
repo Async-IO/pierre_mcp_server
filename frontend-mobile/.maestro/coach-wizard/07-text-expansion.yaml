@@ -1,0 +1,75 @@
+# ABOUTME: Test text expansion modal functionality
+# ABOUTME: Converted from coach-wizard.test.js "text expansion" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to coach library
+- runFlow:
+    file: ../helpers/navigate-to-coaches.yaml
+
+# Open wizard
+- tapOn:
+    id: "create-coach-button"
+- extendedWaitUntil:
+    visible:
+      id: "coach-wizard-screen"
+    timeout: 5000
+
+# Test: should open full-screen modal for description
+- tapOn:
+    id: "expand-description-button"
+
+# Modal should be visible
+- extendedWaitUntil:
+    visible:
+      id: "expanded-modal"
+    timeout: 3000
+
+- assertVisible:
+    id: "modal-text-input"
+
+# Close modal
+- tapOn:
+    id: "modal-done-button"
+
+# Navigate to system prompt step
+- tapOn:
+    id: "coach-title-input"
+- inputText: "Expand Test"
+- tapOn:
+    id: "next-button"
+- tapOn:
+    id: "next-button"
+
+- extendedWaitUntil:
+    visible:
+      id: "expand-prompt-button"
+    timeout: 3000
+
+# Test: should open full-screen modal for system prompt
+- tapOn:
+    id: "expand-prompt-button"
+
+# Modal should show
+- extendedWaitUntil:
+    visible:
+      id: "expanded-modal"
+    timeout: 3000
+
+# Type in modal
+- tapOn:
+    id: "modal-text-input"
+- inputText: "Testing expanded view"
+
+# Close modal
+- tapOn:
+    id: "modal-done-button"
+
+- back

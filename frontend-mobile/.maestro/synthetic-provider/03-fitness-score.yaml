@@ -1,0 +1,31 @@
+# ABOUTME: Test getting fitness score from synthetic activities
+# ABOUTME: Converted from synthetic-provider.test.js "should get fitness score"
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Start fresh conversation
+- runFlow:
+    file: ../helpers/new-chat.yaml
+
+# Get fitness score
+- tapOn:
+    id: "message-input"
+- inputText: "What is my fitness score based on synthetic activities?"
+- tapOn:
+    id: "send-button"
+
+# Wait for response (thinking indicator disappears)
+- extendedWaitUntil:
+    notVisible:
+      id: "thinking-indicator"
+    timeout: 30000
+
+- assertVisible:
+    id: "chat-screen"

@@ -1,0 +1,36 @@
+# ABOUTME: Test voice input integration with text input
+# ABOUTME: Converted from voiceInput.test.js "Input integration" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Test: should not interfere with manual text input
+- tapOn:
+    id: "message-input"
+- inputText: "Hello Pierre"
+
+# Voice button should still be visible
+- assertVisible:
+    id: "voice-input-button"
+
+# Send button should be visible
+- assertVisible:
+    id: "send-button"
+
+# Clear for next test
+- eraseText
+
+# Test: should keep voice button enabled with text in input
+- tapOn:
+    id: "message-input"
+- inputText: "Testing"
+
+# Voice button should remain visible and tappable
+- assertVisible:
+    id: "voice-input-button"

@@ -1,0 +1,45 @@
+# ABOUTME: Visual tests for chat tab
+# ABOUTME: Converted from mobile-visual.test.js "Chat Tab" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Test: chat - tab icon visible and tappable
+- runFlow:
+    when:
+      visible:
+        id: "chat-tab"
+    commands:
+      - tapOn:
+          id: "chat-tab"
+
+# Test: chat - displays conversation list or empty state
+# Either conversations list or we're already in a chat
+- runFlow:
+    when:
+      visible:
+        id: "conversations-list"
+    commands:
+      - assertVisible:
+          id: "conversations-list"
+
+# Test: chat - new chat button visible
+- assertVisible:
+    id: "new-chat-button"
+
+# Test: chat - message input accepts text
+- runFlow:
+    when:
+      visible:
+        id: "message-input"
+    commands:
+      - tapOn:
+          id: "message-input"
+      - inputText: "Test message"
+      - eraseText

@@ -1,0 +1,17 @@
+# ABOUTME: Helper flow to wait for Pierre's response after sending a message
+# ABOUTME: Waits for the thinking indicator to appear and then disappear
+
+appId: com.pierre.fitness
+
+---
+# Wait for thinking indicator to appear (animated dots)
+- extendedWaitUntil:
+    visible:
+      id: "thinking-indicator"
+    timeout: 5000
+
+# Wait for thinking indicator to disappear (response received)
+- extendedWaitUntil:
+    notVisible:
+      id: "thinking-indicator"
+    timeout: 30000

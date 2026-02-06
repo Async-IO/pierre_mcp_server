@@ -1,0 +1,46 @@
+# ABOUTME: Test cleanup - delete the test coach created in previous tests
+# ABOUTME: Converted from coaches.test.js "cleanup" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to coach library
+- runFlow:
+    file: ../helpers/navigate-to-coaches.yaml
+
+# Find the test coach
+- extendedWaitUntil:
+    visible:
+      text: "E2E Test Coach"
+    timeout: 5000
+
+# Long press to show action menu
+- longPressOn: "E2E Test Coach"
+
+# Wait for Delete option
+- extendedWaitUntil:
+    visible:
+      text: "Delete"
+    timeout: 3000
+
+# Tap Delete
+- tapOn: "Delete"
+
+# Confirm deletion in dialog
+- extendedWaitUntil:
+    visible:
+      text: "Delete"
+    timeout: 3000
+- tapOn: "Delete"
+
+# Verify coach is deleted
+- extendedWaitUntil:
+    notVisible:
+      text: "E2E Test Coach"
+    timeout: 5000

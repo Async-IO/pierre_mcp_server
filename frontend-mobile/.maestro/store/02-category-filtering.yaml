@@ -1,0 +1,31 @@
+# ABOUTME: Test category filtering in Discover screen
+# ABOUTME: Converted from store.test.js "category filtering" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Discover
+- runFlow:
+    file: ../helpers/navigate-to-discover.yaml
+
+# Test: should filter by Training category
+- tapOn: "Training"
+- assertVisible: "Training"
+
+# Test: should filter by Nutrition category
+- tapOn: "Nutrition"
+- assertVisible: "Nutrition"
+
+# Test: should filter by Recovery category
+- tapOn: "Recovery"
+- assertVisible: "Recovery"
+
+# Test: should reset filters when All is selected
+- tapOn: "All"
+- assertVisible: "All"

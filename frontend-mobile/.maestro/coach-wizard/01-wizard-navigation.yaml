@@ -1,0 +1,29 @@
+# ABOUTME: Test coach wizard navigation
+# ABOUTME: Converted from coach-wizard.test.js "wizard navigation" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to coach library
+- runFlow:
+    file: ../helpers/navigate-to-coaches.yaml
+
+# Test: should open wizard when create button is tapped
+- tapOn:
+    id: "create-coach-button"
+
+- extendedWaitUntil:
+    visible:
+      id: "coach-wizard-screen"
+    timeout: 5000
+
+- assertVisible: "New Coach"
+
+# Go back
+- back

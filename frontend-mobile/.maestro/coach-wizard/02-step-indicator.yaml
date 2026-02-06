@@ -1,0 +1,41 @@
+# ABOUTME: Test wizard step indicator display
+# ABOUTME: Converted from coach-wizard.test.js "should display step indicator at top"
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to coach library
+- runFlow:
+    file: ../helpers/navigate-to-coaches.yaml
+
+# Open wizard
+- tapOn:
+    id: "create-coach-button"
+
+- extendedWaitUntil:
+    visible:
+      id: "step-indicator"
+    timeout: 5000
+
+# Check that step dots are visible
+- assertVisible:
+    id: "step-dot-0"
+- assertVisible:
+    id: "step-dot-1"
+- assertVisible:
+    id: "step-dot-2"
+- assertVisible:
+    id: "step-dot-3"
+
+# Check current step label
+- assertVisible:
+    id: "current-step-label"
+- assertVisible: "Basic Info"
+
+- back

@@ -115,6 +115,16 @@ function buildGoogleOAuthConfig(): Record<string, string> {
   if (googleClientIds.webClientId) {
     config.webClientId = googleClientIds.webClientId;
   }
+  // Provide a generic clientId fallback when platform-specific IDs are missing.
+  // expo-auth-session's Google.useAuthRequest validates that the platform's
+  // clientId exists (e.g., iosClientId on iOS), falling back to generic clientId.
+  // Since hooks must be called unconditionally per React rules, this placeholder
+  // prevents the invariant crash in CI/test environments where Google OAuth
+  // credentials are not configured. The auth result is discarded when
+  // isFirebaseEnabled() returns false.
+  if (!isPlatformGoogleOAuthConfigured()) {
+    config.clientId = 'not-configured';
+  }
   return config;
 }
 

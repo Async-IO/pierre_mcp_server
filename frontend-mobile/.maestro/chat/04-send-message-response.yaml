@@ -1,0 +1,33 @@
+# ABOUTME: Test sending message and receiving response
+# ABOUTME: Converted from chat.test.js "should send message and receive response"
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Start fresh conversation
+- runFlow:
+    file: ../helpers/new-chat.yaml
+
+# Type and send a message
+- tapOn:
+    id: "message-input"
+- inputText: "What is my fitness level?"
+- tapOn:
+    id: "send-button"
+
+# Wait for response (thinking indicator should appear then disappear)
+- extendedWaitUntil:
+    visible:
+      id: "thinking-indicator"
+    timeout: 5000
+
+- extendedWaitUntil:
+    notVisible:
+      id: "thinking-indicator"
+    timeout: 30000

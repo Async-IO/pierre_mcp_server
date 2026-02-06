@@ -1,0 +1,31 @@
+# ABOUTME: Test show hidden toggle functionality
+# ABOUTME: Converted from coaches.test.js "show hidden toggle" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to coach library
+- runFlow:
+    file: ../helpers/navigate-to-coaches.yaml
+
+# Test: should toggle show hidden state when tapped
+- assertVisible:
+    id: "show-hidden-toggle"
+
+# Tap the toggle
+- tapOn:
+    id: "show-hidden-toggle"
+
+# Toggle should still be visible (it changes icon)
+- assertVisible:
+    id: "show-hidden-toggle"
+
+# Tap again to reset
+- tapOn:
+    id: "show-hidden-toggle"

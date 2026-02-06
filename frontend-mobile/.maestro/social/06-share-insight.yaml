@@ -1,0 +1,57 @@
+# ABOUTME: Test Share Insight flow
+# ABOUTME: Converted from social.test.js "Share Insight Flow" tests
+
+appId: com.pierre.fitness
+
+---
+# Launch and login
+- runFlow:
+    file: ../helpers/launch-app.yaml
+- runFlow:
+    file: ../helpers/login.yaml
+
+# Navigate to Share Insight via Insights tab
+- tapOn:
+    id: "tab-insights"
+- extendedWaitUntil:
+    visible:
+      id: "social-feed-screen"
+    timeout: 5000
+- tapOn:
+    id: "share-insight-button"
+- extendedWaitUntil:
+    visible:
+      id: "share-insight-screen"
+    timeout: 5000
+
+# Test: should display share insight form
+- assertVisible: "Share Insight"
+- assertVisible:
+    id: "insight-type-picker"
+- assertVisible:
+    id: "insight-content-input"
+
+# Test: should select insight type
+- tapOn:
+    id: "insight-type-achievement"
+
+# Test: should enter insight content
+- tapOn:
+    id: "insight-content-input"
+- inputText: "Just completed my first 5k!"
+
+# Test: should select visibility
+- tapOn: "Friends Only"
+
+# Test: should share insight
+- tapOn:
+    id: "insight-title-input"
+- inputText: "First 5K"
+- tapOn:
+    id: "share-button"
+
+# Should navigate back to feed or show success
+- extendedWaitUntil:
+    visible:
+      id: "social-feed-screen"
+    timeout: 10000

@@ -1,0 +1,13 @@
+# ABOUTME: Helper flow to start a fresh chat conversation
+# ABOUTME: Taps the new chat button and verifies the chat title resets
+
+appId: com.pierre.fitness
+
+---
+# Tap the new chat button
+- tapOn:
+    id: "new-chat-button"
+
+# Verify we're in a new chat
+- assertVisible:
+    id: "chat-title"
