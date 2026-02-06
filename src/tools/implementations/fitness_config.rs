@@ -226,8 +226,8 @@ impl McpTool for SetFitnessConfigTool {
                 )
                 .await?
         } else {
-            // Tenant-level config - would need admin check in production
-            // For now, allow authenticated users to set tenant config
+            // Tenant-level config requires admin privileges
+            ctx.require_admin().await?;
             manager
                 .save_tenant_config(&tenant_id_str, configuration_name, &fitness_config)
                 .await?
@@ -399,6 +399,8 @@ impl McpTool for DeleteFitnessConfigTool {
         let user_id_option = if user_level {
             Some(user_id_str.as_str())
         } else {
+            // Tenant-level config deletion requires admin privileges
+            ctx.require_admin().await?;
             None
         };
 
