@@ -274,7 +274,10 @@ impl FitbitProvider {
 
     /// Handle non-success API responses
     fn handle_api_error(status: reqwest::StatusCode, text: &str, url: &str) -> AppError {
-        error!("Fitbit API request failed - status: {status}, url: {url}, body: {text}");
+        error!(
+            "Fitbit API request failed - status: {status}, url: {url}, body_length: {} bytes",
+            text.len()
+        );
 
         // Try to parse Fitbit error response
         if let Ok(error_response) = from_str::<FitbitErrorResponse>(text) {

@@ -311,7 +311,10 @@ impl StravaProvider {
 
     /// Handle non-success API responses
     fn handle_api_error(status: reqwest::StatusCode, text: &str, url: &str) -> AppError {
-        error!("Strava API request failed - status: {status}, body: {text}");
+        error!(
+            "Strava API request failed - status: {status}, body_length: {} bytes",
+            text.len()
+        );
 
         if status.as_u16() == 404 {
             if let Some(not_found_err) = Self::parse_not_found_error(text, url) {

@@ -305,7 +305,10 @@ impl WhoopProvider {
 
     /// Handle non-success API responses
     fn handle_api_error(status: reqwest::StatusCode, text: &str) -> AppError {
-        error!("WHOOP API request failed - status: {status}, body: {text}");
+        error!(
+            "WHOOP API request failed - status: {status}, body_length: {} bytes",
+            text.len()
+        );
 
         let status_code = status.as_u16();
 

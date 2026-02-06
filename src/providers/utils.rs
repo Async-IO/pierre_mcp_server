@@ -149,7 +149,10 @@ fn rate_limit_error(
 
 /// Create an API error for non-success responses
 fn api_error(status: StatusCode, text: &str, provider_name: &str) -> AppError {
-    error!("{provider_name} API request failed - status: {status}, body: {text}");
+    error!(
+        "{provider_name} API request failed - status: {status}, body_length: {} bytes",
+        text.len()
+    );
     let err = ProviderError::ApiError {
         provider: provider_name.to_owned(),
         status_code: status.as_u16(),

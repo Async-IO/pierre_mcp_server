@@ -18,7 +18,7 @@ use chrono::{DateTime, Utc};
 use reqwest::Client;
 use serde::Deserialize;
 use std::sync::OnceLock;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, trace, warn};
 
 /// Configuration for Strava API integration
 #[derive(Debug, Clone)]
@@ -465,7 +465,7 @@ impl FitnessProvider for StravaProvider {
                 warn!("Failed to read error response body: {}", e);
                 "Unable to read error response".into()
             });
-            error!("Strava API error response: {} - {}", status, error_text);
+            error!("Strava API error response: status={}, body_length={} bytes", status, error_text.len());
 
             // Check if it's an authentication error and we have a refresh token
             if status == 401 && self.refresh_token.is_some() {
@@ -487,20 +487,13 @@ impl FitnessProvider for StravaProvider {
             .into());
         }
 
-        // Get response text first for debugging
+        // Get response text for parsing
         let response_text = response.text().await.map_err(|e| {
             ProviderError::NetworkError(format!("Failed to read response body: {e}"))
         })?;
 
         info!("Strava API response length: {} bytes", response_text.len());
-        if response_text.len() < crate::constants::logging::MAX_RESPONSE_BODY_LOG_SIZE {
-            info!("Strava API response body: {}", response_text);
-        } else {
-            info!(
-                "Strava API response body (truncated): {}...",
-                &response_text[..500]
-            );
-        }
+        trace!("Strava API response body: [redacted, {} bytes]", response_text.len());
 
         // Try to parse JSON
         let activities: Vec<StravaActivity> =
