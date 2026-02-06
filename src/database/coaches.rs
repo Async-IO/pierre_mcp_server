@@ -1340,7 +1340,10 @@ impl CoachesManager {
         Ok(result.rows_affected() > 0)
     }
 
-    /// List all assignments for a coach
+    /// List all assignments for a coach (no tenant filtering).
+    ///
+    /// Used by tests where `tenant_users` table may not be set up.
+    /// Production code should use `list_assignments_for_tenant` instead.
     ///
     /// # Errors
     ///
@@ -1356,6 +1359,52 @@ impl CoachesManager {
             ",
         )
         .bind(coach_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to list assignments: {e}")))?;
+
+        rows.iter()
+            .map(|row| {
+                let user_id: String = row.get("user_id");
+                let created_at: String = row.get("created_at");
+                let assigned_by: Option<String> = row.get("assigned_by");
+                let user_email: Option<String> = row.get("email");
+
+                Ok(CoachAssignment {
+                    user_id,
+                    user_email,
+                    assigned_at: created_at,
+                    assigned_by,
+                })
+            })
+            .collect()
+    }
+
+    /// List assignments for a coach, scoped to a specific tenant.
+    ///
+    /// Only returns assignments where the assigned user belongs to the given tenant,
+    /// preventing cross-tenant data leakage.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn list_assignments_for_tenant(
+        &self,
+        coach_id: &str,
+        tenant_id: &str,
+    ) -> AppResult<Vec<CoachAssignment>> {
+        let rows = sqlx::query(
+            r"
+            SELECT ca.user_id, ca.created_at, ca.assigned_by, u.email
+            FROM coach_assignments ca
+            LEFT JOIN users u ON ca.user_id = u.id
+            INNER JOIN tenant_users tu ON ca.user_id = tu.user_id AND tu.tenant_id = $2
+            WHERE ca.coach_id = $1
+            ORDER BY ca.created_at DESC
+            ",
+        )
+        .bind(coach_id)
+        .bind(tenant_id)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to list assignments: {e}")))?;

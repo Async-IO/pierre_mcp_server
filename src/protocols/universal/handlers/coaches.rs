@@ -1000,6 +1000,37 @@ pub fn handle_list_hidden_coaches(
 // Admin Coach Management Handlers (System Coaches - Admin Only)
 // ============================================================================
 
+/// Verify that a target user belongs to a given tenant.
+///
+/// Prevents cross-tenant operations by checking tenant membership.
+async fn verify_user_tenant_membership(
+    executor: &UniversalToolExecutor,
+    target_user_id: Uuid,
+    tenant_id_str: &str,
+) -> Result<(), ProtocolError> {
+    let tenant_uuid = Uuid::parse_str(tenant_id_str)
+        .map_err(|_| ProtocolError::InternalError("Invalid tenant UUID in context".to_owned()))?;
+
+    let user_tenants = executor
+        .resources
+        .database
+        .list_tenants_for_user(target_user_id)
+        .await
+        .map_err(|e| {
+            ProtocolError::InternalError(format!(
+                "Failed to verify tenant membership for user {target_user_id}: {e}"
+            ))
+        })?;
+
+    if !user_tenants.iter().any(|t| t.id == tenant_uuid) {
+        return Err(ProtocolError::InvalidRequest(format!(
+            "User {target_user_id} does not belong to this tenant"
+        )));
+    }
+
+    Ok(())
+}
+
 /// Verify admin access for a user
 ///
 /// Returns the user's default `tenant_id` if authorized, error if not Admin/SuperAdmin
@@ -1515,6 +1546,9 @@ pub fn handle_admin_assign_coach(
                 ProtocolError::InvalidRequest(format!("System coach not found: {coach_id}"))
             })?;
 
+        // Verify target user belongs to the same tenant as the admin
+        verify_user_tenant_membership(executor, target_user_id, &tenant_id).await?;
+
         // Assign to specific user
         manager
             .assign_coach(coach_id, target_user_id, admin_user_id)
@@ -1561,7 +1595,7 @@ pub fn handle_admin_unassign_coach(
         }
 
         let admin_user_id = parse_user_id_for_protocol(&request.user_id)?;
-        verify_admin_access(executor, admin_user_id).await?;
+        let tenant_id = verify_admin_access(executor, admin_user_id).await?;
 
         let coach_id = request
             .parameters
@@ -1584,6 +1618,9 @@ pub fn handle_admin_unassign_coach(
         })?;
 
         let manager = get_coaches_manager(executor)?;
+
+        // Verify target user belongs to the same tenant as the admin
+        verify_user_tenant_membership(executor, target_user_id, &tenant_id).await?;
 
         let unassigned = manager
             .unassign_coach(coach_id, target_user_id)
@@ -1643,6 +1680,12 @@ pub fn handle_admin_list_coach_assignments(
         let admin_user_id = parse_user_id_for_protocol(&request.user_id)?;
         verify_admin_access(executor, admin_user_id).await?;
 
+        let admin_user_id_string = admin_user_id.to_string();
+        let tenant_id = request
+            .tenant_id
+            .as_deref()
+            .unwrap_or(&admin_user_id_string);
+
         let coach_id = request.parameters.get("coach_id").and_then(Value::as_str);
 
         let manager = get_coaches_manager(executor)?;
@@ -1658,9 +1701,24 @@ pub fn handle_admin_list_coach_assignments(
             });
         };
 
-        let assignments = manager.list_assignments(coach_id).await.map_err(|e| {
-            ProtocolError::InternalError(format!("Failed to list assignments: {e}"))
-        })?;
+        // Verify the coach belongs to the admin's tenant
+        manager
+            .get_system_coach(coach_id, tenant_id)
+            .await
+            .map_err(|e| {
+                ProtocolError::InternalError(format!("Failed to verify coach tenant: {e}"))
+            })?
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest(format!("System coach {coach_id} not found"))
+            })?;
+
+        // List assignments scoped to the admin's tenant
+        let assignments = manager
+            .list_assignments_for_tenant(coach_id, tenant_id)
+            .await
+            .map_err(|e| {
+                ProtocolError::InternalError(format!("Failed to list assignments: {e}"))
+            })?;
 
         let assignment_list: Vec<Value> = assignments
             .iter()

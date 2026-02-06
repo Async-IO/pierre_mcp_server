@@ -263,7 +263,10 @@ impl WeatherService {
             api_key
         );
 
-        debug!("Fetching weather from: {}", url);
+        debug!(
+            "Fetching weather from: {}/data/3.0/onecall/timemachine?lat={}&lon={}&dt={}&appid=[REDACTED]&units=metric",
+            &self.api_config.base_url, latitude, longitude, timestamp.timestamp()
+        );
 
         let response = self.client.get(&url).send().await?;
 

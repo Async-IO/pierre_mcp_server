@@ -1308,11 +1308,30 @@ impl CoachesRoutes {
             .await?
             .ok_or_else(|| AppError::not_found(format!("System coach {id}")))?;
 
-        // Assign to each user
+        // Assign to each user after verifying tenant membership
+        let tenant_uuid =
+            Uuid::parse_str(&tenant_id).map_err(|_| AppError::internal("Invalid tenant UUID"))?;
         let mut assigned_count = 0;
         for user_id_str in &body.user_ids {
             let user_id = Uuid::parse_str(user_id_str)
                 .map_err(|_| AppError::invalid_input(format!("Invalid user ID: {user_id_str}")))?;
+
+            // Verify target user belongs to the same tenant
+            let user_tenants = resources
+                .database
+                .list_tenants_for_user(user_id)
+                .await
+                .map_err(|e| {
+                    AppError::database(format!(
+                        "Failed to verify tenant membership for user {user_id}: {e}"
+                    ))
+                })?;
+            if !user_tenants.iter().any(|t| t.id == tenant_uuid) {
+                return Err(AppError::auth_invalid(format!(
+                    "User {user_id} does not belong to this tenant"
+                )));
+            }
+
             if manager
                 .assign_coach(&coach.id.to_string(), user_id, auth.user_id)
                 .await?
@@ -1348,11 +1367,30 @@ impl CoachesRoutes {
             .await?
             .ok_or_else(|| AppError::not_found(format!("System coach {id}")))?;
 
-        // Unassign from each user
+        // Unassign from each user after verifying tenant membership
+        let tenant_uuid =
+            Uuid::parse_str(&tenant_id).map_err(|_| AppError::internal("Invalid tenant UUID"))?;
         let mut removed_count = 0;
         for user_id_str in &body.user_ids {
             let user_id = Uuid::parse_str(user_id_str)
                 .map_err(|_| AppError::invalid_input(format!("Invalid user ID: {user_id_str}")))?;
+
+            // Verify target user belongs to the same tenant
+            let user_tenants = resources
+                .database
+                .list_tenants_for_user(user_id)
+                .await
+                .map_err(|e| {
+                    AppError::database(format!(
+                        "Failed to verify tenant membership for user {user_id}: {e}"
+                    ))
+                })?;
+            if !user_tenants.iter().any(|t| t.id == tenant_uuid) {
+                return Err(AppError::auth_invalid(format!(
+                    "User {user_id} does not belong to this tenant"
+                )));
+            }
+
             if manager.unassign_coach(&id, user_id).await? {
                 removed_count += 1;
             }
@@ -1384,7 +1422,7 @@ impl CoachesRoutes {
             .await?
             .ok_or_else(|| AppError::not_found(format!("System coach {id}")))?;
 
-        let db_assignments = manager.list_assignments(&id).await?;
+        let db_assignments = manager.list_assignments_for_tenant(&id, &tenant_id).await?;
         let assignments: Vec<CoachAssignment> =
             db_assignments.into_iter().map(Into::into).collect();
 

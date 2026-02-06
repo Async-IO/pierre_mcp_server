@@ -29,6 +29,7 @@ use crate::database::coaches::{
     Coach, CoachAssignment, CoachCategory, CoachVisibility, CoachesManager,
     CreateSystemCoachRequest, UpdateCoachRequest,
 };
+use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult};
 use crate::mcp::schema::{JsonSchema, PropertySchema};
 use crate::tools::context::ToolExecutionContext;
@@ -52,6 +53,38 @@ fn get_coaches_manager(ctx: &ToolExecutionContext) -> AppResult<CoachesManager> 
 fn get_tenant_id(ctx: &ToolExecutionContext) -> String {
     ctx.tenant_id
         .map_or_else(|| ctx.user_id.to_string(), |id| id.to_string())
+}
+
+/// Verify that a target user belongs to the same tenant as the admin.
+///
+/// Prevents cross-tenant operations by checking tenant membership
+/// before allowing assign/unassign/listing operations on a user.
+async fn verify_user_in_tenant(
+    ctx: &ToolExecutionContext,
+    target_user_id: Uuid,
+    tenant_id_str: &str,
+) -> AppResult<()> {
+    let tenant_uuid = Uuid::parse_str(tenant_id_str)
+        .map_err(|_| AppError::internal("Invalid tenant UUID in context"))?;
+
+    let user_tenants = ctx
+        .resources
+        .database
+        .list_tenants_for_user(target_user_id)
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to verify tenant membership for user {target_user_id}: {e}"
+            ))
+        })?;
+
+    if !user_tenants.iter().any(|t| t.id == tenant_uuid) {
+        return Err(AppError::auth_invalid(format!(
+            "User {target_user_id} does not belong to this tenant"
+        )));
+    }
+
+    Ok(())
 }
 
 /// Format a system coach for JSON response
@@ -688,6 +721,10 @@ impl McpTool for AdminAssignCoachTool {
         );
 
         let manager = get_coaches_manager(ctx)?;
+        let tenant_id = get_tenant_id(ctx);
+
+        // Verify target user belongs to the same tenant as the admin
+        verify_user_in_tenant(ctx, target_user_id, &tenant_id).await?;
 
         let assigned = manager
             .assign_coach(coach_id, target_user_id, ctx.user_id)
@@ -780,6 +817,10 @@ impl McpTool for AdminUnassignCoachTool {
         );
 
         let manager = get_coaches_manager(ctx)?;
+        let tenant_id = get_tenant_id(ctx);
+
+        // Verify target user belongs to the same tenant as the admin
+        verify_user_in_tenant(ctx, target_user_id, &tenant_id).await?;
 
         let unassigned = manager.unassign_coach(coach_id, target_user_id).await?;
 
@@ -854,8 +895,18 @@ impl McpTool for AdminListCoachAssignmentsTool {
         );
 
         let manager = get_coaches_manager(ctx)?;
+        let tenant_id = get_tenant_id(ctx);
 
-        let assignments = manager.list_assignments(coach_id).await?;
+        // Verify the coach belongs to the admin's tenant
+        manager
+            .get_system_coach(coach_id, &tenant_id)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("System coach {coach_id}")))?;
+
+        // List assignments scoped to the admin's tenant
+        let assignments = manager
+            .list_assignments_for_tenant(coach_id, &tenant_id)
+            .await?;
 
         let formatted: Vec<_> = assignments.iter().map(format_assignment).collect();
 

@@ -16,7 +16,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
-use tracing::{debug, info, instrument, warn};
+use tracing::{debug, instrument, trace, warn};
 
 /// Geographic location data with rich context
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -218,9 +218,10 @@ impl LocationService {
             return Ok(cached);
         }
 
-        info!(
-            "Fetching location data for coordinates: {}, {}",
-            latitude, longitude
+        trace!(
+            "Fetching location data for coordinates: {:.2}, {:.2}",
+            latitude,
+            longitude
         );
 
         let nominatim_response = self.fetch_from_api(latitude, longitude).await?;
@@ -236,9 +237,9 @@ impl LocationService {
             },
         );
 
-        debug!(
-            "Cached location data for {}: {:?}",
-            cache_key, location_data
+        trace!(
+            "Cached location data for region: {:?}",
+            location_data.region
         );
 
         Ok(location_data)
