@@ -19,6 +19,7 @@ use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult, ErrorCode};
 use base64::{engine::general_purpose, Engine as _};
 use chrono::{Duration, Utc};
+use jsonwebtoken::dangerous::insecure_decode;
 use ring::rand::{SecureRandom, SystemRandom};
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
@@ -958,20 +959,9 @@ impl OAuth2AuthorizationServer {
     /// This is safe because we only need to read the claims, not trust them.
     /// The refresh token will be validated separately.
     fn decode_expired_token(token: &str) -> AppResult<Claims> {
-        use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
-
-        // Create a permissive validation that doesn't check expiry or signature
-        let mut validation = Validation::new(Algorithm::RS256);
-        validation.validate_exp = false; // Don't validate expiration
-        validation.insecure_disable_signature_validation(); // We just need to read claims
-
-        // Decode without validation - we only need the claims data
-        let token_data = decode::<Claims>(
-            token,
-            &DecodingKey::from_secret(&[]), // Dummy key since we're not validating signature
-            &validation,
-        )
-        .map_err(|e| {
+        // Decode without validation - we only need the claims data.
+        // The refresh token will be validated separately.
+        let token_data = insecure_decode::<Claims>(token).map_err(|e| {
             AppError::new(
                 ErrorCode::AuthMalformed,
                 format!("Failed to decode expired token: {e}"),

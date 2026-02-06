@@ -231,7 +231,7 @@ tower-http = { version = "0.6", features = ["trace", "request-id", "cors", "time
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 base64 = "0.22"
-bytes = "1.8"
+bytes = "1.11"
 url = "2.5"
 clap = { version = "4.5", features = ["derive", "std"], default-features = false }
 dotenvy = "0.15"
@@ -249,7 +249,7 @@ ed25519-dalek = "2.1"
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "postgres", "chrono", "uuid", "derive", "migrate", "macros"], default-features = false }
 bcrypt = "0.16"
 argon2 = "0.5"
-jsonwebtoken = "9.3"
+jsonwebtoken = { version = "10.3", features = ["aws_lc_rs"] }
 subtle = "2.6"
 zeroize = { version = "1.8", features = ["alloc"] }
 hex = "0.4"
@@ -259,8 +259,7 @@ axum-extra = { version = "0.9", features = ["typed-header"] }
 http = "1.0"
 futures-util = "0.3"
 eventsource-stream = "0.2"
-# Pin to compatible version to avoid edition2024 requirement
-base64ct = "=1.6.0"
+base64ct = "1.6"
 # For documentation server
 env_logger = "0.11"
 # LRU cache for bounded session storage (DoS prevention)
