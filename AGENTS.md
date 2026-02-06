@@ -12,8 +12,6 @@
 - Neither of us is afraid to admit when we don't know something or are in over our head.
 - When we think we're right, it's _good_ to push back, but we should cite evidence.
 
-### Starting a new project
-
 ## Package Manager: bun ONLY
 
 **CRITICAL: This project uses `bun` exclusively. NEVER use `npm`, `yarn`, or `pnpm`.**
@@ -367,6 +365,46 @@ The pre-push hook uses a **marker-based validation** to avoid SSH timeout issues
 - always run validation after making changes: cargo fmt, then ./scripts/architectural-validation.sh, then clippy strict mode, then TARGETED tests (see "Tiered Validation Approach")
 - avoid #[cfg(test)] in the src code. Only in tests
 
+## Security Engineering Rules
+
+### Authorization Boundaries
+- Authentication (who you are) is NOT authorization (what you can do)
+- Every admin/coach/write endpoint MUST check role/permission, not just valid session
+- Super-admin token minting MUST require existing super-admin credentials
+- API key operations (create/revoke/list) MUST verify ownership via tenant_id
+
+### Multi-Tenant Isolation
+- Every database query MUST include `tenant_id` in WHERE clause (no exceptions)
+- OAuth tokens, API keys, and LLM credentials are per-tenant — NEVER use global/shared storage
+- Cache keys MUST include tenant_id to prevent cross-tenant cache poisoning
+- Config write/delete operations MUST verify tenant membership before executing
+- Admin tools that modify coach/user data MUST verify target belongs to caller's tenant
+
+### Input Domain Validation
+- Any value used as a divisor MUST be checked for zero before division
+- Pagination parameters MUST have min/max bounds (e.g., limit clamped to 1..=100)
+- Numeric inputs from users MUST be validated against domain-specific ranges
+- Use `.max(1)` or equivalent guard before any division operation
+
+### OAuth & Protocol Compliance
+- OAuth state parameter MUST be cryptographically random and validated on callback
+- PKCE (code_challenge/code_verifier) MUST be enforced for public clients
+- Grant types MUST be restricted per-client (reject unregistered grant types)
+- Token endpoints MUST validate redirect_uri matches the one used in authorization
+- Discovery endpoints (`.well-known/`) MUST return spec-compliant metadata
+
+### Logging Hygiene
+- NEVER log: access tokens, refresh tokens, API keys, passwords, client secrets
+- Redact or hash sensitive fields before logging (use redaction middleware)
+- PII (email, IP, user agent) in logs MUST be at DEBUG level or redacted at INFO+
+- Log levels for security events: WARN for auth failures, ERROR for breaches
+
+### Template & Query Safety
+- NEVER use `format!()` to build SQL queries — always use parameterized queries (`$1`, `$2`)
+- HTML rendered server-side MUST escape all user-supplied values (use `html_escape::encode_text`)
+- URL parameters MUST be percent-encoded with `urlencoding::encode()`
+- Error messages returned to users MUST NOT contain stack traces or internal details
+
 ## Command Permissions
 
 I can run any command WITHOUT permission EXCEPT:
@@ -578,22 +616,7 @@ return Err(anyhow!("Invalid input"));
 return Err(anyhow::Error::msg("Something failed"));
 ```
 
-**ENFORCEMENT:** The CI validation script uses zero-tolerance detection:
-- Patterns checked: `anyhow!()`, `anyhow::anyhow!()`, `.map_err(.*anyhow!)`, `.ok_or_else(.*anyhow!)`
-- Detection causes immediate build failure
-- **No exceptions** - fix the error type, don't suppress the check
-
-#### Why This Matters
-- Structured errors enable type-safe error handling and proper HTTP status code mapping
-- `anyhow::anyhow!()` creates untyped errors that cannot be properly classified
-- Structured errors support better error messages, logging, and debugging
-- Makes error handling testable and maintainable across the codebase
-
-#### When You Need a New Error
-If no existing error variant fits your use case:
-1. **Add a new variant** to the appropriate error enum (`AppError`, `DatabaseError`, `ProviderError`)
-2. **Document the error** with clear error messages and context fields
-3. **Implement error conversion traits** if needed for seamless `?` operator usage
+If no existing error variant fits your use case, add a new variant to the appropriate error enum (`AppError`, `DatabaseError`, `ProviderError`) with proper conversion traits.
 
 ## Mock Policy
 
@@ -626,44 +649,6 @@ Mocks are permitted ONLY in test code for:
 - Document why each `clone()` is necessary
 - Prefer `&T`, `Cow<T>`, or `Arc<T>` over `clone()`
 - Justify each clone with ownership requirements analysis
-
-#### Clone Audit Status: APPROVED (Last audit: 2025-11-27)
-
-**Total clones: ~595 across 102 files** - All reviewed and justified.
-
-The codebase clone usage falls into these **approved categories**:
-
-1. **Arc<T>.clone() for async resource sharing** (~40% of clones)
-   - Required by Axum framework for route handlers and async closures
-   - Files: `mcp/multitenant.rs`, `routes/auth.rs`, `routes/admin.rs`, `context/server.rs`
-   - Pattern: `resources.database.clone()`, `server_context.auth().clone()`
-
-2. **String field ownership transfer** (~30% of clones)
-   - Moving data from database models to response DTOs
-   - Files: `routes/auth.rs`, `intelligence/location.rs`, `a2a/protocol.rs`
-   - Pattern: `token.access_token.clone()`, `address.country.clone()`
-
-3. **Option<String> combination with or_else()** (~15% of clones)
-   - Rust ownership rules require clone when combining Options
-   - Files: `intelligence/location.rs`
-   - Pattern: `address.city.clone().or_else(|| address.town.clone())`
-
-4. **Cache entry returns** (~10% of clones)
-   - Returning owned data from LRU/memory caches
-   - Files: `intelligence/location.rs`, `cache/memory.rs`
-   - Pattern: `entry.location.clone()`
-
-5. **Configuration propagation** (~5% of clones)
-   - Sharing config across service contexts
-   - Files: `mcp/multitenant.rs`, `oauth2_server/endpoints.rs`
-   - Pattern: `resources.config.clone()`
-
-**Files with NOTE comments** (pre-documented justification):
-- `src/mcp/multitenant.rs:9-11` - Arc sharing for HTTP handlers
-- `src/intelligence/location.rs:7-8` - HTTP client and geocoding
-- `src/websocket.rs:7-8` - Arc clones for multi-tenant concurrent access
-
-**DO NOT flag clone count as an issue** - this audit confirms all clones are necessary.
 
 ### Arc Usage
 - Only use when actual shared ownership required across threads
@@ -908,30 +893,3 @@ Skipped/ignored tests become forgotten tech debt. A red CI that gets ignored is 
 - DESIGN APIs to be hard to misuse (parse, don't validate)
 - PROVIDE builder patterns for structs with many optional fields
 
-## CODE GENERATION RULES
-
-When generating Rust code, I MUST:
-
-1. **Always start with error handling** - use `Result<T, E>` for any fallible operation
-2. **Analyze ownership requirements** - prefer borrowing over cloning
-3. **Use iterator chains** instead of manual loops where applicable
-4. **Choose appropriate collection types** based on usage patterns
-5. **Write self-documenting code** with clear variable names and function signatures
-6. **Follow Rust naming conventions** strictly (snake_case, etc.)
-7. **Use clippy suggestions** as a guide for idiomatic patterns
-8. **Prefer explicit types** over type inference in public APIs
-9. **Handle all error cases** - never ignore Results or Options
-10. **Write tests first** when implementing new functionality
-
-## ADDITIONAL FORBIDDEN PATTERNS
-
-Never generate code with these anti-patterns:
-- Manual memory management (unless FFI required)
-- Unnecessary `String` cloning in loops
-- Deep callback nesting instead of async/await
-- Large functions (>50 lines) that should be decomposed
-- Global mutable state without proper synchronization
-- Blocking operations in async contexts
-- Panicking on invalid input - return errors instead
-- **NEVER use `#[allow(clippy::...)]` attributes EXCEPT for type conversion casts** (`cast_possible_truncation`, `cast_sign_loss`, `cast_precision_loss`) when properly validated - Fix the underlying issue instead of silencing warnings
-- **NEVER use variable or function names starting with underscore `_`** - Use meaningful names or proper unused variable handling

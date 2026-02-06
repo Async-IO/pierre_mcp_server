@@ -124,6 +124,29 @@ let database_url = env::var("DATABASE_URL")
     .map_err(|_| ConfigError::MissingDatabaseUrl)?;
 ```
 
+### Log Output Secret/PII Scanning
+```bash
+# Check for secrets/tokens logged without redaction
+echo "📋 Checking log statements for leaked secrets..."
+
+# Look for access_token, refresh_token, api_key, password logged directly
+rg "(info!|warn!|error!|debug!|trace!)\(.*\{.*(access_token|refresh_token|api_key|password|client_secret|authorization)" src/ --type rust -n | \
+  rg -v "redact|REDACTED|\\*\\*\\*|mask" && \
+  echo "❌ SECURITY: Secrets in log statements without redaction!" || \
+  echo "✓ No unredacted secrets in log statements"
+
+# Check for PII in INFO+ level logs (should be DEBUG only)
+echo "📋 Checking PII in log levels..."
+rg "(info!|warn!|error!)\(.*\{.*(email|ip_address|user_agent)" src/ --type rust -n | \
+  rg -v "redact|REDACTED|mask" && \
+  echo "⚠️  PII in INFO+ logs (should be DEBUG or redacted)" || \
+  echo "✓ PII properly handled in log levels"
+
+# Verify redaction middleware is active
+rg "redact|sanitize.*log|PiiRedact" src/ --type rust -n | wc -l
+echo "Redaction function references (should be >0)"
+```
+
 ## Success Criteria
 - ✅ No API keys in source code
 - ✅ No passwords in source code
@@ -134,6 +157,8 @@ let database_url = env::var("DATABASE_URL")
 - ✅ .env in .gitignore
 - ✅ All secrets from environment variables
 - ✅ Git history clean (no historical leaks)
+- ✅ No unredacted secrets in log statements
+- ✅ No PII in INFO+ log levels
 
 ## Related Files
 - `scripts/validate-no-secrets.sh` - Secret detection script

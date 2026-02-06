@@ -197,6 +197,46 @@ ARCHITECTURAL VALIDATION: PASSED
 ARCHITECTURAL VALIDATION: FAILED
 ```
 
+### 6. SQL Injection Detection
+Catches `format!()` used to build SQL queries:
+```bash
+# Check for format! SQL construction (FORBIDDEN per CLAUDE.md Security Rules)
+echo "🛡️ Checking for format! SQL injection risks..."
+rg "format!\(.*(?:SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER)" src/ --type rust -n && \
+  echo "❌ SECURITY: format! used in SQL query construction!" || \
+  echo "✓ No format! SQL injection risks"
+
+# Verify all SQL uses parameterized queries
+rg "sqlx::query(?:_as|_scalar)?\(" src/ --type rust -n | wc -l
+echo "Parameterized query count (safe)"
+```
+
+### 7. HTML Template Safety
+Catches unescaped user input in server-rendered HTML:
+```bash
+# Check for raw string interpolation in HTML output
+echo "🛡️ Checking HTML template safety..."
+rg "format!\(.*<.*>.*\{" src/ --type rust -n | \
+  rg -v "html_escape|encode_text" && \
+  echo "⚠️  Potential XSS: HTML with unescaped interpolation" || \
+  echo "✓ HTML output properly escaped"
+
+# Verify html_escape usage
+rg "html_escape::encode_text|html_escape::encode_double_quoted_attribute" src/ --type rust -n | wc -l
+echo "HTML escape function calls (safe)"
+```
+
+### 8. Tenant Isolation in Non-DB Code
+Catches global/shared state that should be per-tenant:
+```bash
+# Check for global OAuth config (should be per-tenant)
+echo "🛡️ Checking tenant isolation in non-DB code..."
+rg "static.*OAuth|static.*Config|LazyLock.*OAuth" src/ --type rust -n | \
+  rg -v "test|DEFAULT" && \
+  echo "⚠️  Global OAuth/Config state (should be per-tenant)" || \
+  echo "✓ No global OAuth/Config state"
+```
+
 ## Success Criteria
 - ✅ Zero placeholder implementations
 - ✅ Zero unwrap/expect/panic in src/ (except approved)
@@ -207,6 +247,9 @@ ARCHITECTURAL VALIDATION: FAILED
 - ✅ Clone count under threshold (600)
 - ✅ No hardcoded secrets
 - ✅ No development artifacts (TODO/FIXME) in src/
+- ✅ No format!() SQL query construction (injection risk)
+- ✅ No unescaped HTML interpolation (XSS risk)
+- ✅ No global OAuth/Config state (tenant isolation risk)
 
 ## Related Files
 - `scripts/architectural-validation.sh` - Main validation script

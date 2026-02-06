@@ -159,6 +159,44 @@ test test_cross_tenant_activity_access ... FAILED
   let tenant_id = params.tenant_id;  // User can forge!
 ```
 
+### OAuth Credential Isolation
+```bash
+# Verify OAuth tokens are stored per-tenant (not global)
+echo "🔐 Checking OAuth credential isolation..."
+rg "oauth_token|refresh_token|access_token" src/database/ --type rust -A 3 | \
+  rg "tenant_id" | wc -l
+echo "OAuth token queries with tenant_id scoping"
+
+# Check that provider credentials are tenant-scoped
+rg "provider.*credential|strava.*token|garmin.*token" src/ --type rust -A 5 | \
+  rg -v "tenant_id" | rg "SELECT|INSERT|UPDATE" && \
+  echo "⚠️  Provider credential query without tenant_id!" || \
+  echo "✓ Provider credentials properly tenant-scoped"
+```
+
+### Config Write/Delete Tenant Scoping
+```bash
+# Verify config mutations check tenant membership
+echo "🔐 Checking config write/delete tenant scoping..."
+rg "fn.*config.*(create|update|delete|write|remove)" src/ --type rust -A 10 | \
+  rg "tenant_id" | wc -l
+echo "Config mutation functions with tenant_id check"
+
+# Check admin tools verify target belongs to caller's tenant
+rg "fn.*(assign|remove|update).*coach|fn.*(assign|remove|update).*user" src/ --type rust -A 10 | \
+  rg "tenant_id" | wc -l
+echo "Admin tool functions with tenant_id verification"
+```
+
+### LLM API Key Isolation
+```bash
+# Verify LLM/AI settings are per-tenant
+echo "🔐 Checking LLM API key isolation..."
+rg "llm.*key|ai.*key|gemini.*key|groq.*key|ollama.*url" src/ --type rust -A 5 | \
+  rg "tenant_id" | wc -l
+echo "LLM key storage/retrieval with tenant_id scoping"
+```
+
 ## Success Criteria
 - ✅ All multi-tenant tests pass
 - ✅ Cross-tenant access attempts fail (403 or empty)
@@ -168,6 +206,10 @@ test test_cross_tenant_activity_access ... FAILED
 - ✅ OAuth tokens isolated per tenant
 - ✅ API keys isolated per tenant
 - ✅ Zero data leakage in logs (PII redaction active)
+- ✅ Provider credentials (Strava, Garmin) tenant-scoped
+- ✅ Config write/delete operations verify tenant membership
+- ✅ LLM API keys stored and retrieved per-tenant
+- ✅ Admin tools verify target belongs to caller's tenant
 
 ## Related Files
 - `tests/mcp_multitenant_complete_test.rs` - Main test suite

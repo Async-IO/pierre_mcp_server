@@ -161,6 +161,64 @@ rg "api_key.*=.*params\.api_key|INSERT.*api_key.*VALUES" src/ --type rust -n || 
 - Test expired token rejection
 - Verify API key rate limiting works
 
+### 5b. Authorization Boundary Verification (Post-Mortem Addition)
+**Objective:** Verify authentication != authorization — endpoints that check auth also verify permissions
+
+**Actions:**
+```bash
+echo "🔍 Authorization Boundary Check..."
+
+# Find admin endpoints and verify they check roles, not just auth
+echo "1. Admin endpoint authorization..."
+rg "async fn.*(admin|manage|assign|remove|revoke)" src/routes/ --type rust -A 20 | \
+  rg "is_admin\|is_super_admin\|role\|permission" | wc -l
+echo "Admin authorization checks (should match admin endpoint count)"
+
+# Check super-admin token minting requires super-admin
+echo "2. Super-admin gating..."
+rg "super.?admin.*token|token.*super.?admin" src/ --type rust -B 5 -A 5 | \
+  rg "is_super_admin" | wc -l
+echo "Super-admin token operations with proper gating"
+
+# Check API key operations verify ownership
+echo "3. API key ownership..."
+rg "fn.*(create|revoke|list).*key|fn.*key.*(create|revoke|list)" src/routes/ --type rust -A 15 | \
+  rg "tenant_id|owner|created_by" | wc -l
+echo "API key operations with ownership verification"
+
+# Check that config write/delete requires tenant membership
+echo "4. Config mutation authorization..."
+rg "fn.*(save|delete|update).*config" src/ --type rust -A 15 | \
+  rg "tenant_id|is_admin|membership" | wc -l
+echo "Config mutations with authorization"
+```
+
+### 5c. Tenant Credential Isolation (Post-Mortem Addition)
+**Objective:** Verify OAuth tokens, API keys, and LLM credentials are per-tenant
+
+**Actions:**
+```bash
+echo "🔍 Tenant Credential Isolation Check..."
+
+# OAuth token storage — must be per-tenant
+echo "1. OAuth token tenant scoping..."
+rg "INSERT.*oauth|UPDATE.*oauth|SELECT.*oauth" src/ --type rust -A 3 | \
+  rg "tenant_id" | wc -l
+echo "OAuth queries with tenant_id (must match total OAuth queries)"
+
+# LLM API key storage — must be per-tenant
+echo "2. LLM key tenant scoping..."
+rg "llm.*setting|ai.*setting|api_key.*setting" src/ --type rust -A 3 | \
+  rg "tenant_id" | wc -l
+echo "LLM key queries with tenant_id"
+
+# Verify no global credential storage
+echo "3. No global credential state..."
+rg "static.*Mutex.*Token|static.*RwLock.*Key|LazyLock.*Cred" src/ --type rust -n && \
+  echo "❌ Global credential state found!" || \
+  echo "✓ No global credential state"
+```
+
 ### 6. OWASP Top 10 Compliance Check
 **Objective:** Check for common web vulnerabilities
 
@@ -178,11 +236,11 @@ rg "md5|sha1[^0-9]|DES|RC4" src/ --type rust -n && echo "❌ Weak crypto!" || ec
 
 # A03:2021 - Injection
 echo "3. Injection: Checking parameterized queries..."
-rg "format!.*SELECT|format!.*INSERT|format!.*UPDATE" src/ --type rust -n && echo "⚠️  SQL injection risk" || echo "✓ Parameterized queries"
+rg "format!.*SELECT|format!.*INSERT|format!.*UPDATE|format!.*DELETE" src/ --type rust -n && echo "⚠️  SQL injection risk" || echo "✓ Parameterized queries"
 
 # A04:2021 - Insecure Design
 echo "4. Design: Checking error handling..."
-rg "\.unwrap\(\)|\.expect\(|panic!\(" src/ --type rust -n && echo "❌ Insecure error handling" || echo "✓ Proper error handling"
+rg "\.unwrap\(\)|\.expect\(|panic!\(" src/ --type rust -n | grep -v "^src/bin/" | grep -v "// Safe:" && echo "❌ Insecure error handling" || echo "✓ Proper error handling"
 
 # A05:2021 - Security Misconfiguration
 echo "5. Config: Checking default credentials..."
@@ -194,19 +252,30 @@ cargo audit || echo "⚠️  Vulnerable dependencies found"
 
 # A07:2021 - Authentication Failures
 echo "7. Auth: Checking password hashing..."
-rg "bcrypt|argon2" src/auth.rs --type rust -n | head -5
+rg "bcrypt|argon2" src/ --type rust -n | head -5
 
 # A08:2021 - Data Integrity Failures
 echo "8. Integrity: Checking JWT signature verification..."
 rg "decode.*Validation|verify.*signature" src/ --type rust -n | head -5
 
 # A09:2021 - Logging Failures
-echo "9. Logging: Checking PII redaction..."
-rg "PII.*redact|redact.*middleware" src/ --type rust -n | head -5
+echo "9. Logging: Checking secret/PII in logs..."
+rg "(info!|warn!|error!)\(.*\{.*(access_token|refresh_token|api_key|password|client_secret)" src/ --type rust -n | \
+  rg -v "redact|REDACT|mask" && echo "❌ Secrets in logs!" || echo "✓ Log hygiene OK"
 
 # A10:2021 - SSRF
 echo "10. SSRF: Checking URL validation..."
 rg "reqwest::get|http.*client.*get" src/ --type rust -A 3 | rg "validate.*url|Url::parse" | wc -l
+
+# Additional: XSS/Template Safety
+echo "11. XSS: Checking HTML escaping..."
+rg "text/html|Content-Type.*html" src/ --type rust -A 10 | \
+  rg "format!" | rg -v "html_escape" && echo "⚠️  Unescaped HTML output" || echo "✓ HTML properly escaped"
+
+# Additional: Division Safety
+echo "12. Division safety: Checking zero-guards..."
+rg " / " src/ --type rust -n | rg "params\.|input\.|request\." | \
+  rg -v "\.max\(1\)|checked_div|test" && echo "⚠️  Division without zero-guard" || echo "✓ Division safety OK"
 ```
 
 ### 7. Security Test Execution

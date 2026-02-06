@@ -146,6 +146,16 @@ rg "authorization_code|client_credentials|refresh_token" src/oauth2_server/ --ty
 # Validate token response format
 echo "7. Token Response..."
 rg "struct TokenResponse|access_token.*expires_in.*token_type" src/oauth2_server/ --type rust -A 10 | head -20
+
+# Check grant type restriction per-client (Post-Mortem Addition)
+echo "8. Grant Type Restriction..."
+rg "allowed_grant_types|grant_type.*restrict|reject.*grant" src/oauth2_server/ --type rust -n | head -10
+echo "(Should restrict grant types per client registration)"
+
+# Check redirect_uri validation (Post-Mortem Addition)
+echo "9. Redirect URI Validation..."
+rg "redirect_uri.*match|validate.*redirect|registered.*redirect" src/oauth2_server/ --type rust -n | head -10
+echo "(Must validate redirect_uri matches registered value)"
 ```
 
 **Validation:**
@@ -164,6 +174,36 @@ cargo test test_token_refresh -- --nocapture
 
 # Integration test
 cargo test oauth_integration -- --nocapture
+```
+
+**Negative Tests (Post-Mortem Addition):**
+```bash
+echo "🔍 OAuth Negative Test Verification..."
+
+# Verify tests exist for: invalid grant types rejected
+echo "1. Invalid grant type rejection tests..."
+rg "test.*invalid.*grant|test.*reject.*grant|test.*unsupported.*grant" tests/ --type rust -n | wc -l
+echo "Tests found (should be >0)"
+
+# Verify tests exist for: missing PKCE rejected
+echo "2. Missing PKCE rejection tests..."
+rg "test.*missing.*pkce|test.*no.*code_challenge|test.*pkce.*required" tests/ --type rust -n | wc -l
+echo "Tests found (should be >0)"
+
+# Verify tests exist for: expired tokens rejected
+echo "3. Expired token rejection tests..."
+rg "test.*expired.*token|test.*token.*expir" tests/ --type rust -n | wc -l
+echo "Tests found (should be >0)"
+
+# Verify tests exist for: cross-tenant token reuse blocked
+echo "4. Cross-tenant token reuse tests..."
+rg "test.*cross.*tenant.*token|test.*tenant.*isolation.*oauth" tests/ --type rust -n | wc -l
+echo "Tests found (should be >0)"
+
+# Verify tests exist for: redirect_uri mismatch rejected
+echo "5. Redirect URI mismatch tests..."
+rg "test.*redirect.*mismatch|test.*invalid.*redirect" tests/ --type rust -n | wc -l
+echo "Tests found (should be >0)"
 ```
 
 ### 4. OAuth 2.0 Client Compliance (Pierre as OAuth Client)
