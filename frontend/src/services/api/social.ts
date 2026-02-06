@@ -35,7 +35,7 @@ export const socialApi = {
     users: Array<{
       id: string;
       display_name: string | null;
-      email: string;
+      email?: string;
       is_friend: boolean;
       has_pending_request: boolean;
     }>;

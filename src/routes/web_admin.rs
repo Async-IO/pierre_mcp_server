@@ -31,6 +31,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
+use uuid::Uuid;
 
 /// Response for pending users list
 #[derive(Serialize)]
@@ -678,6 +679,49 @@ impl WebAdminRoutes {
             .into_response())
     }
 
+    /// Verify the authenticated user has super-admin privileges
+    async fn require_super_admin(
+        user_id: Uuid,
+        resources: &Arc<ServerResources>,
+    ) -> Result<(), AppError> {
+        let user = resources
+            .database
+            .get_user(user_id)
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to get user: {e}")))?
+            .ok_or_else(|| AppError::not_found("User not found"))?;
+
+        if !user.role.is_super_admin() {
+            warn!(
+                user_id = %user_id,
+                "Non-super-admin attempted privileged operation"
+            );
+            return Err(AppError::new(
+                ErrorCode::PermissionDenied,
+                "Super-admin privileges required to create super-admin tokens",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Build a `CreateAdminTokenRequest` from the web request payload
+    fn build_admin_token_request(request: CreateAdminTokenWebRequest) -> CreateAdminTokenRequest {
+        let permissions = request.permissions.map(|perms| {
+            perms
+                .iter()
+                .filter_map(|p| p.parse::<AdminPermission>().ok())
+                .collect::<Vec<_>>()
+        });
+
+        CreateAdminTokenRequest {
+            service_name: request.service_name,
+            service_description: request.service_description,
+            permissions,
+            expires_in_days: request.expires_in_days,
+            is_super_admin: request.is_super_admin.unwrap_or(false),
+        }
+    }
+
     /// Handle creating an admin token via web admin (cookie auth)
     async fn handle_create_admin_token(
         State(resources): State<Arc<ServerResources>>,
@@ -686,28 +730,18 @@ impl WebAdminRoutes {
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate_admin(&headers, &resources).await?;
 
+        // Only super-admins can create super-admin tokens
+        if request.is_super_admin.unwrap_or(false) {
+            Self::require_super_admin(auth.user_id, &resources).await?;
+        }
+
         info!(
             user_id = %auth.user_id,
             service_name = %request.service_name,
             "Web admin creating admin token"
         );
 
-        // Parse permissions if provided
-        let permissions = request.permissions.map(|perms| {
-            perms
-                .iter()
-                .filter_map(|p| p.parse::<AdminPermission>().ok())
-                .collect::<Vec<_>>()
-        });
-
-        // Create the token request
-        let token_request = CreateAdminTokenRequest {
-            service_name: request.service_name,
-            service_description: request.service_description,
-            permissions,
-            expires_in_days: request.expires_in_days,
-            is_super_admin: request.is_super_admin.unwrap_or(false),
-        };
+        let token_request = Self::build_admin_token_request(request);
 
         // Generate token using database method
         let generated_token = resources

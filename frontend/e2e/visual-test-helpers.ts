@@ -390,7 +390,7 @@ async function setupSocialMocks(page: Page): Promise<void> {
       contentType: 'application/json',
       body: JSON.stringify({
         users: [
-          { user_id: 'alice-1', display_name: 'Alice Johnson', email: 'alice@acme.com' },
+          { user_id: 'alice-1', display_name: 'Alice Johnson', is_friend: false, has_pending_request: false },
         ],
       }),
     });

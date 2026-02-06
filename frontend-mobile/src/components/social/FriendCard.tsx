@@ -8,7 +8,7 @@ import { colors, glassCard, buttonGlow } from '../../constants/theme';
 import type { FriendWithInfo, DiscoverableUser, PendingRequestWithInfo } from '@pierre/shared-types';
 
 // Generate avatar initials from name or email
-const getInitials = (name: string | null, email: string): string => {
+const getInitials = (name: string | null, email?: string): string => {
   if (name) {
     const parts = name.split(' ');
     if (parts.length >= 2) {
@@ -16,7 +16,10 @@ const getInitials = (name: string | null, email: string): string => {
     }
     return name.substring(0, 2).toUpperCase();
   }
-  return email.substring(0, 2).toUpperCase();
+  if (email) {
+    return email.substring(0, 2).toUpperCase();
+  }
+  return '??';
 };
 
 // Generate consistent color from string
@@ -173,8 +176,8 @@ interface SearchUserCardProps {
 
 export function SearchUserCard({ user, onAddFriend, isAdding }: SearchUserCardProps) {
   const initials = getInitials(user.display_name, user.email);
-  const avatarColor = getAvatarColor(user.email);
-  const displayName = user.display_name || user.email;
+  const avatarColor = getAvatarColor(user.email ?? user.id);
+  const displayName = user.display_name || user.email || 'Unknown User';
 
   return (
     <View

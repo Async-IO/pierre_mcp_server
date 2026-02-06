@@ -47,7 +47,6 @@ const mockSearchResults = {
     {
       id: 'user-3',
       display_name: 'Bob Smith',
-      email: 'bob@example.com',
       is_friend: false,
       has_pending_request: false,
     },

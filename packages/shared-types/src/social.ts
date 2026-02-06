@@ -54,8 +54,8 @@ export interface DiscoverableUser {
   id: string;
   /** Display name (if visible) */
   display_name: string | null;
-  /** Email for avatar */
-  email: string;
+  /** Email (only visible to connected friends for privacy) */
+  email?: string;
   /** Whether user is already a friend */
   is_friend: boolean;
   /** Whether there's a pending request */

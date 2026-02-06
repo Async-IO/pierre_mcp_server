@@ -129,7 +129,7 @@ export default function FriendsTab({ onBack }: FriendsTabProps) {
     }
   };
 
-  const getInitials = (name: string | null, email: string): string => {
+  const getInitials = (name: string | null, email?: string): string => {
     if (name) {
       const parts = name.split(' ');
       if (parts.length >= 2) {
@@ -137,7 +137,10 @@ export default function FriendsTab({ onBack }: FriendsTabProps) {
       }
       return name.substring(0, 2).toUpperCase();
     }
-    return email.substring(0, 2).toUpperCase();
+    if (email) {
+      return email.substring(0, 2).toUpperCase();
+    }
+    return '??';
   };
 
   const getAvatarColor = (str: string): string => {
@@ -337,13 +340,13 @@ export default function FriendsTab({ onBack }: FriendsTabProps) {
                     <div className="flex items-center gap-3">
                       <div
                         className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold text-white"
-                        style={{ backgroundColor: getAvatarColor(user.email) }}
+                        style={{ backgroundColor: getAvatarColor(user.email ?? user.id) }}
                       >
                         {getInitials(user.display_name, user.email)}
                       </div>
                       <div>
                         <p className="font-medium text-white">
-                          {user.display_name || user.email.split('@')[0]}
+                          {user.display_name || user.email?.split('@')[0] || 'Unknown User'}
                         </p>
                       </div>
                     </div>

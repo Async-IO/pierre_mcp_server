@@ -473,8 +473,9 @@ pub struct UserProfileResponse {
     pub id: String,
     /// Display name
     pub display_name: Option<String>,
-    /// Email
-    pub email: String,
+    /// Email (only visible to connected friends for privacy)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
     /// Whether the current user is friends with this user
     pub is_friend: bool,
     /// Whether there's a pending request
@@ -2252,10 +2253,13 @@ impl SocialRoutes {
                 .as_ref()
                 .is_some_and(|c| c.status == FriendStatus::Pending);
 
+            // Only expose email to connected friends for privacy
+            let visible_email = if is_friend { Some(email) } else { None };
+
             results.push(UserProfileResponse {
                 id: user_id.to_string(),
                 display_name,
-                email,
+                email: visible_email,
                 is_friend,
                 has_pending_request,
             });
