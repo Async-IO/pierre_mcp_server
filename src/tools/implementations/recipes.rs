@@ -344,12 +344,15 @@ impl McpTool for ValidateRecipeTool {
 
     #[allow(clippy::too_many_lines)]
     async fn execute(&self, args: Value, ctx: &ToolExecutionContext) -> AppResult<ToolResult> {
-        #[allow(clippy::cast_possible_truncation)]
-        let servings = args
+        let servings_val = args
             .get("servings")
             .and_then(Value::as_u64)
-            .map(|v| v.min(255) as u8)
             .ok_or_else(|| AppError::invalid_input("servings is required"))?;
+        if servings_val == 0 {
+            return Err(AppError::invalid_input("servings must be at least 1"));
+        }
+        #[allow(clippy::cast_possible_truncation)]
+        let servings = servings_val.min(255) as u8;
 
         let ingredients_json = args
             .get("ingredients")

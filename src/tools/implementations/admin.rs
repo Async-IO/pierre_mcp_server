@@ -726,6 +726,14 @@ impl McpTool for AdminAssignCoachTool {
         // Verify target user belongs to the same tenant as the admin
         verify_user_in_tenant(ctx, target_user_id, &tenant_id).await?;
 
+        // Verify the coach belongs to this tenant before assigning
+        let coach = manager.get_system_coach(coach_id, &tenant_id).await?;
+        if coach.is_none() {
+            return Err(AppError::not_found(format!(
+                "Coach '{coach_id}' not found in this tenant"
+            )));
+        }
+
         let assigned = manager
             .assign_coach(coach_id, target_user_id, ctx.user_id)
             .await?;
@@ -821,6 +829,14 @@ impl McpTool for AdminUnassignCoachTool {
 
         // Verify target user belongs to the same tenant as the admin
         verify_user_in_tenant(ctx, target_user_id, &tenant_id).await?;
+
+        // Verify the coach belongs to this tenant before unassigning
+        let coach = manager.get_system_coach(coach_id, &tenant_id).await?;
+        if coach.is_none() {
+            return Err(AppError::not_found(format!(
+                "Coach '{coach_id}' not found in this tenant"
+            )));
+        }
 
         let unassigned = manager.unassign_coach(coach_id, target_user_id).await?;
 

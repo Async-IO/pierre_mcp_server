@@ -295,6 +295,11 @@ pub fn handle_validate_recipe(
             .ok_or_else(|| {
                 ProtocolError::InvalidRequest("Missing required parameter: servings".to_owned())
             })?;
+        if servings_val == 0 {
+            return Err(ProtocolError::InvalidRequest(
+                "servings must be at least 1".to_owned(),
+            ));
+        }
         #[allow(clippy::cast_possible_truncation)]
         let servings = servings_val.min(255) as u8;
 

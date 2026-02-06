@@ -383,7 +383,8 @@ impl<C: CacheProvider> CachingFitnessProvider<C> {
         policy: CachePolicy,
     ) -> AppResult<Vec<Activity>> {
         // Calculate page and per_page from limit/offset for cache key
-        let per_page = params.limit.unwrap_or(50);
+        // Clamp per_page to at least 1 to prevent division by zero
+        let per_page = params.limit.unwrap_or(50).max(1);
         let page = params.offset.map_or(1, |off| (off / per_page) + 1);
 
         let key = self.cache_key(CacheResource::ActivityList {
