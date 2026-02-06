@@ -1,39 +1,5 @@
-// ABOUTME: Dynamic Expo configuration that conditionally excludes expo-dev-client for E2E testing
-// ABOUTME: expo-dev-client interferes with Detox's ability to connect to the app in CI
-
-// Check if we're building for E2E tests (set in CI workflow)
-const isE2EBuild = process.env.DETOX_E2E === 'true';
-
-// Base plugins that are always included
-const basePlugins = [
-  [
-    'expo-build-properties',
-    {
-      android: {
-        minSdkVersion: 24,
-        compileSdkVersion: 35,
-        targetSdkVersion: 35,
-      },
-      ios: {
-        useFrameworks: 'static',
-      },
-    },
-  ],
-  [
-    'expo-speech-recognition',
-    {
-      microphonePermission:
-        'Pierre needs microphone access to capture your voice for speech-to-text transcription.',
-      speechRecognitionPermission:
-        'Pierre uses speech recognition to transcribe your voice messages into text queries.',
-      androidSpeechServicePackages: ['com.google.android.googlequicksearchbox'],
-    },
-  ],
-];
-
-// expo-dev-client plugin - only include in non-E2E builds
-// In E2E builds, expo-dev-client's native code interferes with Detox communication
-const devClientPlugin = isE2EBuild ? [] : ['expo-dev-client'];
+// ABOUTME: Expo configuration for Pierre mobile app
+// ABOUTME: Uses Expo Go for development; native builds only needed for speech recognition testing
 
 module.exports = {
   name: 'Pierre',
@@ -77,8 +43,30 @@ module.exports = {
     eas: {
       projectId: '6c63325e-a0da-49cf-b4bd-e6aeae6fd981',
     },
-    // Flag to indicate if this is an E2E build (for runtime checks if needed)
-    isE2EBuild,
   },
-  plugins: [...basePlugins, ...devClientPlugin],
+  plugins: [
+    [
+      'expo-build-properties',
+      {
+        android: {
+          minSdkVersion: 24,
+          compileSdkVersion: 35,
+          targetSdkVersion: 35,
+        },
+        ios: {
+          useFrameworks: 'static',
+        },
+      },
+    ],
+    [
+      'expo-speech-recognition',
+      {
+        microphonePermission:
+          'Pierre needs microphone access to capture your voice for speech-to-text transcription.',
+        speechRecognitionPermission:
+          'Pierre uses speech recognition to transcribe your voice messages into text queries.',
+        androidSpeechServicePackages: ['com.google.android.googlequicksearchbox'],
+      },
+    ],
+  ],
 };

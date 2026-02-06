@@ -17,11 +17,21 @@ NC='\033[0m'
 # Parse command line args
 BUILD_MODE="release"
 TARGET_DIR="release"
+NATIVE_BUILD=false
+STREAM_LOGS=false
 for arg in "$@"; do
     case $arg in
         --debug)
             BUILD_MODE="debug"
             TARGET_DIR="debug"
+            shift
+            ;;
+        --native)
+            NATIVE_BUILD=true
+            shift
+            ;;
+        --stream-logs)
+            STREAM_LOGS=true
             shift
             ;;
     esac
@@ -215,51 +225,25 @@ else
     FRONTEND_PID=""
 fi
 
-# Step 8: Start Expo Mobile (build native app if simulator needs it)
+# Step 8: Start Expo Mobile
 print_step 8 "Starting Expo Mobile (port $EXPO_PORT)..."
 if [ -d "$PROJECT_ROOT/frontend-mobile" ]; then
     cd "$PROJECT_ROOT/frontend-mobile"
 
-    # Check if an iOS Simulator is booted and whether the app is installed
-    IOS_BUILD_NEEDED=false
-    BOOTED_UDID=$(xcrun simctl list devices booted -j 2>/dev/null | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-for runtime, devices in data.get('devices', {}).items():
-    for d in devices:
-        if d.get('state') == 'Booted':
-            print(d['udid'])
-            sys.exit(0)
-print('')
-" 2>/dev/null)
-
-    if [ -n "$BOOTED_UDID" ]; then
-        APP_INSTALLED=$(xcrun simctl listapps "$BOOTED_UDID" 2>/dev/null \
-            | plutil -convert json -o - - 2>/dev/null \
-            | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-print('yes' if 'com.pierre.fitness' in data else 'no')
-" 2>/dev/null || echo "no")
-
-        if [ "$APP_INSTALLED" = "no" ]; then
-            IOS_BUILD_NEEDED=true
-            echo "    iOS Simulator booted but Pierre app not installed — building native app..."
-        else
-            echo "    Pierre app already installed on simulator ($BOOTED_UDID)"
-        fi
-    else
-        echo "    No iOS Simulator booted — starting Metro bundler only"
-    fi
-
-    if [ "$IOS_BUILD_NEEDED" = "true" ]; then
-        # Build and install the native app, then start Metro on the configured port
-        npx expo run:ios --device "$BOOTED_UDID" --port "$EXPO_PORT" > "$EXPO_LOG" 2>&1 &
+    if [ "$NATIVE_BUILD" = "true" ]; then
+        # --native flag: build native app with Xcode (for speech recognition, native MMKV)
+        echo "    Native build requested — using bin/build-native-app.sh..."
+        "$PROJECT_ROOT/bin/build-native-app.sh" --no-bundler > "$EXPO_LOG" 2>&1 &
         EXPO_PID=$!
-        echo "    Building iOS app + starting Metro (this may take a few minutes)..."
+        echo "    Building native iOS app (this may take several minutes)..."
         echo "    Watch progress: tail -f $EXPO_LOG"
+        # Start Metro separately since native build uses --no-bundler
+        bun start >> "$EXPO_LOG" 2>&1 &
     else
-        bun start > "$EXPO_LOG" 2>&1 &
+        # Default: use Expo Go (fast, no Xcode needed)
+        # --ios installs Expo Go if missing and launches on simulator
+        # --go forces Expo Go mode (not dev client)
+        npx expo start --ios --go --port "$EXPO_PORT" > "$EXPO_LOG" 2>&1 &
         EXPO_PID=$!
     fi
 
@@ -357,3 +341,10 @@ echo "  Reset & start:  ./bin/setup-db-with-seeds-and-oauth-and-start-servers.sh
 echo ""
 echo -e "${GREEN}Ready for development!${NC}"
 echo ""
+
+# Stream all logs to console if --stream-logs was passed
+if [ "$STREAM_LOGS" = "true" ]; then
+    echo -e "${CYAN}Streaming all logs (Ctrl+C to stop)...${NC}"
+    echo ""
+    tail -f "$SERVER_LOG" "$FRONTEND_LOG" "$EXPO_LOG" 2>/dev/null
+fi

@@ -4,10 +4,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Platform } from 'react-native';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
-import {
-  ExpoSpeechRecognitionModule,
-  useSpeechRecognitionEvent,
-} from 'expo-speech-recognition';
 import type {
   ExpoSpeechRecognitionErrorCode,
   ExpoSpeechRecognitionErrorEvent,
@@ -16,6 +12,26 @@ import type {
 
 // Check if running in Expo Go (native module won't be available)
 const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+
+// Lazy-load native speech module — top-level import crashes in Expo Go
+// because the native module is not bundled in the Expo Go client
+let ExpoSpeechRecognitionModule: typeof import('expo-speech-recognition').ExpoSpeechRecognitionModule | null = null;
+let useSpeechRecognitionEvent: typeof import('expo-speech-recognition').useSpeechRecognitionEvent | null = null;
+
+if (!isExpoGo) {
+  try {
+    const speechModule = require('expo-speech-recognition');
+    ExpoSpeechRecognitionModule = speechModule.ExpoSpeechRecognitionModule;
+    useSpeechRecognitionEvent = speechModule.useSpeechRecognitionEvent;
+  } catch {
+    // Native module not available — speech recognition will be disabled
+  }
+}
+
+// No-op hook for when native module isn't available (must always call hooks)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const noopEventHook = (_event: string, _callback: (...args: never[]) => void): void => {};
+const safeUseSpeechEvent = useSpeechRecognitionEvent ?? noopEventHook;
 
 // Voice recognition error types for consumer handling
 export type VoiceErrorType =
@@ -99,7 +115,7 @@ export function useVoiceInput(): UseVoiceInputResult {
     }
 
     // Check if speech recognition is available (synchronous call)
-    const available = ExpoSpeechRecognitionModule.isRecognitionAvailable();
+    const available = ExpoSpeechRecognitionModule?.isRecognitionAvailable() ?? false;
     setState((prev) => ({
       ...prev,
       isAvailable: available,
@@ -107,12 +123,12 @@ export function useVoiceInput(): UseVoiceInputResult {
   }, []);
 
   // Handle speech start event
-  useSpeechRecognitionEvent('start', () => {
+  safeUseSpeechEvent('start', () => {
     setState((prev) => ({ ...prev, isListening: true, error: null }));
   });
 
   // Handle speech end event
-  useSpeechRecognitionEvent('end', () => {
+  safeUseSpeechEvent('end', () => {
     clearTimeoutRef();
     setState((prev) => {
       // Check if we got no transcript at all - that's a "no speech" error
@@ -128,7 +144,7 @@ export function useVoiceInput(): UseVoiceInputResult {
   });
 
   // Handle speech results
-  useSpeechRecognitionEvent('result', (event: ExpoSpeechRecognitionResultEvent) => {
+  safeUseSpeechEvent('result', (event: ExpoSpeechRecognitionResultEvent) => {
     const results = event.results;
     if (results && results.length > 0) {
       const transcript = results[0].transcript;
@@ -146,7 +162,7 @@ export function useVoiceInput(): UseVoiceInputResult {
   });
 
   // Handle errors
-  useSpeechRecognitionEvent('error', (event: ExpoSpeechRecognitionErrorEvent) => {
+  safeUseSpeechEvent('error', (event: ExpoSpeechRecognitionErrorEvent) => {
     clearTimeoutRef();
     const voiceError = mapErrorCode(event.error, event.message);
     setState((prev) => ({
@@ -176,8 +192,8 @@ export function useVoiceInput(): UseVoiceInputResult {
       }));
 
       // Request permissions first
-      const permissionResult = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      if (!permissionResult.granted) {
+      const permissionResult = await ExpoSpeechRecognitionModule?.requestPermissionsAsync();
+      if (!permissionResult?.granted) {
         setState((prev) => ({
           ...prev,
           error: { type: 'permission_denied', message: 'Microphone permission denied.' },
@@ -189,7 +205,7 @@ export function useVoiceInput(): UseVoiceInputResult {
       const locale = Platform.OS === 'ios' ? 'en-US' : 'en-US';
 
       // Start recognition with options
-      ExpoSpeechRecognitionModule.start({
+      ExpoSpeechRecognitionModule?.start({
         lang: locale,
         interimResults: true,
         maxAlternatives: 1,
@@ -198,7 +214,7 @@ export function useVoiceInput(): UseVoiceInputResult {
 
       // Set up timeout to auto-stop after VOICE_TIMEOUT_MS
       timeoutRef.current = setTimeout(() => {
-        ExpoSpeechRecognitionModule.stop();
+        ExpoSpeechRecognitionModule?.stop();
         setState((prev) => ({
           ...prev,
           isListening: false,
@@ -227,7 +243,7 @@ export function useVoiceInput(): UseVoiceInputResult {
     clearTimeoutRef();
     if (isExpoGo) return;
     try {
-      ExpoSpeechRecognitionModule.stop();
+      ExpoSpeechRecognitionModule?.stop();
     } catch (error) {
       console.error('Failed to stop voice recognition:', error);
     }
@@ -237,7 +253,7 @@ export function useVoiceInput(): UseVoiceInputResult {
     clearTimeoutRef();
     if (isExpoGo) return;
     try {
-      ExpoSpeechRecognitionModule.abort();
+      ExpoSpeechRecognitionModule?.abort();
       setState((prev) => ({
         ...prev,
         isListening: false,
