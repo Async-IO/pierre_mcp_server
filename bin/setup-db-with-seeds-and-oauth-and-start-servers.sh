@@ -215,12 +215,54 @@ else
     FRONTEND_PID=""
 fi
 
-# Step 8: Start Expo
+# Step 8: Start Expo Mobile (build native app if simulator needs it)
 print_step 8 "Starting Expo Mobile (port $EXPO_PORT)..."
 if [ -d "$PROJECT_ROOT/frontend-mobile" ]; then
     cd "$PROJECT_ROOT/frontend-mobile"
-    bun start > "$EXPO_LOG" 2>&1 &
-    EXPO_PID=$!
+
+    # Check if an iOS Simulator is booted and whether the app is installed
+    IOS_BUILD_NEEDED=false
+    BOOTED_UDID=$(xcrun simctl list devices booted -j 2>/dev/null | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+for runtime, devices in data.get('devices', {}).items():
+    for d in devices:
+        if d.get('state') == 'Booted':
+            print(d['udid'])
+            sys.exit(0)
+print('')
+" 2>/dev/null)
+
+    if [ -n "$BOOTED_UDID" ]; then
+        APP_INSTALLED=$(xcrun simctl listapps "$BOOTED_UDID" 2>/dev/null \
+            | plutil -convert json -o - - 2>/dev/null \
+            | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+print('yes' if 'com.pierre.fitness' in data else 'no')
+" 2>/dev/null || echo "no")
+
+        if [ "$APP_INSTALLED" = "no" ]; then
+            IOS_BUILD_NEEDED=true
+            echo "    iOS Simulator booted but Pierre app not installed — building native app..."
+        else
+            echo "    Pierre app already installed on simulator ($BOOTED_UDID)"
+        fi
+    else
+        echo "    No iOS Simulator booted — starting Metro bundler only"
+    fi
+
+    if [ "$IOS_BUILD_NEEDED" = "true" ]; then
+        # Build and install the native app, then start Metro on the configured port
+        npx expo run:ios --device "$BOOTED_UDID" --port "$EXPO_PORT" > "$EXPO_LOG" 2>&1 &
+        EXPO_PID=$!
+        echo "    Building iOS app + starting Metro (this may take a few minutes)..."
+        echo "    Watch progress: tail -f $EXPO_LOG"
+    else
+        bun start > "$EXPO_LOG" 2>&1 &
+        EXPO_PID=$!
+    fi
+
     cd "$PROJECT_ROOT"
     echo "    Expo starting (PID: $EXPO_PID)"
 else

@@ -7,10 +7,10 @@
 import type { PlatformAdapter, AuthStorage, AuthFailureHandler } from '../types/platform';
 
 const STORAGE_KEYS = {
-  TOKEN: '@pierre/jwt_token',
-  REFRESH_TOKEN: '@pierre/refresh_token',
-  CSRF_TOKEN: '@pierre/csrf_token',
-  USER: '@pierre/user',
+  TOKEN: 'pierre.jwt_token',
+  REFRESH_TOKEN: 'pierre.refresh_token',
+  CSRF_TOKEN: 'pierre.csrf_token',
+  USER: 'pierre.user',
 } as const;
 
 /**
