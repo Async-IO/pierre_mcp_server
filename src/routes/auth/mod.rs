@@ -576,6 +576,8 @@ struct ParsedOAuthState {
     mobile_redirect_url: Option<String>,
     /// PKCE code verifier recovered from server-side state storage
     pkce_code_verifier: Option<String>,
+    /// Tenant ID from the OAuth state, used for tenant-specific credential lookup
+    tenant_id: Option<uuid::Uuid>,
 }
 
 impl OAuthService {
@@ -622,6 +624,7 @@ impl OAuthService {
         let user_id = parsed_state.user_id;
         let mobile_redirect_url = parsed_state.mobile_redirect_url;
         let pkce_code_verifier = parsed_state.pkce_code_verifier;
+        let state_tenant_id = parsed_state.tenant_id;
 
         info!(
             "Processing OAuth callback for user {} provider {}{}",
@@ -638,6 +641,7 @@ impl OAuthService {
         let (user, tenant_id) = self.get_user_and_tenant(user_id, provider).await?;
 
         // Exchange OAuth code for access token (with PKCE if verifier was stored)
+        // Pass tenant_id from state so exchange uses tenant-specific credentials if available
         let token = self
             .exchange_oauth_code(
                 code,
@@ -645,6 +649,7 @@ impl OAuthService {
                 user_id,
                 &user,
                 pkce_code_verifier.as_deref(),
+                state_tenant_id,
             )
             .await?;
 
@@ -714,10 +719,17 @@ impl OAuthService {
         // PKCE code verifier stored server-side during authorization URL generation
         let pkce_code_verifier = client_state.pkce_code_verifier;
 
+        // Parse tenant_id from the stored OAuth client state for credential lookup
+        let tenant_id = client_state
+            .tenant_id
+            .as_deref()
+            .and_then(|tid| uuid::Uuid::parse_str(tid).ok());
+
         Ok(ParsedOAuthState {
             user_id,
             mobile_redirect_url,
             pkce_code_verifier,
+            tenant_id,
         })
     }
 
@@ -816,6 +828,9 @@ impl OAuthService {
     }
 
     /// Exchange OAuth code for access token, using PKCE when a code verifier is available
+    ///
+    /// When `tenant_id` is provided, attempts to use tenant-specific OAuth credentials
+    /// (`client_id`, `client_secret`) before falling back to environment configuration.
     async fn exchange_oauth_code(
         &self,
         code: &str,
@@ -823,8 +838,11 @@ impl OAuthService {
         user_id: uuid::Uuid,
         user: &User,
         pkce_code_verifier: Option<&str>,
+        tenant_id: Option<uuid::Uuid>,
     ) -> AppResult<OAuth2Token> {
-        let oauth_config = self.create_oauth_config(provider)?;
+        let oauth_config = self
+            .create_oauth_config_with_tenant(provider, tenant_id)
+            .await?;
         let oauth_client = OAuth2Client::new(oauth_config);
 
         let token = if let Some(verifier) = pkce_code_verifier {
@@ -917,6 +935,77 @@ impl OAuthService {
             scopes: vec![scopes],
             use_pkce: params.use_pkce,
         })
+    }
+
+    /// Create `OAuth2` config using tenant-specific credentials when available
+    ///
+    /// Looks up tenant credentials from the database when `tenant_id` is provided.
+    /// Falls back to environment-based configuration if no tenant credentials are found
+    /// or if `tenant_id` is None.
+    ///
+    /// # Errors
+    /// Returns error if provider is unsupported or no credentials are configured
+    async fn create_oauth_config_with_tenant(
+        &self,
+        provider: &str,
+        tenant_id: Option<uuid::Uuid>,
+    ) -> AppResult<OAuth2Config> {
+        // Try tenant-specific credentials first
+        if let Some(tid) = tenant_id {
+            let tenant_creds = self
+                .data
+                .database()
+                .get_tenant_oauth_credentials(tid, provider)
+                .await
+                .map_err(|e| {
+                    warn!(
+                        "Failed to fetch tenant OAuth credentials for tenant {tid}, provider {provider}: {e}"
+                    );
+                    AppError::database(format!(
+                        "Failed to fetch tenant OAuth credentials: {e}"
+                    ))
+                })?;
+
+            if let Some(creds) = tenant_creds {
+                debug!(
+                    "Using tenant-specific OAuth credentials for tenant {tid}, provider {provider}"
+                );
+
+                // Get provider descriptor for endpoints and params
+                let descriptor = self
+                    .data
+                    .provider_registry()
+                    .get_descriptor(provider)
+                    .ok_or_else(|| {
+                        AppError::invalid_input(format!("Unsupported provider: {provider}"))
+                    })?;
+
+                let endpoints = descriptor.oauth_endpoints().ok_or_else(|| {
+                    AppError::invalid_input(format!("Provider {provider} does not support OAuth"))
+                })?;
+
+                let params = descriptor.oauth_params().ok_or_else(|| {
+                    AppError::invalid_input(format!(
+                        "Provider {provider} OAuth params not configured"
+                    ))
+                })?;
+
+                let scopes = creds.scopes.join(params.scope_separator);
+
+                return Ok(OAuth2Config {
+                    client_id: creds.client_id,
+                    client_secret: creds.client_secret,
+                    auth_url: endpoints.auth_url.to_owned(),
+                    token_url: endpoints.token_url.to_owned(),
+                    redirect_uri: creds.redirect_uri,
+                    scopes: vec![scopes],
+                    use_pkce: params.use_pkce,
+                });
+            }
+        }
+
+        // Fall back to environment-based configuration
+        self.create_oauth_config(provider)
     }
 
     /// Store OAuth token in database
@@ -2425,8 +2514,11 @@ impl AuthRoutes {
     }
 
     /// Handle OAuth authorization initiation (Axum)
+    ///
+    /// Requires authentication and verifies that the authenticated user matches
+    /// the `user_id` in the path to prevent unauthorized OAuth flow initiation.
     #[tracing::instrument(
-        skip(resources),
+        skip(resources, headers),
         fields(
             route = "oauth_auth_initiate",
             provider = %provider,
@@ -2437,13 +2529,33 @@ impl AuthRoutes {
     async fn handle_oauth_auth_initiate(
         State(resources): State<Arc<ServerResources>>,
         Path((provider, user_id_str)): Path<(String, String)>,
+        headers: HeaderMap,
     ) -> Result<Response, AppError> {
+        // Authenticate the request before proceeding
+        let auth_result = resources
+            .auth_middleware
+            .authenticate_request_with_headers(&headers)
+            .await?;
+
+        let user_id = Self::parse_user_id(&user_id_str)?;
+
+        // Verify authenticated user matches the requested user_id
+        if auth_result.user_id != user_id {
+            warn!(
+                "OAuth auth initiate: authenticated user {} does not match path user_id {}",
+                auth_result.user_id, user_id
+            );
+            return Err(AppError::new(
+                ErrorCode::PermissionDenied,
+                "Cannot initiate OAuth flow for a different user",
+            ));
+        }
+
         info!(
             "OAuth authorization initiation for provider: {} user: {}",
             provider, user_id_str
         );
 
-        let user_id = Self::parse_user_id(&user_id_str)?;
         // Verify user exists
         Self::get_user_for_oauth(&resources.database, user_id).await?;
         let tenant_id = Self::extract_tenant_id_from_database(&resources.database, user_id).await?;

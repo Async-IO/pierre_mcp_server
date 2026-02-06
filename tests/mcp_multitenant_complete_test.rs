@@ -334,10 +334,19 @@ impl MultiTenantMcpClient {
         }
     }
 
-    /// Get Strava OAuth URL
+    /// Get Strava OAuth URL (requires authentication)
     async fn get_strava_oauth_url(&self, user_id: &str) -> Result<String> {
         let url = format!("{}/api/oauth/auth/strava/{user_id}", self.base_url);
-        let response = self.http_client.get(url).send().await?;
+        let jwt = self
+            .jwt_token
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("JWT token required for OAuth initiation"))?;
+        let response = self
+            .http_client
+            .get(url)
+            .header("Authorization", format!("Bearer {jwt}"))
+            .send()
+            .await?;
 
         if response.status() == 302 {
             // Extract URL from Location header for redirect response
