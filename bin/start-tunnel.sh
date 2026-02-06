@@ -109,7 +109,7 @@ echo ""
 if [[ "$START_EXPO" == "true" ]]; then
     echo -e "\033[0;32m[INFO]\033[0m Starting Expo on port 8082..."
     cd "$PROJECT_ROOT/frontend-mobile"
-    exec expo start --port 8082
+    exec expo start --go --port 8082
 else
     echo "  3. Start Expo manually:"
     echo "     cd frontend-mobile && bun start"

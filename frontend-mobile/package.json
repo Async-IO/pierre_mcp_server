@@ -5,7 +5,7 @@
   "packageManager": "bun@1.1.0",
   "scripts": {
     "preinstall": "node -e \"if(!process.env.npm_execpath || !process.env.npm_execpath.includes('bun')) { console.error('\\n\\x1b[31mERROR: Use bun, not npm/yarn!\\x1b[0m\\nRun: bun install\\n'); process.exit(1); }\"",
-    "start": "expo start --port 8082",
+    "start": "expo start --go --port 8082",
     "tunnel": "../bin/start-tunnel.sh",
     "tunnel:stop": "pkill -f 'cloudflared tunnel' && echo 'Tunnel stopped' || echo 'No tunnel running'",
     "start:tunnel": "../bin/start-tunnel.sh --start-expo",
@@ -48,6 +48,7 @@
     "expo-auth-session": "^7.0.10",
     "expo-build-properties": "^1.0.10",
     "expo-clipboard": "^8.0.8",
+    "expo-dev-client": "^6.0.20",
     "expo-haptics": "^15.0.8",
     "expo-linear-gradient": "^15.0.8",
     "expo-secure-store": "^15.0.8",

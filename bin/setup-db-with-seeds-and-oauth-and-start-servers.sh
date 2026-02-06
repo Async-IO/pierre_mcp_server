@@ -237,8 +237,8 @@ if [ -d "$PROJECT_ROOT/frontend-mobile" ]; then
         EXPO_PID=$!
         echo "    Building native iOS app (this may take several minutes)..."
         echo "    Watch progress: tail -f $EXPO_LOG"
-        # Start Metro separately since native build uses --no-bundler
-        bun start >> "$EXPO_LOG" 2>&1 &
+        # Start Metro in dev-client mode since native build uses --no-bundler
+        npx expo start --dev-client --port "$EXPO_PORT" >> "$EXPO_LOG" 2>&1 &
     else
         # Default: use Expo Go (fast, no Xcode needed)
         # --ios installs Expo Go if missing and launches on simulator
