@@ -5,16 +5,36 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::config::environment::{default_provider, get_oauth_config, OAuthProviderConfig};
+use crate::database_plugins::factory::Database;
 use crate::models::Activity;
 use crate::protocols::universal::auth_service::TokenData;
 use crate::protocols::universal::{UniversalResponse, UniversalToolExecutor};
 use crate::providers::core::FitnessProvider;
 use crate::providers::{OAuth2Credentials, ProviderRegistry};
+use crate::tenant::TenantOAuthClient;
 use serde_json::{json, Value as JsonValue};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::debug;
+use tracing::{debug, warn};
 use uuid::Uuid;
+
+/// Context for resolving tenant-scoped OAuth credentials
+///
+/// When provided to `create_configured_provider`, enables credential resolution
+/// using the tenant OAuth manager's priority chain:
+/// 1. User-specific credentials
+/// 2. Tenant-specific credentials
+/// 3. Server-level OAuth configuration (environment variables)
+pub struct TenantCredentialContext<'a> {
+    /// Tenant OAuth client for credential lookup
+    pub tenant_oauth_client: &'a TenantOAuthClient,
+    /// Database for credential persistence queries
+    pub database: &'a Database,
+    /// Tenant identifier for credential scoping
+    pub tenant_id: Uuid,
+    /// User identifier for user-specific credential lookup
+    pub user_id: Uuid,
+}
 
 /// Extract provider name from request parameters, falling back to default provider
 ///
@@ -33,8 +53,9 @@ pub fn extract_provider(parameters: &serde_json::Map<String, JsonValue>) -> Stri
 /// This is the provider-agnostic version of provider creation that works with
 /// any registered provider. It:
 /// 1. Creates a provider instance from the registry
-/// 2. Loads provider-specific OAuth configuration
-/// 3. Sets credentials from the token data
+/// 2. Resolves OAuth credentials using tenant-scoped priority (if context provided)
+/// 3. Falls back to server-level OAuth configuration from environment variables
+/// 4. Sets credentials from the token data
 ///
 /// # Arguments
 /// * `provider_name` - Name of the provider (e.g., "strava", "garmin")
@@ -48,22 +69,92 @@ pub async fn create_configured_provider(
     provider_registry: &Arc<ProviderRegistry>,
     token_data: &TokenData,
 ) -> Result<Box<dyn FitnessProvider>, String> {
+    create_configured_provider_with_tenant(provider_name, provider_registry, token_data, None).await
+}
+
+/// Create and configure a provider with tenant-scoped OAuth credentials
+///
+/// Resolves OAuth credentials using the tenant OAuth manager's priority chain:
+/// 1. User-specific credentials (per-user OAuth app)
+/// 2. Tenant-specific credentials (stored in database)
+/// 3. Server-level OAuth configuration (environment variables)
+///
+/// # Arguments
+/// * `provider_name` - Name of the provider (e.g., "strava", "garmin")
+/// * `provider_registry` - Registry for creating provider instances
+/// * `token_data` - OAuth token data for authentication
+/// * `tenant_ctx` - Optional tenant context for credential resolution
+///
+/// # Errors
+/// Returns an error string if provider creation fails or credentials cannot be set.
+pub async fn create_configured_provider_with_tenant(
+    provider_name: &str,
+    provider_registry: &Arc<ProviderRegistry>,
+    token_data: &TokenData,
+    tenant_ctx: Option<TenantCredentialContext<'_>>,
+) -> Result<Box<dyn FitnessProvider>, String> {
     // Create provider instance
     let provider = provider_registry
         .create_provider(provider_name)
         .map_err(|e| format!("Failed to create {provider_name} provider: {e}"))?;
 
-    // Load provider-specific OAuth config
-    let config = get_oauth_config(provider_name);
+    // Resolve OAuth credentials using tenant priority chain when context is available:
+    //   1. User-specific credentials (per-user OAuth app)
+    //   2. Tenant-specific credentials (stored in database)
+    //   3. Server-level OAuth configuration (environment variables)
+    // Falls back to global env config when no tenant context is provided.
+    let (client_id, client_secret, scopes) = if let Some(ctx) = tenant_ctx {
+        let manager = ctx.tenant_oauth_client.oauth_manager.lock().await;
+        match manager
+            .get_credentials_for_user(
+                Some(ctx.user_id),
+                ctx.tenant_id,
+                provider_name,
+                ctx.database,
+            )
+            .await
+        {
+            Ok(creds) => {
+                debug!(
+                    provider = provider_name,
+                    tenant_id = %ctx.tenant_id,
+                    user_id = %ctx.user_id,
+                    "Resolved tenant-scoped OAuth credentials"
+                );
+                (creds.client_id, creds.client_secret, creds.scopes)
+            }
+            Err(e) => {
+                warn!(
+                    provider = provider_name,
+                    tenant_id = %ctx.tenant_id,
+                    error = %e,
+                    "Tenant credential lookup failed, falling back to global config"
+                );
+                let config = get_oauth_config(provider_name);
+                (
+                    config.client_id.unwrap_or_default(),
+                    config.client_secret.unwrap_or_default(),
+                    config.scopes,
+                )
+            }
+        }
+    } else {
+        let config = get_oauth_config(provider_name);
+        (
+            config.client_id.unwrap_or_default(),
+            config.client_secret.unwrap_or_default(),
+            config.scopes,
+        )
+    };
 
-    // Build credentials
+    // Build credentials with resolved OAuth config and user's access token
     let credentials = OAuth2Credentials {
-        client_id: config.client_id.clone().unwrap_or_default(),
-        client_secret: config.client_secret.clone().unwrap_or_default(),
+        client_id,
+        client_secret,
         access_token: Some(token_data.access_token.clone()),
         refresh_token: Some(token_data.refresh_token.clone()),
         expires_at: Some(token_data.expires_at),
-        scopes: config.scopes.clone(),
+        scopes,
     };
 
     // Set credentials on provider
@@ -290,11 +381,22 @@ pub async fn fetch_provider_activities(
         .await
     {
         Ok(Some(token_data)) => {
-            // Create and configure provider
-            let provider = match create_configured_provider(
+            // Build tenant credential context for tenant-scoped OAuth resolution
+            let tenant_ctx = tenant_id
+                .and_then(|tid| Uuid::parse_str(tid).ok())
+                .map(|tid| TenantCredentialContext {
+                    tenant_oauth_client: &executor.resources.tenant_oauth_client,
+                    database: &executor.resources.database,
+                    tenant_id: tid,
+                    user_id: user_uuid,
+                });
+
+            // Create and configure provider with tenant-scoped credentials
+            let provider = match create_configured_provider_with_tenant(
                 provider_name,
                 &executor.resources.provider_registry,
                 &token_data,
+                tenant_ctx,
             )
             .await
             {

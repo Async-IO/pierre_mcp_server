@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use super::provider_helpers::{create_configured_provider_with_tenant, TenantCredentialContext};
 use crate::config::environment::default_provider;
 use crate::config::intelligence::IntelligenceConfig;
 use crate::constants::limits::{self, METERS_PER_KILOMETER};
@@ -37,7 +38,6 @@ use crate::models::Activity;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalToolExecutor};
 use crate::protocols::ProtocolError;
 use crate::providers::core::FitnessProvider;
-use crate::providers::OAuth2Credentials;
 use crate::utils::uuid::parse_user_id_for_protocol;
 use chrono::{Duration, Utc};
 use std::cmp::Ordering;
@@ -430,41 +430,27 @@ async fn fetch_and_calculate_metrics(
         }
     };
 
-    // Create configured provider
-    let provider = executor
-        .resources
-        .provider_registry
-        .create_provider(provider_name)
-        .map_err(|e| ProtocolError::InternalError(format!("Failed to create provider: {e}")))?;
+    // Build tenant credential context for tenant-scoped OAuth resolution
+    let tenant_ctx = request
+        .tenant_id
+        .as_ref()
+        .and_then(|tid| uuid::Uuid::parse_str(tid).ok())
+        .map(|tid| TenantCredentialContext {
+            tenant_oauth_client: &executor.resources.tenant_oauth_client,
+            database: &executor.resources.database,
+            tenant_id: tid,
+            user_id: user_uuid,
+        });
 
-    // Safe: OAuth credential clones needed for struct field ownership
-    let credentials = OAuth2Credentials {
-        client_id: executor
-            .resources
-            .config
-            .oauth
-            .strava
-            .client_id
-            .clone() // Safe: OAuth config ownership
-            .unwrap_or_default(),
-        client_secret: executor
-            .resources
-            .config
-            .oauth
-            .strava
-            .client_secret
-            .clone() // Safe: OAuth config ownership
-            .unwrap_or_default(),
-        access_token: Some(token_data.access_token.clone()),
-        refresh_token: Some(token_data.refresh_token.clone()),
-        expires_at: Some(token_data.expires_at),
-        // Inline scope to avoid feature-gated constant
-        scopes: "activity:read_all".split(',').map(str::to_owned).collect(),
-    };
-
-    provider.set_credentials(credentials).await.map_err(|e| {
-        ProtocolError::ConfigurationError(format!("Failed to set provider credentials: {e}"))
-    })?;
+    // Create configured provider using provider-agnostic helper with tenant credentials
+    let provider = create_configured_provider_with_tenant(
+        provider_name,
+        &executor.resources.provider_registry,
+        &token_data,
+        tenant_ctx,
+    )
+    .await
+    .map_err(|e| ProtocolError::InternalError(format!("Failed to configure provider: {e}")))?;
 
     // Fetch activity from provider
     let activity = provider.get_activity(activity_id).await.map_err(|e| {

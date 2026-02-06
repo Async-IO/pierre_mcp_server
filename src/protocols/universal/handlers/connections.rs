@@ -346,21 +346,30 @@ pub fn handle_connect_provider(
             Err(e) => return Ok(connection_error(format!("Database error: {e}"))),
         }
 
-        // Get tenant context from tenant_users, fallback to request.tenant_id or user_uuid
+        // Get tenant context from verified tenant_users membership, fallback to user_uuid.
+        // Security: never trust request.tenant_id without membership verification,
+        // as it would allow a caller to use another tenant's OAuth credentials/rate limits.
         let tenants = db
             .list_tenants_for_user(user_uuid)
             .await
             .unwrap_or_default();
-        let tenant_id = tenants
-            .first()
-            .map(|t| t.id)
-            .or_else(|| {
-                request
-                    .tenant_id
-                    .as_ref()
-                    .and_then(|t| uuid::Uuid::parse_str(t).ok())
-            })
-            .unwrap_or(user_uuid);
+        let tenant_id = request
+            .tenant_id
+            .as_ref()
+            .and_then(|t| uuid::Uuid::parse_str(t).ok())
+            .map_or_else(
+                // No tenant_id in request; use first membership or user_uuid
+                || tenants.first().map_or(user_uuid, |t| t.id),
+                |requested_tid| {
+                    // Verify the user is a member of the requested tenant
+                    if tenants.iter().any(|t| t.id == requested_tid) {
+                        requested_tid
+                    } else {
+                        // User is not a member of the requested tenant
+                        tenants.first().map_or(user_uuid, |t| t.id)
+                    }
+                },
+            );
         let tenant_name = db
             .get_tenant_by_id(tenant_id)
             .await

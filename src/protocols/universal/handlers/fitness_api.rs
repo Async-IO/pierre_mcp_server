@@ -1063,7 +1063,7 @@ pub fn handle_get_activities(
         let limit = user_limit
             .and_then(|v| usize::try_from(v).ok())
             .unwrap_or(format_aware_default)
-            .min(MAX_ACTIVITY_LIMIT);
+            .clamp(1, MAX_ACTIVITY_LIMIT);
 
         // Extract optional offset parameter (handle both integer and float JSON numbers)
         // MCP clients may send numbers as floats (e.g., 100.0 instead of 100)

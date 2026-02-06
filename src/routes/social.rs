@@ -27,10 +27,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::AuthResult,
-    config::{
-        environment::{default_provider, get_oauth_config},
-        SocialInsightsConfig,
-    },
+    config::{environment::default_provider, SocialInsightsConfig},
     database::social::SocialManager,
     database_plugins::DatabaseProvider,
     errors::{AppError, ErrorCode},
@@ -51,8 +48,7 @@ use crate::{
         Activity, AdaptedInsight, FriendConnection, FriendStatus, InsightReaction, InsightType,
         ReactionType, ShareVisibility, SharedInsight, TrainingPhase, UserSocialSettings,
     },
-    protocols::universal::auth_service::{AuthService, TokenData},
-    providers::{core::FitnessProvider, OAuth2Credentials, ProviderRegistry},
+    protocols::universal::auth_service::AuthService,
     security::cookies::get_cookie_value,
 };
 
@@ -1775,48 +1771,10 @@ impl SocialRoutes {
         }
     }
 
-    /// Create a configured provider with OAuth credentials
-    ///
-    /// Uses the same pattern as protocol handlers for creating providers.
-    async fn create_configured_provider(
-        provider_name: &str,
-        provider_registry: &Arc<ProviderRegistry>,
-        token_data: &TokenData,
-    ) -> Result<Box<dyn FitnessProvider>, AppError> {
-        // Create provider instance
-        let provider = provider_registry
-            .create_provider(provider_name)
-            .map_err(|e| {
-                AppError::internal(format!("Failed to create {provider_name} provider: {e}"))
-            })?;
-
-        // Load provider-specific OAuth config
-        let config = get_oauth_config(provider_name);
-
-        // Build credentials
-        let credentials = OAuth2Credentials {
-            client_id: config.client_id.clone().unwrap_or_default(),
-            client_secret: config.client_secret.clone().unwrap_or_default(),
-            access_token: Some(token_data.access_token.clone()),
-            refresh_token: Some(token_data.refresh_token.clone()),
-            expires_at: Some(token_data.expires_at),
-            scopes: config.scopes.clone(),
-        };
-
-        // Set credentials on provider
-        provider.set_credentials(credentials).await.map_err(|e| {
-            AppError::internal(format!(
-                "Failed to set {provider_name} provider credentials: {e}"
-            ))
-        })?;
-
-        Ok(provider)
-    }
-
     /// Fetch activities from the user's connected provider
     ///
     /// Uses `AuthService` to get a valid OAuth token and creates a configured provider
-    /// to fetch recent activities.
+    /// with tenant-scoped credential resolution to fetch recent activities.
     async fn fetch_activities_from_provider(
         resources: &Arc<ServerResources>,
         user_id: Uuid,
@@ -1824,6 +1782,10 @@ impl SocialRoutes {
         tenant_id: Option<&str>,
         limit: Option<usize>,
     ) -> Result<Vec<Activity>, AppError> {
+        use crate::protocols::universal::handlers::provider_helpers::{
+            create_configured_provider_with_tenant, TenantCredentialContext,
+        };
+
         let auth_service = AuthService::new(resources.clone());
 
         // Get valid OAuth token
@@ -1837,13 +1799,25 @@ impl SocialRoutes {
                 ))
             })?;
 
-        // Create configured provider with credentials
-        let provider = Self::create_configured_provider(
+        // Build tenant credential context for tenant-scoped OAuth resolution
+        let tenant_ctx = tenant_id
+            .and_then(|tid| Uuid::parse_str(tid).ok())
+            .map(|tid| TenantCredentialContext {
+                tenant_oauth_client: &resources.tenant_oauth_client,
+                database: &resources.database,
+                tenant_id: tid,
+                user_id,
+            });
+
+        // Create configured provider with tenant-scoped credentials
+        let provider = create_configured_provider_with_tenant(
             provider_name,
             &resources.provider_registry,
             &token_data,
+            tenant_ctx,
         )
-        .await?;
+        .await
+        .map_err(|e| AppError::internal(format!("Failed to configure provider: {e}")))?;
 
         // Fetch activities
         provider
