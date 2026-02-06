@@ -40,10 +40,30 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # Fast code quality gate — no Rust compilation, runs in ~15 seconds
+  # Gates all other jobs to avoid wasting CI minutes on code that fails basic checks
+  code-quality:
+    name: Code Quality & Security Patterns
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Architectural Validation (Custom Patterns + Security Skills)
+        run: ./scripts/architectural-validation.sh --apply-skills
+
+      - name: Secret Pattern Validation
+        run: ./scripts/validate-no-secrets.sh
+
   # Clippy linting with zero tolerance (includes cognitive complexity)
   clippy:
     name: Clippy Linting
     runs-on: ubuntu-latest
+    needs: code-quality
 
     steps:
       - name: Checkout code
@@ -85,6 +105,7 @@ jobs:
   backend-tests:
     name: Backend Tests (SQLite)
     runs-on: ubuntu-latest
+    needs: code-quality
 
     steps:
       - name: Checkout code
@@ -120,15 +141,6 @@ jobs:
 
       - name: Security Audit (via deny.toml)
         run: cargo deny check
-
-      - name: Install ripgrep (for architectural validation)
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
-
-      - name: Architectural Validation (Custom Patterns)
-        run: ./scripts/architectural-validation.sh
-
-      - name: Secret Pattern Validation
-        run: ./scripts/validate-no-secrets.sh
 
       - name: Validate no ignored doctests
         run: |

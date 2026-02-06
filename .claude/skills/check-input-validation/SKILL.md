@@ -140,6 +140,10 @@ These modules handle user numeric input and need special attention:
 - ✅ Recipe servings/portions guarded before division
 - ✅ No unbounded LIMIT in SQL queries
 
+## Standalone Script
+The CI-runnable version of this skill lives at `scripts/check-input-validation.sh`.
+It runs automatically in CI via `./scripts/architectural-validation.sh --apply-skills`.
+
 ## Related Skills
 - `security-review` — Comprehensive security checklist
 - `validate-architecture` — Architectural patterns

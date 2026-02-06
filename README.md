@@ -301,15 +301,31 @@ See [Testing Documentation](https://async-io.github.io/pierre_mcp_server/testing
 # 1. Format code
 cargo fmt
 
-# 2. Architectural validation
+# 2. Architectural validation (includes security checks in CI)
 ./scripts/architectural-validation.sh
 
-# 3. Clippy (strict mode)
-cargo clippy --all-targets -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery
+# 3. Clippy (Cargo.toml defines all lint levels)
+cargo clippy -p pierre_mcp_server --all-targets
 
-# 4. Run relevant tests
-cargo test <test_pattern>
+# 4. Run relevant tests (always specify --test for speed)
+cargo test --test <test_file> <test_pattern> -- --nocapture
 ```
+
+### Security Skills (Before Pushing Security-Sensitive Changes)
+
+Run these when modifying auth, OAuth, admin, database, or multi-tenant code:
+
+| Skill | Command | What It Checks |
+|-------|---------|----------------|
+| **Security Review** | `./scripts/security-review.sh` | Authorization boundaries, tenant isolation, logging hygiene, SQL injection, XSS |
+| **Input Validation** | `./scripts/check-input-validation.sh` | Division-by-zero, pagination bounds, cache key completeness, numeric ranges |
+| **Architecture** | `./scripts/architectural-validation.sh` | Placeholder detection, error handling, algorithm DI, unsafe code, secret patterns |
+
+These scripts run automatically in CI via the `code-quality` job (gates all other jobs). Run them locally when:
+- Adding/modifying API endpoints or MCP tools
+- Changing database queries or cache operations
+- Modifying OAuth flows or authentication logic
+- Adding math operations on user-supplied input
 
 ### Before Pushing
 

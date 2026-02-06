@@ -24,12 +24,26 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Parse arguments
+APPLY_SKILLS=false
+for arg in "$@"; do
+    case $arg in
+        --apply-skills)
+            APPLY_SKILLS=true
+            shift
+            ;;
+    esac
+done
+
 # Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 
 echo -e "${BLUE}==== Pierre MCP Server - Architectural Validation ====${NC}"
 echo "Project root: $PROJECT_ROOT"
+if [ "$APPLY_SKILLS" = true ]; then
+    echo -e "${BLUE}Security skills enabled (--apply-skills)${NC}"
+fi
 cd "$PROJECT_ROOT"
 
 # Track overall success
@@ -859,6 +873,27 @@ echo "└───────────────────────�
 # ============================================================================
 # SUMMARY
 # ============================================================================
+
+# ============================================================================
+# SECURITY SKILL SCRIPTS (opt-in via --apply-skills)
+# ============================================================================
+
+if [ "$APPLY_SKILLS" = true ]; then
+    echo ""
+    echo -e "${BLUE}==== Running Security Skill Scripts ====${NC}"
+
+    if [ -x "$SCRIPT_DIR/security-review.sh" ]; then
+        "$SCRIPT_DIR/security-review.sh" || VALIDATION_FAILED=true
+    else
+        echo -e "${YELLOW}⚠️  scripts/security-review.sh not found or not executable${NC}"
+    fi
+
+    if [ -x "$SCRIPT_DIR/check-input-validation.sh" ]; then
+        "$SCRIPT_DIR/check-input-validation.sh" || VALIDATION_FAILED=true
+    else
+        echo -e "${YELLOW}⚠️  scripts/check-input-validation.sh not found or not executable${NC}"
+    fi
+fi
 
 echo ""
 echo -e "${BLUE}==== Architectural Validation Summary ====${NC}"
