@@ -1189,6 +1189,24 @@ async fn test_disconnect_provider() {
         .await
         .unwrap();
 
+    // Create tenant so disconnect_provider can resolve user's tenant
+    let tenant = Tenant {
+        id: Uuid::new_v4(),
+        name: "Test Tenant".to_owned(),
+        slug: "test-disconnect".to_owned(),
+        domain: None,
+        plan: "starter".to_owned(),
+        owner_user_id: user_id,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+    server_context
+        .data()
+        .database()
+        .create_tenant(&tenant)
+        .await
+        .unwrap();
+
     // Test disconnecting Strava (should succeed even if not connected)
     let result = oauth_routes.disconnect_provider(user_id, "strava").await;
     assert!(result.is_ok());
