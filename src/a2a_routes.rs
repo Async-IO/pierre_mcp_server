@@ -25,6 +25,7 @@ use crate::utils::auth::extract_bearer_token;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use subtle::ConstantTimeEq;
 use tracing::warn;
@@ -367,9 +368,12 @@ impl A2ARoutes {
             .await?
             .ok_or_else(|| A2AError::AuthenticationFailed("Invalid credentials".into()))?;
 
+        // Hash the provided secret to compare against stored hash
+        let provided_hash = format!("{:x}", Sha256::digest(client_secret.as_bytes()));
+
         // Use constant-time comparison to prevent timing attacks
         let expected_secret = credentials.client_secret.as_bytes();
-        let provided_secret = client_secret.as_bytes();
+        let provided_secret = provided_hash.as_bytes();
 
         // Both secrets must be the same length and content for authentication to succeed
         let secrets_match = expected_secret.len() == provided_secret.len()
