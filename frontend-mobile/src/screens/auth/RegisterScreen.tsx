@@ -13,6 +13,7 @@ import {
   Alert,
   type ViewStyle,
 } from 'react-native';
+import { useAsyncAction } from '@pierre/ui-logic';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button, Input } from '../../components/ui';
@@ -35,7 +36,6 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{
     displayName?: string;
     email?: string;
@@ -72,20 +72,23 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleRegister = async () => {
-    if (!validateForm()) return;
-
-    setIsLoading(true);
-    try {
-      await register(email.trim(), password, displayName.trim());
-      // Navigate to pending approval screen
+  // Delegate registration loading lifecycle to @pierre/ui-logic
+  const registerAction = useAsyncAction({
+    action: () => register(email.trim(), password, displayName.trim()),
+    onSuccess: () => {
       navigation.replace('PendingApproval');
-    } catch (error) {
+    },
+    onError: (error: unknown) => {
       const message = error instanceof Error ? error.message : 'Registration failed';
       Alert.alert('Registration Failed', message);
-    } finally {
-      setIsLoading(false);
-    }
+    },
+    successResetDelay: 0,
+    errorResetDelay: 0,
+  });
+
+  const handleRegister = () => {
+    if (!validateForm()) return;
+    registerAction.execute();
   };
 
   // Glassmorphism card style
@@ -183,7 +186,7 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
                 <Button
                   title="Create Account"
                   onPress={handleRegister}
-                  loading={isLoading}
+                  loading={registerAction.isLoading}
                   fullWidth
                   style={glowButtonStyle}
                 />

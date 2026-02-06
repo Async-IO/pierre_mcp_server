@@ -78,6 +78,9 @@ Thumbs.db
 :memory:test_*
 multitenant_test*.log
 
+# TypeScript build info
+*.tsbuildinfo
+
 # Frontend build artifacts and coverage
 frontend/coverage/
 frontend/dist/

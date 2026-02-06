@@ -40,6 +40,8 @@ export interface UseFormFieldReturn<T> {
   setValue: (value: T) => void;
   /** Whether field has been touched (focused then blurred) */
   touched: boolean;
+  /** Whether field is currently focused */
+  focused: boolean;
   /** Whether field has been modified from initial value */
   dirty: boolean;
   /** Current validation error message (null if valid) */
@@ -179,6 +181,7 @@ export function useFormField<T>({
     value,
     setValue,
     touched,
+    focused,
     dirty,
     error,
     isValid,

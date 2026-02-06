@@ -307,6 +307,20 @@ describe('useFormField', () => {
     expect(result.current.touched).toBe(true);
   });
 
+  it('tracks focused state on focus and blur', () => {
+    const { result } = renderHook(() =>
+      useFormField({ initialValue: '' })
+    );
+
+    expect(result.current.focused).toBe(false);
+
+    act(() => result.current.onFocus());
+    expect(result.current.focused).toBe(true);
+
+    act(() => result.current.onBlur());
+    expect(result.current.focused).toBe(false);
+  });
+
   it('validates on blur by default', () => {
     const { result } = renderHook(() =>
       useFormField({

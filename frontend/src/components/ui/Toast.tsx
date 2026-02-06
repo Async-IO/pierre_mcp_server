@@ -4,7 +4,8 @@
 // ABOUTME: Toast notification system with Pierre design system styling
 // ABOUTME: Features auto-dismiss, progress indicator, and semantic pillar colors
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useToast as useToastLogic } from '@pierre/ui-logic';
 import { ToastContext, type Toast, type ToastType } from './ToastContext';
 
 interface ToastProviderProps {
@@ -12,16 +13,38 @@ interface ToastProviderProps {
 }
 
 export const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
-  const [toasts, setToasts] = useState<Toast[]>([]);
+  // Delegate queue management and auto-dismiss to @pierre/ui-logic
+  const toastLogic = useToastLogic({ maxToasts: 5, defaultDuration: 5000 });
+
+  // Store extended toast data (title + optional description) alongside hook-managed queue.
+  // The hook's ToastItem has only `message`, while the frontend uses title + message.
+  const toastDataRef = useRef<Map<string, { title: string; message?: string }>>(new Map());
 
   const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
-    const id = `toast-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-    setToasts((prev) => [...prev, { ...toast, id }]);
-  }, []);
+    const id = toastLogic.addToast({
+      message: toast.title,
+      type: toast.type,
+      duration: toast.duration,
+    });
+    toastDataRef.current.set(id, { title: toast.title, message: toast.message });
+  }, [toastLogic]);
 
   const removeToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id));
-  }, []);
+    toastLogic.removeToast(id);
+    toastDataRef.current.delete(id);
+  }, [toastLogic]);
+
+  // Map hook-managed queue to frontend Toast type
+  const toasts: Toast[] = toastLogic.toasts.map(t => {
+    const data = toastDataRef.current.get(t.id);
+    return {
+      id: t.id,
+      type: t.type,
+      title: data?.title ?? t.message,
+      message: data?.message,
+      duration: t.duration,
+    };
+  });
 
   return (
     <ToastContext.Provider value={{ toasts, addToast, removeToast }}>

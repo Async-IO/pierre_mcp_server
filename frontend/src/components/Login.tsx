@@ -2,6 +2,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useAsyncAction } from '@pierre/ui-logic';
 import { useAuth } from '../hooks/useAuth';
 import { signInWithGoogle, subscribeToAuthState, isFirebaseEnabled } from '../firebase/firebase';
 import { Button, Input } from './ui';
@@ -59,10 +60,25 @@ export default function Login({ onNavigateToRegister }: LoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const { login, loginWithFirebase } = useAuth();
+
+  // Delegate email/password login loading lifecycle to @pierre/ui-logic
+  const loginAction = useAsyncAction({
+    action: () => login(email, password),
+    onError: (err: unknown) => {
+      const apiError = err as { response?: { data?: { error?: string } } };
+      const errorMsg = apiError.response?.data?.error || 'Login failed';
+      if (errorMsg === 'invalid_grant' || errorMsg.includes('Invalid') || errorMsg.includes('credentials')) {
+        setError('Invalid email or password');
+      } else {
+        setError(errorMsg);
+      }
+    },
+    successResetDelay: 0,
+    errorResetDelay: 0,
+  });
   const processingAuthRef = useRef(false);
   // Track if the user manually initiated sign-in (vs auto-login from cached Firebase state)
   const userInitiatedSignInRef = useRef(false);
@@ -104,25 +120,10 @@ export default function Login({ onNavigateToRegister }: LoginProps) {
     return () => unsubscribe();
   }, [loginWithFirebase]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     setError('');
-
-    try {
-      await login(email, password);
-    } catch (err: unknown) {
-      const apiError = err as { response?: { data?: { error?: string } } };
-      const errorMsg = apiError.response?.data?.error || 'Login failed';
-      // Map technical errors to user-friendly messages
-      if (errorMsg === 'invalid_grant' || errorMsg.includes('Invalid') || errorMsg.includes('credentials')) {
-        setError('Invalid email or password');
-      } else {
-        setError(errorMsg);
-      }
-    } finally {
-      setIsLoading(false);
-    }
+    loginAction.execute();
   };
 
   const handleGoogleSignIn = async () => {
@@ -235,10 +236,10 @@ export default function Login({ onNavigateToRegister }: LoginProps) {
               <Button
                 type="submit"
                 variant="gradient"
-                loading={isLoading}
+                loading={loginAction.isLoading}
                 className="w-full shadow-glow-sm"
               >
-                {isLoading ? 'Signing in...' : 'Sign in'}
+                {loginAction.isLoading ? 'Signing in...' : 'Sign in'}
               </Button>
 
               {/* Google Sign-In - only show when Firebase is configured */}
