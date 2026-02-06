@@ -172,7 +172,7 @@ jobs:
       - name: Setup Bun (for SDK build)
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: "1.3.4"
 
       - name: Build MCP SDK (required for E2E tests)
         working-directory: sdk
@@ -251,7 +251,7 @@ jobs:
       - name: Setup Bun (for SDK build)
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: "1.3.4"
 
       - name: Build MCP SDK (required for E2E tests)
         working-directory: sdk
