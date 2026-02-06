@@ -340,11 +340,11 @@ impl A2AServer {
                 }
             }
             "message/send" | "a2a/message/send" => Self::handle_message_send(request),
-            "message/stream" | "a2a/message/stream" => Self::handle_message_stream(request),
+            "message/stream" | "a2a/message/stream" => self.handle_message_stream(request),
             "tasks/create" | "a2a/tasks/create" => self.handle_task_create(request).await,
             "tasks/get" | "a2a/tasks/get" => self.handle_task_get(request).await,
             "tasks/cancel" => Self::handle_task_cancel(request),
-            "tasks/resubscribe" | "a2a/tasks/resubscribe" => Self::handle_task_resubscribe(request),
+            "tasks/resubscribe" | "a2a/tasks/resubscribe" => self.handle_task_resubscribe(request),
             "tasks/pushNotificationConfig/set" => Self::handle_push_notification_config(request),
             "a2a/tasks/list" => self.handle_task_list(request).await,
             "tools/list" | "a2a/tools/list" => self.handle_tools_list(request),
@@ -568,6 +568,15 @@ impl A2AServer {
         Ok(())
     }
 
+    /// Resolve the base URL from server config, falling back to `BASE_URL` env var,
+    /// then to the default `http://localhost:8081`.
+    fn resolve_base_url(&self) -> String {
+        self.resources.as_ref().map_or_else(
+            || var("BASE_URL").unwrap_or_else(|_| "http://localhost:8081".to_owned()),
+            |r| r.config.base_url.clone(),
+        )
+    }
+
     fn handle_message_send(request: A2ARequest) -> A2AResponse {
         // Message sending would forward requests to appropriate handlers
         A2AResponse {
@@ -578,10 +587,8 @@ impl A2AServer {
         }
     }
 
-    fn handle_message_stream(request: A2ARequest) -> A2AResponse {
-        // Get base URL from environment or use default
-        let base_url =
-            var("PIERRE_BASE_URL").unwrap_or_else(|_| "http://localhost:8080".to_owned());
+    fn handle_message_stream(&self, request: A2ARequest) -> A2AResponse {
+        let base_url = self.resolve_base_url();
 
         // Extract stream_id or task_id from params (support both for flexibility)
         let params = request.params.as_ref().unwrap_or(&Value::Null);
@@ -1027,10 +1034,8 @@ impl A2AServer {
         }
     }
 
-    fn handle_task_resubscribe(request: A2ARequest) -> A2AResponse {
-        // Get base URL from environment or use default
-        let base_url =
-            var("PIERRE_BASE_URL").unwrap_or_else(|_| "http://localhost:8080".to_owned());
+    fn handle_task_resubscribe(&self, request: A2ARequest) -> A2AResponse {
+        let base_url = self.resolve_base_url();
 
         let params = request.params.as_ref().unwrap_or(&Value::Null);
         let task_id = params.get("task_id").and_then(|v| v.as_str());

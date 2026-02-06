@@ -234,9 +234,13 @@ impl FirebaseAuth {
 
         info!(
             user_id = %claims.sub,
-            email = claims.email.as_deref().unwrap_or("(none)"),
             provider = %claims.provider,
             "Firebase token validated successfully"
+        );
+        debug!(
+            user_id = %claims.sub,
+            email = claims.email.as_deref().unwrap_or("(none)"),
+            "Firebase token claims detail"
         );
 
         Ok(claims)

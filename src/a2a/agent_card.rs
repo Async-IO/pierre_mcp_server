@@ -115,7 +115,7 @@ pub struct ToolExample {
 
 impl AgentCard {
     /// Default base URL when none is provided
-    const DEFAULT_BASE_URL: &'static str = "http://localhost:8080";
+    const DEFAULT_BASE_URL: &'static str = "http://localhost:8081";
 
     /// Create a new Agent Card for Pierre with specified base URL
     ///
@@ -138,8 +138,8 @@ impl AgentCard {
             authentication: AuthenticationInfo {
                 schemes: vec!["api-key".into(), "oauth2".into()],
                 oauth2: Some(OAuth2Info {
-                    authorization_url: "https://pierre.ai/oauth/authorize".into(),
-                    token_url: "https://pierre.ai/oauth/token".into(),
+                    authorization_url: format!("{base_url}/oauth/authorize"),
+                    token_url: format!("{base_url}/oauth/token"),
                     scopes: vec![
                         "fitness:read".into(),
                         "analytics:read".into(),
@@ -150,7 +150,7 @@ impl AgentCard {
                 api_key: Some(ApiKeyInfo {
                     header_name: "Authorization".into(),
                     prefix: Some("Bearer".into()),
-                    registration_url: "https://pierre.ai/api/keys/request".into(),
+                    registration_url: format!("{base_url}/api/keys/request"),
                 }),
             },
             tools: Self::create_tool_definitions(),
