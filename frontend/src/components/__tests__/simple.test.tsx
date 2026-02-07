@@ -7,7 +7,7 @@ import Login from '../Login'
 import { AuthProvider } from '../../contexts/AuthContext'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-// Mock the API service - AuthContext uses authApi, apiClient, adminApi
+// Mock the API service - AuthContext uses authApi, pierreApi, adminApi
 vi.mock('../../services/api', () => ({
   authApi: {
     login: vi.fn(),
@@ -17,14 +17,22 @@ vi.mock('../../services/api', () => ({
     getSetupStatus: vi.fn().mockResolvedValue({ needs_setup: false, admin_exists: true }),
     endImpersonation: vi.fn(),
   },
-  apiClient: {
-    getCsrfToken: vi.fn(() => null),
-    setCsrfToken: vi.fn(),
-    clearCsrfToken: vi.fn(),
-    getUser: vi.fn(() => null),
-    setUser: vi.fn(),
-    clearUser: vi.fn(),
-  }
+  pierreApi: {
+    adapter: {
+      authStorage: {
+        setCsrfToken: vi.fn().mockResolvedValue(undefined),
+        getCsrfToken: vi.fn().mockResolvedValue(null),
+        setUser: vi.fn().mockResolvedValue(undefined),
+        getUser: vi.fn().mockResolvedValue(null),
+        clear: vi.fn().mockResolvedValue(undefined),
+        getToken: vi.fn().mockResolvedValue(null),
+        setToken: vi.fn().mockResolvedValue(undefined),
+        removeToken: vi.fn().mockResolvedValue(undefined),
+        getRefreshToken: vi.fn().mockResolvedValue(null),
+        setRefreshToken: vi.fn().mockResolvedValue(undefined),
+      },
+    },
+  },
 }))
 
 function renderWithProviders(component: React.ReactElement) {

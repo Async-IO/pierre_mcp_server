@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-import { useState, useEffect, useCallback } from 'react';
-import { authApi, adminApi, apiClient } from '../services/api';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { authApi, adminApi, pierreApi } from '../services/api';
 import { AuthContext } from './auth';
 import type { User, ImpersonationState } from './auth';
 
@@ -24,6 +24,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [impersonation, setImpersonation] = useState<ImpersonationState>(defaultImpersonationState);
 
+  // Guard against re-entrant logout calls (prevents infinite loop when
+  // the logout POST itself returns 401 and fires another auth failure event)
+  const isLoggingOutRef = useRef(false);
+
   useEffect(() => {
     // Show cached user immediately for instant UI render
     const storedUser = localStorage.getItem(STORAGE_KEYS.USER);
@@ -42,8 +46,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .then((session) => {
           setUser(session.user);
           setToken(session.access_token);
-          apiClient.setCsrfToken(session.csrf_token);
-          localStorage.setItem('pierre_csrf_token', session.csrf_token);
+          pierreApi.adapter.authStorage.setCsrfToken(session.csrf_token);
           localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(session.user));
         })
         .catch(() => {
@@ -59,17 +62,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
     }
 
-    // Listen for auth failures from API service
+    // Listen for auth failures from pierreApi's 401 interceptor
     const handleAuthFailure = () => {
+      // Skip if already logging out or already on login page
+      if (isLoggingOutRef.current) return;
+      if (window.location.pathname.includes('/login')) return;
       logout();
     };
 
-    // Listen for both legacy event name and api-client event name
-    window.addEventListener('auth-failure', handleAuthFailure);
     window.addEventListener('pierre:auth:failure', handleAuthFailure);
 
     return () => {
-      window.removeEventListener('auth-failure', handleAuthFailure);
       window.removeEventListener('pierre:auth:failure', handleAuthFailure);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -80,9 +83,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // OAuth2 ROPC response uses access_token, csrf_token, and user
     const { access_token, csrf_token, user: userData } = response;
 
-    // Store CSRF token in both legacy client and localStorage (for pierreApi)
-    apiClient.setCsrfToken(csrf_token);
-    localStorage.setItem('pierre_csrf_token', csrf_token);
+    // Store CSRF token via pierreApi's auth storage (writes to localStorage)
+    await pierreApi.adapter.authStorage.setCsrfToken(csrf_token);
 
     // Keep JWT in React state only (for WebSocket auth) — httpOnly cookie handles REST
     if (access_token) {
@@ -98,9 +100,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const response = await authApi.loginWithFirebase({ idToken });
     const { csrf_token, jwt_token, user: userData } = response;
 
-    // Store CSRF token in both legacy client and localStorage (for pierreApi)
-    apiClient.setCsrfToken(csrf_token);
-    localStorage.setItem('pierre_csrf_token', csrf_token);
+    // Store CSRF token via pierreApi's auth storage (writes to localStorage)
+    await pierreApi.adapter.authStorage.setCsrfToken(csrf_token);
 
     // Keep JWT in React state only (for WebSocket auth) — httpOnly cookie handles REST
     if (jwt_token) {
@@ -115,6 +116,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = useCallback(() => {
+    // Prevent re-entrant calls (logout POST returning 401 would trigger this again)
+    if (isLoggingOutRef.current) return;
+    isLoggingOutRef.current = true;
+
     // If impersonating, also clear impersonation state
     if (impersonation.isImpersonating) {
       setImpersonation(defaultImpersonationState);
@@ -127,16 +132,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Clear user info from localStorage
     localStorage.removeItem(STORAGE_KEYS.USER);
 
-    // Clear CSRF token from both legacy client and localStorage (pierreApi)
-    apiClient.clearCsrfToken();
-    apiClient.clearUser();
-    localStorage.removeItem('pierre_csrf_token');
+    // Clear CSRF token and user from pierreApi's auth storage
+    pierreApi.adapter.authStorage.clear();
 
     // Optionally call logout endpoint to clear cookies
-    authApi.logout().catch((error) => {
-      console.error('Logout API call failed:', error);
-      // Continue with local cleanup even if API fails
-    });
+    authApi.logout()
+      .catch((error) => {
+        console.error('Logout API call failed:', error);
+        // Continue with local cleanup even if API fails
+      })
+      .finally(() => {
+        isLoggingOutRef.current = false;
+      });
   }, [impersonation.isImpersonating]);
 
   const startImpersonation = useCallback(async (targetUserId: string, reason?: string) => {
@@ -209,4 +216,3 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     </AuthContext.Provider>
   );
 }
-

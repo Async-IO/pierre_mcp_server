@@ -7,7 +7,23 @@ import userEvent from '@testing-library/user-event'
 import Login from '../Login'
 import { AuthProvider } from '../../contexts/AuthContext'
 
-// Mock the API service - AuthContext uses authApi, apiClient, adminApi
+// vi.hoisted runs before vi.mock hoisting, so these variables are available in the factory
+const { mockAuthStorage } = vi.hoisted(() => ({
+  mockAuthStorage: {
+    setCsrfToken: vi.fn().mockResolvedValue(undefined),
+    getCsrfToken: vi.fn().mockResolvedValue(null),
+    setUser: vi.fn().mockResolvedValue(undefined),
+    getUser: vi.fn().mockResolvedValue(null),
+    clear: vi.fn().mockResolvedValue(undefined),
+    getToken: vi.fn().mockResolvedValue(null),
+    setToken: vi.fn().mockResolvedValue(undefined),
+    removeToken: vi.fn().mockResolvedValue(undefined),
+    getRefreshToken: vi.fn().mockResolvedValue(null),
+    setRefreshToken: vi.fn().mockResolvedValue(undefined),
+  },
+}))
+
+// Mock the API service - AuthContext uses authApi, pierreApi, adminApi
 vi.mock('../../services/api', () => ({
   authApi: {
     login: vi.fn(),
@@ -17,14 +33,11 @@ vi.mock('../../services/api', () => ({
     getSetupStatus: vi.fn().mockResolvedValue({ needs_setup: false, admin_exists: true }),
     endImpersonation: vi.fn(),
   },
-  apiClient: {
-    getCsrfToken: vi.fn(),
-    setCsrfToken: vi.fn(),
-    clearCsrfToken: vi.fn(),
-    getUser: vi.fn(),
-    setUser: vi.fn(),
-    clearUser: vi.fn(),
-  }
+  pierreApi: {
+    adapter: {
+      authStorage: mockAuthStorage,
+    },
+  },
 }))
 
 async function renderLogin() {
@@ -76,7 +89,7 @@ describe('Login Component', () => {
     await renderLogin()
 
     const submitButton = screen.getByRole('button', { name: /sign in/i })
-    
+
     // Try to submit without filling fields
     await user.click(submitButton)
 
@@ -88,10 +101,10 @@ describe('Login Component', () => {
   it('should show loading state during login', async () => {
     const user = userEvent.setup()
     const { authApi } = await import('../../services/api')
-    
+
     // Make login hang to test loading state
     vi.mocked(authApi.login).mockImplementation(() => new Promise(() => {}))
-    
+
     await renderLogin()
 
     const emailInput = screen.getByLabelText(/email address/i)
@@ -109,7 +122,7 @@ describe('Login Component', () => {
   it('should display error message on login failure', async () => {
     const user = userEvent.setup()
     const { authApi } = await import('../../services/api')
-    
+
     const mockError = {
       response: {
         data: {
@@ -117,9 +130,9 @@ describe('Login Component', () => {
         }
       }
     }
-    
+
     vi.mocked(authApi.login).mockRejectedValue(mockError)
-    
+
     await renderLogin()
 
     const emailInput = screen.getByLabelText(/email address/i)
@@ -143,9 +156,9 @@ describe('Login Component', () => {
   it('should handle generic error when no specific error message', async () => {
     const user = userEvent.setup()
     const { authApi } = await import('../../services/api')
-    
+
     vi.mocked(authApi.login).mockRejectedValue(new Error('Network error'))
-    
+
     await renderLogin()
 
     const emailInput = screen.getByLabelText(/email address/i)

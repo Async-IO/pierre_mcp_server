@@ -2,10 +2,143 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import axios from 'axios'
 import { apiService } from '../api/index'
 
-// Mock axios - must be complete for apiClient and api-client initialization
+// Mock the @pierre/api-client package and web adapter
+vi.mock('@pierre/api-client', () => {
+  const mockAxiosInstance = {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
+    interceptors: {
+      request: { use: vi.fn() },
+      response: { use: vi.fn() },
+    },
+  }
+  return {
+    createPierreApi: vi.fn(() => ({
+      auth: {
+        login: vi.fn(),
+        loginWithFirebase: vi.fn(),
+        logout: vi.fn(),
+        register: vi.fn(),
+        refreshToken: vi.fn().mockRejectedValue(new Error('No refresh token available')),
+        getSession: vi.fn(),
+      },
+      chat: {
+        getConversations: vi.fn(),
+        createConversation: vi.fn(),
+        getConversation: vi.fn(),
+        updateConversation: vi.fn(),
+        deleteConversation: vi.fn(),
+        getConversationMessages: vi.fn(),
+      },
+      coaches: {
+        list: vi.fn(),
+        toggleFavorite: vi.fn(),
+        recordUsage: vi.fn(),
+        create: vi.fn(),
+        update: vi.fn(),
+        delete: vi.fn(),
+        hide: vi.fn(),
+        show: vi.fn(),
+        getHidden: vi.fn(),
+        fork: vi.fn(),
+        getVersions: vi.fn(),
+        getVersion: vi.fn(),
+        revertToVersion: vi.fn(),
+        getVersionDiff: vi.fn(),
+        getPromptSuggestions: vi.fn(),
+        generateFromConversation: vi.fn(),
+      },
+      oauth: {
+        getStatus: vi.fn(),
+        getAuthorizeUrl: vi.fn(),
+      },
+      social: {
+        listFriends: vi.fn(),
+        searchUsers: vi.fn(),
+        getPendingRequests: vi.fn(),
+        sendFriendRequest: vi.fn(),
+        acceptFriendRequest: vi.fn(),
+        declineFriendRequest: vi.fn(),
+        removeFriend: vi.fn(),
+        blockUser: vi.fn(),
+        getFeed: vi.fn(),
+        shareInsight: vi.fn(),
+        deleteInsight: vi.fn(),
+        addReaction: vi.fn(),
+        removeReaction: vi.fn(),
+        adaptInsight: vi.fn(),
+        getAdaptedInsights: vi.fn(),
+        getSettings: vi.fn(),
+        updateSettings: vi.fn(),
+      },
+      store: {
+        browse: vi.fn(),
+        search: vi.fn(),
+        get: vi.fn(),
+        getCategories: vi.fn(),
+        install: vi.fn(),
+        uninstall: vi.fn(),
+        getInstallations: vi.fn(),
+      },
+      user: {
+        getStats: vi.fn(),
+        updateProfile: vi.fn(),
+        createMcpToken: vi.fn(),
+        getMcpTokens: vi.fn(),
+        revokeMcpToken: vi.fn(),
+        getOAuthApps: vi.fn(),
+        registerOAuthApp: vi.fn(),
+        deleteOAuthApp: vi.fn(),
+        getLlmSettings: vi.fn(),
+        saveLlmCredentials: vi.fn(),
+        validateLlmCredentials: vi.fn(),
+        deleteLlmCredentials: vi.fn(),
+      },
+      axios: mockAxiosInstance,
+      adapter: {
+        authStorage: {
+          setCsrfToken: vi.fn(),
+          getCsrfToken: vi.fn(),
+          setUser: vi.fn(),
+          getUser: vi.fn(),
+          clear: vi.fn(),
+          getToken: vi.fn(),
+          setToken: vi.fn(),
+          removeToken: vi.fn(),
+          getRefreshToken: vi.fn(),
+          setRefreshToken: vi.fn(),
+        },
+        httpConfig: { baseURL: '' },
+        authFailure: { onAuthFailure: vi.fn() },
+      },
+    })),
+  }
+})
+
+vi.mock('@pierre/api-client/adapters/web', () => ({
+  createWebAdapter: vi.fn(() => ({
+    authStorage: {
+      setCsrfToken: vi.fn(),
+      getCsrfToken: vi.fn(),
+      setUser: vi.fn(),
+      getUser: vi.fn(),
+      clear: vi.fn(),
+      getToken: vi.fn(),
+      setToken: vi.fn(),
+      removeToken: vi.fn(),
+      getRefreshToken: vi.fn(),
+      setRefreshToken: vi.fn(),
+    },
+    httpConfig: { baseURL: '' },
+    authFailure: { onAuthFailure: vi.fn() },
+  })),
+}))
+
+// Mock axios for domain modules that still import it via client.ts
 vi.mock('axios', () => {
   const mockAxiosInstance = {
     get: vi.fn(),
@@ -24,9 +157,7 @@ vi.mock('axios', () => {
       defaults: {
         baseURL: '',
         withCredentials: true,
-        headers: {
-          common: {},
-        },
+        headers: { common: {} },
       },
     },
   }
@@ -35,32 +166,6 @@ vi.mock('axios', () => {
 describe('API Service', () => {
   beforeEach(() => {
     localStorage.clear()
-  })
-
-  describe('CSRF Token Management', () => {
-    it('should manage CSRF tokens in memory', () => {
-      expect(apiService.getCsrfToken()).toBeNull()
-
-      apiService.setCsrfToken('test-csrf-token')
-      expect(apiService.getCsrfToken()).toBe('test-csrf-token')
-
-      apiService.clearCsrfToken()
-      expect(apiService.getCsrfToken()).toBeNull()
-    })
-
-    it('should manage user info in localStorage', () => {
-      const testUser = { id: 'user-123', email: 'test@example.com', display_name: 'Test User' }
-
-      expect(apiService.getUser()).toBeNull()
-
-      apiService.setUser(testUser)
-      expect(apiService.getUser()).toEqual(testUser)
-      expect(localStorage.getItem('pierre_user')).toBe(JSON.stringify(testUser))
-
-      apiService.clearUser()
-      expect(apiService.getUser()).toBeNull()
-      expect(localStorage.getItem('pierre_user')).toBeNull()
-    })
   })
 
   describe('API Methods', () => {
@@ -97,78 +202,6 @@ describe('API Service', () => {
       expect(typeof apiService.installStoreCoach).toBe('function')
       expect(typeof apiService.uninstallStoreCoach).toBe('function')
       expect(typeof apiService.getStoreInstallations).toBe('function')
-    })
-  })
-
-  describe('Store API URL Patterns', () => {
-    const mockResponse = { data: { message: 'success' } }
-
-    beforeEach(() => {
-      vi.clearAllMocks()
-      vi.mocked(axios.post).mockResolvedValue(mockResponse)
-      vi.mocked(axios.delete).mockResolvedValue(mockResponse)
-      vi.mocked(axios.get).mockResolvedValue(mockResponse)
-    })
-
-    it('installStoreCoach should call correct URL with coach ID', async () => {
-      const coachId = 'test-coach-123'
-      await apiService.installStoreCoach(coachId)
-
-      expect(axios.post).toHaveBeenCalledWith(`/api/store/coaches/${coachId}/install`)
-      // Verify the URL includes the slash before coachId
-      const calledUrl = vi.mocked(axios.post).mock.calls[0][0]
-      expect(calledUrl).toContain('/coaches/')
-      expect(calledUrl).not.toContain('/coachestest') // Would fail if slash missing
-    })
-
-    it('uninstallStoreCoach should call correct URL with coach ID', async () => {
-      const coachId = 'test-coach-456'
-      await apiService.uninstallStoreCoach(coachId)
-
-      expect(axios.delete).toHaveBeenCalledWith(`/api/store/coaches/${coachId}/install`)
-      // Verify the URL includes the slash before coachId
-      const calledUrl = vi.mocked(axios.delete).mock.calls[0][0]
-      expect(calledUrl).toContain('/coaches/')
-      expect(calledUrl).not.toContain('/coachestest') // Would fail if slash missing
-    })
-
-    it('getStoreCoach should call correct URL with coach ID', async () => {
-      const coachId = 'test-coach-789'
-      await apiService.getStoreCoach(coachId)
-
-      expect(axios.get).toHaveBeenCalledWith(`/api/store/coaches/${coachId}`)
-    })
-
-    it('browseStoreCoaches should call correct URL with query params', async () => {
-      await apiService.browseStoreCoaches({ category: 'training', sort_by: 'popular' })
-
-      // API builds query string directly into URL
-      const calledUrl = vi.mocked(axios.get).mock.calls[0][0]
-      expect(calledUrl).toContain('/api/store/coaches')
-      expect(calledUrl).toContain('category=training')
-      expect(calledUrl).toContain('sort_by=popular')
-    })
-
-    it('searchStoreCoaches should call correct URL with query', async () => {
-      await apiService.searchStoreCoaches('marathon', 10)
-
-      // API builds query string directly into URL
-      const calledUrl = vi.mocked(axios.get).mock.calls[0][0]
-      expect(calledUrl).toContain('/api/store/search')
-      expect(calledUrl).toContain('q=marathon')
-      expect(calledUrl).toContain('limit=10')
-    })
-
-    it('getStoreCategories should call correct URL', async () => {
-      await apiService.getStoreCategories()
-
-      expect(axios.get).toHaveBeenCalledWith('/api/store/categories')
-    })
-
-    it('getStoreInstallations should call correct URL', async () => {
-      await apiService.getStoreInstallations()
-
-      expect(axios.get).toHaveBeenCalledWith('/api/store/installations')
     })
   })
 })

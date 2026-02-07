@@ -4,7 +4,7 @@
 // ABOUTME: API service entry point - uses @pierre/api-client for shared modules
 // ABOUTME: Web-only modules (admin, keys, dashboard, a2a) remain local
 
-import { apiClient, pierreApi } from './client';
+import { pierreApi } from './client';
 import { keysApi } from './keys';
 import { dashboardApi } from './dashboard';
 import { a2aApi } from './a2a';
@@ -30,7 +30,6 @@ export const providersApi = {
 };
 
 // Export web-only modules from local implementations
-export { apiClient } from './client';
 export { keysApi } from './keys';
 export { dashboardApi } from './dashboard';
 export { a2aApi } from './a2a';
@@ -58,14 +57,6 @@ export type { ProviderStatus, ProvidersStatusResponse } from './oauth';
  * await apiService.login(email, password);
  */
 export const apiService = {
-  // Client utilities (legacy)
-  getCsrfToken: () => apiClient.getCsrfToken(),
-  setCsrfToken: (token: string) => apiClient.setCsrfToken(token),
-  clearCsrfToken: () => apiClient.clearCsrfToken(),
-  getUser: () => apiClient.getUser(),
-  setUser: (user: { id: string; email: string; display_name?: string }) => apiClient.setUser(user),
-  clearUser: () => apiClient.clearUser(),
-
   // Auth (from @pierre/api-client)
   login: pierreApi.auth.login.bind(pierreApi.auth),
   loginWithFirebase: pierreApi.auth.loginWithFirebase.bind(pierreApi.auth),

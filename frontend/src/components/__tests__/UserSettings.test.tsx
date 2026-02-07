@@ -55,7 +55,14 @@ vi.mock('../../services/api', () => ({
       user: { id: 'user-1', email: 'test@pierre.dev', display_name: 'Test User' },
     }),
   },
-  apiClient: {
+  pierreApi: {
+    adapter: {
+      authStorage: {
+        setUser: vi.fn().mockResolvedValue(undefined),
+        getUser: vi.fn().mockResolvedValue(null),
+        clear: vi.fn().mockResolvedValue(undefined),
+      },
+    },
     user: {
       getOAuthApps: vi.fn().mockResolvedValue({ apps: [] }),
       registerOAuthApp: vi.fn(),
