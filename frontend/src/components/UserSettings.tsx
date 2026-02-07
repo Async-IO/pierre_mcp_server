@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { useAuth } from '../hooks/useAuth';
-import { userApi, apiClient, apiService } from '../services/api';
+import { userApi, pierreApi, apiService } from '../services/api';
 import type { ProviderStatus } from '../services/api';
 import { Card, Button, Badge, ConfirmDialog, Input, Modal, ModalActions } from './ui';
 import { clsx } from 'clsx';
@@ -215,7 +215,7 @@ export default function UserSettings() {
     mutationFn: (data: { display_name: string }) => userApi.updateProfile(data),
     onSuccess: (response) => {
       setMessage({ type: 'success', text: response.message });
-      apiClient.setUser(response.user);
+      pierreApi.adapter.authStorage.setUser(response.user);
       queryClient.invalidateQueries({ queryKey: ['user'] });
     },
     onError: (error: Error) => {

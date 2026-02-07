@@ -6,7 +6,22 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AuthProvider } from '../AuthContext'
 import { useAuth } from '../../hooks/useAuth'
-import { authApi, apiClient } from '../../services/api'
+
+// vi.hoisted runs before vi.mock hoisting, so these variables are available in the factory
+const { mockAuthStorage } = vi.hoisted(() => ({
+  mockAuthStorage: {
+    setCsrfToken: vi.fn().mockResolvedValue(undefined),
+    getCsrfToken: vi.fn().mockResolvedValue(null),
+    setUser: vi.fn().mockResolvedValue(undefined),
+    getUser: vi.fn().mockResolvedValue(null),
+    clear: vi.fn().mockResolvedValue(undefined),
+    getToken: vi.fn().mockResolvedValue(null),
+    setToken: vi.fn().mockResolvedValue(undefined),
+    removeToken: vi.fn().mockResolvedValue(undefined),
+    getRefreshToken: vi.fn().mockResolvedValue(null),
+    setRefreshToken: vi.fn().mockResolvedValue(undefined),
+  },
+}))
 
 // Mock the API service
 vi.mock('../../services/api', () => ({
@@ -18,14 +33,11 @@ vi.mock('../../services/api', () => ({
   adminApi: {
     endImpersonation: vi.fn(),
   },
-  apiClient: {
-    getCsrfToken: vi.fn(),
-    setCsrfToken: vi.fn(),
-    clearCsrfToken: vi.fn(),
-    getUser: vi.fn(),
-    setUser: vi.fn(),
-    clearUser: vi.fn(),
-  }
+  pierreApi: {
+    adapter: {
+      authStorage: mockAuthStorage,
+    },
+  },
 }))
 
 // Test component that uses the auth context
@@ -73,6 +85,8 @@ describe('AuthContext', () => {
     const mockUser = { id: '1', email: 'test@example.com', display_name: 'Test User' }
     localStorage.setItem('pierre_user', JSON.stringify(mockUser))
 
+    const { authApi } = await import('../../services/api')
+
     // Mock session restore succeeding
     vi.mocked(authApi.getSession).mockResolvedValue({
       user: mockUser,
@@ -88,12 +102,14 @@ describe('AuthContext', () => {
     })
 
     expect(authApi.getSession).toHaveBeenCalled()
-    expect(apiClient.setCsrfToken).toHaveBeenCalledWith('fresh-csrf-token')
+    expect(mockAuthStorage.setCsrfToken).toHaveBeenCalledWith('fresh-csrf-token')
   })
 
   it('should clear auth state when session restore fails', async () => {
     const mockUser = { id: '1', email: 'test@example.com', display_name: 'Test User' }
     localStorage.setItem('pierre_user', JSON.stringify(mockUser))
+
+    const { authApi } = await import('../../services/api')
 
     // Mock session restore failing (expired cookie)
     vi.mocked(authApi.getSession).mockRejectedValue(new Error('401 Unauthorized'))
@@ -120,6 +136,7 @@ describe('AuthContext', () => {
       expires_at: new Date(Date.now() + 86400000).toISOString()
     }
 
+    const { authApi } = await import('../../services/api')
     vi.mocked(authApi.login).mockResolvedValue(mockLoginResponse)
 
     renderWithAuth()
@@ -137,7 +154,7 @@ describe('AuthContext', () => {
 
     expect(screen.getByTestId('user-email')).toHaveTextContent('test@example.com')
     expect(authApi.login).toHaveBeenCalledWith({ email: 'test@example.com', password: 'password' })
-    expect(apiClient.setCsrfToken).toHaveBeenCalledWith('csrf-test-token')
+    expect(mockAuthStorage.setCsrfToken).toHaveBeenCalledWith('csrf-test-token')
   })
 
   it('should not store JWT in localStorage after login', async () => {
@@ -150,6 +167,7 @@ describe('AuthContext', () => {
       expires_at: new Date(Date.now() + 86400000).toISOString()
     }
 
+    const { authApi } = await import('../../services/api')
     vi.mocked(authApi.login).mockResolvedValue(mockLoginResponse)
 
     renderWithAuth()
@@ -180,6 +198,8 @@ describe('AuthContext', () => {
 
     localStorage.setItem('pierre_user', JSON.stringify(mockUser))
 
+    const { authApi } = await import('../../services/api')
+
     // Mock session restore for initial load
     vi.mocked(authApi.getSession).mockResolvedValue({
       user: mockUser,
@@ -202,8 +222,7 @@ describe('AuthContext', () => {
       expect(screen.getByTestId('authenticated')).toHaveTextContent('Not Authenticated')
     })
 
-    expect(apiClient.clearCsrfToken).toHaveBeenCalled()
-    expect(apiClient.clearUser).toHaveBeenCalled()
+    expect(mockAuthStorage.clear).toHaveBeenCalled()
     expect(authApi.logout).toHaveBeenCalled()
     expect(screen.queryByTestId('user-email')).not.toBeInTheDocument()
   })
@@ -211,6 +230,8 @@ describe('AuthContext', () => {
   it('should show loading state during session restore', async () => {
     const mockUser = { id: '1', email: 'test@example.com', display_name: 'Test User' }
     localStorage.setItem('pierre_user', JSON.stringify(mockUser))
+
+    const { authApi } = await import('../../services/api')
 
     // Make session restore hang to test loading state
     vi.mocked(authApi.getSession).mockImplementation(() => new Promise(() => {}))
