@@ -442,7 +442,7 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
     if (selectedConversation) {
       sessionStorage.setItem('pierre_oauth_conversation', selectedConversation);
     }
-    window.open(`/api/oauth/${provider}/connect`, '_blank');
+    window.open(`/api/oauth/${provider}/connect`, '_blank', 'noopener,noreferrer');
   };
 
   // Message action handlers

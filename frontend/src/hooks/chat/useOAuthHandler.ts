@@ -86,8 +86,8 @@ export function useOAuthHandler(): UseOAuthHandlerReturn {
     try {
       const providerId = providerName.toLowerCase();
       const authUrl = await oauthApi.getAuthorizeUrl(providerId);
-      // Open OAuth in new tab to avoid security blocks from automated browser detection
-      window.open(authUrl, '_blank');
+      // Open OAuth in new tab with noopener,noreferrer to prevent tabnabbing
+      window.open(authUrl, '_blank', 'noopener,noreferrer');
       setConnectingProvider(null);
     } catch (error) {
       console.error('Failed to get OAuth authorization URL:', error);

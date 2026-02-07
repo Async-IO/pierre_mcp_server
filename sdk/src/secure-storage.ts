@@ -107,12 +107,14 @@ export class KeychainTokenStorage implements SecureTokenStorage {
       // Save to keychain
       await this.saveTokens(tokens);
 
-      // Create backup before deletion
-      const backupPath = `${filePath}.backup`;
-      writeFileSync(backupPath, plaintextData, 'utf8');
-      this.log(`Created backup of plaintext tokens at ${backupPath}`);
+      // Verify migration succeeded by reading back from keychain
+      const verified = await this.getTokens();
+      if (!verified) {
+        this.log('Migration verification failed - keeping plaintext file');
+        return false;
+      }
 
-      // Delete plaintext file
+      // Delete plaintext file (no plaintext backup left on disk)
       unlinkSync(filePath);
       this.log(`Deleted plaintext token file: ${filePath}`);
 
@@ -269,12 +271,14 @@ export class EncryptedFileStorage implements SecureTokenStorage {
       // Save to encrypted file
       await this.saveTokens(tokens);
 
-      // Create backup before deletion
-      const backupPath = `${filePath}.backup`;
-      writeFileSync(backupPath, plaintextData, 'utf8');
-      this.log(`Created backup of plaintext tokens at ${backupPath}`);
+      // Verify migration succeeded by reading back from encrypted storage
+      const verified = await this.getTokens();
+      if (!verified) {
+        this.log('Migration verification failed - keeping plaintext file');
+        return false;
+      }
 
-      // Delete plaintext file
+      // Delete plaintext file (no plaintext backup left on disk)
       unlinkSync(filePath);
       this.log(`Deleted plaintext token file: ${filePath}`);
 

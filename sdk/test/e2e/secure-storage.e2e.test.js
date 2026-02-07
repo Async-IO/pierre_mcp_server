@@ -234,10 +234,14 @@ describe('Secure Storage E2E Tests', () => {
       const migrated = await storage.migrateFromPlaintextFile(legacyTokenPath);
 
       expect(migrated).toBe(true);
-      // Original file should be deleted
+      // Original plaintext file should be deleted (no plaintext left on disk)
       expect(existsSync(legacyTokenPath)).toBe(false);
-      // Backup should exist
-      expect(existsSync(`${legacyTokenPath}.backup`)).toBe(true);
+      // No backup file should exist (security: no plaintext copies on disk)
+      expect(existsSync(`${legacyTokenPath}.backup`)).toBe(false);
+      // Tokens should be retrievable from secure storage
+      const retrieved = await storage.getTokens();
+      expect(retrieved).not.toBeNull();
+      expect(retrieved.access_token).toBe('legacy-token');
     }, TIMEOUT);
 
     test('should skip migration when no legacy file exists', async () => {

@@ -84,6 +84,8 @@ interface StoredTokens {
       scope?: string;
     }
   >;
+  // OAuth client registration info (includes client_secret) - stored securely alongside tokens
+  client_info?: OAuthClientInformationFull;
 }
 
 export interface BridgeConfig {
@@ -138,9 +140,6 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
   private secureStorage: SecureTokenStorage | undefined = undefined;
   private allStoredTokens: StoredTokens = {};
 
-  // Client-side client info storage (client info is not sensitive, can stay in file)
-  private clientInfoPath: string;
-
   // Callback for notifying when provider OAuth completes (called by PierreMcpClient)
   private onProviderOAuthComplete:
     | ((provider: string) => Promise<void>)
@@ -161,26 +160,15 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
     this.serverUrl = serverUrl;
     this.config = config;
 
-    // Initialize client info storage path
-    const os = require("os");
-    const path = require("path");
-    this.clientInfoPath = path.join(
-      os.homedir(),
-      ".pierre-mcp-client-info.json",
-    );
-
     // NOTE: Secure storage initialization is async, so it's deferred to start()
     // to avoid race conditions with constructor completion
     // See initializePierreConnection() for the actual initialization
-
-    // Load client info from storage (synchronous, non-sensitive)
-    this.loadClientInfo();
+    // Client info (including client_secret) is loaded from secure storage alongside tokens
 
     this.log(`OAuth client provider created for server: ${serverUrl}`);
     this.log(
       `Using OS keychain for secure token storage (will initialize on start)`,
     );
-    this.log(`Client info storage path: ${this.clientInfoPath}`);
   }
 
   // Wait for provider OAuth to complete (called from PierreMcpClient.handleConnectProvider)
@@ -228,8 +216,14 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
   public async initializeSecureStorage(): Promise<void> {
     try {
       this.secureStorage = await createSecureStorage(this.log.bind(this));
-      // Load existing tokens from keychain
+      // Load existing tokens and client info from keychain
       await this.loadStoredTokens();
+
+      // Load client info from secure storage (stored alongside tokens)
+      this.loadClientInfoFromSecureStorage();
+
+      // Migrate legacy plaintext client info file to secure storage
+      await this.migratePlaintextClientInfo();
 
       // If JWT token was provided via --token parameter, use it for authentication
       // This is used in testing scenarios where tokens are passed directly
@@ -252,6 +246,43 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
     } catch (error) {
       this.log(`Failed to initialize secure storage: ${error}`);
       this.log("WARNING: Token storage will not be available");
+    }
+  }
+
+  private async migratePlaintextClientInfo(): Promise<void> {
+    const os = require("os");
+    const path = require("path");
+    const fs = require("fs");
+    const legacyPath = path.join(os.homedir(), ".pierre-mcp-client-info.json");
+
+    try {
+      if (!fs.existsSync(legacyPath)) {
+        return;
+      }
+
+      // Skip if we already have client info in secure storage
+      if (this.clientInfo) {
+        this.log("Client info already in secure storage, removing legacy plaintext file");
+        fs.unlinkSync(legacyPath);
+        return;
+      }
+
+      this.log(`Migrating plaintext client info from ${legacyPath} to secure storage`);
+      const data = fs.readFileSync(legacyPath, "utf8");
+      this.clientInfo = JSON.parse(data);
+
+      // Save to secure storage
+      await this.saveClientInfo();
+
+      // Verify migration succeeded
+      if (this.allStoredTokens.client_info) {
+        fs.unlinkSync(legacyPath);
+        this.log("Successfully migrated client info to secure storage and deleted plaintext file");
+      } else {
+        this.log("Migration verification failed - keeping plaintext file");
+      }
+    } catch (error) {
+      this.log(`Failed to migrate plaintext client info: ${error}`);
     }
   }
 
@@ -293,42 +324,39 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
     }
   }
 
-  private loadClientInfo(): void {
-    try {
-      const fs = require("fs");
-      if (fs.existsSync(this.clientInfoPath)) {
-        const data = fs.readFileSync(this.clientInfoPath, "utf8");
-        this.clientInfo = JSON.parse(data);
-        this.log(
-          `Loaded client info from storage: ${this.clientInfo?.client_id}`,
-        );
-      } else {
-        this.log(
-          `No stored client info found, will perform dynamic registration on first OAuth`,
-        );
-      }
-    } catch (error) {
-      this.log(`Failed to load client info: ${error}`);
-      this.clientInfo = undefined;
+  private loadClientInfoFromSecureStorage(): void {
+    // Load client info from the secure token storage (already loaded via loadStoredTokens)
+    if (this.allStoredTokens.client_info) {
+      this.clientInfo = this.allStoredTokens.client_info;
+      this.log(
+        `Loaded client info from secure storage: ${this.clientInfo?.client_id}`,
+      );
+    } else {
+      this.log(
+        `No stored client info found, will perform dynamic registration on first OAuth`,
+      );
     }
   }
 
-  private saveClientInfoToFile(): void {
+  private async saveClientInfo(): Promise<void> {
     if (!this.clientInfo) {
       return;
     }
 
     try {
-      const fs = require("fs");
-      fs.writeFileSync(
-        this.clientInfoPath,
-        JSON.stringify(this.clientInfo, null, 2),
-        "utf8",
-      );
-      this.log(`Saved client info to disk: ${this.clientInfo.client_id}`);
+      this.allStoredTokens.client_info = this.clientInfo;
+      await this.saveStoredTokens();
+      this.log(`Saved client info to secure storage: ${this.clientInfo.client_id}`);
     } catch (error) {
       this.log(`Failed to save client info: ${error}`);
     }
+  }
+
+  private async clearClientInfo(): Promise<void> {
+    this.clientInfo = undefined;
+    delete this.allStoredTokens.client_info;
+    await this.saveStoredTokens();
+    this.log("Cleared client info from secure storage");
   }
 
   private async saveStoredTokens(): Promise<void> {
@@ -458,9 +486,9 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
     await this.registerClientWithPierre(clientInformation);
 
     this.clientInfo = clientInformation;
-    this.saveClientInfoToFile(); // Persist to disk
+    await this.saveClientInfo();
     this.log(
-      `Saved client info to memory and disk: ${clientInformation.client_id}`,
+      `Saved client info to secure storage: ${clientInformation.client_id}`,
     );
   }
 
@@ -710,8 +738,18 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
 
   private async exchangeCodeForTokens(
     authorizationCode: string,
-    _state: string,
+    state: string,
   ): Promise<void> {
+    // Validate OAuth state parameter to prevent CSRF attacks
+    if (!this.stateValue || state !== this.stateValue) {
+      this.log(
+        `OAuth state mismatch: expected=${this.stateValue ? "[set]" : "[unset]"}, received=${state ? "[set]" : "[unset]"}`,
+      );
+      throw new Error(
+        "OAuth state parameter mismatch - possible CSRF attack. Please try connecting again.",
+      );
+    }
+
     if (!this.clientInfo) {
       throw new Error("Client information not available for token exchange");
     }
@@ -803,6 +841,8 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
         break;
       case "client":
         this.clientInfo = undefined;
+        delete this.allStoredTokens.client_info;
+        await this.saveStoredTokens();
         break;
       case "tokens":
         this.savedTokens = undefined;
@@ -1047,9 +1087,8 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
           const pathParts = parsedUrl.pathname.split("/");
           const provider = pathParts[3]; // /oauth/provider-callback/{provider}
 
-          // Security: Validate Host header (localhost only)
-          // Provider OAuth callbacks come from Pierre server (not browser redirects),
-          // so localhost validation is sufficient - no session token needed
+          // Security: Validate both Host header and source IP (localhost only)
+          // Provider OAuth callbacks come from Pierre server (not browser redirects)
           const host = req.headers.host;
           if (
             !host ||
@@ -1063,6 +1102,49 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
               JSON.stringify({
                 success: false,
                 message: "Invalid host - only localhost allowed",
+              }),
+            );
+            return;
+          }
+
+          // Validate source IP is actually localhost (Host header can be spoofed)
+          const remoteAddress = req.socket?.remoteAddress;
+          if (
+            remoteAddress &&
+            remoteAddress !== "127.0.0.1" &&
+            remoteAddress !== "::1" &&
+            remoteAddress !== "::ffff:127.0.0.1"
+          ) {
+            this.log(
+              `Rejected POST callback for ${provider}: Non-localhost source IP ${remoteAddress}`,
+            );
+            res.writeHead(403, { "Content-Type": "application/json" });
+            res.end(
+              JSON.stringify({
+                success: false,
+                message: "Invalid source - only localhost allowed",
+              }),
+            );
+            return;
+          }
+
+          // Validate callback session token if provided (defense in depth)
+          const callbackToken =
+            req.headers["x-callback-token"] ||
+            parsedUrl.query?.callback_token;
+          if (
+            this.callbackSessionToken &&
+            callbackToken &&
+            callbackToken !== this.callbackSessionToken
+          ) {
+            this.log(
+              `Rejected POST callback for ${provider}: Invalid callback session token`,
+            );
+            res.writeHead(403, { "Content-Type": "application/json" });
+            res.end(
+              JSON.stringify({
+                success: false,
+                message: "Invalid callback session token",
               }),
             );
             return;
@@ -1240,13 +1322,10 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
           this.log("Cleared invalid tokens from keychain");
         }
 
-        // Clear invalid client info
+        // Clear invalid client info from secure storage
         if (clientInfo) {
-          const fs = require("fs");
-          if (fs.existsSync(this.clientInfoPath)) {
-            fs.unlinkSync(this.clientInfoPath);
-            this.log("Cleared invalid client registration");
-          }
+          await this.clearClientInfo();
+          this.log("Cleared invalid client registration from secure storage");
         }
 
         // Reset in-memory state

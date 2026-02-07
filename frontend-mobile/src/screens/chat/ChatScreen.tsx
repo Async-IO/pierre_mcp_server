@@ -981,6 +981,14 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       );
 
       if (result.type === 'success' && result.url) {
+        // Validate the callback URL matches our expected scheme/host before processing
+        const expectedPrefix = getOAuthCallbackUrl();
+        if (!result.url.startsWith(expectedPrefix)) {
+          console.error('OAuth callback URL does not match expected scheme:', result.url);
+          Alert.alert('Connection Failed', 'Unexpected OAuth callback URL');
+          return;
+        }
+
         // Parse the return URL to check for success/error
         const parsedUrl = Linking.parse(result.url);
         const success = parsedUrl.queryParams?.success === 'true';
@@ -1045,9 +1053,26 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     }
   };
 
-  // Helper to open URLs in browser
+  // Helper to open URLs in browser (restricted to safe schemes)
   const handleOpenUrl = async (url: string) => {
     try {
+      // Validate URL scheme to prevent opening arbitrary deep links from chat content
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(url);
+      } catch {
+        console.error('Invalid URL:', url);
+        Alert.alert('Error', 'Invalid link format');
+        return;
+      }
+
+      const scheme = parsedUrl.protocol.toLowerCase();
+      if (scheme !== 'http:' && scheme !== 'https:') {
+        console.warn('Blocked non-HTTP URL scheme from chat content:', scheme);
+        Alert.alert('Blocked', 'Only HTTP and HTTPS links can be opened from chat messages.');
+        return;
+      }
+
       const { isOAuth } = isOAuthUrl(url);
       if (isOAuth) {
         // Use in-app browser for OAuth

@@ -182,7 +182,7 @@ export default function A2AManagement() {
           </Button>
           <Button 
             variant="secondary" 
-            onClick={() => window.open('/a2a/agent-card', '_blank')}
+            onClick={() => window.open('/a2a/agent-card', '_blank', 'noopener,noreferrer')}
           >
             View Agent Card
           </Button>

@@ -74,6 +74,14 @@ export function ConnectionsScreen({ navigation }: ConnectionsScreenProps) {
       );
 
       if (result.type === 'success' && result.url) {
+        // Validate the callback URL matches our expected scheme/host before processing
+        const expectedPrefix = getOAuthCallbackUrl();
+        if (!result.url.startsWith(expectedPrefix)) {
+          console.error('OAuth callback URL does not match expected scheme:', result.url);
+          Alert.alert('Connection Failed', 'Unexpected OAuth callback URL');
+          return;
+        }
+
         // Parse the return URL to check for success/error
         const parsedUrl = Linking.parse(result.url);
         const success = parsedUrl.queryParams?.success === 'true';

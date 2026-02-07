@@ -319,8 +319,8 @@ export default function UserSettings() {
       setProviderMessage(null);
       const authUrl = await apiService.getOAuthAuthorizeUrlForProvider(providerId);
 
-      // Open OAuth in a popup window
-      const popup = window.open(authUrl, `oauth_${providerId}`, 'width=600,height=700,left=200,top=100');
+      // Open OAuth in a popup window with noopener to prevent tabnabbing
+      const popup = window.open(authUrl, `oauth_${providerId}`, 'width=600,height=700,left=200,top=100,noopener,noreferrer');
 
       // Listen for the OAuth callback result stored in localStorage by OAuthCallback
       const checkInterval = setInterval(() => {
