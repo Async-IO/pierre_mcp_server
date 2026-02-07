@@ -129,19 +129,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     setToken(null);
 
-    // Clear user info from localStorage
-    localStorage.removeItem(STORAGE_KEYS.USER);
-
-    // Clear CSRF token and user from pierreApi's auth storage
-    pierreApi.adapter.authStorage.clear();
-
-    // Optionally call logout endpoint to clear cookies
+    // Send logout request first (while CSRF token is still available),
+    // then clear local storage. authApi.logout() also clears authStorage
+    // in its finally block, so we only need to remove the user key here.
     authApi.logout()
       .catch((error) => {
         console.error('Logout API call failed:', error);
         // Continue with local cleanup even if API fails
       })
       .finally(() => {
+        localStorage.removeItem(STORAGE_KEYS.USER);
         isLoggingOutRef.current = false;
       });
   }, [impersonation.isImpersonating]);

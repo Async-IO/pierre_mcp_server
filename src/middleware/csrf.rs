@@ -104,6 +104,17 @@ impl CsrfMiddleware {
     }
 }
 
+/// Paths exempt from CSRF validation. These are either pre-authentication
+/// (login, register) or session-teardown (logout) endpoints where the client
+/// may not yet have -- or has already discarded -- a CSRF token.
+const CSRF_EXEMPT_PATHS: &[&str] = &[
+    "/oauth/token",
+    "/api/auth/logout",
+    "/api/auth/register",
+    "/api/auth/firebase",
+    "/api/auth/refresh",
+];
+
 /// Axum middleware layer for CSRF validation on cookie-authenticated requests.
 ///
 /// This middleware enforces CSRF protection for state-changing HTTP methods
@@ -111,9 +122,12 @@ impl CsrfMiddleware {
 /// Requests using Bearer tokens or API keys (programmatic clients) bypass
 /// CSRF validation since they are not susceptible to cross-site request forgery.
 ///
+/// Auth endpoints (login, logout, register) are exempt since they operate
+/// before or after a valid session exists.
+///
 /// # Errors
 ///
-/// Returns 403 if a cookie-authenticated state-changing request lacks a valid
+/// Returns 401 if a cookie-authenticated state-changing request lacks a valid
 /// X-CSRF-Token header.
 pub async fn csrf_protection_layer(
     State(resources): State<Arc<ServerResources>>,
@@ -122,9 +136,15 @@ pub async fn csrf_protection_layer(
 ) -> Result<Response, AppError> {
     let method = request.method().clone();
     let headers = request.headers().clone();
+    let path = request.uri().path();
 
     // Only validate state-changing methods
     if !CsrfMiddleware::requires_csrf_validation(&method) {
+        return Ok(next.run(request).await);
+    }
+
+    // Skip CSRF for auth endpoints that operate before or after a session
+    if CSRF_EXEMPT_PATHS.contains(&path) {
         return Ok(next.run(request).await);
     }
 
