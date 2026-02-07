@@ -470,6 +470,31 @@ jobs:
               timeout: 30000
           LAUNCH_EOF
 
+      - name: Create Android E2E test script
+        run: |
+          cat > /tmp/run-android-e2e.sh << 'EOF'
+          #!/bin/bash
+          set -e
+          cd frontend-mobile
+          npx expo start --go --android --port 8082 &
+          echo "Waiting for Metro bundler to be ready..."
+          for i in $(seq 1 90); do
+            if curl -s http://localhost:8082 > /dev/null 2>&1; then
+              echo "Metro is ready!"
+              break
+            fi
+            if [ "$i" -eq 90 ]; then
+              echo "Metro failed to start within timeout!"
+              exit 1
+            fi
+            echo "Attempt $i: Metro not ready yet..."
+            sleep 2
+          done
+          sleep 20
+          $HOME/.maestro/bin/maestro test .maestro/ --format junit --output maestro-results-android.xml
+          EOF
+          chmod +x /tmp/run-android-e2e.sh
+
       - name: Run Maestro tests on Android
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -482,28 +507,7 @@ jobs:
           disable-animations: true
           emulator-boot-timeout: 600
           disk-size: 4096M
-          script: |
-            # Start Metro bundler in Expo Go mode for Android
-            cd frontend-mobile
-            npx expo start --go --android --port 8082 &
-            METRO_PID=$!
-            echo "Waiting for Metro bundler to be ready..."
-            for i in $(seq 1 90); do
-              if curl -s http://localhost:8082 > /dev/null 2>&1; then
-                echo "Metro is ready!"
-                break
-              fi
-              if [ "$i" -eq 90 ]; then
-                echo "Metro failed to start within timeout!"
-                exit 1
-              fi
-              echo "Attempt $i: Metro not ready yet..."
-              sleep 2
-            done
-            # Give Expo Go time to install and load the initial bundle
-            sleep 20
-            # Run Maestro E2E tests
-            $HOME/.maestro/bin/maestro test .maestro/ --format junit --output maestro-results-android.xml
+          script: bash /tmp/run-android-e2e.sh
         env:
           CI: "true"
           EXPO_PUBLIC_API_URL: "http://10.0.2.2:8081"
