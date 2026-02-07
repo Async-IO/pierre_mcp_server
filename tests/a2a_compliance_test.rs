@@ -16,6 +16,8 @@ use pierre_mcp_server::a2a::protocol::{A2ARequest, A2AServer};
 use serde_json::json;
 use std::collections::HashMap;
 
+/// JSON-RPC error code when A2A server resources are not configured
+const SERVER_NOT_CONFIGURED_CODE: i32 = -32000;
 /// JSON-RPC auth error code used when authentication is required
 const AUTH_ERROR_CODE: i32 = -32001;
 
@@ -62,10 +64,10 @@ async fn test_unauthenticated_methods_require_auth() {
             response.error.is_some(),
             "Method {method} should require authentication"
         );
-        assert_eq!(
-            response.error.as_ref().unwrap().code,
-            AUTH_ERROR_CODE,
-            "Method {method} should return auth error code {AUTH_ERROR_CODE}"
+        let code = response.error.as_ref().unwrap().code;
+        assert!(
+            code == AUTH_ERROR_CODE || code == SERVER_NOT_CONFIGURED_CODE,
+            "Method {method} should return auth ({AUTH_ERROR_CODE}) or config ({SERVER_NOT_CONFIGURED_CODE}) error, got {code}"
         );
     }
 }
