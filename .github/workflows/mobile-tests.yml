@@ -348,7 +348,7 @@ jobs:
     runs-on: ubuntu-latest
     # Run on main, claude/* branches, or when explicitly triggered
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/claude/') || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 75
+    timeout-minutes: 90
 
     steps:
       - name: Checkout code
@@ -451,14 +451,14 @@ jobs:
 
       - name: Adapt Maestro tests for Expo Go
         run: |
-          # Replace native app ID with Expo Go app ID in all Maestro YAML files
-          find frontend-mobile/.maestro -name "*.yaml" -exec sed -i 's/appId: com.pierre.fitness/appId: host.exp.Exponent/g' {} +
+          # Replace native app ID with Android Expo Go package name (lowercase)
+          find frontend-mobile/.maestro -name "*.yaml" -exec sed -i 's/appId: com.pierre.fitness/appId: host.exp.exponent/g' {} +
           # Override launch helper for Expo Go deep linking (Android uses 10.0.2.2 for host)
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
           # ABOUTME: Helper flow to launch the Pierre app via Expo Go on Android
           # ABOUTME: Uses deep link to connect Expo Go to Metro bundler via emulator host
 
-          appId: host.exp.Exponent
+          appId: host.exp.exponent
 
           ---
           - clearState
@@ -467,7 +467,7 @@ jobs:
           - extendedWaitUntil:
               visible:
                 id: "login-screen"
-              timeout: 30000
+              timeout: 60000
           LAUNCH_EOF
 
       - name: Create Android E2E test script
@@ -490,7 +490,8 @@ jobs:
             echo "Attempt $i: Metro not ready yet..."
             sleep 2
           done
-          sleep 20
+          # Wait for Expo Go to install and load the initial bundle
+          sleep 30
           $HOME/.maestro/bin/maestro test .maestro/ --format junit --output maestro-results-android.xml
           EOF
           chmod +x /tmp/run-android-e2e.sh
