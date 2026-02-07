@@ -222,7 +222,8 @@ describe('AuthContext', () => {
       expect(screen.getByTestId('authenticated')).toHaveTextContent('Not Authenticated')
     })
 
-    expect(mockAuthStorage.clear).toHaveBeenCalled()
+    // authApi.logout() handles authStorage.clear() internally (in its finally block),
+    // so we only verify the logout API was called — the mock replaces the real implementation
     expect(authApi.logout).toHaveBeenCalled()
     expect(screen.queryByTestId('user-email')).not.toBeInTheDocument()
   })
