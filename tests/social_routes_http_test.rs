@@ -869,9 +869,9 @@ async fn test_delete_insight_not_owner() {
     let insight_id = created["id"].as_str().unwrap();
 
     // Try to delete as different user
-    let delete_url = format!("/api/social/insights/{}", insight_id);
+    let delete_url = format!("/api/social/insights/{insight_id}");
     let response = AxumTestRequest::delete(&delete_url)
-        .header("authorization", &format!("Bearer {}", friend_token))
+        .header("authorization", &format!("Bearer {friend_token}"))
         .send(routes)
         .await;
 
@@ -946,7 +946,7 @@ async fn test_add_reaction_success() {
     let insight_id = created["id"].as_str().unwrap();
 
     // Add reaction from different user
-    let url = format!("/api/social/insights/{}/reactions", insight_id);
+    let url = format!("/api/social/insights/{insight_id}/reactions");
     let reaction_body = json!({
         "reaction_type": "like"
     });
@@ -1176,7 +1176,7 @@ async fn test_adapt_insight_success() {
     let insight_id = created["id"].as_str().unwrap();
 
     // Adapt the insight as a different user
-    let adapt_url = format!("/api/social/insights/{}/adapt", insight_id);
+    let adapt_url = format!("/api/social/insights/{insight_id}/adapt");
     let adapt_body = json!({
         "context": "I'm currently running 20 miles per week"
     });
@@ -1223,7 +1223,7 @@ async fn test_adapt_insight_without_context() {
     let insight_id = created["id"].as_str().unwrap();
 
     // Adapt without context
-    let adapt_url = format!("/api/social/insights/{}/adapt", insight_id);
+    let adapt_url = format!("/api/social/insights/{insight_id}/adapt");
     let adapt_body = json!({});
 
     let response = AxumTestRequest::post(&adapt_url)
@@ -1315,7 +1315,7 @@ async fn test_update_helpful_success() {
     let insight_id = created["id"].as_str().unwrap();
 
     // Adapt the insight
-    let adapt_url = format!("/api/social/insights/{}/adapt", insight_id);
+    let adapt_url = format!("/api/social/insights/{insight_id}/adapt");
     let adapt_response = AxumTestRequest::post(&adapt_url)
         .header("authorization", &format!("Bearer {}", friend_token))
         .json(&json!({}))

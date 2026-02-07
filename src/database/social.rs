@@ -465,7 +465,7 @@ impl SocialManager {
               AND (
                 si.user_id = $2
                 OR si.visibility = 'public'
-                OR (si.visibility = 'friends' AND EXISTS (
+                OR (si.visibility = 'friends_only' AND EXISTS (
                     SELECT 1 FROM friend_connections fc
                     WHERE fc.status = 'accepted'
                       AND ((fc.initiator_id = $2 AND fc.receiver_id = si.user_id)
