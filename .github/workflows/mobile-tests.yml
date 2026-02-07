@@ -167,7 +167,7 @@ jobs:
     runs-on: macos-latest
     # Run on main, claude/* branches, or when explicitly triggered
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/claude/') || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
       - name: Checkout code
@@ -484,6 +484,7 @@ jobs:
           force-avd-creation: true
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
+          emulator-boot-timeout: 600
           script: |
             # Install the APK
             adb install frontend-mobile/android/app/build/outputs/apk/debug/app-debug.apk
