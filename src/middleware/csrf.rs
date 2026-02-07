@@ -135,7 +135,6 @@ pub async fn csrf_protection_layer(
     next: Next,
 ) -> Result<Response, AppError> {
     let method = request.method().clone();
-    let path = request.uri().path().to_owned();
     let headers = request.headers().clone();
     let path = request.uri().path();
 
