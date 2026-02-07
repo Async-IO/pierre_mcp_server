@@ -70,7 +70,7 @@ export async function createTestAdminUser(user: TestUser): Promise<CreateUserRes
     if (/[;&|`$"'\\<>]/.test(user.password)) {
       return { success: false, error: 'Password contains invalid characters' };
     }
-    const command = `${adminSetup} user create --email "${user.email}" --password "${user.password}"`;
+    const command = `${adminSetup} user create --email "${user.email}" --password "${user.password}" --force`;
     // Security: Don't log the full command or DATABASE_URL as they may contain credentials
     console.log(`[DB Setup] Creating admin user: ${user.email}`);
 

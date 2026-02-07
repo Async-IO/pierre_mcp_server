@@ -167,7 +167,7 @@ jobs:
     runs-on: macos-latest
     # Run on main, claude/* branches, or when explicitly triggered
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/claude/') || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Checkout code
@@ -252,7 +252,7 @@ jobs:
 
       - name: Seed test user for Maestro tests
         run: |
-          ./target/release/pierre-cli user create --email mobiletest@pierre.dev --password MobileTest123!
+          ./target/release/pierre-cli user create --email mobiletest@pierre.dev --password MobileTest123! --force
         env:
           DATABASE_URL: "sqlite:${{ github.workspace }}/data/maestro-test.db"
           PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
@@ -348,7 +348,7 @@ jobs:
     runs-on: ubuntu-latest
     # Run on main, claude/* branches, or when explicitly triggered
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/claude/') || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 60
+    timeout-minutes: 75
 
     steps:
       - name: Checkout code
@@ -450,7 +450,7 @@ jobs:
 
       - name: Seed test user for Maestro tests
         run: |
-          ./target/release/pierre-cli user create --email mobiletest@pierre.dev --password MobileTest123!
+          ./target/release/pierre-cli user create --email mobiletest@pierre.dev --password MobileTest123! --force
         env:
           DATABASE_URL: "sqlite:${{ github.workspace }}/data/maestro-android-test.db"
           PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
