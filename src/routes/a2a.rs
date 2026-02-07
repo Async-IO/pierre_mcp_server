@@ -174,10 +174,12 @@ impl A2ARoutes {
     }
 
     /// Handle agent card discovery endpoint (public endpoint)
-    async fn handle_agent_card_discovery() -> Json<AgentCard> {
+    async fn handle_agent_card_discovery(
+        State(resources): State<Arc<ServerResources>>,
+    ) -> Json<AgentCard> {
         // Yield to scheduler for cooperative multitasking
         task::yield_now().await;
-        Json(AgentCard::new())
+        Json(AgentCard::with_base_url(&resources.config.base_url))
     }
 
     /// List all A2A clients for authenticated user

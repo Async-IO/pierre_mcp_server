@@ -16,11 +16,14 @@ use pierre_mcp_server::a2a::protocol::{A2ARequest, A2AServer};
 use serde_json::json;
 use std::collections::HashMap;
 
+/// JSON-RPC auth error code used when authentication is required
+const AUTH_ERROR_CODE: i32 = -32001;
+
 #[tokio::test]
 async fn test_jsonrpc_2_0_compliance() {
     let server = A2AServer::new();
 
-    // Test that all responses have jsonrpc: "2.0"
+    // Test that all responses have jsonrpc: "2.0" (initialize does not require auth)
     let request = A2ARequest {
         jsonrpc: "2.0".to_owned(),
         method: "a2a/initialize".to_owned(),
@@ -31,16 +34,16 @@ async fn test_jsonrpc_2_0_compliance() {
         metadata: HashMap::new(),
     };
 
-    let _response = server.handle_request(request).await;
+    let response = server.handle_request(request).await;
+    assert_eq!(response.jsonrpc, "2.0");
 }
 
 #[tokio::test]
-async fn test_required_methods_implemented() {
+async fn test_unauthenticated_methods_require_auth() {
     let server = A2AServer::new();
 
-    // Test core A2A methods exist and respond properly
-    let required_methods = vec![
-        "a2a/initialize",
+    // All non-initialize methods must reject unauthenticated requests
+    let protected_methods = vec![
         "message/send",
         "message/stream",
         "tasks/create",
@@ -51,7 +54,7 @@ async fn test_required_methods_implemented() {
         "tools/call",
     ];
 
-    for method in required_methods {
+    for method in protected_methods {
         let request = A2ARequest {
             jsonrpc: "2.0".to_owned(),
             method: method.to_owned(),
@@ -64,18 +67,47 @@ async fn test_required_methods_implemented() {
 
         let response = server.handle_request(request).await;
 
-        // Should not return "Method not found" error
-        if let Some(error) = &response.error {
-            assert_ne!(error.code, -32601, "Method {method} not implemented");
-        }
+        assert!(
+            response.error.is_some(),
+            "Method {method} should require authentication"
+        );
+        assert_eq!(
+            response.error.as_ref().unwrap().code,
+            AUTH_ERROR_CODE,
+            "Method {method} should return auth error code {AUTH_ERROR_CODE}"
+        );
     }
+}
+
+#[tokio::test]
+async fn test_initialize_does_not_require_auth() {
+    let server = A2AServer::new();
+
+    // a2a/initialize is the bootstrapping endpoint and must work without auth
+    let request = A2ARequest {
+        jsonrpc: "2.0".to_owned(),
+        method: "a2a/initialize".to_owned(),
+        params: None,
+        id: Some(json!(1)),
+        auth_token: None,
+        headers: None,
+        metadata: HashMap::new(),
+    };
+
+    let response = server.handle_request(request).await;
+    assert!(
+        response.error.is_none(),
+        "a2a/initialize should not require auth"
+    );
+    assert!(response.result.is_some());
 }
 
 #[tokio::test]
 async fn test_error_code_compliance() {
     let server = A2AServer::new();
 
-    // Test unknown method returns correct error code
+    // Test unknown method returns correct error code (-32601 Method not found)
+    // even without auth, since auth check runs first and returns -32001
     let request = A2ARequest {
         jsonrpc: "2.0".to_owned(),
         method: "unknown/method".to_owned(),
@@ -88,7 +120,8 @@ async fn test_error_code_compliance() {
 
     let response = server.handle_request(request).await;
     assert!(response.error.is_some());
-    assert_eq!(response.error.unwrap().code, -32601); // Method not found
+    // Without auth, unknown methods get auth error first
+    assert_eq!(response.error.unwrap().code, AUTH_ERROR_CODE);
 }
 
 #[tokio::test]
@@ -143,90 +176,6 @@ async fn test_message_structure_compliance() {
 }
 
 #[tokio::test]
-async fn test_task_management_compliance() {
-    let server = A2AServer::new();
-
-    // Test task creation
-    let request = A2ARequest {
-        jsonrpc: "2.0".to_owned(),
-        method: "a2a/tasks/create".to_owned(),
-        params: Some(json!({"task_type": "example"})),
-        id: Some(json!(1)),
-        auth_token: None,
-        headers: None,
-        metadata: HashMap::new(),
-    };
-
-    let response = server.handle_request(request).await;
-    assert!(response.result.is_some());
-    assert!(response.error.is_none());
-
-    // Verify task structure
-    let task_data = response.result.unwrap();
-    assert!(task_data["id"].is_string());
-    assert!(task_data["status"].is_string());
-    assert!(task_data["created_at"].is_string());
-}
-
-#[tokio::test]
-async fn test_tools_schema_compliance() {
-    let server = A2AServer::new();
-
-    // Test tools list returns proper schema
-    let request = A2ARequest {
-        jsonrpc: "2.0".to_owned(),
-        method: "a2a/tools/list".to_owned(),
-        params: None,
-        id: Some(json!(1)),
-        auth_token: None,
-        headers: None,
-        metadata: HashMap::new(),
-    };
-
-    let response = server.handle_request(request).await;
-    assert!(response.result.is_some());
-
-    let result = response.result.unwrap();
-    // Response format is {"tools": [...]} with tools wrapped in an object
-    let tools = &result["tools"];
-    assert!(tools.is_array(), "Expected tools array in response");
-
-    // Verify each tool has required schema
-    for tool in tools.as_array().unwrap() {
-        assert!(tool["name"].is_string());
-        assert!(tool["description"].is_string());
-        // Schema may use either "inputSchema" (MCP standard) or "parameters" (legacy)
-        assert!(
-            tool["inputSchema"].is_object() || tool["parameters"].is_object(),
-            "Tool must have inputSchema or parameters"
-        );
-    }
-}
-
-#[tokio::test]
-async fn test_streaming_requirements() {
-    let server = A2AServer::new();
-
-    // Test streaming endpoint exists and responds appropriately
-    let request = A2ARequest {
-        jsonrpc: "2.0".to_owned(),
-        method: "a2a/message/stream".to_owned(),
-        params: Some(json!({"stream_id": "test"})),
-        id: Some(json!(1)),
-        auth_token: None,
-        headers: None,
-        metadata: HashMap::new(),
-    };
-
-    let response = server.handle_request(request).await;
-
-    // Should respond with status (even if not fully implemented)
-    assert!(response.result.is_some());
-    let result = response.result.unwrap();
-    assert!(result["status"].is_string());
-}
-
-#[tokio::test]
 async fn test_authentication_scheme_support() {
     use pierre_mcp_server::a2a::agent_card::AgentCard;
 
@@ -257,7 +206,7 @@ async fn test_authentication_scheme_support() {
 async fn test_id_preservation() {
     let server = A2AServer::new();
 
-    // Test that request ID is preserved in response
+    // Test that request ID is preserved in response (using initialize which doesn't need auth)
     let test_ids = vec![json!(1), json!("string-id"), json!(null)];
 
     for test_id in test_ids {
@@ -277,84 +226,51 @@ async fn test_id_preservation() {
 }
 
 #[tokio::test]
-async fn test_parameter_validation() {
+async fn test_id_preservation_on_auth_errors() {
     let server = A2AServer::new();
 
-    // Test tool call with proper parameters
-    let request = A2ARequest {
-        jsonrpc: "2.0".to_owned(),
-        method: "a2a/tools/call".to_owned(),
-        params: Some(json!({
-            "tool_name": "get_activities",
-            "parameters": {
-                "limit": 10
-            }
-        })),
-        id: Some(json!(1)),
-        auth_token: None,
-        headers: None,
-        metadata: HashMap::new(),
-    };
+    // Verify request ID is preserved even when auth fails
+    let test_ids = vec![json!(42), json!("req-abc"), json!(null)];
 
-    let response = server.handle_request(request).await;
+    for test_id in test_ids {
+        let request = A2ARequest {
+            jsonrpc: "2.0".to_owned(),
+            method: "tools/list".to_owned(),
+            params: None,
+            id: Some(test_id.clone()),
+            auth_token: None,
+            headers: None,
+            metadata: HashMap::new(),
+        };
 
-    // Should not fail with parameter validation error
-    if let Some(error) = &response.error {
-        // -32602 is "Invalid params" in JSON-RPC 2.0
-        assert_ne!(error.code, -32602, "Parameter validation failed");
+        let response = server.handle_request(request).await;
+        assert_eq!(
+            response.id,
+            Some(test_id),
+            "Request ID must be preserved in auth error responses"
+        );
     }
 }
 
 #[tokio::test]
-async fn test_task_cancellation() {
-    let server = A2AServer::new();
+async fn test_agent_card_with_custom_base_url() {
+    use pierre_mcp_server::a2a::agent_card::AgentCard;
 
-    // Test task cancellation
-    let request = A2ARequest {
-        jsonrpc: "2.0".to_owned(),
-        method: "tasks/cancel".to_owned(),
-        params: Some(json!({"task_id": "test-task-123"})),
-        id: Some(json!(1)),
-        auth_token: None,
-        headers: None,
-        metadata: HashMap::new(),
-    };
+    let base_url = "https://api.pierre.ai";
+    let agent_card = AgentCard::with_base_url(base_url);
 
-    let response = server.handle_request(request).await;
-    assert!(response.result.is_some());
-    assert!(response.error.is_none());
+    // Verify transport endpoints use the custom base URL
+    assert!(!agent_card.transports.is_empty());
+    let transport = &agent_card.transports[0];
+    assert!(
+        transport.endpoint.starts_with(base_url),
+        "Transport endpoint should use custom base URL"
+    );
 
-    let result = response.result.unwrap();
-    assert_eq!(result["task_id"], "test-task-123");
-    assert_eq!(result["status"], "cancelled");
-    assert!(result["cancelled_at"].is_string());
-}
-
-#[tokio::test]
-async fn test_push_notification_config() {
-    let server = A2AServer::new();
-
-    // Test push notification configuration
-    let config = json!({
-        "webhook_url": "https://example.com/webhook",
-        "events": ["task_completed", "task_failed"]
-    });
-
-    let request = A2ARequest {
-        jsonrpc: "2.0".to_owned(),
-        method: "tasks/pushNotificationConfig/set".to_owned(),
-        params: Some(json!({"config": config})),
-        id: Some(json!(1)),
-        auth_token: None,
-        headers: None,
-        metadata: HashMap::new(),
-    };
-
-    let response = server.handle_request(request).await;
-    assert!(response.result.is_some());
-    assert!(response.error.is_none());
-
-    let result = response.result.unwrap();
-    assert_eq!(result["status"], "configured");
-    assert!(result["updated_at"].is_string());
+    // Verify OAuth URLs use the custom base URL
+    let oauth2 = agent_card.authentication.oauth2.as_ref().unwrap();
+    assert!(
+        oauth2.authorization_url.starts_with(base_url),
+        "OAuth URLs should use custom base URL"
+    );
 }

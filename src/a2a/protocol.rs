@@ -329,16 +329,27 @@ impl A2AServer {
     }
 
     /// Handle incoming A2A request
+    ///
+    /// All methods except `a2a/initialize` require a valid authentication token.
+    /// The `a2a/initialize` method is the bootstrapping endpoint and supports
+    /// optional auth for OAuth credential storage.
     pub async fn handle_request(&self, request: A2ARequest) -> A2AResponse {
+        // a2a/initialize is the bootstrapping endpoint - no auth required
+        if request.method == "a2a/initialize" {
+            return if request.auth_token.is_some() && self.resources.is_some() {
+                self.handle_initialize_with_oauth(request).await
+            } else {
+                self.handle_initialize(request)
+            };
+        }
+
+        // All other methods require authentication
+        let user_id = match self.require_auth(&request) {
+            Ok(uid) => uid,
+            Err(error_response) => return *error_response,
+        };
+
         match request.method.as_str() {
-            "a2a/initialize" => {
-                // Use OAuth-aware initialization if authentication is provided
-                if request.auth_token.is_some() && self.resources.is_some() {
-                    self.handle_initialize_with_oauth(request).await
-                } else {
-                    self.handle_initialize(request)
-                }
-            }
             "message/send" | "a2a/message/send" => Self::handle_message_send(request),
             "message/stream" | "a2a/message/stream" => self.handle_message_stream(request),
             "tasks/create" | "a2a/tasks/create" => self.handle_task_create(request).await,
@@ -348,9 +359,33 @@ impl A2AServer {
             "tasks/pushNotificationConfig/set" => Self::handle_push_notification_config(request),
             "a2a/tasks/list" => self.handle_task_list(request).await,
             "tools/list" | "a2a/tools/list" => self.handle_tools_list(request),
-            "tools/call" | "a2a/tools/call" => self.handle_tool_call(request).await,
+            "tools/call" | "a2a/tools/call" => {
+                self.handle_tool_call_authenticated(request, user_id).await
+            }
             _ => Self::handle_unknown_method(request),
         }
+    }
+
+    /// Require authentication for the request, returning the authenticated user ID.
+    ///
+    /// Returns an auth error response if authentication fails or resources are
+    /// unavailable for token validation.
+    fn require_auth(&self, request: &A2ARequest) -> Result<Uuid, Box<A2AResponse>> {
+        let resources = self.resources.as_ref().ok_or_else(|| {
+            Box::new(A2AResponse {
+                jsonrpc: "2.0".into(),
+                result: None,
+                error: Some(A2AErrorResponse {
+                    code: -32001,
+                    message: "Authentication required but server resources not available"
+                        .to_owned(),
+                    data: None,
+                }),
+                id: request.id.clone(),
+            })
+        })?;
+
+        Self::authenticate_request(request, resources)
     }
 
     fn handle_initialize(&self, request: A2ARequest) -> A2AResponse {
@@ -437,8 +472,7 @@ impl A2AServer {
                 .inspect_err(|e| {
                     warn!(
                         error = ?e,
-                        params = ?params,
-                        "Failed to parse A2A initialize request parameters - using defaults"
+                        "Failed to parse A2A initialize request parameters - using defaults (params redacted)"
                     );
                 })
                 .ok()
@@ -948,7 +982,11 @@ impl A2AServer {
         }
     }
 
-    async fn handle_tool_call(&self, request: A2ARequest) -> A2AResponse {
+    async fn handle_tool_call_authenticated(
+        &self,
+        request: A2ARequest,
+        user_id: Uuid,
+    ) -> A2AResponse {
         // Extract tool call parameters
         let params = request.params.unwrap_or_default();
 
@@ -983,12 +1021,8 @@ impl A2AServer {
             }
         };
 
-        // Build tool execution context for A2A protocol
-        // A2A protocol uses a system user ID for unauthenticated requests
-        // In production, this should come from A2A authentication/session
-        let system_user_id = Uuid::nil(); // Sentinel value for A2A system requests
-        let tool_ctx =
-            ToolExecutionContext::new(system_user_id, resources.clone(), AuthMethod::ApiKey);
+        // Build tool execution context with authenticated user identity
+        let tool_ctx = ToolExecutionContext::new(user_id, resources.clone(), AuthMethod::ApiKey);
 
         // Try the registry first, fall back to error for unregistered tools
         if resources.tool_registry.contains(tool_name) {

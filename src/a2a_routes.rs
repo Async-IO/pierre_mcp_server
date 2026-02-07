@@ -136,6 +136,39 @@ impl A2ARoutes {
             })
     }
 
+    /// Authenticate the auth header and return the user ID as a UUID.
+    /// Validates JWT token from the Authorization header.
+    fn authenticate_and_get_user_id(&self, auth_header: Option<&str>) -> Result<Uuid, A2AError> {
+        let token = Self::extract_jwt_token(auth_header).map_err(|e| {
+            A2AError::AuthenticationFailed(format!("Missing or invalid authorization: {e}"))
+        })?;
+        let user_id_str = self
+            .validate_jwt_and_get_user_id(&token)
+            .map_err(|e| A2AError::AuthenticationFailed(format!("Token validation failed: {e}")))?;
+        Uuid::parse_str(&user_id_str)
+            .map_err(|e| A2AError::InternalError(format!("Invalid user ID format: {e}")))
+    }
+
+    /// Verify that the authenticated user owns the specified client.
+    /// Returns an error if the client does not exist or the user does not own it.
+    async fn verify_client_ownership(
+        &self,
+        client_id: &str,
+        user_id: &Uuid,
+    ) -> Result<(), A2AError> {
+        let client = self
+            .client_manager
+            .get_client(client_id)
+            .await?
+            .ok_or_else(|| A2AError::ResourceNotFound(format!("Client {client_id}")))?;
+
+        if client.user_id != *user_id {
+            return Err(A2AError::ResourceNotFound(format!("Client {client_id}")));
+        }
+
+        Ok(())
+    }
+
     /// Creates a new A2A routes instance
     #[must_use]
     pub fn new(resources: Arc<ServerResources>) -> Self {
@@ -161,21 +194,24 @@ impl A2ARoutes {
         Ok(AgentCard::with_base_url(&self.resources.config.base_url))
     }
 
-    /// Get A2A dashboard overview
+    /// Get A2A dashboard overview (scoped to authenticated user's clients)
     ///
     /// # Errors
     ///
     /// Returns `A2AError` if:
+    /// - Authentication fails
     /// - Database operations fail
     /// - Client list cannot be retrieved
     pub async fn get_dashboard_overview(
         &self,
-        _auth_header: Option<&str>,
+        auth_header: Option<&str>,
     ) -> Result<A2ADashboardOverview, A2AError> {
-        // Use existing client manager methods for real data
+        // Authenticate and scope to user's clients
+        let user_id = self.authenticate_and_get_user_id(auth_header)?;
+
         let clients = self
             .client_manager
-            .list_all_clients()
+            .list_clients_for_user(&user_id)
             .await
             .map_err(|e| A2AError::DatabaseError(e.to_string()))?;
 
@@ -254,64 +290,75 @@ impl A2ARoutes {
             .await
     }
 
-    /// List A2A clients
+    /// List A2A clients scoped to the authenticated user
     ///
     /// # Errors
     ///
     /// Returns `A2AError` if:
+    /// - Authentication fails
     /// - Database operations fail
     /// - Client list cannot be retrieved
     pub async fn list_clients(
         &self,
-        _auth_header: Option<&str>,
+        auth_header: Option<&str>,
     ) -> Result<Vec<A2AClient>, A2AError> {
-        self.client_manager.list_all_clients().await
+        let user_id = self.authenticate_and_get_user_id(auth_header)?;
+        self.client_manager.list_clients_for_user(&user_id).await
     }
 
-    /// Get A2A client usage statistics
+    /// Get A2A client usage statistics (requires ownership)
     ///
     /// # Errors
     ///
     /// Returns `A2AError` if:
-    /// - Client does not exist
+    /// - Authentication fails
+    /// - Client does not exist or caller does not own it
     /// - Database operations fail
     pub async fn get_client_usage(
         &self,
-        _auth_header: Option<&str>,
+        auth_header: Option<&str>,
         client_id: &str,
     ) -> Result<ClientUsageStats, A2AError> {
+        let user_id = self.authenticate_and_get_user_id(auth_header)?;
+        self.verify_client_ownership(client_id, &user_id).await?;
         self.client_manager.get_client_usage(client_id).await
     }
 
-    /// Get A2A client rate limit status
+    /// Get A2A client rate limit status (requires ownership)
     ///
     /// # Errors
     ///
     /// Returns `A2AError` if:
-    /// - Client does not exist
+    /// - Authentication fails
+    /// - Client does not exist or caller does not own it
     /// - Database operations fail
     pub async fn get_client_rate_limit(
         &self,
-        _auth_header: Option<&str>,
+        auth_header: Option<&str>,
         client_id: &str,
     ) -> Result<A2ARateLimitStatus, A2AError> {
+        let user_id = self.authenticate_and_get_user_id(auth_header)?;
+        self.verify_client_ownership(client_id, &user_id).await?;
         self.client_manager
             .get_client_rate_limit_status(client_id)
             .await
     }
 
-    /// Deactivate A2A client
+    /// Deactivate A2A client (requires ownership)
     ///
     /// # Errors
     ///
     /// Returns `A2AError` if:
-    /// - Client does not exist
+    /// - Authentication fails
+    /// - Client does not exist or caller does not own it
     /// - Database operations fail
     pub async fn deactivate_client(
         &self,
-        _auth_header: Option<&str>,
+        auth_header: Option<&str>,
         client_id: &str,
     ) -> Result<(), A2AError> {
+        let user_id = self.authenticate_and_get_user_id(auth_header)?;
+        self.verify_client_ownership(client_id, &user_id).await?;
         self.client_manager.deactivate_client(client_id).await
     }
 
@@ -335,18 +382,13 @@ impl A2ARoutes {
             .and_then(|v| v.as_str())
             .ok_or_else(|| A2AError::InvalidRequest("Missing client_secret".into()))?;
 
-        let scopes = request
-            .get("scopes")
-            .and_then(|v| v.as_array())
-            .map_or_else(
-                || vec!["read".into()],
-                |arr| {
-                    arr.iter()
-                        .filter_map(|v| v.as_str())
-                        .map(str::to_owned)
-                        .collect::<Vec<String>>()
-                },
-            );
+        let explicitly_requested_scopes =
+            request.get("scopes").and_then(|v| v.as_array()).map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(str::to_owned)
+                    .collect::<Vec<String>>()
+            });
 
         // Verify client exists and credentials are valid
         let client = self
@@ -361,7 +403,7 @@ impl A2ARoutes {
             ));
         }
 
-        // Verify client secret using constant-time comparison to prevent timing attacks
+        // Verify client secret BEFORE scope validation to prevent unauthenticated scope probing
         let credentials = self
             .client_manager
             .get_client_credentials(client_id)
@@ -385,20 +427,54 @@ impl A2ARoutes {
             ));
         }
 
-        // Create A2A session
-        let session_token = self
+        // Determine granted scopes (only after successful authentication):
+        // - If scopes are explicitly requested, validate against client's registered permissions
+        // - If no scopes requested, grant the client's full registered permissions
+        let granted_scopes = if let Some(requested) = explicitly_requested_scopes {
+            let allowed_permissions = &client.permissions;
+            if !allowed_permissions.is_empty() {
+                for scope in &requested {
+                    if !allowed_permissions.contains(scope) {
+                        return Err(A2AError::InsufficientPermissions(format!(
+                            "Scope '{scope}' is not in client's allowed permissions"
+                        )));
+                    }
+                }
+            }
+            requested
+        } else {
+            // No scopes requested: grant all client permissions
+            client.permissions.clone()
+        };
+
+        // Issue a JWT token (compatible with all handlers that use validate_jwt_and_get_user_id)
+        // instead of a session token that would fail JWT validation downstream
+        let jwt_token = self
             .resources
+            .auth_manager
+            .generate_client_credentials_token(
+                &self.resources.jwks_manager,
+                client_id,
+                &granted_scopes,
+                None,
+            )
+            .map_err(|e| {
+                A2AError::InternalError(format!("Failed to generate access token: {e}"))
+            })?;
+
+        // Also create an A2A session for tracking purposes
+        self.resources
             .database
-            .create_a2a_session(client_id, None, &scopes, 24)
+            .create_a2a_session(client_id, None, &granted_scopes, 24)
             .await
             .map_err(|e| A2AError::InternalError(format!("Failed to create session: {e}")))?;
 
         Ok(json!({
             "status": "authenticated",
-            "session_token": session_token,
+            "access_token": jwt_token,
             "expires_in": DAY_SECONDS,
             "token_type": "Bearer",
-            "scope": scopes.join(" ")
+            "scope": granted_scopes.join(" ")
         }))
     }
 

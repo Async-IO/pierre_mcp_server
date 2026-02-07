@@ -154,7 +154,10 @@ impl Database {
         encryption_key: Vec<u8>,
         #[cfg(feature = "postgresql")] pool_config: &PostgresPoolConfig,
     ) -> AppResult<Self> {
-        debug!("Detecting database type from URL: {}", database_url);
+        debug!(
+            "Detecting database type from URL: {}",
+            redact_database_url(database_url)
+        );
         let db_type = detect_database_type(database_url)?;
         info!("Detected database type: {:?}", db_type);
 
@@ -308,12 +311,33 @@ impl Database {
     }
 }
 
-/// Automatically detect database type from connection string
+/// Redact credentials from a database URL for safe logging.
+///
+/// Replaces `user:password@` with `user:***@` in connection strings.
+/// `SQLite` URLs and URLs without credentials are returned unchanged.
+fn redact_database_url(url: &str) -> String {
+    // Only redact postgres-style URLs that may contain credentials
+    if let Some(scheme_end) = url.find("://") {
+        let after_scheme = &url[scheme_end + 3..];
+        // Look for user:password@host pattern
+        if let Some(at_pos) = after_scheme.find('@') {
+            let userinfo = &after_scheme[..at_pos];
+            if let Some(colon_pos) = userinfo.find(':') {
+                let username = &userinfo[..colon_pos];
+                let rest = &after_scheme[at_pos..];
+                return format!("{}://{username}:***{rest}", &url[..scheme_end]);
+            }
+        }
+    }
+    url.to_owned()
+}
+
+/// Automatically detect database type from connection string.
 ///
 /// # Errors
 ///
 /// Returns an error if:
-/// - Database URL format is not recognized (must start with 'sqlite:' or 'postgresql://')
+/// - Database URL format is not recognized (must start with `sqlite:` or `postgresql://`)
 /// - `PostgreSQL` URL is provided but `PostgreSQL` feature is not enabled
 /// - Connection string is malformed or empty
 pub fn detect_database_type(database_url: &str) -> AppResult<DatabaseType> {

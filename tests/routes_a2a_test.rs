@@ -419,7 +419,14 @@ async fn test_get_dashboard_overview_without_auth() {
     let setup = A2ATestSetup::new().await;
 
     let result = setup.routes.get_dashboard_overview(None).await;
-    assert!(result.is_ok()); // Currently, auth is not enforced in implementation
+    assert!(
+        result.is_err(),
+        "Dashboard overview should require authentication"
+    );
+    match result.unwrap_err() {
+        A2AError::AuthenticationFailed(_) => {} // Expected
+        other => panic!("Expected AuthenticationFailed, got: {:?}", other),
+    }
 }
 
 // =============================================================================
@@ -655,6 +662,7 @@ async fn test_get_client_usage_nonexistent() {
 
     match result.unwrap_err() {
         A2AError::ClientNotRegistered(_) => {} // Expected error
+        A2AError::ResourceNotFound(_) => {}    // Expected for ownership check failure
         A2AError::DatabaseError(_) => {}       // Also acceptable
         A2AError::InternalError(_) => {}       // Also acceptable (for database errors)
         other => panic!("Unexpected error type: {:?}", other),
@@ -747,7 +755,7 @@ async fn test_authenticate_success() {
     let auth_request = json!({
         "client_id": client_id,
         "client_secret": client_secret,
-        "scopes": ["read", "write"]
+        "scopes": ["read_activities"]
     });
 
     let result = setup.routes.authenticate(auth_request).await;
@@ -755,10 +763,10 @@ async fn test_authenticate_success() {
 
     let response = result.unwrap();
     assert_eq!(response["status"], "authenticated");
-    assert!(response["session_token"].is_string());
+    assert!(response["access_token"].is_string());
     assert!(response["expires_in"].is_number());
     assert_eq!(response["token_type"], "Bearer");
-    assert_eq!(response["scope"], "read write");
+    assert_eq!(response["scope"], "read_activities");
 }
 
 #[tokio::test]
@@ -893,7 +901,8 @@ async fn test_authenticate_default_scopes() {
     assert!(result.is_ok());
 
     let response = result.unwrap();
-    assert_eq!(response["scope"], "read"); // Default scope
+    // When no scopes requested, client's full permissions are granted
+    assert_eq!(response["scope"], "read_activities");
 }
 
 // =============================================================================
@@ -1517,15 +1526,16 @@ async fn test_full_client_lifecycle() {
         .unwrap();
     assert!(!rate_limit.is_rate_limited);
 
-    // 5. Authenticate with the client
+    // 5. Authenticate with the client (using client's allowed permissions)
     let auth_request = json!({
         "client_id": client_id,
         "client_secret": credentials.client_secret,
-        "scopes": ["read", "write"]
+        "scopes": ["read_activities"]
     });
 
     let auth_response = setup.routes.authenticate(auth_request).await.unwrap();
     assert_eq!(auth_response["status"], "authenticated");
+    assert!(auth_response["access_token"].is_string());
 
     // 6. Deactivate the client
     setup
@@ -1562,27 +1572,28 @@ async fn test_multiple_auth_sessions() {
     let (client_id2, client_secret2) = setup.create_test_client().await;
 
     // Authenticate both clients
+    // Both clients have default permission "read_activities"
     let auth_request1 = json!({
         "client_id": client_id1,
         "client_secret": client_secret1,
-        "scopes": ["read"]
+        "scopes": ["read_activities"]
     });
 
     let auth_request2 = json!({
         "client_id": client_id2,
         "client_secret": client_secret2,
-        "scopes": ["write"]
+        "scopes": ["read_activities"]
     });
 
     let response1 = setup.routes.authenticate(auth_request1).await.unwrap();
     let response2 = setup.routes.authenticate(auth_request2).await.unwrap();
 
-    // Both should succeed and have different session tokens
+    // Both should succeed and have different access tokens
     assert_eq!(response1["status"], "authenticated");
     assert_eq!(response2["status"], "authenticated");
-    assert_ne!(response1["session_token"], response2["session_token"]);
-    assert_eq!(response1["scope"], "read");
-    assert_eq!(response2["scope"], "write");
+    assert_ne!(response1["access_token"], response2["access_token"]);
+    assert_eq!(response1["scope"], "read_activities");
+    assert_eq!(response2["scope"], "read_activities");
 }
 
 // =============================================================================
