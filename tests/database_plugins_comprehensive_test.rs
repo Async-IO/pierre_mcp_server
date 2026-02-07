@@ -1048,7 +1048,7 @@ mod postgres_tests {
             db.create_api_key(&api_key).await?;
 
             // Test retrieval
-            let retrieved = db.get_api_key_by_id(&api_key.id).await?;
+            let retrieved = db.get_api_key_by_id(&api_key.id, Some(user_id)).await?;
             assert!(retrieved.is_some());
             assert_eq!(retrieved.unwrap().tier, *tier);
 
@@ -1076,7 +1076,7 @@ mod postgres_tests {
             // Test deactivation
             db.deactivate_api_key(&api_key.id, user_id).await?;
 
-            let deactivated = db.get_api_key_by_id(&api_key.id).await?;
+            let deactivated = db.get_api_key_by_id(&api_key.id, Some(user_id)).await?;
             assert!(deactivated.is_none() || !deactivated.unwrap().is_active);
         }
 
@@ -1305,7 +1305,7 @@ mod postgres_tests {
 
         // Test invalid API key operations
         let fake_key_hash = "nonexistent_postgres_hash";
-        let result = db.get_api_key_by_id(fake_key_hash).await?;
+        let result = db.get_api_key_by_id(fake_key_hash, None).await?;
         assert!(result.is_none());
 
         // Test deactivating non-existent key
