@@ -394,15 +394,6 @@ jobs:
         working-directory: packages/api-client
         run: bun install
 
-      - name: Remove expo-dev-client for E2E build
-        working-directory: frontend-mobile
-        run: |
-          # Remove expo-dev-client from package.json BEFORE install
-          # This package interferes with Maestro testing - its native code
-          # tries to connect to a dev server that doesn't exist in CI
-          cat package.json | jq 'del(.dependencies["expo-dev-client"])' > package.json.tmp
-          mv package.json.tmp package.json
-
       - name: Install mobile dependencies
         working-directory: frontend-mobile
         run: bun install
@@ -412,16 +403,12 @@ jobs:
           curl -Ls "https://get.maestro.mobile.dev" | bash
           echo "$HOME/.maestro/bin" >> $GITHUB_PATH
 
-      - name: Free disk space for Android build
+      - name: Free disk space for emulator
         run: |
-          echo "Disk space before cleanup:"
-          df -h
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /usr/local/lib/android/sdk/ndk
           sudo rm -rf /opt/ghc
           sudo rm -rf /usr/local/share/boost
-          echo "Disk space after cleanup:"
-          df -h
 
       - name: Create data directory
         run: mkdir -p data
@@ -462,30 +449,26 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Prebuild Android
-        working-directory: frontend-mobile
-        run: bunx expo prebuild --platform android --clean
-
-      - name: Build Android APK
-        working-directory: frontend-mobile
+      - name: Adapt Maestro tests for Expo Go
         run: |
-          cd android
-          ./gradlew assembleDebug
-        env:
-          GRADLE_OPTS: "-Xmx4g -XX:+UseParallelGC"
+          # Replace native app ID with Expo Go app ID in all Maestro YAML files
+          find frontend-mobile/.maestro -name "*.yaml" -exec sed -i 's/appId: com.pierre.fitness/appId: host.exp.Exponent/g' {} +
+          # Override launch helper for Expo Go deep linking (Android uses 10.0.2.2 for host)
+          cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
+          # ABOUTME: Helper flow to launch the Pierre app via Expo Go on Android
+          # ABOUTME: Uses deep link to connect Expo Go to Metro bundler via emulator host
 
-      - name: Free disk space for emulator
-        run: |
-          echo "Disk space before cleanup:"
-          df -h /
-          # Remove Rust build artifacts (we already have the release binary)
-          rm -rf target/release/build target/release/deps target/release/.fingerprint target/release/incremental
-          # Remove Gradle build cache (APK is already built)
-          rm -rf ~/.gradle/caches ~/.gradle/daemon
-          # Remove cargo registry (not needed anymore)
-          rm -rf ~/.cargo/registry
-          echo "Disk space after cleanup:"
-          df -h /
+          appId: host.exp.Exponent
+
+          ---
+          - clearState
+          - launchApp
+          - openLink: "exp://10.0.2.2:8082"
+          - extendedWaitUntil:
+              visible:
+                id: "login-screen"
+              timeout: 30000
+          LAUNCH_EOF
 
       - name: Run Maestro tests on Android
         uses: reactivecircus/android-emulator-runner@v2
@@ -500,11 +483,30 @@ jobs:
           emulator-boot-timeout: 600
           disk-size: 4096M
           script: |
-            # Install the APK
-            adb install frontend-mobile/android/app/build/outputs/apk/debug/app-debug.apk
-            # Run Maestro tests (cd and test must be chained - each line runs in separate shell)
-            cd frontend-mobile && $HOME/.maestro/bin/maestro test .maestro/ --format junit --output maestro-results-android.xml
+            # Start Metro bundler in Expo Go mode for Android
+            cd frontend-mobile
+            npx expo start --go --android --port 8082 &
+            METRO_PID=$!
+            echo "Waiting for Metro bundler to be ready..."
+            for i in $(seq 1 90); do
+              if curl -s http://localhost:8082 > /dev/null 2>&1; then
+                echo "Metro is ready!"
+                break
+              fi
+              if [ "$i" -eq 90 ]; then
+                echo "Metro failed to start within timeout!"
+                exit 1
+              fi
+              echo "Attempt $i: Metro not ready yet..."
+              sleep 2
+            done
+            # Give Expo Go time to install and load the initial bundle
+            sleep 20
+            # Run Maestro E2E tests
+            $HOME/.maestro/bin/maestro test .maestro/ --format junit --output maestro-results-android.xml
         env:
+          CI: "true"
+          EXPO_PUBLIC_API_URL: "http://10.0.2.2:8081"
           TEST_EMAIL: "mobiletest@pierre.dev"
           TEST_PASSWORD: "MobileTest123!"
           BACKEND_URL: "http://10.0.2.2:8081"
