@@ -474,6 +474,19 @@ jobs:
         env:
           GRADLE_OPTS: "-Xmx4g -XX:+UseParallelGC"
 
+      - name: Free disk space for emulator
+        run: |
+          echo "Disk space before cleanup:"
+          df -h /
+          # Remove Rust build artifacts (we already have the release binary)
+          rm -rf target/release/build target/release/deps target/release/.fingerprint target/release/incremental
+          # Remove Gradle build cache (APK is already built)
+          rm -rf ~/.gradle/caches ~/.gradle/daemon
+          # Remove cargo registry (not needed anymore)
+          rm -rf ~/.cargo/registry
+          echo "Disk space after cleanup:"
+          df -h /
+
       - name: Run Maestro tests on Android
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -485,6 +498,7 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           emulator-boot-timeout: 600
+          disk-size: 4096M
           script: |
             # Install the APK
             adb install frontend-mobile/android/app/build/outputs/apk/debug/app-debug.apk
