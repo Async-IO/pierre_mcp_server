@@ -355,7 +355,14 @@ async fn test_parity_chat_messages() {
 
     for (role, content, tokens, finish) in &messages {
         sqlite_db
-            .chat_add_message(&sqlite_conv.id, &sqlite_uid, role, content, *tokens, *finish)
+            .chat_add_message(
+                &sqlite_conv.id,
+                &sqlite_uid,
+                role,
+                content,
+                *tokens,
+                *finish,
+            )
             .await
             .expect("SQLite: Failed to add message");
 
