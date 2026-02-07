@@ -7,8 +7,8 @@ tags:
   - e2e
 
 # Test flow organization by feature area
+# helpers/ is excluded: those are shared sub-flows invoked via runFlow, not standalone tests
 flows:
-  - helpers/**
   - login/**
   - settings/**
   - chat/**

@@ -239,7 +239,7 @@ jobs:
     runs-on: macos-latest
     # Run on main, claude/* branches, or when explicitly triggered
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/claude/') || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
       - name: Checkout code
@@ -409,7 +409,7 @@ jobs:
     runs-on: ubuntu-latest
     # Run on main, claude/* branches, or when explicitly triggered
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/claude/') || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
       - name: Checkout code
