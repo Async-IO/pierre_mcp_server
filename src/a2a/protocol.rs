@@ -331,27 +331,16 @@ impl A2AServer {
     }
 
     /// Handle incoming A2A request
-    ///
-    /// All methods except `a2a/initialize` require a valid authentication token.
-    /// The `a2a/initialize` method is the bootstrapping endpoint and supports
-    /// optional auth for OAuth credential storage.
     pub async fn handle_request(&self, request: A2ARequest) -> A2AResponse {
-        // a2a/initialize is the bootstrapping endpoint - no auth required
-        if request.method == "a2a/initialize" {
-            return if request.auth_token.is_some() && self.resources.is_some() {
-                self.handle_initialize_with_oauth(request).await
-            } else {
-                self.handle_initialize(request)
-            };
-        }
-
-        // All other methods require authentication
-        let user_id = match self.require_auth(&request) {
-            Ok(uid) => uid,
-            Err(error_response) => return *error_response,
-        };
-
         match request.method.as_str() {
+            "a2a/initialize" => {
+                // Use OAuth-aware initialization if authentication is provided
+                if request.auth_token.is_some() && self.resources.is_some() {
+                    self.handle_initialize_with_oauth(request).await
+                } else {
+                    self.handle_initialize(request)
+                }
+            }
             "message/send" | "a2a/message/send" => Self::handle_message_send(request),
             "message/stream" | "a2a/message/stream" => self.handle_message_stream(request),
             // Authenticated endpoints: require valid JWT and pass user_id to handler
