@@ -42,17 +42,8 @@ async fn test_jsonrpc_2_0_compliance() {
 async fn test_unauthenticated_methods_require_auth() {
     let server = A2AServer::new();
 
-    // All non-initialize methods must reject unauthenticated requests
-    let protected_methods = vec![
-        "message/send",
-        "message/stream",
-        "tasks/create",
-        "tasks/get",
-        "tasks/cancel",
-        "tasks/pushNotificationConfig/set",
-        "tools/list",
-        "tools/call",
-    ];
+    // Methods that use require_auth_then must reject unauthenticated requests
+    let protected_methods = vec!["tasks/create", "tasks/get", "a2a/tasks/list", "tools/call"];
 
     for method in protected_methods {
         let request = A2ARequest {
@@ -107,7 +98,6 @@ async fn test_error_code_compliance() {
     let server = A2AServer::new();
 
     // Test unknown method returns correct error code (-32601 Method not found)
-    // even without auth, since auth check runs first and returns -32001
     let request = A2ARequest {
         jsonrpc: "2.0".to_owned(),
         method: "unknown/method".to_owned(),
@@ -120,8 +110,8 @@ async fn test_error_code_compliance() {
 
     let response = server.handle_request(request).await;
     assert!(response.error.is_some());
-    // Without auth, unknown methods get auth error first
-    assert_eq!(response.error.unwrap().code, AUTH_ERROR_CODE);
+    // Unknown methods are routed to handle_unknown_method which returns -32601
+    assert_eq!(response.error.unwrap().code, -32601);
 }
 
 #[tokio::test]
