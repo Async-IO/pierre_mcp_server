@@ -38,11 +38,7 @@ impl A2ASystemUserService {
     /// - Database operations fail
     /// - Password hashing fails
     /// - User creation fails
-    pub async fn create_or_get_system_user(
-        &self,
-        client_id: &str,
-        contact_email: &str,
-    ) -> AppResult<Uuid> {
+    pub async fn create_or_get_system_user(&self, client_id: &str) -> AppResult<Uuid> {
         let system_email = format!("a2a-system-{client_id}@pierre.ai");
 
         // Check if system user already exists
@@ -84,7 +80,7 @@ impl A2ASystemUserService {
             .map_err(|e| AppError::database(format!("Failed to create user: {e}")))?;
 
         // Store metadata about this being a system user
-        Self::store_system_user_metadata(user_id, client_id, contact_email);
+        Self::store_system_user_metadata(user_id, client_id);
 
         info!(
             user_id = %user_id,
@@ -111,13 +107,12 @@ impl A2ASystemUserService {
     }
 
     /// Store metadata about system user
-    fn store_system_user_metadata(user_id: Uuid, client_id: &str, contact_email: &str) {
+    fn store_system_user_metadata(user_id: Uuid, client_id: &str) {
         // Store in a metadata table or as user properties
         // Store system identifier in user display name and email patterns
         debug!(
             user_id = %user_id,
             client_id = %client_id,
-            contact_email = %contact_email,
             "Stored A2A system user metadata"
         );
     }

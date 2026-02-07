@@ -17,6 +17,7 @@ use super::{CacheConfig, CacheKey, CacheProvider};
 use crate::config::environment::RedisConnectionConfig;
 use crate::constants::cache::CACHE_KEY_PREFIX;
 use crate::errors::{AppError, AppResult};
+use crate::middleware::redaction::redact_url;
 
 /// Redis cache implementation with connection pooling
 ///
@@ -44,7 +45,7 @@ impl RedisCache {
 
         info!(
             "Connecting to Redis at {} (timeout={}s, response_timeout={}s, retries={})",
-            redis_url,
+            redact_url(redis_url),
             conn_config.connection_timeout_secs,
             conn_config.response_timeout_secs,
             conn_config.initial_connection_retries

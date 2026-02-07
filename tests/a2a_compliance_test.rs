@@ -176,6 +176,88 @@ async fn test_message_structure_compliance() {
 }
 
 #[tokio::test]
+async fn test_task_management_compliance() {
+    let server = A2AServer::new();
+
+    // Test that unauthenticated task creation is rejected (security requirement)
+    let request = A2ARequest {
+        jsonrpc: "2.0".to_owned(),
+        method: "a2a/tasks/create".to_owned(),
+        params: Some(json!({"task_type": "example"})),
+        id: Some(json!(1)),
+        auth_token: None,
+        headers: None,
+        metadata: HashMap::new(),
+    };
+
+    let response = server.handle_request(request).await;
+    // tasks/create requires authentication - unauthenticated requests must be rejected
+    assert!(
+        response.error.is_some(),
+        "Unauthenticated tasks/create must return an error"
+    );
+    assert!(response.result.is_none());
+}
+
+#[tokio::test]
+async fn test_tools_schema_compliance() {
+    let server = A2AServer::new();
+
+    // Test tools list returns proper schema
+    let request = A2ARequest {
+        jsonrpc: "2.0".to_owned(),
+        method: "a2a/tools/list".to_owned(),
+        params: None,
+        id: Some(json!(1)),
+        auth_token: None,
+        headers: None,
+        metadata: HashMap::new(),
+    };
+
+    let response = server.handle_request(request).await;
+    assert!(response.result.is_some());
+
+    let result = response.result.unwrap();
+    // Response format is {"tools": [...]} with tools wrapped in an object
+    let tools = &result["tools"];
+    assert!(tools.is_array(), "Expected tools array in response");
+
+    // Verify each tool has required schema
+    for tool in tools.as_array().unwrap() {
+        assert!(tool["name"].is_string());
+        assert!(tool["description"].is_string());
+        // Schema may use either "inputSchema" (MCP standard) or "parameters" (legacy)
+        assert!(
+            tool["inputSchema"].is_object() || tool["parameters"].is_object(),
+            "Tool must have inputSchema or parameters"
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_streaming_requirements() {
+    let server = A2AServer::new();
+
+    // Test streaming endpoint exists and responds appropriately
+    let request = A2ARequest {
+        jsonrpc: "2.0".to_owned(),
+        method: "a2a/message/stream".to_owned(),
+        params: Some(json!({"stream_id": "test"})),
+        id: Some(json!(1)),
+        auth_token: None,
+        headers: None,
+        metadata: HashMap::new(),
+    };
+
+    let response = server.handle_request(request).await;
+
+    // Should respond with status (even if not fully implemented)
+    assert!(response.result.is_some());
+    let result = response.result.unwrap();
+    assert!(result["status"].is_string());
+}
+
+#[tokio::test]
 async fn test_authentication_scheme_support() {
     use pierre_mcp_server::a2a::agent_card::AgentCard;
 

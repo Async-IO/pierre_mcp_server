@@ -930,12 +930,14 @@ impl OAuth2AuthorizationServer {
                 self.handle_expired_token(expired_access_token, request.refresh_token.as_ref())
                     .await
             }
-            JwtValidationError::TokenInvalid { reason } => Ok(Self::create_invalid_response(
-                &format!("invalid_signature: {reason}"),
-            )),
-            JwtValidationError::TokenMalformed { details } => Ok(Self::create_invalid_response(
-                &format!("malformed_token: {details}"),
-            )),
+            JwtValidationError::TokenInvalid { reason } => {
+                debug!("Token invalid: {reason}");
+                Ok(Self::create_invalid_response("invalid_signature"))
+            }
+            JwtValidationError::TokenMalformed { details } => {
+                debug!("Token malformed: {details}");
+                Ok(Self::create_invalid_response("malformed_token"))
+            }
         }
     }
 

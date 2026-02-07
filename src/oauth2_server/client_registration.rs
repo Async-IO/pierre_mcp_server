@@ -324,11 +324,12 @@ impl ClientRegistrationManager {
 
     /// Get default `client_uri` for OAuth client registration
     ///
-    /// Uses server config if initialized (production), falls back to localhost:8081 (tests)
+    /// Uses server config `base_url` if initialized (production), falls back to localhost:8081 (tests).
+    /// Respects `BASE_URL` scheme for TLS/reverse-proxy deployments.
     fn get_default_client_uri() -> String {
         try_get_server_config().map_or_else(
             || "http://localhost:8081".to_owned(),
-            |config| format!("http://{}:{}", config.host, config.http_port),
+            |config| config.base_url.clone(),
         )
     }
 

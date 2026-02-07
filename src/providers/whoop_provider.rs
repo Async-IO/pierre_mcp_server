@@ -331,10 +331,11 @@ impl WhoopProvider {
             return AppError::external_service("WHOOP", err.to_string());
         }
 
+        debug!("WHOOP API error response body: {text}");
         let err = ProviderError::ApiError {
             provider: oauth_providers::WHOOP.to_owned(),
             status_code,
-            message: format!("WHOOP API request failed with status {status}: {text}"),
+            message: format!("WHOOP API request failed with status {status}"),
             retryable: status_code >= 500,
         };
         AppError::external_service("WHOOP", err.to_string())

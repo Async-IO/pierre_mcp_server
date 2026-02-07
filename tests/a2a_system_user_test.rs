@@ -52,10 +52,9 @@ async fn test_create_system_user() {
     let service = A2ASystemUserService::new(database);
 
     let client_id = "test-client-123";
-    let contact_email = "admin@example.com";
 
     let user_id = service
-        .create_or_get_system_user(client_id, contact_email)
+        .create_or_get_system_user(client_id)
         .await
         .expect("Failed to create system user");
 
@@ -79,17 +78,16 @@ async fn test_get_existing_system_user() {
     let service = A2ASystemUserService::new(database);
 
     let client_id = "test-client-456";
-    let contact_email = "admin@example.com";
 
     // Create user first time
     let user_id1 = service
-        .create_or_get_system_user(client_id, contact_email)
+        .create_or_get_system_user(client_id)
         .await
         .expect("Failed to create system user first time");
 
     // Get same user second time
     let user_id2 = service
-        .create_or_get_system_user(client_id, contact_email)
+        .create_or_get_system_user(client_id)
         .await
         .expect("Failed to create system user second time");
 

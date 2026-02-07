@@ -207,7 +207,10 @@ impl McpProtocolStream {
         let sender = self.get_active_sender().await?;
         let json_data = Self::build_oauth_notification_json(notification)?;
 
-        debug!("JSON data to send: {}", json_data);
+        debug!(
+            "Sending OAuth notification (size: {} bytes)",
+            json_data.len()
+        );
         Self::broadcast_notification(&sender, json_data, &notification.provider)
     }
 

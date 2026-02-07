@@ -161,7 +161,7 @@ impl ImpersonationRoutes {
         Json(request): Json<StartImpersonationRequestBody>,
     ) -> Result<Response, AppError> {
         // Authenticate and verify super admin status
-        let (auth, impersonator) = Self::authenticate_super_admin(&headers, &resources).await?;
+        let (auth, ..) = Self::authenticate_super_admin(&headers, &resources).await?;
 
         // Parse target user ID
         let target_user_id = Uuid::parse_str(&request.target_user_id)
@@ -232,9 +232,7 @@ impl ImpersonationRoutes {
 
         info!(
             impersonator_id = %auth.user_id,
-            impersonator_email = %impersonator.email,
             target_user_id = %target_user_id,
-            target_user_email = %target_user.email,
             session_id = %session.id,
             reason = ?request.reason,
             "Super admin started impersonation session"

@@ -1846,8 +1846,8 @@ impl AdminConfigService {
         self.refresh_cache(tenant_id).await?;
 
         info!(
-            "Admin {} updated {} configuration parameters",
-            admin_email, updated_count
+            updated_count = updated_count,
+            "Admin updated configuration parameters"
         );
 
         Ok(UpdateConfigResponse {
@@ -1952,8 +1952,8 @@ impl AdminConfigService {
         self.refresh_cache(tenant_id).await?;
 
         info!(
-            "Admin {} reset {} configuration parameters",
-            admin_email, reset_count
+            reset_count = reset_count,
+            "Admin reset configuration parameters"
         );
 
         Ok(ResetConfigResponse {

@@ -310,8 +310,8 @@ impl McpRoutes {
             return;
         };
 
-        // Get user details
-        let Ok(Some(user)) = state.resources.database.get_user(jwt_result.user_id).await else {
+        // Verify user exists in database
+        let Ok(Some(..)) = state.resources.database.get_user(jwt_result.user_id).await else {
             return;
         };
 
@@ -331,7 +331,6 @@ impl McpRoutes {
 
         info!(
             user_id = %jwt_result.user_id,
-            user_email = %user.email,
             session_id = %redact_session_id(session_id),
             "Session stored for authenticated user"
         );

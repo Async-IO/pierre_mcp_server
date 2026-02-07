@@ -310,7 +310,6 @@ pub async fn update_config(
     let user_email = &auth.email;
     info!(
         user_id = %user_id,
-        user_email = %user_email,
         tenant_id = ?query.tenant_id,
         parameter_count = request.parameters.len(),
         "Admin updating configuration"

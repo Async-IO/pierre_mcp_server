@@ -35,7 +35,6 @@ use axum::{
 };
 use sha2::{Digest, Sha256};
 use std::{
-    cmp::min,
     collections::HashMap,
     net::{IpAddr, SocketAddr},
     sync::Arc,
@@ -249,8 +248,8 @@ impl OAuth2Routes {
         {
             Ok(claims) => {
                 info!(
-                    "OAuth authorization for authenticated user: {}",
-                    claims.email
+                    "OAuth authorization for authenticated user_id: {}",
+                    claims.sub
                 );
                 if let Ok(user_uuid) = uuid::Uuid::parse_str(&claims.sub) {
                     // Get active tenant from claims
@@ -415,8 +414,8 @@ impl OAuth2Routes {
         };
 
         debug!(
-            "Validate-and-refresh request received with token (first 20 chars): {}...",
-            &access_token[..min(20, access_token.len())]
+            "Validate-and-refresh request received (token_length: {})",
+            access_token.len()
         );
 
         let auth_server = OAuth2AuthorizationServer::new(

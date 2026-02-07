@@ -13,7 +13,7 @@ use std::env;
 use std::future::Future;
 use std::time::Duration;
 use tokio::time::sleep;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use super::core::OAuth2Credentials;
 use super::errors::{ProviderError, ProviderResult};
@@ -153,10 +153,11 @@ fn api_error(status: StatusCode, text: &str, provider_name: &str) -> AppError {
         "{provider_name} API request failed - status: {status}, body_length: {} bytes",
         text.len()
     );
+    debug!("{provider_name} API error response body: {text}");
     let err = ProviderError::ApiError {
         provider: provider_name.to_owned(),
         status_code: status.as_u16(),
-        message: format!("{provider_name} API request failed with status {status}: {text}"),
+        message: format!("{provider_name} API request failed with status {status}"),
         retryable: false,
     };
     AppError::external_service(provider_name, err.to_string())

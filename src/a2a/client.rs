@@ -241,7 +241,7 @@ impl A2AClientManager {
         // Create proper system user (not dummy user)
         let system_user_id = self
             .system_user_service
-            .create_or_get_system_user(&client_id, &request.contact_email)
+            .create_or_get_system_user(&client_id)
             .await
             .map_err(|e| A2AError::InternalError(format!("Failed to create system user: {e}")))?;
 
@@ -269,7 +269,6 @@ impl A2AClientManager {
 
         info!(
             client_id = %client_id,
-            contact_email = %request.contact_email,
             capabilities = ?request.capabilities,
             "A2A client registered successfully"
         );

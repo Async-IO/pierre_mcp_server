@@ -87,9 +87,9 @@ impl AuthService {
     ///
     /// # Errors
     /// Returns error if user validation fails or database operation fails
-    #[tracing::instrument(skip(self, request), fields(route = "register", email = %request.email))]
+    #[tracing::instrument(skip(self, request), fields(route = "register"))]
     pub async fn register(&self, request: RegisterRequest) -> AppResult<RegisterResponse> {
-        info!("User registration attempt for email: {}", request.email);
+        info!("User registration attempt");
 
         // Validate email format
         if !Self::is_valid_email(&request.email) {
@@ -148,7 +148,7 @@ impl AuthService {
                 AppError::database(format!("Failed to assign tenant: {e}"))
             })?;
 
-        info!(user_id = %user_id, email = %request.email, "User registered successfully");
+        info!(user_id = %user_id, "User registered successfully");
 
         let message = if user.user_status == UserStatus::Active {
             "User registered successfully. Your account is ready to use.".to_owned()
@@ -166,9 +166,9 @@ impl AuthService {
     ///
     /// # Errors
     /// Returns error if authentication fails or token generation fails
-    #[tracing::instrument(skip(self, request), fields(route = "login", email = %request.email))]
+    #[tracing::instrument(skip(self, request), fields(route = "login"))]
     pub async fn login(&self, request: LoginRequest) -> AppResult<LoginResponse> {
-        info!("User login attempt for email: {}", request.email);
+        debug!("User login attempt");
 
         // Get user from database
         let user = self
@@ -190,7 +190,7 @@ impl AuthService {
             .map_err(|_| AppError::auth_invalid("Invalid email or password"))?;
 
         if !is_valid {
-            error!("Invalid password for user: {}", request.email);
+            error!("Invalid password for login attempt");
             return Err(auth_error(error_messages::INVALID_CREDENTIALS));
         }
 
@@ -198,8 +198,9 @@ impl AuthService {
         // but frontend restricts access based on user_status)
         if !user.user_status.can_login() {
             info!(
-                "User login with restricted status: {} - status: {:?}",
-                request.email, user.user_status
+                user_id = %user.id,
+                status = ?user.user_status,
+                "User login with restricted status"
             );
         }
 
@@ -384,7 +385,7 @@ impl AuthService {
 
     /// Create a new user from Firebase claims
     async fn create_firebase_user(&self, claims: &FirebaseClaims, email: &str) -> AppResult<User> {
-        tracing::info!(firebase_uid = %claims.sub, email = %email, "Creating new Firebase user");
+        tracing::info!(firebase_uid = %claims.sub, "Creating new Firebase user");
 
         let (user_status, approved_at) = self.determine_approval_status().await;
         let user_id = uuid::Uuid::new_v4();
@@ -638,7 +639,7 @@ impl OAuthService {
         );
 
         // Get user and tenant from database
-        let (user, tenant_id) = self.get_user_and_tenant(user_id, provider).await?;
+        let (.., tenant_id) = self.get_user_and_tenant(user_id, provider).await?;
 
         // Exchange OAuth code for access token (with PKCE if verifier was stored)
         // Pass tenant_id from state so exchange uses tenant-specific credentials if available
@@ -647,7 +648,6 @@ impl OAuthService {
                 code,
                 provider,
                 user_id,
-                &user,
                 pkce_code_verifier.as_deref(),
                 state_tenant_id,
             )
@@ -818,8 +818,9 @@ impl OAuthService {
 
         let tenant_id = tenants.first().map(|t| t.id.to_string()).ok_or_else(|| {
             error!(
-                "OAuth callback failed: Missing tenant - user_id: {}, email: {}, provider: {}",
-                user.id, user.email, provider
+                user_id = %user.id,
+                provider = %provider,
+                "OAuth callback failed: user has no tenant"
             );
             AppError::invalid_input("User has no tenant")
         })?;
@@ -836,7 +837,6 @@ impl OAuthService {
         code: &str,
         provider: &str,
         user_id: uuid::Uuid,
-        user: &User,
         pkce_code_verifier: Option<&str>,
         tenant_id: Option<uuid::Uuid>,
     ) -> AppResult<OAuth2Token> {
@@ -857,16 +857,14 @@ impl OAuthService {
                 .await
                 .map_err(|e| {
                     error!(
-                        "OAuth PKCE token exchange failed for {provider} - user_id: {user_id}, email: {}, error: {e}",
-                        user.email
+                        "OAuth PKCE token exchange failed for {provider} - user_id: {user_id}, error: {e}",
                     );
                     AppError::internal(format!("Failed to exchange OAuth code for token: {e}"))
                 })?
         } else {
             oauth_client.exchange_code(code).await.map_err(|e| {
                 error!(
-                    "OAuth token exchange failed for {provider} - user_id: {user_id}, email: {}, error: {e}",
-                    user.email
+                    "OAuth token exchange failed for {provider} - user_id: {user_id}, error: {e}",
                 );
                 AppError::internal(format!("Failed to exchange OAuth code for token: {e}"))
             })?
@@ -1502,7 +1500,6 @@ impl AuthRoutes {
         skip(resources, headers, request),
         fields(
             route = "admin_register",
-            email = %request.email,
             user_id = Empty,
             success = Empty,
         )
@@ -1541,10 +1538,7 @@ impl AuthRoutes {
                 AppError::auth_invalid(format!("Admin authentication failed: {e}"))
             })?;
 
-        info!(
-            "Admin-authenticated user registration attempt for email: {}",
-            request.email
-        );
+        info!("Admin-authenticated user registration attempt");
 
         let server_context = ServerContext::from(resources.as_ref());
         let auth_routes = AuthService::new(
@@ -1571,7 +1565,6 @@ impl AuthRoutes {
         skip(resources, request),
         fields(
             route = "public_register",
-            email = %request.email,
             user_id = Empty,
             success = Empty,
         )
@@ -1580,10 +1573,7 @@ impl AuthRoutes {
         State(resources): State<Arc<ServerResources>>,
         Json(request): Json<RegisterRequest>,
     ) -> Result<Response, AppError> {
-        info!(
-            "Public self-registration attempt for email: {}",
-            request.email
-        );
+        info!("Public self-registration attempt");
 
         let server_context = ServerContext::from(resources.as_ref());
         let auth_routes = AuthService::new(

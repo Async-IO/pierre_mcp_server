@@ -176,10 +176,10 @@ async fn get_existing_user(database: &Database, email: &str) -> AppResult<User> 
     match database.get_user_by_email(email).await {
         Ok(Some(user)) => Ok(user),
         Ok(None) => {
-            warn!("API key provisioning failed: User {} does not exist", email);
-            Err(AppError::invalid_input(format!(
-                "User {email} must register and be approved before API key provisioning"
-            )))
+            warn!("API key provisioning failed: user does not exist");
+            Err(AppError::invalid_input(
+                "User must register and be approved before API key provisioning",
+            ))
         }
         Err(e) => Err(AppError::internal(format!("Failed to lookup user: {e}"))),
     }

@@ -378,24 +378,24 @@ impl InitializeResponse {
                 }),
                 auth: Some(AuthCapability {
                     oauth2: Some({
-                        let host = get_server_config()
-                            .map_or_else(|| "localhost".to_owned(), |c| c.host.clone());
+                        let base = get_server_config()
+                            .map_or_else(|| format!("http://localhost:{http_port}"), |c| c.base_url.clone());
                         OAuth2Capability {
-                            discovery_url: format!("http://{host}:{http_port}/.well-known/oauth-authorization-server"),
-                            authorization_endpoint: format!("http://{host}:{http_port}/oauth2/authorize"),
-                            token_endpoint: format!("http://{host}:{http_port}/oauth2/token"),
-                            registration_endpoint: format!("http://{host}:{http_port}/oauth2/register"),
+                            discovery_url: format!("{base}/.well-known/oauth-authorization-server"),
+                            authorization_endpoint: format!("{base}/oauth2/authorize"),
+                            token_endpoint: format!("{base}/oauth2/token"),
+                            registration_endpoint: format!("{base}/oauth2/register"),
                         }
                     }),
                 }),
                 oauth2: Some({
-                    let host = get_server_config()
-                        .map_or_else(|| "localhost".to_owned(), |c| c.host.clone());
+                    let base = get_server_config()
+                        .map_or_else(|| format!("http://localhost:{http_port}"), |c| c.base_url.clone());
                     OAuth2Capability {
-                        discovery_url: format!("http://{host}:{http_port}/.well-known/oauth-authorization-server"),
-                        authorization_endpoint: format!("http://{host}:{http_port}/oauth2/authorize"),
-                        token_endpoint: format!("http://{host}:{http_port}/oauth2/token"),
-                        registration_endpoint: format!("http://{host}:{http_port}/oauth2/register"),
+                        discovery_url: format!("{base}/.well-known/oauth-authorization-server"),
+                        authorization_endpoint: format!("{base}/oauth2/authorize"),
+                        token_endpoint: format!("{base}/oauth2/token"),
+                        registration_endpoint: format!("{base}/oauth2/register"),
                     }
                 }),
                 completion: Some(CompletionCapability {}),

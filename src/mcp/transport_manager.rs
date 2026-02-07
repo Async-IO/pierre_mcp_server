@@ -430,7 +430,11 @@ impl StdioTransport {
         info!("Stdio notification handler ready");
 
         while let Ok(notification) = receiver.recv().await {
-            info!("Received OAuth notification for stdio: {:?}", notification);
+            info!(
+                provider = %notification.params.provider,
+                success = notification.params.success,
+                "Received OAuth notification for stdio"
+            );
             // Send notification to stdio client
             let notification_json = serde_json::to_string(&notification)
                 .map_err(|e| AppError::internal(format!("JSON serialization failed: {e}")))?;
@@ -457,8 +461,8 @@ impl SseNotificationForwarder {
     fn process_notification(notification: &OAuthCompletedNotification) {
         let Some(user_id_str) = &notification.params.user_id else {
             warn!(
-                "OAuth notification missing user_id field: {:?}",
-                notification
+                provider = %notification.params.provider,
+                "OAuth notification missing user_id field"
             );
             return;
         };
@@ -486,8 +490,9 @@ impl SseNotificationForwarder {
         match result {
             Ok(notification) => {
                 info!(
-                    "Forwarding OAuth notification to SSE clients: {:?}",
-                    notification
+                    provider = %notification.params.provider,
+                    success = notification.params.success,
+                    "Forwarding OAuth notification to SSE clients"
                 );
                 Self::process_notification(&notification);
                 true

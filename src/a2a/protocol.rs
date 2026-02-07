@@ -26,6 +26,8 @@ use serde_json::{from_value, json, to_value, Map, Number, Value};
 use std::collections::HashMap;
 use std::env::var;
 use std::fmt::{self, Display, Formatter};
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
@@ -352,40 +354,68 @@ impl A2AServer {
         match request.method.as_str() {
             "message/send" | "a2a/message/send" => Self::handle_message_send(request),
             "message/stream" | "a2a/message/stream" => self.handle_message_stream(request),
-            "tasks/create" | "a2a/tasks/create" => self.handle_task_create(request).await,
-            "tasks/get" | "a2a/tasks/get" => self.handle_task_get(request).await,
+            // Authenticated endpoints: require valid JWT and pass user_id to handler
+            "tasks/create" | "a2a/tasks/create" => {
+                self.require_auth_then(request, |s, req, user_id| {
+                    Box::pin(s.handle_task_create(req, user_id))
+                })
+                .await
+            }
+            "tasks/get" | "a2a/tasks/get" => {
+                self.require_auth_then(request, |s, req, user_id| {
+                    Box::pin(s.handle_task_get(req, user_id))
+                })
+                .await
+            }
             "tasks/cancel" => Self::handle_task_cancel(request),
             "tasks/resubscribe" | "a2a/tasks/resubscribe" => self.handle_task_resubscribe(request),
             "tasks/pushNotificationConfig/set" => Self::handle_push_notification_config(request),
-            "a2a/tasks/list" => self.handle_task_list(request).await,
+            "a2a/tasks/list" => {
+                self.require_auth_then(request, |s, req, user_id| {
+                    Box::pin(s.handle_task_list(req, user_id))
+                })
+                .await
+            }
             "tools/list" | "a2a/tools/list" => self.handle_tools_list(request),
             "tools/call" | "a2a/tools/call" => {
-                self.handle_tool_call_authenticated(request, user_id).await
+                self.require_auth_then(request, |s, req, user_id| {
+                    Box::pin(s.handle_tool_call(req, user_id))
+                })
+                .await
             }
             _ => Self::handle_unknown_method(request),
         }
     }
 
-    /// Require authentication for the request, returning the authenticated user ID.
+    /// Require authentication before dispatching to a handler
     ///
-    /// Returns an auth error response if authentication fails or resources are
-    /// unavailable for token validation.
-    fn require_auth(&self, request: &A2ARequest) -> Result<Uuid, Box<A2AResponse>> {
-        let resources = self.resources.as_ref().ok_or_else(|| {
-            Box::new(A2AResponse {
+    /// Extracts and validates the JWT auth token from the request, then calls the
+    /// handler with the authenticated user ID. Returns an auth error response if
+    /// authentication fails.
+    async fn require_auth_then<F>(&self, request: A2ARequest, handler: F) -> A2AResponse
+    where
+        F: FnOnce(
+            &Self,
+            A2ARequest,
+            Uuid,
+        ) -> Pin<Box<dyn Future<Output = A2AResponse> + Send + '_>>,
+    {
+        let Some(resources) = &self.resources else {
+            return A2AResponse {
                 jsonrpc: "2.0".into(),
                 result: None,
                 error: Some(A2AErrorResponse {
-                    code: -32001,
-                    message: "Authentication required but server resources not available"
-                        .to_owned(),
+                    code: -32000,
+                    message: "A2A server not properly configured".into(),
                     data: None,
                 }),
                 id: request.id.clone(),
-            })
-        })?;
-
-        Self::authenticate_request(request, resources)
+            };
+        };
+        match Self::authenticate_request(&request, resources) {
+            Ok(user_id) => handler(self, request, user_id).await,
+            Err(err_response) => *err_response,
+        }
     }
 
     fn handle_initialize(&self, request: A2ARequest) -> A2AResponse {
@@ -574,6 +604,73 @@ impl A2AServer {
         }
     }
 
+    /// Get client IDs owned by a user
+    async fn get_owned_client_ids(
+        user_id: &Uuid,
+        resources: &Arc<ServerResources>,
+    ) -> Result<Vec<String>, String> {
+        resources
+            .database
+            .list_a2a_clients(user_id)
+            .await
+            .map(|clients| clients.into_iter().map(|c| c.id).collect())
+            .map_err(|e| format!("Failed to list A2A clients: {e}"))
+    }
+
+    /// Verify a `client_id` belongs to the authenticated user
+    async fn verify_client_ownership(
+        client_id: &str,
+        user_id: &Uuid,
+        resources: &Arc<ServerResources>,
+        request_id: Option<&Value>,
+    ) -> Result<(), A2AResponse> {
+        let owned_ids = Self::get_owned_client_ids(user_id, resources)
+            .await
+            .map_err(|e| A2AResponse {
+                jsonrpc: "2.0".into(),
+                result: None,
+                error: Some(A2AErrorResponse {
+                    code: -32000,
+                    message: format!("Failed to resolve client ownership: {e}"),
+                    data: None,
+                }),
+                id: request_id.cloned(),
+            })?;
+
+        if !owned_ids.iter().any(|id| id == client_id) {
+            return Err(Self::permission_denied_error(request_id.cloned()));
+        }
+        Ok(())
+    }
+
+    /// Create a standard permission denied error response
+    fn permission_denied_error(request_id: Option<Value>) -> A2AResponse {
+        A2AResponse {
+            jsonrpc: "2.0".into(),
+            result: None,
+            error: Some(A2AErrorResponse {
+                code: -32001,
+                message: "Permission denied: client does not belong to authenticated user".into(),
+                data: None,
+            }),
+            id: request_id,
+        }
+    }
+
+    /// Create a standard server-not-configured error response
+    fn server_not_configured_error(request_id: Option<Value>) -> A2AResponse {
+        A2AResponse {
+            jsonrpc: "2.0".into(),
+            result: None,
+            error: Some(A2AErrorResponse {
+                code: -32000,
+                message: "A2A server not properly configured".into(),
+                data: None,
+            }),
+            id: request_id,
+        }
+    }
+
     /// Store OAuth credentials provided during A2A initialization
     async fn store_oauth_credentials(
         oauth_creds: HashMap<String, OAuthAppCredentials>,
@@ -661,7 +758,7 @@ impl A2AServer {
         }
     }
 
-    async fn handle_task_create(&self, request: A2ARequest) -> A2AResponse {
+    async fn handle_task_create(&self, request: A2ARequest, user_id: Uuid) -> A2AResponse {
         // Parse request parameters using typed struct
         let params_value = request.params.as_ref().unwrap_or(&Value::Null);
 
@@ -686,40 +783,44 @@ impl A2AServer {
         let client_id = task_params.client_id;
         let task_type = task_params.task_type;
 
-        // Persist task to database and get generated task_id
-        let task_id = if let Some(resources) = &self.resources {
-            let database = &resources.database;
-            match database
-                .create_a2a_task(
-                    &client_id,
-                    None, // session_id - optional
-                    &task_type,
-                    params_value,
-                )
+        // Verify the caller owns the client_id they're creating a task for
+        let Some(resources) = &self.resources else {
+            return Self::server_not_configured_error(request.id);
+        };
+        if let Err(err) =
+            Self::verify_client_ownership(&client_id, &user_id, resources, request.id.as_ref())
                 .await
-            {
-                Ok(id) => {
-                    // Task successfully persisted
-                    info!("Created A2A task {} for client {}", id, client_id);
-                    id
-                }
-                Err(e) => {
-                    // Database error - return error response
-                    return A2AResponse {
-                        jsonrpc: "2.0".into(),
-                        result: None,
-                        error: Some(A2AErrorResponse {
-                            code: -32000,
-                            message: format!("Failed to persist task: {e}"),
-                            data: None,
-                        }),
-                        id: request.id,
-                    };
-                }
+        {
+            return err;
+        }
+
+        // Persist task to database and get generated task_id
+        let database = &resources.database;
+        let task_id = match database
+            .create_a2a_task(
+                &client_id,
+                None, // session_id - optional
+                &task_type,
+                params_value,
+            )
+            .await
+        {
+            Ok(id) => {
+                info!("Created A2A task {} for client {}", id, client_id);
+                id
             }
-        } else {
-            // No database - generate a local ID
-            Uuid::new_v4().to_string()
+            Err(e) => {
+                return A2AResponse {
+                    jsonrpc: "2.0".into(),
+                    result: None,
+                    error: Some(A2AErrorResponse {
+                        code: -32000,
+                        message: format!("Failed to persist task: {e}"),
+                        data: None,
+                    }),
+                    id: request.id,
+                };
+            }
         };
 
         let task = A2ATask {
@@ -760,186 +861,163 @@ impl A2AServer {
         }
     }
 
-    async fn handle_task_get(&self, request: A2ARequest) -> A2AResponse {
-        // Validate task ID parameter
-        if let Some(params) = request.params.as_ref() {
-            if let Some(Value::String(_task_id)) = params.get("task_id") {
-                // Task ID is valid, continue processing
-            } else {
+    async fn handle_task_get(&self, request: A2ARequest, user_id: Uuid) -> A2AResponse {
+        let Some(resources) = &self.resources else {
+            return Self::server_not_configured_error(request.id);
+        };
+
+        // Parse task_id from params
+        let params_value = request.params.as_ref().unwrap_or(&Value::Null);
+        let task_params = match from_value::<json_schemas::A2ATaskGetParams>(params_value.clone()) {
+            Ok(params) => params,
+            Err(e) => {
+                error!("Failed to parse A2A task get parameters: {}", e);
                 return A2AResponse {
                     jsonrpc: "2.0".into(),
                     result: None,
                     error: Some(A2AErrorResponse {
                         code: -32602,
-                        message: "Invalid params: task_id must be a string".into(),
+                        message: format!("Invalid parameters: {e}"),
                         data: None,
                     }),
                     id: request.id,
                 };
             }
-        } else {
-            return A2AResponse {
+        };
+
+        let task_id = &task_params.task_id;
+        let database = &resources.database;
+
+        // Get task from database
+        match database.get_a2a_task(task_id).await {
+            Ok(Some(task)) => {
+                // Verify the task belongs to a client owned by the authenticated user
+                if let Err(err) = Self::verify_client_ownership(
+                    &task.client_id,
+                    &user_id,
+                    resources,
+                    request.id.as_ref(),
+                )
+                .await
+                {
+                    return err;
+                }
+                A2AResponse {
+                    jsonrpc: "2.0".into(),
+                    result: Some(to_value(task).unwrap_or_default()),
+                    error: None,
+                    id: request.id,
+                }
+            }
+            Ok(None) => A2AResponse {
                 jsonrpc: "2.0".into(),
                 result: None,
                 error: Some(A2AErrorResponse {
-                    code: -32602,
-                    message: "Invalid params: task_id is required".into(),
+                    code: -32601,
+                    message: "Task not found".into(),
                     data: None,
                 }),
                 id: request.id,
-            };
-        }
-
-        // Query database for actual task data if available
-        if let Some(resources) = &self.resources {
-            let database = &resources.database;
-            // Parse task_id from validated params using typed struct
-            let params_value = request.params.as_ref().unwrap_or(&Value::Null);
-
-            let task_params =
-                match from_value::<json_schemas::A2ATaskGetParams>(params_value.clone()) {
-                    Ok(params) => params,
-                    Err(e) => {
-                        error!("Failed to parse A2A task get parameters: {}", e);
-                        return A2AResponse {
-                            jsonrpc: "2.0".into(),
-                            result: None,
-                            error: Some(A2AErrorResponse {
-                                code: -32602,
-                                message: format!("Invalid parameters: {e}"),
-                                data: None,
-                            }),
-                            id: request.id,
-                        };
-                    }
-                };
-
-            let task_id = &task_params.task_id;
-
-            // Get task from database
-            match database.get_a2a_task(task_id).await {
-                Ok(Some(task)) => {
-                    return A2AResponse {
-                        jsonrpc: "2.0".into(),
-                        result: Some(to_value(task).unwrap_or_default()),
-                        error: None,
-                        id: request.id,
-                    };
-                }
-                Ok(None) => {
-                    return A2AResponse {
-                        jsonrpc: "2.0".into(),
-                        result: None,
-                        error: Some(A2AErrorResponse {
-                            code: -32601,
-                            message: format!("Task not found: {task_id}"),
-                            data: None,
-                        }),
-                        id: request.id,
-                    };
-                }
-                Err(e) => {
-                    return A2AResponse {
-                        jsonrpc: "2.0".into(),
-                        result: None,
-                        error: Some(A2AErrorResponse {
-                            code: -32000,
-                            message: format!("Database error: {e}"),
-                            data: None,
-                        }),
-                        id: request.id,
-                    };
-                }
-            }
-        }
-
-        // No database available - return error
-        A2AResponse {
-            jsonrpc: "2.0".into(),
-            result: None,
-            error: Some(A2AErrorResponse {
-                code: -32000,
-                message: "Database not available for task retrieval".into(),
-                data: None,
-            }),
-            id: request.id,
-        }
-    }
-
-    async fn handle_task_list(&self, request: A2ARequest) -> A2AResponse {
-        // Query database for actual tasks if available
-        if let Some(resources) = &self.resources {
-            let database = &resources.database;
-            // Parse list parameters using typed struct (with defaults for missing fields)
-            let params_value = request.params.as_ref().unwrap_or(&Value::Null);
-
-            let list_params = from_value::<json_schemas::A2ATaskListParams>(params_value.clone())
-                .unwrap_or(json_schemas::A2ATaskListParams {
-                    client_id: None,
-                    status: None,
-                    limit: 20,
-                    offset: None,
-                });
-
-            let client_id = list_params.client_id.as_deref();
-            let limit = Some(list_params.limit);
-            let offset = list_params.offset;
-
-            // Parse status string into enum if provided
-            let status_filter =
-                list_params
-                    .status
-                    .as_deref()
-                    .and_then(|status_str| match status_str {
-                        "pending" => Some(TaskStatus::Pending),
-                        "running" => Some(TaskStatus::Running),
-                        "completed" => Some(TaskStatus::Completed),
-                        "failed" => Some(TaskStatus::Failed),
-                        "cancelled" => Some(TaskStatus::Cancelled),
-                        _ => None,
-                    });
-
-            // Query database for tasks
-            match database
-                .list_a2a_tasks(client_id, status_filter.as_ref(), limit, offset)
-                .await
-            {
-                Ok(tasks) => {
-                    let tasks_json = to_value(&tasks).unwrap_or_default();
-                    A2AResponse {
-                        jsonrpc: "2.0".into(),
-                        result: Some(json!({
-                            "tasks": tasks_json,
-                            "total": tasks.len(),
-                            "limit": limit,
-                            "offset": offset.unwrap_or(0)
-                        })),
-                        error: None,
-                        id: request.id,
-                    }
-                }
-                Err(e) => A2AResponse {
-                    jsonrpc: "2.0".into(),
-                    result: None,
-                    error: Some(A2AErrorResponse {
-                        code: -32000,
-                        message: format!("Database error: {e}"),
-                        data: None,
-                    }),
-                    id: request.id,
-                },
-            }
-        } else {
-            A2AResponse {
+            },
+            Err(e) => A2AResponse {
                 jsonrpc: "2.0".into(),
                 result: None,
                 error: Some(A2AErrorResponse {
                     code: -32000,
-                    message: "Database not available for task listing".into(),
+                    message: format!("Database error: {e}"),
                     data: None,
                 }),
                 id: request.id,
+            },
+        }
+    }
+
+    async fn handle_task_list(&self, request: A2ARequest, user_id: Uuid) -> A2AResponse {
+        let Some(resources) = &self.resources else {
+            return Self::server_not_configured_error(request.id);
+        };
+
+        // Get the authenticated user's owned client IDs to scope the query
+        let owned_client_ids = match Self::get_owned_client_ids(&user_id, resources).await {
+            Ok(ids) => ids,
+            Err(e) => {
+                return A2AResponse {
+                    jsonrpc: "2.0".into(),
+                    result: None,
+                    error: Some(A2AErrorResponse {
+                        code: -32000,
+                        message: format!("Failed to resolve client ownership: {e}"),
+                        data: None,
+                    }),
+                    id: request.id,
+                };
             }
+        };
+
+        let database = &resources.database;
+        let params_value = request.params.as_ref().unwrap_or(&Value::Null);
+        let list_params = from_value::<json_schemas::A2ATaskListParams>(params_value.clone())
+            .unwrap_or(json_schemas::A2ATaskListParams {
+                client_id: None,
+                status: None,
+                limit: 20,
+                offset: None,
+            });
+
+        // If caller specifies a client_id, verify they own it; otherwise use their first client
+        let scoped_client_id = if let Some(ref requested) = list_params.client_id {
+            if !owned_client_ids.contains(requested) {
+                return Self::permission_denied_error(request.id);
+            }
+            Some(requested.as_str())
+        } else {
+            // Scope to first owned client; if user has no clients, return empty list
+            owned_client_ids.first().map(String::as_str)
+        };
+
+        let limit = Some(list_params.limit);
+        let offset = list_params.offset;
+
+        let status_filter = list_params
+            .status
+            .as_deref()
+            .and_then(|status_str| match status_str {
+                "pending" => Some(TaskStatus::Pending),
+                "running" => Some(TaskStatus::Running),
+                "completed" => Some(TaskStatus::Completed),
+                "failed" => Some(TaskStatus::Failed),
+                "cancelled" => Some(TaskStatus::Cancelled),
+                _ => None,
+            });
+
+        match database
+            .list_a2a_tasks(scoped_client_id, status_filter.as_ref(), limit, offset)
+            .await
+        {
+            Ok(tasks) => {
+                let tasks_json = to_value(&tasks).unwrap_or_default();
+                A2AResponse {
+                    jsonrpc: "2.0".into(),
+                    result: Some(json!({
+                        "tasks": tasks_json,
+                        "total": tasks.len(),
+                        "limit": limit,
+                        "offset": offset.unwrap_or(0)
+                    })),
+                    error: None,
+                    id: request.id,
+                }
+            }
+            Err(e) => A2AResponse {
+                jsonrpc: "2.0".into(),
+                result: None,
+                error: Some(A2AErrorResponse {
+                    code: -32000,
+                    message: format!("Database error: {e}"),
+                    data: None,
+                }),
+                id: request.id,
+            },
         }
     }
 
@@ -982,11 +1060,7 @@ impl A2AServer {
         }
     }
 
-    async fn handle_tool_call_authenticated(
-        &self,
-        request: A2ARequest,
-        user_id: Uuid,
-    ) -> A2AResponse {
+    async fn handle_tool_call(&self, request: A2ARequest, user_id: Uuid) -> A2AResponse {
         // Extract tool call parameters
         let params = request.params.unwrap_or_default();
 
@@ -1004,24 +1078,12 @@ impl A2AServer {
             .cloned()
             .map_or_else(|| Value::Object(Map::default()), Value::Object);
 
-        // Get server resources (required for tool execution)
-        let resources = match &self.resources {
-            Some(res) => res.clone(), // Safe: Arc clone for server resources
-            None => {
-                return A2AResponse {
-                    jsonrpc: "2.0".into(),
-                    result: None,
-                    error: Some(A2AErrorResponse {
-                        code: -32000,
-                        message: "A2A server not properly configured with ServerResources".into(),
-                        data: None,
-                    }),
-                    id: request.id,
-                };
-            }
+        let Some(resources) = &self.resources else {
+            return Self::server_not_configured_error(request.id);
         };
+        let resources = resources.clone(); // Safe: Arc clone for server resources
 
-        // Build tool execution context with authenticated user identity
+        // Build tool execution context from authenticated user identity
         let tool_ctx = ToolExecutionContext::new(user_id, resources.clone(), AuthMethod::ApiKey);
 
         // Try the registry first, fall back to error for unregistered tools

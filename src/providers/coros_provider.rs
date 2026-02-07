@@ -321,10 +321,11 @@ impl CorosProvider {
             return AppError::external_service("COROS", err.to_string());
         }
 
+        debug!("COROS API error response body: {text}");
         let err = ProviderError::ApiError {
             provider: oauth_providers::COROS.to_owned(),
             status_code,
-            message: format!("COROS API request failed with status {status}: {text}"),
+            message: format!("COROS API request failed with status {status}"),
             retryable: status_code >= 500,
         };
         AppError::external_service("COROS", err.to_string())

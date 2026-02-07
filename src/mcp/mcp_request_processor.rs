@@ -639,7 +639,7 @@ pub async fn write_response_to_stdout(
 ) -> AppResult<()> {
     let response_json = serde_json::to_string(response)
         .map_err(|e| AppError::internal(format!("JSON serialization failed: {e}")))?;
-    debug!("Sending MCP response: {}", response_json);
+    debug!("Sending MCP response (size: {} bytes)", response_json.len());
 
     {
         let mut stdout_lock = stdout.lock().await;

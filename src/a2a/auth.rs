@@ -339,20 +339,30 @@ impl A2AAuthenticator {
         }
     }
 
-    /// Validate A2A token
+    /// Validate A2A token by checking expiry and verifying the client exists and is active
     ///
     /// # Errors
     ///
-    /// Returns an error if token validation fails
-    pub fn validate_token(&self, token: &A2AToken) -> Result<bool, A2AError> {
+    /// Returns an error if database lookup fails
+    pub async fn validate_token(&self, token: &A2AToken) -> Result<bool, A2AError> {
         // Check if token is expired
         if token.expires_at < chrono::Utc::now() {
             return Ok(false);
         }
 
-        // Token validation checks: database existence, expiry, and client active status
-
-        Ok(true)
+        // Verify the client exists in the database and is still active
+        let client = self.get_client(&token.client_id).await?;
+        match client {
+            Some(c) if c.is_active => Ok(true),
+            Some(..) => {
+                debug!(client_id = %token.client_id, "A2A token validation failed: client is deactivated");
+                Ok(false)
+            }
+            None => {
+                debug!(client_id = %token.client_id, "A2A token validation failed: client not found");
+                Ok(false)
+            }
+        }
     }
 
     /// Check if client has required scope

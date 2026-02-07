@@ -433,6 +433,37 @@ pub fn redact_session_id(session_id: &str) -> String {
     }
 }
 
+/// Redact credentials from a URL for safe logging
+///
+/// Replaces `user:password@` in URLs with `***:***@` to prevent
+/// credential leakage in logs. Returns the URL unchanged if no
+/// credentials are found.
+///
+/// # Arguments
+///
+/// * `url` - URL that may contain embedded credentials
+///
+/// # Returns
+///
+/// URL with credentials redacted, showing only host and port
+#[must_use]
+pub fn redact_url(url: &str) -> String {
+    // Match pattern: scheme://user:password@host... or scheme://:password@host...
+    if let Some(at_pos) = url.find('@') {
+        if let Some(scheme_end) = url.find("://") {
+            let credentials_start = scheme_end + 3;
+            if at_pos > credentials_start {
+                return format!(
+                    "{}***:***@{}",
+                    &url[..credentials_start],
+                    &url[at_pos + 1..]
+                );
+            }
+        }
+    }
+    url.to_owned()
+}
+
 /// Get compiled email regex (cached)
 ///
 /// Returns None if regex compilation fails (should never happen with hardcoded pattern)

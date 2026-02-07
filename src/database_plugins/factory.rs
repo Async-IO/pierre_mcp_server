@@ -410,7 +410,7 @@ impl DatabaseProvider for Database {
     /// - Database constraint violations (e.g., duplicate email)
     /// - SQL execution fails
     /// - Database connection issues
-    #[tracing::instrument(skip(self, user), fields(db_operation = "create_user", email = %user.email))]
+    #[tracing::instrument(skip(self, user), fields(db_operation = "create_user", user_id = %user.id))]
     async fn create_user(&self, user: &User) -> AppResult<uuid::Uuid> {
         match self {
             Self::SQLite(db) => db.create_user(user).await,

@@ -423,10 +423,13 @@ impl MultiTenantMcpServer {
         }
     }
 
-    /// Build OAuth base URL with dynamic port
+    /// Build OAuth base URL from server config (respects `BASE_URL` scheme for TLS/proxy)
     fn build_oauth_base_url(http_port: u16) -> String {
-        let host = get_server_config().map_or_else(|| "localhost".to_owned(), |c| c.host.clone());
-        format!("http://{host}:{http_port}/api/oauth")
+        let base = get_server_config().map_or_else(
+            || format!("http://localhost:{http_port}"),
+            |c| c.base_url.clone(),
+        );
+        format!("{base}/api/oauth")
     }
 
     /// Check connection status for all providers

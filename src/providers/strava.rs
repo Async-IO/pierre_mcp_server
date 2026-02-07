@@ -471,17 +471,19 @@ impl FitnessProvider for StravaProvider {
             if status == 401 && self.refresh_token.is_some() {
                 info!("Access token expired, attempting to refresh...");
                 // Note: This would require mutable self to refresh the token
+                debug!("Strava auth error response body: {error_text}");
                 return Err(ProviderError::AuthenticationFailed {
                     provider: "strava".into(),
-                    reason: format!("Access token expired. Strava API error: {status} - {error_text}"),
+                    reason: format!("Access token expired (status: {status})"),
                 }
                 .into());
             }
 
+            debug!("Strava API error response body: {error_text}");
             return Err(ProviderError::ApiError {
                 provider: "strava".into(),
                 status_code: status.as_u16(),
-                message: error_text,
+                message: format!("Strava API request failed with status {status}"),
                 retryable: status.is_server_error(),
             }
             .into());
