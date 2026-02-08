@@ -239,7 +239,7 @@ jobs:
     runs-on: macos-latest
     # Run on main, claude/* branches, or when explicitly triggered
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/claude/') || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 90
+    timeout-minutes: 45
 
     steps:
       - name: Checkout code
@@ -342,70 +342,128 @@ jobs:
         run: |
           # Replace native app ID with Expo Go app ID in all Maestro YAML files
           find frontend-mobile/.maestro -name "*.yaml" -exec sed -i '' 's/appId: com.pierre.fitness/appId: host.exp.Exponent/g' {} +
-          # Override launch helper for Expo Go deep linking
-          # Timeout is 120s because CI simulators are slow to load JS bundles via Expo Go
+          # Override launch helper for Expo Go: clearState ensures fresh auth state,
+          # launchApp restarts Expo Go, openLink navigates to our project via Metro
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
-          # ABOUTME: Helper flow to ensure the Pierre app is ready via Expo Go
-          # ABOUTME: App is pre-loaded by npx expo start --go --ios; just verify it
-
           appId: host.exp.Exponent
-
           ---
+          - clearState
+          - launchApp
           - openLink: "exp://localhost:8082"
           - extendedWaitUntil:
               visible:
                 id: "login-screen"
               timeout: 120000
           LAUNCH_EOF
+          echo "=== Generated launch-app.yaml ==="
+          cat frontend-mobile/.maestro/helpers/launch-app.yaml
 
-      - name: Start Metro and install Expo Go
+      - name: Start Metro, install Expo Go, and open app
         working-directory: frontend-mobile
         run: |
-          # Start Metro in Expo Go mode; --ios flag installs Expo Go and opens the app
-          npx expo start --go --ios --port 8082 &
+          # Start Metro with --ios to install Expo Go and open the app
+          # Output is captured to /tmp/metro.log for debugging
+          npx expo start --go --ios --port 8082 2>&1 | tee /tmp/metro.log &
           echo "METRO_PID=$!" >> $GITHUB_ENV
-          echo "Waiting for Metro bundler to be ready..."
+
+          # Phase 1: Wait for Metro to be ready
+          echo "Phase 1: Waiting for Metro bundler..."
           for i in {1..90}; do
             if curl -s http://localhost:8082 > /dev/null 2>&1; then
-              echo "Metro is ready!"
+              echo "Metro is ready! (attempt $i)"
               break
             fi
             if [ "$i" -eq 90 ]; then
-              echo "Metro failed to start within timeout!"
+              echo "ERROR: Metro failed to start within 180s!"
+              cat /tmp/metro.log
               exit 1
             fi
-            echo "Attempt $i: Metro not ready yet..."
             sleep 2
           done
-          # Give Expo Go time to install and load the initial JS bundle
+
+          # Phase 2: Verify Metro can serve the iOS bundle
+          echo "Phase 2: Checking bundle serving..."
+          BUNDLE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8082/index.bundle?platform=ios&dev=true&minify=false" --max-time 120 || echo "000")
+          echo "Bundle request returned HTTP $BUNDLE_STATUS"
+          if [ "$BUNDLE_STATUS" != "200" ]; then
+            echo "WARNING: Bundle not ready (status $BUNDLE_STATUS). Waiting..."
+            sleep 30
+            BUNDLE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8082/index.bundle?platform=ios&dev=true&minify=false" --max-time 120 || echo "000")
+            echo "Retry bundle request returned HTTP $BUNDLE_STATUS"
+          fi
+
+          # Phase 3: Wait for Expo Go to be installed on our simulator
+          echo "Phase 3: Waiting for Expo Go installation on simulator $SIMULATOR_UDID..."
+          for i in {1..60}; do
+            if xcrun simctl get_app_container "$SIMULATOR_UDID" host.exp.Exponent 2>/dev/null; then
+              echo "Expo Go is installed! (attempt $i)"
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "WARNING: Expo Go not detected on simulator after 120s!"
+              echo "=== Metro/Expo log (last 50 lines) ==="
+              tail -50 /tmp/metro.log
+              echo ""
+              echo "Checking all booted simulators for Expo Go..."
+              for UDID in $(xcrun simctl list devices booted | grep -oE '[0-9A-Fa-f-]{36}'); do
+                if xcrun simctl get_app_container "$UDID" host.exp.Exponent 2>/dev/null; then
+                  echo "Found Expo Go on simulator $UDID (not our target $SIMULATOR_UDID)"
+                fi
+              done
+              echo "ERROR: Expo Go was not installed. Cannot run E2E tests."
+              exit 1
+            fi
+            sleep 2
+          done
+
+          # Phase 4: Explicitly re-open the deep link on our specific simulator
+          # This ensures the app connects to Metro even if --ios opened on a different simulator
+          echo "Phase 4: Opening deep link on simulator $SIMULATOR_UDID..."
+          xcrun simctl openurl "$SIMULATOR_UDID" "exp://localhost:8082"
+
+          # Wait for the JS bundle to load in Expo Go
+          echo "Waiting 45s for JS bundle to load..."
           sleep 45
         env:
-          CI: "true"
           EXPO_PUBLIC_API_URL: "http://localhost:8081"
 
       - name: Debug - capture simulator state before tests
         if: always()
         run: |
+          echo "=== Simulator UDID: $SIMULATOR_UDID ==="
+          echo "=== Installed apps on simulator ==="
+          xcrun simctl listapps "$SIMULATOR_UDID" 2>/dev/null | grep -A2 "CFBundleIdentifier" | head -30 || echo "Failed to list apps"
+          echo ""
           echo "=== Simulator screenshot ==="
           xcrun simctl io "$SIMULATOR_UDID" screenshot /tmp/pre-maestro-screenshot.png || echo "Screenshot failed"
+          echo ""
           echo "=== Running processes ==="
-          ps aux | grep -i expo | grep -v grep || echo "No Expo processes"
+          ps aux | grep -iE "expo|metro|node" | grep -v grep || echo "No relevant processes"
+          echo ""
           echo "=== Check Metro ==="
           curl -s http://localhost:8082 | head -20 || echo "Metro not responding"
+          echo ""
           echo "=== Check Pierre server ==="
           curl -s http://localhost:8081/health || echo "Server not responding"
-          echo "=== Maestro hierarchy dump ==="
-          $HOME/.maestro/bin/maestro hierarchy 2>&1 | head -50 || echo "Hierarchy dump failed"
+          echo ""
+          echo "=== Maestro hierarchy dump (what Maestro can see) ==="
+          $HOME/.maestro/bin/maestro --device "$SIMULATOR_UDID" hierarchy 2>&1 | head -100 || echo "Hierarchy dump failed"
+          echo ""
+          echo "=== Metro log (last 30 lines) ==="
+          tail -30 /tmp/metro.log 2>/dev/null || echo "No metro log"
+          echo ""
+          echo "=== Booted simulators ==="
+          xcrun simctl list devices booted 2>/dev/null || echo "Failed to list booted devices"
 
       - name: Run Maestro tests
         working-directory: frontend-mobile
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "Running full E2E suite (manual trigger)..."
-            $HOME/.maestro/bin/maestro test .maestro/ --format junit --output maestro-results.xml
+            $HOME/.maestro/bin/maestro test --device "$SIMULATOR_UDID" .maestro/ --format junit --output maestro-results.xml
           else
             echo "Running CI smoke tests (push trigger)..."
-            $HOME/.maestro/bin/maestro test \
+            $HOME/.maestro/bin/maestro test --device "$SIMULATOR_UDID" \
               .maestro/login/ \
               .maestro/chat/01-basic-visibility.yaml \
               .maestro/coaches/01-basic-rendering.yaml \
@@ -428,6 +486,7 @@ jobs:
             frontend-mobile/maestro-results.xml
             frontend-mobile/.maestro/
             /tmp/pre-maestro-screenshot.png
+            /tmp/metro.log
           retention-days: 7
 
   mobile-e2e-maestro-android:
@@ -436,7 +495,7 @@ jobs:
     runs-on: ubuntu-latest
     # Run on main, claude/* branches, or when explicitly triggered
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/claude/') || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 90
+    timeout-minutes: 45
 
     steps:
       - name: Checkout code
@@ -529,21 +588,21 @@ jobs:
         run: |
           # Replace native app ID with Android Expo Go package name (lowercase)
           find frontend-mobile/.maestro -name "*.yaml" -exec sed -i 's/appId: com.pierre.fitness/appId: host.exp.exponent/g' {} +
-          # Override launch helper for Expo Go deep linking (Android uses 10.0.2.2 for host)
-          # Timeout is 120s because CI emulators are slow to load JS bundles via Expo Go
+          # Override launch helper: clearState ensures fresh auth state,
+          # launchApp restarts Expo Go, openLink navigates to our project via Metro
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
-          # ABOUTME: Helper flow to ensure the Pierre app is ready via Expo Go on Android
-          # ABOUTME: App is pre-loaded by npx expo start --go --android; just verify it
-
           appId: host.exp.exponent
-
           ---
+          - clearState
+          - launchApp
           - openLink: "exp://10.0.2.2:8082"
           - extendedWaitUntil:
               visible:
                 id: "login-screen"
               timeout: 120000
           LAUNCH_EOF
+          echo "=== Generated launch-app.yaml ==="
+          cat frontend-mobile/.maestro/helpers/launch-app.yaml
 
       - name: Create Android E2E test script
         run: |
