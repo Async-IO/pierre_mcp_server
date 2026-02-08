@@ -782,12 +782,8 @@ jobs:
           # Suppress Expo Go developer menu onboarding overlay.
           # Write the SharedPreferences key that marks onboarding as finished.
           # This prevents the native overlay from blocking all touch interactions.
-          adb shell "run-as host.exp.exponent sh -c 'cat > shared_prefs/devmenu.xml << PREFS
-<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\" ?>
-<map>
-    <boolean name=\"isOnboardingFinished\" value=\"true\" />
-</map>
-PREFS'" || echo "Warning: Could not set developer menu preference (non-fatal)"
+          DEVMENU_XML='<?xml version="1.0" encoding="utf-8" standalone="yes" ?><map><boolean name="isOnboardingFinished" value="true" /></map>'
+          adb shell "run-as host.exp.exponent sh -c 'echo \"$DEVMENU_XML\" > shared_prefs/devmenu.xml'" || echo "Warning: Could not set developer menu preference (non-fatal)"
 
           if [ "$MAESTRO_FULL_SUITE" = "true" ]; then
             echo "Running full E2E suite (manual trigger)..."
