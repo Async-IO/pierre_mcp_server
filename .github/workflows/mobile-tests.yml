@@ -343,11 +343,10 @@ jobs:
           # Replace native app ID with Expo Go app ID in all Maestro YAML files
           find frontend-mobile/.maestro -name "*.yaml" -exec sed -i '' 's/appId: com.pierre.fitness/appId: host.exp.Exponent/g' {} +
           # Override launch helper for Expo Go: clearState ensures fresh auth state.
-          # openLink launches Expo Go with the URL directly (no launchApp needed).
-          # The "Open in Expo Go?" dialog does NOT appear during tests - only during
-          # initial setup (handled by terminate+launch+openurl in the setup step).
-          # After loading, the developer menu shows "Continue" (clearState resets
-          # the "has been seen" preference). We tap it, then wait for login-screen.
+          # openLink launches Expo Go directly with the project URL.
+          # The Expo Go developer menu ("Continue" overlay) does NOT appear after
+          # clearState — it only shows on fresh install, not after data clear.
+          # So we skip "Continue" handling and wait directly for login-screen.
           # CRITICAL: Use 127.0.0.1 not localhost (macOS resolves localhost to IPv6 first)
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
           appId: host.exp.Exponent
@@ -356,13 +355,9 @@ jobs:
           - clearState
           - openLink: "exp://127.0.0.1:8082"
           - extendedWaitUntil:
-              visible: "Continue"
-              timeout: 120000
-          - tapOn: "Continue"
-          - extendedWaitUntil:
               visible:
                 id: "login-screen"
-              timeout: 30000
+              timeout: 120000
           LAUNCH_EOF
           echo "=== Generated launch-app.yaml ==="
           cat frontend-mobile/.maestro/helpers/launch-app.yaml
@@ -666,7 +661,8 @@ jobs:
           # Replace native app ID with Android Expo Go package name (lowercase)
           find frontend-mobile/.maestro -name "*.yaml" -exec sed -i 's/appId: com.pierre.fitness/appId: host.exp.exponent/g' {} +
           # Override launch helper: clearState ensures fresh auth state.
-          # openLink launches Expo Go directly with the URL.
+          # openLink launches Expo Go directly with the project URL.
+          # Developer menu doesn't appear after clearState, go straight to login.
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
           appId: host.exp.exponent
           ---
@@ -674,13 +670,9 @@ jobs:
           - clearState
           - openLink: "exp://10.0.2.2:8082"
           - extendedWaitUntil:
-              visible: "Continue"
-              timeout: 120000
-          - tapOn: "Continue"
-          - extendedWaitUntil:
               visible:
                 id: "login-screen"
-              timeout: 30000
+              timeout: 120000
           LAUNCH_EOF
           echo "=== Generated launch-app.yaml ==="
           cat frontend-mobile/.maestro/helpers/launch-app.yaml
