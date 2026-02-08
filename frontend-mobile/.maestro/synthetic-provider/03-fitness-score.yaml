@@ -1,7 +1,7 @@
 # ABOUTME: Test getting fitness score from synthetic activities
 # ABOUTME: Converted from synthetic-provider.test.js "should get fitness score"
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

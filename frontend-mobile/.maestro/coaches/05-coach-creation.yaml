@@ -1,7 +1,7 @@
 # ABOUTME: Test coach creation navigation
 # ABOUTME: Converted from coaches.test.js "coach creation" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

@@ -1,7 +1,7 @@
 # ABOUTME: Test basic coach library screen rendering
 # ABOUTME: Converted from coaches.test.js "basic rendering" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

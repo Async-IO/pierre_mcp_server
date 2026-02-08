@@ -1,7 +1,7 @@
 # ABOUTME: Test Social Settings screen functionality
 # ABOUTME: Converted from social.test.js "Social Settings Screen" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

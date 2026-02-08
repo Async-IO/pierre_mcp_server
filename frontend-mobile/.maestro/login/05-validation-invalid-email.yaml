@@ -1,7 +1,7 @@
 # ABOUTME: Test validation error for invalid email format
 # ABOUTME: Converted from login.test.js "should show validation error for invalid email format"
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch app fresh

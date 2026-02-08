@@ -1,7 +1,7 @@
 # ABOUTME: Helper flow to log out of the application
 # ABOUTME: Navigates to Settings and taps the logout button
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Navigate to Settings

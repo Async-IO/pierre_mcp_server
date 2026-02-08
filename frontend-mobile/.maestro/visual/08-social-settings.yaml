@@ -1,7 +1,7 @@
 # ABOUTME: Visual tests for social settings
 # ABOUTME: Converted from mobile-visual.test.js "Social Settings" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

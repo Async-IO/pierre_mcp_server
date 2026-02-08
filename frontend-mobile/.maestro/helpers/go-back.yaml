@@ -1,7 +1,7 @@
 # ABOUTME: Helper flow to navigate back (press back button)
 # ABOUTME: Platform-aware back navigation
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 - back

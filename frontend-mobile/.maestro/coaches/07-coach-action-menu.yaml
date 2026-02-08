@@ -1,7 +1,7 @@
 # ABOUTME: Test coach card long press action menu
 # ABOUTME: Converted from coaches.test.js "should show action menu on long press"
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

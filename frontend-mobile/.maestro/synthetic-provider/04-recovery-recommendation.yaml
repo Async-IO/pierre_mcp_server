@@ -1,7 +1,7 @@
 # ABOUTME: Test recovery recommendation based on synthetic data
 # ABOUTME: Converted from synthetic-provider.test.js "should recommend recovery"
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

@@ -1,7 +1,7 @@
 # ABOUTME: Test system coach badge visibility
 # ABOUTME: Converted from coaches.test.js "system coach behavior" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

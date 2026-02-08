@@ -20,7 +20,7 @@ module.exports = {
   },
   ios: {
     supportsTablet: true,
-    bundleIdentifier: 'com.pierre.fitness',
+    bundleIdentifier: 'ai.dravr.app.dev',
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
       NSMicrophoneUsageDescription:
@@ -35,7 +35,7 @@ module.exports = {
       backgroundColor: '#0f0f0f',
     },
     edgeToEdgeEnabled: true,
-    package: 'com.pierre.fitness',
+    package: 'ai.dravr.app.dev',
     permissions: ['android.permission.RECORD_AUDIO'],
   },
   web: {

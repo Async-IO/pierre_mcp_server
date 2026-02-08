@@ -1,7 +1,7 @@
 # ABOUTME: Test navigation to coach detail from Discover
 # ABOUTME: Converted from store.test.js "coach detail navigation" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

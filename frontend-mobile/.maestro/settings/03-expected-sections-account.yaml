@@ -1,7 +1,7 @@
 # ABOUTME: Test Account section is visible with expected elements
 # ABOUTME: Converted from settings.test.js "expected sections - data from backend"
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

@@ -1,7 +1,7 @@
 # ABOUTME: Helper flow to navigate from any screen to Discover (Store)
 # ABOUTME: Uses bottom tab navigation to reach the Store screen
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Tap the Discover tab in bottom navigation

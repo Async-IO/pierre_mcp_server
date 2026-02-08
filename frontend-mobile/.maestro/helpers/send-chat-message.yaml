@@ -1,7 +1,7 @@
 # ABOUTME: Helper flow to send a chat message
 # ABOUTME: Types a message and sends it, optionally waits for response
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Type message in the input field

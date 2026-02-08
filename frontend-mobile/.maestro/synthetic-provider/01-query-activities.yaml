@@ -1,7 +1,7 @@
 # ABOUTME: Test querying recent activities with synthetic provider
 # ABOUTME: Converted from synthetic-provider.test.js "should query recent activities"
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

@@ -1,7 +1,7 @@
 # ABOUTME: Test cleanup - delete the test coach created in previous tests
 # ABOUTME: Converted from coaches.test.js "cleanup" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

@@ -1,7 +1,7 @@
 # ABOUTME: Test that settings screen renders properly (not blank)
 # ABOUTME: Converted from settings.test.js "screen rendering - prevents blank screen regression"
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

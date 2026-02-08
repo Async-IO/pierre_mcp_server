@@ -1,7 +1,7 @@
 # ABOUTME: Test fork option for system coaches
 # ABOUTME: Converted from coach-wizard.test.js "Coach Forking" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

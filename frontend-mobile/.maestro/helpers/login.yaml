@@ -1,7 +1,7 @@
 # ABOUTME: Helper flow to perform login with test credentials
 # ABOUTME: Logs in using mobiletest@pierre.dev / MobileTest123! and waits for chat screen
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Wait for login screen to be visible

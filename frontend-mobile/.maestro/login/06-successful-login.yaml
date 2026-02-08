@@ -2,7 +2,7 @@
 # ABOUTME: Converted from login.test.js "should login successfully with valid credentials"
 # ABOUTME: NOTE: This test requires the Pierre backend server running with test user
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch app fresh

@@ -1,7 +1,7 @@
 # ABOUTME: Test sending message and receiving response
 # ABOUTME: Converted from chat.test.js "should send message and receive response"
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

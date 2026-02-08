@@ -353,7 +353,7 @@ jobs:
       - name: Adapt Maestro tests for Expo Go
         run: |
           # Replace native app ID with Expo Go app ID in all Maestro YAML files
-          find frontend-mobile/.maestro -name "*.yaml" -exec sed -i '' 's/appId: com.pierre.fitness/appId: host.exp.Exponent/g' {} +
+          find frontend-mobile/.maestro -name "*.yaml" -exec sed -i '' 's/appId: ai.dravr.app.dev/appId: host.exp.Exponent/g' {} +
           # Override launch helper for Expo Go.
           # After clearState, Expo Go shows a developer menu onboarding overlay with
           # a "Continue" button. The overlay is rendered by expo-dev-menu (React Native),
@@ -741,7 +741,7 @@ jobs:
       - name: Adapt Maestro tests for Expo Go
         run: |
           # Replace native app ID with Android Expo Go package name (lowercase)
-          find frontend-mobile/.maestro -name "*.yaml" -exec sed -i 's/appId: com.pierre.fitness/appId: host.exp.exponent/g' {} +
+          find frontend-mobile/.maestro -name "*.yaml" -exec sed -i 's/appId: ai.dravr.app.dev/appId: host.exp.exponent/g' {} +
           # Override launch helper for Expo Go.
           # Same strategy as iOS: text-based dismiss + coordinate tap fallback.
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'

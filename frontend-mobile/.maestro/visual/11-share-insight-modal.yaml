@@ -1,7 +1,7 @@
 # ABOUTME: Visual tests for share insight modal
 # ABOUTME: Converted from mobile-visual.test.js "Share Insight Modal" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

@@ -1,7 +1,7 @@
 # ABOUTME: Test message input and send button visibility
 # ABOUTME: Converted from chat.test.js input tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

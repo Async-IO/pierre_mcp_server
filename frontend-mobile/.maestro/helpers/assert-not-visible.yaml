@@ -1,7 +1,7 @@
 # ABOUTME: Helper to assert an element is NOT visible
 # ABOUTME: Used for "hallucinated element" checks to ensure features don't exist
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # This flow template demonstrates how to check for absence of elements

@@ -1,7 +1,7 @@
 # ABOUTME: Visual tests for home screen
 # ABOUTME: Converted from mobile-visual.test.js "Home Screen" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

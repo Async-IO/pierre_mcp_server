@@ -1,7 +1,7 @@
 # ABOUTME: Visual tests for connection modal
 # ABOUTME: Converted from mobile-visual.test.js "Connection Modal" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

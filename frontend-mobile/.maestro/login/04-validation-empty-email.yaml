@@ -1,7 +1,7 @@
 # ABOUTME: Test validation error for empty email
 # ABOUTME: Converted from login.test.js "should show validation error for empty email"
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch app fresh

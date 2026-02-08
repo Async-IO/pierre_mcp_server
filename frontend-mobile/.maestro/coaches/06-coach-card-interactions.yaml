@@ -1,7 +1,7 @@
 # ABOUTME: Test coach card interactions (create, tap, edit, long press)
 # ABOUTME: Converted from coaches.test.js "coach card interactions" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login
