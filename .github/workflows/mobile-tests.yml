@@ -345,23 +345,20 @@ jobs:
           xcrun simctl boot "$SIMULATOR_UDID" || echo "Simulator may already be booted"
           echo "SIMULATOR_UDID=$SIMULATOR_UDID" >> $GITHUB_ENV
 
-          # Suppress Expo Go developer menu onboarding overlay.
-          # Write EXDevMenuIsOnboardingFinished to NSGlobalDomain (system-wide prefs).
-          # UserDefaults.standard reads: ArgumentDomain > AppDomain > GlobalDomain.
-          # clearState wipes AppDomain but NOT GlobalDomain, so this value persists
-          # across test runs that use clearState to reset auth tokens.
-          # Source: expo-dev-menu/ios/Modules/DevMenuPreferences.swift
-          xcrun simctl spawn "$SIMULATOR_UDID" defaults write -g EXDevMenuIsOnboardingFinished -bool true
+          # Note: EXDevMenuIsOnboardingFinished cannot be suppressed via defaults
+          # on iOS simulator — apps have sandboxed UserDefaults that don't read from
+          # NSGlobalDomain or ~/Library/Preferences/. Instead, we dismiss the developer
+          # menu overlay from within the Maestro launch-app.yaml flow.
 
       - name: Adapt Maestro tests for Expo Go
         run: |
           # Replace native app ID with Expo Go app ID in all Maestro YAML files
           find frontend-mobile/.maestro -name "*.yaml" -exec sed -i '' 's/appId: com.pierre.fitness/appId: host.exp.Exponent/g' {} +
           # Override launch helper for Expo Go.
-          # Use clearState to fully reset auth tokens and app data between tests.
-          # The EXDevMenuIsOnboardingFinished key is written to NSGlobalDomain (not
-          # the app domain), so clearState cannot wipe it. This prevents the native
-          # developer menu overlay from appearing after state is cleared.
+          # After clearState, Expo Go shows a developer menu onboarding overlay with
+          # a "Continue" button. The overlay is rendered by expo-dev-menu (React Native),
+          # so Maestro can see the "Continue" text via accessibility.
+          # Strategy: try text-based dismiss first, then coordinate fallback at 90%.
           # CRITICAL: Use 127.0.0.1 not localhost (macOS resolves localhost to IPv6 first)
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
           appId: host.exp.Exponent
@@ -373,6 +370,19 @@ jobs:
               visible:
                 id: "login-screen"
               timeout: 120000
+          # Dismiss the developer menu onboarding overlay ("Continue" button).
+          # Try text-based tap first (expo-dev-menu is React Native, so accessible).
+          - runFlow:
+              when:
+                visible:
+                  text: "Continue"
+              commands:
+                - tapOn:
+                    text: "Continue"
+          # Fallback: coordinate tap at 90% height for the "Continue" button.
+          # On iPhone 16 Pro (402x874), 90% = y:787 which hits the button area.
+          - tapOn:
+              point: "50%,90%"
           - extendedWaitUntil:
               visible:
                 id: "email-input"
@@ -733,10 +743,7 @@ jobs:
           # Replace native app ID with Android Expo Go package name (lowercase)
           find frontend-mobile/.maestro -name "*.yaml" -exec sed -i 's/appId: com.pierre.fitness/appId: host.exp.exponent/g' {} +
           # Override launch helper for Expo Go.
-          # Use clearState to fully reset auth tokens and app data between tests.
-          # On Android, the SharedPreferences key for dev menu onboarding is written
-          # via adb before tests start (see below). clearState will wipe it, but the
-          # coordinate tap fallback handles this.
+          # Same strategy as iOS: text-based dismiss + coordinate tap fallback.
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
           appId: host.exp.exponent
           ---
@@ -747,6 +754,15 @@ jobs:
               visible:
                 id: "login-screen"
               timeout: 120000
+          - runFlow:
+              when:
+                visible:
+                  text: "Continue"
+              commands:
+                - tapOn:
+                    text: "Continue"
+          - tapOn:
+              point: "50%,90%"
           - extendedWaitUntil:
               visible:
                 id: "email-input"
