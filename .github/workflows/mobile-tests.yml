@@ -362,6 +362,34 @@ jobs:
           echo "=== Generated launch-app.yaml ==="
           cat frontend-mobile/.maestro/helpers/launch-app.yaml
 
+          # Create a diagnostic test to isolate UI interaction issues
+          # This test ONLY taps the login button (no text input, no scroll)
+          # If it fails, the problem is with basic Maestro tapping in Expo Go
+          cat > frontend-mobile/.maestro/login/00-diagnostic-tap.yaml << 'DIAG_EOF'
+          # ABOUTME: CI diagnostic test - verifies basic tap interaction works
+          # ABOUTME: If this fails, Maestro cannot tap elements in Expo Go
+          appId: host.exp.Exponent
+          ---
+          - runFlow:
+              file: ../helpers/launch-app.yaml
+
+          # Verify email input exists (passing tests confirm this works)
+          - assertVisible:
+              id: "email-input"
+
+          # Try tapping the login button directly - no scroll, no text input
+          # With empty email, this should trigger "Email is required" validation
+          - tapOn:
+              id: "login-button"
+
+          # If tap worked, validation fires and error text should appear
+          - extendedWaitUntil:
+              visible: "Email is required"
+              timeout: 10000
+          DIAG_EOF
+          echo "=== Created diagnostic test ==="
+          cat frontend-mobile/.maestro/login/00-diagnostic-tap.yaml
+
       - name: Strip Expo owner for CI
         working-directory: frontend-mobile
         run: |
@@ -502,6 +530,32 @@ jobs:
           echo "=== Booted simulators ==="
           xcrun simctl list devices booted 2>/dev/null || echo "Failed to list booted devices"
 
+      - name: Test Pierre API connectivity
+        run: |
+          echo "=== Health check ==="
+          curl -sf http://127.0.0.1:8081/health && echo " OK" || echo " FAILED!"
+
+          echo ""
+          echo "=== Login API test (OAuth token endpoint) ==="
+          LOGIN_RESPONSE=$(curl -sf -X POST http://127.0.0.1:8081/oauth/token \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "grant_type=password&username=mobiletest@pierre.dev&password=MobileTest123!" 2>&1) || true
+          if echo "$LOGIN_RESPONSE" | grep -q "access_token"; then
+            echo "Login API: SUCCESS (got access_token)"
+          else
+            echo "Login API: FAILED"
+            echo "Response: $LOGIN_RESPONSE"
+          fi
+
+          echo ""
+          echo "=== Network connectivity test ==="
+          echo "IPv4 (127.0.0.1:8081):"
+          curl -sf http://127.0.0.1:8081/health > /dev/null 2>&1 && echo "  Reachable" || echo "  NOT reachable"
+          echo "IPv6 ([::1]:8081):"
+          curl -sf http://[::1]:8081/health > /dev/null 2>&1 && echo "  Reachable" || echo "  NOT reachable"
+          echo "localhost:8081:"
+          curl -sf http://localhost:8081/health > /dev/null 2>&1 && echo "  Reachable" || echo "  NOT reachable"
+
       - name: Run Maestro tests
         working-directory: frontend-mobile
         run: |
@@ -524,6 +578,31 @@ jobs:
           TEST_PASSWORD: "MobileTest123!"
           BACKEND_URL: "http://localhost:8081"
 
+      - name: Post-test diagnostics
+        if: always()
+        run: |
+          echo "=== Maestro hierarchy dump (what's on screen after tests) ==="
+          $HOME/.maestro/bin/maestro --device "$SIMULATOR_UDID" hierarchy 2>&1 | head -200 || echo "Hierarchy dump failed"
+          echo ""
+          echo "=== Post-test screenshot ==="
+          xcrun simctl io "$SIMULATOR_UDID" screenshot /tmp/post-maestro-screenshot.png || echo "Screenshot failed"
+          echo ""
+          echo "=== Find Maestro failure screenshots ==="
+          find $HOME/.maestro -name "*.png" -newer /tmp/metro.log 2>/dev/null | head -20 || echo "No screenshots found"
+          # Copy any Maestro screenshots to a known location for upload
+          mkdir -p /tmp/maestro-screenshots
+          find $HOME/.maestro -name "*.png" -newer /tmp/metro.log -exec cp {} /tmp/maestro-screenshots/ \; 2>/dev/null || true
+          find /tmp -name "*maestro*" -name "*.png" 2>/dev/null | head -20 || true
+          echo ""
+          echo "=== Pierre server still running? ==="
+          curl -sf http://127.0.0.1:8081/health && echo "Server: OK" || echo "Server: DOWN"
+          echo ""
+          echo "=== Metro still running? ==="
+          curl -sf http://127.0.0.1:8082 > /dev/null 2>&1 && echo "Metro: OK" || echo "Metro: DOWN"
+          echo ""
+          echo "=== Metro log (last 20 lines) ==="
+          tail -20 /tmp/metro.log 2>/dev/null || echo "No metro log"
+
       - name: Upload Maestro test results
         uses: actions/upload-artifact@v4
         if: always()
@@ -533,6 +612,8 @@ jobs:
             frontend-mobile/maestro-results.xml
             frontend-mobile/.maestro/
             /tmp/pre-maestro-screenshot.png
+            /tmp/post-maestro-screenshot.png
+            /tmp/maestro-screenshots/
             /tmp/metro.log
             /tmp/expo-install.log
           retention-days: 7
