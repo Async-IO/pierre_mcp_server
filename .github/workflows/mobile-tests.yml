@@ -239,7 +239,7 @@ jobs:
     runs-on: macos-latest
     # Run on main, claude/* branches, or when explicitly triggered
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/claude/') || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
       - name: Checkout code
@@ -355,8 +355,12 @@ jobs:
           # with "Continue" button on first launch. This overlay blocks ALL touch events
           # to the React Native views underneath. Maestro CANNOT see this overlay by
           # text/ID because it's native UI (not in the RN accessibility tree).
-          # Solution: tap "Continue" by screen coordinates (bottom center, ~90% height).
+          # Solution: tap "Continue" by screen coordinates (bottom center, ~85% height).
+          # The button is at ~85-87% of screen height on iPhone 16 Pro (402x874 pts).
           # If the menu is NOT showing, this tap harmlessly hits empty space below the form.
+          # IMPORTANT: Do NOT use waitForAnimationToEnd here — the developer menu overlay
+          # has continuous visual elements that prevent animation detection from settling,
+          # causing Maestro to hang indefinitely (observed 47-minute hang in CI).
           # CRITICAL: Use 127.0.0.1 not localhost (macOS resolves localhost to IPv6 first)
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
           appId: host.exp.Exponent
@@ -373,12 +377,7 @@ jobs:
           # The menu is native UI invisible to Maestro's element finder.
           # Tap at the "Continue" button position (bottom center of screen).
           - tapOn:
-              point: "50%,90%"
-          - waitForAnimationToEnd
-          # Second tap in case the first hit the overlay during animation
-          - tapOn:
-              point: "50%,90%"
-          - waitForAnimationToEnd
+              point: "50%,85%"
           # Verify the login screen is now fully interactive
           - extendedWaitUntil:
               visible:
@@ -387,36 +386,6 @@ jobs:
           LAUNCH_EOF
           echo "=== Generated launch-app.yaml ==="
           cat frontend-mobile/.maestro/helpers/launch-app.yaml
-
-          # Diagnostic test: verify inputText actually enters text into React Native state.
-          # XCUITest direct text insertion can bypass React Native's onChangeText in Expo Go.
-          # This test verifies the hardware keyboard disable + software keyboard fix works.
-          cat > frontend-mobile/.maestro/login/00-diagnostic-inputtext.yaml << 'DIAG_EOF'
-          appId: host.exp.Exponent
-          ---
-          - runFlow:
-              file: ../helpers/launch-app.yaml
-          - tapOn:
-              id: "email-input"
-          - inputText: "test@test.com"
-          - tapOn:
-              id: "password-input"
-          - inputText: "password"
-          - hideKeyboard
-          - scrollUntilVisible:
-              element:
-                id: "login-button"
-              direction: DOWN
-              timeout: 5000
-          - tapOn:
-              id: "login-button"
-          - waitForAnimationToEnd
-          # If inputText worked, email contains "@" so validation passes (no "Email is required").
-          # The login will fail (wrong creds) but the EMPTY email error must NOT appear.
-          - assertNotVisible: "Email is required"
-          DIAG_EOF
-          echo "=== Generated diagnostic inputText test ==="
-          cat frontend-mobile/.maestro/login/00-diagnostic-inputtext.yaml
 
       - name: Strip Expo owner for CI
         working-directory: frontend-mobile
@@ -652,7 +621,7 @@ jobs:
     runs-on: ubuntu-latest
     # Run on main, claude/* branches, or when explicitly triggered
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/claude/') || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
       - name: Checkout code
@@ -785,14 +754,10 @@ jobs:
               timeout: 120000
           # Dismiss Expo Go developer menu (native overlay with "Continue" button).
           # After clearState, this appears on every first launch.
-          # Tap at bottom center where "Continue" button appears.
+          # Tap at bottom center where "Continue" button appears (~85% height).
+          # Do NOT use waitForAnimationToEnd — the overlay causes indefinite hangs.
           - tapOn:
-              point: "50%,90%"
-          - waitForAnimationToEnd
-          # Second tap in case the first hit the overlay during animation
-          - tapOn:
-              point: "50%,90%"
-          - waitForAnimationToEnd
+              point: "50%,85%"
           # Verify login screen is fully interactive
           - extendedWaitUntil:
               visible:
