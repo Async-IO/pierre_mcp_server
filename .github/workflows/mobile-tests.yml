@@ -381,16 +381,19 @@ jobs:
           echo "=== app.config.js (stripped owner/eas) ==="
           grep -n "owner\|eas\|projectId" app.config.js || echo "Owner/eas fields removed successfully"
 
-      - name: Install Expo Go on simulator
+      - name: Start Metro, install Expo Go, and open app
         working-directory: frontend-mobile
         run: |
-          # Use --ios on temp port to install Expo Go (the openurl will fail with the
-          # network IP but Expo Go gets installed before that happens)
-          echo "Installing Expo Go via temporary expo start..."
-          npx expo start --go --ios --port 9999 2>&1 | tee /tmp/expo-install.log &
-          INSTALL_PID=$!
+          # Use --ios to both start Metro AND install Expo Go in one process.
+          # The --ios flag will try to open exp://<network-IP>:8082 which fails
+          # (simulator can't reach the host's network IP), but Metro keeps running
+          # and Expo Go gets installed. We then override with 127.0.0.1.
+          echo "Starting Metro + installing Expo Go..."
+          npx expo start --go --ios --port 8082 2>&1 | tee /tmp/metro.log &
+          echo "METRO_PID=$!" >> $GITHUB_ENV
 
-          echo "Waiting for Expo Go to be installed on simulator $SIMULATOR_UDID..."
+          # Wait for Expo Go to be installed
+          echo "Waiting for Expo Go to be installed..."
           for i in {1..90}; do
             if xcrun simctl get_app_container "$SIMULATOR_UDID" host.exp.Exponent 2>/dev/null; then
               echo "Expo Go is installed! (attempt $i)"
@@ -398,29 +401,13 @@ jobs:
             fi
             if [ "$i" -eq 90 ]; then
               echo "ERROR: Expo Go installation timed out!"
-              cat /tmp/expo-install.log
+              cat /tmp/metro.log
               exit 1
             fi
             sleep 2
           done
 
-          # Kill the temporary process and terminate Expo Go to clear the error
-          # page from the failed install URL (port 9999 won't have Metro running)
-          kill $INSTALL_PID 2>/dev/null || true
-          sleep 2
-          xcrun simctl terminate "$SIMULATOR_UDID" host.exp.Exponent || true
-          echo "Expo Go installed and terminated (clean state for Metro)"
-        env:
-          EXPO_PUBLIC_API_URL: "http://127.0.0.1:8081"
-
-      - name: Start Metro and open app
-        working-directory: frontend-mobile
-        run: |
-          # Start Metro WITHOUT --ios to keep it alive
-          echo "Starting Metro bundler..."
-          npx expo start --go --port 8082 2>&1 | tee /tmp/metro.log &
-          echo "METRO_PID=$!" >> $GITHUB_ENV
-
+          # Wait for Metro HTTP to be ready
           echo "Waiting for Metro to be ready..."
           for i in {1..90}; do
             if curl -s http://127.0.0.1:8082 > /dev/null 2>&1; then
@@ -435,9 +422,10 @@ jobs:
             sleep 2
           done
 
-          # Open the deep link using 127.0.0.1 (not localhost which resolves to IPv6 on macOS)
-          echo "Opening deep link on simulator $SIMULATOR_UDID..."
-          xcrun simctl openurl "$SIMULATOR_UDID" "exp://127.0.0.1:8082"
+          # The --ios flag opened exp://<network-IP>:8082 which failed.
+          # Override with 127.0.0.1 which the simulator can reach.
+          echo "Opening deep link with 127.0.0.1 on simulator $SIMULATOR_UDID..."
+          xcrun simctl openurl "$SIMULATOR_UDID" "exp://127.0.0.1:8082" || true
 
           # Wait for the JS bundle to compile (can take 30s-5min depending on CI runner)
           echo "Waiting for JS bundle to compile..."
