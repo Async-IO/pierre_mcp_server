@@ -345,13 +345,12 @@ jobs:
           # Override launch helper for Expo Go deep linking
           # Timeout is 120s because CI simulators are slow to load JS bundles via Expo Go
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
-          # ABOUTME: Helper flow to launch the Pierre app via Expo Go
-          # ABOUTME: Uses deep link to connect Expo Go to Metro bundler
+          # ABOUTME: Helper flow to ensure the Pierre app is ready via Expo Go
+          # ABOUTME: App is pre-loaded by npx expo start --go --ios; just verify it
 
           appId: host.exp.Exponent
 
           ---
-          - launchApp
           - openLink: "exp://localhost:8082"
           - extendedWaitUntil:
               visible:
@@ -378,8 +377,8 @@ jobs:
             echo "Attempt $i: Metro not ready yet..."
             sleep 2
           done
-          # Give Expo Go time to install and load the initial bundle
-          sleep 15
+          # Give Expo Go time to install and load the initial JS bundle
+          sleep 45
         env:
           CI: "true"
           EXPO_PUBLIC_API_URL: "http://localhost:8081"
@@ -518,13 +517,12 @@ jobs:
           # Override launch helper for Expo Go deep linking (Android uses 10.0.2.2 for host)
           # Timeout is 120s because CI emulators are slow to load JS bundles via Expo Go
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
-          # ABOUTME: Helper flow to launch the Pierre app via Expo Go on Android
-          # ABOUTME: Uses deep link to connect Expo Go to Metro bundler via emulator host
+          # ABOUTME: Helper flow to ensure the Pierre app is ready via Expo Go on Android
+          # ABOUTME: App is pre-loaded by npx expo start --go --android; just verify it
 
           appId: host.exp.exponent
 
           ---
-          - launchApp
           - openLink: "exp://10.0.2.2:8082"
           - extendedWaitUntil:
               visible:
