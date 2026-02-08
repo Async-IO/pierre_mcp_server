@@ -352,9 +352,13 @@ jobs:
           - launchApp
           - openLink: "exp://127.0.0.1:8082"
           - extendedWaitUntil:
+              visible: "Continue"
+              timeout: 120000
+          - tapOn: "Continue"
+          - extendedWaitUntil:
               visible:
                 id: "login-screen"
-              timeout: 120000
+              timeout: 30000
           LAUNCH_EOF
           echo "=== Generated launch-app.yaml ==="
           cat frontend-mobile/.maestro/helpers/launch-app.yaml
@@ -650,9 +654,13 @@ jobs:
           - launchApp
           - openLink: "exp://10.0.2.2:8082"
           - extendedWaitUntil:
+              visible: "Continue"
+              timeout: 120000
+          - tapOn: "Continue"
+          - extendedWaitUntil:
               visible:
                 id: "login-screen"
-              timeout: 120000
+              timeout: 30000
           LAUNCH_EOF
           echo "=== Generated launch-app.yaml ==="
           cat frontend-mobile/.maestro/helpers/launch-app.yaml
