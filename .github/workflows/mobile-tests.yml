@@ -348,8 +348,8 @@ jobs:
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
           appId: host.exp.Exponent
           ---
+          - stopApp
           - clearState
-          - launchApp
           - openLink: "exp://127.0.0.1:8082"
           - extendedWaitUntil:
               visible: "Continue"
@@ -665,8 +665,8 @@ jobs:
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
           appId: host.exp.exponent
           ---
+          - stopApp
           - clearState
-          - launchApp
           - openLink: "exp://10.0.2.2:8082"
           - extendedWaitUntil:
               visible: "Continue"
