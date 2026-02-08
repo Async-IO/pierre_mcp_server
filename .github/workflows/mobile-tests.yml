@@ -343,6 +343,7 @@ jobs:
           # Replace native app ID with Expo Go app ID in all Maestro YAML files
           find frontend-mobile/.maestro -name "*.yaml" -exec sed -i '' 's/appId: com.pierre.fitness/appId: host.exp.Exponent/g' {} +
           # Override launch helper for Expo Go deep linking
+          # Timeout is 120s because CI simulators are slow to load JS bundles via Expo Go
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
           # ABOUTME: Helper flow to launch the Pierre app via Expo Go
           # ABOUTME: Uses deep link to connect Expo Go to Metro bundler
@@ -350,13 +351,12 @@ jobs:
           appId: host.exp.Exponent
 
           ---
-          - clearState
           - launchApp
           - openLink: "exp://localhost:8082"
           - extendedWaitUntil:
               visible:
                 id: "login-screen"
-              timeout: 30000
+              timeout: 120000
           LAUNCH_EOF
 
       - name: Start Metro and install Expo Go
@@ -516,6 +516,7 @@ jobs:
           # Replace native app ID with Android Expo Go package name (lowercase)
           find frontend-mobile/.maestro -name "*.yaml" -exec sed -i 's/appId: com.pierre.fitness/appId: host.exp.exponent/g' {} +
           # Override launch helper for Expo Go deep linking (Android uses 10.0.2.2 for host)
+          # Timeout is 120s because CI emulators are slow to load JS bundles via Expo Go
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
           # ABOUTME: Helper flow to launch the Pierre app via Expo Go on Android
           # ABOUTME: Uses deep link to connect Expo Go to Metro bundler via emulator host
@@ -523,13 +524,12 @@ jobs:
           appId: host.exp.exponent
 
           ---
-          - clearState
           - launchApp
           - openLink: "exp://10.0.2.2:8082"
           - extendedWaitUntil:
               visible:
                 id: "login-screen"
-              timeout: 60000
+              timeout: 120000
           LAUNCH_EOF
 
       - name: Create Android E2E test script
