@@ -343,17 +343,27 @@ jobs:
           # Replace native app ID with Expo Go app ID in all Maestro YAML files
           find frontend-mobile/.maestro -name "*.yaml" -exec sed -i '' 's/appId: com.pierre.fitness/appId: host.exp.Exponent/g' {} +
           # Override launch helper for Expo Go: clearState ensures fresh auth state.
-          # CRITICAL: launchApp BEFORE openLink to bypass "Open in Expo Go?" dialog.
-          # When Expo Go is already running, openLink forwards the URL directly
-          # without the iOS system confirmation dialog.
+          # After clearState, openLink triggers an iOS "Open in Expo Go?" dialog.
+          # We use runFlow+when to conditionally tap "Open" if the dialog appears.
           # CRITICAL: Use 127.0.0.1 not localhost (macOS resolves localhost to IPv6 first)
+          cat > frontend-mobile/.maestro/helpers/tap-open-dialog.yaml << 'TAP_EOF'
+          appId: host.exp.Exponent
+          ---
+          - tapOn: "Open"
+          TAP_EOF
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
           appId: host.exp.Exponent
           ---
           - stopApp
           - clearState
-          - launchApp
           - openLink: "exp://127.0.0.1:8082"
+          - extendedWaitUntil:
+              visible: "Open"
+              timeout: 15000
+          - runFlow:
+              when:
+                visible: "Open"
+              file: tap-open-dialog.yaml
           - extendedWaitUntil:
               visible: "Continue"
               timeout: 120000
@@ -365,6 +375,8 @@ jobs:
           LAUNCH_EOF
           echo "=== Generated launch-app.yaml ==="
           cat frontend-mobile/.maestro/helpers/launch-app.yaml
+          echo "=== Generated tap-open-dialog.yaml ==="
+          cat frontend-mobile/.maestro/helpers/tap-open-dialog.yaml
 
       - name: Strip Expo owner for CI
         working-directory: frontend-mobile
@@ -665,15 +677,26 @@ jobs:
           # Replace native app ID with Android Expo Go package name (lowercase)
           find frontend-mobile/.maestro -name "*.yaml" -exec sed -i 's/appId: com.pierre.fitness/appId: host.exp.exponent/g' {} +
           # Override launch helper: clearState ensures fresh auth state.
-          # launchApp BEFORE openLink to ensure Expo Go is running first,
-          # which prevents system URL confirmation dialogs.
+          # After clearState, openLink may trigger a system URL dialog.
+          # Use runFlow+when to conditionally handle it.
+          cat > frontend-mobile/.maestro/helpers/tap-open-dialog.yaml << 'TAP_EOF'
+          appId: host.exp.exponent
+          ---
+          - tapOn: "Open"
+          TAP_EOF
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
           appId: host.exp.exponent
           ---
           - stopApp
           - clearState
-          - launchApp
           - openLink: "exp://10.0.2.2:8082"
+          - extendedWaitUntil:
+              visible: "Open"
+              timeout: 15000
+          - runFlow:
+              when:
+                visible: "Open"
+              file: tap-open-dialog.yaml
           - extendedWaitUntil:
               visible: "Continue"
               timeout: 120000
