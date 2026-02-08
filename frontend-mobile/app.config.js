@@ -5,6 +5,9 @@ module.exports = {
   name: 'Pierre',
   slug: 'pierre-mobile',
   version: '1.0.0',
+  runtimeVersion: {
+    policy: 'sdkVersion',
+  },
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'dark',
