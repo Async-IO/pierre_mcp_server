@@ -344,9 +344,12 @@ jobs:
           find frontend-mobile/.maestro -name "*.yaml" -exec sed -i '' 's/appId: com.pierre.fitness/appId: host.exp.Exponent/g' {} +
           # Override launch helper for Expo Go: clearState ensures fresh auth state.
           # openLink launches Expo Go directly with the project URL.
-          # The Expo Go developer menu ("Continue" overlay) does NOT appear after
-          # clearState — it only shows on fresh install, not after data clear.
-          # So we skip "Continue" handling and wait directly for login-screen.
+          # CRITICAL: After clearState, Expo Go shows a native developer menu overlay
+          # with "Continue" button on first launch. This overlay blocks ALL touch events
+          # to the React Native views underneath. Maestro CANNOT see this overlay by
+          # text/ID because it's native UI (not in the RN accessibility tree).
+          # Solution: tap "Continue" by screen coordinates (bottom center, ~90% height).
+          # If the menu is NOT showing, this tap harmlessly hits empty space below the form.
           # CRITICAL: Use 127.0.0.1 not localhost (macOS resolves localhost to IPv6 first)
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
           appId: host.exp.Exponent
@@ -358,37 +361,24 @@ jobs:
               visible:
                 id: "login-screen"
               timeout: 120000
+          # Dismiss Expo Go developer menu (native overlay with "Continue" button).
+          # After clearState, Expo Go shows this on every first launch.
+          # The menu is native UI invisible to Maestro's element finder.
+          # Tap at the "Continue" button position (bottom center of screen).
+          - tapOn:
+              point: "50%,90%"
+          # Verify the login screen is now fully interactive
+          - extendedWaitUntil:
+              visible:
+                id: "email-input"
+              timeout: 10000
           LAUNCH_EOF
           echo "=== Generated launch-app.yaml ==="
           cat frontend-mobile/.maestro/helpers/launch-app.yaml
 
-          # Create a diagnostic test to isolate UI interaction issues
-          # This test ONLY taps the login button (no text input, no scroll)
-          # If it fails, the problem is with basic Maestro tapping in Expo Go
-          cat > frontend-mobile/.maestro/login/00-diagnostic-tap.yaml << 'DIAG_EOF'
-          # ABOUTME: CI diagnostic test - verifies basic tap interaction works
-          # ABOUTME: If this fails, Maestro cannot tap elements in Expo Go
-          appId: host.exp.Exponent
-          ---
-          - runFlow:
-              file: ../helpers/launch-app.yaml
-
-          # Verify email input exists (passing tests confirm this works)
-          - assertVisible:
-              id: "email-input"
-
-          # Try tapping the login button directly - no scroll, no text input
-          # With empty email, this should trigger "Email is required" validation
-          - tapOn:
-              id: "login-button"
-
-          # If tap worked, validation fires and error text should appear
-          - extendedWaitUntil:
-              visible: "Email is required"
-              timeout: 10000
-          DIAG_EOF
-          echo "=== Created diagnostic test ==="
-          cat frontend-mobile/.maestro/login/00-diagnostic-tap.yaml
+          # No diagnostic test needed - root cause identified:
+          # Expo Go developer menu overlay blocks all taps after clearState.
+          # Fixed by tapping "Continue" at screen coordinates in launch-app.yaml.
 
       - name: Strip Expo owner for CI
         working-directory: frontend-mobile
@@ -743,7 +733,8 @@ jobs:
           find frontend-mobile/.maestro -name "*.yaml" -exec sed -i 's/appId: com.pierre.fitness/appId: host.exp.exponent/g' {} +
           # Override launch helper: clearState ensures fresh auth state.
           # openLink launches Expo Go directly with the project URL.
-          # Developer menu doesn't appear after clearState, go straight to login.
+          # CRITICAL: After clearState, Expo Go shows a native developer menu overlay
+          # with "Continue" button. Tap at screen coordinates to dismiss it.
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
           appId: host.exp.exponent
           ---
@@ -754,6 +745,16 @@ jobs:
               visible:
                 id: "login-screen"
               timeout: 120000
+          # Dismiss Expo Go developer menu (native overlay with "Continue" button).
+          # After clearState, this appears on every first launch.
+          # Tap at bottom center where "Continue" button appears.
+          - tapOn:
+              point: "50%,90%"
+          # Verify login screen is fully interactive
+          - extendedWaitUntil:
+              visible:
+                id: "email-input"
+              timeout: 10000
           LAUNCH_EOF
           echo "=== Generated launch-app.yaml ==="
           cat frontend-mobile/.maestro/helpers/launch-app.yaml
