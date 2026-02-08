@@ -239,7 +239,7 @@ jobs:
     runs-on: macos-latest
     # Run on main, claude/* branches, or when explicitly triggered
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/claude/') || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Checkout code
@@ -404,10 +404,12 @@ jobs:
             sleep 2
           done
 
-          # Kill the temporary process
+          # Kill the temporary process and terminate Expo Go to clear the error
+          # page from the failed install URL (port 9999 won't have Metro running)
           kill $INSTALL_PID 2>/dev/null || true
           sleep 2
-          echo "Temporary installer process cleaned up"
+          xcrun simctl terminate "$SIMULATOR_UDID" host.exp.Exponent || true
+          echo "Expo Go installed and terminated (clean state for Metro)"
         env:
           EXPO_PUBLIC_API_URL: "http://127.0.0.1:8081"
 
@@ -437,9 +439,23 @@ jobs:
           echo "Opening deep link on simulator $SIMULATOR_UDID..."
           xcrun simctl openurl "$SIMULATOR_UDID" "exp://127.0.0.1:8082"
 
-          # Wait for the JS bundle to compile and load
-          echo "Waiting 60s for JS bundle to compile and load..."
-          sleep 60
+          # Wait for the JS bundle to compile (can take 30s-5min depending on CI runner)
+          echo "Waiting for JS bundle to compile..."
+          for i in {1..180}; do
+            if grep -q "Bundled" /tmp/metro.log 2>/dev/null; then
+              echo "Bundle compiled! (waited ~$((i*2))s)"
+              break
+            fi
+            if [ "$i" -eq 180 ]; then
+              echo "ERROR: Bundle compilation timed out after 360s!"
+              cat /tmp/metro.log
+              exit 1
+            fi
+            sleep 2
+          done
+
+          # Give the app time to render after bundle loads
+          sleep 15
 
           # Verify Metro is still alive
           if curl -s http://127.0.0.1:8082 > /dev/null 2>&1; then
@@ -450,9 +466,8 @@ jobs:
             exit 1
           fi
 
-          # Check for bundle compilation in Metro logs
-          echo "=== Metro log (checking for bundle compilation) ==="
-          grep -i "bundle\|error\|warn" /tmp/metro.log | tail -20 || echo "No bundle-related messages"
+          echo "=== Metro log summary ==="
+          grep -iE "bundled|error|warn" /tmp/metro.log | tail -10 || echo "No relevant messages"
         env:
           EXPO_PUBLIC_API_URL: "http://127.0.0.1:8081"
 
@@ -528,7 +543,7 @@ jobs:
     runs-on: ubuntu-latest
     # Run on main, claude/* branches, or when explicitly triggered
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/claude/') || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Checkout code
