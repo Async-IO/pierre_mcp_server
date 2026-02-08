@@ -345,40 +345,35 @@ jobs:
           xcrun simctl boot "$SIMULATOR_UDID" || echo "Simulator may already be booted"
           echo "SIMULATOR_UDID=$SIMULATOR_UDID" >> $GITHUB_ENV
 
+          # Suppress Expo Go developer menu onboarding overlay.
+          # Expo Go checks UserDefaults key EXDevMenuIsOnboardingFinished to decide
+          # whether to show the overlay. Setting it to true skips the overlay entirely.
+          # We use clearKeychain (not clearState) in tests to preserve this setting.
+          # Source: expo-dev-menu/ios/Modules/DevMenuPreferences.swift
+          xcrun simctl spawn "$SIMULATOR_UDID" defaults write host.exp.Exponent EXDevMenuIsOnboardingFinished -bool true
+
       - name: Adapt Maestro tests for Expo Go
         run: |
           # Replace native app ID with Expo Go app ID in all Maestro YAML files
           find frontend-mobile/.maestro -name "*.yaml" -exec sed -i '' 's/appId: com.pierre.fitness/appId: host.exp.Exponent/g' {} +
-          # Override launch helper for Expo Go: clearState ensures fresh auth state.
-          # openLink launches Expo Go directly with the project URL.
-          # CRITICAL: After clearState, Expo Go shows a native developer menu overlay
-          # with "Continue" button on first launch. This overlay blocks ALL touch events
-          # to the React Native views underneath. Maestro CANNOT see this overlay by
-          # text/ID because it's native UI (not in the RN accessibility tree).
-          # Solution: tap "Continue" by screen coordinates (bottom center, ~85% height).
-          # The button is at ~85-87% of screen height on iPhone 16 Pro (402x874 pts).
-          # If the menu is NOT showing, this tap harmlessly hits empty space below the form.
-          # IMPORTANT: Do NOT use waitForAnimationToEnd here — the developer menu overlay
-          # has continuous visual elements that prevent animation detection from settling,
-          # causing Maestro to hang indefinitely (observed 47-minute hang in CI).
+          # Override launch helper for Expo Go.
+          # Use clearKeychain (NOT clearState) to reset auth tokens while preserving
+          # Expo Go's UserDefaults (including EXDevMenuIsOnboardingFinished=true).
+          # clearState wipes ALL app data which resets the developer menu onboarding flag,
+          # causing an undismissable native overlay on every test run.
+          # clearKeychain clears SecureStore (JWT/refresh tokens) so the app shows the
+          # login screen, without triggering the developer menu overlay.
           # CRITICAL: Use 127.0.0.1 not localhost (macOS resolves localhost to IPv6 first)
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
           appId: host.exp.Exponent
           ---
           - stopApp
-          - clearState
+          - clearKeychain
           - openLink: "exp://127.0.0.1:8082"
           - extendedWaitUntil:
               visible:
                 id: "login-screen"
               timeout: 120000
-          # Dismiss Expo Go developer menu (native overlay with "Continue" button).
-          # After clearState, Expo Go shows this on every first launch.
-          # The menu is native UI invisible to Maestro's element finder.
-          # Tap at the "Continue" button position (bottom center of screen).
-          - tapOn:
-              point: "50%,85%"
-          # Verify the login screen is now fully interactive
           - extendedWaitUntil:
               visible:
                 id: "email-input"
@@ -738,27 +733,21 @@ jobs:
         run: |
           # Replace native app ID with Android Expo Go package name (lowercase)
           find frontend-mobile/.maestro -name "*.yaml" -exec sed -i 's/appId: com.pierre.fitness/appId: host.exp.exponent/g' {} +
-          # Override launch helper: clearState ensures fresh auth state.
-          # openLink launches Expo Go directly with the project URL.
-          # CRITICAL: After clearState, Expo Go shows a native developer menu overlay
-          # with "Continue" button. Tap at screen coordinates to dismiss it.
+          # Override launch helper for Expo Go.
+          # Use clearKeychain (NOT clearState) to reset auth tokens while preserving
+          # Expo Go's SharedPreferences (including dev menu onboarding finished flag).
+          # clearState wipes ALL app data which resets the developer menu onboarding,
+          # causing an undismissable native overlay on every test run.
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
           appId: host.exp.exponent
           ---
           - stopApp
-          - clearState
+          - clearKeychain
           - openLink: "exp://10.0.2.2:8082"
           - extendedWaitUntil:
               visible:
                 id: "login-screen"
               timeout: 120000
-          # Dismiss Expo Go developer menu (native overlay with "Continue" button).
-          # After clearState, this appears on every first launch.
-          # Tap at bottom center where "Continue" button appears (~85% height).
-          # Do NOT use waitForAnimationToEnd — the overlay causes indefinite hangs.
-          - tapOn:
-              point: "50%,85%"
-          # Verify login screen is fully interactive
           - extendedWaitUntil:
               visible:
                 id: "email-input"
@@ -789,6 +778,17 @@ jobs:
           done
           # Wait for Expo Go to install and load the initial bundle
           sleep 30
+
+          # Suppress Expo Go developer menu onboarding overlay.
+          # Write the SharedPreferences key that marks onboarding as finished.
+          # This prevents the native overlay from blocking all touch interactions.
+          adb shell "run-as host.exp.exponent sh -c 'cat > shared_prefs/devmenu.xml << PREFS
+<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\" ?>
+<map>
+    <boolean name=\"isOnboardingFinished\" value=\"true\" />
+</map>
+PREFS'" || echo "Warning: Could not set developer menu preference (non-fatal)"
+
           if [ "$MAESTRO_FULL_SUITE" = "true" ]; then
             echo "Running full E2E suite (manual trigger)..."
             $HOME/.maestro/bin/maestro test .maestro/ --format junit --output maestro-results-android.xml
