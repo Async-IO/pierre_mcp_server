@@ -342,14 +342,17 @@ jobs:
         run: |
           # Replace native app ID with Expo Go app ID in all Maestro YAML files
           find frontend-mobile/.maestro -name "*.yaml" -exec sed -i '' 's/appId: com.pierre.fitness/appId: host.exp.Exponent/g' {} +
-          # Override launch helper for Expo Go: clearState ensures fresh auth state,
-          # launchApp restarts Expo Go, openLink navigates to our project via Metro
+          # Override launch helper for Expo Go: clearState ensures fresh auth state.
+          # CRITICAL: launchApp BEFORE openLink to bypass "Open in Expo Go?" dialog.
+          # When Expo Go is already running, openLink forwards the URL directly
+          # without the iOS system confirmation dialog.
           # CRITICAL: Use 127.0.0.1 not localhost (macOS resolves localhost to IPv6 first)
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
           appId: host.exp.Exponent
           ---
           - stopApp
           - clearState
+          - launchApp
           - openLink: "exp://127.0.0.1:8082"
           - extendedWaitUntil:
               visible: "Continue"
@@ -407,6 +410,14 @@ jobs:
             sleep 2
           done
 
+          # The --ios flag triggers an "Open in Expo Go?" iOS dialog that blocks
+          # URL processing (nobody taps "Open" in CI). Terminate Expo Go to
+          # dismiss the dialog, then relaunch it so we can forward URLs without
+          # the dialog (URLs sent to an already-running app skip the dialog).
+          echo "Terminating Expo Go to dismiss system URL dialog..."
+          xcrun simctl terminate "$SIMULATOR_UDID" host.exp.Exponent || true
+          sleep 2
+
           # Wait for Metro HTTP to be ready
           echo "Waiting for Metro to be ready..."
           for i in {1..90}; do
@@ -422,10 +433,15 @@ jobs:
             sleep 2
           done
 
-          # The --ios flag opened exp://<network-IP>:8082 which failed.
-          # Override with 127.0.0.1 which the simulator can reach.
-          echo "Opening deep link with 127.0.0.1 on simulator $SIMULATOR_UDID..."
-          xcrun simctl openurl "$SIMULATOR_UDID" "exp://127.0.0.1:8082" || true
+          # Launch Expo Go first (opens to its home screen), THEN open the URL.
+          # When Expo Go is already running, openurl forwards the URL directly
+          # to the app without showing the iOS "Open in Expo Go?" dialog.
+          echo "Launching Expo Go on simulator $SIMULATOR_UDID..."
+          xcrun simctl launch "$SIMULATOR_UDID" host.exp.Exponent
+          sleep 3
+
+          echo "Opening deep link with 127.0.0.1..."
+          xcrun simctl openurl "$SIMULATOR_UDID" "exp://127.0.0.1:8082"
 
           # Wait for the JS bundle to compile (can take 30s-5min depending on CI runner)
           echo "Waiting for JS bundle to compile..."
@@ -648,13 +664,15 @@ jobs:
         run: |
           # Replace native app ID with Android Expo Go package name (lowercase)
           find frontend-mobile/.maestro -name "*.yaml" -exec sed -i 's/appId: com.pierre.fitness/appId: host.exp.exponent/g' {} +
-          # Override launch helper: clearState ensures fresh auth state,
-          # launchApp restarts Expo Go, openLink navigates to our project via Metro
+          # Override launch helper: clearState ensures fresh auth state.
+          # launchApp BEFORE openLink to ensure Expo Go is running first,
+          # which prevents system URL confirmation dialogs.
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
           appId: host.exp.exponent
           ---
           - stopApp
           - clearState
+          - launchApp
           - openLink: "exp://10.0.2.2:8082"
           - extendedWaitUntil:
               visible: "Continue"
