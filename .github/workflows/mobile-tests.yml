@@ -383,6 +383,20 @@ jobs:
           CI: "true"
           EXPO_PUBLIC_API_URL: "http://localhost:8081"
 
+      - name: Debug - capture simulator state before tests
+        if: always()
+        run: |
+          echo "=== Simulator screenshot ==="
+          xcrun simctl io "$SIMULATOR_UDID" screenshot /tmp/pre-maestro-screenshot.png || echo "Screenshot failed"
+          echo "=== Running processes ==="
+          ps aux | grep -i expo | grep -v grep || echo "No Expo processes"
+          echo "=== Check Metro ==="
+          curl -s http://localhost:8082 | head -20 || echo "Metro not responding"
+          echo "=== Check Pierre server ==="
+          curl -s http://localhost:8081/health || echo "Server not responding"
+          echo "=== Maestro hierarchy dump ==="
+          $HOME/.maestro/bin/maestro hierarchy 2>&1 | head -50 || echo "Hierarchy dump failed"
+
       - name: Run Maestro tests
         working-directory: frontend-mobile
         run: |
@@ -413,6 +427,7 @@ jobs:
           path: |
             frontend-mobile/maestro-results.xml
             frontend-mobile/.maestro/
+            /tmp/pre-maestro-screenshot.png
           retention-days: 7
 
   mobile-e2e-maestro-android:
