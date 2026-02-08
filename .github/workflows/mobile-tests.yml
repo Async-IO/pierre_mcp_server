@@ -344,12 +344,13 @@ jobs:
           find frontend-mobile/.maestro -name "*.yaml" -exec sed -i '' 's/appId: com.pierre.fitness/appId: host.exp.Exponent/g' {} +
           # Override launch helper for Expo Go: clearState ensures fresh auth state,
           # launchApp restarts Expo Go, openLink navigates to our project via Metro
+          # CRITICAL: Use 127.0.0.1 not localhost (macOS resolves localhost to IPv6 first)
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
           appId: host.exp.Exponent
           ---
           - clearState
           - launchApp
-          - openLink: "exp://localhost:8082"
+          - openLink: "exp://127.0.0.1:8082"
           - extendedWaitUntil:
               visible:
                 id: "login-screen"
@@ -358,12 +359,30 @@ jobs:
           echo "=== Generated launch-app.yaml ==="
           cat frontend-mobile/.maestro/helpers/launch-app.yaml
 
+      - name: Strip Expo owner for CI
+        working-directory: frontend-mobile
+        run: |
+          # Remove owner and eas config to avoid "Input is required" auth error in CI
+          # The owner field triggers Expo CLI to verify project ownership, which needs
+          # interactive login or EXPO_TOKEN that we don't have in CI
+          # Using node for safe AST-aware modification (sed breaks brace matching)
+          node << 'STRIP_EOF'
+          const fs = require('fs');
+          const config = require('./app.config.js');
+          delete config.owner;
+          if (config.extra) delete config.extra.eas;
+          const header = '// ABOUTME: Expo configuration for Pierre mobile app\n// ABOUTME: Uses Expo Go for development; CI-stripped owner/eas fields\n\n';
+          fs.writeFileSync('app.config.js', header + 'module.exports = ' + JSON.stringify(config, null, 2) + ';\n');
+          STRIP_EOF
+          echo "=== app.config.js (stripped owner/eas) ==="
+          grep -n "owner\|eas\|projectId" app.config.js || echo "Owner/eas fields removed successfully"
+
       - name: Install Expo Go on simulator
         working-directory: frontend-mobile
         run: |
-          # Phase 1: Use --ios to install Expo Go (Metro will crash from openurl failure,
-          # which is expected - the openurl uses a network IP the simulator can't reach)
-          echo "Phase 1: Installing Expo Go via temporary expo start..."
+          # Use --ios on temp port to install Expo Go (the openurl will fail with the
+          # network IP but Expo Go gets installed before that happens)
+          echo "Installing Expo Go via temporary expo start..."
           npx expo start --go --ios --port 9999 2>&1 | tee /tmp/expo-install.log &
           INSTALL_PID=$!
 
@@ -381,25 +400,24 @@ jobs:
             sleep 2
           done
 
-          # Kill the temporary process (it likely crashed or will crash from openurl failure)
+          # Kill the temporary process
           kill $INSTALL_PID 2>/dev/null || true
           sleep 2
           echo "Temporary installer process cleaned up"
         env:
-          EXPO_PUBLIC_API_URL: "http://localhost:8081"
+          EXPO_PUBLIC_API_URL: "http://127.0.0.1:8081"
 
       - name: Start Metro and open app
         working-directory: frontend-mobile
         run: |
-          # Phase 2: Start Metro WITHOUT --ios (the --ios flag causes openurl which
-          # uses a network IP the simulator can't reach, and the resulting error kills Metro)
-          echo "Phase 2: Starting Metro bundler..."
+          # Start Metro WITHOUT --ios to keep it alive
+          echo "Starting Metro bundler..."
           npx expo start --go --port 8082 2>&1 | tee /tmp/metro.log &
           echo "METRO_PID=$!" >> $GITHUB_ENV
 
           echo "Waiting for Metro to be ready..."
           for i in {1..90}; do
-            if curl -s http://localhost:8082 > /dev/null 2>&1; then
+            if curl -s http://127.0.0.1:8082 > /dev/null 2>&1; then
               echo "Metro is ready! (attempt $i)"
               break
             fi
@@ -411,25 +429,28 @@ jobs:
             sleep 2
           done
 
-          # Phase 3: Open the deep link on our simulator using localhost
-          # (not the network IP that Expo CLI uses - the simulator can reach localhost)
-          echo "Phase 3: Opening deep link on simulator $SIMULATOR_UDID..."
-          xcrun simctl openurl "$SIMULATOR_UDID" "exp://localhost:8082"
+          # Open the deep link using 127.0.0.1 (not localhost which resolves to IPv6 on macOS)
+          echo "Opening deep link on simulator $SIMULATOR_UDID..."
+          xcrun simctl openurl "$SIMULATOR_UDID" "exp://127.0.0.1:8082"
 
-          # Wait for the JS bundle to load in Expo Go
+          # Wait for the JS bundle to compile and load
           echo "Waiting 60s for JS bundle to compile and load..."
           sleep 60
 
           # Verify Metro is still alive
-          if curl -s http://localhost:8082 > /dev/null 2>&1; then
+          if curl -s http://127.0.0.1:8082 > /dev/null 2>&1; then
             echo "Metro is still running - good!"
           else
             echo "ERROR: Metro died! Check /tmp/metro.log"
             tail -30 /tmp/metro.log
             exit 1
           fi
+
+          # Check for bundle compilation in Metro logs
+          echo "=== Metro log (checking for bundle compilation) ==="
+          grep -i "bundle\|error\|warn" /tmp/metro.log | tail -20 || echo "No bundle-related messages"
         env:
-          EXPO_PUBLIC_API_URL: "http://localhost:8081"
+          EXPO_PUBLIC_API_URL: "http://127.0.0.1:8081"
 
       - name: Debug - capture simulator state before tests
         if: always()
@@ -445,10 +466,10 @@ jobs:
           ps aux | grep -iE "expo|metro|node" | grep -v grep || echo "No relevant processes"
           echo ""
           echo "=== Check Metro ==="
-          curl -s http://localhost:8082 | head -20 || echo "Metro not responding"
+          curl -s http://127.0.0.1:8082 | head -20 || echo "Metro not responding"
           echo ""
           echo "=== Check Pierre server ==="
-          curl -s http://localhost:8081/health || echo "Server not responding"
+          curl -s http://127.0.0.1:8081/health || echo "Server not responding"
           echo ""
           echo "=== Maestro hierarchy dump (what Maestro can see) ==="
           $HOME/.maestro/bin/maestro --device "$SIMULATOR_UDID" hierarchy 2>&1 | head -100 || echo "Hierarchy dump failed"
@@ -537,9 +558,33 @@ jobs:
         working-directory: packages/api-client
         run: bun install
 
+      - name: Remove expo-dev-client for E2E build
+        working-directory: frontend-mobile
+        run: |
+          # Remove expo-dev-client from package.json BEFORE install
+          # This package interferes with Maestro testing - its native code
+          # tries to connect to a dev server that doesn't exist in CI
+          cat package.json | jq 'del(.dependencies["expo-dev-client"])' > package.json.tmp
+          mv package.json.tmp package.json
+
       - name: Install mobile dependencies
         working-directory: frontend-mobile
         run: bun install
+
+      - name: Strip Expo owner for CI
+        working-directory: frontend-mobile
+        run: |
+          # Remove owner and eas config to avoid "Input is required" auth error in CI
+          node << 'STRIP_EOF'
+          const fs = require('fs');
+          const config = require('./app.config.js');
+          delete config.owner;
+          if (config.extra) delete config.extra.eas;
+          const header = '// ABOUTME: Expo configuration for Pierre mobile app\n// ABOUTME: Uses Expo Go for development; CI-stripped owner/eas fields\n\n';
+          fs.writeFileSync('app.config.js', header + 'module.exports = ' + JSON.stringify(config, null, 2) + ';\n');
+          STRIP_EOF
+          echo "=== app.config.js (stripped owner/eas) ==="
+          grep -n "owner\|eas\|projectId" app.config.js || echo "Owner/eas fields removed successfully"
 
       - name: Install Maestro CLI
         run: |
