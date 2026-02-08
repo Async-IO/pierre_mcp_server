@@ -358,16 +358,46 @@ jobs:
           echo "=== Generated launch-app.yaml ==="
           cat frontend-mobile/.maestro/helpers/launch-app.yaml
 
-      - name: Start Metro, install Expo Go, and open app
+      - name: Install Expo Go on simulator
         working-directory: frontend-mobile
         run: |
-          # Start Metro with --ios to install Expo Go and open the app
-          # Output is captured to /tmp/metro.log for debugging
-          npx expo start --go --ios --port 8082 2>&1 | tee /tmp/metro.log &
+          # Phase 1: Use --ios to install Expo Go (Metro will crash from openurl failure,
+          # which is expected - the openurl uses a network IP the simulator can't reach)
+          echo "Phase 1: Installing Expo Go via temporary expo start..."
+          npx expo start --go --ios --port 9999 2>&1 | tee /tmp/expo-install.log &
+          INSTALL_PID=$!
+
+          echo "Waiting for Expo Go to be installed on simulator $SIMULATOR_UDID..."
+          for i in {1..90}; do
+            if xcrun simctl get_app_container "$SIMULATOR_UDID" host.exp.Exponent 2>/dev/null; then
+              echo "Expo Go is installed! (attempt $i)"
+              break
+            fi
+            if [ "$i" -eq 90 ]; then
+              echo "ERROR: Expo Go installation timed out!"
+              cat /tmp/expo-install.log
+              exit 1
+            fi
+            sleep 2
+          done
+
+          # Kill the temporary process (it likely crashed or will crash from openurl failure)
+          kill $INSTALL_PID 2>/dev/null || true
+          sleep 2
+          echo "Temporary installer process cleaned up"
+        env:
+          EXPO_PUBLIC_API_URL: "http://localhost:8081"
+
+      - name: Start Metro and open app
+        working-directory: frontend-mobile
+        run: |
+          # Phase 2: Start Metro WITHOUT --ios (the --ios flag causes openurl which
+          # uses a network IP the simulator can't reach, and the resulting error kills Metro)
+          echo "Phase 2: Starting Metro bundler..."
+          npx expo start --go --port 8082 2>&1 | tee /tmp/metro.log &
           echo "METRO_PID=$!" >> $GITHUB_ENV
 
-          # Phase 1: Wait for Metro to be ready
-          echo "Phase 1: Waiting for Metro bundler..."
+          echo "Waiting for Metro to be ready..."
           for i in {1..90}; do
             if curl -s http://localhost:8082 > /dev/null 2>&1; then
               echo "Metro is ready! (attempt $i)"
@@ -381,49 +411,23 @@ jobs:
             sleep 2
           done
 
-          # Phase 2: Verify Metro can serve the iOS bundle
-          echo "Phase 2: Checking bundle serving..."
-          BUNDLE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8082/index.bundle?platform=ios&dev=true&minify=false" --max-time 120 || echo "000")
-          echo "Bundle request returned HTTP $BUNDLE_STATUS"
-          if [ "$BUNDLE_STATUS" != "200" ]; then
-            echo "WARNING: Bundle not ready (status $BUNDLE_STATUS). Waiting..."
-            sleep 30
-            BUNDLE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8082/index.bundle?platform=ios&dev=true&minify=false" --max-time 120 || echo "000")
-            echo "Retry bundle request returned HTTP $BUNDLE_STATUS"
-          fi
-
-          # Phase 3: Wait for Expo Go to be installed on our simulator
-          echo "Phase 3: Waiting for Expo Go installation on simulator $SIMULATOR_UDID..."
-          for i in {1..60}; do
-            if xcrun simctl get_app_container "$SIMULATOR_UDID" host.exp.Exponent 2>/dev/null; then
-              echo "Expo Go is installed! (attempt $i)"
-              break
-            fi
-            if [ "$i" -eq 60 ]; then
-              echo "WARNING: Expo Go not detected on simulator after 120s!"
-              echo "=== Metro/Expo log (last 50 lines) ==="
-              tail -50 /tmp/metro.log
-              echo ""
-              echo "Checking all booted simulators for Expo Go..."
-              for UDID in $(xcrun simctl list devices booted | grep -oE '[0-9A-Fa-f-]{36}'); do
-                if xcrun simctl get_app_container "$UDID" host.exp.Exponent 2>/dev/null; then
-                  echo "Found Expo Go on simulator $UDID (not our target $SIMULATOR_UDID)"
-                fi
-              done
-              echo "ERROR: Expo Go was not installed. Cannot run E2E tests."
-              exit 1
-            fi
-            sleep 2
-          done
-
-          # Phase 4: Explicitly re-open the deep link on our specific simulator
-          # This ensures the app connects to Metro even if --ios opened on a different simulator
-          echo "Phase 4: Opening deep link on simulator $SIMULATOR_UDID..."
+          # Phase 3: Open the deep link on our simulator using localhost
+          # (not the network IP that Expo CLI uses - the simulator can reach localhost)
+          echo "Phase 3: Opening deep link on simulator $SIMULATOR_UDID..."
           xcrun simctl openurl "$SIMULATOR_UDID" "exp://localhost:8082"
 
           # Wait for the JS bundle to load in Expo Go
-          echo "Waiting 45s for JS bundle to load..."
-          sleep 45
+          echo "Waiting 60s for JS bundle to compile and load..."
+          sleep 60
+
+          # Verify Metro is still alive
+          if curl -s http://localhost:8082 > /dev/null 2>&1; then
+            echo "Metro is still running - good!"
+          else
+            echo "ERROR: Metro died! Check /tmp/metro.log"
+            tail -30 /tmp/metro.log
+            exit 1
+          fi
         env:
           EXPO_PUBLIC_API_URL: "http://localhost:8081"
 
@@ -451,6 +455,9 @@ jobs:
           echo ""
           echo "=== Metro log (last 30 lines) ==="
           tail -30 /tmp/metro.log 2>/dev/null || echo "No metro log"
+          echo ""
+          echo "=== Expo install log (last 20 lines) ==="
+          tail -20 /tmp/expo-install.log 2>/dev/null || echo "No expo install log"
           echo ""
           echo "=== Booted simulators ==="
           xcrun simctl list devices booted 2>/dev/null || echo "Failed to list booted devices"
@@ -487,6 +494,7 @@ jobs:
             frontend-mobile/.maestro/
             /tmp/pre-maestro-screenshot.png
             /tmp/metro.log
+            /tmp/expo-install.log
           retention-days: 7
 
   mobile-e2e-maestro-android:
