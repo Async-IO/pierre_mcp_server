@@ -369,11 +369,17 @@ jobs:
               visible:
                 id: "login-screen"
               timeout: 120000
-          # Dismiss Expo Go developer menu overlay.
-          # After clearState, a native "Continue" button overlay appears at ~90% height.
-          # Coordinate tap dismisses it so Maestro can interact with React Native views.
+          # Dismiss Expo Go developer menu in two steps:
+          # Step 1: Tap "Continue" on the onboarding overlay (at 90% height).
+          #   This transitions from the onboarding screen to the full developer menu.
           - tapOn:
               point: "50%,90%"
+          # Step 2: Dismiss the full developer menu by tapping outside it.
+          #   The menu is a bottom sheet covering ~67% of the screen. Tapping above
+          #   it (at 10% height) hits the backdrop and closes the menu, restoring
+          #   keyboard focus to the React Native app underneath.
+          - tapOn:
+              point: "50%,10%"
           - extendedWaitUntil:
               visible:
                 id: "email-input"
@@ -745,9 +751,13 @@ jobs:
               visible:
                 id: "login-screen"
               timeout: 120000
-          # Dismiss Expo Go developer menu overlay (coordinate tap at 90% height).
+          # Dismiss Expo Go developer menu in two steps:
+          # Step 1: Tap "Continue" on onboarding overlay (90% height).
           - tapOn:
               point: "50%,90%"
+          # Step 2: Tap outside the full developer menu to close it (10% height).
+          - tapOn:
+              point: "50%,10%"
           - extendedWaitUntil:
               visible:
                 id: "email-input"
