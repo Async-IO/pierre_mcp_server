@@ -21,10 +21,15 @@ appId: com.pierre.fitness
 - eraseText
 - inputText: ${TEST_PASSWORD}
 
-# Dismiss keyboard before tapping login button.
-# After typing '!' the keyboard is in symbols layout; hideKeyboard sends
-# a native resign-first-responder that works regardless of keyboard state.
-- hideKeyboard
+# Dismiss keyboard: after typing '!' the keyboard is in symbols layout.
+# Tap the app title (non-interactive text) to blur the input and dismiss.
+# Then wait for "Create one" at the bottom to confirm keyboard is fully gone.
+- tapOn:
+    point: "50%,15%"
+- extendedWaitUntil:
+    visible: "Create one"
+    timeout: 5000
+
 - tapOn:
     id: "login-button"
 
