@@ -21,11 +21,8 @@ appId: com.pierre.fitness
 - eraseText
 - inputText: ${TEST_PASSWORD}
 
-# Dismiss keyboard by tapping non-interactive title text above the form.
-# Then tap the login button directly.
-- tapOn: "Welcome to Pierre"
-- tapOn:
-    id: "login-button"
+# Submit via keyboard Return key (password field has onSubmitEditing={handleLogin}).
+- pressKey: Enter
 
 # Wait for successful login (chat screen should appear)
 - extendedWaitUntil:

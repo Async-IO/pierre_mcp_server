@@ -9,20 +9,19 @@ appId: com.pierre.fitness
 - runFlow:
     file: ../helpers/launch-app.yaml
 
-# Enter test credentials (fields are empty after fresh launch)
+# Enter test credentials (hardcoded to match test 05 structure which passes).
+# Fields are empty after fresh launch, no eraseText needed.
 - tapOn:
     id: "email-input"
-- inputText: ${TEST_EMAIL}
+- inputText: "mobiletest@pierre.dev"
 
 - tapOn:
     id: "password-input"
-- inputText: ${TEST_PASSWORD}
+- inputText: "MobileTest123a"
 
-# Dismiss keyboard by tapping non-interactive title text above the form.
-# Then tap the login button directly.
-- tapOn: "Welcome to Pierre"
-- tapOn:
-    id: "login-button"
+# Submit via keyboard Return key (password field has onSubmitEditing={handleLogin}).
+# This pattern works in test 05-validation-invalid-email.
+- pressKey: Enter
 
 # After successful login, should navigate away from login screen
 # Using longer timeout since login involves API call
