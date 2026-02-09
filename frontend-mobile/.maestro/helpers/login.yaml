@@ -21,10 +21,11 @@ appId: com.pierre.fitness
 - eraseText
 - inputText: ${TEST_PASSWORD}
 
-# Submit the form via keyboard Return key.
-# The password field has returnKeyType="go" and onSubmitEditing={handleLogin},
-# so pressKey Enter triggers login directly without needing to dismiss keyboard.
-- pressKey: Enter
+# Dismiss keyboard by tapping non-interactive title text above the form.
+# Then tap the login button directly.
+- tapOn: "Welcome to Pierre"
+- tapOn:
+    id: "login-button"
 
 # Wait for successful login (chat screen should appear)
 - extendedWaitUntil:
