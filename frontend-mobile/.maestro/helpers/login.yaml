@@ -21,8 +21,16 @@ appId: com.pierre.fitness
 - eraseText
 - inputText: ${TEST_PASSWORD}
 
-# Submit form via keyboard (password field has onSubmitEditing → handleLogin)
+# Dismiss keyboard by pressing Enter, then tap login button
 - pressKey: Enter
+
+# Wait for keyboard to fully dismiss (bottom text only visible without keyboard)
+- extendedWaitUntil:
+    visible: "Create one"
+    timeout: 5000
+
+- tapOn:
+    id: "login-button"
 
 # Wait for successful login (chat screen should appear)
 - extendedWaitUntil:

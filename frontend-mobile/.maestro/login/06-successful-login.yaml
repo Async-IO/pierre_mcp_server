@@ -20,8 +20,18 @@ appId: com.pierre.fitness
 - eraseText
 - inputText: ${TEST_PASSWORD}
 
-# Submit form via keyboard (password field has onSubmitEditing → handleLogin)
+# Dismiss keyboard by pressing Enter, then tap login button.
+# pressKey Enter triggers onSubmitEditing (dismisses keyboard) but may not
+# reliably fire handleLogin when special chars (!) change keyboard layout.
 - pressKey: Enter
+
+# Wait for keyboard to fully dismiss (bottom text only visible without keyboard)
+- extendedWaitUntil:
+    visible: "Create one"
+    timeout: 5000
+
+- tapOn:
+    id: "login-button"
 
 # After successful login, should navigate away from login screen
 # Using longer timeout since login involves API call
