@@ -4,7 +4,7 @@
 # ABOUTME: Complete development environment setup - database, seeds, OAuth users, all servers
 # ABOUTME: One command to go from zero to fully running dev environment with test data
 
-set -e
+set -eo pipefail
 
 # Colors
 RED='\033[0;31m'
@@ -141,43 +141,38 @@ fi
 echo "    Build complete"
 
 # Step 4: Run migrations and seeders
+# pierre-cli runs database migrations on startup, so no temporary server needed.
+# All seeders use direct DB access (no HTTP API required).
 print_step 4 "Running migrations and seeders..."
 
-# Start server temporarily for migrations
-RUST_LOG=warn ./target/$TARGET_DIR/pierre-mcp-server > /dev/null 2>&1 &
-TEMP_PID=$!
-sleep 3
-
-# Create admin user
-echo "    Creating admin user..."
+# Create admin user (also runs database migrations)
+echo "    Creating admin user (runs migrations)..."
 ./target/$TARGET_DIR/pierre-cli user create \
     --email "$ADMIN_EMAIL" \
-    --password "$ADMIN_PASSWORD" 2>&1 | grep -E "(Created|already exists)" || true
+    --password "$ADMIN_PASSWORD" \
+    --force 2>&1 | tail -3
 
 # Seed coaches
 echo "    Seeding AI coaches (9 personas)..."
-./target/$TARGET_DIR/seed-coaches 2>&1 | grep -E "(Created|Skipped)" | head -3 || true
+./target/$TARGET_DIR/seed-coaches 2>&1 | tail -3
 
-# Seed demo users
+# Seed demo users (direct DB, no server needed)
 echo "    Seeding demo users..."
-./target/$TARGET_DIR/seed-demo-data --days 30 2>&1 | grep -E "(Created|Skipped)" | head -3 || true
+./target/$TARGET_DIR/seed-demo-data --days 30 2>&1 | tail -3
 
 # Seed social data (includes webtest/mobiletest users)
 echo "    Seeding social test data..."
-./target/$TARGET_DIR/seed-social 2>&1 | grep -E "(Created|Skipped)" | head -3 || true
+./target/$TARGET_DIR/seed-social 2>&1 | tail -3
 
 # Seed mobility data
 echo "    Seeding mobility data (stretches, yoga)..."
-./target/$TARGET_DIR/seed-mobility 2>&1 | grep -E "(Created|Skipped|Seeded)" | head -3 || true
+./target/$TARGET_DIR/seed-mobility 2>&1 | tail -3
 
 # Seed synthetic activities for test users
 echo "    Seeding synthetic activities for test users..."
-./target/$TARGET_DIR/seed-synthetic-activities --email "$WEB_TEST_EMAIL" --count 30 --days 30 2>&1 | grep -E "(Created|activities)" | head -1 || true
-./target/$TARGET_DIR/seed-synthetic-activities --email "$MOBILE_TEST_EMAIL" --count 30 --days 30 2>&1 | grep -E "(Created|activities)" | head -1 || true
+./target/$TARGET_DIR/seed-synthetic-activities --email "$WEB_TEST_EMAIL" --count 30 --days 30 2>&1 | tail -1
+./target/$TARGET_DIR/seed-synthetic-activities --email "$MOBILE_TEST_EMAIL" --count 30 --days 30 2>&1 | tail -1
 
-# Stop temporary server
-kill $TEMP_PID 2>/dev/null || true
-sleep 1
 echo "    All seeders complete"
 
 # Step 5: Start Pierre server

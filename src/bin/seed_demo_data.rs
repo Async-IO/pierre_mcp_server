@@ -24,6 +24,7 @@
 //! cargo run --bin seed-demo-data -- -v
 //! ```
 
+use bcrypt::{hash, DEFAULT_COST};
 use chrono::{DateTime, Datelike, Duration, Timelike, Utc, Weekday};
 use clap::Parser;
 use rand::rngs::StdRng;
@@ -42,12 +43,6 @@ enum SeedError {
 
     #[error("UUID parse error: {0}")]
     Uuid(#[from] uuid::Error),
-
-    #[error("HTTP request error: {0}")]
-    Http(#[from] reqwest::Error),
-
-    #[error("JSON error: {0}")]
-    Json(#[from] serde_json::Error),
 
     #[error("{0}")]
     Validation(String),
@@ -73,10 +68,6 @@ struct SeedArgs {
     /// Database URL override
     #[arg(long)]
     database_url: Option<String>,
-
-    /// Server URL for API calls (default: <http://localhost:8081>)
-    #[arg(long)]
-    server_url: Option<String>,
 
     /// Reset usage data before seeding (keeps users and API keys)
     #[arg(long)]
@@ -584,26 +575,15 @@ async fn main() -> SeedResult<()> {
     let admin_user = find_admin_user(&pool, args.admin_email.as_deref()).await?;
     info!("Using admin user: {} ({})", admin_user.1, admin_user.0);
 
-    // Get server URL for API calls
-    let server_url = args
-        .server_url
-        .or_else(|| {
-            env::var("HTTP_PORT")
-                .ok()
-                .map(|p| format!("http://localhost:{p}"))
-        })
-        .unwrap_or_else(|| "http://localhost:8081".to_owned());
-    info!("Using server URL: {}", server_url);
-
     // Reset if requested
     if args.reset {
         info!("Resetting usage data...");
         reset_usage_data(&pool).await?;
     }
 
-    // Seed demo users via registration API (creates proper tenants)
-    info!("Step 1: Creating demo users via registration API...");
-    let user_ids = seed_demo_users(&pool, &server_url).await?;
+    // Seed demo users with direct DB operations (creates user + tenant)
+    info!("Step 1: Creating demo users...");
+    let user_ids = seed_demo_users(&pool).await?;
     info!("  Created/found {} demo users", user_ids.len());
 
     // Seed API keys (assign to admin + demo users)
@@ -670,11 +650,13 @@ async fn reset_usage_data(pool: &SqlitePool) -> SeedResult<()> {
     Ok(())
 }
 
-/// Seed demo users via the registration API (creates user + tenant properly)
-async fn seed_demo_users(pool: &SqlitePool, server_url: &str) -> SeedResult<Vec<Uuid>> {
+/// Seed demo users with direct DB operations (creates user + personal tenant).
+/// Follows the same pattern as pierre-cli user creation: insert user row,
+/// create personal tenant, link via `tenant_users` junction table, and
+/// update the `tenant_id` column on users for backwards compatibility.
+async fn seed_demo_users(pool: &SqlitePool) -> SeedResult<Vec<Uuid>> {
     let demo_users = get_demo_users();
     let mut user_ids = Vec::new();
-    let client = reqwest::Client::new();
 
     for user in &demo_users {
         // Check if user already exists
@@ -688,48 +670,7 @@ async fn seed_demo_users(pool: &SqlitePool, server_url: &str) -> SeedResult<Vec<
             info!("  Found existing user: {}", user.email);
             id
         } else {
-            // Use the registration API to create user with proper tenant
-            let password = user.password.unwrap_or(DEMO_USER_PASSWORD);
-            let register_request = serde_json::json!({
-                "email": user.email,
-                "password": password,
-                "display_name": user.display_name
-            });
-
-            let response = client
-                .post(format!("{server_url}/api/auth/register"))
-                .json(&register_request)
-                .send()
-                .await?;
-
-            if !response.status().is_success() {
-                let error_text = response.text().await.unwrap_or_default();
-                return Err(SeedError::Validation(format!(
-                    "Failed to register user {}: {}",
-                    user.email, error_text
-                )));
-            }
-
-            let register_response: serde_json::Value = response.json().await?;
-            let user_id_str = register_response["user_id"].as_str().ok_or_else(|| {
-                SeedError::Validation("No user_id in registration response".to_owned())
-            })?;
-            let id = Uuid::parse_str(user_id_str)?;
-
-            // Update tier and status if different from defaults (starter/active)
-            if user.tier != "starter" || user.status != "active" {
-                let is_active = i32::from(user.status != "suspended");
-                sqlx::query(
-                    "UPDATE users SET tier = ?, user_status = ?, is_active = ? WHERE id = ?",
-                )
-                .bind(user.tier)
-                .bind(user.status)
-                .bind(is_active)
-                .bind(id.to_string())
-                .execute(pool)
-                .await?;
-            }
-
+            let id = create_demo_user(pool, user).await?;
             info!("  Created user: {} ({})", user.email, user.status);
             id
         };
@@ -738,6 +679,90 @@ async fn seed_demo_users(pool: &SqlitePool, server_url: &str) -> SeedResult<Vec<
     }
 
     Ok(user_ids)
+}
+
+/// Create a single demo user with tenant via direct DB operations
+async fn create_demo_user(pool: &SqlitePool, user: &DemoUser) -> SeedResult<Uuid> {
+    let user_id = Uuid::new_v4();
+    let password = user.password.unwrap_or(DEMO_USER_PASSWORD);
+    let password_hash = hash(password, DEFAULT_COST)
+        .map_err(|e| SeedError::Validation(format!("bcrypt error: {e}")))?;
+
+    let now = Utc::now().to_rfc3339();
+    let is_active = i32::from(user.status != "suspended");
+
+    // Set approved_at for active users (they can login)
+    let approved_at: Option<&str> = if user.status == "active" {
+        Some(&now)
+    } else {
+        None
+    };
+
+    // Insert user row
+    sqlx::query(
+        "INSERT INTO users (\
+             id, email, display_name, password_hash, tier, \
+             is_active, user_status, is_admin, approved_at, \
+             created_at, last_active, auth_provider\
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 'email')",
+    )
+    .bind(user_id.to_string())
+    .bind(user.email)
+    .bind(user.display_name)
+    .bind(&password_hash)
+    .bind(user.tier)
+    .bind(is_active)
+    .bind(user.status)
+    .bind(approved_at)
+    .bind(&now)
+    .bind(&now)
+    .execute(pool)
+    .await?;
+
+    // Create personal tenant (plan matches user tier)
+    let tenant_id = Uuid::new_v4();
+    let tenant_slug = format!("user-{}", user_id.as_simple());
+    let tenant_name = format!("{}'s Workspace", user.display_name);
+
+    sqlx::query(
+        "INSERT INTO tenants (\
+             id, name, slug, plan, owner_user_id, \
+             is_active, created_at, updated_at\
+         ) VALUES (?, ?, ?, ?, ?, 1, ?, ?)",
+    )
+    .bind(tenant_id.to_string())
+    .bind(&tenant_name)
+    .bind(&tenant_slug)
+    .bind(user.tier)
+    .bind(user_id.to_string())
+    .bind(&now)
+    .bind(&now)
+    .execute(pool)
+    .await?;
+
+    // Add user as tenant owner in junction table
+    let tenant_user_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO tenant_users (\
+             id, tenant_id, user_id, role, invited_at, joined_at, is_active\
+         ) VALUES (?, ?, ?, 'owner', ?, ?, 1)",
+    )
+    .bind(tenant_user_id.to_string())
+    .bind(tenant_id.to_string())
+    .bind(user_id.to_string())
+    .bind(&now)
+    .bind(&now)
+    .execute(pool)
+    .await?;
+
+    // Update tenant_id column on user for backwards compatibility
+    sqlx::query("UPDATE users SET tenant_id = ? WHERE id = ?")
+        .bind(tenant_id.to_string())
+        .bind(user_id.to_string())
+        .execute(pool)
+        .await?;
+
+    Ok(user_id)
 }
 
 /// Seed API keys
