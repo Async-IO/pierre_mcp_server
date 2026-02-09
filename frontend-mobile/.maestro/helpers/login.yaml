@@ -10,16 +10,15 @@ appId: com.pierre.fitness
       id: "login-screen"
     timeout: 10000
 
-# Clear any pre-filled values and enter test credentials
+# Enter test credentials (hardcoded to match test 06 pattern which passes).
+# Fields are empty after fresh launch, no eraseText needed.
 - tapOn:
     id: "email-input"
-- eraseText
-- inputText: ${TEST_EMAIL}
+- inputText: "mobiletest@pierre.dev"
 
 - tapOn:
     id: "password-input"
-- eraseText
-- inputText: ${TEST_PASSWORD}
+- inputText: "MobileTest1234"
 
 # Submit via keyboard Return key (password field has onSubmitEditing={handleLogin}).
 - pressKey: Enter
