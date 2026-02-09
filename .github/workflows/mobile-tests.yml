@@ -356,9 +356,9 @@ jobs:
           find frontend-mobile/.maestro -name "*.yaml" -exec sed -i '' 's/appId: com.pierre.fitness/appId: host.exp.Exponent/g' {} +
           # Override launch helper for Expo Go.
           # Uses clearKeychain (not clearState) to preserve UserDefaults across tests.
-          # This keeps EXDevMenuIsOnboardingFinished=true so the developer menu overlay
-          # never reappears. clearKeychain still removes JWT tokens from SecureStore,
-          # ensuring the app shows the login screen on each test.
+          # clearKeychain removes JWT tokens from SecureStore, ensuring the app shows
+          # the login screen. UserDefaults persist, so the developer menu onboarding
+          # flag (EXDevMenuIsOnboardingFinished) stays true after first dismiss.
           # CRITICAL: Use 127.0.0.1 not localhost (macOS resolves localhost to IPv6 first)
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
           appId: host.exp.Exponent
@@ -370,6 +370,13 @@ jobs:
               visible:
                 id: "login-screen"
               timeout: 120000
+          # Dismiss Expo Go developer menu if present.
+          # On first test: clearKeychain preserves the dismiss flag for future tests.
+          # On subsequent tests: these taps are harmless (hit non-interactive areas).
+          - tapOn:
+              point: "50%,85%"
+          - tapOn:
+              point: "50%,10%"
           - extendedWaitUntil:
               visible:
                 id: "email-input"
