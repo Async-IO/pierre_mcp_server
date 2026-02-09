@@ -21,9 +21,10 @@ appId: com.pierre.fitness
 - eraseText
 - inputText: ${TEST_PASSWORD}
 
-# Tap login button directly with keyboard up.
-# KeyboardAvoidingView shifts form above keyboard, and ScrollView's
-# keyboardShouldPersistTaps="handled" ensures button tap is processed.
+# Dismiss keyboard before tapping login button.
+# After typing '!' the keyboard is in symbols layout; hideKeyboard sends
+# a native resign-first-responder that works regardless of keyboard state.
+- hideKeyboard
 - tapOn:
     id: "login-button"
 
