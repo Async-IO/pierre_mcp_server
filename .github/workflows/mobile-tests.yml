@@ -290,7 +290,7 @@ jobs:
 
       - name: Start Pierre server
         run: |
-          ./target/release/pierre-mcp-server &
+          ./target/release/pierre-mcp-server > /tmp/pierre-server.log 2>&1 &
           echo "Waiting for server to start..."
           for i in {1..30}; do
             if curl -s http://localhost:8081/health > /dev/null; then
@@ -305,14 +305,14 @@ jobs:
           PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
           PIERRE_RSA_KEY_SIZE: "2048"
           HTTP_PORT: "8081"
-          RUST_LOG: "warn"
+          RUST_LOG: "info"
           STRAVA_CLIENT_ID: "test_client_id_ci"
           STRAVA_CLIENT_SECRET: "test_client_secret_ci"
           STRAVA_REDIRECT_URI: "http://localhost:8081/auth/strava/callback"
 
       - name: Seed test user for Maestro tests
         run: |
-          ./target/release/pierre-cli user create --email mobiletest@pierre.dev --password MobileTest123! --force
+          ./target/release/pierre-cli user create --email mobiletest@pierre.dev --password TestPass1234 --force
         env:
           DATABASE_URL: "sqlite:${{ github.workspace }}/data/maestro-test.db"
           PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
@@ -537,7 +537,7 @@ jobs:
           echo "=== Login API test (OAuth token endpoint) ==="
           LOGIN_RESPONSE=$(curl -sf -X POST http://127.0.0.1:8081/oauth/token \
             -H "Content-Type: application/x-www-form-urlencoded" \
-            -d "grant_type=password&username=mobiletest@pierre.dev&password=MobileTest123!" 2>&1) || true
+            -d "grant_type=password&username=mobiletest@pierre.dev&password=TestPass1234" 2>&1) || true
           if echo "$LOGIN_RESPONSE" | grep -q "access_token"; then
             echo "Login API: SUCCESS (got access_token)"
           else
@@ -573,7 +573,7 @@ jobs:
           fi
         env:
           TEST_EMAIL: "mobiletest@pierre.dev"
-          TEST_PASSWORD: "MobileTest123!"
+          TEST_PASSWORD: "TestPass1234"
           BACKEND_URL: "http://localhost:8081"
 
       - name: Post-test diagnostics
@@ -600,6 +600,12 @@ jobs:
           echo ""
           echo "=== Metro log (last 20 lines) ==="
           tail -20 /tmp/metro.log 2>/dev/null || echo "No metro log"
+          echo ""
+          echo "=== Pierre server log (login attempts) ==="
+          grep -i "oauth\|token\|login\|auth\|password" /tmp/pierre-server.log 2>/dev/null | tail -30 || echo "No auth-related log entries"
+          echo ""
+          echo "=== Pierre server log (errors) ==="
+          grep -iE "error|fail|reject|invalid" /tmp/pierre-server.log 2>/dev/null | tail -20 || echo "No error entries"
 
       - name: Upload Maestro test results
         uses: actions/upload-artifact@v4
@@ -614,6 +620,7 @@ jobs:
             /tmp/maestro-screenshots/
             /tmp/metro.log
             /tmp/expo-install.log
+            /tmp/pierre-server.log
           retention-days: 7
 
   mobile-e2e-maestro-android:
@@ -716,14 +723,14 @@ jobs:
           PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
           PIERRE_RSA_KEY_SIZE: "2048"
           HTTP_PORT: "8081"
-          RUST_LOG: "warn"
+          RUST_LOG: "info"
           STRAVA_CLIENT_ID: "test_client_id_ci"
           STRAVA_CLIENT_SECRET: "test_client_secret_ci"
           STRAVA_REDIRECT_URI: "http://localhost:8081/auth/strava/callback"
 
       - name: Seed test user for Maestro tests
         run: |
-          ./target/release/pierre-cli user create --email mobiletest@pierre.dev --password MobileTest123! --force
+          ./target/release/pierre-cli user create --email mobiletest@pierre.dev --password TestPass1234 --force
         env:
           DATABASE_URL: "sqlite:${{ github.workspace }}/data/maestro-android-test.db"
           PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
@@ -823,7 +830,7 @@ jobs:
           CI: "true"
           EXPO_PUBLIC_API_URL: "http://10.0.2.2:8081"
           TEST_EMAIL: "mobiletest@pierre.dev"
-          TEST_PASSWORD: "MobileTest123!"
+          TEST_PASSWORD: "TestPass1234"
           BACKEND_URL: "http://10.0.2.2:8081"
           MAESTRO_FULL_SUITE: ${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
 
