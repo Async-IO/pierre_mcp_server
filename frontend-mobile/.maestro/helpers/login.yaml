@@ -24,10 +24,11 @@ appId: com.pierre.fitness
 # Hide keyboard
 - hideKeyboard
 
-# Wait for login button to be visible and tap
-- extendedWaitUntil:
-    visible:
+# Scroll to make login button visible above keyboard and tap
+- scrollUntilVisible:
+    element:
       id: "login-button"
+    direction: DOWN
     timeout: 5000
 - tapOn:
     id: "login-button"
