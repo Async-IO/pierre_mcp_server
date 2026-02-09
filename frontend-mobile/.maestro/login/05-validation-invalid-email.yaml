@@ -18,18 +18,8 @@ appId: com.pierre.fitness
     id: "password-input"
 - inputText: "password123"
 
-# Hide keyboard
-- hideKeyboard
-
-# Scroll to make login button visible and tap
-- scrollUntilVisible:
-    element:
-      id: "login-button"
-    direction: DOWN
-    timeout: 5000
-
-- tapOn:
-    id: "login-button"
+# Submit form via keyboard (password field has onSubmitEditing → handleLogin)
+- pressKey: Enter
 
 # Verify validation error is shown
 - assertVisible: "Please enter a valid email"

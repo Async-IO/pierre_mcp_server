@@ -221,6 +221,8 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
                   onChangeText={setPassword}
                   secureTextEntry
                   showPasswordToggle
+                  returnKeyType="go"
+                  onSubmitEditing={handleLogin}
                   error={errors.password}
                   testID="password-input"
                 />
