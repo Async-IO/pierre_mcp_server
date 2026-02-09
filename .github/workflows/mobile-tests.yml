@@ -356,9 +356,8 @@ jobs:
           find frontend-mobile/.maestro -name "*.yaml" -exec sed -i '' 's/appId: com.pierre.fitness/appId: host.exp.Exponent/g' {} +
           # Override launch helper for Expo Go.
           # After clearState, Expo Go shows a developer menu onboarding overlay with
-          # a "Continue" button. The overlay is rendered by expo-dev-menu (React Native),
-          # so Maestro can see the "Continue" text via accessibility.
-          # Strategy: try text-based dismiss first, then coordinate fallback at 90%.
+          # a "Continue" button that blocks all touch events to React Native views.
+          # A coordinate tap at 90% height dismisses it (proven in CI run v12).
           # CRITICAL: Use 127.0.0.1 not localhost (macOS resolves localhost to IPv6 first)
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
           appId: host.exp.Exponent
@@ -370,17 +369,9 @@ jobs:
               visible:
                 id: "login-screen"
               timeout: 120000
-          # Dismiss the developer menu onboarding overlay ("Continue" button).
-          # Try text-based tap first (expo-dev-menu is React Native, so accessible).
-          - runFlow:
-              when:
-                visible:
-                  text: "Continue"
-              commands:
-                - tapOn:
-                    text: "Continue"
-          # Fallback: coordinate tap at 90% height for the "Continue" button.
-          # On iPhone 16 Pro (402x874), 90% = y:787 which hits the button area.
+          # Dismiss Expo Go developer menu overlay.
+          # After clearState, a native "Continue" button overlay appears at ~90% height.
+          # Coordinate tap dismisses it so Maestro can interact with React Native views.
           - tapOn:
               point: "50%,90%"
           - extendedWaitUntil:
@@ -743,7 +734,7 @@ jobs:
           # Replace native app ID with Android Expo Go package name (lowercase)
           find frontend-mobile/.maestro -name "*.yaml" -exec sed -i 's/appId: com.pierre.fitness/appId: host.exp.exponent/g' {} +
           # Override launch helper for Expo Go.
-          # Same strategy as iOS: text-based dismiss + coordinate tap fallback.
+          # Same strategy as iOS: coordinate tap at 90% to dismiss developer menu overlay.
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
           appId: host.exp.exponent
           ---
@@ -754,13 +745,7 @@ jobs:
               visible:
                 id: "login-screen"
               timeout: 120000
-          - runFlow:
-              when:
-                visible:
-                  text: "Continue"
-              commands:
-                - tapOn:
-                    text: "Continue"
+          # Dismiss Expo Go developer menu overlay (coordinate tap at 90% height).
           - tapOn:
               point: "50%,90%"
           - extendedWaitUntil:
@@ -793,12 +778,6 @@ jobs:
           done
           # Wait for Expo Go to install and load the initial bundle
           sleep 30
-
-          # Suppress Expo Go developer menu onboarding overlay.
-          # Write the SharedPreferences key that marks onboarding as finished.
-          # This prevents the native overlay from blocking all touch interactions.
-          DEVMENU_XML='<?xml version="1.0" encoding="utf-8" standalone="yes" ?><map><boolean name="isOnboardingFinished" value="true" /></map>'
-          adb shell "run-as host.exp.exponent sh -c 'echo \"$DEVMENU_XML\" > shared_prefs/devmenu.xml'" || echo "Warning: Could not set developer menu preference (non-fatal)"
 
           if [ "$MAESTRO_FULL_SUITE" = "true" ]; then
             echo "Running full E2E suite (manual trigger)..."
