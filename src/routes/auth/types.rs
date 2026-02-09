@@ -219,6 +219,9 @@ pub struct ConnectionStatus {
     pub provider: String,
     /// Whether the user is connected to this provider
     pub connected: bool,
+    /// How this provider was connected (e.g., "oauth", "synthetic", "manual")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub connection_type: Option<String>,
     /// When the connection expires (ISO 8601 format)
     pub expires_at: Option<String>,
     /// Space-separated list of granted OAuth scopes

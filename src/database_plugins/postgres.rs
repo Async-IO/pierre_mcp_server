@@ -31,8 +31,9 @@ use crate::database_plugins::shared::encryption::HasEncryption;
 use crate::errors::{AppError, AppResult};
 use crate::models::OAuthNotification;
 use crate::models::{
-    AuthorizationCode, OAuthApp, Tenant, TenantPlan, TenantToolOverride, ToolCatalogEntry,
-    ToolCategory, User, UserOAuthApp, UserOAuthToken, UserStatus, UserTier,
+    AuthorizationCode, ConnectionType, OAuthApp, ProviderConnection, Tenant, TenantPlan,
+    TenantToolOverride, ToolCatalogEntry, ToolCategory, User, UserOAuthApp, UserOAuthToken,
+    UserStatus, UserTier,
 };
 use crate::oauth2_client::OAuthClientState;
 use crate::oauth2_server::models::{OAuth2AuthCode, OAuth2Client, OAuth2RefreshToken, OAuth2State};
@@ -6500,6 +6501,132 @@ impl DatabaseProvider for PostgresDatabase {
             "SELECT COUNT(*) FROM synthetic_activities WHERE user_id = $1 LIMIT 1",
         )
         .bind(user_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(count > 0)
+    }
+
+    // ================================
+    // Provider Connections (PostgreSQL implementation)
+    // ================================
+
+    async fn register_provider_connection(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        provider: &str,
+        connection_type: &ConnectionType,
+        metadata: Option<&str>,
+    ) -> AppResult<()> {
+        let id = Uuid::new_v4().to_string();
+        let now = Utc::now();
+        let conn_type_str = connection_type.as_str();
+
+        sqlx::query(
+            r"
+            INSERT INTO provider_connections (id, user_id, tenant_id, provider, connection_type, connected_at, metadata)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT(user_id, tenant_id, provider) DO UPDATE SET
+                connection_type = EXCLUDED.connection_type,
+                connected_at = EXCLUDED.connected_at,
+                metadata = EXCLUDED.metadata
+            ",
+        )
+        .bind(&id)
+        .bind(user_id.to_string())
+        .bind(tenant_id)
+        .bind(provider)
+        .bind(conn_type_str)
+        .bind(now.to_rfc3339())
+        .bind(metadata)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn remove_provider_connection(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        provider: &str,
+    ) -> AppResult<()> {
+        sqlx::query(
+            "DELETE FROM provider_connections WHERE user_id = $1 AND tenant_id = $2 AND provider = $3",
+        )
+        .bind(user_id.to_string())
+        .bind(tenant_id)
+        .bind(provider)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn get_user_provider_connections(
+        &self,
+        user_id: Uuid,
+        tenant_id: Option<&str>,
+    ) -> AppResult<Vec<ProviderConnection>> {
+        let rows = if let Some(tid) = tenant_id {
+            sqlx::query(
+                r"
+                SELECT id, user_id, tenant_id, provider, connection_type, connected_at, metadata
+                FROM provider_connections
+                WHERE user_id = $1 AND tenant_id = $2
+                ORDER BY connected_at DESC
+                ",
+            )
+            .bind(user_id.to_string())
+            .bind(tid)
+            .fetch_all(&self.pool)
+            .await?
+        } else {
+            sqlx::query(
+                r"
+                SELECT id, user_id, tenant_id, provider, connection_type, connected_at, metadata
+                FROM provider_connections
+                WHERE user_id = $1
+                ORDER BY connected_at DESC
+                ",
+            )
+            .bind(user_id.to_string())
+            .fetch_all(&self.pool)
+            .await?
+        };
+
+        let mut connections = Vec::with_capacity(rows.len());
+        for row in rows {
+            let conn_type_str: String = row.get("connection_type");
+            let connected_at_str: String = row.get("connected_at");
+            let connected_at = DateTime::parse_from_rfc3339(&connected_at_str)
+                .map_or_else(|_| Utc::now(), |dt| dt.with_timezone(&Utc));
+
+            let user_id_from_db: String = row.get("user_id");
+            let parsed_user_id = Uuid::parse_str(&user_id_from_db).unwrap_or_else(|_| Uuid::nil());
+
+            connections.push(ProviderConnection {
+                id: row.get("id"),
+                user_id: parsed_user_id,
+                tenant_id: row.get("tenant_id"),
+                provider: row.get("provider"),
+                connection_type: ConnectionType::from_str_value(&conn_type_str)
+                    .unwrap_or(ConnectionType::Manual),
+                connected_at,
+                metadata: row.get("metadata"),
+            });
+        }
+
+        Ok(connections)
+    }
+
+    async fn is_provider_connected(&self, user_id: Uuid, provider: &str) -> AppResult<bool> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM provider_connections WHERE user_id = $1 AND provider = $2",
+        )
+        .bind(user_id.to_string())
+        .bind(provider)
         .fetch_one(&self.pool)
         .await?;
 

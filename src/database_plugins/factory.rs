@@ -27,8 +27,9 @@ use crate::database::{
 use crate::errors::{AppError, AppResult};
 use crate::models::OAuthNotification;
 use crate::models::{
-    AuthorizationCode, OAuthApp, Tenant, TenantPlan, TenantToolOverride, ToolCatalogEntry,
-    ToolCategory, User, UserOAuthApp, UserOAuthToken, UserStatus,
+    AuthorizationCode, ConnectionType, OAuthApp, ProviderConnection, Tenant, TenantPlan,
+    TenantToolOverride, ToolCatalogEntry, ToolCategory, User, UserOAuthApp, UserOAuthToken,
+    UserStatus,
 };
 use crate::oauth2_client::OAuthClientState;
 use crate::oauth2_server::models::{OAuth2AuthCode, OAuth2Client, OAuth2RefreshToken, OAuth2State};
@@ -2740,6 +2741,85 @@ impl DatabaseProvider for Database {
             Self::SQLite(db) => db.user_has_synthetic_activities_impl(user_id).await,
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => db.user_has_synthetic_activities(user_id).await,
+        }
+    }
+
+    // ================================
+    // Provider Connections
+    // ================================
+
+    async fn register_provider_connection(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        provider: &str,
+        connection_type: &ConnectionType,
+        metadata: Option<&str>,
+    ) -> AppResult<()> {
+        match self {
+            Self::SQLite(db) => {
+                db.register_provider_connection_impl(
+                    user_id,
+                    tenant_id,
+                    provider,
+                    connection_type,
+                    metadata,
+                )
+                .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.register_provider_connection(
+                    user_id,
+                    tenant_id,
+                    provider,
+                    connection_type,
+                    metadata,
+                )
+                .await
+            }
+        }
+    }
+
+    async fn remove_provider_connection(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        provider: &str,
+    ) -> AppResult<()> {
+        match self {
+            Self::SQLite(db) => {
+                db.remove_provider_connection_impl(user_id, tenant_id, provider)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.remove_provider_connection(user_id, tenant_id, provider)
+                    .await
+            }
+        }
+    }
+
+    async fn get_user_provider_connections(
+        &self,
+        user_id: Uuid,
+        tenant_id: Option<&str>,
+    ) -> AppResult<Vec<ProviderConnection>> {
+        match self {
+            Self::SQLite(db) => {
+                db.get_user_provider_connections_impl(user_id, tenant_id)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_user_provider_connections(user_id, tenant_id).await,
+        }
+    }
+
+    async fn is_provider_connected(&self, user_id: Uuid, provider: &str) -> AppResult<bool> {
+        match self {
+            Self::SQLite(db) => db.is_provider_connected_impl(user_id, provider).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.is_provider_connected(user_id, provider).await,
         }
     }
 

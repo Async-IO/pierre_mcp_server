@@ -21,8 +21,9 @@ use crate::database::{
 use crate::errors::AppResult;
 use crate::models::OAuthNotification;
 use crate::models::{
-    AuthorizationCode, OAuthApp, Tenant, TenantPlan, TenantToolOverride, ToolCatalogEntry,
-    ToolCategory, User, UserOAuthApp, UserOAuthToken, UserStatus,
+    AuthorizationCode, ConnectionType, OAuthApp, ProviderConnection, Tenant, TenantPlan,
+    TenantToolOverride, ToolCatalogEntry, ToolCategory, User, UserOAuthApp, UserOAuthToken,
+    UserStatus,
 };
 use crate::oauth2_client::OAuthClientState;
 use crate::oauth2_server::models::{OAuth2AuthCode, OAuth2Client, OAuth2RefreshToken, OAuth2State};
@@ -1102,6 +1103,43 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// This is used by the providers endpoint to determine if the synthetic
     /// provider should be shown as "connected" for a user.
     async fn user_has_synthetic_activities(&self, user_id: Uuid) -> AppResult<bool>;
+
+    // ================================
+    // Provider Connections
+    // ================================
+
+    /// Register a provider connection (upsert)
+    ///
+    /// Creates or updates a record in `provider_connections` for the given user/tenant/provider.
+    async fn register_provider_connection(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        provider: &str,
+        connection_type: &ConnectionType,
+        metadata: Option<&str>,
+    ) -> AppResult<()>;
+
+    /// Remove a provider connection
+    async fn remove_provider_connection(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        provider: &str,
+    ) -> AppResult<()>;
+
+    /// Get all provider connections for a user
+    ///
+    /// When `tenant_id` is None, returns cross-tenant view.
+    /// When Some, scopes to that specific tenant.
+    async fn get_user_provider_connections(
+        &self,
+        user_id: Uuid,
+        tenant_id: Option<&str>,
+    ) -> AppResult<Vec<ProviderConnection>>;
+
+    /// Check if a specific provider is connected for a user (cross-tenant)
+    async fn is_provider_connected(&self, user_id: Uuid, provider: &str) -> AppResult<bool>;
 
     // ================================
     // Chat Conversations & Messages

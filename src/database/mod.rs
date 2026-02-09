@@ -28,6 +28,8 @@ pub mod impersonation;
 pub mod mobility;
 /// OAuth callback notification handling
 pub mod oauth_notifications;
+/// Provider connections: unified connection tracking for all provider types
+pub mod provider_connections;
 /// Recipe storage and management for nutrition planning
 pub mod recipes;
 /// System coaches seeding for server startup
@@ -84,8 +86,9 @@ use crate::dashboard_routes::{RequestLog, ToolUsage};
 use crate::database_plugins::{shared, DatabaseProvider};
 use crate::errors::{AppError, AppResult};
 use crate::models::{
-    AuthorizationCode, OAuthApp, Tenant, TenantPlan, TenantToolOverride, ToolCatalogEntry,
-    ToolCategory, User, UserOAuthApp, UserOAuthToken, UserStatus,
+    AuthorizationCode, ConnectionType, OAuthApp, ProviderConnection, Tenant, TenantPlan,
+    TenantToolOverride, ToolCatalogEntry, ToolCategory, User, UserOAuthApp, UserOAuthToken,
+    UserStatus,
 };
 use crate::oauth2_client::OAuthClientState;
 use crate::oauth2_server::models::{OAuth2AuthCode, OAuth2Client, OAuth2RefreshToken, OAuth2State};
@@ -3912,6 +3915,50 @@ impl DatabaseProvider for Database {
 
     async fn user_has_synthetic_activities(&self, user_id: Uuid) -> AppResult<bool> {
         Self::user_has_synthetic_activities_impl(self, user_id).await
+    }
+
+    // ================================
+    // Provider Connections
+    // ================================
+
+    async fn register_provider_connection(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        provider: &str,
+        connection_type: &ConnectionType,
+        metadata: Option<&str>,
+    ) -> AppResult<()> {
+        Self::register_provider_connection_impl(
+            self,
+            user_id,
+            tenant_id,
+            provider,
+            connection_type,
+            metadata,
+        )
+        .await
+    }
+
+    async fn remove_provider_connection(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        provider: &str,
+    ) -> AppResult<()> {
+        Self::remove_provider_connection_impl(self, user_id, tenant_id, provider).await
+    }
+
+    async fn get_user_provider_connections(
+        &self,
+        user_id: Uuid,
+        tenant_id: Option<&str>,
+    ) -> AppResult<Vec<ProviderConnection>> {
+        Self::get_user_provider_connections_impl(self, user_id, tenant_id).await
+    }
+
+    async fn is_provider_connected(&self, user_id: Uuid, provider: &str) -> AppResult<bool> {
+        Self::is_provider_connected_impl(self, user_id, provider).await
     }
 
     // ================================

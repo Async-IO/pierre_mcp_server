@@ -1,7 +1,7 @@
 // ABOUTME: Main chat screen with conversation list and message interface
 // ABOUTME: Professional dark theme UI inspired by ChatGPT and Claude design
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -28,7 +28,7 @@ import Toast from 'react-native-toast-message';
 import { getOAuthCallbackUrl } from '../../utils/oauth';
 import Markdown from 'react-native-markdown-display';
 import { Ionicons } from '@expo/vector-icons';
-import { useRoute, type RouteProp } from '@react-navigation/native';
+import { useRoute, useFocusEffect, type RouteProp } from '@react-navigation/native';
 import { colors, spacing, fontSize, borderRadius, aiGlow, glassCard } from '../../constants/theme';
 
 // ViewStyle objects for styles that require React Native shadow properties
@@ -166,6 +166,15 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       loadCoaches();
     }
   }, [isAuthenticated]);
+
+  // Refresh provider status when tab is focused (e.g., after connecting a provider in Settings)
+  useFocusEffect(
+    useCallback(() => {
+      if (isAuthenticated) {
+        loadProviderStatus();
+      }
+    }, [isAuthenticated])
+  );
 
   const loadProviderStatus = async () => {
     try {

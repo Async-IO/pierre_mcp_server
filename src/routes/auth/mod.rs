@@ -55,7 +55,7 @@ use crate::{
     database_plugins::{factory::Database, DatabaseProvider},
     errors::{AppError, AppResult, ErrorCode},
     mcp::{resources::ServerResources, schema::OAuthCompletedNotification},
-    models::{Tenant, User, UserOAuthToken, UserStatus, UserTier},
+    models::{ConnectionType, Tenant, User, UserOAuthToken, UserStatus, UserTier},
     oauth2_client::{OAuth2Client, OAuth2Config, OAuth2Token, OAuthClientState, PkceParams},
     permissions::UserRole,
     providers::ProviderDescriptor,
@@ -1037,6 +1037,22 @@ impl OAuthService {
             .upsert_user_oauth_token(&user_oauth_token)
             .await
             .map_err(|e| AppError::database(format!("Failed to upsert OAuth token: {e}")))?;
+
+        // Register provider connection alongside the OAuth token
+        self.data
+            .database()
+            .register_provider_connection(
+                user_id,
+                &user_oauth_token.tenant_id,
+                provider,
+                &ConnectionType::OAuth,
+                None,
+            )
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to register provider connection: {e}"))
+            })?;
+
         Ok(expires_at)
     }
 
@@ -1232,6 +1248,15 @@ impl OAuthService {
             .await
             .map_err(|e| AppError::database(format!("Failed to delete OAuth token: {e}")))?;
 
+        // Remove provider connection record
+        self.data
+            .database()
+            .remove_provider_connection(user_id, &tenant_id, provider)
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to remove provider connection: {e}"))
+            })?;
+
         info!("Disconnected {} for user {}", provider, user_id);
 
         Ok(())
@@ -1383,7 +1408,10 @@ impl OAuthService {
         })
     }
 
-    /// Get OAuth connection status for user
+    /// Get connection status for all providers for a user
+    ///
+    /// Uses `provider_connections` table as the single source of truth.
+    /// For OAuth connections, also looks up token expiry and scope info.
     ///
     /// # Errors
     /// Returns error if database operation fails
@@ -1391,38 +1419,61 @@ impl OAuthService {
         &self,
         user_id: uuid::Uuid,
     ) -> AppResult<Vec<ConnectionStatus>> {
-        debug!("Getting OAuth connection status for user {}", user_id);
+        debug!("Getting provider connection status for user {}", user_id);
 
-        // Get all OAuth tokens for the user from database (cross-tenant view for connection status)
-        let tokens = self
+        // Get all provider connections (cross-tenant view)
+        let connections = self
+            .data
+            .database()
+            .get_user_provider_connections(user_id, None)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get provider connections: {e}")))?;
+
+        // For OAuth connections, look up token expiry/scope info
+        let oauth_tokens = self
             .data
             .database()
             .get_user_oauth_tokens(user_id, None)
             .await
-            .map_err(|e| AppError::database(format!("Failed to get user OAuth tokens: {e}")))?;
+            .unwrap_or_default();
 
-        // Create a set of connected providers
+        let token_map: HashMap<String, &UserOAuthToken> = oauth_tokens
+            .iter()
+            .map(|t| (t.provider.clone(), t))
+            .collect();
+
         let mut providers_seen = HashSet::new();
         let mut statuses = Vec::new();
 
-        // Add status for each connected provider
-        for token in tokens {
-            if providers_seen.insert(token.provider.clone()) {
+        // Build status for each connected provider
+        for conn in &connections {
+            if providers_seen.insert(conn.provider.clone()) {
+                let (expires_at, scopes) = if conn.connection_type == ConnectionType::OAuth {
+                    // Look up OAuth token details for expiry/scope info
+                    token_map.get(&conn.provider).map_or((None, None), |t| {
+                        (t.expires_at.map(|dt| dt.to_rfc3339()), t.scope.clone())
+                    })
+                } else {
+                    (None, None)
+                };
+
                 statuses.push(ConnectionStatus {
-                    provider: token.provider.clone(),
+                    provider: conn.provider.clone(),
                     connected: true,
-                    expires_at: token.expires_at.map(|dt| dt.to_rfc3339()),
-                    scopes: token.scope.clone(),
+                    connection_type: Some(conn.connection_type.as_str().to_owned()),
+                    expires_at,
+                    scopes,
                 });
             }
         }
 
-        // Add default status for all registered OAuth providers that are not connected
+        // Add default disconnected status for all registered OAuth providers not in connections
         for provider_name in self.data.provider_registry().oauth_providers() {
             if !providers_seen.contains(provider_name) {
                 statuses.push(ConnectionStatus {
                     provider: provider_name.to_owned(),
                     connected: false,
+                    connection_type: None,
                     expires_at: None,
                     scopes: None,
                 });
@@ -2363,8 +2414,7 @@ impl AuthRoutes {
     /// Get all providers with connection status
     ///
     /// Returns all available providers from the registry with their connection status.
-    /// OAuth providers check `user_oauth_tokens`, non-OAuth providers (synthetic) check
-    /// if the user has data in the `synthetic_activities` table.
+    /// Uses `provider_connections` table as the single source of truth for connectivity.
     async fn handle_providers_status(
         State(resources): State<Arc<ServerResources>>,
         headers: HeaderMap,
@@ -2383,22 +2433,15 @@ impl AuthRoutes {
         let registry = global_registry();
         let supported_providers = registry.supported_providers();
 
-        // Get user's OAuth tokens to check connection status (cross-tenant view)
-        let oauth_tokens = resources
+        // Get user's provider connections (cross-tenant view, single source of truth)
+        let connections = resources
             .database
-            .get_user_oauth_tokens(user_id, None)
+            .get_user_provider_connections(user_id, None)
             .await
             .unwrap_or_default();
 
-        let connected_oauth_providers: HashSet<String> =
-            oauth_tokens.into_iter().map(|t| t.provider).collect();
-
-        // Check if user has synthetic activities
-        let has_synthetic_activities = resources
-            .database
-            .user_has_synthetic_activities(user_id)
-            .await
-            .unwrap_or(false);
+        let connected_providers: HashSet<String> =
+            connections.into_iter().map(|c| c.provider).collect();
 
         // Build provider status list
         let mut provider_statuses = Vec::new();
@@ -2409,14 +2452,8 @@ impl AuthRoutes {
                 let caps = descriptor.capabilities();
                 let requires_oauth = caps.requires_oauth();
 
-                // Determine connection status
-                let connected = if requires_oauth {
-                    // OAuth provider - check token table
-                    connected_oauth_providers.contains(provider_name)
-                } else {
-                    // Non-OAuth provider (synthetic) - check for data
-                    provider_name == "synthetic" && has_synthetic_activities
-                };
+                // Determine connection status from the provider_connections table
+                let connected = connected_providers.contains(provider_name);
 
                 // Skip non-OAuth providers that aren't connected (no data available)
                 // This prevents showing "Not Available" for synthetic providers without data

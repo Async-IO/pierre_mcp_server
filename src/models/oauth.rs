@@ -4,6 +4,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use std::fmt;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -338,6 +340,106 @@ pub struct AuthResponse {
     pub error: Option<String>,
     /// Available fitness providers for this user
     pub available_providers: Vec<String>,
+}
+
+/// Type of provider connection
+///
+/// Distinguishes how a provider was connected to enable type-specific behavior
+/// (e.g., OAuth connections have tokens that expire, synthetic connections do not).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConnectionType {
+    /// Connected via OAuth 2.0 token exchange
+    OAuth,
+    /// Connected via synthetic/test data seeding
+    Synthetic,
+    /// Connected via manual configuration
+    Manual,
+}
+
+impl ConnectionType {
+    /// Convert from database string representation
+    ///
+    /// # Errors
+    ///
+    /// Returns `AppError` if the string is not a valid connection type.
+    pub fn from_str_value(s: &str) -> AppResult<Self> {
+        match s {
+            "oauth" => Ok(Self::OAuth),
+            "synthetic" => Ok(Self::Synthetic),
+            "manual" => Ok(Self::Manual),
+            other => Err(AppError::invalid_input(format!(
+                "Unknown connection type: {other}"
+            ))),
+        }
+    }
+
+    /// Convert to database string representation
+    #[must_use]
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::OAuth => "oauth",
+            Self::Synthetic => "synthetic",
+            Self::Manual => "manual",
+        }
+    }
+}
+
+impl fmt::Display for ConnectionType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// Provider connection record: single source of truth for provider connectivity
+///
+/// Tracks whether a provider (OAuth, synthetic, or manual) is connected for a user.
+/// All provider types register in this table, eliminating the need to query
+/// separate tables (`user_oauth_tokens`, `synthetic_activities`) for connection status.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderConnection {
+    /// Unique identifier for this connection record
+    pub id: String,
+    /// User who owns this connection
+    pub user_id: Uuid,
+    /// Tenant context for multi-tenant isolation
+    pub tenant_id: String,
+    /// Provider name (e.g., "strava", "garmin", "synthetic")
+    pub provider: String,
+    /// How this provider was connected
+    pub connection_type: ConnectionType,
+    /// When the connection was established
+    pub connected_at: DateTime<Utc>,
+    /// Optional JSON metadata (e.g., {"source": "seed-synthetic-activities"})
+    pub metadata: Option<String>,
+}
+
+impl ProviderConnection {
+    /// Create a new provider connection record
+    #[must_use]
+    pub fn new(
+        user_id: Uuid,
+        tenant_id: String,
+        provider: String,
+        connection_type: ConnectionType,
+    ) -> Self {
+        Self {
+            id: uuid::Uuid::new_v4().to_string(),
+            user_id,
+            tenant_id,
+            provider,
+            connection_type,
+            connected_at: Utc::now(),
+            metadata: None,
+        }
+    }
+
+    /// Create a new provider connection with metadata
+    #[must_use]
+    pub fn with_metadata(mut self, metadata: String) -> Self {
+        self.metadata = Some(metadata);
+        self
+    }
 }
 
 /// OAuth notification data structure for tracking OAuth flow completion events

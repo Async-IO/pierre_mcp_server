@@ -9,6 +9,7 @@
 //! This module handles chat conversation management including creating conversations,
 //! sending messages, and streaming AI responses. All handlers require JWT authentication.
 
+use crate::models::ConnectionType;
 use crate::{
     auth::AuthResult,
     config::LlmProviderType,
@@ -31,7 +32,7 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, collections::HashSet, fmt::Write, sync::Arc, time::Instant};
+use std::{borrow::Cow, fmt::Write, sync::Arc, time::Instant};
 use tracing::{info, warn};
 use uuid::Uuid;
 
@@ -357,48 +358,32 @@ impl ChatRoutes {
 
     /// Build provider context string for inclusion in system prompt
     ///
-    /// This informs the LLM which fitness data providers are connected for the user,
-    /// so it doesn't ask users to connect providers that are already available.
+    /// Uses `provider_connections` as the single source of truth for which providers
+    /// are connected, so the LLM doesn't ask users to connect already-available providers.
     async fn build_provider_context(resources: &Arc<ServerResources>, user_id: Uuid) -> String {
-        let mut connected = Vec::new();
-
-        // Check OAuth providers
-        // Cross-tenant view: check all connected providers for the user
-        if let Ok(oauth_tokens) = resources
+        // Get all provider connections (cross-tenant view, single source of truth)
+        let Ok(connections) = resources
             .database
-            .get_user_oauth_tokens(user_id, None)
+            .get_user_provider_connections(user_id, None)
             .await
-        {
-            let oauth_providers: HashSet<String> =
-                oauth_tokens.into_iter().map(|t| t.provider).collect();
+        else {
+            return String::new();
+        };
 
-            for provider in ["strava", "garmin"] {
-                if oauth_providers.contains(provider) {
-                    connected.push(provider);
-                }
-            }
-        }
-
-        // Check synthetic data availability (non-OAuth provider)
-        if let Ok(has_synthetic) = resources
-            .database
-            .user_has_synthetic_activities(user_id)
-            .await
-        {
-            if has_synthetic {
-                connected.push("synthetic (test data)");
-            }
-        }
-
-        if connected.is_empty() {
+        if connections.is_empty() {
             return String::new();
         }
 
         let mut context = String::from("\n\n## Connected Fitness Data Providers\n\n");
         context.push_str("The user has the following data sources available:\n");
-        for provider in &connected {
+        for conn in &connections {
+            let label = if conn.connection_type == ConnectionType::Synthetic {
+                Cow::Owned(format!("{} (test data)", conn.provider))
+            } else {
+                Cow::Borrowed(conn.provider.as_str())
+            };
             // Write trait used to avoid format_push_string lint
-            let _ = writeln!(context, "- ✓ {provider}");
+            let _ = writeln!(context, "- ✓ {label}");
         }
         context.push_str("\nUse the connected providers to fetch activity data. ");
         context

@@ -606,6 +606,26 @@ async fn main() -> SeedResult<()> {
         *activities_by_type.entry(sport.sport_type).or_insert(0) += 1;
     }
 
+    // Register synthetic provider connection
+    let connection_id = Uuid::new_v4().to_string();
+    sqlx::query(
+        r#"
+        INSERT INTO provider_connections (id, user_id, tenant_id, provider, connection_type, connected_at, metadata)
+        VALUES (?, ?, ?, 'synthetic', 'synthetic', ?, '{"source": "seed-synthetic-activities"}')
+        ON CONFLICT(user_id, tenant_id, provider) DO UPDATE SET
+            connected_at = excluded.connected_at,
+            metadata = excluded.metadata
+        "#,
+    )
+    .bind(&connection_id)
+    .bind(&user_id)
+    .bind(&tenant_id)
+    .bind(Utc::now().to_rfc3339())
+    .execute(&pool)
+    .await?;
+
+    info!("✅ Registered synthetic provider connection");
+
     // Print summary
     info!("✅ Created {} synthetic activities", args.count);
     info!("");
