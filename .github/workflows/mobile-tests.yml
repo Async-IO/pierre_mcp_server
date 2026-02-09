@@ -345,41 +345,31 @@ jobs:
           xcrun simctl boot "$SIMULATOR_UDID" || echo "Simulator may already be booted"
           echo "SIMULATOR_UDID=$SIMULATOR_UDID" >> $GITHUB_ENV
 
-          # Note: EXDevMenuIsOnboardingFinished cannot be suppressed via defaults
-          # on iOS simulator — apps have sandboxed UserDefaults that don't read from
-          # NSGlobalDomain or ~/Library/Preferences/. Instead, we dismiss the developer
-          # menu overlay from within the Maestro launch-app.yaml flow.
+          # EXDevMenuIsOnboardingFinished must be set in the app's sandboxed container
+          # (not NSGlobalDomain). We use PlistBuddy to write directly to the container's
+          # preferences plist after Expo Go is installed. Combined with clearKeychain
+          # (instead of clearState) in Maestro, this flag persists across test runs.
 
       - name: Adapt Maestro tests for Expo Go
         run: |
           # Replace native app ID with Expo Go app ID in all Maestro YAML files
           find frontend-mobile/.maestro -name "*.yaml" -exec sed -i '' 's/appId: com.pierre.fitness/appId: host.exp.Exponent/g' {} +
           # Override launch helper for Expo Go.
-          # After clearState, Expo Go shows a developer menu onboarding overlay with
-          # a "Continue" button that blocks all touch events to React Native views.
-          # A coordinate tap at 90% height dismisses it (proven in CI run v12).
+          # Uses clearKeychain (not clearState) to preserve UserDefaults across tests.
+          # This keeps EXDevMenuIsOnboardingFinished=true so the developer menu overlay
+          # never reappears. clearKeychain still removes JWT tokens from SecureStore,
+          # ensuring the app shows the login screen on each test.
           # CRITICAL: Use 127.0.0.1 not localhost (macOS resolves localhost to IPv6 first)
           cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
           appId: host.exp.Exponent
           ---
           - stopApp
-          - clearState
+          - clearKeychain
           - openLink: "exp://127.0.0.1:8082"
           - extendedWaitUntil:
               visible:
                 id: "login-screen"
               timeout: 120000
-          # Dismiss Expo Go developer menu in two steps:
-          # Step 1: Tap "Continue" on the onboarding overlay (at 90% height).
-          #   This transitions from the onboarding screen to the full developer menu.
-          - tapOn:
-              point: "50%,90%"
-          # Step 2: Dismiss the full developer menu by tapping outside it.
-          #   The menu is a bottom sheet covering ~67% of the screen. Tapping above
-          #   it (at 10% height) hits the backdrop and closes the menu, restoring
-          #   keyboard focus to the React Native app underneath.
-          - tapOn:
-              point: "50%,10%"
           - extendedWaitUntil:
               visible:
                 id: "email-input"
@@ -496,6 +486,29 @@ jobs:
           grep -iE "bundled|error|warn" /tmp/metro.log | tail -10 || echo "No relevant messages"
         env:
           EXPO_PUBLIC_API_URL: "http://127.0.0.1:8081"
+
+      - name: Suppress Expo Go developer menu onboarding
+        run: |
+          # Write EXDevMenuIsOnboardingFinished directly to Expo Go's sandboxed
+          # preferences plist. This prevents the developer menu overlay from appearing.
+          # Combined with clearKeychain (not clearState) in Maestro, the flag persists.
+          APP_CONTAINER=$(xcrun simctl get_app_container "$SIMULATOR_UDID" host.exp.Exponent data 2>/dev/null) || true
+          if [ -n "$APP_CONTAINER" ]; then
+            PLIST="$APP_CONTAINER/Library/Preferences/host.exp.Exponent.plist"
+            echo "App container: $APP_CONTAINER"
+            echo "Plist path: $PLIST"
+            # Create or update the flag
+            if [ -f "$PLIST" ]; then
+              /usr/libexec/PlistBuddy -c "Set :EXDevMenuIsOnboardingFinished true" "$PLIST" 2>/dev/null || \
+              /usr/libexec/PlistBuddy -c "Add :EXDevMenuIsOnboardingFinished bool true" "$PLIST"
+            else
+              /usr/libexec/PlistBuddy -c "Add :EXDevMenuIsOnboardingFinished bool true" "$PLIST"
+            fi
+            echo "EXDevMenuIsOnboardingFinished set to true"
+            /usr/libexec/PlistBuddy -c "Print :EXDevMenuIsOnboardingFinished" "$PLIST" || echo "Verification failed"
+          else
+            echo "WARNING: Could not find Expo Go app container - developer menu may appear"
+          fi
 
       - name: Debug - capture simulator state before tests
         if: always()
