@@ -17,7 +17,7 @@ appId: com.pierre.fitness
 
 - tapOn:
     id: "password-input"
-- inputText: "MobileTest123a"
+- inputText: "MobileTest1234"
 
 # Submit via keyboard Return key (password field has onSubmitEditing={handleLogin}).
 # This pattern works in test 05-validation-invalid-email.

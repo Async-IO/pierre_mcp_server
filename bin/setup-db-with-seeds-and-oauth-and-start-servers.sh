@@ -61,7 +61,7 @@ EXPO_PORT=8082
 WEB_TEST_EMAIL="webtest@pierre.dev"
 WEB_TEST_PASSWORD="WebTest123!"
 MOBILE_TEST_EMAIL="mobiletest@pierre.dev"
-MOBILE_TEST_PASSWORD="MobileTest123a"
+MOBILE_TEST_PASSWORD="MobileTest1234"
 DEMO_PASSWORD="DemoUser123!"
 
 print_step() {

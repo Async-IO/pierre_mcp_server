@@ -23,7 +23,7 @@ flows:
 # Default environment variables for test execution
 env:
   TEST_EMAIL: "mobiletest@pierre.dev"
-  TEST_PASSWORD: "MobileTest123a"
+  TEST_PASSWORD: "MobileTest1234"
 
 # Timeouts (in milliseconds)
 # These match the Detox timeouts for consistency

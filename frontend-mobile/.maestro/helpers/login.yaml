@@ -1,5 +1,5 @@
 # ABOUTME: Helper flow to perform login with test credentials
-# ABOUTME: Logs in using mobiletest@pierre.dev / MobileTest123a and waits for chat screen
+# ABOUTME: Logs in using mobiletest@pierre.dev / MobileTest1234 and waits for chat screen
 
 appId: com.pierre.fitness
 

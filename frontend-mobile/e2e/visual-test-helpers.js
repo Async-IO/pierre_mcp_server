@@ -8,7 +8,7 @@
 const TEST_USERS = {
   mobiletest: {
     email: 'mobiletest@pierre.dev',
-    password: 'MobileTest123a',
+    password: 'MobileTest1234',
     displayName: 'Mobile Test User',
   },
   webtest: {
