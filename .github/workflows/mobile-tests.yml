@@ -555,6 +555,7 @@ jobs:
           curl -sf http://localhost:8081/health > /dev/null 2>&1 && echo "  Reachable" || echo "  NOT reachable"
 
       - name: Run Maestro tests
+        timeout-minutes: 25
         working-directory: frontend-mobile
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -814,6 +815,7 @@ jobs:
           chmod +x /tmp/run-android-e2e.sh
 
       - name: Run Maestro tests on Android
+        timeout-minutes: 25
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 33
