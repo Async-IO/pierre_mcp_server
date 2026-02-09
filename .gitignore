@@ -10,7 +10,9 @@ target/
 # Environment
 .env
 .envrc
-config.toml
+/config.toml
+# Cargo config is developer-specific (linker choice depends on local toolchain)
+.cargo/config.toml
 
 # Multi-tenant server files
 encryption.key

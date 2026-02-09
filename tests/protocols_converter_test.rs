@@ -9,8 +9,9 @@
 
 use pierre_mcp_server::a2a::protocol::A2ARequest;
 use pierre_mcp_server::mcp::schema::{Content, ToolCall};
-use pierre_mcp_server::protocols::converter::{ProtocolConverter, ProtocolType};
+use pierre_mcp_server::protocols::converter::ProtocolConverter;
 use pierre_mcp_server::protocols::universal::UniversalResponse;
+use pierre_mcp_server::protocols::ProtocolType;
 use serde_json::Value;
 use std::collections::HashMap;
 

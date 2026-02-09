@@ -1,3 +1,6 @@
+[workspace]
+members = ["crates/*"]
+
 [package]
 name = "pierre_mcp_server"
 version = "0.2.0"
@@ -74,7 +77,8 @@ default = ["sqlite", "server-full", "sqlx/migrate"]
 sqlite = []
 postgresql = ["sqlx/postgres"]
 testing = []
-telemetry = []
+telemetry = ["dep:tracing-opentelemetry", "dep:opentelemetry", "dep:opentelemetry_sdk"]
+toon = ["dep:toon-format"]
 
 # Provider feature flags - enable/disable individual fitness data providers
 provider-strava = []
@@ -183,7 +187,7 @@ oauth = []
 # ═══════════════════════════════════════════════════════════════
 # SERVER PROFILES
 # ═══════════════════════════════════════════════════════════════
-server-full = ["protocol-all", "transport-all", "client-all", "oauth", "all-providers", "tools-all"]
+server-full = ["protocol-all", "transport-all", "client-all", "oauth", "all-providers", "tools-all", "toon"]
 server-mcp-stdio = ["protocol-mcp", "transport-stdio", "oauth", "all-providers", "tools-all"]
 server-mcp-bridge = ["protocol-mcp", "protocol-a2a", "transport-web", "oauth", "all-providers", "tools-all"]
 server-mobile-backend = ["protocol-rest", "protocol-mcp", "client-mobile", "client-settings", "client-store", "oauth", "all-providers", "tools-all"]
@@ -197,6 +201,10 @@ openapi = ["dep:utoipa", "dep:utoipa-axum", "dep:utoipa-swagger-ui"]
 debug = 1
 opt-level = 0
 overflow-checks = true
+# Store debug info in separate files to reduce linker work.
+# On Linux this avoids the expensive step of merging debug info into the binary.
+# On macOS this is already the default behavior (dsymutil runs separately).
+split-debuginfo = "unpacked"
 
 [profile.release]
 lto = "thin"
@@ -209,6 +217,9 @@ inherits = "release"
 lto = "fat"
 
 [dependencies]
+# Workspace crates
+pierre-core = { version = "0.3.0", path = "crates/pierre-core", features = ["http-response", "all-errors", "toon"] }
+
 tokio = { version = "1.45", features = ["rt-multi-thread", "macros", "net", "time", "fs", "signal", "io-std", "io-util", "sync"] }
 tokio-stream = "0.1"
 serde = { version = "1.0", features = ["derive"] }
@@ -221,10 +232,10 @@ async-stream = "0.3"
 thiserror = "2.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "std", "registry", "json"], default-features = false }
-# OpenTelemetry for distributed tracing and request correlation
-tracing-opentelemetry = "0.23"
-opentelemetry = { version = "0.22", features = ["trace"] }
-opentelemetry_sdk = { version = "0.22", features = ["trace", "rt-tokio"] }
+# OpenTelemetry for distributed tracing and request correlation (optional, enable with --features telemetry)
+tracing-opentelemetry = { version = "0.23", optional = true }
+opentelemetry = { version = "0.22", features = ["trace"], optional = true }
+opentelemetry_sdk = { version = "0.22", features = ["trace", "rt-tokio"], optional = true }
 # HTTP tracing middleware
 tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.6", features = ["trace", "request-id", "cors", "timeout", "limit", "set-header"] }
@@ -246,10 +257,11 @@ aes-gcm = "0.10"
 # Encryption and database support for multi-tenant
 ring = "0.17"
 ed25519-dalek = "2.1"
-sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "postgres", "chrono", "uuid", "derive", "migrate", "macros"], default-features = false }
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid", "derive", "migrate", "macros"], default-features = false }
 bcrypt = "0.16"
 argon2 = "0.5"
-jsonwebtoken = { version = "10.3", features = ["aws_lc_rs"] }
+# JWT: rust_crypto backend uses crates already in our dep tree (sha2, rsa, ed25519-dalek)
+jsonwebtoken = { version = "10.3", features = ["rust_crypto", "use_pem"], default-features = false }
 subtle = "2.6"
 zeroize = { version = "1.8", features = ["alloc"] }
 hex = "0.4"
@@ -260,8 +272,6 @@ http = "1.0"
 futures-util = "0.3"
 eventsource-stream = "0.2"
 base64ct = "1.6"
-# For documentation server
-env_logger = "0.11"
 # LRU cache for bounded session storage (DoS prevention)
 lru = "0.16"
 # Glob pattern matching for cache invalidation
@@ -270,8 +280,6 @@ glob = "0.3"
 regex = "1.11"
 # Bitflags for PII redaction feature configuration
 bitflags = { version = "2.6", features = ["serde"] }
-# Cross-platform system information without unsafe FFI
-sysinfo = "0.31"
 # Redis client with connection pooling and async support
 redis = { version = "0.28", features = ["tokio-comp", "connection-manager", "aio"] }
 
@@ -281,7 +289,7 @@ rayon = "1.10"
 rsa = "0.9"
 x509-parser = "0.18.0"
 # TOON format for token-efficient LLM serialization (~40% token reduction vs JSON)
-toon-format = "0.2"
+toon-format = { version = "0.2", optional = true }
 rand_chacha = "0.3"
 # OpenAPI documentation generation with utoipa
 # OpenAPI documentation - optional (enable with --features openapi)
@@ -333,7 +341,16 @@ harness = false
 #
 # All clippy warnings are now ERRORS via level = "deny" configuration below.
 
-[lints.rust]
+[lints]
+workspace = true
+
+# ============================================================================
+# Workspace Lint Configuration
+# ============================================================================
+# Shared across all workspace crates via [lints] workspace = true.
+# Individual crates inherit these settings automatically.
+
+[workspace.lints.rust]
 # STRICT UNSAFE CODE POLICY: Zero tolerance with whitelisted exceptions
 # - "deny" level: Unsafe code is an ERROR by default everywhere
 # - scripts/architectural-validation.sh: Enforces ONLY src/health.rs can use unsafe (Windows FFI)
@@ -344,7 +361,7 @@ unsafe_code = "deny"
 # Warn on missing documentation for public APIs
 missing_docs = "warn"
 
-[lints.clippy]
+[workspace.lints.clippy]
 # Base configuration: Enable all clippy lint groups at DENY level (zero tolerance)
 # Priority -1 ensures these are applied first, then specific overrides below
 # All clippy warnings are treated as ERRORS via level = "deny"

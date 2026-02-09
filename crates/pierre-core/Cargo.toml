@@ -1,0 +1,60 @@
+# ABOUTME: Core types and constants for Pierre fitness API platform
+# ABOUTME: Foundation crate with error types, pagination, formatters, and constants
+
+[package]
+name = "pierre-core"
+version = "0.3.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Core types and constants for Pierre fitness intelligence platform"
+repository = "https://github.com/Async-IO/pierre_mcp_server"
+publish = false
+
+[features]
+default = []
+
+# HTTP response support (IntoResponse for AppError)
+http-response = ["dep:axum", "dep:http"]
+
+# Database error types (DatabaseError with sqlx::Error conversion)
+database-errors = ["dep:sqlx"]
+
+# Provider error types (ProviderError with reqwest::Error)
+provider-errors = ["dep:reqwest"]
+
+# Cryptographic error conversions (ring::error::Unspecified)
+crypto-errors = ["dep:ring"]
+
+# TOON format support
+toon = ["dep:toon-format"]
+
+# All error features (convenience for main crate)
+all-errors = ["database-errors", "provider-errors", "crypto-errors"]
+
+[dependencies]
+thiserror = "2.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.11", features = ["v4", "serde"] }
+base64 = "0.22"
+tracing = "0.1"
+
+# Optional: HTTP response support
+axum = { version = "0.7", optional = true, default-features = false, features = ["json"] }
+http = { version = "1.0", optional = true }
+
+# Optional: Database error types
+sqlx = { version = "0.8", optional = true, default-features = false }
+
+# Optional: Provider error types
+reqwest = { version = "0.12", optional = true, default-features = false }
+
+# Optional: Cryptographic error types
+ring = { version = "0.17", optional = true }
+
+# Optional: TOON format
+toon-format = { version = "0.2", optional = true }
+
+[lints]
+workspace = true

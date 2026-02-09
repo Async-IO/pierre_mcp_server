@@ -1,0 +1,28 @@
+# ABOUTME: Example Cargo configuration for local build optimizations.
+# ABOUTME: Copy to .cargo/config.toml to use (that file is gitignored).
+#
+# Usage: cp .cargo/config.toml.example .cargo/config.toml
+#
+# Prerequisites (Linux only):
+#   apt install mold clang   (Ubuntu/Debian)
+#   dnf install mold clang   (Fedora)
+
+# Linux x86_64: Use mold linker for faster link times
+# mold is a drop-in replacement for GNU ld with parallel linking.
+[target.x86_64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+# Linux aarch64: Use mold linker (same benefits as x86_64)
+[target.aarch64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+# macOS x86_64: Apple's default linker (ld-prime) is already the fastest option.
+# LLD is slower than Apple's linker on macOS. No override needed.
+# [target.x86_64-apple-darwin]
+
+# macOS aarch64 (Apple Silicon): Apple's default linker (ld-prime) is fastest.
+# Bevy, Dioxus, and other large Rust projects confirm this finding.
+# sold (commercial mold fork) exists but offers no advantage over ld-prime.
+# [target.aarch64-apple-darwin]

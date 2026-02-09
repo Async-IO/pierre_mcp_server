@@ -11,21 +11,11 @@
 use crate::a2a::protocol::{A2AErrorResponse, A2ARequest, A2AResponse};
 use crate::mcp::schema::{Content, Tool, ToolCall, ToolResponse};
 use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalTool};
-use crate::protocols::ProtocolError;
+use crate::protocols::{ProtocolError, ProtocolType};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt::Write;
 use tracing::{debug, warn};
-
-/// Supported protocol types
-#[non_exhaustive]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProtocolType {
-    /// Model Context Protocol
-    MCP,
-    /// Agent-to-Agent protocol
-    A2A,
-}
 
 /// Individual activity response from fitness platforms
 #[derive(Debug, Clone, Serialize, Deserialize)]

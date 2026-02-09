@@ -237,8 +237,10 @@ jobs:
     name: Mobile E2E Tests (Maestro - iOS/Expo Go)
     needs: build-server-macos
     runs-on: macos-latest
-    # Run on main, claude/* branches, or when explicitly triggered
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/claude/') || github.event_name == 'workflow_dispatch'
+    # Disabled: Maestro E2E tests are flaky on CI (keyboard handling, developer menu overlay).
+    # Re-enable once Maestro iOS/Android reliability issues are resolved.
+    # To run manually: Actions → Mobile Tests → Run workflow
+    if: github.event_name == 'workflow_dispatch'
     timeout-minutes: 90
 
     steps:
@@ -648,8 +650,10 @@ jobs:
     name: Mobile E2E Tests - Android (Maestro)
     needs: build-server-linux
     runs-on: ubuntu-latest
-    # Run on main, claude/* branches, or when explicitly triggered
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/claude/') || github.event_name == 'workflow_dispatch'
+    # Disabled: Maestro E2E tests are flaky on CI (keyboard handling, developer menu overlay).
+    # Re-enable once Maestro iOS/Android reliability issues are resolved.
+    # To run manually: Actions → Mobile Tests → Run workflow
+    if: github.event_name == 'workflow_dispatch'
     timeout-minutes: 90
 
     steps:

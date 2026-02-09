@@ -1,0 +1,9 @@
+# ABOUTME: Clippy configuration for disallowed methods in pierre-core
+# ABOUTME: Mirrors workspace root clippy.toml to enforce consistent bans across crates
+
+# Disallow anyhow::Context trait methods - use structured error types instead
+# These methods create untyped errors that bypass our structured error handling
+disallowed-methods = [
+    { path = "anyhow::Context::context", reason = "Use structured ProviderError types instead of .context()" },
+    { path = "anyhow::Context::with_context", reason = "Use structured ProviderError types instead of .with_context()" },
+]
