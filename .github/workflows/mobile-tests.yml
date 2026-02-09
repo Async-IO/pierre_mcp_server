@@ -312,7 +312,7 @@ jobs:
 
       - name: Seed test user for Maestro tests
         run: |
-          ./target/release/pierre-cli user create --email mobiletest@pierre.dev --password MobileTest123! --force
+          ./target/release/pierre-cli user create --email mobiletest@pierre.dev --password MobileTest123a --force
         env:
           DATABASE_URL: "sqlite:${{ github.workspace }}/data/maestro-test.db"
           PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
@@ -557,7 +557,7 @@ jobs:
           echo "=== Login API test (OAuth token endpoint) ==="
           LOGIN_RESPONSE=$(curl -sf -X POST http://127.0.0.1:8081/oauth/token \
             -H "Content-Type: application/x-www-form-urlencoded" \
-            -d "grant_type=password&username=mobiletest@pierre.dev&password=MobileTest123!" 2>&1) || true
+            -d "grant_type=password&username=mobiletest@pierre.dev&password=MobileTest123a" 2>&1) || true
           if echo "$LOGIN_RESPONSE" | grep -q "access_token"; then
             echo "Login API: SUCCESS (got access_token)"
           else
@@ -594,7 +594,7 @@ jobs:
           fi
         env:
           TEST_EMAIL: "mobiletest@pierre.dev"
-          TEST_PASSWORD: "MobileTest123!"
+          TEST_PASSWORD: "MobileTest123a"
           BACKEND_URL: "http://localhost:8081"
 
       - name: Post-test diagnostics
@@ -751,7 +751,7 @@ jobs:
 
       - name: Seed test user for Maestro tests
         run: |
-          ./target/release/pierre-cli user create --email mobiletest@pierre.dev --password MobileTest123! --force
+          ./target/release/pierre-cli user create --email mobiletest@pierre.dev --password MobileTest123a --force
         env:
           DATABASE_URL: "sqlite:${{ github.workspace }}/data/maestro-android-test.db"
           PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
@@ -852,7 +852,7 @@ jobs:
           CI: "true"
           EXPO_PUBLIC_API_URL: "http://10.0.2.2:8081"
           TEST_EMAIL: "mobiletest@pierre.dev"
-          TEST_PASSWORD: "MobileTest123!"
+          TEST_PASSWORD: "MobileTest123a"
           BACKEND_URL: "http://10.0.2.2:8081"
           MAESTRO_FULL_SUITE: ${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
 

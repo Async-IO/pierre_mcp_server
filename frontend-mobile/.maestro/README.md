@@ -71,7 +71,7 @@ bun run maestro:ci
 ## Test Credentials
 
 - Email: `mobiletest@pierre.dev`
-- Password: `MobileTest123!`
+- Password: `MobileTest123a`
 
 These are configured in `config.yaml` as environment variables.
 

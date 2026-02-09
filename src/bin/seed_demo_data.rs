@@ -166,7 +166,7 @@ fn get_demo_users_part1() -> Vec<DemoUser> {
             display_name: "Mobile Test User",
             tier: "professional",
             status: "active",
-            password: Some("MobileTest123!"),
+            password: Some("MobileTest123a"),
         },
         // Regular demo users
         DemoUser {
@@ -1004,7 +1004,7 @@ fn print_test_credentials() {
         "\n\
          === Visual Testing Credentials ===\n\
          Web Test User:    webtest@pierre.dev / WebTest123!\n\
-         Mobile Test User: mobiletest@pierre.dev / MobileTest123!\n\
+         Mobile Test User: mobiletest@pierre.dev / MobileTest123a\n\
          Demo Users:       DemoUser123! (for alice@acme.com, bob@startup.io, etc.)\n\
          \n\
          Done! Restart the server to see the demo data in the dashboard."
