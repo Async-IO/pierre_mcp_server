@@ -17,10 +17,43 @@ console.error = (...args) => {
 
 // Mock react-native-gesture-handler
 jest.mock('react-native-gesture-handler', () => {
+  const React = require('react');
   const View = require('react-native').View;
   const TouchableOpacity = require('react-native').TouchableOpacity;
+
+  // GestureDetector renders children directly (gesture is handled natively)
+  const GestureDetector = ({ children }) => React.createElement(View, null, children);
+
+  // Gesture.Pan() builder mock — returns an object with chainable methods
+  const createGestureMock = () => {
+    const gesture = {
+      enabled: () => gesture,
+      activeOffsetX: () => gesture,
+      activeOffsetY: () => gesture,
+      failOffsetX: () => gesture,
+      failOffsetY: () => gesture,
+      onStart: () => gesture,
+      onUpdate: () => gesture,
+      onEnd: () => gesture,
+      onFinalize: () => gesture,
+    };
+    return gesture;
+  };
+
   return {
     GestureHandlerRootView: View,
+    GestureDetector: GestureDetector,
+    Gesture: {
+      Pan: createGestureMock,
+      Tap: createGestureMock,
+      Pinch: createGestureMock,
+      Rotation: createGestureMock,
+      Fling: createGestureMock,
+      LongPress: createGestureMock,
+      Simultaneous: (...gestures) => createGestureMock(),
+      Exclusive: (...gestures) => createGestureMock(),
+      Race: (...gestures) => createGestureMock(),
+    },
     TouchableOpacity: TouchableOpacity,
     Swipeable: View,
     DrawerLayout: View,
@@ -127,6 +160,49 @@ jest.mock('expo-linear-gradient', () => {
   return {
     LinearGradient: ({ children, colors, testID, ...props }) =>
       React.createElement(View, { testID: testID || 'linear-gradient', ...props }, children),
+  };
+});
+
+// Mock react-native-reanimated
+jest.mock('react-native-reanimated', () => {
+  const React = require('react');
+  const View = require('react-native').View;
+
+  return {
+    __esModule: true,
+    default: {
+      View: React.forwardRef(({ style, ...props }, ref) =>
+        React.createElement(View, { ...props, ref, style }, props.children)
+      ),
+      createAnimatedComponent: (Component) =>
+        React.forwardRef((props, ref) =>
+          React.createElement(Component, { ...props, ref })
+        ),
+    },
+    useSharedValue: (initialValue) => ({ value: initialValue }),
+    useAnimatedStyle: (fn) => fn(),
+    withSpring: (toValue) => toValue,
+    withTiming: (toValue) => toValue,
+    withDecay: (config) => 0,
+    runOnJS: (fn) => fn,
+    interpolate: (value, inputRange, outputRange) => {
+      if (inputRange.length < 2 || outputRange.length < 2) return outputRange[0] || 0;
+      const ratio = (value - inputRange[0]) / (inputRange[1] - inputRange[0]);
+      const clamped = Math.max(0, Math.min(1, ratio));
+      return outputRange[0] + clamped * (outputRange[1] - outputRange[0]);
+    },
+    Extrapolation: {
+      CLAMP: 'clamp',
+      EXTEND: 'extend',
+      IDENTITY: 'identity',
+    },
+    Easing: {
+      linear: (t) => t,
+      ease: (t) => t,
+      in: (t) => t,
+      out: (t) => t,
+      inOut: (t) => t,
+    },
   };
 });
 

@@ -29,17 +29,17 @@ export function AppNavigator() {
       <Stack.Screen
         name="ShareInsight"
         component={ShareInsightScreen}
-        options={{ presentation: 'modal' }}
+        options={{ presentation: 'modal', gestureEnabled: true }}
       />
       <Stack.Screen
         name="AdaptedInsight"
         component={AdaptedInsightScreen}
-        options={{ presentation: 'modal' }}
+        options={{ presentation: 'modal', gestureEnabled: true }}
       />
       <Stack.Screen
         name="Connections"
         component={ConnectionsScreen}
-        options={{ presentation: 'modal' }}
+        options={{ presentation: 'modal', gestureEnabled: true }}
       />
     </Stack.Navigator>
   );

@@ -14,6 +14,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
 import { colors, glassCard } from '../../constants/theme';
+import { DragIndicator } from '../../components/ui';
 import type { SocialStackParamList } from '../../navigation/MainTabs';
 
 type NavigationProp = NativeStackNavigationProp<SocialStackParamList>;
@@ -74,6 +75,7 @@ export function AdaptedInsightScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background-primary" testID="adapt-insight-screen">
+      <DragIndicator testID="adapted-insight-drag-indicator" />
       {/* Header */}
       <View className="flex-row items-center px-4 py-4 border-b border-border-subtle">
         <TouchableOpacity

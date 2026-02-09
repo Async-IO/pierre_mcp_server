@@ -19,6 +19,7 @@ import { colors, spacing, glassCard, gradients, buttonGlow } from '../../constan
 import { socialApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { InsightCard } from '../../components/social/InsightCard';
+import { SwipeableRow, type SwipeAction } from '../../components/ui';
 import type { FeedItem, ReactionType, InsightSuggestion } from '../../types';
 import type { SocialStackParamList } from '../../navigation/MainTabs';
 
@@ -189,15 +190,43 @@ export function SocialFeedScreen() {
     }
   };
 
-  const renderFeedItem = ({ item }: { item: FeedItem }) => (
-    <InsightCard
-      item={item}
-      onReaction={(type) => handleReaction(item.insight.id, type)}
-      onAdapt={() => handleAdapt(item.insight.id)}
-      isReacting={reactingIds.has(item.insight.id)}
-      isAdapting={adaptingIds.has(item.insight.id)}
-    />
-  );
+  const renderFeedItem = ({ item }: { item: FeedItem }) => {
+    const leftActions: SwipeAction[] = [
+      {
+        icon: 'thumbs-up',
+        label: 'Like',
+        color: '#FFFFFF',
+        backgroundColor: '#3B82F6',
+        onPress: () => handleReaction(item.insight.id, 'like'),
+      },
+    ];
+
+    const rightActions: SwipeAction[] = [
+      {
+        icon: 'refresh-cw',
+        label: 'Adapt',
+        color: '#FFFFFF',
+        backgroundColor: colors.pierre.violet,
+        onPress: () => handleAdapt(item.insight.id),
+      },
+    ];
+
+    return (
+      <SwipeableRow
+        leftActions={leftActions}
+        rightActions={rightActions}
+        testID={`swipeable-insight-${item.insight.id}`}
+      >
+        <InsightCard
+          item={item}
+          onReaction={(type) => handleReaction(item.insight.id, type)}
+          onAdapt={() => handleAdapt(item.insight.id)}
+          isReacting={reactingIds.has(item.insight.id)}
+          isAdapting={adaptingIds.has(item.insight.id)}
+        />
+      </SwipeableRow>
+    );
+  };
 
   const renderEmptyState = () => (
     <View className="flex-1 justify-center items-center p-6">

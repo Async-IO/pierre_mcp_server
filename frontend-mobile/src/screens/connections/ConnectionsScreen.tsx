@@ -16,7 +16,7 @@ import * as Linking from 'expo-linking';
 import { getOAuthCallbackUrl } from '../../utils/oauth';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, spacing, glassCard, gradients } from '../../constants/theme';
-import { Card } from '../../components/ui';
+import { Card, DragIndicator } from '../../components/ui';
 import { oauthApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { ExtendedProviderStatus } from '../../types';
@@ -215,6 +215,7 @@ export function ConnectionsScreen({ navigation }: ConnectionsScreenProps) {
 
   return (
     <SafeAreaView className="flex-1 bg-background-primary">
+      <DragIndicator testID="connections-drag-indicator" />
       {/* Header */}
       <View className="flex-row items-center px-3 py-2 border-b border-border-subtle">
         <TouchableOpacity

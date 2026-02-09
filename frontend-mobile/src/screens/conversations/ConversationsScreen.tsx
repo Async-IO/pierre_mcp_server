@@ -21,7 +21,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { colors, spacing, glassCard, gradients, buttonGlow } from '../../constants/theme';
 import { chatApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { PromptDialog } from '../../components/ui';
+import { PromptDialog, SwipeableRow, type SwipeAction } from '../../components/ui';
 import type { Conversation } from '../../types';
 import type { ChatStackParamList } from '../../navigation/MainTabs';
 
@@ -198,22 +198,74 @@ export function ConversationsScreen({ navigation }: ConversationsScreenProps) {
     setSelectedConversation(null);
   };
 
-  const renderConversation = ({ item }: { item: Conversation }) => (
-    <TouchableOpacity
-      className="flex-row items-center px-4 py-3 border-b border-border-subtle"
-      onPress={() => handleConversationPress(item.id)}
-      onLongPress={() => handleConversationLongPress(item)}
-      delayLongPress={300}
-    >
-      <View className="flex-1">
-        <Text className="text-base font-medium text-text-primary mb-0.5" numberOfLines={1}>
-          {item.title || 'Untitled'}
-        </Text>
-        <Text className="text-sm text-text-tertiary">{formatRelativeDate(item.updated_at)}</Text>
-      </View>
-      <Text className="text-xl text-text-tertiary ml-2">›</Text>
-    </TouchableOpacity>
-  );
+  const renderConversation = ({ item }: { item: Conversation }) => {
+    const leftActions: SwipeAction[] = [
+      {
+        icon: 'edit-2',
+        label: 'Rename',
+        color: '#FFFFFF',
+        backgroundColor: colors.pierre.violet,
+        onPress: () => {
+          setSelectedConversation(item);
+          setRenamePromptVisible(true);
+        },
+      },
+    ];
+
+    const rightActions: SwipeAction[] = [
+      {
+        icon: 'trash-2',
+        label: 'Delete',
+        color: '#FFFFFF',
+        backgroundColor: '#EF4444',
+        onPress: () => {
+          setSelectedConversation(item);
+          Alert.alert(
+            'Delete Conversation',
+            `Are you sure you want to delete "${item.title || 'this conversation'}"?`,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Delete',
+                style: 'destructive',
+                onPress: async () => {
+                  try {
+                    await chatApi.deleteConversation(item.id);
+                    setConversations((prev) => prev.filter((c) => c.id !== item.id));
+                  } catch (error) {
+                    console.error('Failed to delete conversation:', error);
+                  }
+                },
+              },
+            ]
+          );
+        },
+      },
+    ];
+
+    return (
+      <SwipeableRow
+        leftActions={leftActions}
+        rightActions={rightActions}
+        testID={`swipeable-conversation-${item.id}`}
+      >
+        <TouchableOpacity
+          className="flex-row items-center px-4 py-3 border-b border-border-subtle bg-background-primary"
+          onPress={() => handleConversationPress(item.id)}
+          onLongPress={() => handleConversationLongPress(item)}
+          delayLongPress={300}
+        >
+          <View className="flex-1">
+            <Text className="text-base font-medium text-text-primary mb-0.5" numberOfLines={1}>
+              {item.title || 'Untitled'}
+            </Text>
+            <Text className="text-sm text-text-tertiary">{formatRelativeDate(item.updated_at)}</Text>
+          </View>
+          <Text className="text-xl text-text-tertiary ml-2">›</Text>
+        </TouchableOpacity>
+      </SwipeableRow>
+    );
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-background-primary">

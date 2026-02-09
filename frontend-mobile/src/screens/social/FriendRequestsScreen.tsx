@@ -18,6 +18,7 @@ import { colors, spacing, glassCard } from '../../constants/theme';
 import { socialApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { RequestCard } from '../../components/social/FriendCard';
+import { SwipeableRow, type SwipeAction } from '../../components/ui';
 import type { PendingRequestWithInfo } from '@pierre/shared-types';
 import type { SocialStackParamList } from '../../navigation/MainTabs';
 
@@ -109,16 +110,52 @@ export function FriendRequestsScreen() {
     }
   };
 
-  const renderRequest = ({ item }: { item: PendingRequestWithInfo }) => (
-    <RequestCard
-      request={item}
-      type={activeTab}
-      onAccept={activeTab === 'incoming' ? () => handleAccept(item) : undefined}
-      onDecline={activeTab === 'incoming' ? () => handleDecline(item) : undefined}
-      onCancel={activeTab === 'outgoing' ? () => handleCancel(item) : undefined}
-      isLoading={processingIds.has(item.id)}
-    />
-  );
+  const renderRequest = ({ item }: { item: PendingRequestWithInfo }) => {
+    const leftActions: SwipeAction[] = activeTab === 'incoming' ? [
+      {
+        icon: 'check',
+        label: 'Accept',
+        color: '#FFFFFF',
+        backgroundColor: '#10B981',
+        onPress: () => handleAccept(item),
+      },
+    ] : [];
+
+    const rightActions: SwipeAction[] = activeTab === 'incoming' ? [
+      {
+        icon: 'x',
+        label: 'Decline',
+        color: '#FFFFFF',
+        backgroundColor: '#EF4444',
+        onPress: () => handleDecline(item),
+      },
+    ] : [
+      {
+        icon: 'x-circle',
+        label: 'Cancel',
+        color: '#FFFFFF',
+        backgroundColor: '#EF4444',
+        onPress: () => handleCancel(item),
+      },
+    ];
+
+    return (
+      <SwipeableRow
+        leftActions={leftActions}
+        rightActions={rightActions}
+        testID={`swipeable-request-${item.id}`}
+      >
+        <RequestCard
+          request={item}
+          type={activeTab}
+          onAccept={activeTab === 'incoming' ? () => handleAccept(item) : undefined}
+          onDecline={activeTab === 'incoming' ? () => handleDecline(item) : undefined}
+          onCancel={activeTab === 'outgoing' ? () => handleCancel(item) : undefined}
+          isLoading={processingIds.has(item.id)}
+        />
+      </SwipeableRow>
+    );
+  };
 
   const renderEmptyState = () => (
     <View className="flex-1 justify-center items-center p-6">

@@ -1,7 +1,7 @@
 // ABOUTME: Activity Detail screen with coach-insight-first approach
 // ABOUTME: Shows activity context and AI insights, not raw metrics - matches web philosophy
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,9 @@ import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 import { colors, spacing, aiGlow } from '../constants/theme';
 import type { SocialStackParamList } from '../navigation/MainTabs';
 
@@ -77,8 +80,24 @@ export function ActivityDetailScreen({ navigation, route }: ActivityDetailScreen
     socialNavigation.navigate('ShareInsight', { activityId });
   };
 
+  // Swipe right to go back to feed
+  const goBack = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    navigation.goBack();
+  }, [navigation]);
+
+  const swipeGesture = Gesture.Pan()
+    .activeOffsetX([20, 200])
+    .failOffsetY([-10, 10])
+    .onEnd((event) => {
+      if (event.translationX > 100 || event.velocityX > 800) {
+        runOnJS(goBack)();
+      }
+    });
+
   return (
     <View className="flex-1 bg-pierre-dark">
+      <GestureDetector gesture={swipeGesture}>
       <ScrollView
         className="flex-1"
         contentContainerStyle={{
@@ -249,6 +268,7 @@ export function ActivityDetailScreen({ navigation, route }: ActivityDetailScreen
           </View>
         )}
       </ScrollView>
+      </GestureDetector>
     </View>
   );
 }

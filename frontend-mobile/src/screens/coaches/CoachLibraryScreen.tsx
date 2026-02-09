@@ -22,7 +22,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { colors, spacing, glassCard, gradients } from '../../constants/theme';
 import { coachesApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { PromptDialog, ScrollFadeContainer } from '../../components/ui';
+import { PromptDialog, ScrollFadeContainer, SwipeableRow, type SwipeAction } from '../../components/ui';
 import type { Coach, CoachCategory } from '../../types';
 import type { CoachesStackParamList } from '../../navigation/MainTabs';
 
@@ -356,7 +356,32 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
     const isHidden = item.is_hidden;
     const categoryColor = COACH_CATEGORY_COLORS[item.category];
 
+    const leftActions: SwipeAction[] = [
+      {
+        icon: 'heart',
+        label: item.is_favorite ? 'Unfave' : 'Favorite',
+        color: '#FFFFFF',
+        backgroundColor: '#F59E0B',
+        onPress: () => handleToggleFavorite(item),
+      },
+    ];
+
+    const rightActions: SwipeAction[] = [
+      {
+        icon: 'message-circle',
+        label: 'Chat',
+        color: '#FFFFFF',
+        backgroundColor: colors.pierre.violet,
+        onPress: () => handleCoachPress(item),
+      },
+    ];
+
     return (
+      <SwipeableRow
+        leftActions={leftActions}
+        rightActions={rightActions}
+        testID={`swipeable-coach-${item.id}`}
+      >
       <TouchableOpacity
         style={[
           {
@@ -510,6 +535,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
           </View>
         )}
       </TouchableOpacity>
+      </SwipeableRow>
     );
   };
 

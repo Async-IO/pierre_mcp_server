@@ -11,6 +11,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { colors, spacing } from '../constants/theme';
+import { TabSwipeWrapper } from '../components/ui';
 import { ChatScreen } from '../screens/chat/ChatScreen';
 import { ConversationsScreen } from '../screens/conversations/ConversationsScreen';
 import { SocialFeedScreen } from '../screens/social/SocialFeedScreen';
@@ -97,55 +98,65 @@ const SettingsStack = createNativeStackNavigator<SettingsStackParamList>();
 // Stack navigators for each tab
 function ChatStackScreen() {
   return (
-    <ChatStack.Navigator screenOptions={{ headerShown: false }}>
-      <ChatStack.Screen name="ChatMain" component={ChatScreen} />
-      <ChatStack.Screen name="Conversations" component={ConversationsScreen} />
-    </ChatStack.Navigator>
+    <TabSwipeWrapper tabName="ChatTab">
+      <ChatStack.Navigator screenOptions={{ headerShown: false }}>
+        <ChatStack.Screen name="ChatMain" component={ChatScreen} />
+        <ChatStack.Screen name="Conversations" component={ConversationsScreen} />
+      </ChatStack.Navigator>
+    </TabSwipeWrapper>
   );
 }
 
 function SocialStackScreen() {
   return (
-    <SocialStack.Navigator screenOptions={{ headerShown: false }}>
-      <SocialStack.Screen name="SocialMain" component={SocialFeedScreen} />
-      <SocialStack.Screen name="Friends" component={FriendsScreen} />
-      <SocialStack.Screen name="SearchFriends" component={SearchFriendsScreen} />
-      <SocialStack.Screen name="FriendRequests" component={FriendRequestsScreen} />
-      <SocialStack.Screen name="AdaptedInsights" component={AdaptedInsightsScreen} />
-      <SocialStack.Screen name="AdaptedInsight" component={AdaptedInsightScreen} />
-      <SocialStack.Screen name="ShareInsight" component={ShareInsightScreen} />
-      <SocialStack.Screen name="SocialSettings" component={SocialSettingsScreen} />
-      <SocialStack.Screen name="ActivityDetail" component={ActivityDetailScreen} />
-    </SocialStack.Navigator>
+    <TabSwipeWrapper tabName="SocialTab">
+      <SocialStack.Navigator screenOptions={{ headerShown: false }}>
+        <SocialStack.Screen name="SocialMain" component={SocialFeedScreen} />
+        <SocialStack.Screen name="Friends" component={FriendsScreen} />
+        <SocialStack.Screen name="SearchFriends" component={SearchFriendsScreen} />
+        <SocialStack.Screen name="FriendRequests" component={FriendRequestsScreen} />
+        <SocialStack.Screen name="AdaptedInsights" component={AdaptedInsightsScreen} />
+        <SocialStack.Screen name="AdaptedInsight" component={AdaptedInsightScreen} />
+        <SocialStack.Screen name="ShareInsight" component={ShareInsightScreen} />
+        <SocialStack.Screen name="SocialSettings" component={SocialSettingsScreen} />
+        <SocialStack.Screen name="ActivityDetail" component={ActivityDetailScreen} />
+      </SocialStack.Navigator>
+    </TabSwipeWrapper>
   );
 }
 
 function CoachesStackScreen() {
   return (
-    <CoachesStack.Navigator screenOptions={{ headerShown: false }}>
-      <CoachesStack.Screen name="CoachesMain" component={CoachLibraryScreen} />
-      <CoachesStack.Screen name="CoachDetail" component={CoachDetailScreen} />
-      <CoachesStack.Screen name="CoachEditor" component={CoachEditorScreen} />
-      <CoachesStack.Screen name="CoachWizard" component={CoachWizardScreen} />
-    </CoachesStack.Navigator>
+    <TabSwipeWrapper tabName="CoachesTab">
+      <CoachesStack.Navigator screenOptions={{ headerShown: false }}>
+        <CoachesStack.Screen name="CoachesMain" component={CoachLibraryScreen} />
+        <CoachesStack.Screen name="CoachDetail" component={CoachDetailScreen} />
+        <CoachesStack.Screen name="CoachEditor" component={CoachEditorScreen} />
+        <CoachesStack.Screen name="CoachWizard" component={CoachWizardScreen} />
+      </CoachesStack.Navigator>
+    </TabSwipeWrapper>
   );
 }
 
 function DiscoverStackScreen() {
   return (
-    <DiscoverStack.Navigator screenOptions={{ headerShown: false }}>
-      <DiscoverStack.Screen name="Store" component={StoreScreen} />
-      <DiscoverStack.Screen name="StoreCoachDetail" component={StoreCoachDetailScreen} />
-    </DiscoverStack.Navigator>
+    <TabSwipeWrapper tabName="DiscoverTab">
+      <DiscoverStack.Navigator screenOptions={{ headerShown: false }}>
+        <DiscoverStack.Screen name="Store" component={StoreScreen} />
+        <DiscoverStack.Screen name="StoreCoachDetail" component={StoreCoachDetailScreen} />
+      </DiscoverStack.Navigator>
+    </TabSwipeWrapper>
   );
 }
 
 function SettingsStackScreen() {
   return (
-    <SettingsStack.Navigator screenOptions={{ headerShown: false }}>
-      <SettingsStack.Screen name="SettingsMain" component={SettingsScreen} />
-      <SettingsStack.Screen name="Connections" component={ConnectionsScreen} />
-    </SettingsStack.Navigator>
+    <TabSwipeWrapper tabName="SettingsTab">
+      <SettingsStack.Navigator screenOptions={{ headerShown: false }}>
+        <SettingsStack.Screen name="SettingsMain" component={SettingsScreen} />
+        <SettingsStack.Screen name="Connections" component={ConnectionsScreen} />
+      </SettingsStack.Navigator>
+    </TabSwipeWrapper>
   );
 }
 

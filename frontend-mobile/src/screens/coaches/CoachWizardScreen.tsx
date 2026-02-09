@@ -22,7 +22,10 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   useSharedValue,
   withSpring,
+  runOnJS,
 } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, spacing, glassCard, gradients, buttonGlow } from '../../constants/theme';
 import { coachesApi } from '../../services/api';
@@ -154,6 +157,41 @@ export function CoachWizardScreen({ navigation }: CoachWizardScreenProps) {
 
   const handleNext = () => goToStep(currentStep + 1);
   const handleBack = () => goToStep(currentStep - 1);
+
+  // Swipe gesture for step navigation
+  const swipeToNext = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    goToStep(currentStep + 1);
+  }, [currentStep, goToStep]);
+
+  const swipeToPrev = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    goToStep(currentStep - 1);
+  }, [currentStep, goToStep]);
+
+  const stepSwipeGesture = Gesture.Pan()
+    .activeOffsetX([-20, 20])
+    .failOffsetY([-10, 10])
+    .onEnd((event) => {
+      const { translationX, velocityX } = event;
+      const swipeThreshold = SCREEN_WIDTH * 0.25;
+      const velocityThreshold = 800;
+
+      // Swipe left = next step
+      if (translationX < -swipeThreshold || velocityX < -velocityThreshold) {
+        if (currentStep < STEPS.length - 1) {
+          runOnJS(swipeToNext)();
+        }
+        return;
+      }
+
+      // Swipe right = previous step
+      if (translationX > swipeThreshold || velocityX > velocityThreshold) {
+        if (currentStep > 0) {
+          runOnJS(swipeToPrev)();
+        }
+      }
+    });
 
   // Category picker (action sheet on iOS, alert on Android)
   const showCategoryPicker = () => {
@@ -594,20 +632,22 @@ export function CoachWizardScreen({ navigation }: CoachWizardScreenProps) {
         {/* Step Indicator */}
         {renderStepIndicator()}
 
-        {/* Steps Content */}
-        <ScrollView
-          ref={scrollViewRef}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          scrollEnabled={false}
-          className="flex-1"
-        >
-          <View style={{ width: SCREEN_WIDTH, paddingHorizontal: spacing.md }}>{renderBasicInfoStep()}</View>
-          <View style={{ width: SCREEN_WIDTH, paddingHorizontal: spacing.md }}>{renderCategoryTagsStep()}</View>
-          <View style={{ width: SCREEN_WIDTH, paddingHorizontal: spacing.md }}>{renderSystemPromptStep()}</View>
-          <View style={{ width: SCREEN_WIDTH, paddingHorizontal: spacing.md }}>{renderReviewStep()}</View>
-        </ScrollView>
+        {/* Steps Content — swipe left/right to navigate steps */}
+        <GestureDetector gesture={stepSwipeGesture}>
+          <ScrollView
+            ref={scrollViewRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            scrollEnabled={false}
+            className="flex-1"
+          >
+            <View style={{ width: SCREEN_WIDTH, paddingHorizontal: spacing.md }}>{renderBasicInfoStep()}</View>
+            <View style={{ width: SCREEN_WIDTH, paddingHorizontal: spacing.md }}>{renderCategoryTagsStep()}</View>
+            <View style={{ width: SCREEN_WIDTH, paddingHorizontal: spacing.md }}>{renderSystemPromptStep()}</View>
+            <View style={{ width: SCREEN_WIDTH, paddingHorizontal: spacing.md }}>{renderReviewStep()}</View>
+          </ScrollView>
+        </GestureDetector>
 
         {/* Navigation Buttons */}
         <View

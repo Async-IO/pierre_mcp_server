@@ -21,6 +21,7 @@ import { colors } from '../../constants/theme';
 import { socialApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { SuggestionCard } from '../../components/social';
+import { DragIndicator } from '../../components/ui';
 import type { InsightSuggestion, ShareVisibility, InsightType } from '../../types';
 import type { SocialStackParamList } from '../../navigation/MainTabs';
 
@@ -373,6 +374,7 @@ export function ShareInsightScreen() {
   // Suggestions state - show list of coach suggestions
   return (
     <SafeAreaView className="flex-1 bg-background-primary" testID="share-insight-screen">
+      <DragIndicator testID="share-insight-drag-indicator" />
       {/* Header */}
       <View className="flex-row items-center px-4 py-4 border-b border-border-subtle">
         <TouchableOpacity
