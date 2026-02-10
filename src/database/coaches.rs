@@ -1180,7 +1180,7 @@ impl CoachesManager {
     /// Get a system coach by ID without tenant filtering
     ///
     /// System coaches are platform-wide resources visible to all users.
-    /// Used by fork_coach where any user can fork any system coach.
+    /// Used by `fork_coach` where any user can fork any system coach.
     ///
     /// # Errors
     ///
