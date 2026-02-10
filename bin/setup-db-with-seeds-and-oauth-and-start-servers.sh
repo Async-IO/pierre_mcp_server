@@ -222,7 +222,7 @@ if [ "$START_TUNNEL" = "true" ]; then
         # Wait for tunnel URL
         TUNNEL_URL=""
         for i in {1..30}; do
-            TUNNEL_URL=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' "$TUNNEL_LOG" 2>/dev/null | head -1)
+            TUNNEL_URL=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' "$TUNNEL_LOG" 2>/dev/null | head -1) || true
             if [ -n "$TUNNEL_URL" ]; then
                 break
             fi

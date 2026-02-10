@@ -173,14 +173,9 @@ impl ServerConfig {
         Ok(config)
     }
 
-    /// Initialize environment by loading .env file and logging
+    /// Initialize environment by logging configuration source
     fn initialize_environment() {
-        info!("Loading configuration from environment variables");
-
-        // Load .env file if it exists
-        if let Err(e) = dotenvy::dotenv() {
-            warn!("No .env file found or failed to load: {}", e);
-        }
+        info!("Loading configuration from environment variables (.envrc via direnv)");
     }
 
     /// Validate configuration values

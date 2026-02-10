@@ -247,7 +247,6 @@ base64 = "0.22"
 bytes = "1.11"
 url = "2.5"
 clap = { version = "4.5", features = ["derive", "std"], default-features = false }
-dotenvy = "0.15"
 # toml = "0.8"  # Removed: Environment-only configuration approach
 dirs = "5.0"
 uuid = { version = "1.11", features = ["v4", "serde"] }
