@@ -1,7 +1,7 @@
 # ABOUTME: Visual tests for coach store
 # ABOUTME: Converted from mobile-visual.test.js "Coach Store" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

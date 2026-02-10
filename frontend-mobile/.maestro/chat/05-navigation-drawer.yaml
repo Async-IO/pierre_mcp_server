@@ -1,7 +1,7 @@
 # ABOUTME: Test opening conversation history from chat
 # ABOUTME: Converted from chat.test.js "should open navigation drawer" - tests history-button
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

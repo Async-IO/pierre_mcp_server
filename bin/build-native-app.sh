@@ -11,7 +11,7 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-NATIVE_BUNDLE_ID="com.pierre.fitness"
+NATIVE_BUNDLE_ID="ai.dravr.app.dev"
 EXPO_PORT="${EXPO_PORT:-8082}"
 
 # Parse args

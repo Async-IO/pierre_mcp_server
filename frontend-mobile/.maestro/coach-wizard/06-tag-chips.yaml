@@ -1,7 +1,7 @@
 # ABOUTME: Test tag chips add/remove functionality
 # ABOUTME: Converted from coach-wizard.test.js "tag chips" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

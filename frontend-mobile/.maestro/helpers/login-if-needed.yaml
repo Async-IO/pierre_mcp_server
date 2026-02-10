@@ -1,7 +1,7 @@
 # ABOUTME: Conditional login helper that only logs in if not already authenticated
 # ABOUTME: Checks for login screen and performs login if visible, otherwise skips
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Check if we're on login screen

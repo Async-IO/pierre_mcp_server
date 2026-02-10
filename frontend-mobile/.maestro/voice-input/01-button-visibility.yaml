@@ -1,7 +1,7 @@
 # ABOUTME: Test voice input button visibility
 # ABOUTME: Converted from voiceInput.test.js "VoiceButton visibility" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

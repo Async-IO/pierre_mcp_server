@@ -1,7 +1,7 @@
 # ABOUTME: Test category picker functionality
 # ABOUTME: Converted from coach-wizard.test.js "category picker" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

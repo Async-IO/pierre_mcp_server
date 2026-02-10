@@ -1,7 +1,7 @@
 # ABOUTME: Test send button enables when text is entered
 # ABOUTME: Converted from chat.test.js "should enable send button when text is entered"
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

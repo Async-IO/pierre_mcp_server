@@ -1,7 +1,7 @@
 # ABOUTME: Visual tests for authentication screens
 # ABOUTME: Converted from mobile-visual.test.js "Authentication" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch app fresh

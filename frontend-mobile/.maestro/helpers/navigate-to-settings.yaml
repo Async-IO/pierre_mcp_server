@@ -1,7 +1,7 @@
 # ABOUTME: Helper flow to navigate from any screen to Settings
 # ABOUTME: Uses bottom tab navigation to reach the Settings screen
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Tap the Settings tab in bottom navigation

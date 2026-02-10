@@ -80,7 +80,7 @@ These are configured in `config.yaml` as environment variables.
 ### Basic Test Structure
 
 ```yaml
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Import helpers at the start

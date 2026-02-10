@@ -1,7 +1,7 @@
 # ABOUTME: Test Search Friends functionality
 # ABOUTME: Converted from social.test.js "Friends Screen" search tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

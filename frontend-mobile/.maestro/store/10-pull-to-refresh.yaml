@@ -1,7 +1,7 @@
 # ABOUTME: Test pull to refresh in Discover screen
 # ABOUTME: Converted from store.test.js "pull to refresh" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

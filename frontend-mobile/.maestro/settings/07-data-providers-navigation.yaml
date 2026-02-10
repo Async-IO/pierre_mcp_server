@@ -1,7 +1,7 @@
 # ABOUTME: Test navigation to Connections screen via Data Providers
 # ABOUTME: Converted from settings.test.js "Data Providers navigation"
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

@@ -1,7 +1,7 @@
 # ABOUTME: Test analyzing training load with synthetic data
 # ABOUTME: Converted from synthetic-provider.test.js "should analyze training load"
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

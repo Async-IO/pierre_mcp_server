@@ -1,7 +1,7 @@
 # ABOUTME: Test sort options in Discover screen
 # ABOUTME: Converted from store.test.js "sort options" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

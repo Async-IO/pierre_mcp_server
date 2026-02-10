@@ -1,7 +1,7 @@
 # ABOUTME: Test coach detail screen elements
 # ABOUTME: Converted from store.test.js "coach detail screen" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

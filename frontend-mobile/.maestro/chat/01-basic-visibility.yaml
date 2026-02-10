@@ -1,7 +1,7 @@
 # ABOUTME: Test basic chat screen visibility after login
 # ABOUTME: Converted from chat.test.js basic visibility tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

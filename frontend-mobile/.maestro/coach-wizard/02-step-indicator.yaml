@@ -1,7 +1,7 @@
 # ABOUTME: Test wizard step indicator display
 # ABOUTME: Converted from coach-wizard.test.js "should display step indicator at top"
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

@@ -1,7 +1,7 @@
 # ABOUTME: Helper flow to navigate from any screen to Coaches
 # ABOUTME: Uses bottom tab navigation to reach the Coach Library screen
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Tap the Coaches tab in bottom navigation

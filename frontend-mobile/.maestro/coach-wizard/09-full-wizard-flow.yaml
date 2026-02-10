@@ -1,7 +1,7 @@
 # ABOUTME: Test complete wizard flow to create a coach
 # ABOUTME: Converted from coach-wizard.test.js "full wizard flow" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

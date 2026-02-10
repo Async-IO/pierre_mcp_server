@@ -1,7 +1,7 @@
 # ABOUTME: Test search functionality in coach library
 # ABOUTME: Converted from coaches.test.js "search functionality" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

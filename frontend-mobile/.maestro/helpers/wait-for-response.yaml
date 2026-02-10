@@ -1,7 +1,7 @@
 # ABOUTME: Helper flow to wait for Pierre's response after sending a message
 # ABOUTME: Waits for the thinking indicator to appear and then disappear
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Wait for thinking indicator to appear (animated dots)

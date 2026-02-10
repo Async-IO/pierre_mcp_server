@@ -1,7 +1,7 @@
 # ABOUTME: Helper flow to navigate from any screen to Social Feed
 # ABOUTME: Uses bottom tab navigation to reach the Social Feed screen
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Tap the Insights tab in bottom navigation

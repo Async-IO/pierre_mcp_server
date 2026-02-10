@@ -1,7 +1,7 @@
 # ABOUTME: Test Adapt Insight flow
 # ABOUTME: Converted from social.test.js "Adapt Insight Flow" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

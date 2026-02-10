@@ -2,7 +2,7 @@
 # ABOUTME: Converted from settings.test.js "hallucinated elements - must NOT exist"
 # ABOUTME: If any of these tests fail, a hallucinated element was added - remove it or implement backend first
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

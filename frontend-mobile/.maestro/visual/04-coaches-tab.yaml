@@ -1,7 +1,7 @@
 # ABOUTME: Visual tests for coaches tab
 # ABOUTME: Converted from mobile-visual.test.js "Coaches Tab" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

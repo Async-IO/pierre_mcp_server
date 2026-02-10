@@ -1,7 +1,7 @@
 # ABOUTME: Test voice input integration with text input
 # ABOUTME: Converted from voiceInput.test.js "Input integration" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

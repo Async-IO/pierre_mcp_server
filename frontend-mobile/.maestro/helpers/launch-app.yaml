@@ -1,7 +1,7 @@
 # ABOUTME: Helper flow to launch the Pierre app fresh
 # ABOUTME: Clears app state and launches with a new instance
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 - clearState

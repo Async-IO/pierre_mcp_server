@@ -1,7 +1,7 @@
 # ABOUTME: Test coach uninstall flow from the store
 # ABOUTME: Converted from store.test.js "install/uninstall flow" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login

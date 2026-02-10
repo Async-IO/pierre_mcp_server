@@ -1,7 +1,7 @@
 # ABOUTME: Visual tests for social feed
 # ABOUTME: Converted from mobile-visual.test.js "Social Feed" tests
 
-appId: com.pierre.fitness
+appId: ai.dravr.app.dev
 
 ---
 # Launch and login
