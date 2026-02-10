@@ -10,7 +10,6 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[cfg(feature = "crypto-errors")]
 use crate::errors::{AppError, AppResult};
 
 /// Encrypted `OAuth` token storage

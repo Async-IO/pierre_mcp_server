@@ -505,20 +505,27 @@ impl PerformanceAnalyzerV2 {
         }
 
         if count > 0 {
-            (strength_score
-                / f64::from(count)
-                / self.config.fitness_scoring.strength_endurance_divisor)
-                .min(100.0)
+            let divisor = self
+                .config
+                .fitness_scoring
+                .strength_endurance_divisor
+                .max(f64::MIN_POSITIVE);
+            (strength_score / f64::from(count) / divisor).min(100.0)
         } else {
             0.0
         }
     }
 
     fn calculate_consistency(&self, activities: &[&Activity]) -> f64 {
-        let weeks = f64::from(self.config.timeframes.fitness_score_weeks);
+        let weeks = f64::from(self.config.timeframes.fitness_score_weeks).max(1.0);
+        #[allow(clippy::cast_precision_loss)]
         let activities_per_week = activities.len() as f64 / weeks;
-        let consistency_ratio =
-            activities_per_week / self.config.fitness_scoring.target_weekly_activities;
+        let target = self
+            .config
+            .fitness_scoring
+            .target_weekly_activities
+            .max(f64::MIN_POSITIVE);
+        let consistency_ratio = activities_per_week / target;
 
         consistency_ratio.min(1.0) * 100.0
     }
@@ -641,9 +648,13 @@ impl PerformanceAnalyzerV2 {
             .sum::<f64>()
             / weekly_loads.len() as f64;
 
-        let balance_score = (load_variance.sqrt() / average_load)
-            .mul_add(-100.0, 100.0)
-            .max(0.0);
+        let balance_score = if average_load > 0.0 {
+            (load_variance.sqrt() / average_load)
+                .mul_add(-100.0, 100.0)
+                .max(0.0)
+        } else {
+            100.0
+        };
 
         let last_week_load = weekly_loads.last().map_or(0.0, |w| w.total_duration_hours);
         let recovery_needed = last_week_load > self.config.performance.high_weekly_volume_hours;

@@ -217,41 +217,44 @@ impl AdvancedActivityAnalyzer {
         // Heart rate insights
         if let Some(avg_hr) = activity.average_heart_rate() {
             if let Some(max_hr) = activity.max_heart_rate() {
-                // Heart rates are small values (30-220), use safe conversion
-                let hr_reserve_used = (f32::from(safe_u32_to_u16(avg_hr))
-                    / f32::from(safe_u32_to_u16(max_hr)))
-                    * 100.0;
+                if max_hr > 0 {
+                    // Heart rates are small values (30-220), use safe conversion
+                    let hr_reserve_used = (f32::from(safe_u32_to_u16(avg_hr))
+                        / f32::from(safe_u32_to_u16(max_hr)))
+                        * 100.0;
 
-                let (message, confidence) = if hr_reserve_used > ANAEROBIC_THRESHOLD_PERCENTAGE {
-                    (
-                        "High intensity effort - excellent cardiovascular challenge".into(),
-                        Confidence::High,
-                    )
-                } else if hr_reserve_used > AEROBIC_THRESHOLD_PERCENTAGE {
-                    (
-                        "Moderate to high intensity - good aerobic stimulus".into(),
-                        Confidence::Medium,
-                    )
-                } else {
-                    (
-                        "Low to moderate intensity - great for base building".into(),
-                        Confidence::Medium,
-                    )
-                };
+                    let (message, confidence) = if hr_reserve_used > ANAEROBIC_THRESHOLD_PERCENTAGE
+                    {
+                        (
+                            "High intensity effort - excellent cardiovascular challenge".into(),
+                            Confidence::High,
+                        )
+                    } else if hr_reserve_used > AEROBIC_THRESHOLD_PERCENTAGE {
+                        (
+                            "Moderate to high intensity - good aerobic stimulus".into(),
+                            Confidence::Medium,
+                        )
+                    } else {
+                        (
+                            "Low to moderate intensity - great for base building".into(),
+                            Confidence::Medium,
+                        )
+                    };
 
-                let mut metadata = HashMap::new();
-                metadata.insert(
-                    "hr_reserve_percentage".into(),
-                    serde_json::Value::from(hr_reserve_used),
-                );
+                    let mut metadata = HashMap::new();
+                    metadata.insert(
+                        "hr_reserve_percentage".into(),
+                        serde_json::Value::from(hr_reserve_used),
+                    );
 
-                insights.push(AdvancedInsight {
-                    insight_type: "heart_rate_analysis".into(),
-                    message,
-                    confidence,
-                    severity: InsightSeverity::Info,
-                    metadata,
-                });
+                    insights.push(AdvancedInsight {
+                        insight_type: "heart_rate_analysis".into(),
+                        message,
+                        confidence,
+                        severity: InsightSeverity::Info,
+                        metadata,
+                    });
+                }
             }
         }
 
@@ -466,6 +469,9 @@ impl AdvancedActivityAnalyzer {
         same_sport_activities: &[&Activity],
     ) -> Option<Vec<AdvancedInsight>> {
         let current_hr = activity.average_heart_rate()?;
+        if current_hr == 0 {
+            return None;
+        }
         let current_speed = activity.average_speed()?;
         let current_efficiency = current_speed / f64::from(current_hr);
 
@@ -473,7 +479,11 @@ impl AdvancedActivityAnalyzer {
             .iter()
             .filter_map(|a| {
                 if let (Some(hr), Some(speed)) = (a.average_heart_rate(), a.average_speed()) {
-                    Some(safe_f64_to_f32(speed / f64::from(hr)))
+                    if hr > 0 {
+                        Some(safe_f64_to_f32(speed / f64::from(hr)))
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }
@@ -490,6 +500,9 @@ impl AdvancedActivityAnalyzer {
             historical_efficiencies.iter().sum::<f32>() / len_f32
         };
 
+        if avg_efficiency == 0.0 {
+            return None;
+        }
         let efficiency_change =
             ((current_efficiency - f64::from(avg_efficiency)) / f64::from(avg_efficiency)) * 100.0;
 

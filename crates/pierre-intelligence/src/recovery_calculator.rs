@@ -457,20 +457,26 @@ impl RecoveryCalculator {
             100.0 - ((tsb - detraining_tsb) * 2.0).min(30.0)
         } else if tsb > fresh_tsb_max {
             // Between optimal and detraining: slight penalty
-            ((tsb - fresh_tsb_max) / (detraining_tsb - fresh_tsb_max)).mul_add(-10.0, 100.0)
+            let range = (detraining_tsb - fresh_tsb_max).max(f64::MIN_POSITIVE);
+            ((tsb - fresh_tsb_max) / range).mul_add(-10.0, 100.0)
         } else if tsb >= 0.0 {
             // Slightly fresh (0 to fresh_tsb_min): 85-100 points
-            (tsb / fresh_tsb_min).mul_add(15.0, 85.0)
+            let min_guard = fresh_tsb_min.max(f64::MIN_POSITIVE);
+            (tsb / min_guard).mul_add(15.0, 85.0)
         } else if tsb >= fatigued_tsb {
             // Productive fatigue: 60-85 points
-            ((tsb - fatigued_tsb) / fatigued_tsb.abs()).mul_add(25.0, 60.0)
+            let abs_fatigued = fatigued_tsb.abs().max(f64::MIN_POSITIVE);
+            ((tsb - fatigued_tsb) / abs_fatigued).mul_add(25.0, 60.0)
         } else if tsb >= highly_fatigued_tsb {
             // High fatigue: 30-60 points
-            ((tsb - highly_fatigued_tsb) / (fatigued_tsb - highly_fatigued_tsb)).mul_add(30.0, 30.0)
+            let range = (fatigued_tsb - highly_fatigued_tsb)
+                .abs()
+                .max(f64::MIN_POSITIVE);
+            ((tsb - highly_fatigued_tsb) / range).mul_add(30.0, 30.0)
         } else {
             // Extreme fatigue: 0-30 points
-            30.0 - ((tsb.abs() - highly_fatigued_tsb.abs()) / highly_fatigued_tsb.abs() * 30.0)
-                .min(30.0)
+            let abs_highly = highly_fatigued_tsb.abs().max(f64::MIN_POSITIVE);
+            30.0 - ((tsb.abs() - highly_fatigued_tsb.abs()) / abs_highly * 30.0).min(30.0)
         }
     }
 

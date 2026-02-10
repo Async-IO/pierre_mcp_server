@@ -322,10 +322,11 @@ impl StravaProvider {
             }
         }
 
+        debug!("Strava API error response body: {text}");
         let err = ProviderError::ApiError {
             provider: oauth_providers::STRAVA.to_owned(),
             status_code: status.as_u16(),
-            message: format!("Strava API request failed with status {status}: {text}"),
+            message: format!("Strava API request failed with status {status}"),
             retryable: false,
         };
         AppError::external_service("Strava", err.to_string())
@@ -927,7 +928,11 @@ impl StravaProvider {
         before: Option<i64>,
         after: Option<i64>,
     ) -> AppResult<Vec<Activity>> {
-        let page = if offset > 0 { offset / limit + 1 } else { 1 };
+        let page = if offset > 0 {
+            offset / limit.max(1) + 1
+        } else {
+            1
+        };
         let endpoint = Self::build_activities_endpoint_with_time(limit, page, before, after);
 
         info!("Single page request - endpoint: {}", endpoint);

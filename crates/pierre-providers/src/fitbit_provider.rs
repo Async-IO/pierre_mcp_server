@@ -306,10 +306,11 @@ impl FitbitProvider {
             }
         }
 
+        debug!("Fitbit API error response body: {text}");
         let err = ProviderError::ApiError {
             provider: oauth_providers::FITBIT.to_owned(),
             status_code: status.as_u16(),
-            message: format!("Fitbit API request failed with status {status}: {text}"),
+            message: format!("Fitbit API request failed with status {status}"),
             retryable: status.as_u16() >= 500,
         };
         AppError::external_service("Fitbit", err.to_string())

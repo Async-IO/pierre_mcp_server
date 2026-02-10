@@ -165,11 +165,15 @@ impl ActivityAnalyzer {
         if let (Some(avg_hr), Some(max_hr)) =
             (activity.average_heart_rate(), activity.max_heart_rate())
         {
-            // Heart rates are typically in range 30-220, safe conversion with bounds check
-            let hr_intensity =
-                f32::from(u16::try_from(avg_hr.min(u32::from(u16::MAX))).unwrap_or(u16::MAX))
-                    / f32::from(u16::try_from(max_hr.min(u32::from(u16::MAX))).unwrap_or(u16::MAX));
-            effort += hr_intensity * HR_INTENSITY_EFFORT_FACTOR;
+            if max_hr > 0 {
+                // Heart rates are typically in range 30-220, safe conversion with bounds check
+                let hr_intensity =
+                    f32::from(u16::try_from(avg_hr.min(u32::from(u16::MAX))).unwrap_or(u16::MAX))
+                        / f32::from(
+                            u16::try_from(max_hr.min(u32::from(u16::MAX))).unwrap_or(u16::MAX),
+                        );
+                effort += hr_intensity * HR_INTENSITY_EFFORT_FACTOR;
+            }
         }
 
         // Distance factor
@@ -209,7 +213,10 @@ impl ActivityAnalyzer {
         if let (Some(avg_hr), Some(max_hr)) =
             (activity.average_heart_rate(), activity.max_heart_rate())
         {
-            let hr_reserve = max_hr - ASSUMED_RESTING_HR; // Using configured resting HR
+            let hr_reserve = max_hr.saturating_sub(ASSUMED_RESTING_HR); // Using configured resting HR
+            if hr_reserve == 0 {
+                return None;
+            }
             let hr_diff = avg_hr.saturating_sub(ASSUMED_RESTING_HR);
             // Heart rate differences are small, safe conversion with bounds check
             let intensity =
@@ -287,6 +294,9 @@ impl ActivityAnalyzer {
 
         // Example: Speed PR detection
         if let Some(avg_speed) = activity.average_speed() {
+            if avg_speed == 0.0 {
+                return records;
+            }
             let pace_per_km = f64::from(PACE_PER_KM_FACTOR) / avg_speed;
             if pace_per_km < PACE_PR_THRESHOLD_SECONDS {
                 const PREVIOUS_BEST_PACE: f64 = DEFAULT_PREVIOUS_BEST_PACE;
@@ -313,20 +323,27 @@ impl ActivityAnalyzer {
         if let (Some(avg_hr), Some(avg_speed)) =
             (activity.average_heart_rate(), activity.average_speed())
         {
-            let pace_per_km = PACE_PER_KM_FACTOR / safe_f64_to_f32(avg_speed);
-            // Heart rates are typically small values (30-220), safe to convert to f32
-            let hr_efficiency = HR_EFFICIENCY_FACTOR
-                / (f32::from(u16::try_from(avg_hr.min(u32::from(u16::MAX))).unwrap_or(u16::MAX))
-                    * pace_per_km);
-            efficiency += hr_efficiency * HR_EFFICIENCY_MULTIPLIER;
+            if avg_speed > 0.0 && avg_hr > 0 {
+                let pace_per_km = PACE_PER_KM_FACTOR / safe_f64_to_f32(avg_speed);
+                if pace_per_km != 0.0 {
+                    // Heart rates are typically small values (30-220), safe to convert to f32
+                    let hr_efficiency = HR_EFFICIENCY_FACTOR
+                        / (f32::from(
+                            u16::try_from(avg_hr.min(u32::from(u16::MAX))).unwrap_or(u16::MAX),
+                        ) * pace_per_km);
+                    efficiency += hr_efficiency * HR_EFFICIENCY_MULTIPLIER;
+                }
+            }
         }
 
         // Consistency factor calculation
         if let (Some(avg_speed), Some(max_speed)) = (activity.average_speed(), activity.max_speed())
         {
-            let speed_variance = max_speed - avg_speed;
-            let consistency = 1.0 - safe_f64_to_f32((speed_variance / max_speed).min(1.0));
-            efficiency += consistency * CONSISTENCY_MULTIPLIER;
+            if max_speed > 0.0 {
+                let speed_variance = max_speed - avg_speed;
+                let consistency = 1.0 - safe_f64_to_f32((speed_variance / max_speed).min(1.0));
+                efficiency += consistency * CONSISTENCY_MULTIPLIER;
+            }
         }
 
         efficiency.clamp(0.0, 100.0)

@@ -491,6 +491,9 @@ impl ZoneTimeCalculator {
 
     /// Get the zone for a given heart rate.
     fn get_zone(&self, bpm: u32) -> u8 {
+        if self.max_hr == 0 {
+            return 1;
+        }
         let hr_pct = f64::from(bpm) / f64::from(self.max_hr);
 
         if hr_pct <= self.boundaries.zone1_upper {
@@ -711,6 +714,10 @@ impl DecouplingDetector {
 
         let first_efficiency = first_avg_hr / first_avg_speed;
         let second_efficiency = second_avg_hr / second_avg_speed;
+
+        if first_efficiency == 0.0 {
+            return None;
+        }
 
         // Decoupling is the percentage increase in HR/speed ratio
         Some((second_efficiency - first_efficiency) / first_efficiency * 100.0)

@@ -167,8 +167,11 @@ impl TenantFitnessProvider for TenantStravaProvider {
                 .append_pair("per_page", &limit.to_string());
         }
         if let Some(offset) = offset {
+            let per_page = limit
+                .unwrap_or(api_provider_limits::strava::DEFAULT_ACTIVITIES_PER_PAGE)
+                .max(1);
             url.query_pairs_mut()
-                .append_pair("page", &((offset / limit.unwrap_or(api_provider_limits::strava::DEFAULT_ACTIVITIES_PER_PAGE)) + 1).to_string());
+                .append_pair("page", &((offset / per_page) + 1).to_string());
         }
 
         let response: Vec<StravaActivity> = self

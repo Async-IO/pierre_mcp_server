@@ -368,19 +368,30 @@ impl SleepAnalyzer {
         let good_threshold = config.sleep_efficiency.good_threshold;
         let poor_threshold = config.sleep_efficiency.poor_threshold;
 
+        // Guard against config values that would cause division by zero
+        let excellent_good_range = excellent_threshold - good_threshold;
+        let good_poor_range = good_threshold - poor_threshold - 5.0;
+        let poor_lower = poor_threshold - 5.0;
+
         if efficiency_percent >= excellent_threshold {
             100.0
         } else if efficiency_percent >= good_threshold {
-            ((efficiency_percent - good_threshold) / (excellent_threshold - good_threshold))
-                .mul_add(20.0, 80.0)
+            if excellent_good_range <= 0.0 {
+                return 80.0;
+            }
+            ((efficiency_percent - good_threshold) / excellent_good_range).mul_add(20.0, 80.0)
         } else if efficiency_percent >= poor_threshold + 5.0 {
-            ((efficiency_percent - (poor_threshold + 5.0))
-                / (good_threshold - poor_threshold - 5.0))
-                .mul_add(20.0, 60.0)
-        } else if efficiency_percent >= poor_threshold - 5.0 {
-            ((efficiency_percent - (poor_threshold - 5.0)) / 10.0).mul_add(20.0, 40.0)
+            if good_poor_range <= 0.0 {
+                return 60.0;
+            }
+            ((efficiency_percent - (poor_threshold + 5.0)) / good_poor_range).mul_add(20.0, 60.0)
+        } else if efficiency_percent >= poor_lower {
+            ((efficiency_percent - poor_lower) / 10.0).mul_add(20.0, 40.0)
         } else {
-            (efficiency_percent / (poor_threshold - 5.0) * 40.0).max(0.0)
+            if poor_lower <= 0.0 {
+                return 0.0;
+            }
+            (efficiency_percent / poor_lower * 40.0).max(0.0)
         }
     }
 

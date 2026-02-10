@@ -208,29 +208,31 @@ impl InsightGenerator {
         if let (Some(avg_hr), Some(max_hr)) =
             (activity.average_heart_rate(), activity.max_heart_rate())
         {
-            // Heart rates are small values (30-220), use safe conversion
-            let hr_intensity =
-                f32::from(safe_u32_to_u16(avg_hr)) / f32::from(safe_u32_to_u16(max_hr));
+            if max_hr > 0 {
+                // Heart rates are small values (30-220), use safe conversion
+                let hr_intensity =
+                    f32::from(safe_u32_to_u16(avg_hr)) / f32::from(safe_u32_to_u16(max_hr));
 
-            let (zone_description, confidence) = match hr_intensity {
-                x if x < 0.6 => ("recovery zone", 90.0),
-                x if x < 0.7 => ("endurance zone", 95.0),
-                x if x < 0.8 => ("tempo zone", 92.0),
-                x if x < 0.9 => ("threshold zone", 88.0),
-                _ => ("VO2 max zone", 85.0),
-            };
+                let (zone_description, confidence) = match hr_intensity {
+                    x if x < 0.6 => ("recovery zone", 90.0),
+                    x if x < 0.7 => ("endurance zone", 95.0),
+                    x if x < 0.8 => ("tempo zone", 92.0),
+                    x if x < 0.9 => ("threshold zone", 88.0),
+                    _ => ("VO2 max zone", 85.0),
+                };
 
-            insights.push(Insight {
-                insight_type: InsightType::ZoneAnalysis,
-                message: format!("Your average heart rate of {avg_hr} bpm indicates most time was spent in the {zone_description}. This is excellent for building aerobic capacity."),
-                confidence,
-                data: Some(serde_json::json!({
-                    "avg_heartrate": avg_hr,
-                    "max_heartrate": max_hr,
-                    "zone": zone_description,
-                    "intensity_ratio": hr_intensity
-                })),
-            });
+                insights.push(Insight {
+                    insight_type: InsightType::ZoneAnalysis,
+                    message: format!("Your average heart rate of {avg_hr} bpm indicates most time was spent in the {zone_description}. This is excellent for building aerobic capacity."),
+                    confidence,
+                    data: Some(serde_json::json!({
+                        "avg_heartrate": avg_hr,
+                        "max_heartrate": max_hr,
+                        "zone": zone_description,
+                        "intensity_ratio": hr_intensity
+                    })),
+                });
+            }
         }
 
         insights
@@ -296,10 +298,10 @@ impl InsightGenerator {
         if let (Some(avg_hr), Some(max_hr)) =
             (activity.average_heart_rate(), activity.max_heart_rate())
         {
-            // Heart rates are small values (30-220), use safe conversion
-            let hr_intensity =
-                f32::from(safe_u32_to_u16(avg_hr)) / f32::from(safe_u32_to_u16(max_hr));
-            {
+            if max_hr > 0 {
+                // Heart rates are small values (30-220), use safe conversion
+                let hr_intensity =
+                    f32::from(safe_u32_to_u16(avg_hr)) / f32::from(safe_u32_to_u16(max_hr));
                 effort_score += hr_intensity * safe_f64_to_f32(BASE_ACTIVITY_SCORE);
             }
         }

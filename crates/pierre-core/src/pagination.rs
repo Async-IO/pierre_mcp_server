@@ -34,17 +34,14 @@ impl Cursor {
     pub fn decode(&self) -> Option<(DateTime<Utc>, String)> {
         let decoded = base64::Engine::decode(&URL_SAFE_NO_PAD, &self.0).ok()?;
         let decoded_str = String::from_utf8(decoded).ok()?;
-        let parts: Vec<&str> = decoded_str.split(':').collect();
 
-        if parts.len() != 2 {
-            return None;
-        }
+        // Split on first ':' only so IDs containing ':' are preserved
+        let (timestamp_str, id) = decoded_str.split_once(':')?;
 
-        let timestamp_millis = parts[0].parse::<i64>().ok()?;
-        let id = parts[1].to_owned();
+        let timestamp_millis = timestamp_str.parse::<i64>().ok()?;
         let datetime = DateTime::from_timestamp_millis(timestamp_millis)?;
 
-        Some((datetime, id))
+        Some((datetime, id.to_owned()))
     }
 
     /// Get the raw cursor string
@@ -256,48 +253,52 @@ impl StoreCursor {
     pub fn decode(cursor: &Cursor, expected_sort: StoreSortOrder) -> Option<Self> {
         let decoded_bytes = base64::Engine::decode(&URL_SAFE_NO_PAD, cursor.as_str()).ok()?;
         let decoded_str = String::from_utf8(decoded_bytes).ok()?;
-        let parts: Vec<&str> = decoded_str.split('|').collect();
 
-        if parts.is_empty() {
-            return None;
-        }
+        // Split on first '|' to get the sort type prefix
+        let (sort_type, rest) = decoded_str.split_once('|')?;
 
-        let sort_type = parts[0];
         match sort_type {
-            "newest" if expected_sort == StoreSortOrder::Newest && parts.len() == 3 => {
-                let ts_millis = parts[1].parse::<i64>().ok()?;
-                let id = parts[2].to_owned();
+            "newest" if expected_sort == StoreSortOrder::Newest => {
+                // Format: newest|ts_millis|id
+                // Split on first '|' so IDs containing '|' are preserved
+                let (ts_str, id) = rest.split_once('|')?;
+                let ts_millis = ts_str.parse::<i64>().ok()?;
                 let published_at = DateTime::from_timestamp_millis(ts_millis);
                 Some(Self {
                     sort_by: StoreSortOrder::Newest,
-                    id,
+                    id: id.to_owned(),
                     published_at,
                     install_count: None,
                     title: None,
                 })
             }
-            "popular" if expected_sort == StoreSortOrder::Popular && parts.len() == 4 => {
-                let install_count = parts[1].parse::<u32>().ok()?;
-                let ts_millis = parts[2].parse::<i64>().ok()?;
-                let id = parts[3].to_owned();
+            "popular" if expected_sort == StoreSortOrder::Popular => {
+                // Format: popular|count|ts_millis|id
+                // count and ts are numeric (no '|'), split sequentially
+                let (count_str, after_count) = rest.split_once('|')?;
+                let (ts_str, id) = after_count.split_once('|')?;
+                let install_count = count_str.parse::<u32>().ok()?;
+                let ts_millis = ts_str.parse::<i64>().ok()?;
                 let published_at = DateTime::from_timestamp_millis(ts_millis);
                 Some(Self {
                     sort_by: StoreSortOrder::Popular,
-                    id,
+                    id: id.to_owned(),
                     published_at,
                     install_count: Some(install_count),
                     title: None,
                 })
             }
-            "title" if expected_sort == StoreSortOrder::Title && parts.len() == 3 => {
-                let title = parts[1].to_owned();
-                let id = parts[2].to_owned();
+            "title" if expected_sort == StoreSortOrder::Title => {
+                // Format: title|title_value|id
+                // Title may contain '|', so split from the right to extract the ID
+                // (IDs are UUIDs or numeric and do not contain '|')
+                let (title, id) = rest.rsplit_once('|')?;
                 Some(Self {
                     sort_by: StoreSortOrder::Title,
-                    id,
+                    id: id.to_owned(),
                     published_at: None,
                     install_count: None,
-                    title: Some(title),
+                    title: Some(title.to_owned()),
                 })
             }
             _ => None,

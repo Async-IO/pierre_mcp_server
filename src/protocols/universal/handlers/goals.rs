@@ -111,6 +111,9 @@ fn calculate_feasibility_score(
 
     let feasibility_score = if improvement_required <= 0.0 {
         MAX_PERCENTAGE
+    } else if safe_improvement_capacity <= 0.0 {
+        // No timeframe means no capacity for improvement
+        0.0
     } else if improvement_required <= safe_improvement_capacity {
         (improvement_required / safe_improvement_capacity)
             .mul_add(-SAFE_RANGE_PENALTY_FACTOR, MAX_PERCENTAGE)
@@ -1217,7 +1220,11 @@ fn calculate_progress_metrics(
 ) -> (f64, &'static str, f64, bool) {
     let (current_value, unit) = calculate_current_progress(goal_type, relevant_activities);
 
-    let progress_percentage = (current_value / goal_target) * PERCENTAGE_MULTIPLIER;
+    let progress_percentage = if goal_target > 0.0 {
+        (current_value / goal_target) * PERCENTAGE_MULTIPLIER
+    } else {
+        0.0
+    };
     let on_track = progress_percentage >= SIMPLE_PROGRESS_THRESHOLD;
 
     (current_value, unit, progress_percentage, on_track)

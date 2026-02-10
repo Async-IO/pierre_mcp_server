@@ -173,8 +173,9 @@ impl PerformancePredictor {
                     let duration = a.duration_seconds();
                     #[allow(clippy::cast_precision_loss)]
                     let duration_f64 = duration as f64;
-                    // At least 3K distance
-                    distance >= 3_000.0
+                    // At least 3K distance, non-zero duration
+                    duration > 0
+                        && distance >= 3_000.0
                         // Less than 2 hours
                         && duration < 7_200
                         // Reasonable pace (faster than 8 min/km)
@@ -182,15 +183,17 @@ impl PerformancePredictor {
                 })
             })
             .max_by(|a, b| {
-                // Find fastest pace
+                // Find fastest pace (duration > 0 is guaranteed by filter above)
                 #[allow(clippy::cast_precision_loss)]
-                let pace_a = a
-                    .distance_meters()
-                    .map_or(0.0, |d| d / a.duration_seconds() as f64);
+                let pace_a = a.distance_meters().map_or(0.0, |d| {
+                    let dur = a.duration_seconds().max(1) as f64;
+                    d / dur
+                });
                 #[allow(clippy::cast_precision_loss)]
-                let pace_b = b
-                    .distance_meters()
-                    .map_or(0.0, |d| d / b.duration_seconds() as f64);
+                let pace_b = b.distance_meters().map_or(0.0, |d| {
+                    let dur = b.duration_seconds().max(1) as f64;
+                    d / dur
+                });
                 pace_a.partial_cmp(&pace_b).unwrap_or(Ordering::Equal)
             })
     }

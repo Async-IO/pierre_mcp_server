@@ -1201,14 +1201,19 @@ pub fn handle_track_sleep_trends(
 
         #[allow(clippy::cast_precision_loss)]
         // Safe: count of sleep records with efficiency, small number, well within f64 precision
-        let avg_efficiency = sleep_history
+        let efficiency_count = sleep_history
             .iter()
-            .filter_map(|s| s.efficiency_percent)
-            .sum::<f64>()
-            / sleep_history
+            .filter(|s| s.efficiency_percent.is_some())
+            .count();
+        let avg_efficiency = if efficiency_count > 0 {
+            sleep_history
                 .iter()
-                .filter(|s| s.efficiency_percent.is_some())
-                .count() as f64;
+                .filter_map(|s| s.efficiency_percent)
+                .sum::<f64>()
+                / efficiency_count as f64
+        } else {
+            0.0
+        };
 
         // Get sleep/recovery config
         let config = &IntelligenceConfig::global().sleep_recovery;

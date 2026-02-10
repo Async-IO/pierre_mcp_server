@@ -238,9 +238,11 @@ impl MetricsCalculator {
 
         // 2. Try HR-based TSS using LTHR (per methodology.md line 347)
         if let (Some(avg_hr), Some(lthr)) = (activity.average_heart_rate(), self.lthr) {
-            let hr_ratio = f64::from(avg_hr) / lthr;
-            let tss = duration_hours * hr_ratio.powi(2) * 100.0;
-            return Some(tss);
+            if lthr > 0.0 {
+                let hr_ratio = f64::from(avg_hr) / lthr;
+                let tss = duration_hours * hr_ratio.powi(2) * 100.0;
+                return Some(tss);
+            }
         }
 
         // 3. Fallback: Pace-based TSS estimation for running activities without sensors
@@ -270,19 +272,22 @@ impl MetricsCalculator {
     /// Calculate intensity factor from activity data
     fn calculate_intensity_factor(&self, activity: &Activity) -> Option<f64> {
         if let (Some(avg_power), Some(ftp)) = (activity.average_power(), self.ftp) {
-            Some(f64::from(avg_power) / ftp)
-        } else {
-            None
+            if ftp > 0.0 {
+                return Some(f64::from(avg_power) / ftp);
+            }
         }
+        None
     }
 
     /// Calculate power-based metrics
     fn calculate_power_metrics(&self, activity: &Activity, metrics: &mut AdvancedMetrics) {
         // Calculate power-to-weight ratio if power and weight available
         if let (Some(avg_power), Some(weight)) = (activity.average_power(), self.weight_kg) {
-            let power_to_weight = f64::from(avg_power) / weight;
-            metrics.power_to_weight_ratio = Some(power_to_weight);
-            metrics.avg_power_to_weight = Some(power_to_weight);
+            if weight > 0.0 {
+                let power_to_weight = f64::from(avg_power) / weight;
+                metrics.power_to_weight_ratio = Some(power_to_weight);
+                metrics.avg_power_to_weight = Some(power_to_weight);
+            }
         }
 
         // Use actual normalized power or calculate from time series data
@@ -319,7 +324,9 @@ impl MetricsCalculator {
         if let (Some(avg_hr), Some(avg_speed)) =
             (activity.average_heart_rate(), activity.average_speed())
         {
-            metrics.aerobic_efficiency = Some(avg_speed / f64::from(avg_hr));
+            if avg_hr > 0 {
+                metrics.aerobic_efficiency = Some(avg_speed / f64::from(avg_hr));
+            }
         }
     }
 
@@ -336,9 +343,11 @@ impl MetricsCalculator {
         if let (Some(avg_hr), Some(avg_speed)) =
             (activity.average_heart_rate(), activity.average_speed())
         {
-            let effectiveness = avg_speed / f64::from(avg_hr) * EFFICIENCY_TIME_MULTIPLIER;
-            metrics.running_effectiveness = Some(effectiveness);
-            metrics.efficiency_factor = Some(effectiveness);
+            if avg_hr > 0 {
+                let effectiveness = avg_speed / f64::from(avg_hr) * EFFICIENCY_TIME_MULTIPLIER;
+                metrics.running_effectiveness = Some(effectiveness);
+                metrics.efficiency_factor = Some(effectiveness);
+            }
         }
 
         // Stride efficiency
@@ -362,7 +371,9 @@ impl MetricsCalculator {
                 }
             };
             let total_steps = f64::from(avg_cadence) * duration_minutes;
-            metrics.stride_efficiency = Some(distance / total_steps);
+            if total_steps > 0.0 {
+                metrics.stride_efficiency = Some(distance / total_steps);
+            }
         }
 
         // Ground contact balance calculation
@@ -574,9 +585,16 @@ impl MetricsCalculator {
             .sum::<f64>()
             / second_half_size;
 
-        // Calculate efficiency ratios
+        // Calculate efficiency ratios, guarding against zero HR
+        if first_half_hr == 0.0 || second_half_hr == 0.0 {
+            return None;
+        }
         let first_efficiency = first_half_pace / first_half_hr;
         let second_efficiency = second_half_pace / second_half_hr;
+
+        if first_efficiency == 0.0 {
+            return None;
+        }
 
         // Decoupling percentage
         Some(((second_efficiency - first_efficiency) / first_efficiency) * 100.0)
@@ -647,7 +665,11 @@ impl MetricsCalculator {
             .map(f64::from)
             .or_else(|| {
                 if let (Some(avg_hr), Some(lthr)) = (activity.average_heart_rate(), self.lthr) {
-                    Some((f64::from(avg_hr) / lthr).min(1.5)) // Cap at 150% of threshold
+                    if lthr > 0.0 {
+                        Some((f64::from(avg_hr) / lthr).min(1.5)) // Cap at 150% of threshold
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }
@@ -665,6 +687,9 @@ impl MetricsCalculator {
     pub fn calculate_aerobic_contribution(&self, activity: &Activity) -> Option<f64> {
         // Estimate based on heart rate zones or intensity
         if let (Some(avg_hr), Some(lthr)) = (activity.average_heart_rate(), self.lthr) {
+            if lthr <= 0.0 {
+                return None;
+            }
             let hr_ratio = f64::from(avg_hr) / lthr;
 
             if hr_ratio <= 0.85 {
@@ -748,6 +773,17 @@ impl ZoneAnalysis {
     /// Uses rayon for single-pass parallel zone classification (3-4x speedup on multi-core).
     #[must_use]
     pub fn from_heart_rate_data(hr_data: &[f32], lthr: f64) -> Self {
+        if hr_data.is_empty() {
+            return Self {
+                zone1_percentage: 0.0,
+                zone2_percentage: 0.0,
+                zone3_percentage: 0.0,
+                zone4_percentage: 0.0,
+                zone5_percentage: 0.0,
+                time_in_zones: HashMap::new(),
+            };
+        }
+
         let total_points = match u32::try_from(hr_data.len()) {
             Ok(len) => f64::from(len),
             Err(e) => {
@@ -831,6 +867,17 @@ impl ZoneAnalysis {
     /// Uses rayon for single-pass parallel zone classification (3-4x speedup on multi-core).
     #[must_use]
     pub fn from_power_data(power_data: &[f32], ftp: f64) -> Self {
+        if power_data.is_empty() {
+            return Self {
+                zone1_percentage: 0.0,
+                zone2_percentage: 0.0,
+                zone3_percentage: 0.0,
+                zone4_percentage: 0.0,
+                zone5_percentage: 0.0,
+                time_in_zones: HashMap::new(),
+            };
+        }
+
         let total_points = match u32::try_from(power_data.len()) {
             Ok(len) => f64::from(len),
             Err(e) => {

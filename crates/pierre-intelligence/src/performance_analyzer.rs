@@ -402,18 +402,20 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         Self::apply_smoothing(&mut data_points, 3);
 
         // Calculate trend direction
-        let first_half_avg = data_points[..data_points.len() / 2]
-            .iter()
-            .map(|p| p.value)
-            .sum::<f64>()
-            / f64::from(u32::try_from(data_points.len() / 2).unwrap_or(u32::MAX));
-        let second_half_avg = data_points[data_points.len() / 2..]
-            .iter()
-            .map(|p| p.value)
-            .sum::<f64>()
-            / f64::from(
-                u32::try_from(data_points.len() - data_points.len() / 2).unwrap_or(u32::MAX),
-            );
+        let half_len = data_points.len() / 2;
+        let second_half_len = data_points.len() - half_len;
+        let first_half_avg = if half_len > 0 {
+            data_points[..half_len].iter().map(|p| p.value).sum::<f64>()
+                / f64::from(u32::try_from(half_len).unwrap_or(u32::MAX))
+        } else {
+            0.0
+        };
+        let second_half_avg = if second_half_len > 0 {
+            data_points[half_len..].iter().map(|p| p.value).sum::<f64>()
+                / f64::from(u32::try_from(second_half_len).unwrap_or(u32::MAX))
+        } else {
+            0.0
+        };
 
         let trend_direction =
             if (second_half_avg - first_half_avg).abs() < first_half_avg * STABILITY_THRESHOLD {
@@ -726,9 +728,13 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
             .sum::<f64>()
             / f64::from(u32::try_from(weekly_loads.len()).unwrap_or(u32::MAX));
 
-        let load_balance_score = (load_variance.sqrt() / avg_load)
-            .mul_add(-100.0, 100.0)
-            .max(0.0);
+        let load_balance_score = if avg_load > 0.0 {
+            (load_variance.sqrt() / avg_load)
+                .mul_add(-100.0, 100.0)
+                .max(0.0)
+        } else {
+            100.0
+        };
 
         // Determine if currently in recovery phase
         let last_week_load = weekly_loads.last().map_or(0.0, |w| w.total_duration_hours);
@@ -767,8 +773,12 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
 
                 // Use strategy to determine if volume increase is appropriate
                 // Use smoothing factor as conversion multiplier
-                let base_multiplier = self.config.statistical.confidence_level
-                    / self.config.statistical.smoothing_factor;
+                let smoothing = self
+                    .config
+                    .statistical
+                    .smoothing_factor
+                    .max(f64::MIN_POSITIVE);
+                let base_multiplier = self.config.statistical.confidence_level / smoothing;
                 let conversion_multiplier =
                     self.config.statistical.smoothing_factor * base_multiplier;
                 let current_avg_km = avg_load * conversion_multiplier;

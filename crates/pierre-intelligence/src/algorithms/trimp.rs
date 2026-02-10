@@ -143,6 +143,11 @@ impl TrimpAlgorithm {
                     "Resting heart rate must be between 20 and 120 bpm, got {rhr}"
                 )));
             }
+            if max_hr <= rhr {
+                return Err(AppError::invalid_input(format!(
+                    "Maximum heart rate ({max_hr}) must be greater than resting heart rate ({rhr})"
+                )));
+            }
         }
         if duration_minutes <= 0.0 {
             return Err(AppError::invalid_input(

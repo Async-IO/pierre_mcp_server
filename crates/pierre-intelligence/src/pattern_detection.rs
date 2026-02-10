@@ -366,9 +366,10 @@ impl PatternDetector {
         let long_duration = activity.duration_seconds() > 3600; // >1 hour
 
         #[allow(clippy::cast_precision_loss)]
-        let high_speed = activity
-            .distance_meters()
-            .is_some_and(|d| (d / activity.duration_seconds() as f64) > 3.5); // >3.5 m/s (~4:45 min/km)
+        let high_speed = activity.duration_seconds() > 0
+            && activity
+                .distance_meters()
+                .is_some_and(|d| (d / activity.duration_seconds() as f64) > 3.5); // >3.5 m/s (~4:45 min/km)
 
         high_hr || (long_duration && high_speed)
     }
@@ -447,6 +448,10 @@ impl PatternDetector {
         let mean_first = f64::from(avg_hr_first.iter().sum::<u32>()) / avg_hr_first.len() as f64;
         #[allow(clippy::cast_precision_loss)]
         let mean_last = f64::from(avg_hr_last.iter().sum::<u32>()) / avg_hr_last.len() as f64;
+
+        if mean_first == 0.0 {
+            return (false, None);
+        }
 
         let drift_percent = ((mean_last - mean_first) / mean_first) * 100.0;
 
@@ -557,6 +562,9 @@ impl PatternDetector {
         #[allow(clippy::cast_precision_loss)]
         let last_third_avg = volumes[volumes.len() - third..].iter().sum::<f64>() / third as f64;
 
+        if first_third_avg == 0.0 {
+            return VolumeTrend::Stable;
+        }
         let change_percent = ((last_third_avg - first_third_avg) / first_third_avg) * 100.0;
 
         if change_percent > 10.0 {

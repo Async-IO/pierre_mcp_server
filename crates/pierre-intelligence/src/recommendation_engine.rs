@@ -222,11 +222,16 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
         )
         .unwrap_or(usize::MAX);
 
+        let distance_weight = if self.config.weights.distance_weight > 0.0 {
+            self.config.weights.distance_weight
+        } else {
+            1.0
+        };
         let consistency_score = if recent_activities.len() >= high_freq {
             self.config.thresholds.consistency_threshold
         } else if recent_activities.len() >= ideal_freq {
             self.config.thresholds.consistency_threshold * self.config.weights.frequency_weight
-                / self.config.weights.distance_weight
+                / distance_weight
         } else if recent_activities.len() >= low_freq {
             self.config.thresholds.pace_improvement_threshold
                 * (self.config.weights.frequency_weight + self.config.weights.consistency_weight)
@@ -337,10 +342,14 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
 
         // Use strategy frequency thresholds
         // Estimate weekly activities based on intensity threshold
-        let weekly_activities = i32::try_from(
-            (analysis.weekly_load_hours / self.config.thresholds.intensity_threshold).ceil() as i64,
-        )
-        .unwrap_or(i32::MAX);
+        let intensity_threshold = if self.config.thresholds.intensity_threshold > 0.0 {
+            self.config.thresholds.intensity_threshold
+        } else {
+            1.0
+        };
+        let weekly_activities =
+            i32::try_from((analysis.weekly_load_hours / intensity_threshold).ceil() as i64)
+                .unwrap_or(i32::MAX);
         if self.strategy.should_recommend_recovery(weekly_activities) {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Recovery,

@@ -318,9 +318,13 @@ fn calculate_activity_metrics(params: &ActivityParameters, max_hr: f64) -> Calcu
         0.0
     };
 
-    let intensity_score = params.heart_rate.map_or(DEFAULT_EFFICIENCY_SCORE, |hr| {
-        (f64::from(hr) / max_hr) * limits::PERCENTAGE_MULTIPLIER
-    });
+    let intensity_score = if max_hr > 0.0 {
+        params.heart_rate.map_or(DEFAULT_EFFICIENCY_SCORE, |hr| {
+            (f64::from(hr) / max_hr) * limits::PERCENTAGE_MULTIPLIER
+        })
+    } else {
+        DEFAULT_EFFICIENCY_SCORE
+    };
 
     let efficiency_score = if params.distance > 0.0 && params.elevation_gain > 0.0 {
         (params.distance / params.elevation_gain).min(100.0)
@@ -2447,52 +2451,59 @@ fn compare_with_similar_activities(
     let mut insights = Vec::new();
 
     if let (Some(target_p), Some(avg_p)) = (target_pace, avg_pace) {
-        let pace_diff_pct = ((target_p - avg_p) / avg_p) * 100.0;
-        comparisons.push(serde_json::json!({
-            "metric": "pace",
-            "current": target_p,
-            "average": avg_p,
-            "difference_percent": pace_diff_pct,
-            "improved": pace_diff_pct < 0.0, // faster pace = lower value
-        }));
+        if avg_p > 0.0 {
+            let pace_diff_pct = ((target_p - avg_p) / avg_p) * 100.0;
+            comparisons.push(serde_json::json!({
+                "metric": "pace",
+                "current": target_p,
+                "average": avg_p,
+                "difference_percent": pace_diff_pct,
+                "improved": pace_diff_pct < 0.0, // faster pace = lower value
+            }));
 
-        if pace_diff_pct < -5.0 {
-            insights.push(format!(
-                "Pace improved by {:.1}% compared to similar activities",
-                pace_diff_pct.abs()
-            ));
-        } else if pace_diff_pct > 5.0 {
-            insights.push(format!(
-                "Pace was {pace_diff_pct:.1}% slower than similar activities"
-            ));
+            if pace_diff_pct < -5.0 {
+                insights.push(format!(
+                    "Pace improved by {:.1}% compared to similar activities",
+                    pace_diff_pct.abs()
+                ));
+            } else if pace_diff_pct > 5.0 {
+                insights.push(format!(
+                    "Pace was {pace_diff_pct:.1}% slower than similar activities"
+                ));
+            }
         }
     }
 
     if let (Some(target_h), Some(avg_h)) = (target_hr, avg_hr) {
-        let hr_diff_pct = ((target_h - avg_h) / avg_h) * 100.0;
-        comparisons.push(serde_json::json!({
-            "metric": "heart_rate",
-            "current": target_h,
-            "average": avg_h,
-            "difference_percent": hr_diff_pct,
-            "improved": hr_diff_pct < 0.0, // lower HR = better efficiency
-        }));
+        if avg_h > 0.0 {
+            let hr_diff_pct = ((target_h - avg_h) / avg_h) * 100.0;
+            comparisons.push(serde_json::json!({
+                "metric": "heart_rate",
+                "current": target_h,
+                "average": avg_h,
+                "difference_percent": hr_diff_pct,
+                "improved": hr_diff_pct < 0.0, // lower HR = better efficiency
+            }));
 
-        if hr_diff_pct < -5.0 {
-            insights.push("Heart rate efficiency improved - same effort at lower HR".to_owned());
-        } else if hr_diff_pct > 5.0 {
-            insights.push("Heart rate was higher - consider recovery or pacing".to_owned());
+            if hr_diff_pct < -5.0 {
+                insights
+                    .push("Heart rate efficiency improved - same effort at lower HR".to_owned());
+            } else if hr_diff_pct > 5.0 {
+                insights.push("Heart rate was higher - consider recovery or pacing".to_owned());
+            }
         }
     }
 
     if let (Some(target_elev), Some(avg_elev)) = (target.elevation_gain(), avg_elevation) {
-        let elev_diff_pct = ((target_elev - avg_elev) / avg_elev) * 100.0;
-        comparisons.push(serde_json::json!({
-            "metric": "elevation_gain",
-            "current": target_elev,
-            "average": avg_elev,
-            "difference_percent": elev_diff_pct,
-        }));
+        if avg_elev > 0.0 {
+            let elev_diff_pct = ((target_elev - avg_elev) / avg_elev) * 100.0;
+            comparisons.push(serde_json::json!({
+                "metric": "elevation_gain",
+                "current": target_elev,
+                "average": avg_elev,
+                "difference_percent": elev_diff_pct,
+            }));
+        }
     }
 
     if insights.is_empty() {
@@ -2644,82 +2655,94 @@ fn compare_with_specific_activity(
     if let (Some(target_dist), Some(compare_dist)) =
         (target.distance_meters(), compare.distance_meters())
     {
-        let dist_diff_pct = ((target_dist - compare_dist) / compare_dist) * 100.0;
-        comparisons.push(serde_json::json!({
-            "metric": "distance",
-            "current": target_dist,
-            "comparison": compare_dist,
-            "difference_percent": dist_diff_pct,
-        }));
+        if compare_dist > 0.0 {
+            let dist_diff_pct = ((target_dist - compare_dist) / compare_dist) * 100.0;
+            comparisons.push(serde_json::json!({
+                "metric": "distance",
+                "current": target_dist,
+                "comparison": compare_dist,
+                "difference_percent": dist_diff_pct,
+            }));
+        }
     }
 
     // Pace comparison
     if let (Some(target_p), Some(compare_p)) = (target_pace, compare_pace) {
-        let pace_diff_pct = ((target_p - compare_p) / compare_p) * 100.0;
-        comparisons.push(serde_json::json!({
-            "metric": "pace",
-            "current": target_p,
-            "comparison": compare_p,
-            "difference_percent": pace_diff_pct,
-            "improved": pace_diff_pct < 0.0, // faster pace = lower value
-        }));
-        add_pace_insights(pace_diff_pct, &mut insights);
+        if compare_p > 0.0 {
+            let pace_diff_pct = ((target_p - compare_p) / compare_p) * 100.0;
+            comparisons.push(serde_json::json!({
+                "metric": "pace",
+                "current": target_p,
+                "comparison": compare_p,
+                "difference_percent": pace_diff_pct,
+                "improved": pace_diff_pct < 0.0, // faster pace = lower value
+            }));
+            add_pace_insights(pace_diff_pct, &mut insights);
+        }
     }
 
     // Heart rate comparison
     if let (Some(target_h), Some(compare_h)) = (target_hr, compare_hr) {
-        let hr_diff_pct = ((target_h - compare_h) / compare_h) * 100.0;
-        comparisons.push(serde_json::json!({
-            "metric": "heart_rate",
-            "current": target_h,
-            "comparison": compare_h,
-            "difference_percent": hr_diff_pct,
-            "improved": hr_diff_pct < 0.0, // lower HR = better efficiency
-        }));
-        add_heart_rate_insights(hr_diff_pct, &mut insights);
+        if compare_h > 0.0 {
+            let hr_diff_pct = ((target_h - compare_h) / compare_h) * 100.0;
+            comparisons.push(serde_json::json!({
+                "metric": "heart_rate",
+                "current": target_h,
+                "comparison": compare_h,
+                "difference_percent": hr_diff_pct,
+                "improved": hr_diff_pct < 0.0, // lower HR = better efficiency
+            }));
+            add_heart_rate_insights(hr_diff_pct, &mut insights);
+        }
     }
 
     // Duration comparison
-    #[allow(clippy::cast_precision_loss)]
-    let duration_diff_pct = ((target.duration_seconds() as f64
-        - compare.duration_seconds() as f64)
-        / compare.duration_seconds() as f64)
-        * 100.0;
-    comparisons.push(serde_json::json!({
-        "metric": "duration",
-        "current": target.duration_seconds(),
-        "comparison": compare.duration_seconds(),
-        "difference_percent": duration_diff_pct,
-    }));
+    if compare.duration_seconds() > 0 {
+        #[allow(clippy::cast_precision_loss)]
+        let duration_diff_pct = ((target.duration_seconds() as f64
+            - compare.duration_seconds() as f64)
+            / compare.duration_seconds() as f64)
+            * 100.0;
+        comparisons.push(serde_json::json!({
+            "metric": "duration",
+            "current": target.duration_seconds(),
+            "comparison": compare.duration_seconds(),
+            "difference_percent": duration_diff_pct,
+        }));
+    }
 
     // Elevation comparison
     if let (Some(target_elev), Some(compare_elev)) =
         (target.elevation_gain(), compare.elevation_gain())
     {
-        let elev_diff_pct = ((target_elev - compare_elev) / compare_elev) * 100.0;
-        comparisons.push(serde_json::json!({
-            "metric": "elevation_gain",
-            "current": target_elev,
-            "comparison": compare_elev,
-            "difference_percent": elev_diff_pct,
-        }));
+        if compare_elev > 0.0 {
+            let elev_diff_pct = ((target_elev - compare_elev) / compare_elev) * 100.0;
+            comparisons.push(serde_json::json!({
+                "metric": "elevation_gain",
+                "current": target_elev,
+                "comparison": compare_elev,
+                "difference_percent": elev_diff_pct,
+            }));
+        }
     }
 
     // Power comparison (if available)
     if let (Some(target_power), Some(compare_power)) =
         (target.average_power(), compare.average_power())
     {
-        let power_diff_pct = ((f64::from(target_power) - f64::from(compare_power))
-            / f64::from(compare_power))
-            * 100.0;
-        comparisons.push(serde_json::json!({
-            "metric": "average_power",
-            "current": target_power,
-            "comparison": compare_power,
-            "difference_percent": power_diff_pct,
-            "improved": power_diff_pct > 0.0, // higher power = better
-        }));
-        add_power_insights(power_diff_pct, &mut insights);
+        if compare_power > 0 {
+            let power_diff_pct = ((f64::from(target_power) - f64::from(compare_power))
+                / f64::from(compare_power))
+                * 100.0;
+            comparisons.push(serde_json::json!({
+                "metric": "average_power",
+                "current": target_power,
+                "comparison": compare_power,
+                "difference_percent": power_diff_pct,
+                "improved": power_diff_pct > 0.0, // higher power = better
+            }));
+            add_power_insights(power_diff_pct, &mut insights);
+        }
     }
 
     if insights.is_empty() {

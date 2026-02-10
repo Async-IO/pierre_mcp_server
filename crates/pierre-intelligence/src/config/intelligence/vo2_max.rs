@@ -262,12 +262,14 @@ impl VO2MaxCalculator {
 
         // Convert VDOT to velocity at VO2max (vVO2max) in m/min
         let v_vo2max = (VDOT_COEFFICIENT_C * vdot)
-            .mul_add(-vdot, vdot.mul_add(VDOT_COEFFICIENT_B, VDOT_COEFFICIENT_A));
+            .mul_add(-vdot, vdot.mul_add(VDOT_COEFFICIENT_B, VDOT_COEFFICIENT_A))
+            .max(f64::MIN_POSITIVE);
 
         // Calculate threshold velocity
-        let threshold_velocity = v_vo2max
+        let threshold_velocity = (v_vo2max
             * (self.lactate_threshold - 0.75)
-                .mul_add(THRESHOLD_ADJUSTMENT_FACTOR, THRESHOLD_VELOCITY_BASE);
+                .mul_add(THRESHOLD_ADJUSTMENT_FACTOR, THRESHOLD_VELOCITY_BASE))
+        .max(f64::MIN_POSITIVE);
 
         // Convert to pace (seconds per km)
         let threshold_pace = 1000.0 / threshold_velocity * 60.0;

@@ -560,6 +560,9 @@ impl<S: IntelligenceStrategy> GoalEngineTrait for AdvancedGoalEngine<S> {
         let days_total = f64::from(
             i32::try_from((goal.target_date - goal.created_at).num_days()).unwrap_or(i32::MAX),
         );
+        if days_total <= 0.0 {
+            return Ok(None);
+        }
         let time_progress = days_elapsed / days_total;
 
         // Only suggest adjustments if we're past threshold of the timeline
