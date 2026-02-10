@@ -68,8 +68,8 @@ pub use user::{User, UserPhysiologicalProfile, UserStatus, UserTier};
 
 // OAuth domain
 pub use oauth::{
-    AuthRequest, AuthResponse, DecryptedToken, EncryptedToken, OAuthNotification, UserOAuthApp,
-    UserOAuthToken, UserSession,
+    AuthRequest, AuthResponse, ConnectionType, DecryptedToken, EncryptedToken, OAuthNotification,
+    ProviderConnection, UserOAuthApp, UserOAuthToken, UserSession,
 };
 
 // Tenant domain
