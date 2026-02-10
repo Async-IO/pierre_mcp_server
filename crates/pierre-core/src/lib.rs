@@ -30,3 +30,18 @@ pub mod pagination;
 
 /// Output format abstraction (JSON, TOON) for efficient LLM serialization
 pub mod formatters;
+
+/// Core data models (Activity, User, SportType, OAuth, etc.)
+pub mod models;
+
+/// Role-based permission system with bitflags
+pub mod permissions;
+
+/// Fitness-specific configuration (sport types, zones, thresholds)
+pub mod config;
+
+/// Intelligence types (`MaxHrAlgorithm`, `InsightSharingPolicy`)
+pub mod intelligence;
+
+/// Admin authentication and authorization types
+pub mod admin;

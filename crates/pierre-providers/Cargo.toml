@@ -1,0 +1,54 @@
+# ABOUTME: Cargo manifest for pierre-providers crate
+# ABOUTME: Fitness data provider implementations (Strava, Garmin, Fitbit, WHOOP, COROS, Terra)
+
+[package]
+name = "pierre-providers"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Fitness data provider implementations for Pierre platform"
+repository = "https://github.com/Async-IO/pierre_mcp_server"
+publish = false
+
+[features]
+provider-strava = []
+provider-garmin = []
+provider-terra = []
+provider-fitbit = []
+provider-whoop = []
+provider-coros = []
+provider-synthetic = []
+all-providers = [
+    "provider-strava",
+    "provider-garmin",
+    "provider-terra",
+    "provider-fitbit",
+    "provider-whoop",
+    "provider-coros",
+    "provider-synthetic",
+]
+
+[dependencies]
+pierre-core = { version = "0.3.0", path = "../pierre-core" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.11", features = ["v4", "serde"] }
+tracing = "0.1"
+thiserror = "2.0"
+async-trait = "0.1"
+reqwest = { version = "0.12", features = ["json"] }
+tokio = { version = "1", features = ["sync", "time"] }
+async-stream = "0.3"
+base64 = "0.22"
+bitflags = { version = "2.6", features = ["serde"] }
+futures-util = "0.3"
+num-traits = "0.2"
+rand = "0.8"
+rand_chacha = "0.3"
+ring = "0.17"
+subtle = "2.6"
+hex = "0.4"
+
+[lints]
+workspace = true

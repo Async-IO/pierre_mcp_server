@@ -9,9 +9,13 @@
 
 use super::tenant_provider::TenantFitnessProvider;
 use crate::constants::api_provider_limits;
+use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult};
 use crate::models::{Activity, Athlete, PersonalRecord, Stats};
 use crate::tenant::{TenantContext, TenantOAuthClient, TenantOAuthCredentials};
+
+/// Strava API v3 base URL
+const STRAVA_API_BASE: &str = "https://www.strava.com/api/v3";
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::Deserialize;
@@ -117,7 +121,7 @@ impl TenantFitnessProvider for TenantStravaProvider {
 
         let response: StravaAthlete = self
             .client
-            .get(format!("{}/athlete", crate::constants::api::strava_api_base()))
+            .get(format!("{STRAVA_API_BASE}/athlete"))
             .bearer_auth(token)
             .send()
             .await
@@ -155,7 +159,7 @@ impl TenantFitnessProvider for TenantStravaProvider {
     ) -> AppResult<Vec<Activity>> {
         let token = self.get_access_token()?;
 
-        let mut url = url::Url::parse(&format!("{}/athlete/activities", crate::constants::api::strava_api_base()))
+        let mut url = url::Url::parse(&format!("{STRAVA_API_BASE}/athlete/activities"))
             .map_err(|e| AppError::internal(format!("URL parsing failed: {e}")))?;
 
         if let Some(limit) = limit {
@@ -253,7 +257,7 @@ impl TenantFitnessProvider for TenantStravaProvider {
 
         let response: StravaActivity = self
             .client
-            .get(format!("{}/activities/{id}", crate::constants::api::strava_api_base()))
+            .get(format!("{STRAVA_API_BASE}/activities/{id}"))
             .bearer_auth(token)
             .send()
             .await

@@ -1,6 +1,5 @@
-// ABOUTME: Unified fitness data provider system with clean abstractions and multi-tenant support
-// ABOUTME: Replaces the previous fragmented provider implementations with a single, extensible architecture
-
+// ABOUTME: Provider module re-exports from pierre-providers crate plus local modules
+// ABOUTME: Preserves all existing import paths while delegating core to the extracted crate
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
@@ -38,98 +37,45 @@
 //! # Ok::<(), anyhow::Error>(())
 //! ```
 
-// Core provider system
+// Re-export all types and modules from pierre-providers
+#[cfg(feature = "provider-coros")]
+pub use pierre_providers::coros_provider;
+#[cfg(feature = "provider-fitbit")]
+pub use pierre_providers::fitbit_provider;
+#[cfg(feature = "provider-garmin")]
+pub use pierre_providers::garmin_provider;
+#[cfg(feature = "provider-strava")]
+pub use pierre_providers::strava_provider;
+#[cfg(feature = "provider-terra")]
+pub use pierre_providers::terra;
+#[cfg(feature = "provider-whoop")]
+pub use pierre_providers::whoop_provider;
+pub use pierre_providers::*;
+pub use pierre_providers::{activity_iterator, circuit_breaker, core, http_client, spi, utils};
 
-/// Streaming activity iterator for memory-efficient paginated fetching
-pub mod activity_iterator;
+// Local modules that remain in the main crate (database/cache/config dependencies)
+
 /// Caching decorator for transparent API response caching
 pub mod caching_provider;
-/// Circuit breaker pattern for provider resilience
-pub mod circuit_breaker;
-/// Core provider traits and interfaces
-pub mod core;
 /// Provider error types and result aliases
 pub mod errors;
 /// Global provider registry and factory
 pub mod registry;
-/// Service Provider Interface (SPI) for external providers
-pub mod spi;
-/// Provider utility functions
-pub mod utils;
-
-// Provider implementations (conditionally compiled based on feature flags)
-
-/// COROS provider for GPS sports watch data (activities, sleep, daily summaries)
-#[cfg(feature = "provider-coros")]
-pub mod coros_provider;
-/// Fitbit API provider implementation
-#[cfg(feature = "provider-fitbit")]
-pub mod fitbit_provider;
-/// Garmin Connect provider implementation
-#[cfg(feature = "provider-garmin")]
-pub mod garmin_provider;
-/// Strava API provider implementation
-#[cfg(feature = "provider-strava")]
-pub mod strava_provider;
 /// Synthetic provider for development and testing
 #[cfg(feature = "provider-synthetic")]
 pub mod synthetic_provider;
-/// Terra unified API provider (150+ wearables)
-#[cfg(feature = "provider-terra")]
-pub mod terra;
-/// WHOOP provider for sleep, recovery, and workout data
-#[cfg(feature = "provider-whoop")]
-pub mod whoop_provider;
 
-// Re-export key types for convenience
-/// Re-export activity iterator for memory-efficient streaming
-pub use activity_iterator::{
-    create_activity_stream, ActivityStream, ActivityStreamExt, StreamConfig, DEFAULT_PAGE_SIZE,
-    MAX_PAGE_SIZE, MIN_PAGE_SIZE,
-};
-/// Re-export caching provider for transparent API response caching
+// Re-export caching provider types
 pub use caching_provider::{
     create_caching_provider, create_caching_provider_with_ttl, CachePolicy, CachingFitnessProvider,
 };
-/// Re-export circuit breaker types for provider resilience
-pub use circuit_breaker::{CircuitBreaker, CircuitBreakerConfig, CircuitState};
-pub use core::{
-    ActivityQueryParams, FitnessProvider as CoreFitnessProvider, OAuth2Credentials, ProviderConfig,
-    ProviderFactory, TenantProvider,
-};
-/// Re-export provider error types
-pub use errors::{ProviderError, ProviderResult};
+// Re-export registry functions
 #[cfg(feature = "provider-terra")]
 pub use registry::global_terra_cache;
-/// Re-export provider registry functions
 pub use registry::{
     create_caching_provider_global, create_caching_provider_with_admin_config_global,
     create_provider, create_registry_with_external_providers, create_tenant_provider,
     get_supported_providers, global_registry, is_provider_supported, ProviderRegistry,
 };
-#[cfg(feature = "provider-coros")]
-pub use spi::CorosDescriptor;
-#[cfg(feature = "provider-fitbit")]
-pub use spi::FitbitDescriptor;
-#[cfg(feature = "provider-garmin")]
-pub use spi::GarminDescriptor;
-#[cfg(feature = "provider-strava")]
-pub use spi::StravaDescriptor;
-#[cfg(feature = "provider-synthetic")]
-pub use spi::SyntheticDescriptor;
-#[cfg(feature = "provider-whoop")]
-pub use spi::WhoopDescriptor;
-/// Re-export SPI types for external provider development
-pub use spi::{OAuthEndpoints, ProviderBundle, ProviderCapabilities, ProviderDescriptor};
 #[cfg(feature = "provider-synthetic")]
 pub use synthetic_provider::{get_synthetic_database_pool, set_synthetic_database_pool};
-/// Re-export Terra types
-#[cfg(feature = "provider-terra")]
-pub use terra::{
-    TerraDataCache, TerraDescriptor, TerraProvider, TerraProviderFactory, TerraWebhookHandler,
-};
-/// Re-export retry utilities for production resilience
-pub use utils::{
-    with_retry, with_retry_default, RetryBackoffConfig, ENV_RETRY_BASE_DELAY_MS,
-    ENV_RETRY_JITTER_FACTOR, ENV_RETRY_MAX_ATTEMPTS, ENV_RETRY_MAX_DELAY_MS,
-};

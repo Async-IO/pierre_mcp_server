@@ -8,7 +8,7 @@
 #![allow(missing_docs)]
 
 use pierre_mcp_server::intelligence::visitor::{
-    DecouplingDetector, NormalizedPowerCalculator, StatsCollector, ZoneBoundaries,
+    DecouplingDetector, NormalizedPowerCalculator, StatsCollector, TimeSeriesExt, ZoneBoundaries,
     ZoneTimeCalculator,
 };
 use pierre_mcp_server::models::TimeSeriesData;

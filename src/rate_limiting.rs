@@ -598,7 +598,8 @@ impl UnifiedRateLimitCalculator {
         match api_key_tier {
             ApiKeyTier::Trial | ApiKeyTier::Starter => UserTier::Starter, // Trial maps to Starter for users
             ApiKeyTier::Professional => UserTier::Professional,
-            ApiKeyTier::Enterprise => UserTier::Enterprise,
+            // Enterprise and any future tiers default to Enterprise
+            _ => UserTier::Enterprise,
         }
     }
 

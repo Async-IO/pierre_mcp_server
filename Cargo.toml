@@ -80,14 +80,14 @@ testing = []
 telemetry = ["dep:tracing-opentelemetry", "dep:opentelemetry", "dep:opentelemetry_sdk"]
 toon = ["dep:toon-format"]
 
-# Provider feature flags - enable/disable individual fitness data providers
-provider-strava = []
-provider-garmin = []
-provider-terra = []
-provider-fitbit = []
-provider-whoop = []
-provider-coros = []
-provider-synthetic = []
+# Provider feature flags - forwarded to pierre-providers crate
+provider-strava = ["pierre-providers/provider-strava"]
+provider-garmin = ["pierre-providers/provider-garmin"]
+provider-terra = ["pierre-providers/provider-terra"]
+provider-fitbit = ["pierre-providers/provider-fitbit"]
+provider-whoop = ["pierre-providers/provider-whoop"]
+provider-coros = ["pierre-providers/provider-coros"]
+provider-synthetic = ["pierre-providers/provider-synthetic"]
 all-providers = ["provider-strava", "provider-garmin", "provider-terra", "provider-fitbit", "provider-whoop", "provider-coros", "provider-synthetic"]
 
 # Tool feature flags - enable/disable MCP tool categories
@@ -219,6 +219,8 @@ lto = "fat"
 [dependencies]
 # Workspace crates
 pierre-core = { version = "0.3.0", path = "crates/pierre-core", features = ["http-response", "all-errors", "toon"] }
+pierre-intelligence = { version = "0.1.0", path = "crates/pierre-intelligence" }
+pierre-providers = { version = "0.1.0", path = "crates/pierre-providers" }
 
 tokio = { version = "1.45", features = ["rt-multi-thread", "macros", "net", "time", "fs", "signal", "io-std", "io-util", "sync"] }
 tokio-stream = "0.1"

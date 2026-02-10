@@ -160,7 +160,6 @@ const fn calculate_stage_duration(
         }
         SleepStageType::Rem => 10 + (cycle * 5) as u32 + ((seed * 13) % 15) as u32,
         SleepStageType::Awake => 2 + ((seed * i + cycle) % 5) as u32,
-        _ => 15 + ((seed * i + cycle) % 10) as u32,
     }
 }
 

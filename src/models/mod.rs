@@ -1,4 +1,4 @@
-// ABOUTME: Core data models and types for the Pierre fitness API
+// ABOUTME: Core data models re-exported from pierre-core
 // ABOUTME: Re-exports Activity, User, SportType and other fundamental data structures
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
@@ -29,62 +29,4 @@
 //! - `PersonalRecord`: Individual performance records
 //! - `SportType`: Enumeration of supported activity types
 
-// Domain modules
-mod activity;
-mod athlete;
-mod health;
-mod nutrition;
-mod oauth;
-mod sleep;
-mod social;
-mod sport;
-mod tenant;
-mod tool_selection;
-mod user;
-
-// Re-export all public types for convenience
-// Activity domain
-pub use activity::{
-    Activity, ActivityBuilder, HeartRateZone, PowerZone, SegmentEffort, TimeSeriesData,
-};
-
-// Sport types
-pub use sport::SportType;
-
-// Sleep domain
-pub use sleep::{SleepSession, SleepStage, SleepStageType};
-
-// Health domain
-pub use health::{HealthMetrics, RecoveryMetrics};
-
-// Nutrition domain
-pub use nutrition::{FoodItem, MealEntry, MealType, NutritionLog};
-
-// Athlete domain
-pub use athlete::{Athlete, PersonalRecord, PrMetric, Stats};
-
-// User domain
-pub use user::{User, UserPhysiologicalProfile, UserStatus, UserTier};
-
-// OAuth domain
-pub use oauth::{
-    AuthRequest, AuthResponse, ConnectionType, DecryptedToken, EncryptedToken, OAuthNotification,
-    ProviderConnection, UserOAuthApp, UserOAuthToken, UserSession,
-};
-
-// Tenant domain
-pub use tenant::{AuthorizationCode, OAuthApp, OAuthAppParams, Tenant};
-
-// Tool selection domain
-pub use tool_selection::{
-    CategorySummary, EffectiveTool, SetToolOverrideRequest, TenantPlan, TenantToolOverride,
-    ToolAvailabilitySummary, ToolCatalogEntry, ToolCategory, ToolEnablementSource,
-};
-
-// Social domain
-pub use social::{
-    AdaptInsightRequest, AdaptedInsight, FeedItem, FriendConnection, FriendInfo, FriendStatus,
-    InsightReaction, InsightType, NotificationPreferences, ReactToInsightRequest, ReactionSummary,
-    ReactionType, RespondFriendRequestRequest, SendFriendRequestRequest, ShareInsightRequest,
-    ShareVisibility, SharedInsight, TrainingPhase, UpdateSocialSettingsRequest, UserSocialSettings,
-};
+pub use pierre_core::models::*;
