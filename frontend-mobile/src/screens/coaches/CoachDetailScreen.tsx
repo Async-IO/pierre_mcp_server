@@ -75,7 +75,7 @@ export function CoachDetailScreen({ navigation, route }: CoachDetailScreenProps)
 
   const handleEdit = () => {
     if (!coach) return;
-    navigation.navigate('CoachWizard', { coachId: coach.id });
+    navigation.navigate('CoachEditor', { coachId: coach.id });
   };
 
   const handleDelete = () => {

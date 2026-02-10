@@ -22,7 +22,6 @@ import { AdaptedInsightsScreen } from '../screens/social/AdaptedInsightsScreen';
 import { CoachLibraryScreen } from '../screens/coaches/CoachLibraryScreen';
 import { CoachDetailScreen } from '../screens/coaches/CoachDetailScreen';
 import { CoachEditorScreen } from '../screens/coaches/CoachEditorScreen';
-import { CoachWizardScreen } from '../screens/coaches/CoachWizardScreen';
 import { StoreScreen } from '../screens/store/StoreScreen';
 import { StoreCoachDetailScreen } from '../screens/store/StoreCoachDetailScreen';
 import { SettingsScreen } from '../screens/settings/SettingsScreen';
@@ -66,7 +65,6 @@ export type CoachesStackParamList = {
   CoachesMain: undefined;
   CoachDetail: { coachId: string };
   CoachEditor: { coachId?: string } | undefined;
-  CoachWizard: { coachId?: string } | undefined;
 };
 
 export type SettingsStackParamList = {
@@ -132,7 +130,6 @@ function CoachesStackScreen() {
         <CoachesStack.Screen name="CoachesMain" component={CoachLibraryScreen} />
         <CoachesStack.Screen name="CoachDetail" component={CoachDetailScreen} />
         <CoachesStack.Screen name="CoachEditor" component={CoachEditorScreen} />
-        <CoachesStack.Screen name="CoachWizard" component={CoachWizardScreen} />
       </CoachesStack.Navigator>
     </TabSwipeWrapper>
   );

@@ -198,7 +198,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
   };
 
   const handleCreateCoach = () => {
-    navigation.navigate('CoachWizard', { coachId: undefined });
+    navigation.navigate('CoachEditor', { coachId: undefined });
   };
 
   const handleToggleFavorite = async (coach?: Coach) => {
@@ -336,7 +336,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
               // Add the new forked coach to the list
               setCoaches((prev) => [result.coach, ...prev]);
               // Navigate to wizard to customize
-              navigation.navigate('CoachWizard', { coachId: result.coach.id });
+              navigation.navigate('CoachEditor', { coachId: result.coach.id });
             } catch (error) {
               console.error('Failed to fork coach:', error);
               Alert.alert('Error', 'Failed to fork coach. Please try again.');
