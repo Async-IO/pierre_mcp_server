@@ -12,6 +12,7 @@ on:
     branches: [ "main", "debug/*", "feature/*", "claude/*" ]
     paths:
       - 'src/**'
+      - 'crates/**'
       - 'benches/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
@@ -20,6 +21,7 @@ on:
     branches: [ main ]
     paths:
       - 'src/**'
+      - 'crates/**'
       - 'benches/**'
       - 'Cargo.toml'
       - 'Cargo.lock'

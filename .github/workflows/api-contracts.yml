@@ -9,6 +9,7 @@ on:
     paths:
       - 'src/routes/**'
       - 'src/models/**'
+      - 'crates/**'
       - 'frontend/src/types/api-generated.ts'
       - 'frontend-mobile/src/types/api-generated.ts'
       - '.github/workflows/api-contracts.yml'
@@ -17,6 +18,7 @@ on:
     paths:
       - 'src/routes/**'
       - 'src/models/**'
+      - 'crates/**'
       - 'frontend/src/types/api-generated.ts'
       - 'frontend-mobile/src/types/api-generated.ts'
   workflow_dispatch:  # Allow manual triggering

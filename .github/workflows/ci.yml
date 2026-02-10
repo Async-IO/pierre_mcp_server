@@ -5,6 +5,7 @@ on:
     branches: [ "main", "debug/*", "feature/*", "claude/*" ]
     paths:
       - 'src/**'
+      - 'crates/**'
       - 'tests/**'
       - 'benches/**'
       - 'migrations/**'
@@ -16,6 +17,7 @@ on:
     branches: [ main ]
     paths:
       - 'src/**'
+      - 'crates/**'
       - 'tests/**'
       - 'benches/**'
       - 'migrations/**'

@@ -5,6 +5,7 @@ on:
     branches: [ main ]
     paths:
       - 'src/**'
+      - 'crates/**'
       - 'tests/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
@@ -13,6 +14,7 @@ on:
     branches: [ main ]
     paths:
       - 'src/**'
+      - 'crates/**'
       - 'tests/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
