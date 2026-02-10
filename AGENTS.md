@@ -453,20 +453,23 @@ cargo fmt
 # 2. Architectural validation
 ./scripts/architectural-validation.sh
 
-# 3. Clippy (use -p to target only our crate, not dependencies)
+# 3. Clippy — target only the crate(s) you changed
 # Cargo.toml defines all lint levels - no CLI flags needed
 #
-# If only src/ files changed (faster - skips test compilation):
-cargo clippy -p pierre_mcp_server
+# Target the specific workspace crate you changed (fastest):
+cargo clippy -p pierre-core              # models, errors, config
+cargo clippy -p pierre-intelligence      # metrics, algorithms
+cargo clippy -p pierre-providers         # Strava, Garmin, etc.
+cargo clippy -p pierre_mcp_server        # main crate (routes, handlers, etc.)
 #
-# If test files changed (must include --all-targets):
+# If test files changed, add --all-targets:
 cargo clippy -p pierre_mcp_server --all-targets
 
 # 4. Run TARGETED tests for changed modules (ALWAYS use --test)
 cargo test --test <test_file> <test_pattern> -- --nocapture
 ```
 
-**NOTE:** Use `--all-targets` when test files changed or before committing. Without it, clippy only checks `src/` code. CI uses `--all-targets`, so pre-commit validation must include it. Always use `-p pierre_mcp_server` to avoid checking dependencies.
+**NOTE:** Use `--all-targets` when test files changed or before committing. Without it, clippy only checks `src/` code. CI uses `--all-targets`, so pre-commit validation must include it. Target the specific `-p <crate>` you changed — linting a leaf crate like `pierre-core` is much faster than the full main crate. Clippy is NOT run by pre-commit or pre-push hooks — it must be run manually.
 
 #### Tier 3: Full Validation (before PR/merge only)
 Run the full suite only when preparing a PR or merging:
@@ -475,7 +478,7 @@ Run the full suite only when preparing a PR or merging:
 # OR manually:
 cargo fmt
 ./scripts/architectural-validation.sh
-cargo clippy -p pierre_mcp_server --all-targets
+cargo clippy --workspace --all-targets
 cargo test
 ```
 
@@ -696,7 +699,7 @@ Mocks are permitted ONLY in test code for:
    ```bash
    cargo fmt
    ./scripts/architectural-validation.sh
-   cargo clippy -p pierre_mcp_server  # Add --all-targets if test files changed
+   cargo clippy -p <changed-crate>  # Add --all-targets if test files changed
    cargo test --test <test_file> <test_pattern> -- --nocapture
    ```
 
