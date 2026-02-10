@@ -19,6 +19,7 @@ BUILD_MODE="release"
 TARGET_DIR="release"
 NATIVE_BUILD=false
 STREAM_LOGS=false
+SKIP_SYNTHETIC=false
 for arg in "$@"; do
     case $arg in
         --debug)
@@ -32,6 +33,10 @@ for arg in "$@"; do
             ;;
         --stream-logs)
             STREAM_LOGS=true
+            shift
+            ;;
+        --no-synthetic)
+            SKIP_SYNTHETIC=true
             shift
             ;;
     esac
@@ -169,9 +174,13 @@ echo "    Seeding mobility data (stretches, yoga)..."
 ./target/$TARGET_DIR/seed-mobility 2>&1 | tail -3
 
 # Seed synthetic activities for test users
-echo "    Seeding synthetic activities for test users..."
-./target/$TARGET_DIR/seed-synthetic-activities --email "$WEB_TEST_EMAIL" --count 30 --days 30 2>&1 | tail -1
-./target/$TARGET_DIR/seed-synthetic-activities --email "$MOBILE_TEST_EMAIL" --count 30 --days 30 2>&1 | tail -1
+if [ "$SKIP_SYNTHETIC" != "true" ]; then
+    echo "    Seeding synthetic activities for test users..."
+    ./target/$TARGET_DIR/seed-synthetic-activities --email "$WEB_TEST_EMAIL" --count 30 --days 30 2>&1 | tail -1
+    ./target/$TARGET_DIR/seed-synthetic-activities --email "$MOBILE_TEST_EMAIL" --count 30 --days 30 2>&1 | tail -1
+else
+    echo "    Skipping synthetic activities (--no-synthetic)"
+fi
 
 echo "    All seeders complete"
 
