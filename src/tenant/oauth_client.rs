@@ -12,6 +12,7 @@ use super::TenantContext;
 use crate::database_plugins::factory::Database;
 use crate::errors::{AppError, AppResult};
 use crate::oauth2_client::{OAuth2Client, OAuth2Config, OAuth2Token, PkceParams};
+use std::env;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{info, warn};
@@ -329,12 +330,19 @@ impl TenantOAuthClient {
             }
         };
 
+        // Use BASE_URL for redirect_uri when set (tunnel/external access),
+        // otherwise fall back to stored credentials redirect_uri
+        let redirect_uri = env::var("BASE_URL").map_or_else(
+            |_| credentials.redirect_uri.clone(),
+            |base_url| format!("{base_url}/api/oauth/callback/{provider}"),
+        );
+
         Ok(OAuth2Config {
             client_id: credentials.client_id.clone(),
             client_secret: credentials.client_secret.clone(),
             auth_url,
             token_url,
-            redirect_uri: credentials.redirect_uri.clone(),
+            redirect_uri,
             scopes: credentials.scopes.clone(), // Safe: Option<String> ownership for OAuth config
             use_pkce,
         })

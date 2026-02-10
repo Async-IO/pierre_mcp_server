@@ -150,7 +150,7 @@ impl OAuthProviderConfig {
             client_secret: env::var("STRAVA_CLIENT_SECRET").ok(),
             redirect_uri: Some(
                 env::var("STRAVA_REDIRECT_URI")
-                    .unwrap_or_else(|_| format!("{base_url}/auth/strava/callback")),
+                    .unwrap_or_else(|_| format!("{base_url}/api/oauth/callback/strava")),
             ),
             scopes: parse_scopes(STRAVA_SCOPES),
             enabled: env::var("STRAVA_CLIENT_ID").is_ok()
@@ -169,7 +169,7 @@ impl OAuthProviderConfig {
             client_secret: env::var("FITBIT_CLIENT_SECRET").ok(),
             redirect_uri: Some(
                 env::var("FITBIT_REDIRECT_URI")
-                    .unwrap_or_else(|_| format!("{base_url}/auth/fitbit/callback")),
+                    .unwrap_or_else(|_| format!("{base_url}/api/oauth/callback/fitbit")),
             ),
             scopes: parse_scopes(FITBIT_SCOPES),
             enabled: env::var("FITBIT_CLIENT_ID").is_ok()
@@ -206,7 +206,7 @@ impl OAuthProviderConfig {
             client_secret: env::var("WHOOP_CLIENT_SECRET").ok(),
             redirect_uri: Some(
                 env::var("WHOOP_REDIRECT_URI")
-                    .unwrap_or_else(|_| format!("{base_url}/auth/whoop/callback")),
+                    .unwrap_or_else(|_| format!("{base_url}/api/oauth/callback/whoop")),
             ),
             scopes: parse_scopes(WHOOP_SCOPES),
             enabled: env::var("WHOOP_CLIENT_ID").is_ok() && env::var("WHOOP_CLIENT_SECRET").is_ok(),
@@ -224,7 +224,7 @@ impl OAuthProviderConfig {
             client_secret: env::var("TERRA_API_KEY").ok(),
             redirect_uri: Some(
                 env::var("TERRA_REDIRECT_URI")
-                    .unwrap_or_else(|_| format!("{base_url}/auth/terra/callback")),
+                    .unwrap_or_else(|_| format!("{base_url}/api/oauth/callback/terra")),
             ),
             scopes: parse_scopes(TERRA_SCOPES),
             enabled: env::var("TERRA_DEV_ID").is_ok() && env::var("TERRA_API_KEY").is_ok(),

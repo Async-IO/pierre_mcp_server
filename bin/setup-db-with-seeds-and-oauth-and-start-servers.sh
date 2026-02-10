@@ -20,6 +20,7 @@ TARGET_DIR="release"
 NATIVE_BUILD=false
 STREAM_LOGS=false
 SKIP_SYNTHETIC=false
+START_TUNNEL=false
 for arg in "$@"; do
     case $arg in
         --debug)
@@ -37,6 +38,10 @@ for arg in "$@"; do
             ;;
         --no-synthetic)
             SKIP_SYNTHETIC=true
+            shift
+            ;;
+        --tunnel)
+            START_TUNNEL=true
             shift
             ;;
     esac
@@ -119,6 +124,7 @@ pkill -f "pierre-mcp-server" 2>/dev/null || true
 pkill -f "vite.*frontend" 2>/dev/null || true
 pkill -f "expo.*8082" 2>/dev/null || true
 pkill -f "@expo/metro" 2>/dev/null || true
+pkill -f "cloudflared tunnel" 2>/dev/null || true
 sleep 2
 echo "    Done"
 
@@ -201,6 +207,64 @@ for i in {1..30}; do
     fi
     sleep 1
 done
+
+# Step 5b: Start Cloudflare tunnel (if --tunnel)
+if [ "$START_TUNNEL" = "true" ]; then
+    echo -e "${CYAN}    Starting Cloudflare tunnel...${NC}"
+    if ! command -v cloudflared &> /dev/null; then
+        echo -e "${RED}    cloudflared not installed. Run: brew install cloudflare/cloudflare/cloudflared${NC}"
+        echo -e "${YELLOW}    Skipping tunnel setup${NC}"
+    else
+        TUNNEL_LOG="$LOG_DIR/tunnel.log"
+        cloudflared tunnel --url http://localhost:$SERVER_PORT > "$TUNNEL_LOG" 2>&1 &
+        TUNNEL_PID=$!
+
+        # Wait for tunnel URL
+        TUNNEL_URL=""
+        for i in {1..30}; do
+            TUNNEL_URL=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' "$TUNNEL_LOG" 2>/dev/null | head -1)
+            if [ -n "$TUNNEL_URL" ]; then
+                break
+            fi
+            sleep 1
+        done
+
+        if [ -n "$TUNNEL_URL" ]; then
+            echo "    Tunnel URL: $TUNNEL_URL"
+
+            # Update BASE_URL in .envrc
+            if grep -q '^export BASE_URL=' "$PROJECT_ROOT/.envrc" 2>/dev/null; then
+                sed -i.bak "s|^export BASE_URL=.*|export BASE_URL=\"$TUNNEL_URL\"|" "$PROJECT_ROOT/.envrc"
+                rm -f "$PROJECT_ROOT/.envrc.bak"
+            else
+                echo "export BASE_URL=\"$TUNNEL_URL\"" >> "$PROJECT_ROOT/.envrc"
+            fi
+
+            # Update mobile .env
+            echo "EXPO_PUBLIC_API_URL=\"$TUNNEL_URL\"" > "$PROJECT_ROOT/frontend-mobile/.env"
+            echo "    Updated .envrc and frontend-mobile/.env"
+
+            # Restart server so it picks up BASE_URL for OAuth callbacks
+            kill $SERVER_PID 2>/dev/null || true
+            sleep 1
+            set -a
+            source "$PROJECT_ROOT/.envrc"
+            set +a
+            RUST_LOG=info ./target/$TARGET_DIR/pierre-mcp-server > "$SERVER_LOG" 2>&1 &
+            SERVER_PID=$!
+            for i in {1..15}; do
+                if curl -s -f "http://localhost:$SERVER_PORT/health" > /dev/null 2>&1; then
+                    echo "    Server restarted with tunnel BASE_URL (PID: $SERVER_PID)"
+                    break
+                fi
+                sleep 1
+            done
+        else
+            echo -e "${RED}    Failed to get tunnel URL. Check: tail -f $TUNNEL_LOG${NC}"
+            TUNNEL_URL=""
+        fi
+    fi
+fi
 
 # Step 6: Install frontend dependencies
 print_step 6 "Installing frontend dependencies..."
@@ -327,6 +391,11 @@ elif curl -s -o /dev/null --connect-timeout 2 "http://localhost:$EXPO_PORT" 2>/d
     printf "%-15s %-35s ${GREEN}%-10s${NC} %-8s\n" "Expo Mobile" "http://localhost:$EXPO_PORT" "Running" "$EXPO_PID"
 else
     printf "%-15s %-35s ${YELLOW}%-10s${NC} %-8s\n" "Expo Mobile" "http://localhost:$EXPO_PORT" "Starting" "$EXPO_PID"
+fi
+
+# Check tunnel
+if [ -n "${TUNNEL_URL:-}" ]; then
+    printf "%-15s %-35s ${GREEN}%-10s${NC} %-8s\n" "CF Tunnel" "$TUNNEL_URL" "Running" "$TUNNEL_PID"
 fi
 
 echo ""

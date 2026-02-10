@@ -2652,8 +2652,8 @@ impl AuthRoutes {
             provider, user_id
         );
 
-        // Get optional redirect_url from query parameters
-        let redirect_url = query.get("redirect_url");
+        // Get optional redirect_uri from query parameters (mobile app's deep link)
+        let redirect_url = query.get("redirect_uri");
 
         // Validate redirect URL scheme if provided
         if let Some(url) = redirect_url {
