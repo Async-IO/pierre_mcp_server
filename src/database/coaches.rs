@@ -675,8 +675,9 @@ impl CoachesManager {
         tenant_id: &str,
     ) -> AppResult<Coach> {
         // Get the source coach (must be a system coach)
+        // System coaches are platform-wide, so no tenant filter — any user can fork them
         let source = self
-            .get_system_coach(source_coach_id, tenant_id)
+            .get_system_coach_any_tenant(source_coach_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("System coach {source_coach_id}")))?;
 
@@ -1169,6 +1170,34 @@ impl CoachesManager {
         )
         .bind(coach_id)
         .bind(tenant_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get system coach: {e}")))?;
+
+        row.map(|r| row_to_coach(&r)).transpose()
+    }
+
+    /// Get a system coach by ID without tenant filtering
+    ///
+    /// System coaches are platform-wide resources visible to all users.
+    /// Used by fork_coach where any user can fork any system coach.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn get_system_coach_any_tenant(&self, coach_id: &str) -> AppResult<Option<Coach>> {
+        let row = sqlx::query(
+            r"
+            SELECT id, user_id, tenant_id, title, description, system_prompt,
+                   category, tags, sample_prompts, token_count, is_favorite, is_active, use_count,
+                   last_used_at, created_at, updated_at, is_system, visibility, prerequisites, forked_from,
+                publish_status, published_at, review_submitted_at, review_decision_at,
+                review_decision_by, rejection_reason, install_count, icon_url, author_id
+            FROM coaches
+            WHERE id = $1 AND is_system = 1
+            ",
+        )
+        .bind(coach_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get system coach: {e}")))?;
