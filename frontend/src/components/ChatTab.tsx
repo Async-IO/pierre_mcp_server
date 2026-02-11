@@ -22,6 +22,7 @@ import {
 } from './chat';
 import ShareChatMessageModal from './social/ShareChatMessageModal';
 import { useSuccessToast, useInfoToast } from './ui';
+import { QUERY_KEYS } from '../constants/queryKeys';
 import type {
   Message,
   Coach,
@@ -71,7 +72,7 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
 
   // Fetch provider status (includes both OAuth and non-OAuth providers like synthetic)
   const { data: providersData } = useQuery({
-    queryKey: ['providers-status'],
+    queryKey: QUERY_KEYS.providers.status(),
     queryFn: () => providersApi.getProvidersStatus(),
   });
 
@@ -79,7 +80,7 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
 
   // Fetch messages for selected conversation
   const { data: messagesData, isLoading: messagesLoading } = useQuery<{ messages: Message[] }>({
-    queryKey: ['chat-messages', selectedConversation],
+    queryKey: QUERY_KEYS.chat.messages(selectedConversation),
     queryFn: () => chatApi.getConversationMessages(selectedConversation!),
     enabled: !!selectedConversation,
   });
@@ -95,7 +96,7 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
       });
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.chat.conversations() });
       onSelectConversation(data.id);
       setPendingSystemPrompt(null);
     },
@@ -104,7 +105,7 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
   const createCoach = useMutation({
     mutationFn: (data: CoachFormData) => coachesApi.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.all });
       setShowCoachModal(false);
       setCoachFormData(DEFAULT_COACH_FORM_DATA);
     },
@@ -113,7 +114,7 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
   const updateCoach = useMutation({
     mutationFn: ({ id, data }: { id: string; data: CoachFormData }) => coachesApi.update(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.all });
       setShowCoachModal(false);
       setEditingCoachId(null);
       setCoachFormData(DEFAULT_COACH_FORM_DATA);
@@ -123,7 +124,7 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
   const deleteCoach = useMutation({
     mutationFn: (id: string) => coachesApi.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.all });
       setCoachDeleteConfirmation(null);
     },
   });
@@ -174,8 +175,8 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
       if (isProcessingOAuth) return;
       isProcessingOAuth = true;
 
-      queryClient.invalidateQueries({ queryKey: ['oauth-status'] });
-      queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.oauth.status() });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.user.profile() });
 
       const providerDisplay = data.result.provider.charAt(0).toUpperCase() + data.result.provider.slice(1);
       setOauthNotification({ provider: providerDisplay, timestamp: Date.now() });
@@ -380,12 +381,12 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
         });
       }
 
-      queryClient.invalidateQueries({ queryKey: ['chat-messages', selectedConversation] });
-      queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.chat.messages(selectedConversation) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.chat.conversations() });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to send message';
       setErrorMessage(message);
-      queryClient.invalidateQueries({ queryKey: ['chat-messages', selectedConversation] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.chat.messages(selectedConversation) });
     } finally {
       setIsStreaming(false);
       setStreamingContent('');
@@ -500,7 +501,7 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
       }
 
       // Refresh messages to show the generated insight
-      queryClient.invalidateQueries({ queryKey: ['chat-messages', selectedConversation] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.chat.messages(selectedConversation) });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to generate insight';
       setErrorMessage(message);
@@ -772,7 +773,7 @@ export default function ChatTab({ selectedConversation, onSelectConversation, on
           onClose={() => setShowCreateCoachFromConversation(false)}
           onSuccess={() => {
             setShowCreateCoachFromConversation(false);
-            queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.all });
           }}
         />
       )}

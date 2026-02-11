@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../services/api';
 import { Card, Button, Input, Badge, ConfirmDialog } from './ui';
 import { clsx } from 'clsx';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 const PROVIDER_INFO: Record<string, { description: string; docsUrl: string }> = {
   gemini: {
@@ -42,7 +43,7 @@ export default function LlmSettingsTab() {
 
   // Fetch current LLM settings
   const { data: settings, isLoading } = useQuery({
-    queryKey: ['llm-settings'],
+    queryKey: QUERY_KEYS.llmSettings.list(),
     queryFn: () => apiService.getLlmSettings(),
   });
 
@@ -55,7 +56,7 @@ export default function LlmSettingsTab() {
       default_model?: string;
     }) => apiService.saveLlmCredentials(data),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['llm-settings'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.llmSettings.list() });
       setMessage({ type: 'success', text: data.message });
       resetForm();
     },
@@ -68,7 +69,7 @@ export default function LlmSettingsTab() {
   const deleteMutation = useMutation({
     mutationFn: (provider: string) => apiService.deleteLlmCredentials(provider),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['llm-settings'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.llmSettings.list() });
       setMessage({ type: 'success', text: data.message });
       setProviderToDelete(null);
     },

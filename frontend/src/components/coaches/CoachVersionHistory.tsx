@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { coachesApi } from '../../services/api';
 import { Modal, ModalActions, Button, Card } from '../ui';
 import { clsx } from 'clsx';
+import { QUERY_KEYS } from '../../constants/queryKeys';
 
 interface CoachVersionHistoryProps {
   coachId: string;
@@ -40,14 +41,14 @@ export function CoachVersionHistory({
 
   // Fetch version history
   const { data: versionsData, isLoading } = useQuery({
-    queryKey: ['coach-versions', coachId],
+    queryKey: QUERY_KEYS.coaches.versions(coachId),
     queryFn: () => coachesApi.getVersions(coachId, 50),
     enabled: isOpen,
   });
 
   // Fetch diff when both versions selected
   const { data: diffData, isLoading: isDiffLoading } = useQuery({
-    queryKey: ['coach-version-diff', coachId, compareFrom, compareTo],
+    queryKey: QUERY_KEYS.coaches.versionDiff(coachId, compareFrom ?? undefined, compareTo ?? undefined),
     queryFn: () =>
       compareFrom && compareTo
         ? coachesApi.getVersionDiff(coachId, compareFrom, compareTo)
@@ -59,8 +60,8 @@ export function CoachVersionHistory({
   const revertMutation = useMutation({
     mutationFn: (version: number) => coachesApi.revertToVersion(coachId, version),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['coach-versions', coachId] });
-      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.versions(coachId) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.list() });
       setShowConfirmRevert(false);
       setSelectedVersion(null);
       onReverted?.();

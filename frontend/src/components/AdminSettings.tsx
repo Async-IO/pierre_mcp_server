@@ -9,13 +9,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminApi } from '../services/api';
 import { Card } from './ui';
 import type { SocialInsightsConfig } from '../types/api';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 export default function AdminSettings() {
   const queryClient = useQueryClient();
   const [showSocialInsightsConfig, setShowSocialInsightsConfig] = useState(false);
 
   const { data: autoApprovalData, isLoading, error } = useQuery({
-    queryKey: ['auto-approval-setting'],
+    queryKey: QUERY_KEYS.adminSettings.autoApproval(),
     queryFn: () => adminApi.getAutoApprovalSetting(),
     retry: 1,
   });
@@ -25,7 +26,7 @@ export default function AdminSettings() {
     isLoading: socialInsightsLoading,
     error: socialInsightsError,
   } = useQuery({
-    queryKey: ['social-insights-config'],
+    queryKey: QUERY_KEYS.adminSettings.socialInsightsConfig(),
     queryFn: () => adminApi.getSocialInsightsConfig(),
     retry: 1,
   });
@@ -33,21 +34,21 @@ export default function AdminSettings() {
   const updateAutoApprovalMutation = useMutation({
     mutationFn: (enabled: boolean) => adminApi.updateAutoApprovalSetting(enabled),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['auto-approval-setting'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminSettings.autoApproval() });
     },
   });
 
   const updateSocialInsightsMutation = useMutation({
     mutationFn: (config: SocialInsightsConfig) => adminApi.updateSocialInsightsConfig(config),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['social-insights-config'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminSettings.socialInsightsConfig() });
     },
   });
 
   const resetSocialInsightsMutation = useMutation({
     mutationFn: () => adminApi.resetSocialInsightsConfig(),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['social-insights-config'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminSettings.socialInsightsConfig() });
     },
   });
 

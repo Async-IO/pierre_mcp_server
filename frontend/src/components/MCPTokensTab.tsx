@@ -12,6 +12,7 @@ import { useAuth } from '../hooks/useAuth';
 import { userApi } from '../services/api';
 import A2AClientList from './A2AClientList';
 import CreateA2AClient from './CreateA2AClient';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 interface McpToken {
   id: string;
@@ -40,7 +41,7 @@ export default function MCPTokensTab() {
   const [showSetupInstructions, setShowSetupInstructions] = useState(false);
 
   const { data: tokensResponse, isLoading, error } = useQuery({
-    queryKey: ['mcp-tokens'],
+    queryKey: QUERY_KEYS.mcpTokens.list(),
     queryFn: () => userApi.getMcpTokens(),
     enabled: isAuthenticated,
   });
@@ -49,7 +50,7 @@ export default function MCPTokensTab() {
     mutationFn: (data: { name: string; expires_in_days?: number }) =>
       userApi.createMcpToken(data),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['mcp-tokens'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.mcpTokens.list() });
       setCreatedToken({ token_value: data.token_value ?? '', name: data.name });
       setShowCreateForm(false);
       setNewTokenName('');
@@ -60,7 +61,7 @@ export default function MCPTokensTab() {
   const revokeTokenMutation = useMutation({
     mutationFn: (tokenId: string) => userApi.revokeMcpToken(tokenId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['mcp-tokens'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.mcpTokens.list() });
       setTokenToRevoke(null);
     },
   });

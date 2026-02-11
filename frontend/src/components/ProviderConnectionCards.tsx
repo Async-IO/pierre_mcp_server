@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { providersApi, oauthApi } from '../services/api';
 import type { ProviderStatus } from '../services/api/oauth';
 import { Card, Badge } from './ui';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 // Brand colors and hover colors for known providers
 const PROVIDER_STYLES: Record<string, { brandColor: string; hoverColor: string }> = {
@@ -132,7 +133,7 @@ export default function ProviderConnectionCards({
 }: ProviderConnectionCardsProps) {
   // Fetch providers from server (includes OAuth and non-OAuth providers)
   const { data: providersData, isLoading } = useQuery({
-    queryKey: ['providers-status'],
+    queryKey: QUERY_KEYS.providers.status(),
     queryFn: () => providersApi.getProvidersStatus(),
     refetchInterval: 5000,
   });

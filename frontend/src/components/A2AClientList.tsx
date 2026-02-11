@@ -7,6 +7,7 @@ import { a2aApi } from '../services/api';
 import type { A2AClient, A2AUsageStats, A2ARateLimitStatus } from '../types/api';
 import { Button, Card, CardHeader, Badge, StatusIndicator, StatusFilter, ConfirmDialog } from './ui';
 import type { StatusFilterValue } from './ui';
+import { QUERY_KEYS } from '../constants/queryKeys';
 // Helper functions for date formatting
 const formatDistanceToNow = (date: Date) => {
   const now = new Date();
@@ -49,18 +50,18 @@ export default function A2AClientList({ onCreateClient }: A2AClientListProps) {
   const queryClient = useQueryClient();
 
   const { data: clients, isLoading, error } = useQuery<A2AClient[]>({
-    queryKey: ['a2a-clients'],
+    queryKey: QUERY_KEYS.a2a.clients(),
     queryFn: () => a2aApi.getA2AClients(),
   });
 
   const { data: clientUsage } = useQuery<A2AUsageStats | null>({
-    queryKey: ['a2a-client-usage', selectedClient],
+    queryKey: QUERY_KEYS.a2a.clientUsage(selectedClient ?? undefined),
     queryFn: () => selectedClient ? a2aApi.getA2AClientUsage(selectedClient) : Promise.resolve(null),
     enabled: !!selectedClient,
   });
 
   const { data: clientRateLimit } = useQuery<A2ARateLimitStatus | null>({
-    queryKey: ['a2a-client-rate-limit', selectedClient],
+    queryKey: QUERY_KEYS.a2a.clientRateLimit(selectedClient ?? undefined),
     queryFn: () => selectedClient ? a2aApi.getA2AClientRateLimit(selectedClient) : Promise.resolve(null),
     enabled: !!selectedClient,
   });
@@ -68,7 +69,7 @@ export default function A2AClientList({ onCreateClient }: A2AClientListProps) {
   const deactivateMutation = useMutation({
     mutationFn: (clientId: string) => a2aApi.deactivateA2AClient(clientId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['a2a-clients'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.a2a.clients() });
       setSelectedClient(null);
       setClientToDeactivate(null);
     },

@@ -10,6 +10,7 @@ import { X, Users, Eye, EyeOff, Pencil, Trash2 } from 'lucide-react';
 import { coachesApi } from '../services/api';
 import { Card } from './ui';
 import type { Coach } from '@pierre/shared-types';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 interface PromptSuggestionsProps {
   onSelectPrompt: (prompt: string, coachId?: string, systemPrompt?: string) => void;
@@ -26,7 +27,7 @@ export default function PromptSuggestions({ onSelectPrompt, onEditCoach, onDelet
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['user-coaches'],
+    queryKey: QUERY_KEYS.coaches.list(),
     queryFn: () => coachesApi.list(),
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     retry: 2,
@@ -35,7 +36,7 @@ export default function PromptSuggestions({ onSelectPrompt, onEditCoach, onDelet
   const {
     data: hiddenCoachesData,
   } = useQuery({
-    queryKey: ['hidden-coaches'],
+    queryKey: QUERY_KEYS.coaches.hidden(),
     queryFn: () => coachesApi.getHidden(),
     staleTime: 5 * 60 * 1000,
     enabled: showHidden, // Only fetch when showing hidden coaches
@@ -44,16 +45,16 @@ export default function PromptSuggestions({ onSelectPrompt, onEditCoach, onDelet
   const hideCoach = useMutation({
     mutationFn: (coachId: string) => coachesApi.hide(coachId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
-      queryClient.invalidateQueries({ queryKey: ['hidden-coaches'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.all });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.hidden() });
     },
   });
 
   const showCoach = useMutation({
     mutationFn: (coachId: string) => coachesApi.show(coachId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
-      queryClient.invalidateQueries({ queryKey: ['hidden-coaches'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.all });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.hidden() });
     },
   });
 

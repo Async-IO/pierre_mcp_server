@@ -9,6 +9,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { coachesApi } from '../../services/api';
 import type { CoachFormData } from './types';
 import { Sparkles, RefreshCw, AlertCircle, MessageSquareText } from 'lucide-react';
+import { QUERY_KEYS } from '../../constants/queryKeys';
 
 interface CreateCoachFromConversationModalProps {
   isOpen: boolean;
@@ -69,7 +70,7 @@ export default function CreateCoachFromConversationModal({
   const createMutation = useMutation({
     mutationFn: (data: CoachFormData) => coachesApi.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.list() });
       onSuccess();
     },
   });

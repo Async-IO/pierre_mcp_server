@@ -7,6 +7,7 @@ import { adminApi } from '../services/api';
 import type { User, UserManagementResponse } from '../types/api';
 import { Button, Card } from './ui';
 import { Badge } from './ui/Badge';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 interface UserApprovalModalProps {
   user: User | null;
@@ -36,8 +37,8 @@ export default function UserApprovalModal({
     },
     onSuccess: (response: UserManagementResponse) => {
       // Refresh user lists
-      queryClient.invalidateQueries({ queryKey: ['pending-users'] });
-      queryClient.invalidateQueries({ queryKey: ['all-users'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminUsers.pending() });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminUsers.list() });
       
       // Show success message
       console.log(`User ${action}d successfully:`, response.message);

@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { dashboardApi } from '../services/api';
 import { Doughnut, Bar } from 'react-chartjs-2';
 import type { ToolUsageBreakdown } from '../types/api';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 interface ToolUsageBreakdownProps {
   apiKeyId?: string;
@@ -16,7 +17,7 @@ export default function ToolUsageBreakdownComponent({
   timeRange = '7d'
 }: ToolUsageBreakdownProps) {
   const { data: toolUsage, isLoading } = useQuery<ToolUsageBreakdown[]>({
-    queryKey: ['tool-usage-breakdown', apiKeyId, timeRange],
+    queryKey: QUERY_KEYS.dashboard.toolUsage(apiKeyId, timeRange),
     queryFn: () => dashboardApi.getToolUsageBreakdown(apiKeyId, timeRange),
   });
 

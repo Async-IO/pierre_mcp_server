@@ -9,6 +9,7 @@ import type { StatusFilterValue } from './ui';
 import { useAuth } from '../hooks/useAuth';
 import { adminApi } from '../services/api';
 import type { AdminToken } from '../types/api';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 interface ApiKeyListProps {
   onViewDetails: (token: AdminToken) => void;
@@ -24,7 +25,7 @@ export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
 
   // Always fetch all tokens and filter client-side for accurate counts
   const { data: tokensResponse, isLoading, error } = useQuery({
-    queryKey: ['admin-tokens', true],
+    queryKey: QUERY_KEYS.adminTokens.list(true),
     queryFn: () => adminApi.getAdminTokens({ include_inactive: true }),
     enabled: isAuthenticated && user?.is_admin === true,
   });
@@ -32,7 +33,7 @@ export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
   const revokeTokenMutation = useMutation({
     mutationFn: (tokenId: string) => adminApi.revokeAdminToken(tokenId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-tokens'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminTokens.all });
       setSelectedTokens(new Set());
       setTokenToRevoke(null);
       setTokensToRevoke(null);

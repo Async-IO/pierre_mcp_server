@@ -8,6 +8,7 @@ import { useState, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminApi } from '../services/api';
 import { Card, Badge, Input, Button, Modal, Tabs } from './ui';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 // Lazy load ToolAvailability to reduce initial bundle size
 const ToolAvailability = lazy(() => import('./ToolAvailability'));
@@ -129,14 +130,14 @@ export default function AdminConfiguration() {
 
   // Fetch configuration catalog
   const { data: catalogData, isLoading, error } = useQuery({
-    queryKey: ['admin-config-catalog'],
+    queryKey: QUERY_KEYS.adminConfig.catalog(),
     queryFn: () => adminApi.getConfigCatalog(),
     retry: 1,
   });
 
   // Fetch audit history
   const { data: auditData, isLoading: auditLoading } = useQuery({
-    queryKey: ['admin-config-audit'],
+    queryKey: QUERY_KEYS.adminConfig.audit(),
     queryFn: () => adminApi.getConfigAuditLog({ limit: 50 }),
     enabled: activeTab === 'history',
   });
@@ -146,8 +147,8 @@ export default function AdminConfiguration() {
     mutationFn: ({ parameters, reason }: { parameters: Record<string, unknown>; reason?: string }) =>
       adminApi.updateConfig({ parameters, reason }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-config-catalog'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-config-audit'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminConfig.catalog() });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminConfig.audit() });
       setPendingChanges({});
       setChangeReason('');
       setShowConfirmModal(false);
@@ -159,8 +160,8 @@ export default function AdminConfiguration() {
     mutationFn: ({ category, keys }: { category?: string; keys?: string[] }) =>
       adminApi.resetConfig({ category, parameters: keys }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-config-catalog'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-config-audit'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminConfig.catalog() });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminConfig.audit() });
       setShowResetModal(false);
       setResetTarget(null);
     },

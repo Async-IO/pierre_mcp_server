@@ -76,7 +76,7 @@ pub mod pagination;
 pub mod config;
 
 /// Focused dependency injection contexts
-pub mod context;
+pub(crate) mod context;
 
 /// Application constants and configuration values
 pub mod constants;
@@ -100,7 +100,7 @@ pub mod jsonrpc;
 pub mod a2a;
 
 /// `HTTP` routes for A2A protocol endpoints
-pub mod a2a_routes;
+pub(crate) mod a2a_routes;
 
 /// Coach definition parsing from markdown files
 pub mod coaches;
@@ -127,7 +127,7 @@ pub mod crypto;
 pub mod routes;
 
 /// Multi-tenant management REST API routes
-pub mod tenant_routes;
+pub(crate) mod tenant_routes;
 
 /// Production logging and structured output
 pub mod logging;
@@ -136,20 +136,20 @@ pub mod logging;
 pub mod middleware;
 
 /// Health checks and monitoring
-pub mod health;
+pub(crate) mod health;
 
 /// `API` key management for B2B authentication
 pub mod api_keys;
 
 /// `HTTP` routes for `API` key management
-pub mod api_key_routes;
+pub(crate) mod api_key_routes;
 
 /// Dashboard routes for frontend consumption
-pub mod dashboard_routes;
+pub(crate) mod dashboard_routes;
 
 /// WebSocket support for real-time updates
 #[cfg(feature = "transport-websocket")]
-pub mod websocket;
+pub(crate) mod websocket;
 
 /// Server-Sent Events (SSE) for real-time streaming
 #[cfg(feature = "transport-sse")]
@@ -180,7 +180,7 @@ pub mod plugins;
 pub mod key_management;
 
 /// Plugin lifecycle management for deterministic initialization
-pub mod lifecycle;
+pub(crate) mod lifecycle;
 
 /// OAuth 2.0 authorization server (Pierre as provider for MCP clients)
 pub mod oauth2_server;

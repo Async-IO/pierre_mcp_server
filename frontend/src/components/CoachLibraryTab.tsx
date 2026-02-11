@@ -11,6 +11,7 @@ import { coachesApi } from '../services/api';
 import type { Coach } from '../types/api';
 import { Card, Button, TabHeader } from './ui';
 import { clsx } from 'clsx';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 // Coach category options
 const COACH_CATEGORIES = ['Training', 'Nutrition', 'Recovery', 'Recipes', 'Mobility', 'Custom'];
@@ -93,7 +94,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
 
   // Fetch all coaches (including hidden) for client-side filtering
   const { data: coachesData, isLoading: coachesLoading } = useQuery({
-    queryKey: ['user-coaches', 'include-hidden'],
+    queryKey: QUERY_KEYS.coaches.listWithHidden(),
     queryFn: () => coachesApi.list({
       include_hidden: true,
     }),
@@ -101,7 +102,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
 
   // Fetch hidden coaches list to mark them
   const { data: hiddenData } = useQuery({
-    queryKey: ['hidden-coaches'],
+    queryKey: QUERY_KEYS.coaches.hidden(),
     queryFn: () => coachesApi.getHidden(),
   });
 
@@ -115,7 +116,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
       tags: data.tags.split(',').map(t => t.trim()).filter(Boolean),
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.all });
       setIsCreating(false);
       setFormData(defaultFormData);
     },
@@ -131,7 +132,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
       tags: data.tags.split(',').map(t => t.trim()).filter(Boolean),
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.all });
       setIsEditing(false);
       setSelectedCoach(null);
     },
@@ -141,7 +142,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => coachesApi.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.all });
       setSelectedCoach(null);
     },
   });
@@ -150,7 +151,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
   const favoriteMutation = useMutation({
     mutationFn: (id: string) => coachesApi.toggleFavorite(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.all });
     },
   });
 
@@ -158,8 +159,8 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
   const hideMutation = useMutation({
     mutationFn: (id: string) => coachesApi.hide(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
-      queryClient.invalidateQueries({ queryKey: ['hidden-coaches'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.all });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.hidden() });
       setActionMenuCoach(null);
     },
   });
@@ -168,8 +169,8 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
   const showMutation = useMutation({
     mutationFn: (id: string) => coachesApi.show(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
-      queryClient.invalidateQueries({ queryKey: ['hidden-coaches'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.all });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.hidden() });
       setActionMenuCoach(null);
     },
   });
@@ -178,7 +179,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
   const forkMutation = useMutation({
     mutationFn: (id: string) => coachesApi.fork(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.all });
       setActionMenuCoach(null);
     },
   });

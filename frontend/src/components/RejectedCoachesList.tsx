@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { adminApi } from '../services/api';
 import { Card } from './ui';
 import { clsx } from 'clsx';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 // Category colors matching SystemCoachesTab
 const CATEGORY_COLORS: Record<string, string> = {
@@ -40,7 +41,7 @@ function getReasonLabel(reason: string): string {
 export default function RejectedCoachesList() {
   // Fetch rejected coaches
   const { data, isLoading, error } = useQuery({
-    queryKey: ['admin-store-rejected'],
+    queryKey: QUERY_KEYS.adminStore.rejected(),
     queryFn: () => adminApi.getRejectedStoreCoaches(),
   });
 

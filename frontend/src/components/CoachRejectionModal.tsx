@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminApi } from '../services/api';
 import { Button, Card } from './ui';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 const REJECTION_REASONS = [
   { value: 'inappropriate_content', label: 'Inappropriate content' },
@@ -47,9 +48,9 @@ export default function CoachRejectionModal({
       rejectionNotes?: string;
     }) => adminApi.rejectStoreCoach(coachId, rejectionReason, rejectionNotes),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-store-review-queue'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-store-stats'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-store-rejected'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminStore.reviewQueue() });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminStore.stats() });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminStore.rejected() });
       setReason('');
       setNotes('');
       onComplete();

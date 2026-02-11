@@ -19,6 +19,7 @@ import {
   Filler,
 } from 'chart.js';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 ChartJS.register(
   CategoryScale,
@@ -37,7 +38,7 @@ export default function UsageAnalytics() {
   const [timeRange, setTimeRange] = useState<number>(30);
 
   const { data: analytics, isLoading } = useQuery<AnalyticsData>({
-    queryKey: ['usage-analytics', timeRange],
+    queryKey: QUERY_KEYS.dashboard.usageAnalytics(timeRange),
     queryFn: () => dashboardApi.getUsageAnalytics(timeRange),
   });
 
