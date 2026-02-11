@@ -158,10 +158,10 @@ impl LlmSettingsRoutes {
             .map_err(|e| AppError::auth_invalid(format!("Authentication failed: {e}")))
     }
 
-    /// Get user's tenant_id for the current request
+    /// Get user's `tenant_id` for the current request
     ///
-    /// Uses active_tenant_id from JWT claims (user's selected tenant) when available,
-    /// falling back to the user's first tenant, or user_id if no tenant exists.
+    /// Uses `active_tenant_id` from JWT claims (user's selected tenant) when available,
+    /// falling back to the user's first tenant, or `user_id` if no tenant exists.
     async fn get_tenant_id(
         auth: &AuthResult,
         resources: &Arc<ServerResources>,

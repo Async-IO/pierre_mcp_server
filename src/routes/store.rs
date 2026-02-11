@@ -237,8 +237,8 @@ impl StoreRoutes {
 
     /// Get tenant ID for an authenticated user
     ///
-    /// Uses active_tenant_id from JWT claims (user's selected tenant) when available,
-    /// falling back to the user's first tenant for single-tenant users or tokens without active_tenant_id.
+    /// Uses `active_tenant_id` from JWT claims (user's selected tenant) when available,
+    /// falling back to the user's first tenant for single-tenant users or tokens without `active_tenant_id`.
     async fn get_user_tenant(
         auth: &AuthResult,
         resources: &Arc<ServerResources>,
