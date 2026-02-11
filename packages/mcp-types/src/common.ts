@@ -1,5 +1,7 @@
 // ABOUTME: Common data types for Pierre MCP tools (Activity, Athlete, Stats, etc.)
 // ABOUTME: Generated from server tool schemas - DO NOT EDIT MANUALLY
+//
+// Generated: 2026-02-11T20:35:42.297Z
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

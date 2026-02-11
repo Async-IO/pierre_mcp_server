@@ -127,7 +127,7 @@ pub mod crypto;
 pub mod routes;
 
 /// Multi-tenant management REST API routes
-pub(crate) mod tenant_routes;
+pub mod tenant_routes;
 
 /// Production logging and structured output
 pub mod logging;
@@ -180,7 +180,7 @@ pub mod plugins;
 pub mod key_management;
 
 /// Plugin lifecycle management for deterministic initialization
-pub(crate) mod lifecycle;
+pub mod lifecycle;
 
 /// OAuth 2.0 authorization server (Pierre as provider for MCP clients)
 pub mod oauth2_server;
