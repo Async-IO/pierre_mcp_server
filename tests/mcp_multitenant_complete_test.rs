@@ -701,6 +701,7 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
 
 /// Test MCP server without authentication (should fail)
 #[tokio::test]
+#[serial]
 async fn test_mcp_authentication_required() -> Result<()> {
     let (database, auth_manager, server_port, _temp_dir, stored_jwt_secret) =
         setup_test_environment().await?;
@@ -806,6 +807,7 @@ async fn test_mcp_authentication_required() -> Result<()> {
 
 /// Test MCP server initialization without authentication (should work)
 #[tokio::test]
+#[serial]
 async fn test_mcp_initialization_no_auth() -> Result<()> {
     let (database, auth_manager, server_port, _temp_dir, stored_jwt_secret) =
         setup_test_environment().await?;
