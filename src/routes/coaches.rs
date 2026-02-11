@@ -513,7 +513,7 @@ impl CoachesRoutes {
     /// Get tenant ID for an authenticated user
     ///
     /// Uses active_tenant_id from JWT claims (user's selected tenant) when available,
-    /// falling back to the user's first tenant for single-tenant users or legacy tokens.
+    /// falling back to the user's first tenant for single-tenant users or tokens without active_tenant_id.
     async fn get_user_tenant(
         auth: &AuthResult,
         resources: &Arc<ServerResources>,
@@ -522,7 +522,7 @@ impl CoachesRoutes {
         if let Some(tenant_id) = auth.active_tenant_id {
             return Ok(tenant_id.to_string());
         }
-        // Fall back to user's first tenant (single-tenant users or legacy tokens)
+        // Fall back to user's first tenant (single-tenant users or tokens without active_tenant_id)
         let tenants = resources
             .database
             .list_tenants_for_user(auth.user_id)

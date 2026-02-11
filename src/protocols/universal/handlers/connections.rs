@@ -159,7 +159,7 @@ pub fn handle_disconnect_provider(
         };
 
         // Resolve tenant ID: prefer request.tenant_id (user's selected tenant from JWT),
-        // falling back to user's first tenant for legacy clients without active_tenant_id.
+        // falling back to user's first tenant for clients without active_tenant_id.
         let tenant_id_str = if let Some(tid) = request.tenant_id.as_deref() {
             tid.to_owned()
         } else {
@@ -368,7 +368,7 @@ pub fn handle_connect_provider(
         }
 
         // Get tenant context: prefer request.tenant_id (user's selected tenant from JWT),
-        // falling back to user's first tenant for legacy clients without active_tenant_id.
+        // falling back to user's first tenant for clients without active_tenant_id.
         // Security: always verify membership before using request.tenant_id,
         // as it would allow a caller to use another tenant's OAuth credentials/rate limits.
         let tenants = db

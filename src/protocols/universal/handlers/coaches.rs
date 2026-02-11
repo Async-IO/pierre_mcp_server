@@ -1035,7 +1035,7 @@ async fn verify_user_tenant_membership(
 ///
 /// Returns the tenant_id if authorized, error if not Admin/SuperAdmin.
 /// Uses active_tenant_id from request when available (user's selected tenant),
-/// falling back to user's first tenant for legacy clients.
+/// falling back to user's first tenant for clients without active_tenant_id.
 async fn verify_admin_access(
     executor: &UniversalToolExecutor,
     user_uuid: Uuid,
@@ -1073,7 +1073,7 @@ async fn verify_admin_access(
         // Fall through if user is not a member (use default tenant)
     }
 
-    // Fall back to user's first tenant (single-tenant users or legacy tokens)
+    // Fall back to user's first tenant (single-tenant users or tokens without active_tenant_id)
     let tenants = executor
         .resources
         .database

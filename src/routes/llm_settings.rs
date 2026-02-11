@@ -170,7 +170,7 @@ impl LlmSettingsRoutes {
         if let Some(tenant_id) = auth.active_tenant_id {
             return Ok(tenant_id);
         }
-        // Fall back to user's first tenant (single-tenant users or legacy tokens)
+        // Fall back to user's first tenant (single-tenant users or tokens without active_tenant_id)
         let tenants = resources
             .database
             .list_tenants_for_user(auth.user_id)

@@ -1238,7 +1238,7 @@ impl OAuthService {
         self.validate_provider(provider)?;
 
         // Get tenant_id: prefer active_tenant_id (user's selected tenant) when available,
-        // falling back to user's first tenant for single-tenant users or legacy tokens.
+        // falling back to user's first tenant for single-tenant users or tokens without active_tenant_id.
         let tenant_id = if let Some(tid) = active_tenant_id {
             tid.to_string()
         } else {
@@ -2605,7 +2605,7 @@ impl AuthRoutes {
     /// Extract tenant ID for OAuth operations
     ///
     /// Uses active_tenant_id when available (user's selected tenant from JWT),
-    /// falling back to user's first tenant for single-tenant users or legacy tokens.
+    /// falling back to user's first tenant for single-tenant users or tokens without active_tenant_id.
     async fn extract_tenant_id_from_database(
         database: &Database,
         user_id: uuid::Uuid,
@@ -2615,7 +2615,7 @@ impl AuthRoutes {
         if let Some(tenant_id) = active_tenant_id {
             return Ok(tenant_id);
         }
-        // Fall back to user's first tenant (single-tenant users or legacy tokens)
+        // Fall back to user's first tenant (single-tenant users or tokens without active_tenant_id)
         let tenants = database
             .list_tenants_for_user(user_id)
             .await
