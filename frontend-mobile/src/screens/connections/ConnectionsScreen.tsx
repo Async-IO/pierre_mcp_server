@@ -33,14 +33,18 @@ export function ConnectionsScreen({ navigation }: ConnectionsScreenProps) {
   const [providers, setProviders] = useState<ExtendedProviderStatus[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const loadConnectionStatus = useCallback(async () => {
     try {
       setIsLoading(true);
+      setError(null);
       const response = await oauthApi.getProvidersStatus();
       setProviders(response.providers || []);
-    } catch (error) {
-      console.error('Failed to load connection status:', error);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load connections';
+      setError(errorMessage);
+      console.error('Failed to load connection status:', err);
       // Don't show alert on auth errors - screen will reload when auth is ready
     } finally {
       setIsLoading(false);
@@ -242,6 +246,19 @@ export function ConnectionsScreen({ navigation }: ConnectionsScreenProps) {
           <View className="items-center py-12">
             <ActivityIndicator size="large" color={colors.primary[500]} />
             <Text className="mt-3 text-text-secondary text-base">Loading connections...</Text>
+          </View>
+        ) : error ? (
+          <View className="p-4 bg-error/10 border border-error/30 rounded-lg">
+            <Text className="text-error text-base mb-3">{error}</Text>
+            <TouchableOpacity
+              className="self-start px-4 py-2 bg-error/20 rounded-md"
+              onPress={() => {
+                setError(null);
+                loadConnectionStatus();
+              }}
+            >
+              <Text className="text-error font-semibold">Retry</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           <View className="gap-3">

@@ -31,6 +31,7 @@ export function SearchFriendsScreen() {
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [addingIds, setAddingIds] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const searchUsers = useCallback(async (searchQuery: string) => {
@@ -42,11 +43,14 @@ export function SearchFriendsScreen() {
 
     try {
       setIsSearching(true);
+      setError(null);
       const response = await socialApi.searchUsers(searchQuery.trim(), 30);
       setUsers(response.users);
       setHasSearched(true);
-    } catch (error) {
-      console.error('Failed to search users:', error);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to search users';
+      setError(errorMessage);
+      console.error('Failed to search users:', err);
     } finally {
       setIsSearching(false);
     }
@@ -82,8 +86,10 @@ export function SearchFriendsScreen() {
             : u
         )
       );
-    } catch (error) {
-      console.error('Failed to send friend request:', error);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to send friend request';
+      setError(errorMessage);
+      console.error('Failed to send friend request:', err);
     } finally {
       setAddingIds(prev => {
         const next = new Set(prev);
@@ -162,6 +168,19 @@ export function SearchFriendsScreen() {
         </TouchableOpacity>
         <Text className="flex-1 text-xl font-bold text-text-primary">Find Friends</Text>
       </View>
+
+      {/* Error Display */}
+      {error && (
+        <View className="mx-4 mt-2 p-3 bg-error/10 border border-error/30 rounded-lg flex-row items-center justify-between">
+          <Text className="flex-1 text-error text-sm mr-3">{error}</Text>
+          <TouchableOpacity
+            className="px-3 py-1.5 bg-error/20 rounded-md"
+            onPress={() => setError(null)}
+          >
+            <Text className="text-error text-sm font-semibold">Dismiss</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Search Results */}
       {isSearching ? (
