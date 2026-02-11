@@ -75,7 +75,9 @@ impl ToolEngine {
             protocol: "mcp".into(),
             user_id: user_context
                 .map_or_else(|| Uuid::new_v4().to_string(), |ctx| ctx.user_id.to_string()),
-            tenant_id: user_context.and_then(|ctx| ctx.tenant_id).map(|id| id.to_string()),
+            tenant_id: user_context
+                .and_then(|ctx| ctx.tenant_id)
+                .map(|id| id.to_string()),
             progress_token: None,
             cancellation_token: None,
             progress_reporter: None,

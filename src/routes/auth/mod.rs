@@ -1249,7 +1249,9 @@ impl OAuthService {
                 .await
                 .map_err(|e| AppError::database(format!("Failed to get user tenants: {e}")))?;
             tenants.first().map(|t| t.id.to_string()).ok_or_else(|| {
-                AppError::auth_invalid("User has no tenant association — cannot disconnect provider")
+                AppError::auth_invalid(
+                    "User has no tenant association — cannot disconnect provider",
+                )
             })?
         };
 

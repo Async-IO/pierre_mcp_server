@@ -1538,7 +1538,8 @@ pub fn handle_admin_assign_coach(
         }
 
         let admin_user_id = parse_user_id_for_protocol(&request.user_id)?;
-        let tenant_id = verify_admin_access(executor, admin_user_id, request.tenant_id.as_deref()).await?;
+        let tenant_id =
+            verify_admin_access(executor, admin_user_id, request.tenant_id.as_deref()).await?;
 
         let coach_id = request
             .parameters
@@ -1620,7 +1621,8 @@ pub fn handle_admin_unassign_coach(
         }
 
         let admin_user_id = parse_user_id_for_protocol(&request.user_id)?;
-        let tenant_id = verify_admin_access(executor, admin_user_id, request.tenant_id.as_deref()).await?;
+        let tenant_id =
+            verify_admin_access(executor, admin_user_id, request.tenant_id.as_deref()).await?;
 
         let coach_id = request
             .parameters
@@ -1703,7 +1705,8 @@ pub fn handle_admin_list_coach_assignments(
         }
 
         let admin_user_id = parse_user_id_for_protocol(&request.user_id)?;
-        let tenant_id = verify_admin_access(executor, admin_user_id, request.tenant_id.as_deref()).await?;
+        let tenant_id =
+            verify_admin_access(executor, admin_user_id, request.tenant_id.as_deref()).await?;
 
         let coach_id = request.parameters.get("coach_id").and_then(Value::as_str);
 

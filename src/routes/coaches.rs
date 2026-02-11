@@ -528,7 +528,10 @@ impl CoachesRoutes {
             .list_tenants_for_user(auth.user_id)
             .await
             .map_err(|e| {
-                AppError::database(format!("Failed to get tenants for user {}: {e}", auth.user_id))
+                AppError::database(format!(
+                    "Failed to get tenants for user {}: {e}",
+                    auth.user_id
+                ))
             })?;
 
         tenants.first().map(|t| t.id.to_string()).ok_or_else(|| {

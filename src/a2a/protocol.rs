@@ -1094,7 +1094,8 @@ impl A2AServer {
         };
 
         // Build tool execution context from authenticated user identity with tenant
-        let mut tool_ctx = ToolExecutionContext::new(user_id, resources.clone(), AuthMethod::ApiKey);
+        let mut tool_ctx =
+            ToolExecutionContext::new(user_id, resources.clone(), AuthMethod::ApiKey);
         if let Some(tid) = tenant_id {
             tool_ctx = tool_ctx.with_tenant(tid);
         }
