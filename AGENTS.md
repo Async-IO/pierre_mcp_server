@@ -453,23 +453,27 @@ cargo fmt
 # 2. Architectural validation
 ./scripts/architectural-validation.sh
 
-# 3. Clippy — target only the crate(s) you changed
+# 3. Clippy — ONLY the crate(s) you actually changed
 # Cargo.toml defines all lint levels - no CLI flags needed
 #
-# Target the specific workspace crate you changed (fastest):
+# IMPORTANT: Run clippy ONLY on crates with actual changes.
+# Do NOT run clippy on pierre_mcp_server if you only changed pierre-core.
+# Each crate is independent — linting an unchanged crate wastes minutes.
+#
+# Pick ONE (or more if you changed multiple crates):
 cargo clippy -p pierre-core              # models, errors, config
 cargo clippy -p pierre-intelligence      # metrics, algorithms
 cargo clippy -p pierre-providers         # Strava, Garmin, etc.
 cargo clippy -p pierre_mcp_server        # main crate (routes, handlers, etc.)
 #
-# If test files changed, add --all-targets:
-cargo clippy -p pierre_mcp_server --all-targets
+# Add --all-targets ONLY if test files in that crate changed:
+cargo clippy -p <changed-crate> --all-targets
 
 # 4. Run TARGETED tests for changed modules (ALWAYS use --test)
 cargo test --test <test_file> <test_pattern> -- --nocapture
 ```
 
-**NOTE:** Use `--all-targets` when test files changed or before committing. Without it, clippy only checks `src/` code. CI uses `--all-targets`, so pre-commit validation must include it. Target the specific `-p <crate>` you changed — linting a leaf crate like `pierre-core` is much faster than the full main crate. Clippy is NOT run by pre-commit or pre-push hooks — it must be run manually.
+**CRITICAL: Clippy scope must match change scope.** If you only changed `pierre-core`, run `cargo clippy -p pierre-core` — do NOT also run `cargo clippy -p pierre_mcp_server`. The main crate takes minutes to lint; leaf crates take seconds. Only lint what you changed. Use `--all-targets` when test files in that crate changed. Clippy is NOT run by pre-commit or pre-push hooks — it must be run manually.
 
 #### Tier 3: Full Validation (before PR/merge only)
 Run the full suite only when preparing a PR or merging:
