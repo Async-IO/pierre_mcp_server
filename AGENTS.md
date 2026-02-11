@@ -1,8 +1,10 @@
 ## Package Manager: bun ONLY
 
-**CRITICAL: This project uses `bun` exclusively. NEVER use `npm`, `yarn`, or `pnpm`.**
+**CRITICAL: This project uses `bun` exclusively for project dependencies. NEVER use `npm`, `yarn`, or `pnpm` for project packages.**
 
-Using npm/yarn will corrupt the project by creating conflicting lock files and inconsistent `node_modules/`.
+Using npm/yarn for project dependencies will corrupt the project by creating conflicting lock files and inconsistent `node_modules/`.
+
+**Exception**: `npm install -g` is allowed for installing global CLI tools (e.g., `npm install -g @github/copilot`) that are not project dependencies.
 
 ### Commands
 | Task | Command |
