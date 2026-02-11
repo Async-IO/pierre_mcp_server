@@ -1455,7 +1455,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   const renderEmptyChat = () => (
     <ScrollView
       className="flex-1"
-      contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: spacing.xs, paddingVertical: spacing.md, paddingBottom: 100 }}
+      contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: spacing.xs, paddingVertical: spacing.md, paddingBottom: spacing.md }}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
     >
@@ -1566,7 +1566,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
             data={messages ?? []}
             renderItem={renderMessage}
             keyExtractor={(item, index) => item?.id ? `${item.id}-${index}` : `fallback-${index}`}
-            contentContainerStyle={{ paddingHorizontal: spacing.md, paddingVertical: spacing.md, paddingBottom: 80 }}
+            contentContainerStyle={{ paddingHorizontal: spacing.md, paddingVertical: spacing.md, paddingBottom: spacing.md }}
             showsVerticalScrollIndicator={false}
             onContentSizeChange={scrollToBottom}
             ListFooterComponent={isSending ? renderThinkingIndicator : null}
@@ -1574,7 +1574,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
         )}
 
         {/* Input Area - liquid style with violet accent, glass background */}
-        <View className="absolute bottom-0 left-0 right-0 px-4 py-2">
+        <View className="px-4 py-2" style={{ paddingBottom: Math.max(insets.bottom, 8) }}>
           <View
             className="flex-row items-center rounded-full px-3 min-h-[36px] max-h-[100px]"
             style={{

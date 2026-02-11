@@ -13,6 +13,8 @@ import {
   Modal,
   RefreshControl,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
   type ViewStyle,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -617,6 +619,10 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
 
   return (
     <SafeAreaView className="flex-1 bg-background-primary" testID="coach-library-screen">
+    <KeyboardAvoidingView
+      className="flex-1"
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       {/* Header with bold title and action buttons - + button in top right like Chat tab */}
       <View className="flex-row items-center px-4 py-3 border-b border-border-subtle">
         <Text className="flex-1 text-xl font-bold text-white">Coaches</Text>
@@ -704,11 +710,8 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
         />
       )}
 
-      {/* Floating Bottom Search Bar - liquid style above tab bar */}
-      <View
-        className="absolute left-4 right-4 flex-row items-center"
-        style={{ bottom: 8 }}
-      >
+      {/* Bottom Search Bar - liquid style above tab bar */}
+      <View className="px-4 py-2 flex-row items-center">
         <View
           className="flex-1 flex-row items-center rounded-full px-4"
           style={[
@@ -737,6 +740,8 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
           )}
         </View>
       </View>
+
+    </KeyboardAvoidingView>
 
       {/* Action Menu Modal */}
       <Modal
