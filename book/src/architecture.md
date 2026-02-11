@@ -94,8 +94,8 @@ Pierre Fitness Platform is a multi-protocol fitness data platform that connects 
 - goal feasibility analysis
 
 ### Database (`src/database/`)
-- **repository pattern**: 14 focused repositories following SOLID principles
-- repository accessors: `db.users()`, `db.oauth_tokens()`, `db.api_keys()`, `db.profiles()`, etc.
+- **repository pattern**: focused repositories following SOLID principles
+- repositories constructed via `RepositoryImpl::new(db)` pattern
 - pluggable backend (sqlite, postgresql) via `src/database_plugins/`
 - encrypted token storage
 - multi-tenant isolation
@@ -104,7 +104,7 @@ Pierre Fitness Platform is a multi-protocol fitness data platform that connects 
 
 The database layer implements the repository pattern with focused, cohesive repositories:
 
-**14 focused repositories** (`src/database/repositories/`):
+**18 focused repositories** (`src/database/repositories/`):
 1. `UserRepository` - user account management
 2. `OAuthTokenRepository` - oauth token storage (tenant-scoped)
 3. `ApiKeyRepository` - api key management
@@ -119,15 +119,23 @@ The database layer implements the repository pattern with focused, cohesive repo
 12. `NotificationRepository` - oauth notifications
 13. `FitnessConfigRepository` - fitness configuration management
 14. `RecipeRepository` - recipe and nutrition management
+15. `CoachesRepository` - custom AI coach personas
+16. `ToolSelectionRepository` - per-tenant tool configuration
+17. `MobilityRepository` - stretching and yoga routines
+18. `SocialRepository` - friend connections and shared insights
 
-**accessor pattern** (`src/database/mod.rs:139-245`):
+**repository construction pattern** (`src/database/repositories/`):
 ```rust
-let db = Database::new(database_url, encryption_key).await?;
+use crate::database::repositories::{UserRepository, UserRepositoryImpl};
+use crate::database_plugins::factory::Database;
 
-// Access repositories via typed accessors
-let user = db.users().get_by_id(user_id).await?;
-let token = db.oauth_tokens().get(user_id, tenant_id, provider).await?;
-let api_key = db.api_keys().get_by_key(key).await?;
+// Construct repository with database connection
+let db: Database = /* ... */;
+let user_repo = UserRepositoryImpl::new(db.clone());
+
+// Use repository trait methods
+let user = user_repo.get_by_id(user_id).await?;
+let users = user_repo.list_by_status("active", Some(tenant_id)).await?;
 ```
 
 **benefits**:
@@ -195,7 +203,7 @@ pub type AppResult<T> = Result<T, AppError>;
 Errors propagate using `?` operator with automatic conversion via `From` trait implementations:
 ```rust
 // DatabaseError converts to AppError via From<DatabaseError>
-let user = db.users().get_by_id(user_id).await?;
+let user = user_repo.get_by_id(user_id).await?;
 
 // ProviderError converts to AppError via From<ProviderError>
 let activities = provider.fetch_activities().await?;
@@ -284,8 +292,10 @@ ServerContext
 
 **usage pattern**:
 ```rust
-// Access specific contexts from ServerContext
-let user = ctx.data().database().users().get_by_id(id).await?;
+// Access database from context, then construct repository
+let db = ctx.data().database().clone();
+let user_repo = UserRepositoryImpl::new(db);
+let user = user_repo.get_by_id(id).await?;
 let token = ctx.auth().auth_manager().validate_token(jwt)?;
 ```
 
@@ -380,7 +390,7 @@ src/
 ├── a2a/                       # a2a protocol
 ├── providers/                 # fitness integrations
 ├── intelligence/              # activity analysis
-├── database/                  # repository pattern (14 focused repositories)
+├── database/                  # repository pattern (18 focused repositories)
 │   ├── repositories/          # repository trait definitions and implementations
 │   └── ...                    # user, oauth token, api key management modules
 ├── database_plugins/          # database backends (sqlite, postgresql)
