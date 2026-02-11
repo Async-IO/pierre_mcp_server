@@ -671,6 +671,7 @@ pub async fn spawn_sdk_bridge(jwt_token: &str, server_port: u16) -> Result<SdkBr
     }
 
     // Spawn Node.js process running SDK bridge in stdio mode
+    // Increase connection timeouts for CI runners where startup can be slow
     let mut process = Command::new("node")
         .arg(sdk_path)
         .env(
@@ -679,13 +680,15 @@ pub async fn spawn_sdk_bridge(jwt_token: &str, server_port: u16) -> Result<SdkBr
         )
         .env("PIERRE_JWT_TOKEN", jwt_token)
         .env("MCP_TRANSPORT", "stdio")
+        .env("PIERRE_PROACTIVE_CONNECTION_TIMEOUT_MS", "10000")
+        .env("PIERRE_PROACTIVE_TOOLS_LIST_TIMEOUT_MS", "10000")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()?;
 
-    // Wait briefly for process to initialize
-    sleep(Duration::from_millis(500)).await;
+    // Wait for process to initialize (longer on CI where startup can be slow)
+    sleep(Duration::from_millis(2000)).await;
 
     // Check if process is still alive
     if let Ok(Some(status)) = process.try_wait() {

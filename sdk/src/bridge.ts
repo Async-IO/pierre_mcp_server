@@ -1877,12 +1877,15 @@ export class PierreMcpClient {
         try {
           // Wait for proactive connection to complete if it's still running
           // This ensures we have the full toolset cached before responding
-          // Use a shorter timeout (1 second) to avoid blocking tools/list too long
+          const toolsListWaitMs =
+            this.config.proactiveToolsListTimeoutMs || 10000;
           if (this.proactiveConnectionPromise) {
-            this.log("Waiting for proactive connection to complete...");
+            this.log(
+              `Waiting for proactive connection to complete (timeout: ${toolsListWaitMs}ms)...`,
+            );
             const waitResult = await this.withTimeout(
               this.proactiveConnectionPromise,
-              1000,
+              toolsListWaitMs,
               "tools/list waiting for proactive connection",
             );
 
@@ -1891,7 +1894,7 @@ export class PierreMcpClient {
 
             if (waitResult === null) {
               this.log(
-                "Proactive connection still running after 1s, proceeding with current cache",
+                `Proactive connection still running after ${toolsListWaitMs}ms, proceeding with current cache`,
               );
             } else {
               this.log("Proactive connection completed, checking cache");
