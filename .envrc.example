@@ -13,13 +13,13 @@
 # Category          | Variables                                    | Required By
 # ------------------|----------------------------------------------|------------------
 # 1. CRITICAL       | DATABASE_URL, PIERRE_MASTER_ENCRYPTION_KEY   | All server scripts
-# 2. Provider OAuth | PIERRE_*_CLIENT_ID/SECRET                    | Based on PIERRE_DEFAULT_PROVIDER
+# 2. Provider OAuth | *_CLIENT_ID/SECRET (Strava, Garmin, etc.)    | Based on PIERRE_DEFAULT_PROVIDER
 # 3. Server Config  | HTTP_PORT, RUST_LOG, JWT_EXPIRY_HOURS        | Defaults provided
 # 4. Database Pool  | POSTGRES_*, SQLX_*                           | PostgreSQL only
-# 5. Features       | PIERRE_*_ALGORITHM, FITNESS_*, CACHE_*, etc. | All optional
-# 6. Development    | OAUTH_DEFAULT_*, ADMIN_EMAIL/PASSWORD        | Dev/test scripts
-# 7. Frontend       | VITE_BACKEND_URL                             | start-frontend.sh
-# 8. Mobile         | EXPO_PUBLIC_API_URL                          | Mobile app
+# 5. Features       | FITNESS_*, CACHE_*, LLM, etc.                | All optional
+# 6. Development    | OAUTH_DEFAULT_*, ADMIN_EMAIL/PASSWORD         | Dev/test scripts
+# 7. Frontend       | VITE_BACKEND_URL, VITE_FIREBASE_*            | Web frontend
+# 8. Mobile         | EXPO_PUBLIC_API_URL, EXPO_PUBLIC_FIREBASE_*   | Mobile app
 #
 # Scripts will FAIL FAST if:
 #   - .envrc is missing
@@ -30,7 +30,83 @@
 # Full documentation: book/src/environment.md
 #
 # ============================================================================
-# PROVIDER CONFIGURATION - Pluggable Provider Architecture (Phase 1)
+# SERVER CONFIGURATION
+# ============================================================================
+
+# Server host and port
+export HOST="localhost"
+export HTTP_PORT="8081"
+export RUST_LOG="info"
+
+# Base URL for OAuth callbacks and external URLs
+# When using Cloudflare tunnels, set this to the tunnel URL
+export BASE_URL="http://localhost:8081"
+
+# Frontend URL for OAuth callback redirects (development uses separate Vite port)
+export FRONTEND_URL="http://localhost:5173"
+
+# ============================================================================
+# DATABASE CONFIGURATION
+# ============================================================================
+
+export DATABASE_URL="sqlite:./data/users.db"
+# For PostgreSQL: export DATABASE_URL="postgresql://user:pass@localhost/pierre_db"
+
+# Master Encryption Key for persistent two-tier key management
+# Generate with: openssl rand -base64 32
+export PIERRE_MASTER_ENCRYPTION_KEY="your-base64-encoded-master-key"
+
+# RSA Key Size for JWT signing (RS256)
+# Production: 4096 (higher security, slower ~10s key generation)
+# Testing: 2048 (faster ~250ms key generation, sufficient for dev/test)
+export PIERRE_RSA_KEY_SIZE="2048"  # Use 4096 for production
+
+# PostgreSQL Connection Pool Configuration (when using PostgreSQL)
+# These values are automatically optimized for CI vs production environments
+export POSTGRES_MAX_CONNECTIONS="10"     # Default: 10 (prod), 5 (CI)
+export POSTGRES_MIN_CONNECTIONS="0"      # Default: 0 (prod), 1 (CI)
+export POSTGRES_ACQUIRE_TIMEOUT="30"     # Default: 30 (prod), 30 (CI)
+# export POSTGRES_CONNECTION_RETRIES=""  # Default: from constants
+# export POSTGRES_INITIAL_RETRY_DELAY_MS=""  # Default: from constants
+# export POSTGRES_MAX_RETRY_DELAY_MS=""  # Default: from constants
+
+# SQLX Connection Pool Configuration
+# export SQLX_IDLE_TIMEOUT_SECS=""       # Default: 10 min (PostgreSQL)
+# export SQLX_MAX_LIFETIME_SECS=""       # Default: 30 min
+export SQLX_TEST_BEFORE_ACQUIRE="true"
+# export SQLX_STATEMENT_CACHE_CAPACITY=""  # Default: 100
+
+# Backup Configuration
+export BACKUP_ENABLED="true"
+export BACKUP_INTERVAL="21600"  # 6 hours in seconds
+export BACKUP_RETENTION="7"
+export BACKUP_DIRECTORY="./backups"
+
+# ============================================================================
+# SECURITY CONFIGURATION
+# ============================================================================
+
+export JWT_EXPIRY_HOURS="24"
+# export ENABLE_REFRESH_TOKENS="false"   # Enable JWT refresh tokens
+
+# Admin Token Cache Configuration
+# Cache validated admin tokens to reduce database lookups (seconds)
+export ADMIN_TOKEN_CACHE_TTL_SECS="300"  # Default: 300 (5 minutes)
+
+# CORS Configuration
+# export CORS_ORIGINS="*"                # Comma-separated allowed origins (legacy)
+# export CORS_ALLOWED_ORIGINS=""         # Comma-separated allowed origins
+# export CORS_ALLOW_LOCALHOST_DEV=""     # Allow localhost in development
+
+# Security Headers Environment: "development" or "production"
+# export SECURITY_HEADERS_ENV="development"
+
+# TLS Configuration (optional, for HTTPS)
+# export TLS_CERT_PATH="/path/to/cert.pem"
+# export TLS_KEY_PATH="/path/to/key.pem"
+
+# ============================================================================
+# PROVIDER CONFIGURATION - Pluggable Provider Architecture
 # ============================================================================
 
 # Default Provider
@@ -44,45 +120,55 @@ export PIERRE_DEFAULT_PROVIDER=strava
 # Strava Provider Configuration
 # ----------------------------------------------------------------------------
 # OAuth Credentials (required for Strava OAuth)
-export PIERRE_STRAVA_CLIENT_ID=your-strava-client-id
-export PIERRE_STRAVA_CLIENT_SECRET=your-strava-client-secret
-
-# Advanced: Override default Strava endpoints (optional)
-# Uncomment to customize for testing or proxy scenarios
-# export PIERRE_STRAVA_AUTH_URL=https://www.strava.com/oauth/authorize
-# export PIERRE_STRAVA_TOKEN_URL=https://www.strava.com/oauth/token
-# export PIERRE_STRAVA_API_BASE_URL=https://www.strava.com/api/v3
-# export PIERRE_STRAVA_REVOKE_URL=https://www.strava.com/oauth/deauthorize
-
-# Advanced: Override default scopes (optional)
-# export PIERRE_STRAVA_SCOPES="activity:read_all,profile:read_all"
-
-# Legacy Variables (backward compatible - will be used if PIERRE_* vars not set)
+# Code reads STRAVA_CLIENT_ID first, falls back to PIERRE_STRAVA_CLIENT_ID
 export STRAVA_CLIENT_ID=your-strava-client-id
 export STRAVA_CLIENT_SECRET=your-strava-client-secret
 export STRAVA_REDIRECT_URI=http://localhost:8081/api/oauth/callback/strava
+# export PIERRE_STRAVA_CLIENT_ID=your-strava-client-id  # Alternative prefix
+# export PIERRE_STRAVA_CLIENT_SECRET=your-strava-client-secret
+
+# Advanced: Override default scopes (optional)
+# export PIERRE_STRAVA_SCOPES="activity:read_all,profile:read_all"
+# export STRAVA_SCOPES="activity:read_all"
 
 # ----------------------------------------------------------------------------
 # Garmin Connect Provider Configuration
 # ----------------------------------------------------------------------------
 # OAuth Credentials (required for Garmin OAuth)
-export PIERRE_GARMIN_CLIENT_ID=your-garmin-consumer-key
-export PIERRE_GARMIN_CLIENT_SECRET=your-garmin-consumer-secret
-
-# Advanced: Override default Garmin endpoints (optional)
-# Uncomment to customize for testing or proxy scenarios
-# export PIERRE_GARMIN_AUTH_URL=https://connect.garmin.com/oauthConfirm
-# export PIERRE_GARMIN_TOKEN_URL=https://connectapi.garmin.com/oauth-service/oauth/access_token
-# export PIERRE_GARMIN_API_BASE_URL=https://apis.garmin.com/wellness-api/rest
-# export PIERRE_GARMIN_REVOKE_URL=https://connectapi.garmin.com/oauth-service/oauth/revoke
-
-# Advanced: Override default scopes (optional)
-# export PIERRE_GARMIN_SCOPES="wellness:read,activities:read"
-
-# Legacy Variables (backward compatible - will be used if PIERRE_* vars not set)
+# Code reads GARMIN_CLIENT_ID first, falls back to PIERRE_GARMIN_CLIENT_ID
 export GARMIN_CLIENT_ID=your-garmin-consumer-key
 export GARMIN_CLIENT_SECRET=your-garmin-consumer-secret
 export GARMIN_REDIRECT_URI=http://localhost:8081/api/oauth/callback/garmin
+# export PIERRE_GARMIN_CLIENT_ID=your-garmin-consumer-key  # Alternative prefix
+# export PIERRE_GARMIN_CLIENT_SECRET=your-garmin-consumer-secret
+# export PIERRE_GARMIN_SCOPES="wellness:read,activities:read"
+
+# ----------------------------------------------------------------------------
+# Fitbit Provider Configuration
+# ----------------------------------------------------------------------------
+# OAuth Credentials (required for Fitbit OAuth)
+# Code reads FITBIT_CLIENT_ID first, falls back to PIERRE_FITBIT_CLIENT_ID
+# export FITBIT_CLIENT_ID=your-fitbit-client-id
+# export FITBIT_CLIENT_SECRET=your-fitbit-client-secret
+# export FITBIT_REDIRECT_URI=http://localhost:8081/api/oauth/callback/fitbit
+# export PIERRE_FITBIT_CLIENT_ID=your-fitbit-client-id  # Alternative prefix
+# export PIERRE_FITBIT_CLIENT_SECRET=your-fitbit-client-secret
+# export PIERRE_FITBIT_SCOPES="activity profile sleep heartrate weight"
+
+# ----------------------------------------------------------------------------
+# WHOOP Provider Configuration
+# ----------------------------------------------------------------------------
+# export WHOOP_CLIENT_ID=your-whoop-client-id
+# export WHOOP_CLIENT_SECRET=your-whoop-client-secret
+# export WHOOP_REDIRECT_URI=http://localhost:8081/api/oauth/callback/whoop
+
+# ----------------------------------------------------------------------------
+# Terra Provider Configuration
+# ----------------------------------------------------------------------------
+# Terra uses dev_id/api_key instead of client_id/client_secret
+# export TERRA_DEV_ID=your-terra-dev-id
+# export TERRA_API_KEY=your-terra-api-key
+# export TERRA_REDIRECT_URI=http://localhost:8081/api/oauth/callback/terra
 
 # ----------------------------------------------------------------------------
 # Synthetic Provider Configuration
@@ -95,72 +181,275 @@ export GARMIN_REDIRECT_URI=http://localhost:8081/api/oauth/callback/garmin
 # After provider OAuth completes, server redirects to bridge callback server to trigger focus recovery
 export OAUTH_CALLBACK_PORT=35535
 
-# Weather Service Configuration
-export OPENWEATHER_API_KEY="your-openweathermap-api-key"
+# ============================================================================
+# FIREBASE / GOOGLE SIGN-IN CONFIGURATION
+# ============================================================================
 
-# ----------------------------------------------------------------------------
-# LLM Provider Configuration
-# ----------------------------------------------------------------------------
+# Backend Firebase Configuration
+# Firebase is auto-enabled when FIREBASE_PROJECT_ID is set
+# export FIREBASE_PROJECT_ID="your-firebase-project-id"
+# export FIREBASE_API_KEY="your-firebase-api-key"
+# export FIREBASE_ENABLED="true"         # Default: true (when PROJECT_ID set)
+# export FIREBASE_KEY_CACHE_TTL_SECS="3600"  # Public key cache TTL
+
+# Auto-approve new users (Firebase/Google Sign-In)
+# Set to true to automatically approve new users created via Google Sign-In
+# export AUTO_APPROVE_USERS="false"
+
+# Web Frontend Firebase Configuration (Vite uses VITE_ prefix)
+# export VITE_FIREBASE_API_KEY="your-firebase-api-key"
+# export VITE_FIREBASE_AUTH_DOMAIN="your-project.firebaseapp.com"
+# export VITE_FIREBASE_PROJECT_ID="your-firebase-project-id"
+# export VITE_FIREBASE_STORAGE_BUCKET="your-project.firebasestorage.app"
+# export VITE_FIREBASE_MESSAGING_SENDER_ID="your-sender-id"
+# export VITE_FIREBASE_APP_ID="your-app-id"
+
+# Mobile Firebase Configuration (Expo uses EXPO_PUBLIC_ prefix)
+# export EXPO_PUBLIC_FIREBASE_API_KEY="your-firebase-api-key"
+# export EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN="your-project.firebaseapp.com"
+# export EXPO_PUBLIC_FIREBASE_PROJECT_ID="your-firebase-project-id"
+# export EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET="your-project.firebasestorage.app"
+# export EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="your-sender-id"
+# export EXPO_PUBLIC_FIREBASE_APP_ID="your-app-id"
+
+# Google OAuth Client IDs for Mobile (from Google Cloud Console)
+# export EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID="your-web-client-id.apps.googleusercontent.com"
+# export EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID="your-ios-client-id.apps.googleusercontent.com"
+# export EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID="your-android-client-id.apps.googleusercontent.com"
+
+# ============================================================================
+# MOBILE APP CONFIGURATION
+# ============================================================================
+
+# Mobile API base URL (defaults to localhost in dev, set for physical device testing)
+# export EXPO_PUBLIC_API_URL="http://localhost:8081"
+
+# ============================================================================
+# OAUTH2 SERVER CONFIGURATION
+# ============================================================================
+
+# RFC 8414 issuer URL (must be HTTPS in production)
+# export OAUTH2_ISSUER_URL="http://localhost:8081"
+
+# ============================================================================
+# LLM PROVIDER CONFIGURATION
+# ============================================================================
 # Provider selection: gemini, groq, or local (Ollama)
 export PIERRE_LLM_PROVIDER=gemini
 
-# Gemini Configuration (when PIERRE_LLM_PROVIDER=gemini)
-export GEMINI_API_KEY="your-gemini-api-key"
+# Primary model and fallback
 export PIERRE_LLM_DEFAULT_MODEL=gemini-3-flash-preview
 export PIERRE_LLM_FALLBACK_MODEL=gemini-2.5-flash
+# export PIERRE_LLM_MODEL=gemini-2.5-flash          # Runtime model override
+# export PIERRE_LLM_FALLBACK_ENABLED="true"          # Enable fallback provider
+
+# Gemini Configuration (when PIERRE_LLM_PROVIDER=gemini)
+export GEMINI_API_KEY="your-gemini-api-key"
+# export GEMINI_MAX_RETRIES="3"                       # Default: 3
+# export GEMINI_INITIAL_RETRY_DELAY_MS="500"          # Default: 500
+# export GEMINI_MAX_RETRY_DELAY_MS="5000"             # Default: 5000
 
 # Groq Configuration (when PIERRE_LLM_PROVIDER=groq)
 export GROQ_API_KEY="your-groq-api-key"
 # export GROQ_DEFAULT_MODEL=llama-3.3-70b-versatile
 # export GROQ_FALLBACK_MODEL=llama-3.3-70b-versatile
+# export GROQ_MAX_RETRIES="3"                         # Default: 3
+# export GROQ_INITIAL_RETRY_DELAY_MS="500"            # Default: 500
+# export GROQ_MAX_RETRY_DELAY_MS="5000"               # Default: 5000
 
 # Local LLM Configuration (when PIERRE_LLM_PROVIDER=local)
 # export LOCAL_LLM_BASE_URL="http://localhost:11434/v1"
 # export LOCAL_LLM_MODEL="qwen2.5:14b-instruct"
 # export LOCAL_LLM_FALLBACK_MODEL="qwen2.5:14b-instruct"
+# export LOCAL_LLM_API_KEY=""                          # Optional (empty for local servers)
 
-# Server Configuration - Unified Single Port Architecture
-export HTTP_PORT="8081"
-export RUST_LOG="info"
+# ============================================================================
+# API PROVIDER CONFIGURATION
+# ============================================================================
 
-# Database Configuration
-export DATABASE_URL="sqlite:./data/users.db"
-# For PostgreSQL: export DATABASE_URL="postgresql://user:pass@localhost/pierre_db"
-export JWT_EXPIRY_HOURS="24"
+# Weather Service
+export OPENWEATHER_API_KEY="your-openweathermap-api-key"
+# export OPENWEATHER_BASE_URL="https://api.openweathermap.org/data/2.5"
+# export WEATHER_SERVICE_ENABLED="true"
 
-# Admin Token Cache Configuration
-# Cache validated admin tokens to reduce database lookups (seconds)
-export ADMIN_TOKEN_CACHE_TTL_SECS="300"  # Default: 300 (5 minutes)
+# Geocoding Service
+# export GEOCODING_BASE_URL="https://nominatim.openstreetmap.org"
+# export GEOCODING_SERVICE_ENABLED="true"
 
-# PostgreSQL Connection Pool Configuration (when using PostgreSQL)
-# These values are automatically optimized for CI vs production environments
-export POSTGRES_MAX_CONNECTIONS="10"     # Default: 10 (prod), 5 (CI)
-export POSTGRES_MIN_CONNECTIONS="0"      # Default: 0 (prod), 1 (CI)
-export POSTGRES_ACQUIRE_TIMEOUT="30"     # Default: 30 (prod), 30 (CI)
+# USDA FoodData Central API
+# export USDA_API_KEY="your-usda-api-key"
 
-# Master Encryption Key for persistent two-tier key management
-# Generate with: openssl rand -base64 32
-export PIERRE_MASTER_ENCRYPTION_KEY="your-base64-encoded-master-key"
+# ============================================================================
+# RATE LIMITING CONFIGURATION
+# ============================================================================
 
-# RSA Key Size for JWT signing (RS256)
-# Production: 4096 (higher security, slower ~10s key generation)
-# Testing: 2048 (faster ~250ms key generation, sufficient for dev/test)
-export PIERRE_RSA_KEY_SIZE="2048"  # Use 4096 for production
-
-# Rate Limiting Configuration (tier-based burst limits)
+# Tier-based burst limits
 export RATE_LIMIT_FREE_TIER_BURST="10"
 export RATE_LIMIT_PROFESSIONAL_BURST="50"
 export RATE_LIMIT_ENTERPRISE_BURST="100"
 
-# Backup Configuration
-export BACKUP_ENABLED="true"
-export BACKUP_INTERVAL="21600"  # 6 hours in seconds
-export BACKUP_RETENTION="7"
-export BACKUP_DIRECTORY="./backups"
+# OAuth Rate Limiting
+export OAUTH_AUTHORIZE_RATE_LIMIT_RPM="60"
+export OAUTH_TOKEN_RATE_LIMIT_RPM="30"
+export OAUTH_REGISTER_RATE_LIMIT_RPM="10"
+export OAUTH2_RATE_LIMIT_WINDOW_SECS="60"
+export RATE_LIMITER_CLEANUP_THRESHOLD="1000"
+export RATE_LIMITER_STALE_ENTRY_TIMEOUT_SECS="120"
+
+# Admin API Key Monthly Limit
+# export PIERRE_ADMIN_API_KEY_MONTHLY_LIMIT=""        # Default: from constants
+
+# ============================================================================
+# CACHE CONFIGURATION
+# ============================================================================
+
+# Cache TTL Configuration (seconds)
+export CACHE_TTL_PROFILE_SECS="86400"         # 24 hours - athlete profiles change infrequently
+export CACHE_TTL_ACTIVITY_LIST_SECS="900"     # 15 minutes - needs to be fresh for new activities
+export CACHE_TTL_ACTIVITY_SECS="3600"         # 1 hour - activity details rarely change
+export CACHE_TTL_STATS_SECS="21600"           # 6 hours - stats aggregate over time windows
+
+# Cache General Settings
+export CACHE_MAX_ENTRIES="10000"
+export CACHE_CLEANUP_INTERVAL_SECS="300"      # 5 minutes
+
+# Redis Connection Configuration (when using Redis cache)
+# export REDIS_URL="redis://localhost:6379"
+export REDIS_CONNECTION_TIMEOUT_SECS="10"
+export REDIS_RESPONSE_TIMEOUT_SECS="5"
+export REDIS_RECONNECTION_RETRIES="5"
+export REDIS_RETRY_EXPONENT_BASE="2"
+export REDIS_MAX_RETRY_DELAY_MS="30000"
+export REDIS_INITIAL_CONNECTION_RETRIES="3"
+export REDIS_INITIAL_RETRY_DELAY_MS="500"
+
+# ============================================================================
+# HTTP CLIENT CONFIGURATION
+# ============================================================================
+
+# HTTP Client Timeouts (seconds)
+export HTTP_CLIENT_TIMEOUT_SECS="30"
+export HTTP_CLIENT_CONNECT_TIMEOUT_SECS="10"
+export OAUTH_CLIENT_TIMEOUT_SECS="15"
+export OAUTH_CLIENT_CONNECT_TIMEOUT_SECS="5"
+export API_CLIENT_TIMEOUT_SECS="60"
+export API_CLIENT_CONNECT_TIMEOUT_SECS="10"
+export HEALTH_CHECK_TIMEOUT_SECS="5"
+export OAUTH_CALLBACK_NOTIFICATION_TIMEOUT_SECS="5"
+
+# HTTP Client Retry Configuration
+export HTTP_CLIENT_ENABLE_RETRIES="true"
+export HTTP_CLIENT_MAX_RETRIES="3"
+export HTTP_CLIENT_RETRY_BASE_DELAY_MS="100"
+export HTTP_CLIENT_RETRY_MAX_DELAY_MS="5000"
+export HTTP_CLIENT_RETRY_JITTER="true"
+
+# ============================================================================
+# SSE (SERVER-SENT EVENTS) CONFIGURATION
+# ============================================================================
+
+export SSE_CLEANUP_INTERVAL_SECS="300"        # 5 minutes
+export SSE_CONNECTION_TIMEOUT_SECS="600"      # 10 minutes
+export SSE_MAX_BUFFER_SIZE="1000"
+export SSE_BUFFER_OVERFLOW_STRATEGY="drop_oldest"  # Options: drop_oldest, drop_new, close_connection
+export SSE_BROADCAST_CHANNEL_SIZE="1000"
+export SSE_MAX_CONNECTIONS_PER_USER="5"
+export SESSION_COOKIE_MAX_AGE_SECS="86400"    # 24 hours
+export SESSION_COOKIE_SECURE="false"          # Set to true in production with HTTPS
+
+# ============================================================================
+# MCP SERVER CONFIGURATION
+# ============================================================================
+
+export MCP_PROTOCOL_VERSION="2025-06-18"
+export SERVER_NAME="pierre-mcp-server"
+export MCP_SESSION_CACHE_SIZE="100"
+export MCP_MAX_REQUEST_SIZE="1048576"         # 1MB
+export MCP_MAX_RESPONSE_SIZE="10485760"       # 10MB
+export MCP_NOTIFICATION_CHANNEL_SIZE="100"
+export MCP_WEBSOCKET_CHANNEL_CAPACITY="1000"
+export TCP_KEEP_ALIVE_SECS="60"
 
 # Activity Fetch Limits
 export MAX_ACTIVITIES_FETCH="100"
 export DEFAULT_ACTIVITIES_LIMIT="20"
+
+# ============================================================================
+# PROVIDER RATE LIMITS AND ACTIVITY SETTINGS
+# ============================================================================
+
+# Strava Provider Settings
+export STRAVA_DEFAULT_ACTIVITIES_PER_PAGE="30"
+export STRAVA_MAX_ACTIVITIES_PER_REQUEST="200"
+export STRAVA_RATE_LIMIT_15MIN="100"
+export STRAVA_RATE_LIMIT_DAILY="15000"
+
+# Fitbit Provider Settings
+export FITBIT_RATE_LIMIT_HOURLY="150"
+export FITBIT_RATE_LIMIT_DAILY="1000"
+
+# Garmin Provider Settings
+export GARMIN_DEFAULT_ACTIVITIES_PER_PAGE="20"
+export GARMIN_MAX_ACTIVITIES_PER_REQUEST="100"
+export GARMIN_MAX_REQUESTS_PER_HOUR="100"
+export GARMIN_MIN_LOGIN_INTERVAL_SECS="300"   # 5 minutes
+export GARMIN_RATE_LIMIT_BLOCK_DURATION_SECS="3600"  # 1 hour
+
+# ============================================================================
+# ROUTE TIMEOUT CONFIGURATION
+# ============================================================================
+
+export ROUTE_TIMEOUT_DATABASE_SECS="30"
+export ROUTE_TIMEOUT_PROVIDER_API_SECS="60"
+export ROUTE_TIMEOUT_SSE_EVENT_SECS="5"
+export ROUTE_TIMEOUT_OAUTH_SECS="15"
+export ROUTE_TIMEOUT_DEFAULT_SECS="30"
+export ROUTE_TIMEOUT_UPLOAD_SECS="300"
+export ROUTE_TIMEOUT_LONG_POLLING_SECS="300"
+export ROUTE_TIMEOUT_MCP_SAMPLING_SECS="30"
+export ROUTE_TIMEOUT_GEOCODING_SECS="10"
+
+# ============================================================================
+# SYSTEM MONITORING
+# ============================================================================
+
+export MONITORING_MEMORY_WARNING_THRESHOLD="80.0"   # Warn at 80% memory usage
+export MONITORING_DISK_WARNING_THRESHOLD="85.0"     # Warn at 85% disk usage
+
+# ============================================================================
+# LOGGING AND OBSERVABILITY
+# ============================================================================
+
+# Log level (overridden by RUST_LOG if set)
+# export LOG_LEVEL="info"
+
+# PII Redaction (all default to true/enabled)
+# export PIERRE_LOG_REDACT="true"            # Enable PII redaction
+# export PIERRE_LOG_REDACT_HEADERS="true"    # Redact headers
+# export PIERRE_LOG_REDACT_BODY="true"       # Redact body fields
+# export PIERRE_LOG_MASK_EMAILS="true"       # Mask email addresses
+# export PIERRE_REDACTION_PLACEHOLDER="[REDACTED]"
+
+# Debug Log Sampling
+# export PIERRE_LOG_SAMPLE_ENABLED="false"   # Enable debug log sampling
+# export PIERRE_LOG_SAMPLE_RATE_DEBUG="1.0"  # Sampling rate (0.0-1.0)
+
+# ============================================================================
+# TOOL SELECTION CONFIGURATION
+# ============================================================================
+
+# Global tool disabling - comma-separated list of tool names to disable globally
+# These tools will be hidden from ALL tenants regardless of plan or overrides
+# Use this for experimental features, tools under maintenance, or staged rollouts
+#
+# Example: Disable performance prediction and activity intelligence
+# export PIERRE_DISABLED_TOOLS="predict_performance,get_activity_intelligence"
+#
+# Tool enablement precedence (highest to lowest):
+# 1. PIERRE_DISABLED_TOOLS (global disable - this setting)
+# 2. Plan restrictions (tools require minimum tenant plan)
+# 3. Tenant overrides (admin-configured per-tenant settings)
+# 4. Catalog defaults (tool_catalog.is_enabled_by_default)
 
 # ============================================================================
 # FITNESS CONFIGURATION - Environment-Only (Cloud-Native Approach)
@@ -191,6 +480,113 @@ export FITNESS_WEATHER_RATE_LIMIT_PER_MINUTE="60"
 # Personal Records Configuration
 export FITNESS_PR_PACE_IMPROVEMENT_THRESHOLD="5.0"
 
+# Algorithm Selection
+# export PIERRE_TSS_ALGORITHM="avg_power"     # Options: avg_power, normalized_power, hybrid
+# export PIERRE_MAXHR_ALGORITHM="tanaka"      # Options: fox, tanaka, nes, gulati
+
+# ============================================================================
+# INTELLIGENCE ENGINE CONFIGURATION (crates/pierre-intelligence)
+# ============================================================================
+# All have sensible defaults from physiological constants. Override only if needed.
+
+# Recommendation Engine
+# export INTELLIGENCE_RECOMMENDATION_LOW_DISTANCE=""   # Low weekly distance km
+# export INTELLIGENCE_RECOMMENDATION_HIGH_DISTANCE=""  # High weekly distance km
+
+# Weather Analysis
+# export INTELLIGENCE_WEATHER_IDEAL_MIN_TEMP=""  # Ideal min temp (Celsius)
+# export INTELLIGENCE_WEATHER_IDEAL_MAX_TEMP=""  # Ideal max temp (Celsius)
+
+# Sleep Duration Thresholds
+# export INTELLIGENCE_SLEEP_ADULT_MIN_HOURS=""
+# export INTELLIGENCE_SLEEP_ADULT_MAX_HOURS=""
+# export INTELLIGENCE_SLEEP_ATHLETE_OPTIMAL_HOURS=""
+# export INTELLIGENCE_SLEEP_ATHLETE_MIN_HOURS=""
+
+# Sleep Stages (percentage thresholds)
+# export INTELLIGENCE_SLEEP_DEEP_MIN_PERCENT=""
+# export INTELLIGENCE_SLEEP_DEEP_MAX_PERCENT=""
+# export INTELLIGENCE_SLEEP_REM_MIN_PERCENT=""
+# export INTELLIGENCE_SLEEP_REM_MAX_PERCENT=""
+
+# Sleep Efficiency Thresholds
+# export INTELLIGENCE_SLEEP_EFFICIENCY_EXCELLENT=""
+# export INTELLIGENCE_SLEEP_EFFICIENCY_GOOD=""
+# export INTELLIGENCE_SLEEP_EFFICIENCY_POOR=""
+
+# HRV Thresholds
+# export INTELLIGENCE_HRV_RMSSD_DECREASE_CONCERN=""
+# export INTELLIGENCE_HRV_RMSSD_INCREASE_GOOD=""
+# export INTELLIGENCE_HRV_BASELINE_DEVIATION_CONCERN=""
+
+# Training Stress Balance (TSB)
+# export INTELLIGENCE_TSB_HIGHLY_FATIGUED=""
+# export INTELLIGENCE_TSB_FATIGUED=""
+# export INTELLIGENCE_TSB_FRESH_MIN=""
+# export INTELLIGENCE_TSB_FRESH_MAX=""
+# export INTELLIGENCE_TSB_DETRAINING=""
+
+# Recovery Scoring
+# export INTELLIGENCE_RECOVERY_EXCELLENT_THRESHOLD=""
+# export INTELLIGENCE_RECOVERY_GOOD_THRESHOLD=""
+# export INTELLIGENCE_RECOVERY_FAIR_THRESHOLD=""
+# export INTELLIGENCE_RECOVERY_TSB_WEIGHT_FULL=""    # Must sum to 1.0 with sleep+hrv
+# export INTELLIGENCE_RECOVERY_SLEEP_WEIGHT_FULL=""
+# export INTELLIGENCE_RECOVERY_HRV_WEIGHT_FULL=""
+
+# Training Zones - VDOT (percentage of VDOT pace)
+# export TRAINING_ZONES_VDOT_EASY_PERCENT=""
+# export TRAINING_ZONES_VDOT_TEMPO_PERCENT=""
+# export TRAINING_ZONES_VDOT_THRESHOLD_PERCENT=""
+# export TRAINING_ZONES_VDOT_INTERVAL_PERCENT=""
+# export TRAINING_ZONES_VDOT_REPETITION_PERCENT=""
+
+# Training Zones - FTP (percentage of FTP)
+# export TRAINING_ZONES_FTP_ZONE1_PERCENT=""   # Active Recovery
+# export TRAINING_ZONES_FTP_ZONE2_PERCENT=""   # Endurance
+# export TRAINING_ZONES_FTP_ZONE3_PERCENT=""   # Tempo
+# export TRAINING_ZONES_FTP_ZONE4_PERCENT=""   # Lactate Threshold
+# export TRAINING_ZONES_FTP_ZONE5_PERCENT=""   # VO2 Max
+
+# Safe Limits (max items returned in responses)
+# export SAFE_LIMIT_TOON_SUMMARY="200"
+# export SAFE_LIMIT_TOON_DETAILED="25"
+# export SAFE_LIMIT_JSON_SUMMARY="20"
+# export SAFE_LIMIT_JSON_DETAILED="10"
+
+# ============================================================================
+# SLEEP RECOVERY TOOL CONFIGURATION
+# ============================================================================
+# All have sensible defaults from constants. Override only if needed.
+
+# export SLEEP_RECOVERY_ACTIVITY_LIMIT=""
+# export SLEEP_RECOVERY_TREND_MIN_DAYS=""
+# export SLEEP_RECOVERY_TREND_IMPROVING_THRESHOLD=""
+# export SLEEP_RECOVERY_TREND_DECLINING_THRESHOLD=""
+# export SLEEP_RECOVERY_FATIGUE_BONUS_HOURS=""
+# export SLEEP_RECOVERY_HIGH_LOAD_ATL_THRESHOLD=""
+# export SLEEP_RECOVERY_HIGH_LOAD_BONUS_HOURS=""
+# export SLEEP_RECOVERY_WIND_DOWN_MINUTES=""
+# export SLEEP_RECOVERY_MINUTES_PER_DAY=""
+
+# ============================================================================
+# GOAL MANAGEMENT CONFIGURATION
+# ============================================================================
+# All have sensible defaults from constants. Override only if needed.
+
+# export GOAL_MANAGEMENT_MIN_ACTIVITIES=""
+# export GOAL_MANAGEMENT_ADVANCED_ACTIVITIES_PER_WEEK=""
+# export GOAL_MANAGEMENT_ADVANCED_MIN_WEEKS=""
+# export GOAL_MANAGEMENT_INTERMEDIATE_ACTIVITIES_PER_WEEK=""
+# export GOAL_MANAGEMENT_INTERMEDIATE_MIN_WEEKS=""
+# export GOAL_MANAGEMENT_DEFAULT_TIME_AVAILABILITY_HOURS=""
+# export GOAL_MANAGEMENT_DEFAULT_DURATION_MINUTES=""
+# export GOAL_MANAGEMENT_DAYS_PER_MONTH=""
+
+# ============================================================================
+# DEVELOPMENT / TESTING
+# ============================================================================
+
 # OAuth Login Form Defaults (for dev/test only - leave empty in production)
 export OAUTH_DEFAULT_EMAIL="user@example.com"
 export OAUTH_DEFAULT_PASSWORD="userpass123"
@@ -200,180 +596,6 @@ export ADMIN_EMAIL="admin@pierre.mcp"
 export ADMIN_PASSWORD="adminpass123"
 
 # ============================================================================
-# CACHE CONFIGURATION
-# ============================================================================
-
-# Cache TTL Configuration (seconds)
-export CACHE_TTL_PROFILE_SECS="86400"         # 24 hours - athlete profiles change infrequently
-export CACHE_TTL_ACTIVITY_LIST_SECS="900"     # 15 minutes - needs to be fresh for new activities
-export CACHE_TTL_ACTIVITY_SECS="3600"         # 1 hour - activity details rarely change
-export CACHE_TTL_STATS_SECS="21600"           # 6 hours - stats aggregate over time windows
-
-# Cache General Settings
-export CACHE_MAX_ENTRIES="10000"
-export CACHE_CLEANUP_INTERVAL_SECS="300"      # 5 minutes
-
-# Redis Connection Configuration (when using Redis cache)
-# export REDIS_URL="redis://localhost:6379"
-export REDIS_CONNECTION_TIMEOUT_SECS="10"
-export REDIS_RESPONSE_TIMEOUT_SECS="5"
-export REDIS_RECONNECTION_RETRIES="5"
-export REDIS_RETRY_EXPONENT_BASE="2"
-export REDIS_MAX_RETRY_DELAY_MS="30000"
-export REDIS_INITIAL_CONNECTION_RETRIES="3"
-export REDIS_INITIAL_RETRY_DELAY_MS="500"
-
-# ============================================================================
-# TOOL SELECTION CONFIGURATION
-# ============================================================================
-
-# Global tool disabling - comma-separated list of tool names to disable globally
-# These tools will be hidden from ALL tenants regardless of plan or overrides
-# Use this for experimental features, tools under maintenance, or staged rollouts
-#
-# Example: Disable performance prediction and activity intelligence
-# export PIERRE_DISABLED_TOOLS="predict_performance,get_activity_intelligence"
-#
-# Common use cases:
-# - Disable beta features: export PIERRE_DISABLED_TOOLS="experimental_feature"
-# - Maintenance mode: export PIERRE_DISABLED_TOOLS="connect_provider"
-# - Staged rollout: Start with all advanced tools disabled, enable gradually
-#
-# Tool enablement precedence (highest to lowest):
-# 1. PIERRE_DISABLED_TOOLS (global disable - this setting)
-# 2. Plan restrictions (tools require minimum tenant plan)
-# 3. Tenant overrides (admin-configured per-tenant settings)
-# 4. Catalog defaults (tool_catalog.is_enabled_by_default)
-#
-# Leave empty or unset to allow all tools based on plan and overrides
-# export PIERRE_DISABLED_TOOLS=""
-
-# ============================================================================
-# HTTP CLIENT CONFIGURATION
-# ============================================================================
-
-# HTTP Client Timeouts (seconds)
-export HTTP_CLIENT_TIMEOUT_SECS="30"
-export HTTP_CLIENT_CONNECT_TIMEOUT_SECS="10"
-export OAUTH_CLIENT_TIMEOUT_SECS="15"
-export OAUTH_CLIENT_CONNECT_TIMEOUT_SECS="5"
-export API_CLIENT_TIMEOUT_SECS="60"
-export API_CLIENT_CONNECT_TIMEOUT_SECS="10"
-export HEALTH_CHECK_TIMEOUT_SECS="5"
-export OAUTH_CALLBACK_NOTIFICATION_TIMEOUT_SECS="5"
-
-# HTTP Client Retry Configuration
-export HTTP_CLIENT_ENABLE_RETRIES="true"
-export HTTP_CLIENT_MAX_RETRIES="3"
-export HTTP_CLIENT_RETRY_BASE_DELAY_MS="100"
-export HTTP_CLIENT_RETRY_MAX_DELAY_MS="5000"
-export HTTP_CLIENT_RETRY_JITTER_ENABLED="true"
-
-# ============================================================================
-# PROVIDER RETRY CONFIGURATION - Exponential Backoff
-# ============================================================================
-# These settings control retry behavior for provider API calls (Strava, Garmin, etc.)
-# Uses exponential backoff with jitter to prevent thundering herd problems.
-
-# Maximum retry attempts (not counting initial attempt)
-# Valid range: 1-100, Default: 3
-export PIERRE_RETRY_MAX_ATTEMPTS="3"
-
-# Base delay for exponential backoff (milliseconds)
-# Delay doubles with each retry: 1000ms, 2000ms, 4000ms...
-# Valid range: 100-300000, Default: 1000
-export PIERRE_RETRY_BASE_DELAY_MS="1000"
-
-# Maximum delay between retries (milliseconds)
-# Caps the exponential growth to prevent excessive waits
-# Valid range: 1000-600000, Default: 30000
-export PIERRE_RETRY_MAX_DELAY_MS="30000"
-
-# Jitter factor (0.0 to 1.0) to randomize delays
-# Prevents synchronized retries across multiple clients
-# Valid range: 0.0-1.0, Default: 0.1
-export PIERRE_RETRY_JITTER_FACTOR="0.1"
-
-# ============================================================================
-# SSE (SERVER-SENT EVENTS) CONFIGURATION
-# ============================================================================
-
-export SSE_CLEANUP_INTERVAL_SECS="300"        # 5 minutes
-export SSE_CONNECTION_TIMEOUT_SECS="600"      # 10 minutes
-export SSE_MAX_BUFFER_SIZE="1000"
-export SSE_BUFFER_OVERFLOW_STRATEGY="drop_oldest"  # Options: drop_oldest, drop_new, close_connection
-export SSE_BROADCAST_CHANNEL_SIZE="1000"
-export SSE_MAX_CONNECTIONS_PER_USER="5"
-export SESSION_COOKIE_MAX_AGE_SECS="86400"    # 24 hours
-export SESSION_COOKIE_SECURE="false"          # Set to true in production with HTTPS
-
-# ============================================================================
-# MCP SERVER CONFIGURATION
-# ============================================================================
-
-export MCP_PROTOCOL_VERSION="2025-06-18"
-export SERVER_NAME="pierre-mcp-server"
-export MCP_SESSION_CACHE_SIZE="100"
-export MCP_MAX_REQUEST_SIZE="1048576"         # 1MB
-export MCP_MAX_RESPONSE_SIZE="10485760"       # 10MB
-export MCP_NOTIFICATION_CHANNEL_SIZE="100"
-export MCP_WEBSOCKET_CHANNEL_CAPACITY="1000"
-export TCP_KEEP_ALIVE_SECS="60"
-
-# ============================================================================
-# PROVIDER RATE LIMITS AND ACTIVITY SETTINGS
-# ============================================================================
-
-# Strava Provider Settings
-export STRAVA_DEFAULT_ACTIVITIES_PER_PAGE="30"
-export STRAVA_MAX_ACTIVITIES_PER_REQUEST="200"
-export STRAVA_RATE_LIMIT_15MIN="100"
-export STRAVA_RATE_LIMIT_DAILY="15000"
-
-# Fitbit Provider Settings
-export FITBIT_RATE_LIMIT_HOURLY="150"
-export FITBIT_RATE_LIMIT_DAILY="1000"
-
-# Garmin Provider Settings
-export GARMIN_DEFAULT_ACTIVITIES_PER_PAGE="20"
-export GARMIN_MAX_ACTIVITIES_PER_REQUEST="100"
-export GARMIN_MAX_REQUESTS_PER_HOUR="100"
-export GARMIN_MIN_LOGIN_INTERVAL_SECS="300"   # 5 minutes
-export GARMIN_RATE_LIMIT_BLOCK_DURATION_SECS="3600"  # 1 hour
-
-# ============================================================================
-# OAUTH RATE LIMITING
-# ============================================================================
-
-export OAUTH_AUTHORIZE_RATE_LIMIT_RPM="60"
-export OAUTH_TOKEN_RATE_LIMIT_RPM="30"
-export OAUTH_REGISTER_RATE_LIMIT_RPM="10"
-export OAUTH2_RATE_LIMIT_WINDOW_SECS="60"
-export RATE_LIMITER_CLEANUP_THRESHOLD="1000"
-export RATE_LIMITER_STALE_ENTRY_TIMEOUT_SECS="120"
-
-# ============================================================================
-# SYSTEM MONITORING
-# ============================================================================
-
-export MONITORING_MEMORY_WARNING_THRESHOLD="80.0"   # Warn at 80% memory usage
-export MONITORING_DISK_WARNING_THRESHOLD="85.0"     # Warn at 85% disk usage
-
-# ============================================================================
-# ROUTE TIMEOUT CONFIGURATION
-# ============================================================================
-
-export ROUTE_TIMEOUT_DATABASE_SECS="30"
-export ROUTE_TIMEOUT_PROVIDER_API_SECS="60"
-export ROUTE_TIMEOUT_SSE_EVENT_SECS="5"
-export ROUTE_TIMEOUT_OAUTH_SECS="15"
-export ROUTE_TIMEOUT_DEFAULT_SECS="30"
-export ROUTE_TIMEOUT_UPLOAD_SECS="300"
-export ROUTE_TIMEOUT_LONG_POLLING_SECS="300"
-export ROUTE_TIMEOUT_MCP_SAMPLING_SECS="30"
-export ROUTE_TIMEOUT_GEOCODING_SECS="10"
-
-# ============================================================================
 # TOKIO RUNTIME CONFIGURATION
 # ============================================================================
 
@@ -381,12 +603,3 @@ export ROUTE_TIMEOUT_GEOCODING_SECS="10"
 # export TOKIO_WORKER_THREADS=""               # Default: CPU count
 # export TOKIO_THREAD_STACK_SIZE=""            # Default: ~2MB
 export TOKIO_THREAD_NAME="pierre-worker"
-
-# ============================================================================
-# SQLX CONNECTION POOL CONFIGURATION
-# ============================================================================
-
-# export SQLX_IDLE_TIMEOUT_SECS=""             # Default: 10 min (PostgreSQL)
-# export SQLX_MAX_LIFETIME_SECS=""             # Default: 30 min
-export SQLX_TEST_BEFORE_ACQUIRE="true"
-# export SQLX_STATEMENT_CACHE_CAPACITY=""      # Default: 100
