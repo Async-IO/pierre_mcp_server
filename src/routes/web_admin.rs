@@ -934,42 +934,31 @@ impl WebAdminRoutes {
     }
 
     /// Handle password reset via web admin
+    ///
+    /// Issues a one-time reset token instead of returning a temporary password.
+    /// The admin delivers the token to the user, who calls `POST /api/auth/complete-reset`
+    /// with the token and their chosen new password. Token expires after 1 hour.
     async fn handle_reset_user_password(
         State(resources): State<Arc<ServerResources>>,
         headers: HeaderMap,
         Path(user_id): Path<String>,
     ) -> Result<Response, AppError> {
+        use rand::distributions::Alphanumeric;
+        use rand::Rng;
+        use sha2::{Digest, Sha256};
+
         let auth = Self::authenticate_admin(&headers, &resources).await?;
 
         info!(
             admin_id = %auth.user_id,
             target_user_id = %user_id,
-            "Web admin resetting user password"
+            "Web admin issuing password reset token"
         );
 
-        let user_uuid = uuid::Uuid::parse_str(&user_id)
+        let user_uuid = Uuid::parse_str(&user_id)
             .map_err(|e| AppError::invalid_input(format!("Invalid user ID format: {e}")))?;
 
-        // Generate temporary password
-        let temp_password: String = (0..16)
-            .map(|_| {
-                let chars = b"ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%";
-                chars[rand::random::<usize>() % chars.len()] as char
-            })
-            .collect();
-
-        // Hash the password
-        let password_hash = bcrypt::hash(&temp_password, bcrypt::DEFAULT_COST)
-            .map_err(|e| AppError::internal(format!("Failed to hash password: {e}")))?;
-
-        // Update user's password
-        resources
-            .database
-            .update_user_password(user_uuid, &password_hash)
-            .await
-            .map_err(|e| AppError::internal(format!("Failed to update password: {e}")))?;
-
-        // Get user email for response
+        // Verify user exists and get email for response
         let user = resources
             .database
             .get_user(user_uuid)
@@ -977,15 +966,39 @@ impl WebAdminRoutes {
             .map_err(|e| AppError::internal(format!("Failed to fetch user: {e}")))?
             .ok_or_else(|| AppError::not_found("User not found"))?;
 
+        // Generate a cryptographically random reset token (48 chars alphanumeric)
+        let raw_token: String = rand::thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(48)
+            .map(char::from)
+            .collect();
+
+        // Store only the SHA-256 hash of the token in the database
+        let token_hash = format!("{:x}", Sha256::digest(raw_token.as_bytes()));
+
+        let admin_id_str = auth.user_id.to_string();
+        resources
+            .database
+            .store_password_reset_token(user_uuid, &token_hash, &admin_id_str)
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to create reset token: {e}")))?;
+
+        info!(
+            admin_id = %auth.user_id,
+            target_user_id = %user_id,
+            "Password reset token issued via web admin"
+        );
+
         Ok((
             StatusCode::OK,
             Json(serde_json::json!({
                 "success": true,
-                "message": "Password reset successfully",
+                "message": "Password reset token issued",
                 "data": {
-                    "temporary_password": temp_password,
-                    "expires_at": (chrono::Utc::now() + chrono::Duration::hours(24)).to_rfc3339(),
-                    "user_email": user.email
+                    "reset_token": raw_token,
+                    "expires_in_seconds": 3600,
+                    "user_email": user.email,
+                    "note": "Deliver this token to the user. They must call POST /api/auth/complete-reset with the token and their new password within 1 hour."
                 }
             })),
         )

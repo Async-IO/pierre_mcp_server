@@ -16,11 +16,11 @@
 mod types;
 
 pub use types::{
-    ChangePasswordRequest, ConnectionStatus, FirebaseLoginRequest, LoginRequest, LoginResponse,
-    OAuth2ErrorResponse, OAuth2TokenRequest, OAuth2TokenResponse, OAuthAuthorizationResponse,
-    OAuthStatus, ProviderStatus, ProvidersStatusResponse, RefreshTokenRequest, RegisterRequest,
-    RegisterResponse, SessionResponse, UpdateProfileRequest, UpdateProfileResponse, UserInfo,
-    UserStatsResponse,
+    ChangePasswordRequest, CompleteResetRequest, ConnectionStatus, FirebaseLoginRequest,
+    LoginRequest, LoginResponse, OAuth2ErrorResponse, OAuth2TokenRequest, OAuth2TokenResponse,
+    OAuthAuthorizationResponse, OAuthStatus, ProviderStatus, ProvidersStatusResponse,
+    RefreshTokenRequest, RegisterRequest, RegisterResponse, SessionResponse, UpdateProfileRequest,
+    UpdateProfileResponse, UserInfo, UserStatsResponse,
 };
 
 // Re-export OAuthCallbackResponse from types module (moved for proper layering)
@@ -1515,6 +1515,10 @@ impl AuthRoutes {
                 "/api/user/change-password",
                 put(Self::handle_change_password),
             )
+            .route(
+                "/api/auth/complete-reset",
+                post(Self::handle_complete_reset),
+            )
             .route("/api/user/stats", get(Self::handle_user_stats))
             // OAuth2 ROPC endpoint (RFC 6749 Section 4.3) - unified login for all clients
             .route("/oauth/token", post(Self::handle_oauth2_token))
@@ -2031,6 +2035,69 @@ impl AuthRoutes {
         Ok((
             StatusCode::OK,
             Json(json!({ "message": "Password changed successfully" })),
+        )
+            .into_response())
+    }
+
+    /// Complete a password reset using a one-time token
+    ///
+    /// Public endpoint — no authentication required. The reset token acts as proof
+    /// of authorization (issued by an admin). The user provides the token and their
+    /// chosen new password. The token is consumed atomically to prevent replay.
+    #[tracing::instrument(skip(resources, request), fields(route = "complete_reset"))]
+    async fn handle_complete_reset(
+        State(resources): State<Arc<ServerResources>>,
+        Json(request): Json<CompleteResetRequest>,
+    ) -> Result<Response, AppError> {
+        use sha2::{Digest, Sha256};
+
+        // Validate new password strength
+        if !AuthService::is_valid_password(&request.new_password) {
+            return Err(AppError::invalid_input(error_messages::PASSWORD_TOO_WEAK));
+        }
+
+        // Hash the presented token to match against stored hash
+        let token_hash = format!("{:x}", Sha256::digest(request.reset_token.as_bytes()));
+
+        // Atomically consume the token (validates existence, expiry, and single-use)
+        let user_id = resources
+            .database
+            .consume_password_reset_token(&token_hash)
+            .await?;
+
+        // Hash the new password using spawn_blocking to avoid blocking async executor
+        let password_to_hash = request.new_password;
+        let password_hash =
+            task::spawn_blocking(move || bcrypt::hash(&password_to_hash, bcrypt::DEFAULT_COST))
+                .await
+                .map_err(|e| AppError::internal(format!("Password hashing task failed: {e}")))?
+                .map_err(|e| AppError::internal(format!("Password hashing failed: {e}")))?;
+
+        // Update the user's password
+        resources
+            .database
+            .update_user_password(user_id, &password_hash)
+            .await
+            .map_err(|e| {
+                error!(error = %e, "Failed to update user password during reset");
+                AppError::internal(format!("Failed to update password: {e}"))
+            })?;
+
+        // Invalidate any other outstanding reset tokens for this user
+        resources
+            .database
+            .invalidate_user_reset_tokens(user_id)
+            .await
+            .map_err(|e| {
+                warn!(error = %e, "Failed to invalidate remaining reset tokens");
+                AppError::internal(format!("Failed to cleanup reset tokens: {e}"))
+            })?;
+
+        info!(user_id = %user_id, "Password reset completed via one-time token");
+
+        Ok((
+            StatusCode::OK,
+            Json(json!({ "message": "Password has been reset successfully" })),
         )
             .into_response())
     }

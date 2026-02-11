@@ -1224,4 +1224,29 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         user_id: &str,
         tenant_id: &str,
     ) -> AppResult<i64>;
+
+    // ================================
+    // Password Reset Tokens
+    // ================================
+
+    /// Store a password reset token (hashed) for a user
+    ///
+    /// Returns the token ID. The raw token is never stored — only its SHA-256 hash.
+    async fn store_password_reset_token(
+        &self,
+        user_id: Uuid,
+        token_hash: &str,
+        created_by: &str,
+    ) -> AppResult<Uuid>;
+
+    /// Consume a password reset token by its hash
+    ///
+    /// Returns the `user_id` if the token is valid (exists, not expired, not used).
+    /// Marks the token as used atomically.
+    async fn consume_password_reset_token(&self, token_hash: &str) -> AppResult<Uuid>;
+
+    /// Invalidate all unused reset tokens for a user
+    ///
+    /// Called after a successful password change to prevent stale tokens from being used.
+    async fn invalidate_user_reset_tokens(&self, user_id: Uuid) -> AppResult<()>;
 }

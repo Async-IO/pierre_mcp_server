@@ -117,15 +117,16 @@ impl TokenEfficiencyMetrics {
             .map(|s| s.len())
             .unwrap_or(byte_size);
 
-        let (token_savings_percent, compression_ratio) = if json_equivalent_size > 0 {
-            let ratio = json_equivalent_size as f64 / byte_size as f64;
-            let savings = ((json_equivalent_size as f64 - byte_size as f64)
-                / json_equivalent_size as f64)
-                * 100.0;
-            (savings.max(0.0), ratio)
-        } else {
-            (0.0, 1.0)
-        };
+        let (token_savings_percent, compression_ratio) =
+            if json_equivalent_size > 0 && byte_size > 0 {
+                let ratio = json_equivalent_size as f64 / byte_size as f64;
+                let savings = ((json_equivalent_size as f64 - byte_size as f64)
+                    / json_equivalent_size as f64)
+                    * 100.0;
+                (savings.max(0.0), ratio)
+            } else {
+                (0.0, 1.0)
+            };
 
         Self {
             format_used: output.format.as_str().to_owned(),

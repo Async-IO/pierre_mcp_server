@@ -315,13 +315,10 @@ impl UsdaClient {
             .map_err(|e| AppError::external_service("USDA API", e.to_string()))?;
 
         if !response.status().is_success() {
+            let status = response.status();
             return Err(AppError::external_service(
                 "USDA API",
-                format!(
-                    "HTTP {}: {}",
-                    response.status(),
-                    response.text().await.unwrap_or_default()
-                ),
+                format!("Food search request failed with HTTP {status}"),
             ));
         }
 
@@ -391,13 +388,10 @@ impl UsdaClient {
             .map_err(|e| AppError::external_service("USDA API", e.to_string()))?;
 
         if !response.status().is_success() {
+            let status = response.status();
             return Err(AppError::external_service(
                 "USDA API",
-                format!(
-                    "HTTP {}: {}",
-                    response.status(),
-                    response.text().await.unwrap_or_default()
-                ),
+                format!("Food details request failed with HTTP {status}"),
             ));
         }
 

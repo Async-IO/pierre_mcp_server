@@ -7026,6 +7026,88 @@ impl DatabaseProvider for PostgresDatabase {
         #[allow(clippy::cast_possible_wrap)]
         Ok(result.rows_affected() as i64)
     }
+
+    async fn store_password_reset_token(
+        &self,
+        user_id: Uuid,
+        token_hash: &str,
+        created_by: &str,
+    ) -> AppResult<Uuid> {
+        let id = Uuid::new_v4();
+        let now = Utc::now();
+        let expires_at = now + chrono::Duration::hours(1);
+
+        sqlx::query(
+            r"
+            INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, created_by, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            ",
+        )
+        .bind(id.to_string())
+        .bind(user_id.to_string())
+        .bind(token_hash)
+        .bind(expires_at.to_rfc3339())
+        .bind(created_by)
+        .bind(now.to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to store password reset token: {e}")))?;
+
+        Ok(id)
+    }
+
+    async fn consume_password_reset_token(&self, token_hash: &str) -> AppResult<Uuid> {
+        let now = Utc::now().to_rfc3339();
+
+        let row = sqlx::query(
+            r"
+            UPDATE password_reset_tokens
+            SET used_at = $1
+            WHERE token_hash = $2
+              AND used_at IS NULL
+              AND expires_at > $1
+            RETURNING user_id
+            ",
+        )
+        .bind(&now)
+        .bind(token_hash)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to consume reset token: {e}")))?;
+
+        row.map_or_else(
+            || {
+                Err(AppError::not_found(
+                    "Password reset token is invalid, expired, or already used",
+                ))
+            },
+            |row| {
+                let user_id_str: String = row.get("user_id");
+                Uuid::parse_str(&user_id_str)
+                    .map_err(|e| AppError::internal(format!("Invalid user_id in reset token: {e}")))
+            },
+        )
+    }
+
+    async fn invalidate_user_reset_tokens(&self, user_id: Uuid) -> AppResult<()> {
+        let now = Utc::now().to_rfc3339();
+
+        sqlx::query(
+            r"
+            UPDATE password_reset_tokens
+            SET used_at = $1
+            WHERE user_id = $2
+              AND used_at IS NULL
+            ",
+        )
+        .bind(&now)
+        .bind(user_id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to invalidate reset tokens: {e}")))?;
+
+        Ok(())
+    }
 }
 
 impl PostgresDatabase {

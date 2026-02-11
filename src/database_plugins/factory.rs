@@ -3021,6 +3021,41 @@ impl DatabaseProvider for Database {
             }
         }
     }
+
+    async fn store_password_reset_token(
+        &self,
+        user_id: uuid::Uuid,
+        token_hash: &str,
+        created_by: &str,
+    ) -> AppResult<uuid::Uuid> {
+        match self {
+            Self::SQLite(db) => {
+                db.store_password_reset_token_impl(user_id, token_hash, created_by)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.store_password_reset_token(user_id, token_hash, created_by)
+                    .await
+            }
+        }
+    }
+
+    async fn consume_password_reset_token(&self, token_hash: &str) -> AppResult<uuid::Uuid> {
+        match self {
+            Self::SQLite(db) => db.consume_password_reset_token_impl(token_hash).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.consume_password_reset_token(token_hash).await,
+        }
+    }
+
+    async fn invalidate_user_reset_tokens(&self, user_id: uuid::Uuid) -> AppResult<()> {
+        match self {
+            Self::SQLite(db) => db.invalidate_user_reset_tokens_impl(user_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.invalidate_user_reset_tokens(user_id).await,
+        }
+    }
 }
 
 // Implement HasEncryption for the factory Database enum

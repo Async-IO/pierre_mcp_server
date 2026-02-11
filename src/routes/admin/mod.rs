@@ -1415,13 +1415,17 @@ impl AdminRoutes {
 
     /// Handle password reset for a user (admin only)
     ///
-    /// Generates a temporary password and updates the user's password hash.
-    /// The temporary password is returned to the admin for secure delivery to the user.
+    /// Issues a one-time reset token instead of a temporary password. The admin
+    /// delivers the token to the user, who then calls `POST /api/auth/complete-reset`
+    /// with the token and their chosen new password. The token expires after 1 hour
+    /// and can only be used once.
     async fn handle_reset_user_password(
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
         Path(user_id): Path<String>,
     ) -> AppResult<impl IntoResponse> {
+        use sha2::{Digest, Sha256};
+
         if !admin_token
             .permissions
             .has_permission(&AdminPerm::ManageUsers)
@@ -1437,7 +1441,7 @@ impl AdminRoutes {
         }
 
         info!(
-            "Resetting password for user {} by service: {}",
+            "Issuing password reset token for user {} by service: {}",
             user_id, admin_token.service_name
         );
 
@@ -1461,43 +1465,40 @@ impl AdminRoutes {
                 AppError::not_found("User not found")
             })?;
 
-        // Generate temporary password (16 chars alphanumeric)
-        let temp_password: String = rand::thread_rng()
+        // Generate a cryptographically random reset token (32 bytes, base64url-encoded)
+        let raw_token: String = rand::thread_rng()
             .sample_iter(&Alphanumeric)
-            .take(16)
+            .take(48)
             .map(char::from)
             .collect();
 
-        // Hash the password
-        let password_hash = bcrypt::hash(&temp_password, bcrypt::DEFAULT_COST).map_err(|e| {
-            error!("Failed to hash password: {}", e);
-            AppError::internal("Failed to process password")
-        })?;
+        // Store only the SHA-256 hash of the token in the database
+        let token_hash = format!("{:x}", Sha256::digest(raw_token.as_bytes()));
 
-        // Update user's password
         ctx.database
-            .update_user_password(user_uuid, &password_hash)
+            .store_password_reset_token(user_uuid, &token_hash, &admin_token.service_name)
             .await
             .map_err(|e| {
-                error!(error = %e, "Failed to update user password");
-                AppError::internal(format!("Failed to reset password: {e}"))
+                error!(error = %e, "Failed to store password reset token");
+                AppError::internal(format!("Failed to create reset token: {e}"))
             })?;
 
         info!(
-            "Password reset successfully for user {} by service {}",
+            "Password reset token issued for user {} by service {}",
             user.email, admin_token.service_name
         );
 
         Ok(json_response(
             AdminResponse {
                 success: true,
-                message: "Password reset successfully".to_owned(),
+                message: "Password reset token issued".to_owned(),
                 data: to_value(json!({
                     "user_id": user_uuid.to_string(),
                     "email": user.email,
-                    "temporary_password": temp_password,
+                    "reset_token": raw_token,
+                    "expires_in_seconds": 3600,
                     "reset_by": admin_token.service_name,
-                    "note": "Please securely deliver this password to the user"
+                    "note": "Deliver this token to the user. They must call POST /api/auth/complete-reset with the token and their new password within 1 hour."
                 }))
                 .ok(),
             },

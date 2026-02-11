@@ -611,7 +611,7 @@ impl HealthChecker {
 
         let total_megabytes = total_kilobytes / KB_TO_MB_DIVISOR;
         let available_megabytes = available_kilobytes / KB_TO_MB_DIVISOR;
-        let used_megabytes = total_megabytes - available_megabytes;
+        let used_megabytes = total_megabytes.saturating_sub(available_megabytes);
         let used_percent = if total_megabytes > 0 {
             // Use integer division for percentage calculation
             // Since result is always 0-100%, safe to convert to u32

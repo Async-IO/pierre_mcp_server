@@ -28,6 +28,8 @@ pub mod impersonation;
 pub mod mobility;
 /// OAuth callback notification handling
 pub mod oauth_notifications;
+/// Password reset token management for admin-initiated password resets
+pub mod password_reset_tokens;
 /// Provider connections: unified connection tracking for all provider types
 pub mod provider_connections;
 /// Recipe storage and management for nutrition planning
@@ -4064,6 +4066,23 @@ impl DatabaseProvider for Database {
         tenant_id: &str,
     ) -> AppResult<i64> {
         Self::chat_delete_all_user_conversations_impl(self, user_id, tenant_id).await
+    }
+
+    async fn store_password_reset_token(
+        &self,
+        user_id: Uuid,
+        token_hash: &str,
+        created_by: &str,
+    ) -> AppResult<Uuid> {
+        Self::store_password_reset_token_impl(self, user_id, token_hash, created_by).await
+    }
+
+    async fn consume_password_reset_token(&self, token_hash: &str) -> AppResult<Uuid> {
+        Self::consume_password_reset_token_impl(self, token_hash).await
+    }
+
+    async fn invalidate_user_reset_tokens(&self, user_id: Uuid) -> AppResult<()> {
+        Self::invalidate_user_reset_tokens_impl(self, user_id).await
     }
 }
 

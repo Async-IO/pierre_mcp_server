@@ -120,9 +120,13 @@ impl ProgressTracker {
                 state.operation_name,
                 current,
                 state.total,
-                state
-                    .total
-                    .map_or(current, |total| (current / total * 100.0).min(100.0))
+                state.total.map_or(current, |total| {
+                    if total > 0.0 {
+                        (current / total * 100.0).min(100.0)
+                    } else {
+                        0.0
+                    }
+                })
             );
 
             // Send progress notification

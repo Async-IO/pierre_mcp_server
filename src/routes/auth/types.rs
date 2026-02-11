@@ -103,6 +103,18 @@ pub struct ChangePasswordRequest {
     pub new_password: String,
 }
 
+/// Complete a password reset using a one-time reset token
+///
+/// The token is issued by an admin via the password reset endpoint.
+/// Users present the token along with their chosen new password.
+#[derive(Debug, Deserialize)]
+pub struct CompleteResetRequest {
+    /// One-time reset token provided by the admin
+    pub reset_token: String,
+    /// New password chosen by the user
+    pub new_password: String,
+}
+
 /// Session restore response for authenticated users
 ///
 /// Returned by `GET /api/auth/session` to restore sessions using httpOnly cookies.
