@@ -14,6 +14,7 @@ import {
   OAuthClientInformationFull,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { createSecureStorage, SecureTokenStorage } from "./secure-storage.js";
+import { PierreError, PierreErrorCode } from "./errors.js";
 
 // Load OAuth HTML templates from dist/templates/ (copied during build)
 // Templates are self-contained in the SDK bundle for portability
@@ -43,19 +44,42 @@ export interface StoredTokens {
   client_info?: OAuthClientInformationFull;
 }
 
-/** OAuth configuration passed from BridgeConfig */
-export interface OAuthSessionConfig {
+/** Base configuration shared by all authentication modes */
+export interface OAuthSessionConfigBase {
   pierreServerUrl: string;
-  jwtToken?: string;
-  apiKey?: string;
-  oauthClientId?: string;
-  oauthClientSecret?: string;
-  userEmail?: string;
-  userPassword?: string;
   callbackPort?: number;
   disableBrowser?: boolean;
   tokenValidationTimeoutMs?: number;
 }
+
+/** JWT token authentication mode */
+export interface OAuthSessionConfigJwt extends OAuthSessionConfigBase {
+  mode: 'jwt';
+  jwtToken: string;
+}
+
+/** OAuth 2.0 client credentials authentication mode */
+export interface OAuthSessionConfigOAuth extends OAuthSessionConfigBase {
+  mode: 'oauth';
+  oauthClientId: string;
+  oauthClientSecret: string;
+}
+
+/** API key authentication mode */
+export interface OAuthSessionConfigApiKey extends OAuthSessionConfigBase {
+  mode: 'api-key';
+  apiKey: string;
+}
+
+/** User email/password credentials authentication mode */
+export interface OAuthSessionConfigCredentials extends OAuthSessionConfigBase {
+  mode: 'credentials';
+  userEmail: string;
+  userPassword: string;
+}
+
+/** Discriminated union for authentication modes */
+export type OAuthSessionConfig = OAuthSessionConfigJwt | OAuthSessionConfigOAuth | OAuthSessionConfigApiKey | OAuthSessionConfigCredentials;
 
 interface OAuth2TokenResponse {
   access_token: string;
@@ -179,7 +203,7 @@ export class PierreOAuthClientProvider implements OAuthClientProvider {
       // If JWT token was provided via --token parameter, use it for authentication
       // This is used in testing scenarios where tokens are passed directly
       // CRITICAL: CLI token ALWAYS takes precedence over keychain tokens (for testing)
-      if (this.config.jwtToken) {
+      if (this.config.mode === 'jwt') {
         this.log(
           "Using JWT token from --token parameter for authentication (overrides keychain)",
         );
@@ -387,7 +411,7 @@ export class PierreOAuthClientProvider implements OAuthClientProvider {
     }
     // Wait for callbackPort to be set by the server startup
     if (this.callbackPort === 0) {
-      throw new Error("Callback server failed to start - no port available");
+      throw new PierreError(PierreErrorCode.CONFIG_ERROR, "Callback server failed to start - no port available");
     }
     return `http://localhost:${this.callbackPort}/oauth/callback`;
   }
@@ -412,7 +436,7 @@ export class PierreOAuthClientProvider implements OAuthClientProvider {
   }
 
   async clientInformation(): Promise<OAuthClientInformation | undefined> {
-    if (this.config.oauthClientId && this.config.oauthClientSecret) {
+    if (this.config.mode === 'oauth') {
       return {
         client_id: this.config.oauthClientId,
         client_secret: this.config.oauthClientSecret,
@@ -474,7 +498,8 @@ export class PierreOAuthClientProvider implements OAuthClientProvider {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(
+        throw new PierreError(
+          PierreErrorCode.AUTH_ERROR,
           `Client registration failed: ${response.status} ${response.statusText}: ${errorText}`,
         );
       }
@@ -696,21 +721,22 @@ export class PierreOAuthClientProvider implements OAuthClientProvider {
       this.log(
         `OAuth state mismatch: expected=${this.stateValue ? "[set]" : "[unset]"}, received=${state ? "[set]" : "[unset]"}`,
       );
-      throw new Error(
+      throw new PierreError(
+        PierreErrorCode.AUTH_ERROR,
         "OAuth state parameter mismatch - possible CSRF attack. Please try connecting again.",
       );
     }
 
     if (!this.clientInfo) {
-      throw new Error("Client information not available for token exchange");
+      throw new PierreError(PierreErrorCode.AUTH_ERROR, "Client information not available for token exchange");
     }
 
     if (!this.clientInfo.client_secret) {
-      throw new Error("Client secret not available for token exchange");
+      throw new PierreError(PierreErrorCode.AUTH_ERROR, "Client secret not available for token exchange");
     }
 
     if (!this.codeVerifierValue) {
-      throw new Error("Code verifier not available for token exchange");
+      throw new PierreError(PierreErrorCode.AUTH_ERROR, "Code verifier not available for token exchange");
     }
 
     const tokenEndpoint = `${this.serverUrl}/oauth2/token`;
@@ -738,7 +764,8 @@ export class PierreOAuthClientProvider implements OAuthClientProvider {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(
+        throw new PierreError(
+          PierreErrorCode.AUTH_ERROR,
           `Token exchange failed: ${response.status} ${response.statusText}: ${errorText}`,
         );
       }
@@ -770,7 +797,8 @@ export class PierreOAuthClientProvider implements OAuthClientProvider {
 
   async codeVerifier(): Promise<string> {
     if (!this.codeVerifierValue) {
-      throw new Error(
+      throw new PierreError(
+        PierreErrorCode.AUTH_ERROR,
         "Code verifier not found - authorization flow not started",
       );
     }
@@ -1219,7 +1247,7 @@ export class PierreOAuthClientProvider implements OAuthClientProvider {
 
     // Skip validation when using JWT token from --token parameter (testing mode)
     // These tokens are validated by the server on each request, not pre-validated
-    if (this.config.jwtToken) {
+    if (this.config.mode === 'jwt') {
       this.log(
         "Skipping credential validation (using JWT token from --token parameter)",
       );

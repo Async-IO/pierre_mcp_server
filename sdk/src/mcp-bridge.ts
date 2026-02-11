@@ -28,6 +28,7 @@ import {
 } from "./response-validator.js";
 import { PierreOAuthClientProvider, OAuthSessionConfig } from "./oauth-session-manager.js";
 import { installBatchGuard, createBatchGuardMessageHandler } from "./batch-guard-transport.js";
+import { PierreError, PierreErrorCode } from "./errors.js";
 
 // Define custom notification schema for Pierre's OAuth completion notifications
 const OAuthCompletedNotificationSchema = z.object({
@@ -45,14 +46,9 @@ const OAuthCompletedNotificationSchema = z.object({
 // Define the notification type explicitly to avoid deep type instantiation issues
 type OAuthCompletedNotification = z.infer<typeof OAuthCompletedNotificationSchema>;
 
-export interface BridgeConfig {
+/** Base configuration shared by all authentication modes */
+export interface BridgeConfigBase {
   pierreServerUrl: string;
-  jwtToken?: string;
-  apiKey?: string;
-  oauthClientId?: string;
-  oauthClientSecret?: string;
-  userEmail?: string;
-  userPassword?: string;
   callbackPort?: number;
   disableBrowser?: boolean; // Disable browser auto-opening for OAuth (testing mode)
   tokenValidationTimeoutMs?: number; // Default: 3000ms
@@ -62,6 +58,35 @@ export interface BridgeConfig {
   /** Response validation configuration - validates tool responses against Zod schemas */
   responseValidation?: Partial<ResponseValidatorConfig>;
 }
+
+/** JWT token authentication mode */
+export interface BridgeConfigJwt extends BridgeConfigBase {
+  mode: 'jwt';
+  jwtToken: string;
+}
+
+/** OAuth 2.0 client credentials authentication mode */
+export interface BridgeConfigOAuth extends BridgeConfigBase {
+  mode: 'oauth';
+  oauthClientId: string;
+  oauthClientSecret: string;
+}
+
+/** API key authentication mode */
+export interface BridgeConfigApiKey extends BridgeConfigBase {
+  mode: 'api-key';
+  apiKey: string;
+}
+
+/** User email/password credentials authentication mode */
+export interface BridgeConfigCredentials extends BridgeConfigBase {
+  mode: 'credentials';
+  userEmail: string;
+  userPassword: string;
+}
+
+/** Discriminated union for authentication modes */
+export type BridgeConfig = BridgeConfigJwt | BridgeConfigOAuth | BridgeConfigApiKey | BridgeConfigCredentials;
 
 export class PierreMcpClient {
   private config: BridgeConfig;
@@ -162,19 +187,29 @@ export class PierreMcpClient {
       }
     };
 
-    // Convert BridgeConfig to OAuthSessionConfig
-    const oauthConfig: OAuthSessionConfig = {
+    // Convert BridgeConfig to OAuthSessionConfig (both use same discriminated union pattern)
+    const baseConfig = {
       pierreServerUrl: this.config.pierreServerUrl,
-      jwtToken: this.config.jwtToken,
-      apiKey: this.config.apiKey,
-      oauthClientId: this.config.oauthClientId,
-      oauthClientSecret: this.config.oauthClientSecret,
-      userEmail: this.config.userEmail,
-      userPassword: this.config.userPassword,
       callbackPort: this.config.callbackPort,
       disableBrowser: this.config.disableBrowser,
       tokenValidationTimeoutMs: this.config.tokenValidationTimeoutMs,
     };
+
+    let oauthConfig: OAuthSessionConfig;
+    switch (this.config.mode) {
+      case 'jwt':
+        oauthConfig = { ...baseConfig, mode: 'jwt', jwtToken: this.config.jwtToken };
+        break;
+      case 'oauth':
+        oauthConfig = { ...baseConfig, mode: 'oauth', oauthClientId: this.config.oauthClientId, oauthClientSecret: this.config.oauthClientSecret };
+        break;
+      case 'api-key':
+        oauthConfig = { ...baseConfig, mode: 'api-key', apiKey: this.config.apiKey };
+        break;
+      case 'credentials':
+        oauthConfig = { ...baseConfig, mode: 'credentials', userEmail: this.config.userEmail, userPassword: this.config.userPassword };
+        break;
+    }
 
     this.oauthProvider = new PierreOAuthClientProvider(
       this.config.pierreServerUrl,
@@ -263,7 +298,8 @@ export class PierreMcpClient {
     );
 
     if (connectionResult === null) {
-      throw new Error(
+      throw new PierreError(
+        PierreErrorCode.TIMEOUT_ERROR,
         `Failed to connect to Pierre within ${connectionTimeoutMs}ms. Please use the "Connect to Pierre" tool to establish a connection.`,
       );
     }
@@ -273,7 +309,8 @@ export class PierreMcpClient {
     this.log("Connecting to Pierre MCP Server...");
 
     if (!this.oauthProvider) {
-      throw new Error(
+      throw new PierreError(
+        PierreErrorCode.CONFIG_ERROR,
         "OAuth provider not initialized - call initializePierreConnection() first",
       );
     }
@@ -297,7 +334,7 @@ export class PierreMcpClient {
 
   private async attemptConnection(): Promise<void> {
     if (!this.oauthProvider) {
-      throw new Error("OAuth provider not initialized");
+      throw new PierreError(PierreErrorCode.CONFIG_ERROR, "OAuth provider not initialized");
     }
 
     let connected = false;
@@ -373,7 +410,8 @@ export class PierreMcpClient {
           this.log(
             'Server may be sending invalid SSE events (e.g., "event:connected") instead of JSON-RPC messages',
           );
-          throw new Error(
+          throw new PierreError(
+            PierreErrorCode.VALIDATION_ERROR,
             `MCP protocol validation failed: ${validationError.message}. Server must send only JSON-RPC messages over SSE, not custom events.`,
           );
         }
@@ -412,7 +450,8 @@ export class PierreMcpClient {
     }
 
     if (!connected) {
-      throw new Error(
+      throw new PierreError(
+        PierreErrorCode.NETWORK_ERROR,
         `Failed to connect to Pierre MCP Server after ${maxRetries} attempts - authentication may be required`,
       );
     }
@@ -420,7 +459,7 @@ export class PierreMcpClient {
 
   async initiateConnection(): Promise<void> {
     if (!this.oauthProvider) {
-      throw new Error("OAuth provider not initialized");
+      throw new PierreError(PierreErrorCode.CONFIG_ERROR, "OAuth provider not initialized");
     }
 
     this.log("Initiating OAuth connection to Pierre MCP Server");
@@ -468,7 +507,8 @@ export class PierreMcpClient {
           // Re-fetch client information to get the server-assigned client_id
           clientInfo = await this.oauthProvider.clientInformation();
           if (!clientInfo) {
-            throw new Error(
+            throw new PierreError(
+              PierreErrorCode.AUTH_ERROR,
               "Client registration failed - no client info after registration",
             );
           }
@@ -597,7 +637,7 @@ export class PierreMcpClient {
 
   private setupRequestHandlers(): void {
     if (!this.mcpServer) {
-      throw new Error("MCP server not initialized");
+      throw new PierreError(PierreErrorCode.CONFIG_ERROR, "MCP server not initialized");
     }
 
     // Bridge tools/list requests
@@ -1236,7 +1276,7 @@ export class PierreMcpClient {
       // Step 3: Extract user_id from JWT token
       const tokens = await this.oauthProvider.tokens();
       if (!tokens?.access_token) {
-        throw new Error("No access token available");
+        throw new PierreError(PierreErrorCode.AUTH_ERROR, "No access token available");
       }
 
       // Decode JWT to get user_id (JWT format: header.payload.signature)
@@ -1245,7 +1285,7 @@ export class PierreMcpClient {
       const userId = decoded.sub;
 
       if (!userId) {
-        throw new Error("Could not extract user_id from JWT token");
+        throw new PierreError(PierreErrorCode.AUTH_ERROR, "Could not extract user_id from JWT token");
       }
 
       this.log(`Initiating ${provider} OAuth flow for user: ${userId}`);
@@ -1418,7 +1458,7 @@ export class PierreMcpClient {
 
   private async startBridge(): Promise<void> {
     if (!this.mcpServer || !this.serverTransport) {
-      throw new Error("Server or transport not initialized");
+      throw new PierreError(PierreErrorCode.CONFIG_ERROR, "Server or transport not initialized");
     }
 
     // Install batch request guard on transport
