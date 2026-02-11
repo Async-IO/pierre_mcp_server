@@ -1069,7 +1069,7 @@ impl CoachesRoutes {
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
-        let limit = query.limit.unwrap_or(50);
+        let limit = query.limit.unwrap_or(50).clamp(1, 100);
         let versions = manager.get_versions(&id, &tenant_id, limit).await?;
         let current_version = manager.get_current_version(&id).await?;
 

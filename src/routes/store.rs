@@ -293,7 +293,7 @@ impl StoreRoutes {
             .sort_by
             .as_deref()
             .map_or(StoreSortOrder::Newest, StoreSortOrder::parse);
-        let limit = query.limit.unwrap_or(20);
+        let limit = query.limit.unwrap_or(20).clamp(1, 100);
 
         // Use cursor-based pagination for efficient infinite scrolling
         let page = manager
