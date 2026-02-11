@@ -76,7 +76,7 @@ pub mod pagination;
 pub mod config;
 
 /// Focused dependency injection contexts
-pub(crate) mod context;
+pub mod context;
 
 /// Application constants and configuration values
 pub mod constants;
@@ -100,7 +100,7 @@ pub mod jsonrpc;
 pub mod a2a;
 
 /// `HTTP` routes for A2A protocol endpoints
-pub(crate) mod a2a_routes;
+pub mod a2a_routes;
 
 /// Coach definition parsing from markdown files
 pub mod coaches;
@@ -136,20 +136,20 @@ pub mod logging;
 pub mod middleware;
 
 /// Health checks and monitoring
-pub(crate) mod health;
+pub mod health;
 
 /// `API` key management for B2B authentication
 pub mod api_keys;
 
 /// `HTTP` routes for `API` key management
-pub(crate) mod api_key_routes;
+pub mod api_key_routes;
 
 /// Dashboard routes for frontend consumption
-pub(crate) mod dashboard_routes;
+pub mod dashboard_routes;
 
 /// WebSocket support for real-time updates
 #[cfg(feature = "transport-websocket")]
-pub(crate) mod websocket;
+pub mod websocket;
 
 /// Server-Sent Events (SSE) for real-time streaming
 #[cfg(feature = "transport-sse")]
