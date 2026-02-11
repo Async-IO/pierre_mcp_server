@@ -810,7 +810,10 @@ impl OAuthService {
                 AppError::not_found("User")
             })?;
 
-        // Get tenant from tenant_users table (user's default/first tenant)
+        // Get tenant from tenant_users table (user's default/first tenant).
+        // NOTE: We use tenants.first() here intentionally because this is an OAuth callback
+        // where the user has not yet established a JWT session with active_tenant_id.
+        // The resulting token will carry this tenant_id as the default active_tenant_id.
         let tenants = database
             .list_tenants_for_user(user_id)
             .await
@@ -1220,7 +1223,12 @@ impl OAuthService {
     ///
     /// # Errors
     /// Returns error if provider is unsupported or disconnection fails
-    pub async fn disconnect_provider(&self, user_id: uuid::Uuid, provider: &str) -> AppResult<()> {
+    pub async fn disconnect_provider(
+        &self,
+        user_id: uuid::Uuid,
+        provider: &str,
+        active_tenant_id: Option<uuid::Uuid>,
+    ) -> AppResult<()> {
         debug!(
             "Processing OAuth provider disconnect for user {} provider {}",
             user_id, provider
@@ -1229,17 +1237,21 @@ impl OAuthService {
         // Validate provider is supported
         self.validate_provider(provider)?;
 
-        // Get user's default tenant from tenant_users table
-        let tenants = self
-            .data
-            .database()
-            .list_tenants_for_user(user_id)
-            .await
-            .map_err(|e| AppError::database(format!("Failed to get user tenants: {e}")))?;
-
-        let tenant_id = tenants.first().map(|t| t.id.to_string()).ok_or_else(|| {
-            AppError::auth_invalid("User has no tenant association — cannot disconnect provider")
-        })?;
+        // Get tenant_id: prefer active_tenant_id (user's selected tenant) when available,
+        // falling back to user's first tenant for single-tenant users or legacy tokens.
+        let tenant_id = if let Some(tid) = active_tenant_id {
+            tid.to_string()
+        } else {
+            let tenants = self
+                .data
+                .database()
+                .list_tenants_for_user(user_id)
+                .await
+                .map_err(|e| AppError::database(format!("Failed to get user tenants: {e}")))?;
+            tenants.first().map(|t| t.id.to_string()).ok_or_else(|| {
+                AppError::auth_invalid("User has no tenant association — cannot disconnect provider")
+            })?
+        };
 
         // Delete OAuth tokens from database
         self.data
@@ -2588,14 +2600,20 @@ impl AuthRoutes {
         }
     }
 
-    /// Extract tenant ID from user's tenant memberships, falling back to `user_id` if no tenant
+    /// Extract tenant ID for OAuth operations
     ///
-    /// NOTE: This is a helper that requires tenant info to be pre-fetched from `tenant_users` table.
-    /// For async contexts, use the database method `list_tenants_for_user` directly.
+    /// Uses active_tenant_id when available (user's selected tenant from JWT),
+    /// falling back to user's first tenant for single-tenant users or legacy tokens.
     async fn extract_tenant_id_from_database(
         database: &Database,
         user_id: uuid::Uuid,
+        active_tenant_id: Option<uuid::Uuid>,
     ) -> Result<uuid::Uuid, AppError> {
+        // Prefer active_tenant_id from JWT claims (user's selected tenant)
+        if let Some(tenant_id) = active_tenant_id {
+            return Ok(tenant_id);
+        }
+        // Fall back to user's first tenant (single-tenant users or legacy tokens)
         let tenants = database
             .list_tenants_for_user(user_id)
             .await
@@ -2655,7 +2673,12 @@ impl AuthRoutes {
 
         // Verify user exists
         Self::get_user_for_oauth(&resources.database, user_id).await?;
-        let tenant_id = Self::extract_tenant_id_from_database(&resources.database, user_id).await?;
+        let tenant_id = Self::extract_tenant_id_from_database(
+            &resources.database,
+            user_id,
+            auth_result.active_tenant_id,
+        )
+        .await?;
 
         let server_context = ServerContext::from(resources.as_ref());
         let oauth_service = OAuthService::new(
@@ -2737,7 +2760,12 @@ impl AuthRoutes {
 
         // Verify user exists
         Self::get_user_for_oauth(&resources.database, user_id).await?;
-        let tenant_id = Self::extract_tenant_id_from_database(&resources.database, user_id).await?;
+        let tenant_id = Self::extract_tenant_id_from_database(
+            &resources.database,
+            user_id,
+            auth_result.active_tenant_id,
+        )
+        .await?;
 
         // Build OAuth state with optional redirect URL
         let state = redirect_url.map_or_else(
@@ -2883,7 +2911,7 @@ impl AuthRoutes {
             server_context.notification().clone(),
         );
         oauth_service
-            .disconnect_provider(user_id, &provider)
+            .disconnect_provider(user_id, &provider, auth_result.active_tenant_id)
             .await?;
 
         Ok(StatusCode::NO_CONTENT.into_response())
