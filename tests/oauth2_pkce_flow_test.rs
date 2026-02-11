@@ -16,7 +16,7 @@ use pierre_mcp_server::{
     auth::AuthManager,
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
-    models::User,
+    models::{Tenant, User},
     oauth2_server::{
         client_registration::ClientRegistrationManager,
         endpoints::OAuth2AuthorizationServer,
@@ -25,6 +25,7 @@ use pierre_mcp_server::{
 };
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
+use uuid::Uuid;
 
 /// Helper to create test database and auth manager
 async fn setup_test_env() -> (
@@ -105,18 +106,38 @@ fn generate_code_challenge(code_verifier: &str) -> String {
     general_purpose::URL_SAFE_NO_PAD.encode(hash)
 }
 
+/// Create a test user with an associated tenant (required for OAuth authorization)
+async fn create_test_user_with_tenant(database: &Database, email: &str) -> User {
+    let user = User::new(
+        email.to_owned(),
+        "hash".to_owned(),
+        Some("Test User".to_owned()),
+    );
+    database.create_user(&user).await.unwrap();
+
+    // Create tenant with user as owner - this adds user to tenant_users table
+    let tenant = Tenant {
+        id: Uuid::new_v4(),
+        name: "Test Tenant".to_owned(),
+        slug: format!("tenant-{}", user.id),
+        domain: None,
+        plan: "starter".to_owned(),
+        owner_user_id: user.id,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+    database.create_tenant(&tenant).await.unwrap();
+
+    user
+}
+
 /// Test PKCE enforcement - authorization without `code_challenge` should fail
 #[tokio::test]
 async fn test_pkce_enforcement_no_code_challenge() {
     let (database, _auth_manager, oauth_server, client_id, _client_secret) = setup_test_env().await;
 
-    // Create test user
-    let user = User::new(
-        "test@example.com".to_owned(),
-        "hash".to_owned(),
-        Some("Test User".to_owned()),
-    );
-    database.create_user(&user).await.unwrap();
+    // Create test user with tenant
+    let user = create_test_user_with_tenant(&database, "test@example.com").await;
 
     // Attempt authorization WITHOUT code_challenge (PKCE required)
     let auth_request = AuthorizeRequest {
@@ -146,13 +167,8 @@ async fn test_pkce_enforcement_no_code_challenge() {
 async fn test_pkce_valid_s256_flow() {
     let (database, _auth_manager, oauth_server, client_id, client_secret) = setup_test_env().await;
 
-    // Create test user
-    let user = User::new(
-        "test@example.com".to_owned(),
-        "hash".to_owned(),
-        Some("Test User".to_owned()),
-    );
-    database.create_user(&user).await.unwrap();
+    // Create test user with tenant
+    let user = create_test_user_with_tenant(&database, "test@example.com").await;
 
     // Generate PKCE parameters
     let code_verifier = generate_code_verifier();
@@ -196,13 +212,8 @@ async fn test_pkce_valid_s256_flow() {
 async fn test_pkce_invalid_code_verifier() {
     let (database, _auth_manager, oauth_server, client_id, client_secret) = setup_test_env().await;
 
-    // Create test user
-    let user = User::new(
-        "test@example.com".to_owned(),
-        "hash".to_owned(),
-        Some("Test User".to_owned()),
-    );
-    database.create_user(&user).await.unwrap();
+    // Create test user with tenant
+    let user = create_test_user_with_tenant(&database, "test@example.com").await;
 
     // Generate PKCE parameters
     let code_verifier = generate_code_verifier();
@@ -249,13 +260,8 @@ async fn test_pkce_invalid_code_verifier() {
 async fn test_pkce_missing_code_verifier() {
     let (database, _auth_manager, oauth_server, client_id, client_secret) = setup_test_env().await;
 
-    // Create test user
-    let user = User::new(
-        "test@example.com".to_owned(),
-        "hash".to_owned(),
-        Some("Test User".to_owned()),
-    );
-    database.create_user(&user).await.unwrap();
+    // Create test user with tenant
+    let user = create_test_user_with_tenant(&database, "test@example.com").await;
 
     // Generate PKCE parameters
     let code_verifier = generate_code_verifier();
@@ -301,13 +307,8 @@ async fn test_pkce_missing_code_verifier() {
 async fn test_auth_code_replay_prevention() {
     let (database, _auth_manager, oauth_server, client_id, client_secret) = setup_test_env().await;
 
-    // Create test user
-    let user = User::new(
-        "test@example.com".to_owned(),
-        "hash".to_owned(),
-        Some("Test User".to_owned()),
-    );
-    database.create_user(&user).await.unwrap();
+    // Create test user with tenant
+    let user = create_test_user_with_tenant(&database, "test@example.com").await;
 
     // Generate PKCE parameters
     let code_verifier = generate_code_verifier();
@@ -386,13 +387,8 @@ async fn test_auth_code_client_binding() {
         .await
         .unwrap();
 
-    // Create test user
-    let user = User::new(
-        "test@example.com".to_owned(),
-        "hash".to_owned(),
-        Some("Test User".to_owned()),
-    );
-    database.create_user(&user).await.unwrap();
+    // Create test user with tenant
+    let user = create_test_user_with_tenant(&database, "test@example.com").await;
 
     // Generate PKCE parameters
     let code_verifier = generate_code_verifier();
@@ -441,13 +437,8 @@ async fn test_auth_code_client_binding() {
 async fn test_redirect_uri_exact_match() {
     let (database, _auth_manager, oauth_server, client_id, client_secret) = setup_test_env().await;
 
-    // Create test user
-    let user = User::new(
-        "test@example.com".to_owned(),
-        "hash".to_owned(),
-        Some("Test User".to_owned()),
-    );
-    database.create_user(&user).await.unwrap();
+    // Create test user with tenant
+    let user = create_test_user_with_tenant(&database, "test@example.com").await;
 
     // Generate PKCE parameters
     let code_verifier = generate_code_verifier();
@@ -496,13 +487,8 @@ async fn test_redirect_uri_exact_match() {
 async fn test_refresh_token_rotation() {
     let (database, _auth_manager, oauth_server, client_id, client_secret) = setup_test_env().await;
 
-    // Create test user
-    let user = User::new(
-        "test@example.com".to_owned(),
-        "hash".to_owned(),
-        Some("Test User".to_owned()),
-    );
-    database.create_user(&user).await.unwrap();
+    // Create test user with tenant
+    let user = create_test_user_with_tenant(&database, "test@example.com").await;
 
     // Generate PKCE parameters
     let code_verifier = generate_code_verifier();
