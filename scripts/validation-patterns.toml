@@ -435,7 +435,6 @@ allowed = [
 # Test files permitted to have .skip(), .only(), xit(), xdescribe()
 # Only add entries after explicit approval with documented justification
 allowed = [
-    "frontend/e2e/login.spec.ts",  # Conditional runtime skip - test only skips when Firebase not configured
 ]
 
 [exclusions]

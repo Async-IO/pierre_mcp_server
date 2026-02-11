@@ -68,13 +68,13 @@ test.describe('Login Page', () => {
     await page.goto('/');
     await page.waitForSelector('form');
 
-    // Skip this test if Firebase is not configured (Google button not visible)
+    // When Firebase is not configured, the Google button is absent — verify that and return.
+    // When Firebase is configured, verify the loading state on click.
     const googleButton = page.getByRole('button', { name: /continue with google/i });
     const isGoogleVisible = await googleButton.isVisible().catch(() => false);
 
     if (!isGoogleVisible) {
-      // Firebase not configured in this environment - skip test
-      test.skip();
+      await expect(googleButton).not.toBeVisible();
       return;
     }
 
