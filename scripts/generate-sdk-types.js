@@ -140,7 +140,9 @@ function generateInterfaceFromProperties(properties, requiredFields = []) {
     return '{}';
   }
 
-  const fields = Object.entries(properties).map(([name, prop]) => {
+  // Sort properties alphabetically for deterministic output
+  const sortedEntries = Object.entries(properties).sort(([a], [b]) => a.localeCompare(b));
+  const fields = sortedEntries.map(([name, prop]) => {
     const isRequired = requiredFields.includes(name);
     const tsType = jsonSchemaToTypeScript(prop, name, isRequired);
     const optional = isRequired ? '' : '?';
@@ -171,7 +173,6 @@ function generateToolsTypeScript(tools) {
   const header = `// ABOUTME: Auto-generated TypeScript type definitions for Pierre MCP tool parameters
 // ABOUTME: Generated from server tool schemas - DO NOT EDIT MANUALLY
 //
-// Generated: ${new Date().toISOString()}
 // Tool count: ${sortedTools.length}
 // To regenerate: bun run generate (from packages/mcp-types)
 
@@ -196,7 +197,9 @@ function generateToolsTypeScript(tools) {
     const properties = tool.inputSchema.properties;
     const required = tool.inputSchema.required || [];
 
-    const fields = Object.entries(properties).map(([name, prop]) => {
+    // Sort properties alphabetically for deterministic output
+    const sortedProps = Object.entries(properties).sort(([a], [b]) => a.localeCompare(b));
+    const fields = sortedProps.map(([name, prop]) => {
       const isRequired = required.includes(name);
       const tsType = jsonSchemaToTypeScript(prop, name, isRequired);
       const optional = isRequired ? '' : '?';
@@ -264,8 +267,6 @@ ${sortedTools.map(t => `  "${t.name}": ${toPascalCase(t.name)}Params;`).join('\n
 function generateCommonTypeScript() {
   return `// ABOUTME: Common data types for Pierre MCP tools (Activity, Athlete, Stats, etc.)
 // ABOUTME: Generated from server tool schemas - DO NOT EDIT MANUALLY
-//
-// Generated: ${new Date().toISOString()}
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

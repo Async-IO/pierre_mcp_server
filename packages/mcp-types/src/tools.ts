@@ -1,7 +1,6 @@
 // ABOUTME: Auto-generated TypeScript type definitions for Pierre MCP tool parameters
 // ABOUTME: Generated from server tool schemas - DO NOT EDIT MANUALLY
 //
-// Generated: 2026-02-11T21:11:49.165Z
 // Tool count: 12
 // To regenerate: bun run generate (from packages/mcp-types)
 
@@ -32,20 +31,20 @@ export interface CalculateDailyNutritionParams {
   /** Activity level: sedentary, lightly_active, moderately_active, very_active, extra_active */
   activity_level: string;
 
-  /** Body weight in kilograms */
-  weight_kg: number;
-
   /** Age in years */
   age: number;
 
-  /** Training goal: maintenance, weight_loss, muscle_gain, endurance_performance */
-  training_goal: string;
+  /** Gender: male or female */
+  gender: string;
 
   /** Height in centimeters */
   height_cm: number;
 
-  /** Gender: male or female */
-  gender: string;
+  /** Training goal: maintenance, weight_loss, muscle_gain, endurance_performance */
+  training_goal: string;
+
+  /** Body weight in kilograms */
+  weight_kg: number;
 }
 
 
@@ -54,11 +53,11 @@ export interface CalculateDailyNutritionParams {
  */
 export interface DetectPatternsParams {
 
-  /** Number of weeks to analyze for patterns. Default: 4. */
-  weeks?: number;
-
   /** Fitness provider to query. Defaults to configured provider. */
   provider?: string;
+
+  /** Number of weeks to analyze for patterns. Default: 4. */
+  weeks?: number;
 }
 
 
@@ -67,17 +66,17 @@ export interface DetectPatternsParams {
  */
 export interface GetActivitiesParams {
 
+  /** Unix timestamp - return activities after this time. */
+  after?: number;
+
+  /** Unix timestamp - return activities before this time. */
+  before?: number;
+
   /** Output format: 'json' (default) or 'toon' (token-efficient for LLMs). */
   format?: string;
 
   /** Maximum number of activities to return. Defaults to format-aware limit to prevent context overflow. */
   limit?: number;
-
-  /** Unix timestamp - return activities after this time. */
-  after?: number;
-
-  /** Filter by sport type (e.g., 'run', 'ride', 'swim'). Case-insensitive. */
-  sport_type?: string;
 
   /** Output mode: 'summary' (default, minimal fields) or 'detailed' (full activity data). */
   mode?: string;
@@ -88,8 +87,8 @@ export interface GetActivitiesParams {
   /** Fitness provider to query (e.g., 'strava', 'fitbit'). Defaults to configured default provider. */
   provider?: string;
 
-  /** Unix timestamp - return activities before this time. */
-  before?: number;
+  /** Filter by sport type (e.g., 'run', 'ride', 'swim'). Case-insensitive. */
+  sport_type?: string;
 }
 
 
@@ -133,11 +132,11 @@ export interface GetFoodDetailsParams {
  */
 export interface GetStatsParams {
 
-  /** Fitness provider to query (e.g., 'strava', 'fitbit'). Defaults to configured default provider. */
-  provider?: string;
-
   /** Output format: 'json' (default) or 'toon' (token-efficient for LLMs). */
   format?: string;
+
+  /** Fitness provider to query (e.g., 'strava', 'fitbit'). Defaults to configured default provider. */
+  provider?: string;
 }
 
 
@@ -146,14 +145,14 @@ export interface GetStatsParams {
  */
 export interface SearchFoodParams {
 
-  /** Search query for food items */
-  query: string;
+  /** Page number (1-indexed, default: 1). Only use if previous response had has_more=true */
+  page_number?: number;
 
   /** Number of results per page (default: 10, max: 50) */
   page_size?: number;
 
-  /** Page number (1-indexed, default: 1). Only use if previous response had has_more=true */
-  page_number?: number;
+  /** Search query for food items */
+  query: string;
 }
 
 
