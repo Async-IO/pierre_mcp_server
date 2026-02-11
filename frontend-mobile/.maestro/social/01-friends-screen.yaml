@@ -10,18 +10,24 @@ appId: com.pierre.fitness
 - runFlow:
     file: ../helpers/login.yaml
 
-# Navigate to Friends via Insights tab then Find Friends
+# Navigate to Friends via Insights tab then Find Friends.
+# The SocialFeedScreen fetches feed items from the API. For a test user with no friends,
+# the API returns an empty list, and the screen renders an empty state with a "Find Friends"
+# button. We must wait for that text to appear before tapping it.
 - tapOn:
     id: "tab-insights"
 - extendedWaitUntil:
     visible:
       id: "social-feed-screen"
-    timeout: 5000
+    timeout: 15000
+- extendedWaitUntil:
+    visible: "Find Friends"
+    timeout: 30000
 - tapOn: "Find Friends"
 - extendedWaitUntil:
     visible:
       id: "friends-screen"
-    timeout: 5000
+    timeout: 15000
 
 # Test: should display Friends screen header
 - assertVisible: "Friends"

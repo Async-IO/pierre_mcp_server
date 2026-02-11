@@ -10,7 +10,7 @@ appId: com.pierre.fitness
       id: "login-screen"
     timeout: 10000
 
-# Enter test credentials (hardcoded to match test 06 pattern which passes).
+# Enter test credentials (hardcoded to match CI user seed).
 # Fields are empty after fresh launch, no eraseText needed.
 - tapOn:
     id: "email-input"
@@ -20,11 +20,28 @@ appId: com.pierre.fitness
     id: "password-input"
 - inputText: "MobileTest1234"
 
-# Submit via keyboard Return key (password field has onSubmitEditing={handleLogin}).
-- pressKey: Enter
+# Dismiss keyboard before tapping the button to ensure it's fully visible.
+# pressKey: Enter was unreliable in CI - directly tapping the button is more robust.
+- hideKeyboard
 
-# Wait for successful login (chat screen should appear)
+# Tap the Sign In button (testID="login-button" on Button component).
+- tapOn:
+    id: "login-button"
+
+# Wait for login screen to disappear (login API + auth state change).
+# 45s timeout accounts for slow CI servers (login API can take 20s+).
+- extendedWaitUntil:
+    notVisible:
+      id: "login-screen"
+    timeout: 45000
+
+# Capture screenshot for debugging what appears after login
+- takeScreenshot: "after-login-navigation"
+
+# Wait for chat screen to appear after navigation transition.
+# 60s timeout provides ample margin for slow CI environments where
+# React Navigation tree swap and ChatScreen mount may take time.
 - extendedWaitUntil:
     visible:
       id: "chat-screen"
-    timeout: 15000
+    timeout: 60000

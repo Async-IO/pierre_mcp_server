@@ -1,6 +1,9 @@
 # ABOUTME: Cargo configuration for the FitnessAnalysisAgent example
 # ABOUTME: Demonstrates autonomous A2A protocol usage for fitness analysis
 
+# Standalone example — not part of root workspace
+[workspace]
+
 [package]
 name = "fitness_analyzer"
 version = "0.1.0"

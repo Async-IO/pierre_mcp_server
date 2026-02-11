@@ -17,8 +17,10 @@ appId: com.pierre.fitness
     id: "password-input"
 - eraseText
 
-# Submit form via keyboard (password field has onSubmitEditing → handleLogin)
-- pressKey: Enter
+# Hide keyboard so login button is visible, then tap it
+- hideKeyboard
+- tapOn:
+    id: "login-button"
 
 # Verify validation error is shown
 - assertVisible: "Email is required"

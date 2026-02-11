@@ -429,9 +429,6 @@ files = [
 # Format: "workflow_file:step_name" or "workflow_file:line_number"
 # Only add entries after explicit approval with documented justification
 allowed = [
-    # Added per commit 70ccb8f: Detox+Expo compatibility requires non-blocking E2E tests
-    ".github/workflows/mobile-tests.yml:173",
-    ".github/workflows/mobile-tests.yml:340",
 ]
 
 [js_test_skip_allowlist]

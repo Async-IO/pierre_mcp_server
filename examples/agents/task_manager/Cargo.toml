@@ -1,3 +1,6 @@
+# Standalone example — not part of root workspace
+[workspace]
+
 [package]
 name = "task-manager-example"
 version = "1.0.0"

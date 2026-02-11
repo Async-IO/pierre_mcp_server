@@ -9,7 +9,7 @@ appId: com.pierre.fitness
 - runFlow:
     file: ../helpers/launch-app.yaml
 
-# Enter test credentials (hardcoded to match test 05 structure which passes).
+# Enter test credentials (hardcoded to match CI user seed).
 # Fields are empty after fresh launch, no eraseText needed.
 - tapOn:
     id: "email-input"
@@ -19,19 +19,27 @@ appId: com.pierre.fitness
     id: "password-input"
 - inputText: "MobileTest1234"
 
-# Submit via keyboard Return key (password field has onSubmitEditing={handleLogin}).
-# This pattern works in test 05-validation-invalid-email.
-- pressKey: Enter
+# Dismiss keyboard before tapping the button to ensure it's fully visible.
+# pressKey: Enter was unreliable in CI - directly tapping the button is more robust.
+- hideKeyboard
 
-# After successful login, should navigate away from login screen
-# Using longer timeout since login involves API call
+# Tap the Sign In button (testID="login-button" on Button component).
+- tapOn:
+    id: "login-button"
+
+# After successful login, should navigate away from login screen.
+# 45s timeout accounts for slow CI servers (login API can take 20s+).
 - extendedWaitUntil:
     notVisible:
       id: "login-screen"
-    timeout: 15000
+    timeout: 45000
 
-# Verify we're on the chat screen
+# Capture screenshot for debugging what appears after login
+- takeScreenshot: "test06-after-login"
+
+# Verify we're on the chat screen.
+# 30s timeout for React Navigation transition and ChatScreen mount.
 - extendedWaitUntil:
     visible:
       id: "chat-screen"
-    timeout: 5000
+    timeout: 30000

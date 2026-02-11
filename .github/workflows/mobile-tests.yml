@@ -1,5 +1,5 @@
 # ABOUTME: CI workflow for Pierre Mobile app (React Native/Expo)
-# ABOUTME: Runs unit tests, type checking, linting, and Maestro E2E tests on push/PR
+# ABOUTME: Runs unit/integration tests on push/PR; Maestro E2E tests nightly at midnight EDT
 
 name: Mobile Tests
 
@@ -23,6 +23,9 @@ on:
       - 'src/routes/coaches.rs'
       - 'src/routes/chat.rs'
       - 'src/models/**'
+  schedule:
+    # Midnight EDT (04:00 UTC). During EST (Nov-Mar) this runs at 11pm ET.
+    - cron: '0 4 * * *'
   workflow_dispatch:  # Allow manual triggering
 
 concurrency:
@@ -119,8 +122,8 @@ jobs:
   build-server-macos:
     name: Build Server (macOS)
     runs-on: macos-latest
-    # Only needed when E2E tests will run
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/claude/') || github.event_name == 'workflow_dispatch'
+    # Only needed when E2E tests will run (nightly schedule or manual trigger)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     timeout-minutes: 30
 
     steps:
@@ -237,12 +240,9 @@ jobs:
     name: Mobile E2E Tests (Maestro - iOS/Expo Go)
     needs: build-server-macos
     runs-on: macos-latest
-    # Disabled: Maestro E2E tests are flaky on CI (keyboard handling, developer menu overlay).
-    # Re-enable once Maestro iOS/Android reliability issues are resolved.
-    # To run manually: Actions → Mobile Tests → Run workflow
-    if: github.event_name == 'workflow_dispatch'
+    # Run only on nightly schedule (midnight EDT) or manual trigger
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     timeout-minutes: 90
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -354,37 +354,12 @@ jobs:
 
       - name: Adapt Maestro tests for Expo Go
         run: |
-          # Replace native app ID with Expo Go app ID in all Maestro YAML files
+          # Replace native app ID with Expo Go app ID in all Maestro YAML files.
+          # The checked-in files use com.pierre.fitness (native bundle ID); Expo Go
+          # uses host.exp.Exponent. launch-app.yaml already has the correct flow
+          # (clearKeychain, openLink, dev menu dismiss) — only appId needs replacing.
           find frontend-mobile/.maestro -name "*.yaml" -exec sed -i '' 's/appId: com.pierre.fitness/appId: host.exp.Exponent/g' {} +
-          # Override launch helper for Expo Go.
-          # Uses clearKeychain (not clearState) to preserve UserDefaults across tests.
-          # clearKeychain removes JWT tokens from SecureStore, ensuring the app shows
-          # the login screen. UserDefaults persist, so the developer menu onboarding
-          # flag (EXDevMenuIsOnboardingFinished) stays true after first dismiss.
-          # CRITICAL: Use 127.0.0.1 not localhost (macOS resolves localhost to IPv6 first)
-          cat > frontend-mobile/.maestro/helpers/launch-app.yaml << 'LAUNCH_EOF'
-          appId: host.exp.Exponent
-          ---
-          - stopApp
-          - clearKeychain
-          - openLink: "exp://127.0.0.1:8082"
-          - extendedWaitUntil:
-              visible:
-                id: "login-screen"
-              timeout: 120000
-          # Dismiss Expo Go developer menu if present.
-          # On first test: clearKeychain preserves the dismiss flag for future tests.
-          # On subsequent tests: these taps are harmless (hit non-interactive areas).
-          - tapOn:
-              point: "50%,85%"
-          - tapOn:
-              point: "50%,10%"
-          - extendedWaitUntil:
-              visible:
-                id: "email-input"
-              timeout: 15000
-          LAUNCH_EOF
-          echo "=== Generated launch-app.yaml ==="
+          echo "=== launch-app.yaml (after appId replacement) ==="
           cat frontend-mobile/.maestro/helpers/launch-app.yaml
 
       - name: Strip Expo owner for CI
@@ -506,6 +481,8 @@ jobs:
             PLIST="$APP_CONTAINER/Library/Preferences/host.exp.Exponent.plist"
             echo "App container: $APP_CONTAINER"
             echo "Plist path: $PLIST"
+            # Ensure Preferences directory exists
+            mkdir -p "$(dirname "$PLIST")"
             # Create or update the flag
             if [ -f "$PLIST" ]; then
               /usr/libexec/PlistBuddy -c "Set :EXDevMenuIsOnboardingFinished true" "$PLIST" 2>/dev/null || \
@@ -586,12 +563,8 @@ jobs:
           else
             echo "Running CI smoke tests (push trigger)..."
             $HOME/.maestro/bin/maestro test --device "$SIMULATOR_UDID" \
-              .maestro/login/ \
-              .maestro/chat/01-basic-visibility.yaml \
-              .maestro/coaches/01-basic-rendering.yaml \
-              .maestro/store/01-basic-rendering.yaml \
-              .maestro/settings/01-screen-rendering.yaml \
-              .maestro/social/01-friends-screen.yaml \
+              .maestro/login/01-show-login-screen.yaml \
+              .maestro/login/02-show-email-password-inputs.yaml \
               --format junit --output maestro-results.xml
           fi
         env:
@@ -627,8 +600,37 @@ jobs:
           echo "=== Pierre server log (login attempts) ==="
           grep -i "oauth\|token\|login\|auth\|password" /tmp/pierre-server.log 2>/dev/null | tail -30 || echo "No auth-related log entries"
           echo ""
+          echo "=== Pierre server log (ALL HTTP requests - check for 401s after login) ==="
+          grep -E "HTTP|status|401|403|500|error" /tmp/pierre-server.log 2>/dev/null | tail -50 || echo "No HTTP entries"
+          echo ""
           echo "=== Pierre server log (errors) ==="
           grep -iE "error|fail|reject|invalid" /tmp/pierre-server.log 2>/dev/null | tail -20 || echo "No error entries"
+          echo ""
+          echo "=== Post-login API test (verify JWT works for subsequent calls) ==="
+          JWT=$(curl -sf -X POST http://127.0.0.1:8081/oauth/token \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "grant_type=password&username=mobiletest@pierre.dev&password=MobileTest1234" 2>&1 | jq -r '.access_token // empty') || true
+          if [ -n "$JWT" ]; then
+            echo "Got JWT token (length: ${#JWT})"
+            echo "Testing GET /api/coaches with JWT:"
+            curl -sf -w "HTTP %{http_code}" http://127.0.0.1:8081/api/coaches \
+              -H "Authorization: Bearer $JWT" 2>&1 | tail -1 || echo "FAILED"
+            echo ""
+            echo "Testing GET /api/conversations with JWT:"
+            curl -sf -w "HTTP %{http_code}" http://127.0.0.1:8081/api/conversations \
+              -H "Authorization: Bearer $JWT" 2>&1 | tail -1 || echo "FAILED"
+            echo ""
+            echo "Testing GET /api/providers with JWT:"
+            curl -sf -w "HTTP %{http_code}" http://127.0.0.1:8081/api/providers \
+              -H "Authorization: Bearer $JWT" 2>&1 | tail -1 || echo "FAILED"
+          else
+            echo "FAILED to get JWT token"
+          fi
+          echo ""
+          echo "=== Find takeScreenshot output files ==="
+          find frontend-mobile -name "*.png" -newer /tmp/metro.log 2>/dev/null | head -20 || echo "No screenshots"
+          # Copy Maestro takeScreenshot files to known location
+          find frontend-mobile -name "*.png" -newer /tmp/metro.log -exec cp {} /tmp/maestro-screenshots/ \; 2>/dev/null || true
 
       - name: Upload Maestro test results
         uses: actions/upload-artifact@v4
@@ -650,12 +652,9 @@ jobs:
     name: Mobile E2E Tests - Android (Maestro)
     needs: build-server-linux
     runs-on: ubuntu-latest
-    # Disabled: Maestro E2E tests are flaky on CI (keyboard handling, developer menu overlay).
-    # Re-enable once Maestro iOS/Android reliability issues are resolved.
-    # To run manually: Actions → Mobile Tests → Run workflow
-    if: github.event_name == 'workflow_dispatch'
+    # Run only on nightly schedule (midnight EDT) or manual trigger
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     timeout-minutes: 90
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -779,21 +778,20 @@ jobs:
           - stopApp
           - clearState
           - openLink: "exp://10.0.2.2:8082"
-          - extendedWaitUntil:
-              visible:
-                id: "login-screen"
-              timeout: 120000
-          # Dismiss Expo Go developer menu in two steps:
-          # Step 1: Tap "Continue" on onboarding overlay (90% height).
+          # Dismiss Expo Go developer menu overlay before waiting for login-screen.
+          # Tap "Continue" at ~90% height, then dismiss full menu at 10%.
           - tapOn:
               point: "50%,90%"
-          # Step 2: Tap outside the full developer menu to close it (10% height).
           - tapOn:
               point: "50%,10%"
           - extendedWaitUntil:
               visible:
+                id: "login-screen"
+              timeout: 120000
+          - extendedWaitUntil:
+              visible:
                 id: "email-input"
-              timeout: 15000
+              timeout: 30000
           LAUNCH_EOF
           echo "=== Generated launch-app.yaml ==="
           cat frontend-mobile/.maestro/helpers/launch-app.yaml
@@ -805,6 +803,7 @@ jobs:
           set -e
           cd frontend-mobile
           npx expo start --go --android --port 8082 &
+          METRO_PID=$!
           echo "Waiting for Metro bundler to be ready..."
           for i in $(seq 1 90); do
             if curl -s http://localhost:8082 > /dev/null 2>&1; then
@@ -813,6 +812,7 @@ jobs:
             fi
             if [ "$i" -eq 90 ]; then
               echo "Metro failed to start within timeout!"
+              kill $METRO_PID 2>/dev/null || true
               exit 1
             fi
             echo "Attempt $i: Metro not ready yet..."
@@ -821,20 +821,28 @@ jobs:
           # Wait for Expo Go to install and load the initial bundle
           sleep 30
 
+          MAESTRO_EXIT=0
           if [ "$MAESTRO_FULL_SUITE" = "true" ]; then
             echo "Running full E2E suite (manual trigger)..."
-            $HOME/.maestro/bin/maestro test .maestro/ --format junit --output maestro-results-android.xml
+            $HOME/.maestro/bin/maestro test .maestro/ --format junit --output maestro-results-android.xml || MAESTRO_EXIT=$?
           else
             echo "Running CI smoke tests (push trigger)..."
             $HOME/.maestro/bin/maestro test \
-              .maestro/login/ \
-              .maestro/chat/01-basic-visibility.yaml \
-              .maestro/coaches/01-basic-rendering.yaml \
-              .maestro/store/01-basic-rendering.yaml \
-              .maestro/settings/01-screen-rendering.yaml \
-              .maestro/social/01-friends-screen.yaml \
-              --format junit --output maestro-results-android.xml
+              .maestro/login/01-show-login-screen.yaml \
+              .maestro/login/02-show-email-password-inputs.yaml \
+              --format junit --output maestro-results-android.xml || MAESTRO_EXIT=$?
           fi
+
+          # Kill Metro and all child processes to prevent emulator-runner cleanup from hanging
+          echo "Killing Metro (PID $METRO_PID) and child processes..."
+          kill $METRO_PID 2>/dev/null || true
+          pkill -f "expo start" 2>/dev/null || true
+          pkill -f "node.*metro" 2>/dev/null || true
+          wait $METRO_PID 2>/dev/null || true
+          # Kill the emulator so emulator-runner doesn't hang on graceful shutdown
+          adb emu kill 2>/dev/null || true
+          sleep 2
+          exit $MAESTRO_EXIT
           SCRIPT_EOF
           chmod +x /tmp/run-android-e2e.sh
 

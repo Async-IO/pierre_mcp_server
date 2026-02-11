@@ -1,14 +1,44 @@
-# ABOUTME: Helper flow to launch the Pierre app fresh
-# ABOUTME: Clears app state and launches with a new instance
+# ABOUTME: Helper flow to launch the Pierre app fresh for Expo Go E2E testing
+# ABOUTME: Uses clearKeychain (not clearState) to preserve dev menu dismiss flag across tests
 
 appId: com.pierre.fitness
 
 ---
-- clearState
-- launchApp
+# Stop app process, clear keychain (auth tokens in SecureStore), then open via deep link.
+# clearKeychain preserves UserDefaults (including EXDevMenuIsOnboardingFinished flag),
+# while clearing JWT tokens from SecureStore so the app shows the login screen.
+# clearState would wipe UserDefaults, causing Expo Go's dev menu overlay to reappear.
+- stopApp
+- clearKeychain
+- openLink: "exp://127.0.0.1:8082"
 
-# Wait for the app to be ready (login screen should appear)
+# Dismiss Expo Go developer menu overlay if present.
+# The overlay is a native view that blocks the React Native accessibility tree.
+# If we waited for login-screen first, the overlay would block it and we'd timeout.
+# The "Continue" button is at ~92% screen height (confirmed via CI screenshot analysis).
+# Tapping at 50%,10% dismisses the full developer menu if it opens after the overlay.
+- tapOn:
+    point: "50%,92%"
+- tapOn:
+    point: "50%,10%"
+
+# Wait for React Native to load and render login screen.
+# Timeout accounts for JS bundle compilation on cold start (can take 60s+ in CI).
 - extendedWaitUntil:
     visible:
       id: "login-screen"
-    timeout: 10000
+    timeout: 120000
+
+# Second overlay dismiss: needed because the overlay can reappear after
+# login-screen loads (race condition with Expo Go startup).
+- tapOn:
+    point: "50%,92%"
+- tapOn:
+    point: "50%,10%"
+
+# Confirm the login form is interactable (overlay is fully dismissed).
+# 30s timeout to handle slow CI environments.
+- extendedWaitUntil:
+    visible:
+      id: "email-input"
+    timeout: 30000
