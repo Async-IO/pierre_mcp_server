@@ -9,6 +9,7 @@ use crate::config::fitness::FitnessConfig;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult};
 use crate::mcp::resources::ServerResources;
+use crate::middleware::require_admin;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Instant;
@@ -318,18 +319,8 @@ impl FitnessConfigurationRoutes {
         let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
 
-        // Check if user is admin (simplified check)
-        let user = self
-            .resources
-            .database
-            .get_user(user_id)
-            .await
-            .map_err(|e| AppError::database(format!("Failed to get user {user_id}: {e}")))?
-            .ok_or_else(|| AppError::not_found("User"))?;
-
-        if !user.is_admin {
-            return Err(AppError::auth_invalid("Admin access required"));
-        }
+        // Verify admin privileges using centralized guard
+        require_admin(user_id, &self.resources.database).await?;
 
         let configuration_name = request
             .configuration_name
@@ -411,18 +402,8 @@ impl FitnessConfigurationRoutes {
         let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
 
-        // Check if user is admin
-        let user = self
-            .resources
-            .database
-            .get_user(user_id)
-            .await
-            .map_err(|e| AppError::database(format!("Failed to get user {user_id}: {e}")))?
-            .ok_or_else(|| AppError::not_found("User"))?;
-
-        if !user.is_admin {
-            return Err(AppError::auth_invalid("Admin access required"));
-        }
+        // Verify admin privileges using centralized guard
+        require_admin(user_id, &self.resources.database).await?;
 
         // Convert UUID to string for database query
         let tenant_id_str = tenant_id.to_string();

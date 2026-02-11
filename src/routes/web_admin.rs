@@ -17,6 +17,7 @@ use crate::{
     database_plugins::DatabaseProvider,
     errors::{AppError, ErrorCode},
     mcp::resources::ServerResources,
+    middleware::require_admin,
     models::UserStatus,
     rate_limiting::UnifiedRateLimitCalculator,
     security::cookies::get_cookie_value,
@@ -408,20 +409,8 @@ impl WebAdminRoutes {
             .await
             .map_err(|e| AppError::auth_invalid(format!("Authentication failed: {e}")))?;
 
-        // Check if user has admin role or higher (admin or super_admin)
-        let user = resources
-            .database
-            .get_user(auth.user_id)
-            .await
-            .map_err(|e| AppError::internal(format!("Failed to get user: {e}")))?
-            .ok_or_else(|| AppError::not_found("User not found"))?;
-
-        if !user.role.is_admin_or_higher() {
-            return Err(AppError::new(
-                ErrorCode::PermissionDenied,
-                "Admin privileges required",
-            ));
-        }
+        // Verify admin privileges using centralized guard
+        require_admin(auth.user_id, &resources.database).await?;
 
         Ok(auth)
     }
