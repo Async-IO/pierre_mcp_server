@@ -1,17 +1,24 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+// ABOUTME: Main dashboard orchestrator that composes focused data hooks
+// ABOUTME: Delegates data fetching to specialized hooks while managing layout and navigation
+
 import { useState, lazy, Suspense, useEffect, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
-import { dashboardApi, adminApi, a2aApi, chatApi } from '../services/api';
-import type { DashboardOverview, RateLimitOverview, User, AdminToken } from '../types/api';
-import type { Conversation } from './chat/types';
-import type { AnalyticsData } from '../types/chart';
-import { useWebSocketContext } from '../hooks/useWebSocketContext';
+import type { AdminToken } from '../types/api';
 import { Card, ConfirmDialog } from './ui';
 import { clsx } from 'clsx';
 import ConversationItem from './chat/ConversationItem';
+import {
+  useOverviewData,
+  useRateLimitsData,
+  useWeeklyUsageData,
+  useA2ADashboardData,
+  usePendingUsersData,
+  useStoreStatsData,
+  useConversationsData,
+} from './dashboard';
 
 // Lazy load heavy components to reduce initial bundle size
 const OverviewTab = lazy(() => import('./OverviewTab'));
@@ -72,130 +79,32 @@ export default function Dashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedAdminToken, setSelectedAdminToken] = useState<AdminToken | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const { lastMessage } = useWebSocketContext();
 
-  const { data: overview, isLoading: overviewLoading, refetch: refetchOverview } = useQuery<DashboardOverview>({
-    queryKey: ['dashboard-overview'],
-    queryFn: () => dashboardApi.getDashboardOverview(),
-    enabled: isAdminUser,
-  });
+  // Data hooks - each owns its query with QUERY_KEYS constants
+  const { overview, isLoading: overviewLoading } = useOverviewData(isAdminUser);
+  const { rateLimits } = useRateLimitsData(isAdminUser);
+  const { weeklyUsage } = useWeeklyUsageData(isAdminUser);
+  const { a2aOverview } = useA2ADashboardData(isAdminUser);
+  const { pendingUsers } = usePendingUsersData(isAdminUser);
+  const { storeStats } = useStoreStatsData(isAdminUser);
 
-  const { data: rateLimits } = useQuery<RateLimitOverview[]>({
-    queryKey: ['rate-limits'],
-    queryFn: () => dashboardApi.getRateLimitOverview(),
-    enabled: isAdminUser,
-  });
-
-  const { data: weeklyUsage } = useQuery<AnalyticsData>({
-    queryKey: ['usage-analytics', 7],
-    queryFn: () => dashboardApi.getUsageAnalytics(7),
-    enabled: isAdminUser,
-  });
-
-  const { data: a2aOverview } = useQuery({
-    queryKey: ['a2a-dashboard-overview'],
-    queryFn: () => a2aApi.getA2ADashboardOverview(),
-    enabled: isAdminUser,
-  });
-
-  // Pending users badge - only fetch for admin users
-  const { data: pendingUsers = [] } = useQuery<User[]>({
-    queryKey: ['pending-users'],
-    queryFn: () => adminApi.getPendingUsers(),
-    staleTime: 30_000,
-    retry: false,
-    enabled: isAdminUser,
-  });
-
-  // Coach store stats for pending review badge
-  const { data: storeStats } = useQuery({
-    queryKey: ['admin-store-stats'],
-    queryFn: () => adminApi.getStoreStats(),
-    staleTime: 30_000,
-    retry: false,
-    enabled: isAdminUser,
-  });
-
-  // Chat conversations - fetch for all users when Chat tab is active
-  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
-  const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
-  const [editedTitleValue, setEditedTitleValue] = useState('');
-  const [deleteConfirmation, setDeleteConfirmation] = useState<{ id: string; title: string } | null>(null);
-  const queryClient = useQueryClient();
-
-  const { data: conversationsData, isLoading: conversationsLoading } = useQuery<{ conversations: Conversation[] }>({
-    queryKey: ['chat-conversations'],
-    queryFn: () => chatApi.getConversations(),
-    enabled: activeTab === 'chat',
-  });
-  const conversations = conversationsData?.conversations ?? [];
-
-  // Mutations for conversation management
-  const updateConversationMutation = useMutation({
-    mutationFn: ({ id, title }: { id: string; title: string }) =>
-      chatApi.updateConversation(id, { title }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
-      setEditingConversationId(null);
-      setEditedTitleValue('');
-    },
-  });
-
-  const deleteConversationMutation = useMutation({
-    mutationFn: (id: string) => chatApi.deleteConversation(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
-      if (selectedConversation === deleteConfirmation?.id) {
-        setSelectedConversation(null);
-      }
-      setDeleteConfirmation(null);
-    },
-  });
-
-  // Conversation action handlers
-  const handleStartRename = (e: React.MouseEvent, conv: Conversation) => {
-    e.stopPropagation();
-    setEditingConversationId(conv.id);
-    setEditedTitleValue(conv.title || 'Untitled Chat');
-  };
-
-  const handleSaveRename = () => {
-    if (editingConversationId && editedTitleValue.trim()) {
-      updateConversationMutation.mutate({ id: editingConversationId, title: editedTitleValue.trim() });
-    } else {
-      setEditingConversationId(null);
-      setEditedTitleValue('');
-    }
-  };
-
-  const handleCancelRename = () => {
-    setEditingConversationId(null);
-    setEditedTitleValue('');
-  };
-
-  const handleDeleteClick = (e: React.MouseEvent, conv: Conversation) => {
-    e.stopPropagation();
-    setDeleteConfirmation({ id: conv.id, title: conv.title || 'Untitled Chat' });
-  };
-
-  const handleConfirmDelete = () => {
-    if (deleteConfirmation) {
-      deleteConversationMutation.mutate(deleteConfirmation.id);
-    }
-  };
-
-  const handleCancelDelete = () => {
-    setDeleteConfirmation(null);
-  };
-
-  // Refresh data when WebSocket updates are received
-  useEffect(() => {
-    if (lastMessage && isAdminUser) {
-      if (lastMessage.type === 'usage_update' || lastMessage.type === 'system_stats') {
-        refetchOverview();
-      }
-    }
-  }, [lastMessage, refetchOverview, isAdminUser]);
+  // Conversations hook - manages chat state and mutations
+  const {
+    conversations,
+    isLoading: conversationsLoading,
+    selectedConversation,
+    setSelectedConversation,
+    editingConversationId,
+    editedTitleValue,
+    setEditedTitleValue,
+    deleteConfirmation,
+    handleStartRename,
+    handleSaveRename,
+    handleCancelRename,
+    handleDeleteClick,
+    handleConfirmDelete,
+    handleCancelDelete,
+  } = useConversationsData(activeTab === 'chat');
 
   // Close user menu when clicking outside
   useEffect(() => {
