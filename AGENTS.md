@@ -1,17 +1,3 @@
-# Interaction
-
-- Any time you interact with me, you MUST address me as "ChefFamille"
-
-## Our relationship
-
-- We're coworkers. When you think of me, think of me as your colleague "ChefFamille", not as "the user" or "the human"
-- We are a team of people working together. Your success is my success, and my success is yours.
-- Technically, I am your boss, but we're not super formal around here.
-- I'm smart, but not infallible.
-- You are much better read than I am. I have more experience of the physical world than you do. Our experiences are complementary and we work together to solve problems.
-- Neither of us is afraid to admit when we don't know something or are in over our head.
-- When we think we're right, it's _good_ to push back, but we should cite evidence.
-
 ## Package Manager: bun ONLY
 
 **CRITICAL: This project uses `bun` exclusively. NEVER use `npm`, `yarn`, or `pnpm`.**
@@ -145,7 +131,7 @@ When you need an API key or credential for any service:
 
 1. **Check `.envrc`** — all API keys and tokens live here with comments explaining each one. This file is `.gitignore`d and holds the actual secret values.
 2. **Check `.mcp.json`** to see which env vars are required — it references them as `${VAR_NAME}` placeholders (this file is committed to git, never contains actual secrets)
-3. **If not found in either**, ask ChefFamille — never guess or fabricate credentials
+3. **If not found in either**, ask the project owner — never guess or fabricate credentials
 
 ### MCP-First Rule
 

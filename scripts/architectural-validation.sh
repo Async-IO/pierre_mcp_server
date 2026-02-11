@@ -276,7 +276,7 @@ if [ "$UNSAFE_USAGE" -gt 0 ]; then
         echo -e "${RED}❌ FORBIDDEN: Found $UNAPPROVED_UNSAFE unauthorized unsafe code usages${NC}"
         echo -e "${RED}Unsafe code is ONLY permitted in src/health.rs for Windows FFI${NC}"
         rg "#\[allow\(unsafe_code\)\]|unsafe \{|unsafe fn" src/ -g "!src/health.rs" -g "!src/bin/*" -n | head -10
-        fail_validation "Remove unsafe code or justify with ChefFamille approval"
+        fail_validation "Remove unsafe code or get explicit approval before committing"
     else
         pass_validation "Unsafe code usage limited to approved locations (src/health.rs for Windows FFI)"
     fi

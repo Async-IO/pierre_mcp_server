@@ -81,7 +81,7 @@ Before starting these tests:
 
 ## Scenario 8: Complete 7-Step OAuth Flow (End-to-End)
 
-**Goal**: Verify the exact flow ChefFamille described
+**Goal**: Verify the exact 7-step OAuth flow end-to-end
 
 ### Setup
 
@@ -355,4 +355,4 @@ After both automated (scenarios 1-6) and manual (scenarios 7-8) tests pass:
 
 ---
 
-**Happy Testing, ChefFamille!** 🚀
+**Happy Testing!** 🚀
