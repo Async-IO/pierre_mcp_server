@@ -1,20 +1,22 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+// ABOUTME: Main dashboard orchestrator that renders navigation and panel components
+// ABOUTME: Delegates data fetching to focused panel components in dashboard/ directory
+
 import { useState, lazy, Suspense, useEffect, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
-import { dashboardApi, adminApi, a2aApi, chatApi } from '../services/api';
-import type { DashboardOverview, RateLimitOverview, User, AdminToken } from '../types/api';
-import type { Conversation } from './chat/types';
-import type { AnalyticsData } from '../types/chart';
-import { useWebSocketContext } from '../hooks/useWebSocketContext';
-import { Card, ConfirmDialog } from './ui';
+import type { AdminToken } from '../types/api';
+import { Card } from './ui';
 import { clsx } from 'clsx';
-import ConversationItem from './chat/ConversationItem';
+import {
+  OverviewPanel,
+  ConversationsPanel,
+  usePendingUsersCount,
+  useStoreStatsPendingCount,
+} from './dashboard';
 
 // Lazy load heavy components to reduce initial bundle size
-const OverviewTab = lazy(() => import('./OverviewTab'));
 const UsageAnalytics = lazy(() => import('./UsageAnalytics'));
 const RequestMonitor = lazy(() => import('./RequestMonitor'));
 const ToolUsageBreakdown = lazy(() => import('./ToolUsageBreakdown'));
@@ -72,130 +74,13 @@ export default function Dashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedAdminToken, setSelectedAdminToken] = useState<AdminToken | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const { lastMessage } = useWebSocketContext();
 
-  const { data: overview, isLoading: overviewLoading, refetch: refetchOverview } = useQuery<DashboardOverview>({
-    queryKey: ['dashboard-overview'],
-    queryFn: () => dashboardApi.getDashboardOverview(),
-    enabled: isAdminUser,
-  });
+  // Use hooks from panel components for badge counts
+  const pendingUsersCount = usePendingUsersCount();
+  const storeStatsPendingCount = useStoreStatsPendingCount();
 
-  const { data: rateLimits } = useQuery<RateLimitOverview[]>({
-    queryKey: ['rate-limits'],
-    queryFn: () => dashboardApi.getRateLimitOverview(),
-    enabled: isAdminUser,
-  });
-
-  const { data: weeklyUsage } = useQuery<AnalyticsData>({
-    queryKey: ['usage-analytics', 7],
-    queryFn: () => dashboardApi.getUsageAnalytics(7),
-    enabled: isAdminUser,
-  });
-
-  const { data: a2aOverview } = useQuery({
-    queryKey: ['a2a-dashboard-overview'],
-    queryFn: () => a2aApi.getA2ADashboardOverview(),
-    enabled: isAdminUser,
-  });
-
-  // Pending users badge - only fetch for admin users
-  const { data: pendingUsers = [] } = useQuery<User[]>({
-    queryKey: ['pending-users'],
-    queryFn: () => adminApi.getPendingUsers(),
-    staleTime: 30_000,
-    retry: false,
-    enabled: isAdminUser,
-  });
-
-  // Coach store stats for pending review badge
-  const { data: storeStats } = useQuery({
-    queryKey: ['admin-store-stats'],
-    queryFn: () => adminApi.getStoreStats(),
-    staleTime: 30_000,
-    retry: false,
-    enabled: isAdminUser,
-  });
-
-  // Chat conversations - fetch for all users when Chat tab is active
+  // Chat conversations state
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
-  const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
-  const [editedTitleValue, setEditedTitleValue] = useState('');
-  const [deleteConfirmation, setDeleteConfirmation] = useState<{ id: string; title: string } | null>(null);
-  const queryClient = useQueryClient();
-
-  const { data: conversationsData, isLoading: conversationsLoading } = useQuery<{ conversations: Conversation[] }>({
-    queryKey: ['chat-conversations'],
-    queryFn: () => chatApi.getConversations(),
-    enabled: activeTab === 'chat',
-  });
-  const conversations = conversationsData?.conversations ?? [];
-
-  // Mutations for conversation management
-  const updateConversationMutation = useMutation({
-    mutationFn: ({ id, title }: { id: string; title: string }) =>
-      chatApi.updateConversation(id, { title }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
-      setEditingConversationId(null);
-      setEditedTitleValue('');
-    },
-  });
-
-  const deleteConversationMutation = useMutation({
-    mutationFn: (id: string) => chatApi.deleteConversation(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
-      if (selectedConversation === deleteConfirmation?.id) {
-        setSelectedConversation(null);
-      }
-      setDeleteConfirmation(null);
-    },
-  });
-
-  // Conversation action handlers
-  const handleStartRename = (e: React.MouseEvent, conv: Conversation) => {
-    e.stopPropagation();
-    setEditingConversationId(conv.id);
-    setEditedTitleValue(conv.title || 'Untitled Chat');
-  };
-
-  const handleSaveRename = () => {
-    if (editingConversationId && editedTitleValue.trim()) {
-      updateConversationMutation.mutate({ id: editingConversationId, title: editedTitleValue.trim() });
-    } else {
-      setEditingConversationId(null);
-      setEditedTitleValue('');
-    }
-  };
-
-  const handleCancelRename = () => {
-    setEditingConversationId(null);
-    setEditedTitleValue('');
-  };
-
-  const handleDeleteClick = (e: React.MouseEvent, conv: Conversation) => {
-    e.stopPropagation();
-    setDeleteConfirmation({ id: conv.id, title: conv.title || 'Untitled Chat' });
-  };
-
-  const handleConfirmDelete = () => {
-    if (deleteConfirmation) {
-      deleteConversationMutation.mutate(deleteConfirmation.id);
-    }
-  };
-
-  const handleCancelDelete = () => {
-    setDeleteConfirmation(null);
-  };
-
-  // Refresh data when WebSocket updates are received
-  useEffect(() => {
-    if (lastMessage && isAdminUser) {
-      if (lastMessage.type === 'usage_update' || lastMessage.type === 'system_stats') {
-        refetchOverview();
-      }
-    }
-  }, [lastMessage, refetchOverview, isAdminUser]);
 
   // Close user menu when clicking outside
   useEffect(() => {
@@ -241,7 +126,7 @@ export default function Dashboard() {
       <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
       </svg>
-    ), badge: pendingUsers.length > 0 ? pendingUsers.length : undefined },
+    ), badge: pendingUsersCount > 0 ? pendingUsersCount : undefined },
     { id: 'configuration', name: 'Configuration', icon: (
       <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
@@ -256,8 +141,8 @@ export default function Dashboard() {
       <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
       </svg>
-    ), badge: (storeStats?.pending_count ?? 0) > 0 ? storeStats?.pending_count : undefined },
-  ], [pendingUsers.length, storeStats?.pending_count]);
+    ), badge: storeStatsPendingCount > 0 ? storeStatsPendingCount : undefined },
+  ], [pendingUsersCount, storeStatsPendingCount]);
 
   // Super admin tabs extend admin tabs with admin token management
   const superAdminTabs: TabDefinition[] = useMemo(() => [
@@ -384,34 +269,10 @@ export default function Dashboard() {
           {/* Recent Conversations - shown when Chat tab is active */}
           {activeTab === 'chat' && !sidebarCollapsed && (
             <div className="mt-4 px-3">
-              <div className="border-t border-white/10 pt-4">
-                <h3 className="text-[11px] font-bold text-zinc-400 tracking-wider uppercase px-3 mb-2">
-                  Recent Chats
-                </h3>
-                <div className="space-y-0.5 max-h-64 overflow-y-auto">
-                  {conversationsLoading ? (
-                    <div className="px-3 py-2 text-zinc-500 text-sm">Loading...</div>
-                  ) : conversations.length === 0 ? (
-                    <div className="px-3 py-2 text-zinc-500 text-sm">No conversations yet</div>
-                  ) : (
-                    conversations.slice(0, 10).map((conv) => (
-                      <ConversationItem
-                        key={conv.id}
-                        conversation={conv}
-                        isSelected={selectedConversation === conv.id}
-                        isEditing={editingConversationId === conv.id}
-                        editedTitleValue={editedTitleValue}
-                        onSelect={() => setSelectedConversation(conv.id)}
-                        onStartRename={(e) => handleStartRename(e, conv)}
-                        onDelete={(e) => handleDeleteClick(e, conv)}
-                        onTitleChange={setEditedTitleValue}
-                        onSaveRename={handleSaveRename}
-                        onCancelRename={handleCancelRename}
-                      />
-                    ))
-                  )}
-                </div>
-              </div>
+              <ConversationsPanel
+                selectedConversation={selectedConversation}
+                onSelectConversation={setSelectedConversation}
+              />
             </div>
           )}
         </nav>
@@ -539,18 +400,7 @@ export default function Dashboard() {
 
           {/* Content */}
         {activeTab === 'overview' && (
-          <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
-            <OverviewTab
-              overview={overview}
-              overviewLoading={overviewLoading}
-              rateLimits={rateLimits}
-              weeklyUsage={weeklyUsage}
-              a2aOverview={a2aOverview}
-              pendingUsersCount={pendingUsers.length}
-              pendingCoachReviews={storeStats?.pending_count ?? 0}
-              onNavigate={setActiveTab}
-            />
-          </Suspense>
+          <OverviewPanel onNavigate={setActiveTab} />
         )}
 
         {activeTab === 'connections' && (
@@ -674,18 +524,6 @@ export default function Dashboard() {
         )}
         </div>
       </main>
-
-      {/* Delete Confirmation Dialog */}
-      <ConfirmDialog
-        isOpen={!!deleteConfirmation}
-        title="Delete Conversation"
-        message={`Are you sure you want to delete "${deleteConfirmation?.title}"? This action cannot be undone.`}
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
-        onConfirm={handleConfirmDelete}
-        onClose={handleCancelDelete}
-        variant="danger"
-      />
     </div>
   );
 }
