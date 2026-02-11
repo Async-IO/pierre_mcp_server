@@ -82,7 +82,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   const logout = useCallback(async () => {
-    await authApi.logout();
+    try {
+      await authApi.logout();
+    } catch (error) {
+      // Server call may fail (e.g. network error via tunnel),
+      // but authApi.logout() already clears local storage in its finally block.
+      console.warn('Server logout request failed:', error);
+    }
     await signOutFromFirebase();
     setUser(null);
   }, []);
