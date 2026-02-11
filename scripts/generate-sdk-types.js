@@ -165,11 +165,14 @@ function toPascalCase(str) {
  * Generate TypeScript tool types from tool schemas
  */
 function generateToolsTypeScript(tools) {
+  // Sort tools alphabetically by name for deterministic output
+  const sortedTools = [...tools].sort((a, b) => a.name.localeCompare(b.name));
+
   const header = `// ABOUTME: Auto-generated TypeScript type definitions for Pierre MCP tool parameters
 // ABOUTME: Generated from server tool schemas - DO NOT EDIT MANUALLY
 //
 // Generated: ${new Date().toISOString()}
-// Tool count: ${tools.length}
+// Tool count: ${sortedTools.length}
 // To regenerate: bun run generate (from packages/mcp-types)
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -182,7 +185,7 @@ function generateToolsTypeScript(tools) {
 
 `;
 
-  const paramTypes = tools.map(tool => {
+  const paramTypes = sortedTools.map(tool => {
     const interfaceName = `${toPascalCase(tool.name)}Params`;
     const description = tool.description ? `\n/**\n * ${tool.description}\n */` : '';
 
@@ -233,7 +236,7 @@ export interface McpErrorResponse {
 
 `;
 
-  // Generate a union type of all tool names
+  // Generate a union type of all tool names (already sorted)
   const toolNamesUnion = `
 // ============================================================================
 // TOOL NAME TYPES
@@ -242,13 +245,13 @@ export interface McpErrorResponse {
 /**
  * Union type of all available tool names
  */
-export type ToolName = ${tools.map(t => `"${t.name}"`).join(' | ')};
+export type ToolName = ${sortedTools.map(t => `"${t.name}"`).join(' | ')};
 
 /**
  * Map of tool names to their parameter types
  */
 export interface ToolParamsMap {
-${tools.map(t => `  "${t.name}": ${toPascalCase(t.name)}Params;`).join('\n')}
+${sortedTools.map(t => `  "${t.name}": ${toPascalCase(t.name)}Params;`).join('\n')}
 }
 `;
 

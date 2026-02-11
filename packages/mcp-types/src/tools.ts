@@ -1,7 +1,7 @@
 // ABOUTME: Auto-generated TypeScript type definitions for Pierre MCP tool parameters
 // ABOUTME: Generated from server tool schemas - DO NOT EDIT MANUALLY
 //
-// Generated: 2026-02-11T20:35:42.294Z
+// Generated: 2026-02-11T21:11:49.165Z
 // Tool count: 12
 // To regenerate: bun run generate (from packages/mcp-types)
 
@@ -25,21 +25,18 @@ export interface AnalyzeMealNutritionParams {
 
 
 /**
- * Get the complete catalog of available configuration options
- */
-export interface GetConfigurationCatalogParams {}
-
-
-/**
  * Calculate daily calorie and macronutrient needs based on biometrics and goals
  */
 export interface CalculateDailyNutritionParams {
 
+  /** Activity level: sedentary, lightly_active, moderately_active, very_active, extra_active */
+  activity_level: string;
+
   /** Body weight in kilograms */
   weight_kg: number;
 
-  /** Activity level: sedentary, lightly_active, moderately_active, very_active, extra_active */
-  activity_level: string;
+  /** Age in years */
+  age: number;
 
   /** Training goal: maintenance, weight_loss, muscle_gain, endurance_performance */
   training_goal: string;
@@ -49,9 +46,50 @@ export interface CalculateDailyNutritionParams {
 
   /** Gender: male or female */
   gender: string;
+}
 
-  /** Age in years */
-  age: number;
+
+/**
+ * Detect training patterns including hard/easy day balance, weekly schedule consistency, volume progression, and overtraining warning signs
+ */
+export interface DetectPatternsParams {
+
+  /** Number of weeks to analyze for patterns. Default: 4. */
+  weeks?: number;
+
+  /** Fitness provider to query. Defaults to configured provider. */
+  provider?: string;
+}
+
+
+/**
+ * Retrieve user's fitness activities from connected providers with optional filtering by sport type, date range, and pagination support
+ */
+export interface GetActivitiesParams {
+
+  /** Output format: 'json' (default) or 'toon' (token-efficient for LLMs). */
+  format?: string;
+
+  /** Maximum number of activities to return. Defaults to format-aware limit to prevent context overflow. */
+  limit?: number;
+
+  /** Unix timestamp - return activities after this time. */
+  after?: number;
+
+  /** Filter by sport type (e.g., 'run', 'ride', 'swim'). Case-insensitive. */
+  sport_type?: string;
+
+  /** Output mode: 'summary' (default, minimal fields) or 'detailed' (full activity data). */
+  mode?: string;
+
+  /** Number of activities to skip for pagination. */
+  offset?: number;
+
+  /** Fitness provider to query (e.g., 'strava', 'fitbit'). Defaults to configured default provider. */
+  provider?: string;
+
+  /** Unix timestamp - return activities before this time. */
+  before?: number;
 }
 
 
@@ -66,6 +104,18 @@ export interface GetAthleteParams {
   /** Fitness provider to query (e.g., 'strava', 'fitbit'). Defaults to configured default provider. */
   provider?: string;
 }
+
+
+/**
+ * Get the complete catalog of available configuration options
+ */
+export interface GetConfigurationCatalogParams {}
+
+
+/**
+ * Get available configuration profile templates
+ */
+export interface GetConfigurationProfilesParams {}
 
 
 /**
@@ -96,62 +146,15 @@ export interface GetStatsParams {
  */
 export interface SearchFoodParams {
 
-  /** Page number (1-indexed, default: 1). Only use if previous response had has_more=true */
-  page_number?: number;
+  /** Search query for food items */
+  query: string;
 
   /** Number of results per page (default: 10, max: 50) */
   page_size?: number;
 
-  /** Search query for food items */
-  query: string;
+  /** Page number (1-indexed, default: 1). Only use if previous response had has_more=true */
+  page_number?: number;
 }
-
-
-/**
- * Validate configuration parameters for physiological correctness
- */
-export interface ValidateConfigurationParams {
-
-  /** Configuration parameters to validate */
-  parameters: Record<string, any>;
-}
-
-
-/**
- * Retrieve user's fitness activities from connected providers with optional filtering by sport type, date range, and pagination support
- */
-export interface GetActivitiesParams {
-
-  /** Output format: 'json' (default) or 'toon' (token-efficient for LLMs). */
-  format?: string;
-
-  /** Fitness provider to query (e.g., 'strava', 'fitbit'). Defaults to configured default provider. */
-  provider?: string;
-
-  /** Unix timestamp - return activities after this time. */
-  after?: number;
-
-  /** Filter by sport type (e.g., 'run', 'ride', 'swim'). Case-insensitive. */
-  sport_type?: string;
-
-  /** Maximum number of activities to return. Defaults to format-aware limit to prevent context overflow. */
-  limit?: number;
-
-  /** Unix timestamp - return activities before this time. */
-  before?: number;
-
-  /** Output mode: 'summary' (default, minimal fields) or 'detailed' (full activity data). */
-  mode?: string;
-
-  /** Number of activities to skip for pagination. */
-  offset?: number;
-}
-
-
-/**
- * Get available configuration profile templates
- */
-export interface GetConfigurationProfilesParams {}
 
 
 /**
@@ -165,15 +168,12 @@ export interface SuggestGoalsParams {
 
 
 /**
- * Detect training patterns including hard/easy day balance, weekly schedule consistency, volume progression, and overtraining warning signs
+ * Validate configuration parameters for physiological correctness
  */
-export interface DetectPatternsParams {
+export interface ValidateConfigurationParams {
 
-  /** Fitness provider to query. Defaults to configured provider. */
-  provider?: string;
-
-  /** Number of weeks to analyze for patterns. Default: 4. */
-  weeks?: number;
+  /** Configuration parameters to validate */
+  parameters: Record<string, any>;
 }
 
 // ============================================================================
@@ -210,22 +210,22 @@ export interface McpErrorResponse {
 /**
  * Union type of all available tool names
  */
-export type ToolName = "analyze_meal_nutrition" | "get_configuration_catalog" | "calculate_daily_nutrition" | "get_athlete" | "get_food_details" | "get_stats" | "search_food" | "validate_configuration" | "get_activities" | "get_configuration_profiles" | "suggest_goals" | "detect_patterns";
+export type ToolName = "analyze_meal_nutrition" | "calculate_daily_nutrition" | "detect_patterns" | "get_activities" | "get_athlete" | "get_configuration_catalog" | "get_configuration_profiles" | "get_food_details" | "get_stats" | "search_food" | "suggest_goals" | "validate_configuration";
 
 /**
  * Map of tool names to their parameter types
  */
 export interface ToolParamsMap {
   "analyze_meal_nutrition": AnalyzeMealNutritionParams;
-  "get_configuration_catalog": GetConfigurationCatalogParams;
   "calculate_daily_nutrition": CalculateDailyNutritionParams;
+  "detect_patterns": DetectPatternsParams;
+  "get_activities": GetActivitiesParams;
   "get_athlete": GetAthleteParams;
+  "get_configuration_catalog": GetConfigurationCatalogParams;
+  "get_configuration_profiles": GetConfigurationProfilesParams;
   "get_food_details": GetFoodDetailsParams;
   "get_stats": GetStatsParams;
   "search_food": SearchFoodParams;
-  "validate_configuration": ValidateConfigurationParams;
-  "get_activities": GetActivitiesParams;
-  "get_configuration_profiles": GetConfigurationProfilesParams;
   "suggest_goals": SuggestGoalsParams;
-  "detect_patterns": DetectPatternsParams;
+  "validate_configuration": ValidateConfigurationParams;
 }
