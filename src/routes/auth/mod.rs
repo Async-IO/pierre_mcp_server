@@ -2679,7 +2679,7 @@ impl AuthRoutes {
         let tenant_id = Self::extract_tenant_id_from_database(
             &resources.database,
             user_id,
-            auth_result.active_tenant_id,
+            auth_result.active_tenant_id.map(TenantId::from),
         )
         .await?;
 
@@ -2766,7 +2766,7 @@ impl AuthRoutes {
         let tenant_id = Self::extract_tenant_id_from_database(
             &resources.database,
             user_id,
-            auth_result.active_tenant_id,
+            auth_result.active_tenant_id.map(TenantId::from),
         )
         .await?;
 
