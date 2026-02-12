@@ -1,0 +1,5 @@
+{
+  "extends": "../tsconfig-pierre/react-lib.json",
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

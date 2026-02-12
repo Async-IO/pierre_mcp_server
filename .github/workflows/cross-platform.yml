@@ -2,7 +2,7 @@ name: Cross-Platform Tests
 
 on:
   push:
-    branches: [ "main", "debug/*", "feature/*", "claude/*" ]
+    branches: [ "main", "debug/*", "feature/*", "claude/*", "copilot/*" ]
     paths:
       - 'src/**'
       - 'crates/**'

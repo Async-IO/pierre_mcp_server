@@ -5,7 +5,7 @@ name: Examples Validation
 
 on:
   push:
-    branches: [ "main", "feature/*", "claude/*" ]
+    branches: [ "main", "feature/*", "claude/*", "copilot/*" ]
     paths:
       - 'examples/**'
       - 'src/a2a/**'

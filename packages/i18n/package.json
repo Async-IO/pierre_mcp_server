@@ -1,0 +1,27 @@
+{
+  "name": "@pierre/i18n",
+  "version": "1.0.0",
+  "description": "Unified internationalization package for Pierre web and mobile apps",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./locales/*": "./src/locales/*"
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "i18next": "^24.2.0",
+    "react-i18next": "^16.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.2",
+    "react": "^19.1.0",
+    "typescript": "~5.8.3"
+  },
+  "peerDependencies": {
+    "react": "^19.1.0"
+  }
+}

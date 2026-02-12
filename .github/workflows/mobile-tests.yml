@@ -5,7 +5,7 @@ name: Mobile Tests
 
 on:
   push:
-    branches: [ "main", "debug/*", "feature/*", "claude/*" ]
+    branches: [ "main", "debug/*", "feature/*", "claude/*", "copilot/*" ]
     paths:
       - 'frontend-mobile/**'
       - 'packages/**'
