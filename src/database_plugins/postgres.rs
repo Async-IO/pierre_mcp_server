@@ -3314,7 +3314,7 @@ impl DatabaseProvider for PostgresDatabase {
 
     /// Get tenant by ID
     async fn get_tenant_by_id(&self, tenant_id: TenantId) -> AppResult<Tenant> {
-        let row = sqlx::query_as::<_, (Uuid, String, String, Option<String>, String, Uuid, DateTime<Utc>, DateTime<Utc>)>(
+        let row = sqlx::query_as::<_, (TenantId, String, String, Option<String>, String, Uuid, DateTime<Utc>, DateTime<Utc>)>(
             r"
             SELECT t.id, t.name, t.slug, t.domain, t.subscription_tier, tu.user_id, t.created_at, t.updated_at
             FROM tenants t
@@ -3344,7 +3344,7 @@ impl DatabaseProvider for PostgresDatabase {
 
     /// Get tenant by slug
     async fn get_tenant_by_slug(&self, slug: &str) -> AppResult<Tenant> {
-        let row = sqlx::query_as::<_, (Uuid, String, String, Option<String>, String, Uuid, DateTime<Utc>, DateTime<Utc>)>(
+        let row = sqlx::query_as::<_, (TenantId, String, String, Option<String>, String, Uuid, DateTime<Utc>, DateTime<Utc>)>(
             r"
             SELECT t.id, t.name, t.slug, t.domain, t.subscription_tier, tu.user_id, t.created_at, t.updated_at
             FROM tenants t
@@ -3377,7 +3377,7 @@ impl DatabaseProvider for PostgresDatabase {
         let rows = sqlx::query_as::<
             _,
             (
-                Uuid,
+                TenantId,
                 String,
                 String,
                 Option<String>,
@@ -3388,7 +3388,7 @@ impl DatabaseProvider for PostgresDatabase {
             ),
         >(
             r"
-            SELECT DISTINCT t.id, t.name, t.slug, t.domain, t.subscription_tier, 
+            SELECT DISTINCT t.id, t.name, t.slug, t.domain, t.subscription_tier,
                    owner.user_id, t.created_at, t.updated_at
             FROM tenants t
             JOIN tenant_users tu ON t.id = tu.tenant_id
@@ -4087,10 +4087,10 @@ impl DatabaseProvider for PostgresDatabase {
             .map(|row| {
                 use sqlx::Row;
                 Ok(Tenant {
-                    id: uuid::Uuid::parse_str(&row.try_get::<String, _>("id").map_err(|e| {
+                    id: TenantId::from(uuid::Uuid::parse_str(&row.try_get::<String, _>("id").map_err(|e| {
                         AppError::database(format!("Failed to parse id column: {e}"))
                     })?)
-                    .map_err(|e| AppError::database(format!("Invalid tenant UUID: {e}")))?,
+                    .map_err(|e| AppError::database(format!("Invalid tenant UUID: {e}")))?),
                     name: row.try_get("name").map_err(|e| {
                         AppError::database(format!("Failed to parse name column: {e}"))
                     })?,
@@ -6133,7 +6133,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         Ok(row.map(|r| LlmCredentialRecord {
             id: r.get::<Uuid, _>("id"),
-            tenant_id: r.get::<Uuid, _>("tenant_id"),
+            tenant_id: TenantId::from(r.get::<Uuid, _>("tenant_id")),
             user_id: r.get::<Option<Uuid>, _>("user_id"),
             provider: r.get::<String, _>("provider"),
             api_key_encrypted: r.get::<String, _>("api_key_encrypted"),

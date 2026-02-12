@@ -14,6 +14,8 @@ use uuid::Uuid;
 ///
 /// Provides compile-time distinction between tenant IDs and other UUIDs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "sqlx-types", derive(sqlx::Type))]
+#[cfg_attr(feature = "sqlx-types", sqlx(transparent))]
 #[serde(transparent)]
 pub struct TenantId(pub Uuid);
 

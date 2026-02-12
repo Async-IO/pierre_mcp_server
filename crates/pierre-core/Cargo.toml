@@ -19,6 +19,9 @@ http-response = ["dep:axum", "dep:http"]
 # Database error types (DatabaseError with sqlx::Error conversion)
 database-errors = ["dep:sqlx"]
 
+# sqlx Type/Encode/Decode derives for domain types (TenantId, etc.)
+sqlx-types = ["dep:sqlx", "sqlx/derive"]
+
 # Provider error types (ProviderError with reqwest::Error)
 provider-errors = ["dep:reqwest"]
 
@@ -30,6 +33,9 @@ toon = ["dep:toon-format"]
 
 # All error features (convenience for main crate)
 all-errors = ["database-errors", "provider-errors", "crypto-errors"]
+
+# All database-related features (errors + type derives)
+all-database = ["database-errors", "sqlx-types"]
 
 [dependencies]
 thiserror = "2.0"
