@@ -269,13 +269,23 @@ bun run test:e2e
 - **State**: React Query for server state, React Context for app state
 - **Components**: Follow existing patterns in `src/components/`
 
-## Claude Code for Web - Special Instructions
+## Git Hooks - MANDATORY for ALL AI Agents
 
 **⚠️ MANDATORY - Run this at the START OF EVERY SESSION:**
 ```bash
 git config core.hooksPath .githooks
 ```
-This enables the pre-push hook. Sessions get archived/revived, so this must run EVERY time you start working, not just once.
+This enables pre-commit, commit-msg, and pre-push hooks. Sessions get archived/revived, so this must run EVERY time you start working, not just once.
+
+**NEVER use `--no-verify` when committing or pushing.** The hooks enforce:
+- SPDX license headers on all source files
+- Commit message format (max 2 lines, conventional commits)
+- No AI-generated commit signatures (🤖, "Generated with", etc.)
+- No claude_docs/ or unauthorized root markdown files
+- Frontend/SDK lint and type-check
+
+### Copilot Coding Agent
+The `.github/workflows/copilot-setup-steps.yml` file configures the agent's environment before it starts working. It sets `core.hooksPath` and installs dependencies so git hooks run correctly. If hooks fail, fix the underlying issue — do not bypass them.
 
 ## Pre-Push Validation Workflow
 

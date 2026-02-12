@@ -5,7 +5,7 @@ name: Deadlock Detection
 
 on:
   push:
-    branches: [ "main", "feature/*", "claude/*" ]
+    branches: [ "main", "feature/*", "claude/*", "copilot/*" ]
     paths:
       - '**.rs'
       - 'Cargo.toml'

@@ -9,7 +9,7 @@ name: Performance Benchmarks
 
 on:
   push:
-    branches: [ "main", "debug/*", "feature/*", "claude/*" ]
+    branches: [ "main", "debug/*", "feature/*", "claude/*", "copilot/*" ]
     paths:
       - 'src/**'
       - 'crates/**'

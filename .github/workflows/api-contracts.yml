@@ -5,7 +5,7 @@ name: API Contracts
 
 on:
   push:
-    branches: [ "main", "debug/*", "feature/*", "claude/*" ]
+    branches: [ "main", "debug/*", "feature/*", "claude/*", "copilot/*" ]
     paths:
       - 'src/routes/**'
       - 'src/models/**'
