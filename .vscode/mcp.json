@@ -1,5 +1,5 @@
 {
-  "mcpServers": {
+  "servers": {
     "pierre": {
       "type": "http",
       "url": "http://localhost:8081/mcp",
@@ -7,27 +7,15 @@
         "Authorization": "Bearer ${PIERRE_JWT_TOKEN}"
       }
     },
-    "github": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"],
-      "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
-      }
-    },
     "chrome-devtools": {
+      "type": "stdio",
       "command": "npx",
       "args": ["-y", "chrome-devtools-mcp@latest", "--chrome-arg=--no-sandbox", "--chrome-arg=--disable-dev-shm-usage"]
     },
     "ios-simulator": {
+      "type": "stdio",
       "command": "npx",
       "args": ["-y", "ios-simulator-mcp@latest"]
-    },
-    "linear": {
-      "type": "http",
-      "url": "https://mcp.linear.app/mcp",
-      "headers": {
-        "Authorization": "Bearer ${LINEAR_API_KEY}"
-      }
     }
   }
 }
