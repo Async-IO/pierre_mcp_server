@@ -4087,10 +4087,12 @@ impl DatabaseProvider for PostgresDatabase {
             .map(|row| {
                 use sqlx::Row;
                 Ok(Tenant {
-                    id: TenantId::from(uuid::Uuid::parse_str(&row.try_get::<String, _>("id").map_err(|e| {
-                        AppError::database(format!("Failed to parse id column: {e}"))
-                    })?)
-                    .map_err(|e| AppError::database(format!("Invalid tenant UUID: {e}")))?),
+                    id: TenantId::from(
+                        uuid::Uuid::parse_str(&row.try_get::<String, _>("id").map_err(|e| {
+                            AppError::database(format!("Failed to parse id column: {e}"))
+                        })?)
+                        .map_err(|e| AppError::database(format!("Invalid tenant UUID: {e}")))?,
+                    ),
                     name: row.try_get("name").map_err(|e| {
                         AppError::database(format!("Failed to parse name column: {e}"))
                     })?,
