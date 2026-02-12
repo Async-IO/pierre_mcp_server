@@ -1033,10 +1033,13 @@ async fn verify_user_tenant_membership(
 
 /// Verify admin access for a user
 ///
-/// Returns the user's default `tenant_id` if authorized, error if not Admin/SuperAdmin
+/// Returns the `tenant_id` if authorized, error if not `Admin`/`SuperAdmin`.
+/// Uses `active_tenant_id` from request when available (user's selected tenant),
+/// falling back to user's first tenant for clients without `active_tenant_id`.
 async fn verify_admin_access(
     executor: &UniversalToolExecutor,
     user_uuid: Uuid,
+    active_tenant_id: Option<&str>,
 ) -> Result<String, ProtocolError> {
     let user = executor
         .resources
@@ -1053,7 +1056,24 @@ async fn verify_admin_access(
         ));
     }
 
-    // Get tenant_id from tenant_users junction table
+    // Prefer active_tenant_id from request (user's selected tenant)
+    if let Some(tid_str) = active_tenant_id {
+        // Verify user is a member of this tenant
+        let tenants = executor
+            .resources
+            .database
+            .list_tenants_for_user(user_uuid)
+            .await
+            .map_err(|e| {
+                ProtocolError::InternalError(format!("Failed to get user tenants: {e}"))
+            })?;
+        if tenants.iter().any(|t| t.id.to_string() == tid_str) {
+            return Ok(tid_str.to_owned());
+        }
+        // Fall through if user is not a member (use default tenant)
+    }
+
+    // Fall back to user's first tenant (single-tenant users or tokens without active_tenant_id)
     let tenants = executor
         .resources
         .database
@@ -1094,7 +1114,8 @@ pub fn handle_admin_list_system_coaches(
 
         let output_format = extract_output_format(&request);
         let user_id = parse_user_id_for_protocol(&request.user_id)?;
-        let tenant_id = verify_admin_access(executor, user_id).await?;
+        let tenant_id =
+            verify_admin_access(executor, user_id, request.tenant_id.as_deref()).await?;
 
         let manager = get_coaches_manager(executor)?;
         let coaches = manager.list_system_coaches(&tenant_id).await.map_err(|e| {
@@ -1176,7 +1197,8 @@ pub fn handle_admin_create_system_coach(
         }
 
         let user_id = parse_user_id_for_protocol(&request.user_id)?;
-        let tenant_id = verify_admin_access(executor, user_id).await?;
+        let tenant_id =
+            verify_admin_access(executor, user_id, request.tenant_id.as_deref()).await?;
 
         let params: CreateSystemCoachParams = serde_json::from_value(request.parameters.clone())
             .map_err(|e| {
@@ -1255,7 +1277,8 @@ pub fn handle_admin_get_system_coach(
 
         let output_format = extract_output_format(&request);
         let user_id = parse_user_id_for_protocol(&request.user_id)?;
-        let tenant_id = verify_admin_access(executor, user_id).await?;
+        let tenant_id =
+            verify_admin_access(executor, user_id, request.tenant_id.as_deref()).await?;
 
         let coach_id = request
             .parameters
@@ -1335,7 +1358,8 @@ pub fn handle_admin_update_system_coach(
         }
 
         let user_id = parse_user_id_for_protocol(&request.user_id)?;
-        let tenant_id = verify_admin_access(executor, user_id).await?;
+        let tenant_id =
+            verify_admin_access(executor, user_id, request.tenant_id.as_deref()).await?;
 
         let coach_id = request
             .parameters
@@ -1449,7 +1473,8 @@ pub fn handle_admin_delete_system_coach(
         }
 
         let user_id = parse_user_id_for_protocol(&request.user_id)?;
-        let tenant_id = verify_admin_access(executor, user_id).await?;
+        let tenant_id =
+            verify_admin_access(executor, user_id, request.tenant_id.as_deref()).await?;
 
         let coach_id = request
             .parameters
@@ -1513,7 +1538,8 @@ pub fn handle_admin_assign_coach(
         }
 
         let admin_user_id = parse_user_id_for_protocol(&request.user_id)?;
-        let tenant_id = verify_admin_access(executor, admin_user_id).await?;
+        let tenant_id =
+            verify_admin_access(executor, admin_user_id, request.tenant_id.as_deref()).await?;
 
         let coach_id = request
             .parameters
@@ -1595,7 +1621,8 @@ pub fn handle_admin_unassign_coach(
         }
 
         let admin_user_id = parse_user_id_for_protocol(&request.user_id)?;
-        let tenant_id = verify_admin_access(executor, admin_user_id).await?;
+        let tenant_id =
+            verify_admin_access(executor, admin_user_id, request.tenant_id.as_deref()).await?;
 
         let coach_id = request
             .parameters
@@ -1678,7 +1705,8 @@ pub fn handle_admin_list_coach_assignments(
         }
 
         let admin_user_id = parse_user_id_for_protocol(&request.user_id)?;
-        let tenant_id = verify_admin_access(executor, admin_user_id).await?;
+        let tenant_id =
+            verify_admin_access(executor, admin_user_id, request.tenant_id.as_deref()).await?;
 
         let coach_id = request.parameters.get("coach_id").and_then(Value::as_str);
 

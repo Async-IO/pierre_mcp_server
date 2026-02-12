@@ -1208,11 +1208,15 @@ async fn test_disconnect_provider() {
         .unwrap();
 
     // Test disconnecting Strava (should succeed even if not connected)
-    let result = oauth_routes.disconnect_provider(user_id, "strava").await;
+    let result = oauth_routes
+        .disconnect_provider(user_id, "strava", None)
+        .await;
     assert!(result.is_ok());
 
     // Test disconnecting invalid provider
-    let result = oauth_routes.disconnect_provider(user_id, "invalid").await;
+    let result = oauth_routes
+        .disconnect_provider(user_id, "invalid", None)
+        .await;
     assert!(result.is_err());
     assert!(result
         .unwrap_err()

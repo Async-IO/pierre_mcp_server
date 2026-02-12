@@ -236,20 +236,31 @@ impl StoreRoutes {
     }
 
     /// Get tenant ID for an authenticated user
+    ///
+    /// Uses `active_tenant_id` from JWT claims (user's selected tenant) when available,
+    /// falling back to the user's first tenant for single-tenant users or tokens without `active_tenant_id`.
     async fn get_user_tenant(
+        auth: &AuthResult,
         resources: &Arc<ServerResources>,
-        user_id: Uuid,
     ) -> Result<String, AppError> {
+        // Prefer active_tenant_id from JWT claims (user's selected tenant)
+        if let Some(tenant_id) = auth.active_tenant_id {
+            return Ok(tenant_id.to_string());
+        }
+        // Fall back to user's first tenant (single-tenant users or tokens without active_tenant_id)
         let tenants = resources
             .database
-            .list_tenants_for_user(user_id)
+            .list_tenants_for_user(auth.user_id)
             .await
             .map_err(|e| {
-                AppError::database(format!("Failed to get tenants for user {user_id}: {e}"))
+                AppError::database(format!(
+                    "Failed to get tenants for user {}: {e}",
+                    auth.user_id
+                ))
             })?;
 
         tenants.first().map(|t| t.id.to_string()).ok_or_else(|| {
-            AppError::invalid_input(format!("User {user_id} has no tenant assigned"))
+            AppError::invalid_input(format!("User {} has no tenant assigned", auth.user_id))
         })
     }
 
@@ -285,7 +296,7 @@ impl StoreRoutes {
             .sort_by
             .as_deref()
             .map_or(StoreSortOrder::Newest, StoreSortOrder::parse);
-        let limit = query.limit.unwrap_or(20);
+        let limit = query.limit.unwrap_or(20).clamp(1, 100);
 
         // Use cursor-based pagination for efficient infinite scrolling
         let page = manager
@@ -443,7 +454,7 @@ impl StoreRoutes {
         Path(coach_id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+        let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
 
@@ -477,7 +488,7 @@ impl StoreRoutes {
         Path(coach_id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+        let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
 
@@ -510,7 +521,7 @@ impl StoreRoutes {
         headers: HeaderMap,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        let tenant_id = Self::get_user_tenant(&resources, auth.user_id).await?;
+        let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
 

@@ -945,8 +945,8 @@ impl SocialRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let social = Self::get_social_manager(&resources)?;
 
-        let limit = query.limit.unwrap_or(50);
-        let offset = query.offset.unwrap_or(0);
+        let limit = query.limit.unwrap_or(50).clamp(1, 100);
+        let offset = query.offset.unwrap_or(0).max(0);
 
         let friends = social
             .get_friends_paginated(auth.user_id, limit, offset)
@@ -1311,8 +1311,8 @@ impl SocialRoutes {
             .map(|t| InsightType::from_str(&t))
             .transpose()?;
 
-        let limit = query.limit.unwrap_or(50);
-        let offset = query.offset.unwrap_or(0);
+        let limit = query.limit.unwrap_or(50).clamp(1, 100);
+        let offset = query.offset.unwrap_or(0).max(0);
 
         let insights = social
             .get_user_shared_insights(auth.user_id, insight_type, limit, offset)
@@ -1483,7 +1483,7 @@ impl SocialRoutes {
                 let mut suggestions = generator.generate_suggestions(&context);
 
                 // Limit results if requested
-                let limit = query.limit.unwrap_or(5);
+                let limit = query.limit.unwrap_or(5).clamp(1, 20);
                 suggestions.truncate(limit);
 
                 // Convert to response format, adding activity_id if provided
@@ -2043,8 +2043,8 @@ impl SocialRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let social = Self::get_social_manager(&resources)?;
 
-        let limit = query.limit.unwrap_or(50);
-        let offset = query.offset.unwrap_or(0);
+        let limit = query.limit.unwrap_or(50).clamp(1, 100);
+        let offset = query.offset.unwrap_or(0).max(0);
 
         // Get full feed items with author, reactions, and user-specific state
         let feed_items = social
@@ -2172,8 +2172,8 @@ impl SocialRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let social = Self::get_social_manager(&resources)?;
 
-        let limit = query.limit.unwrap_or(50);
-        let offset = query.offset.unwrap_or(0);
+        let limit = query.limit.unwrap_or(50).clamp(1, 100);
+        let offset = query.offset.unwrap_or(0).max(0);
 
         let adapted = social
             .get_user_adapted_insights_paginated(auth.user_id, limit, offset)
@@ -2238,7 +2238,7 @@ impl SocialRoutes {
         let social = Self::get_social_manager(&resources)?;
 
         let users = social
-            .search_discoverable_users(&query.q, query.limit.unwrap_or(20))
+            .search_discoverable_users(&query.q, query.limit.unwrap_or(20).clamp(1, 50))
             .await?;
 
         // Filter out self and build response with friend status

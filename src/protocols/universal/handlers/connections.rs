@@ -158,10 +158,12 @@ pub fn handle_disconnect_provider(
             )));
         };
 
-        // Resolve tenant ID: use request tenant_id, or look up user's default tenant
+        // Resolve tenant ID: prefer request.tenant_id (user's selected tenant from JWT),
+        // falling back to user's first tenant for clients without active_tenant_id.
         let tenant_id_str = if let Some(tid) = request.tenant_id.as_deref() {
             tid.to_owned()
         } else {
+            // No active tenant in request - fall back to user's first tenant
             let tenants = executor
                 .resources
                 .database
@@ -365,8 +367,9 @@ pub fn handle_connect_provider(
             Err(e) => return Ok(connection_error(format!("Database error: {e}"))),
         }
 
-        // Get tenant context from verified tenant_users membership, fallback to user_uuid.
-        // Security: never trust request.tenant_id without membership verification,
+        // Get tenant context: prefer request.tenant_id (user's selected tenant from JWT),
+        // falling back to user's first tenant for clients without active_tenant_id.
+        // Security: always verify membership before using request.tenant_id,
         // as it would allow a caller to use another tenant's OAuth credentials/rate limits.
         let tenants = db
             .list_tenants_for_user(user_uuid)
@@ -377,14 +380,14 @@ pub fn handle_connect_provider(
             .as_ref()
             .and_then(|t| uuid::Uuid::parse_str(t).ok())
             .map_or_else(
-                // No tenant_id in request; use first membership or user_uuid
+                // No tenant_id in request; fall back to first membership or user_uuid
                 || tenants.first().map_or(user_uuid, |t| t.id),
                 |requested_tid| {
                     // Verify the user is a member of the requested tenant
                     if tenants.iter().any(|t| t.id == requested_tid) {
                         requested_tid
                     } else {
-                        // User is not a member of the requested tenant
+                        // User is not a member of the requested tenant - fall back
                         tenants.first().map_or(user_uuid, |t| t.id)
                     }
                 },

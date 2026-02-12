@@ -158,13 +158,24 @@ impl LlmSettingsRoutes {
             .map_err(|e| AppError::auth_invalid(format!("Authentication failed: {e}")))
     }
 
-    /// Get user's `tenant_id` (defaults to `user_id` if no tenant)
+    /// Get user's `tenant_id` for the current request
+    ///
+    /// Uses `active_tenant_id` from JWT claims (user's selected tenant) when available,
+    /// falling back to the user's first tenant, or `user_id` if no tenant exists.
     async fn get_tenant_id(
-        user_id: Uuid,
+        auth: &AuthResult,
         resources: &Arc<ServerResources>,
     ) -> Result<Uuid, AppError> {
-        let tenants = resources.database.list_tenants_for_user(user_id).await?;
-        Ok(tenants.first().map_or(user_id, |t| t.id))
+        // Prefer active_tenant_id from JWT claims (user's selected tenant)
+        if let Some(tenant_id) = auth.active_tenant_id {
+            return Ok(tenant_id);
+        }
+        // Fall back to user's first tenant (single-tenant users or tokens without active_tenant_id)
+        let tenants = resources
+            .database
+            .list_tenants_for_user(auth.user_id)
+            .await?;
+        Ok(tenants.first().map_or(auth.user_id, |t| t.id))
     }
 
     /// Get current LLM settings for the authenticated user
@@ -174,7 +185,7 @@ impl LlmSettingsRoutes {
     ) -> Result<Json<LlmSettingsResponse>, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
         let user_id = auth.user_id;
-        let tenant_id = Self::get_tenant_id(user_id, &resources).await?;
+        let tenant_id = Self::get_tenant_id(&auth, &resources).await?;
         let database = &*resources.database;
 
         // Get user's credentials
@@ -279,7 +290,7 @@ impl LlmSettingsRoutes {
     ) -> Result<Json<SaveCredentialsResponse>, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
         let user_id = auth.user_id;
-        let tenant_id = Self::get_tenant_id(user_id, &resources).await?;
+        let tenant_id = Self::get_tenant_id(&auth, &resources).await?;
         let database = &*resources.database;
 
         // Parse provider
@@ -374,7 +385,7 @@ impl LlmSettingsRoutes {
             ))
         })?;
 
-        let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
+        let tenant_id = Self::get_tenant_id(&auth, &resources).await?;
 
         // Create credentials for validation
         let credentials = LlmCredentials {
@@ -442,7 +453,7 @@ impl LlmSettingsRoutes {
     ) -> Result<impl IntoResponse, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
         let user_id = auth.user_id;
-        let tenant_id = Self::get_tenant_id(user_id, &resources).await?;
+        let tenant_id = Self::get_tenant_id(&auth, &resources).await?;
         let database = &*resources.database;
 
         // Parse provider

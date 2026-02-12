@@ -18,6 +18,7 @@ use crate::database_plugins::DatabaseProvider;
 use crate::jsonrpc::{JsonRpcError, JsonRpcRequest, JsonRpcResponse};
 use crate::mcp::resources::ServerResources;
 use crate::mcp::schema::OAuthAppCredentials;
+use crate::mcp::tenant_isolation::extract_tenant_context_internal;
 use crate::tools::context::{AuthMethod, ToolExecutionContext};
 use crate::types::json_schemas;
 use chrono::{DateTime, Utc};
@@ -1072,8 +1073,32 @@ impl A2AServer {
         };
         let resources = resources.clone(); // Safe: Arc clone for server resources
 
-        // Build tool execution context from authenticated user identity
-        let tool_ctx = ToolExecutionContext::new(user_id, resources.clone(), AuthMethod::ApiKey);
+        // Resolve tenant context for the authenticated user
+        let tenant_id = match extract_tenant_context_internal(
+            &resources.database,
+            Some(user_id),
+            None,
+            None,
+        )
+        .await
+        {
+            Ok(Some(ctx)) => Some(ctx.tenant_id),
+            Ok(None) => {
+                warn!(user_id = %user_id, "No tenant context found for A2A user in protocol handler");
+                None
+            }
+            Err(e) => {
+                warn!(user_id = %user_id, error = %e, "Failed to resolve tenant context in A2A protocol");
+                None
+            }
+        };
+
+        // Build tool execution context from authenticated user identity with tenant
+        let mut tool_ctx =
+            ToolExecutionContext::new(user_id, resources.clone(), AuthMethod::ApiKey);
+        if let Some(tid) = tenant_id {
+            tool_ctx = tool_ctx.with_tenant(tid);
+        }
 
         // Try the registry first, fall back to error for unregistered tools
         if resources.tool_registry.contains(tool_name) {

@@ -20,6 +20,7 @@ use crate::a2a::{
 use crate::constants::time::DAY_SECONDS;
 use crate::database_plugins::DatabaseProvider;
 use crate::mcp::resources::ServerResources;
+use crate::mcp::tenant_isolation::extract_tenant_context_internal;
 use crate::protocols::universal::{UniversalRequest, UniversalToolExecutor};
 use crate::utils::auth::extract_bearer_token;
 use chrono::Utc;
@@ -518,13 +519,34 @@ impl A2ARoutes {
             }
         };
 
+        // Resolve tenant context for the authenticated user
+        let user_uuid = Uuid::parse_str(&user_id).ok();
+        let tenant_id = match extract_tenant_context_internal(
+            &self.resources.database,
+            user_uuid,
+            None,
+            None,
+        )
+        .await
+        {
+            Ok(Some(ctx)) => Some(ctx.tenant_id.to_string()),
+            Ok(None) => {
+                warn!(user_id = %user_id, "No tenant context found for A2A user");
+                None
+            }
+            Err(e) => {
+                warn!(user_id = %user_id, error = %e, "Failed to resolve tenant context for A2A");
+                None
+            }
+        };
+
         // Create universal request
         let universal_request = UniversalRequest {
             tool_name: tool_name.to_owned(),
             parameters,
             user_id,
             protocol: "a2a".into(),
-            tenant_id: None, // A2A doesn't have tenant context yet
+            tenant_id,
             progress_token: None,
             cancellation_token: None,
             progress_reporter: None,

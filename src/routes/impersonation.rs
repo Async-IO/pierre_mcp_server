@@ -208,7 +208,11 @@ impl ImpersonationRoutes {
                 AppError::internal(format!("Failed to create impersonation session: {e}"))
             })?;
 
-        // Get target user's default tenant for impersonation session
+        // Get target user's default tenant for impersonation session.
+        // NOTE: We use tenants.first() here intentionally because:
+        // 1. The impersonator does not know which tenant the target_user wants to use
+        // 2. The target_user has no active session/JWT from which to extract active_tenant_id
+        // 3. The impersonator can switch tenants after starting the session if needed
         let active_tenant_id = resources
             .database
             .list_tenants_for_user(target_user.id)

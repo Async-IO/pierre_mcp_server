@@ -1352,7 +1352,9 @@ async fn test_oauth_disconnect_provider_success() -> Result<()> {
     database.create_tenant(&tenant).await?;
 
     // Disconnecting a provider that wasn't connected should succeed (idempotent)
-    let result = oauth_routes.disconnect_provider(user_id, "strava").await;
+    let result = oauth_routes
+        .disconnect_provider(user_id, "strava", None)
+        .await;
 
     assert!(result.is_ok());
 
@@ -1388,7 +1390,7 @@ async fn test_oauth_disconnect_invalid_provider() -> Result<()> {
     database.create_user(&user).await?;
 
     let result = oauth_routes
-        .disconnect_provider(user_id, "invalid_provider")
+        .disconnect_provider(user_id, "invalid_provider", None)
         .await;
 
     assert!(result.is_err());
