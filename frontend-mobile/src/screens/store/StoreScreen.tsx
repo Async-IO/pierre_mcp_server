@@ -79,6 +79,7 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const loadCoaches = useCallback(async (isRefresh = false) => {
     if (!isAuthenticated) return;
@@ -89,6 +90,7 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
       } else {
         setIsLoading(true);
       }
+      setError(null);
 
       const response = await storeApi.browse({
         category: selectedCategory === 'all' ? undefined : selectedCategory,
@@ -98,8 +100,10 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
       setCoaches(response.coaches);
       setNextCursor(response.next_cursor ?? null);
       setHasMore(response.has_more ?? false);
-    } catch (error) {
-      console.error('Failed to load store coaches:', error);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load coaches';
+      setError(errorMessage);
+      console.error('Failed to load store coaches:', err);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -120,8 +124,10 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
       setCoaches(prev => [...prev, ...response.coaches]);
       setNextCursor(response.next_cursor ?? null);
       setHasMore(response.has_more ?? false);
-    } catch (error) {
-      console.error('Failed to load more coaches:', error);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load more coaches';
+      setError(errorMessage);
+      console.error('Failed to load more coaches:', err);
     } finally {
       setIsLoadingMore(false);
     }
@@ -135,12 +141,15 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
 
     try {
       setIsSearching(true);
+      setError(null);
       const response = await storeApi.search(query.trim(), 50);
       setCoaches(response.coaches);
       setNextCursor(null);
       setHasMore(false);
-    } catch (error) {
-      console.error('Failed to search coaches:', error);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to search coaches';
+      setError(errorMessage);
+      console.error('Failed to search coaches:', err);
     } finally {
       setIsSearching(false);
     }
@@ -275,6 +284,23 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
     </View>
   );
 
+  const renderError = () => (
+    <View className="mx-4 my-2 p-3 bg-error/10 border border-error/30 rounded-lg flex-row items-center justify-between">
+      <View className="flex-1 mr-3">
+        <Text className="text-error text-sm font-medium">{error}</Text>
+      </View>
+      <TouchableOpacity
+        className="px-3 py-1.5 bg-error/20 rounded-md"
+        onPress={() => {
+          setError(null);
+          loadCoaches();
+        }}
+      >
+        <Text className="text-error text-sm font-semibold">Retry</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   if (isLoading && coaches.length === 0) {
     return (
       <SafeAreaView className="flex-1 bg-background-primary" testID="store-screen">
@@ -322,6 +348,9 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
         <Text className="text-sm text-text-secondary mr-2">Sort by:</Text>
         {SORT_OPTIONS.map((option) => renderSortChip(option))}
       </View>
+
+      {/* Error Display */}
+      {error && renderError()}
 
       {/* Coach List with FlashList for optimized performance */}
       <FlashList

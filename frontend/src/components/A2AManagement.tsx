@@ -8,17 +8,18 @@ import type { A2ADashboardOverview } from '../types/api';
 import { Button, Card, Badge, StatusIndicator } from './ui';
 import A2AClientList from './A2AClientList';
 import CreateA2AClient from './CreateA2AClient';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 export default function A2AManagement() {
   const [activeView, setActiveView] = useState<'overview' | 'clients' | 'create'>('overview');
 
   const { data: overview, isLoading: overviewLoading } = useQuery<A2ADashboardOverview>({
-    queryKey: ['a2a-dashboard-overview'],
+    queryKey: QUERY_KEYS.a2a.dashboardOverview(),
     queryFn: () => a2aApi.getA2ADashboardOverview(),
   });
 
   const { data: agentCard } = useQuery({
-    queryKey: ['a2a-agent-card'],
+    queryKey: QUERY_KEYS.a2a.agentCard(),
     queryFn: () => a2aApi.getA2AAgentCard(),
   });
 

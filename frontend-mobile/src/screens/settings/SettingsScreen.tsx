@@ -54,6 +54,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
   const [isCreatingToken, setIsCreatingToken] = useState(false);
   const [newToken, setNewToken] = useState<string | null>(null);
   const [connectedProviders, setConnectedProviders] = useState<ExtendedProviderStatus[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -78,6 +79,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
 
   const loadTokens = async () => {
     try {
+      setLoadError(null);
       const response = await userApi.getMcpTokens();
       const tokenList = response.tokens || [];
       const seen = new Set<string>();
@@ -87,8 +89,10 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
         return true;
       });
       setTokens(deduplicated);
-    } catch (error) {
-      console.error('Failed to load tokens:', error);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load tokens';
+      setLoadError(errorMessage);
+      console.error('Failed to load tokens:', err);
       setTokens([]);
     }
   };
@@ -98,8 +102,8 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
       // Use getProvidersStatus() to include non-OAuth providers like synthetic
       const response = await oauthApi.getProvidersStatus();
       setConnectedProviders(response.providers || []);
-    } catch (error) {
-      console.error('Failed to load provider status:', error);
+    } catch (err) {
+      console.error('Failed to load provider status:', err);
     }
   };
 
@@ -186,6 +190,21 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
       >
         {/* Profile Header with gradient-bordered avatar */}
         <View style={{ alignItems: 'center', paddingHorizontal: 16, paddingVertical: 24 }} testID="settings-profile-section">
+          {/* Load Error Display */}
+          {loadError && (
+            <View className="w-full mb-4 p-3 bg-error/10 border border-error/30 rounded-lg flex-row items-center justify-between">
+              <Text className="flex-1 text-error text-sm mr-3">{loadError}</Text>
+              <TouchableOpacity
+                className="px-3 py-1.5 bg-error/20 rounded-md"
+                onPress={() => {
+                  setLoadError(null);
+                  loadTokens();
+                }}
+              >
+                <Text className="text-error text-sm font-semibold">Retry</Text>
+              </TouchableOpacity>
+            </View>
+          )}
           {/* Gradient-bordered Avatar */}
           <LinearGradient
             colors={[colors.pierre.violet, colors.pierre.cyan]}

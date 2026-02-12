@@ -7,6 +7,7 @@ import { adminApi } from '../services/api';
 import type { User } from '../types/api';
 import { Button, Card, Badge } from './ui';
 import UserApprovalModal from './UserApprovalModal';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 export default function PendingUsersList() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -19,7 +20,7 @@ export default function PendingUsersList() {
     error,
     refetch 
   } = useQuery<User[]>({
-    queryKey: ['pending-users'],
+    queryKey: QUERY_KEYS.adminUsers.pending(),
     queryFn: () => adminApi.getPendingUsers(),
     refetchInterval: 30000, // Refetch every 30 seconds for real-time updates
   });

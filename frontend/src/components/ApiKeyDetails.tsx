@@ -8,6 +8,7 @@ import { Button, Card, CardHeader, Badge } from './ui';
 import { useAuth } from '../hooks/useAuth';
 import { adminApi } from '../services/api';
 import type { AdminToken, AdminTokenAudit, AdminTokenUsageStats, ProvisionedKey } from '../types/api';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 interface ApiKeyDetailsProps {
   token: AdminToken;
@@ -130,19 +131,19 @@ export default function ApiKeyDetails({ token, onBack, onTokenUpdated }: ApiKeyD
   const [rotatedToken, setRotatedToken] = useState<string>('');
 
   const { data: auditData, isLoading: auditLoading } = useQuery({
-    queryKey: ['admin-token-audit', token.id],
+    queryKey: QUERY_KEYS.adminTokens.audit(token.id),
     queryFn: () => adminApi.getAdminTokenAudit(token.id),
     enabled: isAuthenticated,
   });
 
   const { data: usageStats, isLoading: statsLoading } = useQuery({
-    queryKey: ['admin-token-usage-stats', token.id],
+    queryKey: QUERY_KEYS.adminTokens.usageStats(token.id),
     queryFn: () => adminApi.getAdminTokenUsageStats(token.id),
     enabled: isAuthenticated,
   });
 
   const { data: provisionedKeys } = useQuery({
-    queryKey: ['admin-token-provisioned-keys', token.id],
+    queryKey: QUERY_KEYS.adminTokens.provisionedKeys(token.id),
     queryFn: () => adminApi.getAdminTokenProvisionedKeys(token.id),
     enabled: isAuthenticated,
   });
@@ -150,7 +151,7 @@ export default function ApiKeyDetails({ token, onBack, onTokenUpdated }: ApiKeyD
   const revokeTokenMutation = useMutation({
     mutationFn: () => adminApi.revokeAdminToken(token.id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-tokens'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminTokens.all });
       onTokenUpdated();
       onBack();
     },
@@ -161,8 +162,8 @@ export default function ApiKeyDetails({ token, onBack, onTokenUpdated }: ApiKeyD
     onSuccess: (data) => {
       setRotatedToken(data.jwt_token);
       setShowRotateModal(true);
-      queryClient.invalidateQueries({ queryKey: ['admin-tokens'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-token-audit', token.id] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminTokens.all });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminTokens.audit(token.id) });
       onTokenUpdated();
     },
   });

@@ -34,6 +34,7 @@ export function FriendsScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
 
   const loadFriends = useCallback(async (isRefresh = false) => {
     if (!isAuthenticated) return;
@@ -44,6 +45,7 @@ export function FriendsScreen() {
       } else {
         setIsLoading(true);
       }
+      setError(null);
 
       const [friendsResponse, pendingResponse] = await Promise.all([
         socialApi.listFriends(),
@@ -53,8 +55,10 @@ export function FriendsScreen() {
       setFriends(friendsResponse.friends);
       setFilteredFriends(friendsResponse.friends);
       setPendingCount(pendingResponse.received.length);
-    } catch (error) {
-      console.error('Failed to load friends:', error);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load friends';
+      setError(errorMessage);
+      console.error('Failed to load friends:', err);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -87,8 +91,10 @@ export function FriendsScreen() {
       await socialApi.removeFriend(friend.id);
       setFriends(prev => prev.filter(f => f.id !== friend.id));
       setFilteredFriends(prev => prev.filter(f => f.id !== friend.id));
-    } catch (error) {
-      console.error('Failed to remove friend:', error);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to remove friend';
+      setError(errorMessage);
+      console.error('Failed to remove friend:', err);
     } finally {
       setRemovingIds(prev => {
         const next = new Set(prev);
@@ -183,6 +189,22 @@ export function FriendsScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Error Display */}
+      {error && (
+        <View className="mx-4 mt-2 p-3 bg-error/10 border border-error/30 rounded-lg flex-row items-center justify-between">
+          <Text className="flex-1 text-error text-sm mr-3">{error}</Text>
+          <TouchableOpacity
+            className="px-3 py-1.5 bg-error/20 rounded-md"
+            onPress={() => {
+              setError(null);
+              loadFriends();
+            }}
+          >
+            <Text className="text-error text-sm font-semibold">Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Search Bar with glassmorphism */}
       {friends.length > 0 && (

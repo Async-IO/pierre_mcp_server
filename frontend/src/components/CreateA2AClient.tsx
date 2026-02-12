@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { a2aApi } from '../services/api';
 import type { A2AClientRegistrationRequest, A2AClientCredentials } from '../types/api';
 import { Button, Card } from './ui';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 interface CreateA2AClientProps {
   onSuccess?: () => void;
@@ -68,7 +69,7 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
     onSuccess: (response: A2AClientCredentials) => {
       setCredentials(response);
       setShowCredentials(true);
-      queryClient.invalidateQueries({ queryKey: ['a2a-clients'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.a2a.clients() });
     },
   });
 

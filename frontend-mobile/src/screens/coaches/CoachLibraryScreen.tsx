@@ -99,6 +99,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
   const [actionMenuVisible, setActionMenuVisible] = useState(false);
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
   const [renamePromptVisible, setRenamePromptVisible] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadCoaches = useCallback(async (isRefresh = false) => {
     if (!isAuthenticated) return;
@@ -109,6 +110,7 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
       } else {
         setIsLoading(true);
       }
+      setLoadError(null);
 
       // Always load all coaches (including hidden) and hidden list in parallel
       // We filter locally based on showHidden state to preserve local changes
@@ -134,8 +136,10 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
         return b.use_count - a.use_count;
       });
       setCoaches(sorted);
-    } catch (error) {
-      console.error('Failed to load coaches:', error);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load coaches';
+      setLoadError(errorMessage);
+      console.error('Failed to load coaches:', err);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -667,6 +671,22 @@ export function CoachLibraryScreen({ navigation }: CoachLibraryScreenProps) {
 
       {/* Source Filter (User vs System) */}
       {renderSourceFilter()}
+
+      {/* Load Error Display */}
+      {loadError && (
+        <View className="mx-4 mt-2 p-3 bg-error/10 border border-error/30 rounded-lg flex-row items-center justify-between">
+          <Text className="flex-1 text-error text-sm mr-3">{loadError}</Text>
+          <TouchableOpacity
+            className="px-3 py-1.5 bg-error/20 rounded-md"
+            onPress={() => {
+              setLoadError(null);
+              loadCoaches();
+            }}
+          >
+            <Text className="text-error text-sm font-semibold">Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Coaches List */}
       {isLoading ? (

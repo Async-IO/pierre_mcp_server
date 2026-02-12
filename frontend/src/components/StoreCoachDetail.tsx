@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import { storeApi } from '../services/api';
 import { ConfirmDialog } from './ui';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 // Coach category colors (dark theme)
 const COACH_CATEGORY_COLORS: Record<string, string> = {
@@ -33,14 +34,14 @@ export default function StoreCoachDetail({ coachId, onBack, onNavigateToLibrary 
 
   // Fetch coach details
   const { data: coach, isLoading, error } = useQuery({
-    queryKey: ['store-coach', coachId],
+    queryKey: QUERY_KEYS.store.coach(coachId),
     queryFn: () => storeApi.get(coachId),
     staleTime: 60_000,
   });
 
   // Check if coach is installed
   const { data: installations } = useQuery({
-    queryKey: ['store-installations'],
+    queryKey: QUERY_KEYS.store.installations(),
     queryFn: () => storeApi.getInstallations(),
     staleTime: 30_000,
   });
@@ -51,9 +52,9 @@ export default function StoreCoachDetail({ coachId, onBack, onNavigateToLibrary 
   const installMutation = useMutation({
     mutationFn: () => storeApi.install(coachId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['store-installations'] });
-      queryClient.invalidateQueries({ queryKey: ['store-coach', coachId] });
-      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.store.installations() });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.store.coach(coachId) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.all });
       setSuccessMessage(`"${coach?.title}" has been added to your coaches.`);
     },
   });
@@ -62,9 +63,9 @@ export default function StoreCoachDetail({ coachId, onBack, onNavigateToLibrary 
   const uninstallMutation = useMutation({
     mutationFn: () => storeApi.uninstall(coachId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['store-installations'] });
-      queryClient.invalidateQueries({ queryKey: ['store-coach', coachId] });
-      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.store.installations() });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.store.coach(coachId) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.all });
       setShowUninstallConfirm(false);
       setSuccessMessage('Coach has been removed from My Coaches.');
     },

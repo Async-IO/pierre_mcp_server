@@ -9,6 +9,7 @@ import { Button, Card, Badge } from './ui';
 import PendingUsersList from './PendingUsersList';
 import UserApprovalModal from './UserApprovalModal';
 import UserDetailDrawer from './UserDetailDrawer';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 type UserTab = 'pending' | 'active' | 'suspended' | 'all';
 
@@ -22,13 +23,13 @@ export default function UserManagement() {
 
   // Queries for different user types
   const { data: pendingUsers = [], isLoading: pendingLoading } = useQuery<User[]>({
-    queryKey: ['pending-users'],
+    queryKey: QUERY_KEYS.adminUsers.pending(),
     queryFn: () => adminApi.getPendingUsers(),
     refetchInterval: 30000,
   });
 
   const { data: allUsers = [], isLoading: allUsersLoading } = useQuery<User[]>({
-    queryKey: ['all-users'],
+    queryKey: QUERY_KEYS.adminUsers.list(),
     queryFn: () => adminApi.getAllUsers(),
     refetchInterval: 60000,
   });

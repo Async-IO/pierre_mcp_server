@@ -10,6 +10,7 @@ import { adminApi } from '../services/api';
 import { Button, Card } from './ui';
 import { clsx } from 'clsx';
 import CoachRejectionModal from './CoachRejectionModal';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 // Category colors matching SystemCoachesTab
 const CATEGORY_COLORS: Record<string, string> = {
@@ -59,8 +60,8 @@ export default function CoachReviewDrawer({ coach, isOpen, onClose }: CoachRevie
   const approveMutation = useMutation({
     mutationFn: (coachId: string) => adminApi.approveStoreCoach(coachId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-store-review-queue'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-store-stats'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminStore.reviewQueue() });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminStore.stats() });
       onClose();
     },
   });

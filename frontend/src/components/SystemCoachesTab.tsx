@@ -10,6 +10,7 @@ import { adminApi } from '../services/api';
 import type { Coach, User } from '../types/api';
 import { Card, Button } from './ui';
 import { clsx } from 'clsx';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 // Coach category options
 const COACH_CATEGORIES = ['Training', 'Nutrition', 'Recovery', 'Recipes', 'Mobility', 'Custom'];
@@ -59,20 +60,20 @@ export default function SystemCoachesTab() {
 
   // Fetch system coaches
   const { data: coachesData, isLoading: coachesLoading } = useQuery({
-    queryKey: ['admin-system-coaches'],
+    queryKey: QUERY_KEYS.adminCoaches.system(),
     queryFn: () => adminApi.getSystemCoaches(),
   });
 
   // Fetch all users for assignment
   const { data: usersData } = useQuery({
-    queryKey: ['admin-all-users'],
+    queryKey: QUERY_KEYS.adminCoaches.allUsers(),
     queryFn: () => adminApi.getAllUsers({ limit: 200 }),
     enabled: showAssignModal,
   });
 
   // Fetch assignments for selected coach
   const { data: assignmentsData, refetch: refetchAssignments } = useQuery({
-    queryKey: ['coach-assignments', selectedCoach?.id],
+    queryKey: QUERY_KEYS.coaches.assignments(selectedCoach?.id),
     queryFn: () => selectedCoach ? adminApi.getCoachAssignments(selectedCoach.id) : null,
     enabled: !!selectedCoach,
   });
@@ -88,7 +89,7 @@ export default function SystemCoachesTab() {
       visibility: data.visibility,
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-system-coaches'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCoaches.system() });
       setIsCreating(false);
       setFormData(defaultFormData);
     },
@@ -104,7 +105,7 @@ export default function SystemCoachesTab() {
       tags: data.tags.split(',').map(t => t.trim()).filter(Boolean),
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-system-coaches'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCoaches.system() });
       setIsEditing(false);
       if (selectedCoach) {
         adminApi.getSystemCoach(selectedCoach.id).then(setSelectedCoach);
@@ -116,7 +117,7 @@ export default function SystemCoachesTab() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => adminApi.deleteSystemCoach(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-system-coaches'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCoaches.system() });
       setSelectedCoach(null);
     },
   });

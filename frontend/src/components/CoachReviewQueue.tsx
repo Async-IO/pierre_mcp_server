@@ -10,6 +10,7 @@ import { adminApi } from '../services/api';
 import { Card } from './ui';
 import { clsx } from 'clsx';
 import CoachReviewDrawer from './CoachReviewDrawer';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 // Category colors matching SystemCoachesTab
 const CATEGORY_COLORS: Record<string, string> = {
@@ -50,7 +51,7 @@ export default function CoachReviewQueue() {
 
   // Fetch pending coaches
   const { data, isLoading, error } = useQuery({
-    queryKey: ['admin-store-review-queue'],
+    queryKey: QUERY_KEYS.adminStore.reviewQueue(),
     queryFn: () => adminApi.getStoreReviewQueue(),
   });
 

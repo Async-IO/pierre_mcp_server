@@ -15,6 +15,7 @@ import { clsx } from 'clsx';
 import A2AClientList from './A2AClientList';
 import CreateA2AClient from './CreateA2AClient';
 import LlmSettingsTab from './LlmSettingsTab';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 interface OAuthApp {
   provider: string;
@@ -147,7 +148,7 @@ export default function UserSettings() {
 
   // Fetch fitness provider connection status
   const { data: providersResponse, isLoading: isLoadingProviders, refetch: refetchProviders } = useQuery({
-    queryKey: ['provider-connections'],
+    queryKey: QUERY_KEYS.user.providerConnections(),
     queryFn: () => apiService.getProvidersStatus(),
     enabled: isAuthenticated,
   });
@@ -156,20 +157,20 @@ export default function UserSettings() {
 
   // Fetch OAuth apps
   const { data: oauthAppsResponse, isLoading: isLoadingApps } = useQuery({
-    queryKey: ['user-oauth-apps'],
+    queryKey: QUERY_KEYS.user.oauthApps(),
     queryFn: () => userApi.getOAuthApps(),
   });
 
   // Fetch user stats
   const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ['userStats'],
+    queryKey: QUERY_KEYS.user.stats(),
     queryFn: () => userApi.getStats(),
     staleTime: 30000,
   });
 
   // Fetch MCP tokens
   const { data: tokensResponse, isLoading: tokensLoading } = useQuery({
-    queryKey: ['mcp-tokens'],
+    queryKey: QUERY_KEYS.mcpTokens.list(),
     queryFn: () => userApi.getMcpTokens(),
     enabled: isAuthenticated,
   });
@@ -183,7 +184,7 @@ export default function UserSettings() {
     mutationFn: (data: { provider: string; client_id: string; client_secret: string; redirect_uri: string }) =>
       userApi.registerOAuthApp(data),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['user-oauth-apps'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.user.oauthApps() });
       setCredentialMessage({ type: 'success', text: data.message });
       setShowAddCredentials(false);
       setSelectedProvider('');
@@ -200,7 +201,7 @@ export default function UserSettings() {
   const deleteMutation = useMutation({
     mutationFn: (provider: string) => userApi.deleteOAuthApp(provider),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-oauth-apps'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.user.oauthApps() });
       setCredentialMessage({ type: 'success', text: 'Provider credentials removed' });
       setProviderToDelete(null);
     },
@@ -216,7 +217,7 @@ export default function UserSettings() {
     onSuccess: (response) => {
       setMessage({ type: 'success', text: response.message });
       pierreApi.adapter.authStorage.setUser(response.user);
-      queryClient.invalidateQueries({ queryKey: ['user'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.user.all });
     },
     onError: (error: Error) => {
       setMessage({ type: 'error', text: error.message || 'Failed to update profile' });
@@ -230,7 +231,7 @@ export default function UserSettings() {
   const createTokenMutation = useMutation({
     mutationFn: (data: { name: string; expires_in_days?: number }) => userApi.createMcpToken(data),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['mcp-tokens'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.mcpTokens.list() });
       setCreatedToken({ token_value: data.token_value ?? '', name: data.name });
       setShowCreateForm(false);
       setNewTokenName('');
@@ -241,7 +242,7 @@ export default function UserSettings() {
   const revokeTokenMutation = useMutation({
     mutationFn: (tokenId: string) => userApi.revokeMcpToken(tokenId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['mcp-tokens'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.mcpTokens.list() });
       setTokenToRevoke(null);
     },
   });

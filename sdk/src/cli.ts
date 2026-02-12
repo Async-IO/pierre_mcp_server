@@ -16,7 +16,7 @@
  */
 
 import { Command } from 'commander';
-import { PierreMcpClient } from './bridge';
+import { PierreMcpClient, BridgeConfig } from './bridge';
 
 // DEBUG: Log environment at startup (stderr only - stdout is for MCP protocol)
 console.error('[DEBUG] Bridge CLI starting...');
@@ -48,20 +48,31 @@ program
   .option('--tool-call-connection-timeout <ms>', 'Tool-triggered connection timeout in milliseconds (default: 10000)', process.env.PIERRE_TOOL_CALL_CONNECTION_TIMEOUT_MS || '10000')
   .action(async (options) => {
     try {
-      const bridge = new PierreMcpClient({
+      // Shared configuration across all auth modes
+      const baseConfig = {
         pierreServerUrl: options.server,
-        jwtToken: options.token,
-        oauthClientId: options.oauthClientId,
-        oauthClientSecret: options.oauthClientSecret,
-        userEmail: options.userEmail,
-        userPassword: options.userPassword,
         callbackPort: parseInt(options.callbackPort, 10),
         disableBrowser: !options.browser,
         tokenValidationTimeoutMs: parseInt(options.tokenValidationTimeout, 10),
         proactiveConnectionTimeoutMs: parseInt(options.proactiveConnectionTimeout, 10),
         proactiveToolsListTimeoutMs: parseInt(options.proactiveToolsListTimeout, 10),
         toolCallConnectionTimeoutMs: parseInt(options.toolCallConnectionTimeout, 10)
-      });
+      };
+
+      // Determine auth mode based on provided options (priority order)
+      let config: BridgeConfig;
+      if (options.token) {
+        config = { ...baseConfig, mode: 'jwt', jwtToken: options.token };
+      } else if (options.oauthClientId && options.oauthClientSecret) {
+        config = { ...baseConfig, mode: 'oauth', oauthClientId: options.oauthClientId, oauthClientSecret: options.oauthClientSecret };
+      } else if (options.userEmail && options.userPassword) {
+        config = { ...baseConfig, mode: 'credentials', userEmail: options.userEmail, userPassword: options.userPassword };
+      } else {
+        // Default to OAuth mode without pre-configured client (will use dynamic registration)
+        config = { ...baseConfig, mode: 'oauth', oauthClientId: '', oauthClientSecret: '' };
+      }
+
+      const bridge = new PierreMcpClient(config);
 
       await bridge.start();
 

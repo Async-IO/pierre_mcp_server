@@ -58,12 +58,14 @@ export function ConversationsScreen({ navigation }: ConversationsScreenProps) {
   const [actionMenuVisible, setActionMenuVisible] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [renamePromptVisible, setRenamePromptVisible] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const loadConversations = useCallback(async () => {
     if (!isAuthenticated) return;
 
     try {
       setIsLoading(true);
+      setError(null);
       const response = await chatApi.getConversations();
       const seen = new Set<string>();
       const deduplicated = (response.conversations || []).filter((conv: { id: string }) => {
@@ -76,8 +78,10 @@ export function ConversationsScreen({ navigation }: ConversationsScreenProps) {
       );
       setConversations(sorted);
       setFilteredConversations(sorted);
-    } catch (error) {
-      console.error('Failed to load conversations:', error);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load conversations';
+      setError(errorMessage);
+      console.error('Failed to load conversations:', err);
     } finally {
       setIsLoading(false);
     }
@@ -156,8 +160,10 @@ export function ConversationsScreen({ navigation }: ConversationsScreenProps) {
       setConversations((prev) =>
         prev.map((c) => (c.id === selectedConversation.id ? { ...c, title: updated.title } : c))
       );
-    } catch (error) {
-      console.error('Failed to rename conversation:', error);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to rename conversation';
+      setError(errorMessage);
+      console.error('Failed to rename conversation:', err);
     } finally {
       setSelectedConversation(null);
     }
@@ -184,8 +190,10 @@ export function ConversationsScreen({ navigation }: ConversationsScreenProps) {
             try {
               await chatApi.deleteConversation(selectedConversation.id);
               setConversations((prev) => prev.filter((c) => c.id !== selectedConversation.id));
-            } catch (error) {
-              console.error('Failed to delete conversation:', error);
+            } catch (err) {
+              const errorMessage = err instanceof Error ? err.message : 'Failed to delete conversation';
+              setError(errorMessage);
+              console.error('Failed to delete conversation:', err);
             }
           },
         },
@@ -232,8 +240,10 @@ export function ConversationsScreen({ navigation }: ConversationsScreenProps) {
                   try {
                     await chatApi.deleteConversation(item.id);
                     setConversations((prev) => prev.filter((c) => c.id !== item.id));
-                  } catch (error) {
-                    console.error('Failed to delete conversation:', error);
+                  } catch (err) {
+                    const errorMessage = err instanceof Error ? err.message : 'Failed to delete conversation';
+                    setError(errorMessage);
+                    console.error('Failed to delete conversation:', err);
                   }
                 },
               },
@@ -281,6 +291,22 @@ export function ConversationsScreen({ navigation }: ConversationsScreenProps) {
         <Text className="flex-1 text-lg font-semibold text-text-primary text-center">Conversations</Text>
         <View className="w-10" />
       </View>
+
+      {/* Error Display */}
+      {error && (
+        <View className="mx-3 mt-2 p-3 bg-error/10 border border-error/30 rounded-lg flex-row items-center justify-between">
+          <Text className="flex-1 text-error text-sm mr-3">{error}</Text>
+          <TouchableOpacity
+            className="px-3 py-1.5 bg-error/20 rounded-md"
+            onPress={() => {
+              setError(null);
+              loadConversations();
+            }}
+          >
+            <Text className="text-error text-sm font-semibold">Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Conversations List */}
       {isLoading ? (

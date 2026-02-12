@@ -88,6 +88,7 @@ export function AdaptedInsightsScreen() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const loadInsights = useCallback(async (isRefresh = false) => {
     if (!isAuthenticated) return;
@@ -98,13 +99,16 @@ export function AdaptedInsightsScreen() {
       } else {
         setIsLoading(true);
       }
+      setError(null);
 
       const response = await socialApi.getAdaptedInsights({ limit: 20 });
       setInsights(response.insights);
       setNextCursor(response.next_cursor);
       setHasMore(response.has_more);
-    } catch (error) {
-      console.error('Failed to load adapted insights:', error);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load insights';
+      setError(errorMessage);
+      console.error('Failed to load adapted insights:', err);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -123,8 +127,10 @@ export function AdaptedInsightsScreen() {
       setInsights(prev => [...prev, ...response.insights]);
       setNextCursor(response.next_cursor);
       setHasMore(response.has_more);
-    } catch (error) {
-      console.error('Failed to load more adapted insights:', error);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load more insights';
+      setError(errorMessage);
+      console.error('Failed to load more adapted insights:', err);
     } finally {
       setIsLoadingMore(false);
     }
@@ -199,6 +205,22 @@ export function AdaptedInsightsScreen() {
         <Text className="flex-1 text-lg font-bold text-text-primary text-center">Adapted Insights</Text>
         <View className="w-10" />
       </View>
+
+      {/* Error Display */}
+      {error && (
+        <View className="mx-4 mt-2 p-3 bg-error/10 border border-error/30 rounded-lg flex-row items-center justify-between">
+          <Text className="flex-1 text-error text-sm mr-3">{error}</Text>
+          <TouchableOpacity
+            className="px-3 py-1.5 bg-error/20 rounded-md"
+            onPress={() => {
+              setError(null);
+              loadInsights();
+            }}
+          >
+            <Text className="text-error text-sm font-semibold">Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Insights List */}
       <FlatList

@@ -6,14 +6,18 @@ on:
     paths:
       - 'sdk/**'
       - 'src/mcp/**'
+      - 'packages/mcp-types/**'
       - 'scripts/run_bridge_tests.sh'
+      - 'scripts/generate-sdk-types.js'
       - '.github/workflows/sdk-tests.yml'
   pull_request:
     branches: [ main ]
     paths:
       - 'sdk/**'
       - 'src/mcp/**'
+      - 'packages/mcp-types/**'
       - 'scripts/run_bridge_tests.sh'
+      - 'scripts/generate-sdk-types.js'
       - '.github/workflows/sdk-tests.yml'
   workflow_dispatch:
 
@@ -26,6 +30,87 @@ permissions:
   contents: read
 
 jobs:
+  sdk-types-check:
+    name: SDK Types Up-to-Date
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.4"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.92.0
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-sdk-types-1.92.0-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-sdk-types-1.92.0-
+            ${{ runner.os }}-cargo-
+
+      - name: Build Pierre server
+        run: cargo build --quiet
+        env:
+          CARGO_INCREMENTAL: 0
+
+      - name: Generate SDK types and check for drift
+        run: |
+          # Start server in background
+          ./target/debug/pierre-mcp-server &
+          SERVER_PID=$!
+
+          # Wait for server to be ready
+          for i in {1..30}; do
+            if curl -s http://localhost:8081/health > /dev/null 2>&1; then
+              echo "Server is ready"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "Server failed to start"
+              kill $SERVER_PID 2>/dev/null || true
+              exit 1
+            fi
+            sleep 1
+          done
+
+          # Generate types
+          cd packages/mcp-types && bun run generate
+          cd ../..
+
+          # Stop server
+          kill $SERVER_PID 2>/dev/null || true
+
+          # Check for changes
+          if ! git diff --quiet packages/mcp-types/src/tools.ts; then
+            echo ""
+            echo "::error::SDK types are out of date. Run 'bun run generate-types'."
+            echo ""
+            git diff packages/mcp-types/src/tools.ts
+            exit 1
+          fi
+
+          echo "SDK types are up to date"
+        env:
+          DATABASE_URL: "sqlite::memory:"
+          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+          PIERRE_RSA_KEY_SIZE: "2048"
+          HTTP_PORT: "8081"
+          STRAVA_CLIENT_ID: "test_client_id_ci"
+          STRAVA_CLIENT_SECRET: "test_client_secret_ci"
+          STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
+
   sdk-tests:
     name: SDK Test Suite
     runs-on: ubuntu-latest

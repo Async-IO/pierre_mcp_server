@@ -12,6 +12,7 @@ import { Button, Card } from './ui';
 import { Badge } from './ui/Badge';
 import PasswordResetModal from './PasswordResetModal';
 import { useAuth } from '../hooks/useAuth';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 interface UserDetailDrawerProps {
   user: User | null;
@@ -49,13 +50,13 @@ export default function UserDetailDrawer({
   };
 
   const { data: rateLimit, isLoading: rateLimitLoading } = useQuery({
-    queryKey: ['user-rate-limit', user?.id],
+    queryKey: QUERY_KEYS.adminUsers.rateLimit(user?.id),
     queryFn: () => user ? adminApi.getUserRateLimit(user.id) : null,
     enabled: !!user && isOpen,
   });
 
   const { data: activity, isLoading: activityLoading } = useQuery({
-    queryKey: ['user-activity', user?.id],
+    queryKey: QUERY_KEYS.adminUsers.activity(user?.id),
     queryFn: () => user ? adminApi.getUserActivity(user.id, 30) : null,
     enabled: !!user && isOpen,
   });

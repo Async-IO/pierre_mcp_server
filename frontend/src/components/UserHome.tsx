@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
 import { userApi } from '../services/api';
 import { Card } from './ui';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 interface UserHomeProps {
   onNavigate: (tab: string) => void;
@@ -18,7 +19,7 @@ export default function UserHome({ onNavigate }: UserHomeProps) {
 
   // Fetch user stats for dashboard
   const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ['userStats'],
+    queryKey: QUERY_KEYS.user.stats(),
     queryFn: () => userApi.getStats(),
     staleTime: 30000, // Cache for 30 seconds
   });

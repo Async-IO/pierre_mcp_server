@@ -10,6 +10,7 @@ import { clsx } from 'clsx';
 import { Compass, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { storeApi } from '../services/api';
 import { TabHeader } from './ui';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 // Category filter options
 const CATEGORY_FILTERS = [
@@ -101,7 +102,7 @@ export default function StoreScreen({ onNavigateToCoaches }: StoreScreenProps) {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ['store-coaches', selectedCategory, selectedSort],
+    queryKey: QUERY_KEYS.store.coaches(selectedCategory, selectedSort),
     queryFn: ({ pageParam }) =>
       storeApi.browse({
         category: selectedCategory === 'all' ? undefined : selectedCategory,
@@ -116,7 +117,7 @@ export default function StoreScreen({ onNavigateToCoaches }: StoreScreenProps) {
   });
 
   const { data: searchData, isLoading: isSearching } = useQuery({
-    queryKey: ['store-search', debouncedSearch],
+    queryKey: QUERY_KEYS.store.search(debouncedSearch),
     queryFn: () => storeApi.search(debouncedSearch, 50),
     enabled: !!debouncedSearch,
     staleTime: 30_000,
@@ -124,7 +125,7 @@ export default function StoreScreen({ onNavigateToCoaches }: StoreScreenProps) {
 
   // Fetch coach detail when selected
   const { data: coachDetail, isLoading: isLoadingDetail } = useQuery({
-    queryKey: ['store-coach-detail', selectedCoachId],
+    queryKey: QUERY_KEYS.store.coachDetail(selectedCoachId ?? undefined),
     queryFn: () => storeApi.get(selectedCoachId!),
     enabled: !!selectedCoachId,
     staleTime: 30_000,
@@ -132,7 +133,7 @@ export default function StoreScreen({ onNavigateToCoaches }: StoreScreenProps) {
 
   // Fetch installed coaches to check if selected coach is installed
   const { data: installedCoaches } = useQuery({
-    queryKey: ['store-installations'],
+    queryKey: QUERY_KEYS.store.installations(),
     queryFn: () => storeApi.getInstallations(),
     staleTime: 30_000,
   });
@@ -146,8 +147,8 @@ export default function StoreScreen({ onNavigateToCoaches }: StoreScreenProps) {
   const installMutation = useMutation({
     mutationFn: (coachId: string) => storeApi.install(coachId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['store-installations'] });
-      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.store.installations() });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.all });
       setSuccessMessage(`"${coachDetail?.title}" has been added to your coaches.`);
     },
   });
@@ -156,8 +157,8 @@ export default function StoreScreen({ onNavigateToCoaches }: StoreScreenProps) {
   const uninstallMutation = useMutation({
     mutationFn: (coachId: string) => storeApi.uninstall(coachId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['store-installations'] });
-      queryClient.invalidateQueries({ queryKey: ['user-coaches'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.store.installations() });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.coaches.all });
       setSuccessMessage(`Coach has been removed from your library.`);
     },
   });

@@ -32,6 +32,7 @@ export const QUERY_KEYS = {
     profile: () => ['user-profile'] as const,
     stats: () => ['userStats'] as const,
     oauthApps: () => ['user-oauth-apps'] as const,
+    providerConnections: () => ['provider-connections'] as const,
   },
 
   // ==================== OAUTH ====================
@@ -39,6 +40,12 @@ export const QUERY_KEYS = {
     all: ['oauth'] as const,
     status: () => ['oauth-status'] as const,
     connections: () => ['connections'] as const,
+  },
+
+  // ==================== PROVIDERS ====================
+  providers: {
+    all: ['providers'] as const,
+    status: () => ['providers-status'] as const,
   },
 
   // ==================== CHAT ====================
@@ -53,6 +60,7 @@ export const QUERY_KEYS = {
     all: ['coaches'] as const,
     list: (category?: string, favoritesOnly?: boolean) =>
       ['user-coaches', category, favoritesOnly] as const,
+    listWithHidden: () => ['user-coaches', 'include-hidden'] as const,
     hidden: () => ['hidden-coaches'] as const,
     versions: (coachId: string) => ['coach-versions', coachId] as const,
     versionDiff: (coachId: string, fromVersion?: number, toVersion?: number) =>
@@ -67,6 +75,7 @@ export const QUERY_KEYS = {
       ['store-coaches', category, sort] as const,
     search: (query: string) => ['store-search', query] as const,
     coach: (coachId: string) => ['store-coach', coachId] as const,
+    coachDetail: (coachId?: string) => ['store-coach', coachId] as const,
     installations: () => ['store-installations'] as const,
   },
 
@@ -83,6 +92,7 @@ export const QUERY_KEYS = {
   adminCoaches: {
     all: ['admin-coaches'] as const,
     system: () => ['admin-system-coaches'] as const,
+    allUsers: () => ['admin-all-users'] as const,
   },
 
   // ==================== ADMIN - USERS ====================
@@ -114,6 +124,7 @@ export const QUERY_KEYS = {
   adminSettings: {
     all: ['admin-settings'] as const,
     autoApproval: () => ['auto-approval-setting'] as const,
+    socialInsightsConfig: () => ['social-insights-config'] as const,
   },
 
   // ==================== ADMIN - TOOLS ====================

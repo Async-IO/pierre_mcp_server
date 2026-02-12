@@ -15,6 +15,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { WebSocketProvider } from './contexts/WebSocketProvider';
 import { ToastProvider } from './components/ui';
 import { useAuth } from './hooks/useAuth';
+import { QUERY_KEYS } from './constants/queryKeys';
 import './App.css';
 
 const queryClient = new QueryClient();
@@ -52,8 +53,8 @@ function AppContent() {
     if (params) {
       setOauthCallback(params);
       // Invalidate OAuth status queries to refresh connection state
-      localQueryClient.invalidateQueries({ queryKey: ['oauth-status'] });
-      localQueryClient.invalidateQueries({ queryKey: ['connections'] });
+      localQueryClient.invalidateQueries({ queryKey: QUERY_KEYS.oauth.status() });
+      localQueryClient.invalidateQueries({ queryKey: QUERY_KEYS.oauth.connections() });
     }
   }, [localQueryClient]);
 

@@ -75,16 +75,20 @@ export function SocialSettingsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const loadSettings = useCallback(async () => {
     if (!isAuthenticated) return;
 
     try {
       setIsLoading(true);
+      setError(null);
       const response = await socialApi.getSocialSettings();
       setSettings(response.settings);
-    } catch (error) {
-      console.error('Failed to load social settings:', error);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load settings';
+      setError(errorMessage);
+      console.error('Failed to load social settings:', err);
     } finally {
       setIsLoading(false);
     }
@@ -122,14 +126,17 @@ export function SocialSettingsScreen() {
 
     try {
       setIsSaving(true);
+      setError(null);
       await socialApi.updateSocialSettings({
         discoverable: settings.discoverable,
         default_visibility: settings.default_visibility,
         notifications: settings.notifications,
       });
       setHasChanges(false);
-    } catch (error) {
-      console.error('Failed to save settings:', error);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save settings';
+      setError(errorMessage);
+      console.error('Failed to save settings:', err);
     } finally {
       setIsSaving(false);
     }
@@ -176,6 +183,22 @@ export function SocialSettingsScreen() {
       </View>
 
       <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
+        {/* Error Display */}
+        {error && (
+          <View className="mt-4 p-3 bg-error/10 border border-error/30 rounded-lg flex-row items-center justify-between">
+            <Text className="flex-1 text-error text-sm mr-3">{error}</Text>
+            <TouchableOpacity
+              className="px-3 py-1.5 bg-error/20 rounded-md"
+              onPress={() => {
+                setError(null);
+                loadSettings();
+              }}
+            >
+              <Text className="text-error text-sm font-semibold">Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Privacy Section */}
         <Text className="text-text-secondary text-sm font-semibold mt-6 mb-2 ml-2 uppercase tracking-wide">Privacy</Text>
         <View style={sectionCardStyle}>

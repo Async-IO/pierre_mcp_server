@@ -10,6 +10,7 @@ import { adminApi } from '../services/api';
 import { Card, Button } from './ui';
 import { clsx } from 'clsx';
 import { ConfirmDialog } from './ui';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 // Category colors matching SystemCoachesTab
 const CATEGORY_COLORS: Record<string, string> = {
@@ -53,7 +54,7 @@ export default function PublishedCoachesList() {
 
   // Fetch published coaches
   const { data, isLoading, error } = useQuery({
-    queryKey: ['admin-store-published', sortBy],
+    queryKey: QUERY_KEYS.adminStore.published(sortBy),
     queryFn: () => adminApi.getPublishedStoreCoaches({ sort_by: sortBy }),
   });
 
@@ -61,8 +62,8 @@ export default function PublishedCoachesList() {
   const unpublishMutation = useMutation({
     mutationFn: (coachId: string) => adminApi.unpublishStoreCoach(coachId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-store-published'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-store-stats'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminStore.published() });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminStore.stats() });
       setConfirmUnpublish(null);
     },
   });

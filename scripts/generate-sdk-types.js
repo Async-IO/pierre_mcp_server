@@ -140,7 +140,9 @@ function generateInterfaceFromProperties(properties, requiredFields = []) {
     return '{}';
   }
 
-  const fields = Object.entries(properties).map(([name, prop]) => {
+  // Sort properties alphabetically for deterministic output
+  const sortedEntries = Object.entries(properties).sort(([a], [b]) => a.localeCompare(b));
+  const fields = sortedEntries.map(([name, prop]) => {
     const isRequired = requiredFields.includes(name);
     const tsType = jsonSchemaToTypeScript(prop, name, isRequired);
     const optional = isRequired ? '' : '?';
@@ -165,11 +167,13 @@ function toPascalCase(str) {
  * Generate TypeScript tool types from tool schemas
  */
 function generateToolsTypeScript(tools) {
+  // Sort tools alphabetically by name for deterministic output
+  const sortedTools = [...tools].sort((a, b) => a.name.localeCompare(b.name));
+
   const header = `// ABOUTME: Auto-generated TypeScript type definitions for Pierre MCP tool parameters
 // ABOUTME: Generated from server tool schemas - DO NOT EDIT MANUALLY
 //
-// Generated: ${new Date().toISOString()}
-// Tool count: ${tools.length}
+// Tool count: ${sortedTools.length}
 // To regenerate: bun run generate (from packages/mcp-types)
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -182,7 +186,7 @@ function generateToolsTypeScript(tools) {
 
 `;
 
-  const paramTypes = tools.map(tool => {
+  const paramTypes = sortedTools.map(tool => {
     const interfaceName = `${toPascalCase(tool.name)}Params`;
     const description = tool.description ? `\n/**\n * ${tool.description}\n */` : '';
 
@@ -193,7 +197,9 @@ function generateToolsTypeScript(tools) {
     const properties = tool.inputSchema.properties;
     const required = tool.inputSchema.required || [];
 
-    const fields = Object.entries(properties).map(([name, prop]) => {
+    // Sort properties alphabetically for deterministic output
+    const sortedProps = Object.entries(properties).sort(([a], [b]) => a.localeCompare(b));
+    const fields = sortedProps.map(([name, prop]) => {
       const isRequired = required.includes(name);
       const tsType = jsonSchemaToTypeScript(prop, name, isRequired);
       const optional = isRequired ? '' : '?';
@@ -233,7 +239,7 @@ export interface McpErrorResponse {
 
 `;
 
-  // Generate a union type of all tool names
+  // Generate a union type of all tool names (already sorted)
   const toolNamesUnion = `
 // ============================================================================
 // TOOL NAME TYPES
@@ -242,13 +248,13 @@ export interface McpErrorResponse {
 /**
  * Union type of all available tool names
  */
-export type ToolName = ${tools.map(t => `"${t.name}"`).join(' | ')};
+export type ToolName = ${sortedTools.map(t => `"${t.name}"`).join(' | ')};
 
 /**
  * Map of tool names to their parameter types
  */
 export interface ToolParamsMap {
-${tools.map(t => `  "${t.name}": ${toPascalCase(t.name)}Params;`).join('\n')}
+${sortedTools.map(t => `  "${t.name}": ${toPascalCase(t.name)}Params;`).join('\n')}
 }
 `;
 
@@ -261,8 +267,6 @@ ${tools.map(t => `  "${t.name}": ${toPascalCase(t.name)}Params;`).join('\n')}
 function generateCommonTypeScript() {
   return `// ABOUTME: Common data types for Pierre MCP tools (Activity, Athlete, Stats, etc.)
 // ABOUTME: Generated from server tool schemas - DO NOT EDIT MANUALLY
-//
-// Generated: ${new Date().toISOString()}
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

@@ -16,6 +16,11 @@
 export { PierreMcpClient, BridgeConfig } from './bridge';
 
 /**
+ * Export structured error types for typed error handling
+ */
+export { PierreError, PierreErrorCode } from './errors';
+
+/**
  * Export all TypeScript type definitions for Pierre MCP tools
  *
  * These types are auto-generated from server tool schemas.

@@ -7,6 +7,7 @@ import { dashboardApi } from '../services/api';
 import { useWebSocketContext } from '../hooks/useWebSocketContext';
 import RealTimeIndicator from './RealTimeIndicator';
 import type { RequestLog, RequestStats } from '../types/api';
+import { QUERY_KEYS } from '../constants/queryKeys';
 
 interface RequestMonitorProps {
   apiKeyId?: string;
@@ -23,13 +24,13 @@ export default function RequestMonitor({ apiKeyId, showAllKeys = false }: Reques
   const { lastMessage } = useWebSocketContext();
 
   const { data: requestLogs, isLoading } = useQuery<RequestLog[]>({
-    queryKey: ['request-logs', apiKeyId, filter],
+    queryKey: QUERY_KEYS.dashboard.requestLogs(apiKeyId, filter),
     queryFn: () => dashboardApi.getRequestLogs(apiKeyId, filter),
     refetchInterval: 5000, // Refresh every 5 seconds
   });
 
   const { data: requestStats } = useQuery<RequestStats>({
-    queryKey: ['request-stats', apiKeyId, filter.timeRange],
+    queryKey: QUERY_KEYS.dashboard.requestStats(apiKeyId, filter.timeRange),
     queryFn: () => dashboardApi.getRequestStats(apiKeyId, filter.timeRange),
     refetchInterval: 10000,
   });
