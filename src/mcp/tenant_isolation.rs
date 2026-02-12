@@ -13,6 +13,7 @@ use crate::models::{User, UserOAuthToken};
 use crate::tenant::{oauth_manager::TenantOAuthCredentials, TenantContext, TenantRole};
 use crate::utils::uuid::parse_uuid;
 use http::HeaderMap;
+use pierre_core::models::TenantId;
 use std::sync::Arc;
 use tracing::warn;
 use uuid::Uuid;
@@ -72,10 +73,10 @@ impl TenantIsolation {
         &self,
         claims: &Claims,
         user_id: Uuid,
-    ) -> AppResult<Uuid> {
+    ) -> AppResult<TenantId> {
         // Check if active_tenant_id is specified in JWT claims
         if let Some(tenant_id_str) = claims.active_tenant_id.as_deref() {
-            let tenant_id = tenant_id_str.parse().map_err(|e| {
+            let tenant_id: TenantId = tenant_id_str.parse().map_err(|e| {
                 warn!(tenant_id = %tenant_id_str, error = %e, "Invalid tenant ID format in JWT claims");
                 AppError::invalid_input("Invalid tenant ID format in token")
             })?;
@@ -98,7 +99,7 @@ impl TenantIsolation {
     pub async fn verify_user_tenant_membership(
         &self,
         user_id: Uuid,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
     ) -> AppResult<()> {
         let role = self
             .resources
@@ -120,7 +121,7 @@ impl TenantIsolation {
     ///
     /// # Errors
     /// Returns an error if user has no tenant memberships
-    pub async fn get_user_default_tenant(&self, user_id: Uuid) -> AppResult<Uuid> {
+    pub async fn get_user_default_tenant(&self, user_id: Uuid) -> AppResult<TenantId> {
         let tenants = self
             .resources
             .database
@@ -154,12 +155,12 @@ impl TenantIsolation {
     ///
     /// # Errors
     /// Returns an error if user has no tenant memberships
-    pub async fn extract_tenant_id_for_user(&self, user: &User) -> AppResult<Uuid> {
+    pub async fn extract_tenant_id_for_user(&self, user: &User) -> AppResult<TenantId> {
         self.get_user_default_tenant(user.id).await
     }
 
     /// Get tenant name by ID
-    pub async fn get_tenant_name(&self, tenant_id: Uuid) -> String {
+    pub async fn get_tenant_name(&self, tenant_id: TenantId) -> String {
         match self.resources.database.get_tenant_by_id(tenant_id).await {
             Ok(tenant) => tenant.name,
             Err(e) => {
@@ -182,7 +183,7 @@ impl TenantIsolation {
     pub async fn get_user_role_for_tenant(
         &self,
         user_id: Uuid,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
     ) -> AppResult<TenantRole> {
         // Query tenant_users table for user's role in the tenant
         let role_str = self
@@ -215,7 +216,8 @@ impl TenantIsolation {
                 AppError::invalid_input("Invalid tenant ID header format")
             })?;
 
-            let tenant_id = Uuid::parse_str(tenant_id_str)
+            let tenant_id: TenantId = tenant_id_str
+                .parse()
                 .map_err(|e| {
                     warn!(tenant_id = %tenant_id_str, error = %e, "Invalid tenant ID format in x-tenant-id header");
                     AppError::invalid_input("Invalid tenant ID format")
@@ -260,7 +262,7 @@ impl TenantIsolation {
     pub async fn extract_tenant_from_user_with_tenant(
         &self,
         user_id: Uuid,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
     ) -> AppResult<TenantContext> {
         // Verify user belongs to this tenant
         self.verify_user_tenant_membership(user_id, tenant_id)
@@ -284,7 +286,7 @@ impl TenantIsolation {
     pub async fn check_resource_access(
         &self,
         user_id: Uuid,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         resource_type: &str,
     ) -> AppResult<bool> {
         // Verify user belongs to the tenant
@@ -306,7 +308,7 @@ impl TenantIsolation {
     ///
     /// # Errors
     /// Returns an error if resource isolation fails
-    pub fn isolate_resources(&self, tenant_id: Uuid) -> AppResult<TenantResources> {
+    pub fn isolate_resources(&self, tenant_id: TenantId) -> AppResult<TenantResources> {
         // Create tenant-scoped resource accessor
         Ok(TenantResources {
             tenant_id,
@@ -321,7 +323,7 @@ impl TenantIsolation {
     pub async fn validate_tenant_action(
         &self,
         user_id: Uuid,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         action: &str,
     ) -> AppResult<()> {
         let user_role = self.get_user_role_for_tenant(user_id, tenant_id).await?;
@@ -356,7 +358,7 @@ impl TenantIsolation {
 /// Tenant-scoped resource accessor
 pub struct TenantResources {
     /// Unique identifier for the tenant
-    pub tenant_id: Uuid,
+    pub tenant_id: TenantId,
     /// Database connection for tenant-scoped operations
     pub database: Arc<Database>,
 }
@@ -480,8 +482,8 @@ pub async fn validate_jwt_token_for_mcp(
         .ok_or_else(|| AppError::not_found("User"))?;
 
     // Get tenant ID from JWT claims or fall back to user's default tenant
-    let tenant_id = if let Some(tenant_id_str) = claims.active_tenant_id.as_deref() {
-        let tid: Uuid = tenant_id_str.parse().map_err(|e| {
+    let tenant_id: TenantId = if let Some(tenant_id_str) = claims.active_tenant_id.as_deref() {
+        let tid: TenantId = tenant_id_str.parse().map_err(|e| {
             warn!(tenant_id = %tenant_id_str, error = %e, "Invalid tenant ID format in JWT claims (MCP validation)");
             AppError::invalid_input("Invalid tenant ID format in token")
         })?;
@@ -555,7 +557,7 @@ pub async fn validate_jwt_token_for_mcp(
 pub async fn extract_tenant_context_internal(
     database: &Arc<Database>,
     user_id: Option<Uuid>,
-    tenant_id: Option<Uuid>,
+    tenant_id: Option<TenantId>,
     headers: Option<&HeaderMap>,
 ) -> AppResult<Option<TenantContext>> {
     // Try to extract from explicit tenant ID first
@@ -592,7 +594,7 @@ pub async fn extract_tenant_context_internal(
     if let Some(headers) = headers {
         if let Some(tenant_id_header) = headers.get("x-tenant-id") {
             if let Ok(tenant_id_str) = tenant_id_header.to_str() {
-                if let Ok(header_tenant_id) = Uuid::parse_str(tenant_id_str) {
+                if let Ok(header_tenant_id) = tenant_id_str.parse::<TenantId>() {
                     // If user_id is provided, verify membership
                     let (user_role, verified_user_id) = if let Some(uid) = user_id {
                         let role_str = database

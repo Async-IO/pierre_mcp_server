@@ -6,7 +6,7 @@
 
 use crate::config::environment::{default_provider, get_oauth_config, OAuthProviderConfig};
 use crate::database_plugins::factory::Database;
-use crate::models::Activity;
+use crate::models::{Activity, TenantId};
 use crate::protocols::universal::auth_service::TokenData;
 use crate::protocols::universal::{UniversalResponse, UniversalToolExecutor};
 use crate::providers::core::FitnessProvider;
@@ -31,7 +31,7 @@ pub struct TenantCredentialContext<'a> {
     /// Database for credential persistence queries
     pub database: &'a Database,
     /// Tenant identifier for credential scoping
-    pub tenant_id: Uuid,
+    pub tenant_id: TenantId,
     /// User identifier for user-specific credential lookup
     pub user_id: Uuid,
 }
@@ -383,7 +383,7 @@ pub async fn fetch_provider_activities(
         Ok(Some(token_data)) => {
             // Build tenant credential context for tenant-scoped OAuth resolution
             let tenant_ctx = tenant_id
-                .and_then(|tid| Uuid::parse_str(tid).ok())
+                .and_then(|tid| tid.parse::<TenantId>().ok())
                 .map(|tid| TenantCredentialContext {
                     tenant_oauth_client: &executor.resources.tenant_oauth_client,
                     database: &executor.resources.database,

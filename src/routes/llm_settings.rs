@@ -11,6 +11,7 @@ use axum::{
     routing::{delete, get, post, put},
     Json, Router,
 };
+use pierre_core::models::TenantId;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{info, warn};
@@ -165,17 +166,19 @@ impl LlmSettingsRoutes {
     async fn get_tenant_id(
         auth: &AuthResult,
         resources: &Arc<ServerResources>,
-    ) -> Result<Uuid, AppError> {
+    ) -> Result<TenantId, AppError> {
         // Prefer active_tenant_id from JWT claims (user's selected tenant)
         if let Some(tenant_id) = auth.active_tenant_id {
-            return Ok(tenant_id);
+            return Ok(TenantId::from(tenant_id));
         }
         // Fall back to user's first tenant (single-tenant users or tokens without active_tenant_id)
         let tenants = resources
             .database
             .list_tenants_for_user(auth.user_id)
             .await?;
-        Ok(tenants.first().map_or(auth.user_id, |t| t.id))
+        Ok(tenants
+            .first()
+            .map_or_else(|| TenantId::from(auth.user_id), |t| t.id))
     }
 
     /// Get current LLM settings for the authenticated user
@@ -255,7 +258,7 @@ impl LlmSettingsRoutes {
         display_name: &str,
         provider: LlmProvider,
         user_id: Uuid,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         database: &Database,
     ) -> ProviderStatus {
         let has_credentials =
@@ -314,7 +317,7 @@ impl LlmSettingsRoutes {
             // Allow tenant-level credentials for tenant admins/owners.
             // In single-tenant mode, tenant_id == user_id (always allowed).
             // In multi-tenant mode, check the user's role in the tenant.
-            if tenant_id != user_id {
+            if tenant_id.as_uuid() != user_id {
                 let role = resources
                     .database
                     .get_user_tenant_role(user_id, tenant_id)

@@ -9,12 +9,12 @@
 
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
+use pierre_mcp_server::models::TenantId;
 use pierre_mcp_server::security::{
     audit_security_headers, headers::SecurityConfig, EncryptedData, EncryptionMetadata,
     TenantEncryptionManager,
 };
 use std::collections::HashMap;
-use uuid::Uuid;
 
 // =============================================================================
 // TenantEncryptionManager Tests
@@ -36,7 +36,7 @@ fn test_encryption_manager_creation() {
 fn test_derive_tenant_key() {
     let master_key = [1u8; 32];
     let manager = TenantEncryptionManager::new(master_key);
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     // Derive a key
     let key1 = manager.derive_tenant_key(tenant_id).unwrap();
@@ -57,8 +57,8 @@ fn test_derive_tenant_key() {
 fn test_derive_different_tenant_keys() {
     let master_key = [2u8; 32];
     let manager = TenantEncryptionManager::new(master_key);
-    let tenant1 = Uuid::new_v4();
-    let tenant2 = Uuid::new_v4();
+    let tenant1 = TenantId::new();
+    let tenant2 = TenantId::new();
 
     let key1 = manager.derive_tenant_key(tenant1).unwrap();
     let key2 = manager.derive_tenant_key(tenant2).unwrap();
@@ -75,7 +75,7 @@ fn test_derive_different_tenant_keys() {
 fn test_encrypt_decrypt_tenant_data() {
     let master_key = [3u8; 32];
     let manager = TenantEncryptionManager::new(master_key);
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let plaintext = "This is sensitive OAuth token data";
 
     // Encrypt
@@ -83,7 +83,7 @@ fn test_encrypt_decrypt_tenant_data() {
 
     // Verify metadata
     assert!(encrypted.metadata.tenant_id.is_some());
-    assert_eq!(encrypted.metadata.tenant_id.unwrap(), tenant_id);
+    assert_eq!(encrypted.metadata.tenant_id.unwrap(), tenant_id.as_uuid());
     assert_eq!(encrypted.metadata.algorithm, "AES-256-GCM");
     assert_eq!(encrypted.metadata.key_version, 1);
 
@@ -117,8 +117,8 @@ fn test_encrypt_decrypt_global_data() {
 fn test_tenant_data_isolation() {
     let master_key = [5u8; 32];
     let manager = TenantEncryptionManager::new(master_key);
-    let tenant1 = Uuid::new_v4();
-    let tenant2 = Uuid::new_v4();
+    let tenant1 = TenantId::new();
+    let tenant2 = TenantId::new();
     let plaintext = "Tenant-specific secret";
 
     // Encrypt with tenant1
@@ -133,7 +133,7 @@ fn test_tenant_data_isolation() {
 fn test_global_vs_tenant_data_mismatch() {
     let master_key = [6u8; 32];
     let manager = TenantEncryptionManager::new(master_key);
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     // Encrypt as tenant data
     let tenant_encrypted = manager
@@ -156,7 +156,7 @@ fn test_global_vs_tenant_data_mismatch() {
 fn test_encryption_produces_different_ciphertext() {
     let master_key = [7u8; 32];
     let manager = TenantEncryptionManager::new(master_key);
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let plaintext = "Same plaintext each time";
 
     // Encrypt the same plaintext multiple times
@@ -180,7 +180,7 @@ fn test_clear_key_cache() {
 
     // Derive keys for multiple tenants
     for _ in 0..5 {
-        let tenant_id = Uuid::new_v4();
+        let tenant_id = TenantId::new();
         manager.derive_tenant_key(tenant_id).unwrap();
     }
 
@@ -215,7 +215,7 @@ fn test_key_version_management() {
 fn test_encrypt_empty_string() {
     let master_key = [10u8; 32];
     let manager = TenantEncryptionManager::new(master_key);
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     // Encrypt empty string
     let encrypted = manager.encrypt_tenant_data(tenant_id, "").unwrap();
@@ -229,7 +229,7 @@ fn test_encrypt_empty_string() {
 fn test_encrypt_large_data() {
     let master_key = [11u8; 32];
     let manager = TenantEncryptionManager::new(master_key);
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     // Create large plaintext (1MB)
     let plaintext = "A".repeat(1_000_000);
@@ -244,7 +244,7 @@ fn test_encrypt_large_data() {
 fn test_encrypt_unicode_data() {
     let master_key = [12u8; 32];
     let manager = TenantEncryptionManager::new(master_key);
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     let plaintext = "Unicode test: 日本語 한국어 中文 émojis: 🏃‍♂️🚴‍♀️🏊‍♂️";
 
@@ -406,7 +406,7 @@ fn test_encrypted_data_serialization() {
 fn test_decrypt_invalid_base64_data() {
     let master_key = [13u8; 32];
     let manager = TenantEncryptionManager::new(master_key);
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     let invalid_encrypted = EncryptedData {
         data: "not-valid-base64!!!".to_owned(),
@@ -426,7 +426,7 @@ fn test_decrypt_invalid_base64_data() {
 fn test_decrypt_truncated_data() {
     let master_key = [14u8; 32];
     let manager = TenantEncryptionManager::new(master_key);
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     // Valid base64 but too short (less than 12 bytes for nonce)
     let truncated_encrypted = EncryptedData {
@@ -447,7 +447,7 @@ fn test_decrypt_truncated_data() {
 fn test_decrypt_tampered_data() {
     let master_key = [15u8; 32];
     let manager = TenantEncryptionManager::new(master_key);
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     // First encrypt valid data
     let encrypted = manager
@@ -474,7 +474,7 @@ fn test_decrypt_tampered_data() {
 
 #[test]
 fn test_different_master_keys_produce_different_derived_keys() {
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     let manager1 = TenantEncryptionManager::new([1u8; 32]);
     let manager2 = TenantEncryptionManager::new([2u8; 32]);
@@ -489,7 +489,7 @@ fn test_different_master_keys_produce_different_derived_keys() {
 fn test_encryption_with_special_characters() {
     let master_key = [16u8; 32];
     let manager = TenantEncryptionManager::new(master_key);
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     let special_data = r#"{"token": "abc123", "special": "\n\t\r", "unicode": "日本語"}"#;
 

@@ -5,6 +5,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use chrono::{DateTime, Utc};
+use pierre_core::models::TenantId;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 use uuid::Uuid;
@@ -62,7 +63,7 @@ impl TenantRole {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Tenant {
     /// Unique tenant identifier
-    pub id: Uuid,
+    pub id: TenantId,
     /// Display name for the organization
     pub name: String,
     /// URL-safe identifier for tenant (e.g., "acme-corp")
@@ -85,7 +86,7 @@ impl Tenant {
     pub fn new(name: String, slug: String) -> Self {
         let now = Utc::now();
         Self {
-            id: Uuid::new_v4(),
+            id: TenantId::new(),
             name,
             slug,
             domain: None,
@@ -103,7 +104,7 @@ pub struct TenantUser {
     /// Unique relationship identifier
     pub id: Uuid,
     /// Tenant ID
-    pub tenant_id: Uuid,
+    pub tenant_id: TenantId,
     /// User ID
     pub user_id: Uuid,
     /// User's role in this tenant
@@ -115,7 +116,7 @@ pub struct TenantUser {
 impl TenantUser {
     /// Create new tenant-user relationship
     #[must_use]
-    pub fn new(tenant_id: Uuid, user_id: Uuid, role: TenantRole) -> Self {
+    pub fn new(tenant_id: TenantId, user_id: Uuid, role: TenantRole) -> Self {
         Self {
             id: Uuid::new_v4(),
             tenant_id,
@@ -132,7 +133,7 @@ pub struct TenantProviderUsage {
     /// Unique usage record identifier
     pub id: Uuid,
     /// Tenant ID
-    pub tenant_id: Uuid,
+    pub tenant_id: TenantId,
     /// Provider name
     pub provider: String,
     /// Usage date

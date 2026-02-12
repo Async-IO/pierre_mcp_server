@@ -14,6 +14,7 @@
 //! - Integration tests with real JWT tokens and database
 
 use pierre_mcp_server::middleware::tenant::{require_tenant_context, ExtractedTenantContext};
+use pierre_mcp_server::models::TenantId;
 use pierre_mcp_server::tenant::{TenantContext, TenantRole};
 use uuid::Uuid;
 
@@ -30,7 +31,7 @@ fn test_extracted_tenant_context_none() {
 /// Test that `ExtractedTenantContext` correctly handles Some case
 #[test]
 fn test_extracted_tenant_context_some() {
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = Uuid::new_v4();
     let tenant_ctx = TenantContext::new(
         tenant_id,
@@ -57,7 +58,7 @@ fn test_require_tenant_context_none() {
 /// Test `require_tenant_context` returns Ok when context is present
 #[test]
 fn test_require_tenant_context_some() {
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = Uuid::new_v4();
     let tenant_ctx = TenantContext::new(
         tenant_id,
@@ -77,7 +78,7 @@ fn test_require_tenant_context_some() {
 /// Test `TenantContext` role checks
 #[test]
 fn test_tenant_context_role_checks() {
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = Uuid::new_v4();
 
     // Admin role
@@ -114,7 +115,7 @@ fn test_tenant_context_role_checks() {
 /// Test `ExtractedTenantContext` Clone implementation
 #[test]
 fn test_extracted_tenant_context_clone() {
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = Uuid::new_v4();
     let tenant_ctx = TenantContext::new(
         tenant_id,
@@ -138,7 +139,7 @@ fn test_extracted_tenant_context_debug() {
     assert!(debug_str.contains("ExtractedTenantContext"));
     assert!(debug_str.contains("None"));
 
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = Uuid::new_v4();
     let tenant_ctx = TenantContext::new(
         tenant_id,

@@ -10,8 +10,8 @@
 use chrono::Utc;
 use pierre_mcp_server::models::{
     Activity, ActivityBuilder, Athlete, AuthorizationCode, EncryptedToken, HeartRateZone,
-    PersonalRecord, PowerZone, PrMetric, SegmentEffort, SportType, Stats, Tenant, User, UserStatus,
-    UserTier,
+    PersonalRecord, PowerZone, PrMetric, SegmentEffort, SportType, Stats, Tenant, TenantId, User,
+    UserStatus, UserTier,
 };
 use pierre_mcp_server::permissions::UserRole;
 use uuid::Uuid;
@@ -360,7 +360,7 @@ fn test_user_serialization_roundtrip() {
 #[test]
 fn test_tenant_creation() {
     let now = Utc::now();
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     let tenant = Tenant {
         id: tenant_id,
@@ -384,7 +384,7 @@ fn test_tenant_creation() {
 fn test_tenant_serialization_roundtrip() {
     let now = Utc::now();
     let original_tenant = Tenant {
-        id: Uuid::new_v4(),
+        id: TenantId::new(),
         name: "Acme Corp".to_owned(),
         slug: "acme-corp".to_owned(),
         domain: Some("acme.com".to_owned()),

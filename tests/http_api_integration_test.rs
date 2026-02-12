@@ -28,7 +28,7 @@ use pierre_mcp_server::{
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::resources::{ServerResources, ServerResourcesOptions},
-    models::{Tenant, User, UserStatus, UserTier},
+    models::{Tenant, TenantId, User, UserStatus, UserTier},
     permissions::UserRole,
     routes::{
         auth::{AuthService, OAuthService},
@@ -42,8 +42,7 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 /// Test setup for SDK integration tests
 // Long function: Defines complete test environment setup including database, auth, config, and test data
 #[allow(clippy::too_many_lines)]
-async fn setup_test_environment() -> Result<(Arc<Database>, AuthService, OAuthService, uuid::Uuid)>
-{
+async fn setup_test_environment() -> Result<(Arc<Database>, AuthService, OAuthService, TenantId)> {
     // Initialize server config for tests
     common::init_server_config();
 
@@ -87,7 +86,7 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthService, OAuthSe
     let admin_id = database.create_user(&admin_user).await?;
 
     // Create tenant
-    let tenant_id = uuid::Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let tenant = Tenant {
         id: tenant_id,
         name: "Test Tenant".to_owned(),

@@ -59,6 +59,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use pierre_core::models::TenantId;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, instrument, warn};
 use uuid::Uuid;
@@ -101,7 +102,7 @@ pub struct CachingFitnessProvider<C: CacheProvider> {
     /// Cache backend (Redis or in-memory)
     cache: Arc<C>,
     /// Tenant ID for cache key isolation
-    tenant_id: Uuid,
+    tenant_id: TenantId,
     /// User ID for cache key isolation
     user_id: Uuid,
     /// TTL configuration for different resource types
@@ -117,7 +118,12 @@ impl<C: CacheProvider> CachingFitnessProvider<C> {
     /// * `cache` - The cache backend to use (implements `CacheProvider`)
     /// * `tenant_id` - Tenant ID for multi-tenant cache isolation
     /// * `user_id` - User ID for per-user cache isolation
-    pub fn new(inner: Box<dyn FitnessProvider>, cache: C, tenant_id: Uuid, user_id: Uuid) -> Self {
+    pub fn new(
+        inner: Box<dyn FitnessProvider>,
+        cache: C,
+        tenant_id: TenantId,
+        user_id: Uuid,
+    ) -> Self {
         Self {
             inner,
             cache: Arc::new(cache),
@@ -131,7 +137,7 @@ impl<C: CacheProvider> CachingFitnessProvider<C> {
     pub fn with_ttl_config(
         inner: Box<dyn FitnessProvider>,
         cache: C,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         user_id: Uuid,
         ttl_config: CacheTtlConfig,
     ) -> Self {
@@ -150,7 +156,7 @@ impl<C: CacheProvider> CachingFitnessProvider<C> {
     pub fn with_shared_cache(
         inner: Box<dyn FitnessProvider>,
         cache: Arc<C>,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         user_id: Uuid,
     ) -> Self {
         Self {
@@ -164,7 +170,7 @@ impl<C: CacheProvider> CachingFitnessProvider<C> {
 
     /// Get the tenant ID
     #[must_use]
-    pub const fn tenant_id(&self) -> Uuid {
+    pub const fn tenant_id(&self) -> TenantId {
         self.tenant_id
     }
 
@@ -610,7 +616,7 @@ impl<C: CacheProvider + 'static> FitnessProvider for CachingFitnessProvider<C> {
 pub async fn create_caching_provider(
     inner: Box<dyn FitnessProvider>,
     cache_config: CacheConfig,
-    tenant_id: Uuid,
+    tenant_id: TenantId,
     user_id: Uuid,
 ) -> AppResult<CachingFitnessProvider<InMemoryCache>> {
     // For now, always use in-memory cache. Redis support can be added via
@@ -646,7 +652,7 @@ pub async fn create_caching_provider(
 pub async fn create_caching_provider_with_ttl(
     inner: Box<dyn FitnessProvider>,
     cache_config: CacheConfig,
-    tenant_id: Uuid,
+    tenant_id: TenantId,
     user_id: Uuid,
     ttl_config: CacheTtlConfig,
 ) -> AppResult<CachingFitnessProvider<InMemoryCache>> {

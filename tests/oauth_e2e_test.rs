@@ -166,7 +166,7 @@ use pierre_mcp_server::{
         multitenant::MultiTenantMcpServer,
         resources::{ServerResources, ServerResourcesOptions},
     },
-    models::{Tenant, User, UserStatus, UserTier},
+    models::{Tenant, TenantId, User, UserStatus, UserTier},
     permissions::UserRole,
     routes::{
         auth::{AuthService, OAuthService},
@@ -470,7 +470,7 @@ async fn test_oauth_callback_error_handling() {
     };
     let admin_id = database.create_user(&admin_user).await.unwrap();
 
-    let tenant_id = uuid::Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let tenant = Tenant {
         id: tenant_id,
         name: "Test Tenant".to_owned(),
@@ -749,7 +749,7 @@ async fn test_oauth_state_csrf_protection() {
     let admin_id = database.create_user(&admin_user).await.unwrap();
 
     // Create tenant
-    let tenant_id = uuid::Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let tenant = Tenant {
         id: tenant_id,
         name: "Test Tenant".to_owned(),

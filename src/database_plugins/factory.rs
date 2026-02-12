@@ -42,6 +42,7 @@ use crate::tenant::llm_manager::{LlmCredentialRecord, LlmCredentialSummary};
 use crate::tenant::oauth_manager::TenantOAuthCredentials;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use pierre_core::models::TenantId;
 #[cfg(not(feature = "postgresql"))]
 use tracing::error;
 use tracing::{debug, info};
@@ -522,7 +523,7 @@ impl DatabaseProvider for Database {
     async fn get_users_by_status(
         &self,
         status: &str,
-        tenant_id: Option<Uuid>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Vec<User>> {
         match self {
             Self::SQLite(db) => db.get_users_by_status(status, tenant_id).await,
@@ -1025,7 +1026,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_system_stats(&self, tenant_id: Option<Uuid>) -> AppResult<(u64, u64)> {
+    async fn get_system_stats(&self, tenant_id: Option<TenantId>) -> AppResult<(u64, u64)> {
         match self {
             Self::SQLite(db) => db.get_system_stats(tenant_id).await,
             #[cfg(feature = "postgresql")]
@@ -1522,7 +1523,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_tenant_by_id(&self, tenant_id: uuid::Uuid) -> AppResult<Tenant> {
+    async fn get_tenant_by_id(&self, tenant_id: TenantId) -> AppResult<Tenant> {
         match self {
             Self::SQLite(db) => db.get_tenant_by_id(tenant_id).await,
             #[cfg(feature = "postgresql")]
@@ -1559,7 +1560,7 @@ impl DatabaseProvider for Database {
 
     async fn get_tenant_oauth_providers(
         &self,
-        tenant_id: uuid::Uuid,
+        tenant_id: TenantId,
     ) -> AppResult<Vec<TenantOAuthCredentials>> {
         match self {
             Self::SQLite(db) => db.get_tenant_oauth_providers(tenant_id).await,
@@ -1570,7 +1571,7 @@ impl DatabaseProvider for Database {
 
     async fn get_tenant_oauth_credentials(
         &self,
-        tenant_id: uuid::Uuid,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<Option<TenantOAuthCredentials>> {
         match self {
@@ -1821,7 +1822,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_key_versions(&self, tenant_id: Option<uuid::Uuid>) -> AppResult<Vec<KeyVersion>> {
+    async fn get_key_versions(&self, tenant_id: Option<TenantId>) -> AppResult<Vec<KeyVersion>> {
         match self {
             Self::SQLite(db) => db.get_key_versions(tenant_id).await,
             #[cfg(feature = "postgresql")]
@@ -1831,7 +1832,7 @@ impl DatabaseProvider for Database {
 
     async fn get_current_key_version(
         &self,
-        tenant_id: Option<uuid::Uuid>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Option<KeyVersion>> {
         match self {
             Self::SQLite(db) => db.get_current_key_version(tenant_id).await,
@@ -1842,7 +1843,7 @@ impl DatabaseProvider for Database {
 
     async fn update_key_version_status(
         &self,
-        tenant_id: Option<uuid::Uuid>,
+        tenant_id: Option<TenantId>,
         version: u32,
         is_active: bool,
     ) -> AppResult<()> {
@@ -1861,7 +1862,7 @@ impl DatabaseProvider for Database {
 
     async fn delete_old_key_versions(
         &self,
-        tenant_id: Option<uuid::Uuid>,
+        tenant_id: Option<TenantId>,
         keep_count: u32,
     ) -> AppResult<u64> {
         match self {
@@ -1889,7 +1890,7 @@ impl DatabaseProvider for Database {
 
     async fn get_audit_events(
         &self,
-        tenant_id: Option<uuid::Uuid>,
+        tenant_id: Option<TenantId>,
         event_type: Option<&str>,
         limit: Option<u32>,
     ) -> AppResult<Vec<AuditEvent>> {
@@ -2016,7 +2017,7 @@ impl DatabaseProvider for Database {
     async fn get_user_tenant_role(
         &self,
         user_id: Uuid,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
     ) -> AppResult<Option<String>> {
         match self {
             Self::SQLite(db) => {
@@ -2539,7 +2540,7 @@ impl DatabaseProvider for Database {
 
     async fn get_llm_credentials(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         user_id: Option<Uuid>,
         provider: &str,
     ) -> AppResult<Option<LlmCredentialRecord>> {
@@ -2550,7 +2551,10 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn list_llm_credentials(&self, tenant_id: Uuid) -> AppResult<Vec<LlmCredentialSummary>> {
+    async fn list_llm_credentials(
+        &self,
+        tenant_id: TenantId,
+    ) -> AppResult<Vec<LlmCredentialSummary>> {
         match self {
             Self::SQLite(db) => db.list_llm_credentials(tenant_id).await,
             #[cfg(feature = "postgresql")]
@@ -2560,7 +2564,7 @@ impl DatabaseProvider for Database {
 
     async fn delete_llm_credentials(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         user_id: Option<Uuid>,
         provider: &str,
     ) -> AppResult<bool> {
@@ -2655,7 +2659,7 @@ impl DatabaseProvider for Database {
     /// Get all tool overrides for a tenant
     async fn get_tenant_tool_overrides(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
     ) -> AppResult<Vec<TenantToolOverride>> {
         match self {
             Self::SQLite(db) => db.get_tenant_tool_overrides_impl(tenant_id).await,
@@ -2667,7 +2671,7 @@ impl DatabaseProvider for Database {
     /// Get a specific tool override for a tenant
     async fn get_tenant_tool_override(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         tool_name: &str,
     ) -> AppResult<Option<TenantToolOverride>> {
         match self {
@@ -2680,7 +2684,7 @@ impl DatabaseProvider for Database {
     /// Create or update a tool override for a tenant
     async fn upsert_tenant_tool_override(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         tool_name: &str,
         is_enabled: bool,
         enabled_by_user_id: Option<Uuid>,
@@ -2714,7 +2718,7 @@ impl DatabaseProvider for Database {
     /// Delete a tool override (revert to catalog default)
     async fn delete_tenant_tool_override(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         tool_name: &str,
     ) -> AppResult<bool> {
         match self {
@@ -2728,7 +2732,7 @@ impl DatabaseProvider for Database {
     }
 
     /// Count enabled tools for a tenant
-    async fn count_enabled_tools(&self, tenant_id: Uuid) -> AppResult<usize> {
+    async fn count_enabled_tools(&self, tenant_id: TenantId) -> AppResult<usize> {
         match self {
             Self::SQLite(db) => db.count_enabled_tools_impl(tenant_id).await,
             #[cfg(feature = "postgresql")]

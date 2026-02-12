@@ -104,6 +104,7 @@ use crate::tenant::oauth_manager::TenantOAuthCredentials;
 use base64::engine::general_purpose::{self, STANDARD};
 use base64::Engine;
 use chrono::{DateTime, Utc};
+use pierre_core::models::TenantId;
 use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 use ring::digest::{digest, SHA256};
 use ring::hmac;
@@ -701,7 +702,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if tenant not found or database query fails
-    pub async fn get_tenant_by_id_impl(&self, tenant_id: Uuid) -> AppResult<Tenant> {
+    pub async fn get_tenant_by_id_impl(&self, tenant_id: TenantId) -> AppResult<Tenant> {
         let row = sqlx::query(
             r"
             SELECT t.id, t.name, t.slug, t.domain, t.plan, tu.user_id, t.created_at, t.updated_at
@@ -725,7 +726,7 @@ impl Database {
                     .map_err(|e| AppError::database(format!("Failed to get user_id: {e}")))?;
 
                 Ok(Tenant {
-                    id: Uuid::parse_str(&id_str)?,
+                    id: id_str.parse()?,
                     name: row
                         .try_get("name")
                         .map_err(|e| AppError::database(format!("Failed to get name: {e}")))?,
@@ -780,7 +781,7 @@ impl Database {
                     .map_err(|e| AppError::database(format!("Failed to get user_id: {e}")))?;
 
                 Ok(Tenant {
-                    id: Uuid::parse_str(&id_str)?,
+                    id: id_str.parse()?,
                     name: row
                         .try_get("name")
                         .map_err(|e| AppError::database(format!("Failed to get name: {e}")))?,
@@ -839,7 +840,7 @@ impl Database {
                     .map_err(|e| AppError::database(format!("Failed to get owner_user_id: {e}")))?;
 
                 Ok(Tenant {
-                    id: Uuid::parse_str(&id_str)?,
+                    id: id_str.parse()?,
                     name: row
                         .try_get("name")
                         .map_err(|e| AppError::database(format!("Failed to get name: {e}")))?,
@@ -895,7 +896,7 @@ impl Database {
                     .map_err(|e| AppError::database(format!("Failed to get owner_user_id: {e}")))?;
 
                 Ok(Tenant {
-                    id: Uuid::parse_str(&id_str)?,
+                    id: id_str.parse()?,
                     name: row
                         .try_get("name")
                         .map_err(|e| AppError::database(format!("Failed to get name: {e}")))?,
@@ -983,7 +984,7 @@ impl Database {
     /// Returns an error if database query or decryption fails
     pub async fn get_tenant_oauth_providers_impl(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
     ) -> AppResult<Vec<TenantOAuthCredentials>> {
         let rows = sqlx::query(
             r"
@@ -1051,7 +1052,7 @@ impl Database {
     /// Returns an error if database query or decryption fails
     pub async fn get_tenant_oauth_credentials_impl(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<Option<TenantOAuthCredentials>> {
         let row = sqlx::query(
@@ -2087,7 +2088,7 @@ impl Database {
     async fn get_user_tenant_role_impl(
         &self,
         user_id: Uuid,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
     ) -> AppResult<Option<String>> {
         let row =
             sqlx::query("SELECT role FROM tenant_users WHERE user_id = ?1 AND tenant_id = ?2")
@@ -2583,7 +2584,7 @@ impl DatabaseProvider for Database {
     async fn get_users_by_status(
         &self,
         status: &str,
-        tenant_id: Option<Uuid>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Vec<User>> {
         Self::get_users_by_status_impl(self, status, tenant_id).await
     }
@@ -2836,7 +2837,7 @@ impl DatabaseProvider for Database {
         Ok(logs)
     }
 
-    async fn get_system_stats(&self, tenant_id: Option<Uuid>) -> AppResult<(u64, u64)> {
+    async fn get_system_stats(&self, tenant_id: Option<TenantId>) -> AppResult<(u64, u64)> {
         Self::get_system_stats_impl(self, tenant_id).await
     }
 
@@ -3140,7 +3141,7 @@ impl DatabaseProvider for Database {
         Self::create_tenant_impl(self, tenant).await
     }
 
-    async fn get_tenant_by_id(&self, tenant_id: Uuid) -> AppResult<Tenant> {
+    async fn get_tenant_by_id(&self, tenant_id: TenantId) -> AppResult<Tenant> {
         Self::get_tenant_by_id_impl(self, tenant_id).await
     }
 
@@ -3161,14 +3162,14 @@ impl DatabaseProvider for Database {
 
     async fn get_tenant_oauth_providers(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
     ) -> AppResult<Vec<TenantOAuthCredentials>> {
         Self::get_tenant_oauth_providers_impl(self, tenant_id).await
     }
 
     async fn get_tenant_oauth_credentials(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<Option<TenantOAuthCredentials>> {
         Self::get_tenant_oauth_credentials_impl(self, tenant_id, provider).await
@@ -3297,20 +3298,20 @@ impl DatabaseProvider for Database {
         Self::store_key_version(self, version).await
     }
 
-    async fn get_key_versions(&self, tenant_id: Option<Uuid>) -> AppResult<Vec<KeyVersion>> {
+    async fn get_key_versions(&self, tenant_id: Option<TenantId>) -> AppResult<Vec<KeyVersion>> {
         Self::get_key_versions(self, tenant_id).await
     }
 
     async fn get_current_key_version(
         &self,
-        tenant_id: Option<Uuid>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Option<KeyVersion>> {
         Self::get_current_key_version(self, tenant_id).await
     }
 
     async fn update_key_version_status(
         &self,
-        tenant_id: Option<Uuid>,
+        tenant_id: Option<TenantId>,
         version: u32,
         is_active: bool,
     ) -> AppResult<()> {
@@ -3319,7 +3320,7 @@ impl DatabaseProvider for Database {
 
     async fn delete_old_key_versions(
         &self,
-        tenant_id: Option<Uuid>,
+        tenant_id: Option<TenantId>,
         keep_count: u32,
     ) -> AppResult<u64> {
         Self::delete_old_key_versions(self, tenant_id, keep_count).await
@@ -3335,7 +3336,7 @@ impl DatabaseProvider for Database {
 
     async fn get_audit_events(
         &self,
-        tenant_id: Option<Uuid>,
+        tenant_id: Option<TenantId>,
         event_type: Option<&str>,
         limit: Option<u32>,
     ) -> AppResult<Vec<AuditEvent>> {
@@ -3345,7 +3346,7 @@ impl DatabaseProvider for Database {
     async fn get_user_tenant_role(
         &self,
         user_id: Uuid,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
     ) -> AppResult<Option<String>> {
         Self::get_user_tenant_role_impl(self, user_id, tenant_id).await
     }
@@ -3668,7 +3669,7 @@ impl DatabaseProvider for Database {
 
     async fn get_llm_credentials(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         user_id: Option<Uuid>,
         provider: &str,
     ) -> AppResult<Option<LlmCredentialRecord>> {
@@ -3704,7 +3705,10 @@ impl DatabaseProvider for Database {
 
         Ok(row.map(|r| LlmCredentialRecord {
             id: Uuid::parse_str(r.get::<&str, _>("id")).unwrap_or_default(),
-            tenant_id: Uuid::parse_str(r.get::<&str, _>("tenant_id")).unwrap_or_default(),
+            tenant_id: r
+                .get::<&str, _>("tenant_id")
+                .parse()
+                .unwrap_or_else(|_| TenantId::nil()),
             user_id: r
                 .get::<Option<&str>, _>("user_id")
                 .and_then(|s| Uuid::parse_str(s).ok()),
@@ -3719,7 +3723,10 @@ impl DatabaseProvider for Database {
         }))
     }
 
-    async fn list_llm_credentials(&self, tenant_id: Uuid) -> AppResult<Vec<LlmCredentialSummary>> {
+    async fn list_llm_credentials(
+        &self,
+        tenant_id: TenantId,
+    ) -> AppResult<Vec<LlmCredentialSummary>> {
         let rows = sqlx::query(
             r"
             SELECT id, user_id, provider, base_url, default_model, is_active, created_at, updated_at
@@ -3758,7 +3765,7 @@ impl DatabaseProvider for Database {
 
     async fn delete_llm_credentials(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         user_id: Option<Uuid>,
         provider: &str,
     ) -> AppResult<bool> {
@@ -3871,14 +3878,14 @@ impl DatabaseProvider for Database {
 
     async fn get_tenant_tool_overrides(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
     ) -> AppResult<Vec<TenantToolOverride>> {
         Self::get_tenant_tool_overrides_impl(self, tenant_id).await
     }
 
     async fn get_tenant_tool_override(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         tool_name: &str,
     ) -> AppResult<Option<TenantToolOverride>> {
         Self::get_tenant_tool_override_impl(self, tenant_id, tool_name).await
@@ -3886,7 +3893,7 @@ impl DatabaseProvider for Database {
 
     async fn upsert_tenant_tool_override(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         tool_name: &str,
         is_enabled: bool,
         enabled_by_user_id: Option<Uuid>,
@@ -3905,13 +3912,13 @@ impl DatabaseProvider for Database {
 
     async fn delete_tenant_tool_override(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         tool_name: &str,
     ) -> AppResult<bool> {
         Self::delete_tenant_tool_override_impl(self, tenant_id, tool_name).await
     }
 
-    async fn count_enabled_tools(&self, tenant_id: Uuid) -> AppResult<usize> {
+    async fn count_enabled_tools(&self, tenant_id: TenantId) -> AppResult<usize> {
         Self::count_enabled_tools_impl(self, tenant_id).await
     }
 

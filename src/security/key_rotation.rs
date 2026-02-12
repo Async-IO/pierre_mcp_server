@@ -16,6 +16,7 @@ use crate::constants::time;
 use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::AppResult;
+use crate::models::TenantId;
 use chrono::{Duration as ChronoDuration, Timelike, Utc};
 use serde::Serialize;
 use std::{collections::HashMap, sync::Arc};
@@ -112,7 +113,7 @@ impl KeyRotationManager {
 
         // Check each tenant's keys
         for tenant in tenants {
-            if let Err(e) = self.check_key_rotation(Some(tenant.id)).await {
+            if let Err(e) = self.check_key_rotation(Some(tenant.id.as_uuid())).await {
                 error!(
                     "Failed to check key rotation for tenant {}: {}",
                     tenant.id, e
@@ -249,7 +250,9 @@ impl KeyRotationManager {
 
         // 3. Rotate the key in the encryption manager
         if let Some(tid) = tenant_id {
-            self.encryption_manager.rotate_tenant_key(tid).await?;
+            self.encryption_manager
+                .rotate_tenant_key(TenantId::from(tid))
+                .await?;
         }
 
         // 4. Update key version status
@@ -300,7 +303,7 @@ impl KeyRotationManager {
     async fn activate_key_version(&self, tenant_id: Option<Uuid>, version: u32) -> AppResult<()> {
         // Update database first
         self.database
-            .update_key_version_status(tenant_id, version, true)
+            .update_key_version_status(tenant_id.map(TenantId::from), version, true)
             .await?;
 
         // Update in-memory cache
@@ -324,7 +327,10 @@ impl KeyRotationManager {
         // Delete old key versions from database
         let deleted_count = self
             .database
-            .delete_old_key_versions(tenant_id, self.config.key_versions_to_retain)
+            .delete_old_key_versions(
+                tenant_id.map(TenantId::from),
+                self.config.key_versions_to_retain,
+            )
             .await?;
 
         if deleted_count > 0 {
@@ -334,7 +340,10 @@ impl KeyRotationManager {
             );
 
             // Update in-memory cache by reloading from database
-            let updated_versions = self.database.get_key_versions(tenant_id).await?;
+            let updated_versions = self
+                .database
+                .get_key_versions(tenant_id.map(TenantId::from))
+                .await?;
             {
                 let mut cache = self.key_versions.write().await;
                 cache.insert(tenant_id, updated_versions);
@@ -377,7 +386,11 @@ impl KeyRotationManager {
     /// Get all key versions for a tenant
     async fn get_key_versions(&self, tenant_id: Option<Uuid>) -> AppResult<Vec<KeyVersion>> {
         // First try to get from database
-        if let Ok(versions) = self.database.get_key_versions(tenant_id).await {
+        if let Ok(versions) = self
+            .database
+            .get_key_versions(tenant_id.map(TenantId::from))
+            .await
+        {
             // Update in-memory cache
             {
                 let mut cache = self.key_versions.write().await;

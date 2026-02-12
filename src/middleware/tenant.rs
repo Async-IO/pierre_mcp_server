@@ -47,6 +47,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
+use pierre_core::models::TenantId;
 use std::sync::Arc;
 use tracing::{debug, warn};
 use uuid::Uuid;
@@ -76,7 +77,7 @@ impl ExtractedTenantContext {
 
     /// Get the tenant ID if available
     #[must_use]
-    pub fn tenant_id(&self) -> Option<Uuid> {
+    pub fn tenant_id(&self) -> Option<TenantId> {
         self.0.as_ref().map(|ctx| ctx.tenant_id)
     }
 
@@ -170,12 +171,13 @@ pub async fn tenant_context_middleware(
 ///
 /// This allows clients to explicitly select a tenant for a request,
 /// overriding the default tenant resolution from JWT claims.
-fn extract_tenant_id_from_header(headers: &http::HeaderMap) -> Option<Uuid> {
+fn extract_tenant_id_from_header(headers: &http::HeaderMap) -> Option<TenantId> {
     headers
         .get("x-tenant-id")
         .and_then(|h| h.to_str().ok())
         .and_then(|tenant_id_str| {
-            parse_uuid(tenant_id_str)
+            tenant_id_str
+                .parse::<TenantId>()
                 .inspect_err(|e| {
                     warn!(
                         tenant_id = %tenant_id_str,
@@ -200,7 +202,7 @@ fn extract_tenant_id_from_header(headers: &http::HeaderMap) -> Option<Uuid> {
 async fn extract_tenant_from_token(
     token: &str,
     resources: &Arc<ServerResources>,
-    explicit_tenant_id: Option<Uuid>,
+    explicit_tenant_id: Option<TenantId>,
 ) -> Option<TenantContext> {
     // Validate token and extract claims
     let claims = match resources
@@ -239,15 +241,15 @@ async fn extract_tenant_from_token(
 async fn resolve_tenant_id_from_claims(
     claims: &Claims,
     user_id: Uuid,
-    explicit_tenant_id: Option<Uuid>,
+    explicit_tenant_id: Option<TenantId>,
     database: &Arc<Database>,
-) -> Option<Uuid> {
+) -> Option<TenantId> {
     // Priority 1: JWT claims active_tenant_id
     if let Some(tenant_id_str) = claims.active_tenant_id.as_deref() {
         return resolve_explicit_tenant_id_from_str(tenant_id_str, user_id, database).await;
     }
 
-    // Priority 2: x-tenant-id header (already parsed as Uuid)
+    // Priority 2: x-tenant-id header (already parsed as TenantId)
     if let Some(header_tenant_id) = explicit_tenant_id {
         debug!(
             user_id = %user_id,
@@ -268,7 +270,7 @@ async fn resolve_explicit_tenant_id_from_str(
     tenant_id_str: &str,
     user_id: Uuid,
     database: &Arc<Database>,
-) -> Option<Uuid> {
+) -> Option<TenantId> {
     let Some(tid) = parse_tenant_id(tenant_id_str) else {
         return get_user_default_tenant(user_id, database).await;
     };
@@ -276,9 +278,9 @@ async fn resolve_explicit_tenant_id_from_str(
     verify_tenant_membership(user_id, tid, database).await
 }
 
-/// Parse tenant ID string into UUID, logging errors
-fn parse_tenant_id(tenant_id_str: &str) -> Option<Uuid> {
-    tenant_id_str.parse::<Uuid>().map_or_else(
+/// Parse tenant ID string into `TenantId`, logging errors
+fn parse_tenant_id(tenant_id_str: &str) -> Option<TenantId> {
+    tenant_id_str.parse::<TenantId>().map_or_else(
         |e| {
             warn!(
                 tenant_id = %tenant_id_str,
@@ -294,9 +296,9 @@ fn parse_tenant_id(tenant_id_str: &str) -> Option<Uuid> {
 /// Verify user belongs to tenant, falling back to default if not
 async fn verify_tenant_membership(
     user_id: Uuid,
-    tenant_id: Uuid,
+    tenant_id: TenantId,
     database: &Arc<Database>,
-) -> Option<Uuid> {
+) -> Option<TenantId> {
     match database.get_user_tenant_role(user_id, tenant_id).await {
         Ok(Some(_)) => Some(tenant_id),
         Ok(None) => {
@@ -316,7 +318,7 @@ async fn verify_tenant_membership(
 
 /// Build the full tenant context from a resolved tenant ID
 async fn build_tenant_context(
-    tenant_id: Uuid,
+    tenant_id: TenantId,
     user_id: Uuid,
     database: &Arc<Database>,
 ) -> Option<TenantContext> {
@@ -335,7 +337,7 @@ async fn build_tenant_context(
 }
 
 /// Fetch tenant name from database, with fallback to default
-async fn fetch_tenant_name(tenant_id: Uuid, database: &Arc<Database>) -> String {
+async fn fetch_tenant_name(tenant_id: TenantId, database: &Arc<Database>) -> String {
     match database.get_tenant_by_id(tenant_id).await {
         Ok(tenant) => tenant.name,
         Err(e) => {
@@ -350,7 +352,11 @@ async fn fetch_tenant_name(tenant_id: Uuid, database: &Arc<Database>) -> String 
 }
 
 /// Fetch user's role in a tenant, with fallback to Member
-async fn fetch_user_role(user_id: Uuid, tenant_id: Uuid, database: &Arc<Database>) -> TenantRole {
+async fn fetch_user_role(
+    user_id: Uuid,
+    tenant_id: TenantId,
+    database: &Arc<Database>,
+) -> TenantRole {
     match database.get_user_tenant_role(user_id, tenant_id).await {
         Ok(Some(role_str)) => TenantRole::from_db_string(&role_str),
         Ok(None) => {
@@ -372,7 +378,7 @@ async fn fetch_user_role(user_id: Uuid, tenant_id: Uuid, database: &Arc<Database
 }
 
 /// Get user's default tenant from the database
-async fn get_user_default_tenant(user_id: Uuid, database: &Arc<Database>) -> Option<Uuid> {
+async fn get_user_default_tenant(user_id: Uuid, database: &Arc<Database>) -> Option<TenantId> {
     match database.list_tenants_for_user(user_id).await {
         Ok(tenants) => {
             if tenants.is_empty() {

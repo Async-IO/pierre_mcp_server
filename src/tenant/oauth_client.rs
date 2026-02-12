@@ -12,6 +12,7 @@ use super::TenantContext;
 use crate::database_plugins::factory::Database;
 use crate::errors::{AppError, AppResult};
 use crate::oauth2_client::{OAuth2Client, OAuth2Config, OAuth2Token, PkceParams};
+use pierre_core::models::TenantId;
 use std::env;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -260,7 +261,11 @@ impl TenantOAuthClient {
     /// # Errors
     ///
     /// Returns an error if rate limit checking fails
-    pub async fn check_rate_limit(&self, tenant_id: Uuid, provider: &str) -> AppResult<(u32, u32)> {
+    pub async fn check_rate_limit(
+        &self,
+        tenant_id: TenantId,
+        provider: &str,
+    ) -> AppResult<(u32, u32)> {
         let manager = self.oauth_manager.lock().await;
         manager.check_rate_limit(tenant_id, provider)
     }
@@ -272,7 +277,7 @@ impl TenantOAuthClient {
     /// Returns an error if credential retrieval fails
     pub async fn get_tenant_credentials(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         provider: &str,
         database: &Database,
     ) -> AppResult<Option<TenantOAuthCredentials>> {
@@ -290,7 +295,7 @@ impl TenantOAuthClient {
     /// Returns an error if credential storage fails
     pub async fn store_credentials(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         provider: &str,
         request: StoreCredentialsRequest,
     ) -> AppResult<()> {

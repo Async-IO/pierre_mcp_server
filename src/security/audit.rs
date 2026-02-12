@@ -15,6 +15,7 @@
 use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::AppResult;
+use pierre_core::models::TenantId;
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
@@ -161,7 +162,7 @@ impl SecurityAuditor {
     /// Returns an error if the audit event cannot be logged
     pub async fn log_oauth_credential_access(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         provider: &str,
         user_id: Option<Uuid>,
         source_ip: Option<String>,
@@ -173,7 +174,7 @@ impl SecurityAuditor {
             "access".to_owned(),
             "success".to_owned(),
         )
-        .with_tenant_id(tenant_id)
+        .with_tenant_id(tenant_id.as_uuid())
         .with_resource(format!("oauth_credentials:{tenant_id}:{provider}"))
         .with_metadata(serde_json::json!({
             "provider": provider,
@@ -201,7 +202,7 @@ impl SecurityAuditor {
     /// Returns an error if the audit event cannot be logged
     pub async fn log_oauth_credential_modification(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         provider: &str,
         user_id: Uuid,
         action: &str, // "created", "updated", "deleted"
@@ -219,7 +220,7 @@ impl SecurityAuditor {
             action.to_owned(),
             "success".to_owned(),
         )
-        .with_tenant_id(tenant_id)
+        .with_tenant_id(tenant_id.as_uuid())
         .with_user_id(user_id)
         .with_resource(format!("oauth_credentials:{tenant_id}:{provider}"))
         .with_metadata(serde_json::json!({

@@ -46,7 +46,7 @@ use crate::{
     mcp::resources::ServerResources,
     models::{
         Activity, AdaptedInsight, FriendConnection, FriendStatus, InsightReaction, InsightType,
-        ReactionType, ShareVisibility, SharedInsight, TrainingPhase, UserSocialSettings,
+        ReactionType, ShareVisibility, SharedInsight, TenantId, TrainingPhase, UserSocialSettings,
     },
     protocols::universal::auth_service::AuthService,
     security::cookies::get_cookie_value,
@@ -1806,7 +1806,7 @@ impl SocialRoutes {
 
         // Build tenant credential context for tenant-scoped OAuth resolution
         let tenant_ctx = tenant_id
-            .and_then(|tid| Uuid::parse_str(tid).ok())
+            .and_then(|tid| tid.parse::<TenantId>().ok())
             .map(|tid| TenantCredentialContext {
                 tenant_oauth_client: &resources.tenant_oauth_client,
                 database: &resources.database,

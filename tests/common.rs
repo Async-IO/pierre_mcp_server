@@ -39,7 +39,7 @@ use pierre_mcp_server::{
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::resources::{ServerResources, ServerResourcesOptions},
     middleware::McpAuthMiddleware,
-    models::{Tenant, User, UserStatus, UserTier},
+    models::{Tenant, TenantId, User, UserStatus, UserTier},
     routes::mcp::McpRoutes,
     utils,
 };
@@ -221,7 +221,7 @@ pub async fn create_test_user(database: &Database) -> Result<(Uuid, User)> {
 
     // Create the tenant with this user as owner
     // The create_tenant function automatically adds the owner to tenant_users
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let tenant = Tenant {
         id: tenant_id,
         name: "Test Tenant".to_owned(),
@@ -263,7 +263,7 @@ pub async fn create_test_user_with_email(database: &Database, email: &str) -> Re
 
     // Create the tenant with this user as owner
     // The create_tenant function automatically adds the owner to tenant_users
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let tenant = Tenant {
         id: tenant_id,
         name: format!("Test Tenant for {}", email),

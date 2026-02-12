@@ -14,9 +14,9 @@ use crate::config::admin::{
     AdminConfigService, ConfigAuditFilter, ConfigAuditResponse, ResetConfigRequest,
     UpdateConfigRequest, ValidateConfigRequest,
 };
-use crate::database_plugins::DatabaseProvider;
-use crate::errors::{AppError, AppResult, ErrorCode};
+use crate::errors::{AppError, AppResult};
 use crate::mcp::resources::ServerResources;
+use crate::middleware::require_admin;
 use crate::security::cookies::get_cookie_value;
 use axum::{
     extract::{Path, Query, State},
@@ -65,22 +65,8 @@ impl AdminConfigState {
             .await
             .map_err(|e| AppError::auth_invalid(format!("Authentication failed: {e}")))?;
 
-        // Fetch user to check role
-        let user = self
-            .resources
-            .database
-            .get_user(auth.user_id)
-            .await
-            .map_err(|e| AppError::internal(format!("Failed to get user: {e}")))?
-            .ok_or_else(|| AppError::not_found("User not found"))?;
-
-        // Check if user has admin role or higher
-        if !user.role.is_admin_or_higher() {
-            return Err(AppError::new(
-                ErrorCode::PermissionDenied,
-                "Admin privileges required for configuration management",
-            ));
-        }
+        // Verify admin privileges using centralized guard
+        let user = require_admin(auth.user_id, &self.resources.database).await?;
 
         Ok(AdminAuthInfo {
             user_id: auth.user_id.to_string(),

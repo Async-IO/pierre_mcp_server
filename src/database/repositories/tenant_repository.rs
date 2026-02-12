@@ -5,6 +5,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use super::TenantRepository;
+use pierre_core::models::TenantId;
 use crate::database::DatabaseError;
 use crate::database_plugins::factory::Database;
 use async_trait::async_trait;
@@ -34,7 +35,7 @@ impl TenantRepository for TenantRepositoryImpl {
             })
     }
 
-    async fn get_by_id(&self, id: Uuid) -> Result<crate::models::Tenant, DatabaseError> {
+    async fn get_by_id(&self, id: TenantId) -> Result<crate::models::Tenant, DatabaseError> {
         self.db
             .get_tenant_by_id(id)
             .await
@@ -87,7 +88,7 @@ impl TenantRepository for TenantRepositoryImpl {
 
     async fn get_oauth_providers(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
     ) -> Result<Vec<crate::tenant::TenantOAuthCredentials>, DatabaseError> {
         self.db
             .get_tenant_oauth_providers(tenant_id)
@@ -99,7 +100,7 @@ impl TenantRepository for TenantRepositoryImpl {
 
     async fn get_oauth_credentials(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         provider: &str,
     ) -> Result<Option<crate::tenant::TenantOAuthCredentials>, DatabaseError> {
         self.db
@@ -116,7 +117,7 @@ impl TenantRepository for TenantRepositoryImpl {
         tenant_id: &str,
     ) -> Result<Option<String>, DatabaseError> {
         let user_uuid = Uuid::parse_str(user_id)?;
-        let tenant_uuid = Uuid::parse_str(tenant_id)?;
+        let tenant_uuid: TenantId = tenant_id.parse()?;
 
         self.db
             .get_user_tenant_role(user_uuid, tenant_uuid)

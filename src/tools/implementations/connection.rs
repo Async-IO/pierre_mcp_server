@@ -28,6 +28,7 @@ use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult, ErrorCode};
 use crate::mcp::schema::{JsonSchema, PropertySchema};
+use crate::models::TenantId;
 use crate::oauth2_client::OAuthClientState;
 use crate::protocols::universal::auth_service::AuthService;
 use crate::tenant::{TenantContext, TenantRole};
@@ -63,12 +64,12 @@ async fn build_tenant_context(
     database: &Database,
     user_id: Uuid,
     user_tenant_id: Option<&str>,
-    context_tenant_id: Option<Uuid>,
+    context_tenant_id: Option<TenantId>,
 ) -> TenantContext {
     let tenant_id = user_tenant_id
-        .and_then(|t| Uuid::parse_str(t).ok())
+        .and_then(|t| t.parse::<TenantId>().ok())
         .or(context_tenant_id)
-        .unwrap_or(user_id);
+        .unwrap_or_else(|| TenantId::from(user_id));
 
     let tenant_name = database
         .get_tenant_by_id(tenant_id)
@@ -217,7 +218,7 @@ impl McpTool for ConnectProviderTool {
             database,
             context.user_id,
             user_tenant_id.as_deref(),
-            context.tenant_id,
+            context.tenant_id.map(TenantId::from),
         )
         .await;
 

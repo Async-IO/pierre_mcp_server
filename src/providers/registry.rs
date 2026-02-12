@@ -29,6 +29,7 @@ use crate::config::environment::load_provider_env_config;
 ))]
 use crate::constants::oauth_providers;
 use crate::errors::{AppError, AppResult};
+use pierre_core::models::TenantId;
 use std::{
     collections::HashMap,
     convert::AsRef,
@@ -531,7 +532,7 @@ impl ProviderRegistry {
     pub fn create_tenant_provider(
         &self,
         provider_name: &str,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         user_id: Uuid,
     ) -> AppResult<TenantProvider> {
         let provider = self.create_provider(provider_name)?;
@@ -547,7 +548,7 @@ impl ProviderRegistry {
         &self,
         provider_name: &str,
         config: ProviderConfig,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         user_id: Uuid,
     ) -> AppResult<TenantProvider> {
         let provider = self.create_provider_with_config(provider_name, config)?;
@@ -568,7 +569,7 @@ impl ProviderRegistry {
         &self,
         provider_name: &str,
         cache_config: CacheConfig,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         user_id: Uuid,
     ) -> AppResult<CachingFitnessProvider<InMemoryCache>> {
         let provider = self.create_provider(provider_name)?;
@@ -597,7 +598,7 @@ impl ProviderRegistry {
         &self,
         provider_name: &str,
         cache_config: CacheConfig,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         user_id: Uuid,
         admin_config: &AdminConfigService,
     ) -> AppResult<CachingFitnessProvider<InMemoryCache>> {
@@ -661,7 +662,7 @@ pub fn create_provider(provider_name: &str) -> AppResult<Box<dyn FitnessProvider
 /// Returns an error if the provider is not supported or no default configuration exists.
 pub fn create_tenant_provider(
     provider_name: &str,
-    tenant_id: Uuid,
+    tenant_id: TenantId,
     user_id: Uuid,
 ) -> AppResult<TenantProvider> {
     global_registry().create_tenant_provider(provider_name, tenant_id, user_id)
@@ -678,7 +679,7 @@ pub fn create_tenant_provider(
 pub async fn create_caching_provider_global(
     provider_name: &str,
     cache_config: CacheConfig,
-    tenant_id: Uuid,
+    tenant_id: TenantId,
     user_id: Uuid,
 ) -> AppResult<CachingFitnessProvider<InMemoryCache>> {
     global_registry()
@@ -697,7 +698,7 @@ pub async fn create_caching_provider_global(
 pub async fn create_caching_provider_with_admin_config_global(
     provider_name: &str,
     cache_config: CacheConfig,
-    tenant_id: Uuid,
+    tenant_id: TenantId,
     user_id: Uuid,
     admin_config: &AdminConfigService,
 ) -> AppResult<CachingFitnessProvider<InMemoryCache>> {

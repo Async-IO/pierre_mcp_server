@@ -8,11 +8,12 @@
 #![allow(missing_docs)]
 
 use pierre_mcp_server::{
-    config::ToolSelectionConfig, database_plugins::factory::Database,
-    mcp::tool_selection::ToolSelectionService, models::ToolEnablementSource,
+    config::ToolSelectionConfig,
+    database_plugins::factory::Database,
+    mcp::tool_selection::ToolSelectionService,
+    models::{TenantId, ToolEnablementSource},
 };
 use std::sync::Arc;
-use uuid::Uuid;
 
 mod common;
 
@@ -41,7 +42,7 @@ async fn test_get_effective_tools_returns_catalog() {
     let service = create_test_service(&db);
 
     // Use a random tenant_id (won't exist, will fallback to Enterprise)
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     let tools = service
         .get_effective_tools(tenant_id)
@@ -76,7 +77,7 @@ async fn test_get_effective_tools_handles_missing_tenant() {
     let service = create_test_service(&db);
 
     // Use a tenant_id that doesn't exist
-    let nonexistent_tenant_id = Uuid::new_v4();
+    let nonexistent_tenant_id = TenantId::new();
 
     // Should NOT return an error - should fallback gracefully
     let result = service.get_effective_tools(nonexistent_tenant_id).await;
@@ -105,7 +106,7 @@ async fn test_get_enabled_tools_filters_correctly() {
     // Create service with one tool globally disabled
     let service = create_test_service_with_disabled(&db, vec!["analyze_activity".to_owned()]);
 
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     let enabled_tools = service
         .get_enabled_tools(tenant_id)
@@ -133,7 +134,7 @@ async fn test_is_tool_enabled_global_disabled() {
     // Create service with specific tool globally disabled
     let service = create_test_service_with_disabled(&db, vec!["get_activities".to_owned()]);
 
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     // Check globally disabled tool
     let is_enabled = service
@@ -161,7 +162,7 @@ async fn test_is_tool_enabled_nonexistent_tool() {
     );
 
     let service = create_test_service(&db);
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     // Check a tool that doesn't exist
     let result = service
@@ -224,7 +225,7 @@ async fn test_get_availability_summary() {
     );
 
     let service = create_test_service(&db);
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     let summary = service
         .get_availability_summary(tenant_id)
@@ -266,7 +267,7 @@ async fn test_effective_tools_source_for_global_disabled() {
 
     let service = create_test_service_with_disabled(&db, vec!["analyze_activity".to_owned()]);
 
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     let tools = service
         .get_effective_tools(tenant_id)
@@ -296,7 +297,7 @@ async fn test_cache_invalidation() {
     );
 
     let service = create_test_service(&db);
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     // First call populates cache
     let tools1 = service

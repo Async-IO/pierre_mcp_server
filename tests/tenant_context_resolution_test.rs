@@ -12,9 +12,8 @@ use chrono::Utc;
 use pierre_mcp_server::config::environment::PostgresPoolConfig;
 use pierre_mcp_server::{
     database_plugins::{factory::Database, DatabaseProvider},
-    models::Tenant,
+    models::{Tenant, TenantId},
 };
-use uuid::Uuid;
 
 mod common;
 use common::*;
@@ -38,7 +37,7 @@ async fn test_tenant_operations_work_through_factory() {
         .await
         .unwrap();
     // Create test tenant
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let tenant = Tenant {
         id: tenant_id,
         name: "Test Tenant".to_owned(),

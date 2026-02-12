@@ -36,6 +36,7 @@ use crate::tenant::llm_manager::{LlmCredentialRecord, LlmCredentialSummary};
 use crate::tenant::oauth_manager::TenantOAuthCredentials;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use pierre_core::models::TenantId;
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -101,7 +102,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn get_users_by_status(
         &self,
         status: &str,
-        tenant_id: Option<Uuid>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Vec<User>>;
 
     /// Get users by status with cursor-based pagination
@@ -352,7 +353,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     ) -> AppResult<Vec<RequestLog>>;
 
     /// Get system statistics, optionally scoped to a tenant
-    async fn get_system_stats(&self, tenant_id: Option<Uuid>) -> AppResult<(u64, u64)>;
+    async fn get_system_stats(&self, tenant_id: Option<TenantId>) -> AppResult<(u64, u64)>;
 
     // ================================
     // A2A (Agent-to-Agent) Support
@@ -617,7 +618,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn create_tenant(&self, tenant: &Tenant) -> AppResult<()>;
 
     /// Get tenant by ID
-    async fn get_tenant_by_id(&self, tenant_id: Uuid) -> AppResult<Tenant>;
+    async fn get_tenant_by_id(&self, tenant_id: TenantId) -> AppResult<Tenant>;
 
     /// Get tenant by slug
     async fn get_tenant_by_slug(&self, slug: &str) -> AppResult<Tenant>;
@@ -634,13 +635,13 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Get tenant OAuth providers
     async fn get_tenant_oauth_providers(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
     ) -> AppResult<Vec<TenantOAuthCredentials>>;
 
     /// Get tenant OAuth credentials for specific provider
     async fn get_tenant_oauth_credentials(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<Option<TenantOAuthCredentials>>;
 
@@ -800,18 +801,18 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn store_key_version(&self, version: &KeyVersion) -> AppResult<()>;
 
     /// Get all key versions for a tenant
-    async fn get_key_versions(&self, tenant_id: Option<Uuid>) -> AppResult<Vec<KeyVersion>>;
+    async fn get_key_versions(&self, tenant_id: Option<TenantId>) -> AppResult<Vec<KeyVersion>>;
 
     /// Get current active key version for a tenant
     async fn get_current_key_version(
         &self,
-        tenant_id: Option<Uuid>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Option<KeyVersion>>;
 
     /// Update key version status (activate/deactivate)
     async fn update_key_version_status(
         &self,
-        tenant_id: Option<Uuid>,
+        tenant_id: Option<TenantId>,
         version: u32,
         is_active: bool,
     ) -> AppResult<()>;
@@ -819,7 +820,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Delete old key versions
     async fn delete_old_key_versions(
         &self,
-        tenant_id: Option<Uuid>,
+        tenant_id: Option<TenantId>,
         keep_count: u32,
     ) -> AppResult<u64>;
 
@@ -832,7 +833,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Get audit events with filters
     async fn get_audit_events(
         &self,
-        tenant_id: Option<Uuid>,
+        tenant_id: Option<TenantId>,
         event_type: Option<&str>,
         limit: Option<u32>,
     ) -> AppResult<Vec<AuditEvent>>;
@@ -845,7 +846,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn get_user_tenant_role(
         &self,
         user_id: Uuid,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
     ) -> AppResult<Option<String>>;
 
     // ================================
@@ -1001,18 +1002,21 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// * `provider` - LLM provider name (e.g., "gemini", "groq")
     async fn get_llm_credentials(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         user_id: Option<Uuid>,
         provider: &str,
     ) -> AppResult<Option<LlmCredentialRecord>>;
 
     /// List all LLM credentials for a tenant (for admin UI)
-    async fn list_llm_credentials(&self, tenant_id: Uuid) -> AppResult<Vec<LlmCredentialSummary>>;
+    async fn list_llm_credentials(
+        &self,
+        tenant_id: TenantId,
+    ) -> AppResult<Vec<LlmCredentialSummary>>;
 
     /// Delete LLM credentials
     async fn delete_llm_credentials(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         user_id: Option<Uuid>,
         provider: &str,
     ) -> AppResult<bool>;
@@ -1064,20 +1068,20 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Get all tool overrides for a tenant
     async fn get_tenant_tool_overrides(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
     ) -> AppResult<Vec<TenantToolOverride>>;
 
     /// Get a specific tool override for a tenant
     async fn get_tenant_tool_override(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         tool_name: &str,
     ) -> AppResult<Option<TenantToolOverride>>;
 
     /// Create or update a tool override for a tenant
     async fn upsert_tenant_tool_override(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         tool_name: &str,
         is_enabled: bool,
         enabled_by_user_id: Option<Uuid>,
@@ -1087,12 +1091,12 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Delete a tool override (revert to catalog default)
     async fn delete_tenant_tool_override(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         tool_name: &str,
     ) -> AppResult<bool>;
 
     /// Count enabled tools for a tenant
-    async fn count_enabled_tools(&self, tenant_id: Uuid) -> AppResult<usize>;
+    async fn count_enabled_tools(&self, tenant_id: TenantId) -> AppResult<usize>;
 
     // ================================
     // Synthetic Provider Support

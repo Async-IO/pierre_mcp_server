@@ -22,7 +22,7 @@ use pierre_mcp_server::{
         multitenant::MultiTenantMcpServer,
         resources::{ServerResources, ServerResourcesOptions},
     },
-    models::{Tenant, User, UserStatus, UserTier},
+    models::{Tenant, TenantId, User, UserStatus, UserTier},
     permissions::UserRole,
     providers::synthetic_provider::set_synthetic_test_seed,
 };
@@ -189,7 +189,7 @@ impl IntegrationTestServer {
 
         // Create tenant for user
         // Use enterprise plan to enable all tools for integration testing
-        let tenant_id = Uuid::new_v4();
+        let tenant_id = TenantId::new();
         let tenant = Tenant {
             id: tenant_id,
             name: format!("Tenant for {email}"),

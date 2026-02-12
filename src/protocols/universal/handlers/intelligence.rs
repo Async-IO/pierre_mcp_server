@@ -34,7 +34,7 @@ use crate::intelligence::{
 };
 use crate::mcp::sampling_peer::SamplingPeer;
 use crate::mcp::schema::{Content, CreateMessageRequest, ModelPreferences, PromptMessage};
-use crate::models::Activity;
+use crate::models::{Activity, TenantId};
 use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalToolExecutor};
 use crate::protocols::ProtocolError;
 use crate::providers::core::FitnessProvider;
@@ -438,7 +438,7 @@ async fn fetch_and_calculate_metrics(
     let tenant_ctx = request
         .tenant_id
         .as_ref()
-        .and_then(|tid| uuid::Uuid::parse_str(tid).ok())
+        .and_then(|tid| tid.parse::<TenantId>().ok())
         .map(|tid| TenantCredentialContext {
             tenant_oauth_client: &executor.resources.tenant_oauth_client,
             database: &executor.resources.database,

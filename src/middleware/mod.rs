@@ -4,6 +4,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+/// Admin authorization guard for routes requiring admin privileges
+pub mod admin_guard;
 /// Authentication middleware for MCP and API requests
 pub mod auth;
 /// CORS middleware configuration
@@ -20,6 +22,11 @@ pub mod request_id;
 pub mod tenant;
 /// Request tracing and context propagation
 pub mod tracing;
+
+// Admin authorization guard
+
+/// Require admin privileges for a user
+pub use admin_guard::require_admin;
 
 // Authentication middleware
 

@@ -13,7 +13,7 @@ use crate::intelligence::physiological_constants::api_limits::{
     DEFAULT_ACTIVITY_LIMIT_U32, MAX_ACTIVITY_LIMIT, TOKENS_PER_ACTIVITY_DETAILED,
     TOKENS_PER_ACTIVITY_SUMMARY, USABLE_CONTEXT_TOKENS,
 };
-use crate::models::{Activity, Athlete, SportType, Stats};
+use crate::models::{Activity, Athlete, SportType, Stats, TenantId};
 use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalToolExecutor};
 use crate::protocols::ProtocolError;
 use crate::providers::core::{ActivityQueryParams, FitnessProvider};
@@ -1104,17 +1104,17 @@ pub fn handle_get_activities(
             .tenant_id
             .as_ref()
             .and_then(|t| {
-                Uuid::parse_str(t)
+                t.parse::<TenantId>()
                     .inspect_err(|e| {
                         debug!(
                             tenant_id_str = %t,
                             error = %e,
-                            "Failed to parse tenant ID for activities cache key - using nil UUID"
+                            "Failed to parse tenant ID for activities cache key - using nil TenantId"
                         );
                     })
                     .ok()
             })
-            .unwrap_or_else(Uuid::nil);
+            .unwrap_or_else(TenantId::nil);
 
         // For caching activities, include time filters in cache key to avoid
         // returning cached results that don't match the requested time range
@@ -1319,11 +1319,11 @@ pub fn handle_get_athlete(
         let output_format = extract_output_format(&request);
 
         // Create cache key for athlete profile
-        let tenant_uuid = request
+        let tenant_id: TenantId = request
             .tenant_id
             .as_ref()
             .and_then(|t| {
-                Uuid::parse_str(t)
+                t.parse::<TenantId>()
                     .inspect_err(|e| {
                         debug!(
                             tenant_id_str = %t,
@@ -1333,10 +1333,10 @@ pub fn handle_get_athlete(
                     })
                     .ok()
             })
-            .unwrap_or_else(Uuid::nil);
+            .unwrap_or_else(TenantId::nil);
 
         let cache_key = CacheKey::new(
-            tenant_uuid,
+            tenant_id,
             user_uuid,
             provider_name.clone(),
             CacheResource::AthleteProfile,
@@ -1487,15 +1487,12 @@ async fn try_get_cached_stats(
 /// Create metadata for stats responses
 fn create_stats_metadata(
     user_uuid: Uuid,
-    tenant_uuid: Uuid,
+    tenant_id: TenantId,
     cached: bool,
 ) -> HashMap<String, Value> {
     let mut map = HashMap::new();
     map.insert("user_id".to_owned(), Value::String(user_uuid.to_string()));
-    map.insert(
-        "tenant_id".to_owned(),
-        Value::String(tenant_uuid.to_string()),
-    );
+    map.insert("tenant_id".to_owned(), Value::String(tenant_id.to_string()));
     map.insert("cached".to_owned(), Value::Bool(cached));
     map
 }
@@ -1519,7 +1516,7 @@ async fn cache_athlete_and_stats(
     athlete_cache_key: &CacheKey,
     athlete: &Athlete,
     stats: &Stats,
-    tenant_uuid: Uuid,
+    tenant_id: TenantId,
     user_uuid: Uuid,
     provider_name: &str,
 ) {
@@ -1538,7 +1535,7 @@ async fn cache_athlete_and_stats(
 
     // Cache stats
     let stats_cache_key = CacheKey::new(
-        tenant_uuid,
+        tenant_id,
         user_uuid,
         provider_name.to_owned(),
         CacheResource::Stats { athlete_id },
@@ -1553,7 +1550,7 @@ async fn fetch_and_cache_stats(
     provider: &dyn FitnessProvider,
     cache: &Arc<Cache>,
     athlete_cache_key: &CacheKey,
-    tenant_uuid: Uuid,
+    tenant_id: TenantId,
     user_uuid: Uuid,
     provider_name: &str,
     output_format: OutputFormat,
@@ -1577,14 +1574,14 @@ async fn fetch_and_cache_stats(
             athlete_cache_key,
             &athlete,
             &stats,
-            tenant_uuid,
+            tenant_id,
             user_uuid,
             provider_name,
         )
         .await;
     }
 
-    let metadata = create_stats_metadata(user_uuid, tenant_uuid, false);
+    let metadata = create_stats_metadata(user_uuid, tenant_id, false);
     build_formatted_response(&stats, "stats", output_format, metadata)
 }
 
@@ -1619,11 +1616,11 @@ pub fn handle_get_stats(
         let output_format = extract_output_format(&request);
 
         // Create cache key for stats (need athlete_id from athlete profile)
-        let tenant_uuid = request
+        let tenant_id: TenantId = request
             .tenant_id
             .as_ref()
             .and_then(|t| {
-                Uuid::parse_str(t)
+                t.parse::<TenantId>()
                     .inspect_err(|e| {
                         debug!(
                             tenant_id_str = %t,
@@ -1633,10 +1630,10 @@ pub fn handle_get_stats(
                     })
                     .ok()
             })
-            .unwrap_or_else(Uuid::nil);
+            .unwrap_or_else(TenantId::nil);
 
         let athlete_cache_key = CacheKey::new(
-            tenant_uuid,
+            tenant_id,
             user_uuid,
             provider_name.clone(),
             CacheResource::AthleteProfile,
@@ -1647,7 +1644,7 @@ pub fn handle_get_stats(
             try_get_athlete_id_from_cache(&executor.resources.cache, &athlete_cache_key).await
         {
             let stats_cache_key = CacheKey::new(
-                tenant_uuid,
+                tenant_id,
                 user_uuid,
                 provider_name.clone(),
                 CacheResource::Stats { athlete_id },
@@ -1721,7 +1718,7 @@ pub fn handle_get_stats(
                     provider.as_ref(),
                     &executor.resources.cache,
                     &athlete_cache_key,
-                    tenant_uuid,
+                    tenant_id,
                     user_uuid,
                     &provider_name,
                     output_format,

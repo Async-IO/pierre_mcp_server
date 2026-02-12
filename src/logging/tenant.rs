@@ -5,6 +5,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::constants::network_config::HTTP_CLIENT_ERROR_THRESHOLD;
+use pierre_core::models::TenantId;
 use tracing::Span;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
@@ -14,7 +15,7 @@ pub struct ProviderApiContext<'a> {
     /// User ID making the API call
     pub user_id: Uuid,
     /// Tenant ID for multi-tenant isolation
-    pub tenant_id: Uuid,
+    pub tenant_id: TenantId,
     /// Provider name (e.g., "strava", "fitbit")
     pub provider: &'a str,
     /// API endpoint being called
@@ -34,7 +35,7 @@ pub struct FormatEfficiencyContext<'a> {
     /// User ID for the request
     pub user_id: Uuid,
     /// Tenant ID for multi-tenant isolation
-    pub tenant_id: Uuid,
+    pub tenant_id: TenantId,
     /// Name of the operation (e.g., "`get_activities`")
     pub operation: &'a str,
     /// Format used (e.g., "toon", "json")
@@ -56,7 +57,7 @@ impl TenantLogger {
     /// Log MCP tool call with tenant context
     pub fn log_mcp_tool_call(
         user_id: Uuid,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         tool_name: &str,
         success: bool,
         duration_ms: u64,
@@ -215,7 +216,7 @@ impl TenantLogger {
 }
 
 /// Record tenant context in current span
-pub fn record_tenant_context(user_id: Uuid, tenant_id: Uuid, auth_method: &str) {
+pub fn record_tenant_context(user_id: Uuid, tenant_id: TenantId, auth_method: &str) {
     let span = Span::current();
     span.record("user_id", user_id.to_string())
         .record("tenant_id", tenant_id.to_string())

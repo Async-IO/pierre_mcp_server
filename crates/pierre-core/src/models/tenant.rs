@@ -1,18 +1,97 @@
 // ABOUTME: Multi-tenant organization models for OAuth apps
-// ABOUTME: Tenant, OAuthApp, OAuthAppParams, and AuthorizationCode definitions
+// ABOUTME: TenantId newtype, Tenant, OAuthApp, OAuthAppParams, and AuthorizationCode definitions
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::fmt;
+use std::str::FromStr;
 use uuid::Uuid;
+
+/// Type-safe wrapper for tenant identifiers
+///
+/// Provides compile-time distinction between tenant IDs and other UUIDs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct TenantId(pub Uuid);
+
+impl TenantId {
+    /// Create a new random `TenantId`
+    #[must_use]
+    pub fn new() -> Self {
+        Self(Uuid::new_v4())
+    }
+
+    /// Create a `TenantId` from a UUID
+    #[must_use]
+    pub const fn from_uuid(uuid: Uuid) -> Self {
+        Self(uuid)
+    }
+
+    /// Get the inner UUID value
+    #[must_use]
+    pub const fn as_uuid(&self) -> Uuid {
+        self.0
+    }
+
+    /// Create a nil (all zeros) `TenantId`
+    #[must_use]
+    pub const fn nil() -> Self {
+        Self(Uuid::nil())
+    }
+
+    /// Check if this is a nil `TenantId`
+    #[must_use]
+    pub fn is_nil(&self) -> bool {
+        self.0.is_nil()
+    }
+}
+
+impl Default for TenantId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl From<Uuid> for TenantId {
+    fn from(uuid: Uuid) -> Self {
+        Self(uuid)
+    }
+}
+
+impl From<TenantId> for Uuid {
+    fn from(tenant_id: TenantId) -> Self {
+        tenant_id.0
+    }
+}
+
+impl fmt::Display for TenantId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl FromStr for TenantId {
+    type Err = uuid::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Uuid::parse_str(s).map(Self)
+    }
+}
+
+impl AsRef<Uuid> for TenantId {
+    fn as_ref(&self) -> &Uuid {
+        &self.0
+    }
+}
 
 /// Tenant organization in multi-tenant setup
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Tenant {
     /// Unique tenant identifier
-    pub id: Uuid,
+    pub id: TenantId,
     /// Tenant organization name
     pub name: String,
     /// URL-safe slug for tenant
@@ -41,7 +120,7 @@ impl Tenant {
     ) -> Self {
         let now = Utc::now();
         Self {
-            id: Uuid::new_v4(),
+            id: TenantId::new(),
             name,
             slug,
             domain,

@@ -50,6 +50,7 @@ use async_trait::async_trait;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine as Base64Engine;
 use chrono::{DateTime, Utc};
+use pierre_core::models::TenantId;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use sqlx::postgres::{PgPoolOptions, PgRow};
@@ -189,7 +190,7 @@ impl PostgresDatabase {
     /// Map a `PostgreSQL` database row to `TenantToolOverride`
     fn map_pg_tenant_tool_override_row(row: &PgRow) -> TenantToolOverride {
         let id: Uuid = row.get("id");
-        let tenant_id: Uuid = row.get("tenant_id");
+        let tenant_id: TenantId = row.get("tenant_id");
         let enabled_by_user_id: Option<Uuid> = row.get("enabled_by_user_id");
         let created_at: DateTime<Utc> = row.get("created_at");
         let updated_at: DateTime<Utc> = row.get("updated_at");
@@ -649,7 +650,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_users_by_status(
         &self,
         status: &str,
-        tenant_id: Option<Uuid>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Vec<User>> {
         // Query users by status from PostgreSQL
         let status_enum = match status {
@@ -1867,7 +1868,7 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(results)
     }
 
-    async fn get_system_stats(&self, tenant_id: Option<Uuid>) -> AppResult<(u64, u64)> {
+    async fn get_system_stats(&self, tenant_id: Option<TenantId>) -> AppResult<(u64, u64)> {
         let user_count_row = if let Some(tid) = tenant_id {
             sqlx::query("SELECT COUNT(*) as count FROM users WHERE tenant_id = $1")
                 .bind(tid.to_string())
@@ -3312,7 +3313,7 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     /// Get tenant by ID
-    async fn get_tenant_by_id(&self, tenant_id: Uuid) -> AppResult<Tenant> {
+    async fn get_tenant_by_id(&self, tenant_id: TenantId) -> AppResult<Tenant> {
         let row = sqlx::query_as::<_, (Uuid, String, String, Option<String>, String, Uuid, DateTime<Utc>, DateTime<Utc>)>(
             r"
             SELECT t.id, t.name, t.slug, t.domain, t.subscription_tier, tu.user_id, t.created_at, t.updated_at
@@ -3472,7 +3473,7 @@ impl DatabaseProvider for PostgresDatabase {
     /// Get tenant OAuth providers
     async fn get_tenant_oauth_providers(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
     ) -> AppResult<Vec<TenantOAuthCredentials>> {
         let rows = sqlx::query_as::<_, (String, String, String, String, Vec<String>, i32)>(
             r"
@@ -3520,7 +3521,7 @@ impl DatabaseProvider for PostgresDatabase {
     /// Get tenant OAuth credentials for specific provider
     async fn get_tenant_oauth_credentials(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<Option<TenantOAuthCredentials>> {
         let row = sqlx::query_as::<_, (String, String, String, Vec<String>, i32)>(
@@ -3849,7 +3850,7 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(())
     }
 
-    async fn get_key_versions(&self, tenant_id: Option<Uuid>) -> AppResult<Vec<KeyVersion>> {
+    async fn get_key_versions(&self, tenant_id: Option<TenantId>) -> AppResult<Vec<KeyVersion>> {
         let query = match tenant_id {
             Some(_) => {
                 r"
@@ -3904,7 +3905,7 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn get_current_key_version(
         &self,
-        tenant_id: Option<Uuid>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Option<KeyVersion>> {
         let query = match tenant_id {
             Some(_) => {
@@ -3961,7 +3962,7 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn update_key_version_status(
         &self,
-        tenant_id: Option<Uuid>,
+        tenant_id: Option<TenantId>,
         version: u32,
         is_active: bool,
     ) -> AppResult<()> {
@@ -4015,7 +4016,7 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn delete_old_key_versions(
         &self,
-        tenant_id: Option<Uuid>,
+        tenant_id: Option<TenantId>,
         keep_count: u32,
     ) -> AppResult<u64> {
         let query = match tenant_id {
@@ -4164,7 +4165,7 @@ impl DatabaseProvider for PostgresDatabase {
     #[allow(clippy::too_many_lines)]
     async fn get_audit_events(
         &self,
-        tenant_id: Option<Uuid>,
+        tenant_id: Option<TenantId>,
         event_type: Option<&str>,
         limit: Option<u32>,
     ) -> AppResult<Vec<AuditEvent>> {
@@ -4559,7 +4560,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_user_tenant_role(
         &self,
         user_id: Uuid,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
     ) -> AppResult<Option<String>> {
         let row = sqlx::query_as::<_, (String,)>(
             "SELECT role FROM tenant_users WHERE user_id = $1 AND tenant_id = $2",
@@ -6096,7 +6097,7 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn get_llm_credentials(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         user_id: Option<Uuid>,
         provider: &str,
     ) -> AppResult<Option<LlmCredentialRecord>> {
@@ -6145,7 +6146,10 @@ impl DatabaseProvider for PostgresDatabase {
         }))
     }
 
-    async fn list_llm_credentials(&self, tenant_id: Uuid) -> AppResult<Vec<LlmCredentialSummary>> {
+    async fn list_llm_credentials(
+        &self,
+        tenant_id: TenantId,
+    ) -> AppResult<Vec<LlmCredentialSummary>> {
         let rows = sqlx::query(
             r"
             SELECT id, user_id, provider, base_url, default_model, is_active, created_at, updated_at
@@ -6184,7 +6188,7 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn delete_llm_credentials(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         user_id: Option<Uuid>,
         provider: &str,
     ) -> AppResult<bool> {
@@ -6361,7 +6365,7 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn get_tenant_tool_overrides(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
     ) -> AppResult<Vec<TenantToolOverride>> {
         let rows = sqlx::query(
             r"
@@ -6386,7 +6390,7 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn get_tenant_tool_override(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         tool_name: &str,
     ) -> AppResult<Option<TenantToolOverride>> {
         let row = sqlx::query(
@@ -6408,7 +6412,7 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn upsert_tenant_tool_override(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         tool_name: &str,
         is_enabled: bool,
         enabled_by_user_id: Option<Uuid>,
@@ -6448,7 +6452,7 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn delete_tenant_tool_override(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         tool_name: &str,
     ) -> AppResult<bool> {
         let result = sqlx::query(
@@ -6466,7 +6470,7 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(result.rows_affected() > 0)
     }
 
-    async fn count_enabled_tools(&self, tenant_id: Uuid) -> AppResult<usize> {
+    async fn count_enabled_tools(&self, tenant_id: TenantId) -> AppResult<usize> {
         // Get tenant's plan to filter by plan restrictions
         let tenant = self.get_tenant_by_id(tenant_id).await?;
         let plan = TenantPlan::parse_str(&tenant.plan)

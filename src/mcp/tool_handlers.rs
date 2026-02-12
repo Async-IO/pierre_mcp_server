@@ -21,7 +21,7 @@ use crate::constants::{
 use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, ErrorCode};
-use crate::models::OAuthNotification;
+use crate::models::{OAuthNotification, TenantId};
 use crate::tenant::TenantContext;
 use crate::tools::context::{AuthMethod, ToolExecutionContext};
 use crate::tools::result::ToolResult;
@@ -142,8 +142,8 @@ impl ToolHandlers {
                 let tenant_context = match extract_tenant_context_internal(
                     &resources.database,
                     Some(auth_result.user_id),
-                    auth_result.active_tenant_id, // Pass active_tenant_id from JWT claims
-                    None,                         // MCP transport headers not applicable here
+                    auth_result.active_tenant_id.map(TenantId::from), // Pass active_tenant_id from JWT claims
+                    None, // MCP transport headers not applicable here
                 )
                 .await
                 {

@@ -28,7 +28,7 @@ use pierre_mcp_server::{
         TrendIndicators,
     },
     mcp::resources::{ServerResources, ServerResourcesOptions},
-    models::{OAuthApp, Tenant, User, UserStatus, UserTier},
+    models::{OAuthApp, Tenant, TenantId, User, UserStatus, UserTier},
     permissions::UserRole,
     protocols::universal::{UniversalRequest, UniversalToolExecutor},
     tenant::{
@@ -75,8 +75,8 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
     // Step 2: Create admin users first (required for tenant foreign key constraints)
     let acme_admin_id = Uuid::new_v4();
     let beta_admin_id = Uuid::new_v4();
-    let acme_tenant_id = Uuid::new_v4();
-    let beta_tenant_id = Uuid::new_v4();
+    let acme_tenant_id = TenantId::new();
+    let beta_tenant_id = TenantId::new();
 
     let acme_admin = User {
         id: acme_admin_id,
@@ -397,9 +397,11 @@ async fn create_tenant_test_database() -> Result<Arc<Database>> {
 }
 
 /// Helper function to setup multi-tenant test scenario
-async fn setup_multitenant_scenario(database: &Arc<Database>) -> Result<(Uuid, Uuid, Uuid)> {
-    let tenant1_id = Uuid::new_v4();
-    let tenant2_id = Uuid::new_v4();
+async fn setup_multitenant_scenario(
+    database: &Arc<Database>,
+) -> Result<(TenantId, TenantId, Uuid)> {
+    let tenant1_id = TenantId::new();
+    let tenant2_id = TenantId::new();
     let user_id = Uuid::new_v4();
 
     let user = User {

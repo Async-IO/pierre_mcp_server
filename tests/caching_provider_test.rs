@@ -8,6 +8,7 @@
 #![allow(missing_docs)]
 
 use pierre_mcp_server::cache::{CacheKey, CacheResource};
+use pierre_mcp_server::models::TenantId;
 use pierre_mcp_server::providers::CachePolicy;
 use uuid::Uuid;
 
@@ -19,7 +20,7 @@ fn test_cache_policy_default() {
 
 #[test]
 fn test_cache_key_generation() {
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = Uuid::new_v4();
     let provider = "strava";
 
@@ -39,7 +40,7 @@ fn test_cache_key_generation() {
 
 #[test]
 fn test_activity_list_cache_key_with_time_filters() {
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = Uuid::new_v4();
 
     let key = CacheKey::new(

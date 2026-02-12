@@ -26,7 +26,7 @@ use pierre_mcp_server::{
     context::ServerContext,
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::resources::{ServerResources, ServerResourcesOptions},
-    models::{Tenant, User, UserStatus, UserTier},
+    models::{Tenant, TenantId, User, UserStatus, UserTier},
     permissions::UserRole,
     routes::{
         auth::{AuthService, OAuthService},
@@ -100,7 +100,7 @@ async fn create_test_auth_routes() -> Result<AuthService> {
 }
 
 #[allow(clippy::too_many_lines)] // Long function: Complex test setup with full configuration
-async fn create_test_oauth_routes() -> Result<(OAuthService, Uuid, Arc<Database>)> {
+async fn create_test_oauth_routes() -> Result<(OAuthService, TenantId, Arc<Database>)> {
     let database = common::create_test_database().await?;
 
     // Create admin user first
@@ -126,7 +126,7 @@ async fn create_test_oauth_routes() -> Result<(OAuthService, Uuid, Arc<Database>
     let admin_id = database.create_user(&admin_user).await?;
 
     // Create tenant
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let tenant = Tenant {
         id: tenant_id,
         name: "Test Tenant".to_owned(),
@@ -1340,7 +1340,7 @@ async fn test_oauth_disconnect_provider_success() -> Result<()> {
 
     // Create tenant so disconnect_provider can resolve user's tenant
     let tenant = Tenant {
-        id: Uuid::new_v4(),
+        id: TenantId::new(),
         name: "Test Tenant".to_owned(),
         slug: "test-disconnect-comprehensive".to_owned(),
         domain: None,
@@ -1744,7 +1744,7 @@ async fn test_complete_auth_flow() -> Result<()> {
     };
     let admin_id = database.create_user(&admin_user).await?;
 
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let tenant = Tenant {
         id: tenant_id,
         name: "Integration Test Tenant".to_owned(),

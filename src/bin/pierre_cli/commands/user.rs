@@ -11,7 +11,7 @@ use pierre_mcp_server::{
     database::CreateUserMcpTokenRequest,
     database_plugins::{factory::Database, DatabaseProvider},
     errors::{AppError, AppResult},
-    models::{Tenant, User, UserStatus, UserTier},
+    models::{Tenant, TenantId, User, UserStatus, UserTier},
     permissions::UserRole,
 };
 
@@ -165,7 +165,7 @@ async fn create_and_link_personal_tenant(
     name: &str,
     slug_prefix: &str,
 ) -> Result<()> {
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let tenant_slug = format!("{slug_prefix}-{}", user_id.as_simple());
     let tenant = Tenant {
         id: tenant_id,

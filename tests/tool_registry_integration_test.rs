@@ -23,6 +23,7 @@ use std::sync::Arc;
 
 use common::{create_test_server_resources, create_test_user, create_test_user_with_email};
 use pierre_mcp_server::mcp::resources::ServerResources;
+use pierre_mcp_server::models::TenantId;
 use pierre_mcp_server::tools::{AuthMethod, ToolCapabilities, ToolExecutionContext, ToolRegistry};
 use serde_json::json;
 use uuid::Uuid;
@@ -35,7 +36,7 @@ use uuid::Uuid;
 fn create_test_context(
     resources: &Arc<ServerResources>,
     user_id: Uuid,
-    tenant_id: Option<Uuid>,
+    tenant_id: Option<TenantId>,
     is_admin: bool,
 ) -> ToolExecutionContext {
     let mut ctx = ToolExecutionContext::new(user_id, Arc::clone(resources), AuthMethod::JwtBearer);
@@ -442,12 +443,12 @@ async fn test_context_require_tenant_with_tenant() {
         .await
         .expect("Failed to create test user");
 
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let context = create_test_context(&resources, user_id, Some(tenant_id), false);
 
     let result = context.require_tenant();
     assert!(result.is_ok(), "Should succeed with tenant context");
-    assert_eq!(result.unwrap(), tenant_id);
+    assert_eq!(result.unwrap(), tenant_id.as_uuid());
 }
 
 #[tokio::test]

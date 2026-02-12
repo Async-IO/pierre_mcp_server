@@ -17,7 +17,7 @@ use crate::{
     },
     database_plugins::{factory::Database, shared::encryption::HasEncryption, DatabaseProvider},
     errors::{AppError, AppResult, ErrorCode},
-    models::{AuthorizationCode, OAuthApp, Tenant},
+    models::{AuthorizationCode, OAuthApp, Tenant, TenantId},
     tenant::TenantOAuthCredentials,
 };
 use serde::{Deserialize, Serialize};
@@ -258,7 +258,7 @@ pub async fn create_tenant(
         .map_err(|e| AppError::database(e.to_string()))?;
 
     // Generate tenant ID and validate slug uniqueness
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let slug = tenant_request.slug.trim().to_lowercase();
 
     // Check if slug already exists
@@ -371,7 +371,7 @@ pub async fn configure_tenant_oauth(
         oauth_request.provider, tenant_id
     );
 
-    let tenant_uuid = Uuid::parse_str(&tenant_id).map_err(|e| {
+    let tenant_uuid: TenantId = tenant_id.parse().map_err(|e| {
         warn!(
             tenant_id = %tenant_id,
             user_id = %auth_result.user_id,
@@ -448,7 +448,7 @@ pub async fn get_tenant_oauth(
 ) -> AppResult<TenantOAuthListResponse> {
     info!("Getting OAuth config for tenant: {}", tenant_id);
 
-    let tenant_uuid = Uuid::parse_str(&tenant_id).map_err(|e| {
+    let tenant_uuid: TenantId = tenant_id.parse().map_err(|e| {
         warn!(
             tenant_id = %tenant_id,
             user_id = %auth_result.user_id,

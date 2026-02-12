@@ -11,6 +11,7 @@ mod common;
 
 use anyhow::Result;
 use pierre_mcp_server::cache::{factory::Cache, CacheConfig, CacheKey, CacheResource};
+use pierre_mcp_server::models::TenantId;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::time;
@@ -25,7 +26,7 @@ struct TestData {
 /// Helper: Create test cache key
 fn test_cache_key(resource: CacheResource) -> CacheKey {
     CacheKey::new(
-        Uuid::new_v4(),
+        TenantId::new(),
         Uuid::new_v4(),
         "strava".to_owned(),
         resource,
@@ -139,7 +140,7 @@ async fn test_cache_invalidate() -> Result<()> {
 #[tokio::test]
 async fn test_cache_invalidate_pattern() -> Result<()> {
     let cache = create_test_cache(100, 300).await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = Uuid::new_v4();
 
     let data = TestData {
@@ -193,8 +194,8 @@ async fn test_cache_invalidate_pattern() -> Result<()> {
 async fn test_cache_tenant_isolation() -> Result<()> {
     let cache = create_test_cache(100, 300).await?;
 
-    let tenant1 = Uuid::new_v4();
-    let tenant2 = Uuid::new_v4();
+    let tenant1 = TenantId::new();
+    let tenant2 = TenantId::new();
     let user_id = Uuid::new_v4();
 
     let data1 = TestData {
@@ -277,7 +278,7 @@ async fn test_cache_capacity_eviction() -> Result<()> {
 async fn test_cache_background_cleanup() -> Result<()> {
     // Create cache with short cleanup interval
     let cache = create_test_cache(100, 1).await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = Uuid::new_v4();
 
     let data = TestData {
@@ -321,7 +322,7 @@ async fn test_cache_background_cleanup() -> Result<()> {
 #[tokio::test]
 async fn test_cache_clear_all() -> Result<()> {
     let cache = create_test_cache(100, 300).await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = Uuid::new_v4();
 
     let data = TestData {
@@ -375,7 +376,7 @@ async fn test_cache_health_check() -> Result<()> {
 #[tokio::test]
 async fn test_cache_different_resource_types() -> Result<()> {
     let cache = create_test_cache(100, 300).await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = Uuid::new_v4();
 
     let data = TestData {
