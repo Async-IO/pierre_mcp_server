@@ -44,7 +44,7 @@ echo "🏗️ Algorithm Architecture Validation..."
 
 # Check for hardcoded formulas outside algorithms directory
 echo "1. Detecting hardcoded formulas..."
-python3 scripts/parse-validation-patterns.py scripts/validation-patterns.toml algorithm_di_patterns
+python3 scripts/ci/parse-validation-patterns.py scripts/ci/validation-patterns.toml algorithm_di_patterns
 
 # Verify algorithm enum definitions
 echo "2. Algorithm Enum Definitions..."

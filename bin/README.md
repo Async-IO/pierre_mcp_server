@@ -86,4 +86,4 @@ pkill -f pierre-mcp-server; pkill -f vite; pkill -f expo
 ## See Also
 
 - `scripts/` - CI/Dev tools (validation, testing, release)
-- `scripts/setup-claude-code-mcp.sh` - Claude Code session JWT setup
+- `scripts/setup/setup-claude-code-mcp.sh` - Claude Code session JWT setup

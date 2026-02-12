@@ -32,7 +32,7 @@ Run this skill:
 ### Quick Secret Scan
 ```bash
 # Run automated secret detection
-./scripts/validate-no-secrets.sh
+./scripts/ci/validate-no-secrets.sh
 ```
 
 ### Comprehensive Secret Detection
@@ -161,7 +161,7 @@ echo "Redaction function references (should be >0)"
 - ✅ No PII in INFO+ log levels
 
 ## Related Files
-- `scripts/validate-no-secrets.sh` - Secret detection script
+- `scripts/ci/validate-no-secrets.sh` - Secret detection script
 - `.gitignore` - Excludes .env and sensitive files
 - `.env.example` - Template for environment variables
 - `book/src/configuration.md` - Configuration documentation

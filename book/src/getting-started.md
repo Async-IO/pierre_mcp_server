@@ -207,7 +207,7 @@ cargo test --test mcp_multitenant_complete_test
 cargo test -- --nocapture
 
 # lint + test
-./scripts/lint-and-test.sh
+./scripts/ci/lint-and-test.sh
 ```
 
 ## Troubleshooting

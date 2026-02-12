@@ -267,7 +267,7 @@ This creates the 9 default AI coaching personas if they don't already exist.
 
 ### Development
 - [Development Guide](https://async-io.github.io/pierre_mcp_server/development.html) - workflow, dashboard, testing
-- [Scripts Reference](scripts/README.md) - 30+ development scripts
+- [Scripts Reference](scripts/README.md) - 23 development scripts across 6 subdirectories
 - [CI/CD](https://async-io.github.io/pierre_mcp_server/ci-cd.html) - GitHub Actions, pipelines
 - [Release Guide](https://async-io.github.io/pierre_mcp_server/release_how_to.html) - releasing server and SDK to npm
 - [Contributing](CONTRIBUTING.md) - code standards, PR workflow
@@ -287,8 +287,8 @@ This creates the 9 default AI coaching personas if they don't already exist.
 
 ```bash
 cargo test                        # all tests
-./scripts/lint-and-test.sh        # full CI suite
-./scripts/pre-push-validate.sh    # tiered validation before push
+./scripts/ci/lint-and-test.sh     # full CI suite
+./scripts/ci/pre-push-validate.sh # tiered validation before push
 ```
 
 See [Testing Documentation](https://async-io.github.io/pierre_mcp_server/testing.html).
@@ -302,7 +302,7 @@ See [Testing Documentation](https://async-io.github.io/pierre_mcp_server/testing
 cargo fmt
 
 # 2. Architectural validation (includes security checks in CI)
-./scripts/architectural-validation.sh
+./scripts/ci/architectural-validation.sh
 
 # 3. Clippy (Cargo.toml defines all lint levels)
 cargo clippy -p pierre_mcp_server --all-targets
@@ -317,9 +317,9 @@ Run these when modifying auth, OAuth, admin, database, or multi-tenant code:
 
 | Skill | Command | What It Checks |
 |-------|---------|----------------|
-| **Security Review** | `./scripts/security-review.sh` | Authorization boundaries, tenant isolation, logging hygiene, SQL injection, XSS |
-| **Input Validation** | `./scripts/check-input-validation.sh` | Division-by-zero, pagination bounds, cache key completeness, numeric ranges |
-| **Architecture** | `./scripts/architectural-validation.sh` | Placeholder detection, error handling, algorithm DI, unsafe code, secret patterns |
+| **Security Review** | `./scripts/ci/security-review.sh` | Authorization boundaries, tenant isolation, logging hygiene, SQL injection, XSS |
+| **Input Validation** | `./scripts/ci/check-input-validation.sh` | Division-by-zero, pagination bounds, cache key completeness, numeric ranges |
+| **Architecture** | `./scripts/ci/architectural-validation.sh` | Placeholder detection, error handling, algorithm DI, unsafe code, secret patterns |
 
 These scripts run automatically in CI via the `code-quality` job (gates all other jobs). Run them locally when:
 - Adding/modifying API endpoints or MCP tools
@@ -334,7 +334,7 @@ These scripts run automatically in CI via the `code-quality` job (gates all othe
 git config core.hooksPath .githooks
 
 # 2. Run validation (creates marker valid for 15 min)
-./scripts/pre-push-validate.sh
+./scripts/ci/pre-push-validate.sh
 
 # 3. Push (hook checks for valid marker)
 git push

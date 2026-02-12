@@ -193,7 +193,7 @@ check_license_headers() {
         echo "  // SPDX-License-Identifier: MIT OR Apache-2.0"
         echo "  // Copyright (c) 2025 Pierre Fitness Intelligence"
         echo ""
-        echo "Run: ./scripts/add-license-headers.sh to fix automatically"
+        echo "Run: ./scripts/setup/add-license-headers.sh to fix automatically"
         return 1
     fi
     return 0

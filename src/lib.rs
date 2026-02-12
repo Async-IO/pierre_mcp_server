@@ -8,7 +8,7 @@
 // - recursion_limit: Increased from default 128 to 256 for complex derive macros
 //   (serde, thiserror) on deeply nested types like protocol responses
 // - deny(unsafe_code): Zero-tolerance unsafe policy. Any exception requires
-//   approval via scripts/architectural-validation.sh (e.g., src/health.rs Windows FFI)
+//   approval via scripts/ci/architectural-validation.sh (e.g., src/health.rs Windows FFI)
 #![recursion_limit = "256"]
 #![deny(unsafe_code)]
 

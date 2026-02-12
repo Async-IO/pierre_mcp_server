@@ -1,6 +1,6 @@
 #!/bin/bash
 # ABOUTME: Git pre-push hook - Checks for validation marker before allowing push
-# ABOUTME: Requires running ./scripts/pre-push-validate.sh first (prevents SSH timeout)
+# ABOUTME: Requires running ./scripts/ci/pre-push-validate.sh first (prevents SSH timeout)
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # Copyright (c) 2025 Pierre Fitness Intelligence
@@ -42,7 +42,7 @@ print_validation_required() {
     echo "Reason: $reason"
     echo ""
     echo "Run validation first:"
-    echo "  ./scripts/pre-push-validate.sh"
+    echo "  ./scripts/ci/pre-push-validate.sh"
     echo ""
     echo "Then push:"
     echo "  git push"

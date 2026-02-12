@@ -31,7 +31,7 @@ Update process requires validation across:
 **Command**: Update `rust-toolchain` file and run full validation:
 ```bash
 echo "1.XX.0" > rust-toolchain
-./scripts/lint-and-test.sh
+./scripts/ci/lint-and-test.sh
 ```
 
 ## Cargo.toml Linting Configuration
@@ -71,7 +71,7 @@ unsafe_code = "deny"
 **Approved locations**:
 - `src/health.rs`: Windows FFI for system health metrics (`GlobalMemoryStatusEx`, `GetDiskFreeSpaceExW`)
 
-**Validation**: `scripts/architectural-validation.sh` fails build if unsafe code appears outside approved locations.
+**Validation**: `scripts/ci/architectural-validation.sh` fails build if unsafe code appears outside approved locations.
 
 **Rationale**: Unsafe code eliminates rust's memory safety guarantees. Whitelist approach ensures:
 1. All unsafe usage is justified and documented
@@ -402,7 +402,7 @@ cargo build --release && ls -lh target/release/pierre-mcp-server
 cargo deny check
 
 # Full validation
-./scripts/lint-and-test.sh
+./scripts/ci/lint-and-test.sh
 ```
 
 ### CI/CD Validation

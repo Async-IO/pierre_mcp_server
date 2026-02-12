@@ -213,6 +213,6 @@ else
     echo -e "${GREEN}✅ Release validation PASSED${NC}"
     echo ""
     echo "Ready to release! Run:"
-    echo "  ./scripts/prepare-release.sh ${SDK_VERSION}"
+    echo "  ./scripts/release/prepare-release.sh ${SDK_VERSION}"
     exit 0
 fi

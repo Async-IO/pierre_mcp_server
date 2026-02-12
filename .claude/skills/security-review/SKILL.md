@@ -152,8 +152,8 @@ This skill should be invoked when files in these paths are modified:
 - ✅ HTML output uses escaping functions
 
 ## Standalone Script
-The CI-runnable version of this skill lives at `scripts/security-review.sh`.
-It runs automatically in CI via `./scripts/architectural-validation.sh --apply-skills`.
+The CI-runnable version of this skill lives at `scripts/ci/security-review.sh`.
+It runs automatically in CI via `./scripts/ci/architectural-validation.sh --apply-skills`.
 
 ## Related Skills
 - `validate-architecture` — Architectural patterns

@@ -25,7 +25,7 @@ export MCP_VALIDATOR_PATH="$HOME/mcp-validator"
 export PATH="$MCP_VALIDATOR_PATH:$PATH"
 ```
 
-Without this, `../scripts/lint-and-test.sh` will FAST FAIL.
+Without this, `../scripts/ci/lint-and-test.sh` will FAST FAIL.
 
 ## Quick Start
 
@@ -84,10 +84,10 @@ python3 -m mcp_testing.scripts.compliance_report \
 
 ## Automated Testing (REQUIRED)
 
-The validation runs automatically in `../scripts/lint-and-test.sh` and is **REQUIRED** to pass:
+The validation runs automatically in `../scripts/ci/lint-and-test.sh` and is **REQUIRED** to pass:
 
 ```bash
-cd .. && ./scripts/lint-and-test.sh
+cd .. && ./scripts/ci/lint-and-test.sh
 ```
 
 **The script automatically:**

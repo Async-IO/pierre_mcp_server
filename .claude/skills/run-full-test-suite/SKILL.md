@@ -38,7 +38,7 @@ cargo test --all-features
 ### Full CI Suite
 ```bash
 # Run the full CI validation suite
-./scripts/lint-and-test.sh
+./scripts/ci/lint-and-test.sh
 ```
 
 ### Specific Test Categories
@@ -94,7 +94,7 @@ cargo test database --lib -- --quiet
 cargo test --test database_plugins_comprehensive_test --features sqlite
 
 # PostgreSQL (requires Docker)
-./scripts/test-postgres.sh
+./scripts/testing/test-postgres.sh
 ```
 
 ### Performance Testing
@@ -201,11 +201,11 @@ cargo test protocol
 cargo test auth oauth
 
 # Full CI validation
-./scripts/lint-and-test.sh
+./scripts/ci/lint-and-test.sh
 ```
 
 ## Related Files
-- `scripts/lint-and-test.sh` - Full CI validation suite
+- `scripts/ci/lint-and-test.sh` - Full CI validation suite
 - `tests/` - Integration tests directory
 - `tests/common.rs` - Shared test utilities
 

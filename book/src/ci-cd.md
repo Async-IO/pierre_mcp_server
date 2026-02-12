@@ -33,7 +33,7 @@ All workflows run on pushes to `main`, `debug/*`, `feature/*`, `claude/*` branch
 1. Code formatting (`cargo fmt --check`)
 2. Clippy zero-tolerance linting
 3. Security audit (`cargo deny check`)
-4. Architectural validation (`./scripts/architectural-validation.sh`)
+4. Architectural validation (`./scripts/ci/architectural-validation.sh`)
 5. Release build (`cargo build --release`)
 6. Test coverage with `cargo-llvm-cov`
 7. Codecov upload
@@ -71,7 +71,7 @@ STRAVA_REDIRECT_URI="http://localhost:8080/auth/strava/callback"
 2. Clippy zero-tolerance
 3. Security audit
 4. Architectural validation
-5. Secret pattern validation (`./scripts/validate-no-secrets.sh`)
+5. Secret pattern validation (`./scripts/ci/validate-no-secrets.sh`)
 6. All tests with SQLite coverage
 7. Codecov upload (flag: `backend-sqlite`)
 
@@ -298,7 +298,7 @@ error: 1 security advisory found
 ```
 ERROR: Found unwrap() usage in production code
 ```
-**Fix**: Run `./scripts/architectural-validation.sh` locally, fix violations
+**Fix**: Run `./scripts/ci/architectural-validation.sh` locally, fix violations
 
 #### PostgreSQL Connection Failure
 ```
@@ -330,7 +330,7 @@ Run the same checks locally to catch issues before CI:
 cargo fmt
 
 # 2. Architectural validation
-./scripts/architectural-validation.sh
+./scripts/ci/architectural-validation.sh
 
 # 3. Zero-tolerance clippy
 cargo clippy --tests -- \

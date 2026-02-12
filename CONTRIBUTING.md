@@ -21,7 +21,7 @@ source .envrc && cargo run --bin pierre-mcp-server &
 ### Step 2: Validate Your Environment
 ```bash
 # Run all tests and linting (this is what CI runs)
-./scripts/lint-and-test.sh
+./scripts/ci/lint-and-test.sh
 # Should end with: ✅ All checks passed!
 
 # Test server is working
@@ -142,7 +142,7 @@ bun run test   # Component tests
 cargo fmt --check          # Code formatting
 cargo clippy -- -D warnings # Linting
 cargo test                  # All tests pass
-./scripts/lint-and-test.sh  # Full validation
+./scripts/ci/lint-and-test.sh  # Full validation
 ```
 
 ### Key Rules from [CLAUDE.md](CLAUDE.md)
@@ -165,7 +165,7 @@ Pierre uses automated git hooks to ensure code quality. **You don't need to run 
 #### Initial Setup (One Time)
 ```bash
 # Install git hooks (run once after cloning)
-./scripts/setup-git-hooks.sh
+git config core.hooksPath .githooks
 ```
 
 #### Your Daily Workflow
@@ -229,10 +229,10 @@ If you want to run tests manually:
 cargo test --test <test_file> <pattern> -- --nocapture
 
 # Pre-push validation (tiered checks, creates marker)
-./scripts/pre-push-validate.sh
+./scripts/ci/pre-push-validate.sh
 
 # Full test suite (comprehensive CI suite)
-./scripts/lint-and-test.sh
+./scripts/ci/lint-and-test.sh
 ```
 
 See [Testing Guide](book/src/testing.md) for complete testing documentation.
@@ -241,7 +241,7 @@ See [Testing Guide](book/src/testing.md) for complete testing documentation.
 1. **Check existing issues** - Avoid duplicate work
 2. **Discuss big changes** - Comment on issue or create discussion
 3. **Update dependencies** - `cargo update && npm update`
-4. **Install git hooks** - `./scripts/setup-git-hooks.sh` (one time)
+4. **Install git hooks** - `git config core.hooksPath .githooks` (one time)
 
 ### While Developing
 ```bash
@@ -257,7 +257,7 @@ bun run dev                    # Frontend dev server with hot reload
 # Just commit and push - hooks will validate
 
 # Optional: Run full validation manually
-./scripts/lint-and-test.sh
+./scripts/ci/lint-and-test.sh
 ```
 
 ## Pull Request Process
@@ -266,7 +266,7 @@ bun run dev                    # Frontend dev server with hot reload
 1. **Discuss large changes** in GitHub Issues/Discussions first
 2. **Update documentation** if you change APIs or add features
 3. **Add tests** for new functionality  
-4. **Run linting**: `./scripts/lint-and-test.sh` must pass
+4. **Run linting**: `./scripts/ci/lint-and-test.sh` must pass
 5. **Test manually** that your changes work as expected
 
 ### PR Description Template
@@ -284,7 +284,7 @@ Brief description of what this PR does.
 ## Testing
 - [ ] Added/updated tests
 - [ ] Manual testing completed
-- [ ] `./scripts/lint-and-test.sh` passes
+- [ ] `./scripts/ci/lint-and-test.sh` passes
 
 ## Related Issues
 Fixes #123, relates to #456
@@ -424,7 +424,7 @@ By contributing to Pierre, you agree that your contributions will be licensed un
 git clone YOUR_FORK
 cd pierre_mcp_server
 cargo build --release
-./scripts/lint-and-test.sh  # Must pass
+./scripts/ci/lint-and-test.sh  # Must pass
 # Make changes, test, submit PR
 ```
 

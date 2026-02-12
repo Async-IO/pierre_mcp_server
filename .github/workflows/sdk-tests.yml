@@ -7,8 +7,8 @@ on:
       - 'sdk/**'
       - 'src/mcp/**'
       - 'packages/mcp-types/**'
-      - 'scripts/run_bridge_tests.sh'
-      - 'scripts/generate-sdk-types.js'
+      - 'scripts/testing/run-bridge-tests.sh'
+      - 'scripts/sdk/generate-sdk-types.js'
       - '.github/workflows/sdk-tests.yml'
   pull_request:
     branches: [ main ]
@@ -16,8 +16,8 @@ on:
       - 'sdk/**'
       - 'src/mcp/**'
       - 'packages/mcp-types/**'
-      - 'scripts/run_bridge_tests.sh'
-      - 'scripts/generate-sdk-types.js'
+      - 'scripts/testing/run-bridge-tests.sh'
+      - 'scripts/sdk/generate-sdk-types.js'
       - '.github/workflows/sdk-tests.yml'
   workflow_dispatch:
 
@@ -230,7 +230,7 @@ jobs:
           STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
 
       - name: Run bridge test suite (validates run_bridge_tests.sh)
-        run: ./scripts/run_bridge_tests.sh
+        run: ./scripts/testing/run-bridge-tests.sh
         env:
           DATABASE_URL: "sqlite::memory:"
           PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="

@@ -43,7 +43,7 @@ echo "📡 MCP Protocol Compliance Check..."
 
 # Run official MCP compliance tests
 echo "Running MCP compliance suite..."
-./scripts/ensure_mcp_compliance.sh
+./scripts/ci/ensure-mcp-compliance.sh
 
 # Check JSON-RPC 2.0 request structure
 echo "Validating JSON-RPC 2.0 format..."
@@ -371,7 +371,7 @@ cargo test test_malformed_requests -- --nocapture
 echo "✅ MCP Compliance Suite..."
 
 # Ensure mcp-compliance repo is available
-./scripts/ensure_mcp_compliance.sh
+./scripts/ci/ensure-mcp-compliance.sh
 
 # Run full compliance test suite
 cd ../mcp-compliance 2>/dev/null || echo "⚠️  mcp-compliance repo not found"

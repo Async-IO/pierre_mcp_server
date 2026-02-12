@@ -81,10 +81,10 @@ fi
 # ============================================================================
 # TIER 1: Architectural Validation
 # ============================================================================
-if [[ "$HAS_RUST_CHANGES" == "true" ]] && [[ -f "$PROJECT_ROOT/scripts/architectural-validation.sh" ]]; then
+if [[ "$HAS_RUST_CHANGES" == "true" ]] && [[ -f "$PROJECT_ROOT/scripts/ci/architectural-validation.sh" ]]; then
     echo "📐 Tier 1: Architectural Validation"
     echo "------------------------------------"
-    if ! "$PROJECT_ROOT/scripts/architectural-validation.sh"; then
+    if ! "$PROJECT_ROOT/scripts/ci/architectural-validation.sh"; then
         echo ""
         echo "❌ Architectural validation failed!"
         exit 1
@@ -196,8 +196,8 @@ fi
 if [[ "$HAS_FRONTEND_CHANGES" == "true" ]]; then
     echo "🌐 Tier 4: Frontend Tests"
     echo "-------------------------"
-    if [[ -f "$PROJECT_ROOT/scripts/pre-push-frontend-tests.sh" ]]; then
-        if ! "$PROJECT_ROOT/scripts/pre-push-frontend-tests.sh"; then
+    if [[ -f "$PROJECT_ROOT/scripts/ci/pre-push-frontend-tests.sh" ]]; then
+        if ! "$PROJECT_ROOT/scripts/ci/pre-push-frontend-tests.sh"; then
             echo "❌ Frontend tests failed!"
             exit 1
         fi
@@ -232,8 +232,8 @@ fi
 if [[ "$HAS_MOBILE_CHANGES" == "true" ]]; then
     echo "📱 Tier 6: Mobile Tests"
     echo "-----------------------"
-    if [[ -f "$PROJECT_ROOT/scripts/pre-push-mobile-tests.sh" ]]; then
-        if ! "$PROJECT_ROOT/scripts/pre-push-mobile-tests.sh"; then
+    if [[ -f "$PROJECT_ROOT/scripts/ci/pre-push-mobile-tests.sh" ]]; then
+        if ! "$PROJECT_ROOT/scripts/ci/pre-push-mobile-tests.sh"; then
             echo "❌ Mobile tests failed!"
             exit 1
         fi

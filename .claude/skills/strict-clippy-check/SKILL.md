@@ -195,7 +195,7 @@ Clippy runs in GitHub Actions:
 
 Install git hooks:
 ```bash
-./scripts/setup-git-hooks.sh
+git config core.hooksPath .githooks
 ```
 
 This runs Clippy automatically before commits.
@@ -226,8 +226,8 @@ rustup component add clippy
 
 ## Related Files
 - `Cargo.toml` - Lint configuration (lines 141-213)
-- `scripts/lint-and-test.sh` - Combined linting + testing
-- `scripts/architectural-validation.sh` - Pattern validation
+- `scripts/ci/lint-and-test.sh` - Combined linting + testing
+- `scripts/ci/architectural-validation.sh` - Pattern validation
 
 ## Related Skills
 - `validate-architecture` - Architectural pattern validation

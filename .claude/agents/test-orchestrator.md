@@ -116,7 +116,7 @@ User: "Run PostgreSQL tests"
 
 Agent Response:
 1. Launch with run_in_background: true
-   Command: ./scripts/test-postgres.sh
+   Command: ./scripts/testing/test-postgres.sh
    Estimated: 5-8 minutes
 
 2. Store shell_id for monitoring
@@ -142,7 +142,7 @@ cargo test --test database_plugins_comprehensive_test --features sqlite -- --noc
 echo "2. PostgreSQL Plugin Tests..."
 if command -v docker &> /dev/null; then
     echo "Starting PostgreSQL container..."
-    ./scripts/test-postgres.sh
+    ./scripts/testing/test-postgres.sh
 else
     echo "⚠️  Docker not available, skipping PostgreSQL tests"
 fi
@@ -374,7 +374,7 @@ cargo test --test test_mcp_http_transport -- --nocapture
 
 # stdio transport (via SDK)
 echo "2. stdio Transport..."
-./scripts/run_bridge_tests.sh
+./scripts/testing/run-bridge-tests.sh
 
 # WebSocket transport
 echo "3. WebSocket Transport..."
@@ -506,11 +506,11 @@ cargo fmt --all -- --check
 
 # Pattern validation (no unwrap, no placeholders)
 echo "3. Pattern Validation..."
-./scripts/architectural-validation.sh
+./scripts/ci/architectural-validation.sh
 
 # Check for secrets
 echo "4. Secret Detection..."
-./scripts/validate-no-secrets.sh
+./scripts/ci/validate-no-secrets.sh
 
 # Line count check
 echo "5. Code Metrics..."
@@ -558,7 +558,7 @@ cargo test --all-features
 # Backend CI workflow
 echo "=== Backend CI ==="
 cargo test --test database_plugins_comprehensive_test --features sqlite
-./scripts/test-postgres.sh || echo "PostgreSQL tests skipped"
+./scripts/testing/test-postgres.sh || echo "PostgreSQL tests skipped"
 
 # SDK CI workflow
 echo "=== SDK CI ==="
@@ -578,7 +578,7 @@ cd ..
 
 # MCP Compliance
 echo "=== MCP Compliance ==="
-./scripts/ensure_mcp_compliance.sh
+./scripts/ci/ensure-mcp-compliance.sh
 
 # Cross-platform (current OS only)
 echo "=== Cross-Platform (${OS}) ==="

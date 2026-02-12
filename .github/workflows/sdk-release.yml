@@ -93,7 +93,7 @@ jobs:
             echo "::error::SDK version ($SDK_VERSION) does not match release ($RELEASE_VERSION_NUM)"
             echo ""
             echo "Fix: Update sdk/package.json version to ${RELEASE_VERSION_NUM}"
-            echo "Or use: ./scripts/prepare-release.sh ${RELEASE_VERSION_NUM}"
+            echo "Or use: ./scripts/release/prepare-release.sh ${RELEASE_VERSION_NUM}"
             exit 1
           fi
           echo "✅ SDK version validation passed"

@@ -37,7 +37,7 @@ echo ""
 
 # Run validation
 cargo fmt --check || { echo "Run 'cargo fmt' first"; exit 1; }
-./scripts/architectural-validation.sh
+./scripts/ci/architectural-validation.sh
 cargo clippy --all-targets
 
 echo ""

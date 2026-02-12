@@ -107,7 +107,7 @@ The SDK provides comprehensive TypeScript type definitions auto-generated from t
                       │ tools/list JSON-RPC
                       ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  scripts/generate-sdk-types.js                                  │
+│  scripts/sdk/generate-sdk-types.js                               │
 │  Fetches schemas, converts to TypeScript                        │
 └─────────────────────┬───────────────────────────────────────────┘
                       │ generates

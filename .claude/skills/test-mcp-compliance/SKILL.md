@@ -30,13 +30,13 @@ Run this skill before:
 ### Quick Validation
 ```bash
 # Ensure mcp-compliance repo exists and run tests
-./scripts/ensure_mcp_compliance.sh
+./scripts/ci/ensure-mcp-compliance.sh
 ```
 
 ### Detailed Validation
 ```bash
 # 1. Ensure compliance suite is installed
-./scripts/ensure_mcp_compliance.sh
+./scripts/ci/ensure-mcp-compliance.sh
 
 # 2. Start Pierre server
 cargo run --bin pierre-mcp-server &
@@ -102,7 +102,7 @@ curl -X POST http://localhost:8081/mcp \
 ```
 
 ## Related Files
-- `scripts/ensure_mcp_compliance.sh` - Compliance runner script
+- `scripts/ci/ensure-mcp-compliance.sh` - Compliance runner script
 - `src/mcp/protocol.rs` - MCP protocol implementation
 - `src/protocols/universal/tool_registry.rs` - Tool definitions
 

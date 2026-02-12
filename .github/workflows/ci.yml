@@ -56,10 +56,10 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ripgrep
 
       - name: Architectural Validation (Custom Patterns + Security Skills)
-        run: ./scripts/architectural-validation.sh --apply-skills
+        run: ./scripts/ci/architectural-validation.sh --apply-skills
 
       - name: Secret Pattern Validation
-        run: ./scripts/validate-no-secrets.sh
+        run: ./scripts/ci/validate-no-secrets.sh
 
   # Clippy linting with zero tolerance (includes cognitive complexity)
   clippy:

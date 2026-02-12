@@ -125,7 +125,7 @@ fi
 if [[ "$SKIP_VALIDATION" == false && "$DRY_RUN" == false ]]; then
     echo -e "${BLUE}Running pre-release validation...${NC}"
     echo ""
-    if ! ./scripts/validate-release.sh; then
+    if ! ./scripts/release/validate-release.sh; then
         echo ""
         echo -e "${RED}Validation failed. Fix the issues above before releasing.${NC}"
         echo -e "${YELLOW}Tip: Use --skip-validation to bypass (not recommended)${NC}"
@@ -133,7 +133,7 @@ if [[ "$SKIP_VALIDATION" == false && "$DRY_RUN" == false ]]; then
     fi
     echo ""
 elif [[ "$DRY_RUN" == true ]]; then
-    echo -e "${BLUE}[Dry run] Would run: ./scripts/validate-release.sh${NC}"
+    echo -e "${BLUE}[Dry run] Would run: ./scripts/release/validate-release.sh${NC}"
     echo ""
 fi
 

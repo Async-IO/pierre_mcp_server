@@ -16,7 +16,7 @@
     "dev": "tsx src/cli.ts",
     "start": "node dist/cli.js",
     "prepare": "bun run build",
-    "generate-types": "node ../scripts/generate-sdk-types.js",
+    "generate-types": "node ../scripts/sdk/generate-sdk-types.js",
     "test": "jest --runInBand --forceExit",
     "test:unit": "jest --testPathPattern=test/unit",
     "test:integration": "jest --testPathPattern=test/integration --runInBand --forceExit",

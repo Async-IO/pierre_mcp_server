@@ -141,8 +141,8 @@ These modules handle user numeric input and need special attention:
 - ✅ No unbounded LIMIT in SQL queries
 
 ## Standalone Script
-The CI-runnable version of this skill lives at `scripts/check-input-validation.sh`.
-It runs automatically in CI via `./scripts/architectural-validation.sh --apply-skills`.
+The CI-runnable version of this skill lives at `scripts/ci/check-input-validation.sh`.
+It runs automatically in CI via `./scripts/ci/architectural-validation.sh --apply-skills`.
 
 ## Related Skills
 - `security-review` — Comprehensive security checklist

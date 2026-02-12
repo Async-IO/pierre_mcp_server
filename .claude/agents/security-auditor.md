@@ -118,7 +118,7 @@ echo "UUID parsing instances (safe): $(rg 'Uuid::parse_str' src/ --type rust | w
 ```bash
 # Run the secret detection script
 echo "🔒 Running secret detection..."
-./scripts/validate-no-secrets.sh
+./scripts/ci/validate-no-secrets.sh
 
 # Check for .env files in git
 git ls-files | rg "\.env$" && echo "❌ .env file tracked in git!" || echo "✓ No .env in git"

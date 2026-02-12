@@ -52,7 +52,7 @@ rg "test_name" tests/ --files-with-matches
 
 **When to use:** Before `git push`
 
-**Script:** `./scripts/pre-push-validate.sh`
+**Script:** `./scripts/ci/pre-push-validate.sh`
 
 **What it does:**
 1. Creates validation marker (valid for 15 minutes)
@@ -66,7 +66,7 @@ rg "test_name" tests/ --files-with-matches
 **Workflow:**
 ```bash
 # 1. Run validation
-./scripts/pre-push-validate.sh
+./scripts/ci/pre-push-validate.sh
 
 # 2. Push (hook verifies marker exists and is fresh)
 git push
@@ -76,7 +76,7 @@ git push
 
 **When to use:** Before PR/merge, or in GitHub Actions
 
-**Script:** `./scripts/lint-and-test.sh`
+**Script:** `./scripts/ci/lint-and-test.sh`
 
 **What it runs:**
 1. Static analysis & code quality validation
@@ -107,7 +107,7 @@ cargo test --test intelligence_tools_advanced_test
 cargo test -- --nocapture
 
 # Lint and test
-./scripts/lint-and-test.sh
+./scripts/ci/lint-and-test.sh
 ```
 
 ## Test File Naming Conventions
@@ -222,29 +222,29 @@ let jwks_manager = common::get_shared_test_jwks();
 
 ```bash
 # Requires Docker
-./scripts/test-postgres.sh
+./scripts/testing/test-postgres.sh
 ```
 
 ### SDK/Bridge Tests
 
 ```bash
-./scripts/run_bridge_tests.sh
+./scripts/testing/run-bridge-tests.sh
 ```
 
 ### MCP Protocol Compliance
 
 ```bash
-./scripts/ensure_mcp_compliance.sh
+./scripts/ci/ensure-mcp-compliance.sh
 ```
 
 ### Frontend Tests
 
 ```bash
 # Web frontend
-./scripts/pre-push-frontend-tests.sh
+./scripts/ci/pre-push-frontend-tests.sh
 
 # Mobile
-./scripts/pre-push-mobile-tests.sh
+./scripts/ci/pre-push-mobile-tests.sh
 ```
 
 ## Git Hooks Setup
@@ -280,14 +280,14 @@ git push --no-verify
 ### CI Fails But Local Tests Pass
 
 1. Check if you're testing with the right database (SQLite vs PostgreSQL)
-2. Run the full suite locally: `./scripts/lint-and-test.sh`
+2. Run the full suite locally: `./scripts/ci/lint-and-test.sh`
 3. Check for environment-specific issues
 
 ### Validation Marker Expired
 
 ```bash
 # Re-run validation to create fresh marker
-./scripts/pre-push-validate.sh
+./scripts/ci/pre-push-validate.sh
 ```
 
 ### Finding Which Tests to Run
@@ -305,5 +305,5 @@ rg "function_name" tests/ --files-with-matches
 | Tier | Time | When | Command |
 |------|------|------|---------|
 | Targeted | ~5-10s | Every change | `cargo test --test <file> <pattern>` |
-| Pre-push | ~1-5 min | Before push | `./scripts/pre-push-validate.sh` |
-| Full CI | ~30-60 min | PR/merge | `./scripts/lint-and-test.sh` |
+| Pre-push | ~1-5 min | Before push | `./scripts/ci/pre-push-validate.sh` |
+| Full CI | ~30-60 min | PR/merge | `./scripts/ci/lint-and-test.sh` |

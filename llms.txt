@@ -656,7 +656,7 @@ security:
 - **frontend tests**: eslint, typescript, vitest
 - **mcp compliance**: automated validation
 - **security**: cargo-audit dependency scanning
-- **validation patterns**: scripts/validation-patterns.toml
+- **validation patterns**: scripts/ci/validation-patterns.toml
 
 ## deployment and operations
 
@@ -837,7 +837,7 @@ cargo run --bin pierre-mcp-server
 
 # run tests
 cargo test
-./scripts/lint-and-test.sh
+./scripts/ci/lint-and-test.sh
 
 # postgresql
 DATABASE_URL=postgresql://user:pass@localhost/pierre cargo run

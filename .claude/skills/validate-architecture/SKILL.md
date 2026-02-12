@@ -26,14 +26,14 @@ Run this skill:
 ## Prerequisites
 - Python 3 (for pattern parsing)
 - ripgrep (`rg`)
-- Validation patterns file: `scripts/validation-patterns.toml`
+- Validation patterns file: `scripts/ci/validation-patterns.toml`
 
 ## Commands
 
 ### Comprehensive Validation
 ```bash
 # Run all architectural validations
-./scripts/architectural-validation.sh
+./scripts/ci/architectural-validation.sh
 ```
 
 ### Specific Pattern Categories
@@ -41,8 +41,8 @@ Run this skill:
 #### Critical Failures
 ```bash
 # Check for placeholder implementations
-python3 scripts/parse-validation-patterns.py \
-  scripts/validation-patterns.toml placeholder_patterns
+python3 scripts/ci/parse-validation-patterns.py \
+  scripts/ci/validation-patterns.toml placeholder_patterns
 
 # Check for unwrap/expect/panic
 rg "\.unwrap\(\)|\.expect\(|panic!\(" src/ --type rust -n | \
@@ -63,8 +63,8 @@ rg "#\[derive.*thiserror::Error" src/ --type rust -A 5 | head -30
 #### Algorithm DI Validation
 ```bash
 # Detect hardcoded algorithm formulas
-python3 scripts/parse-validation-patterns.py \
-  scripts/validation-patterns.toml algorithm_di_patterns
+python3 scripts/ci/parse-validation-patterns.py \
+  scripts/ci/validation-patterns.toml algorithm_di_patterns
 
 # Verify enum-based algorithm dispatch
 rg "pub enum.*Algorithm" src/intelligence/algorithms/ --type rust -A 10
@@ -252,9 +252,9 @@ rg "static.*OAuth|static.*Config|LazyLock.*OAuth" src/ --type rust -n | \
 - ✅ No global OAuth/Config state (tenant isolation risk)
 
 ## Related Files
-- `scripts/architectural-validation.sh` - Main validation script
-- `scripts/validation-patterns.toml` - Pattern definitions (539 lines)
-- `scripts/parse-validation-patterns.py` - Pattern parser
+- `scripts/ci/architectural-validation.sh` - Main validation script
+- `scripts/ci/validation-patterns.toml` - Pattern definitions (539 lines)
+- `scripts/ci/parse-validation-patterns.py` - Pattern parser
 - `.claude/CLAUDE.md` - CLAUDE.md standards
 
 ## Related Skills

@@ -433,7 +433,7 @@ pub async fn setup_server_resources_test_environment(
 //
 // 1. **CI Environment**: Tests should use `sqlite::memory:` (no files created)
 // 2. **Local Environment**: Use unique test database names with cleanup
-// 3. **Automatic Cleanup**: Run `./scripts/clean-test-databases.sh` before/after tests
+// 3. **Automatic Cleanup**: Run `./scripts/testing/clean-test-databases.sh` before/after tests
 //
 // Example of GOOD test database pattern:
 // ```rust

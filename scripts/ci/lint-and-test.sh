@@ -771,15 +771,15 @@ cd ..
 # ============================================================================
 
 print_task "Bridge test suite"
-if [ -f "$SCRIPT_DIR/run_bridge_tests.sh" ]; then
-    if "$SCRIPT_DIR/run_bridge_tests.sh"; then
+if [ -f "$SCRIPT_DIR/../testing/run-bridge-tests.sh" ]; then
+    if "$SCRIPT_DIR/../testing/run-bridge-tests.sh"; then
         echo -e "${GREEN}[OK] Bridge test suite passed${NC}"
     else
         echo -e "${RED}[FAIL] Bridge test suite failed${NC}"
         ALL_PASSED=false
     fi
 else
-    echo -e "${RED}[CRITICAL] Bridge test script not found: $SCRIPT_DIR/run_bridge_tests.sh${NC}"
+    echo -e "${RED}[CRITICAL] Bridge test script not found: $SCRIPT_DIR/../testing/run-bridge-tests.sh${NC}"
     ALL_PASSED=false
     # Continue to final validation
 fi
@@ -869,7 +869,7 @@ if [ "$ALL_PASSED" = true ]; then
     if [ -f "$SCRIPT_DIR/ensure-mcp-compliance.sh" ]; then
         echo "[OK] MCP spec compliance validation"
     fi
-    if [ -f "$SCRIPT_DIR/run_bridge_tests.sh" ]; then
+    if [ -f "$SCRIPT_DIR/../testing/run-bridge-tests.sh" ]; then
         echo "[OK] Bridge test suite"
     fi
     if [ "$ENABLE_COVERAGE" = true ] && command_exists cargo-llvm-cov; then

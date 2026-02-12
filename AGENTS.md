@@ -223,7 +223,7 @@ bun run lint
 bun run test
 
 # All tiers at once (what pre-push runs)
-../scripts/pre-push-mobile-tests.sh
+../scripts/ci/pre-push-mobile-tests.sh
 
 # E2E tests (requires iOS Simulator, run before PR)
 bun run e2e:build && bun run e2e:test
@@ -258,7 +258,7 @@ bun run lint
 bun run test -- --run
 
 # All tiers at once (what pre-push runs)
-../scripts/pre-push-frontend-tests.sh
+../scripts/ci/pre-push-frontend-tests.sh
 
 # E2E tests (requires browser, run before PR)
 bun run test:e2e
@@ -296,7 +296,7 @@ The pre-push hook uses a **marker-based validation** to avoid SSH timeout issues
 1. **Make your changes and commit**
 2. **Run validation before pushing:**
    ```bash
-   ./scripts/pre-push-validate.sh
+   ./scripts/ci/pre-push-validate.sh
    ```
    This runs:
    - Tier 0: Code formatting check
@@ -325,18 +325,18 @@ The pre-push hook uses a **marker-based validation** to avoid SSH timeout issues
 ### Important Notes
 
 - **Clippy is NOT in `pre-push-validate.sh`** - Claude Code must follow CLAUDE.md and run clippy manually as part of the validation workflow
-- If validation expires or commit changes, re-run `./scripts/pre-push-validate.sh`
+- If validation expires or commit changes, re-run `./scripts/ci/pre-push-validate.sh`
 - To bypass (NOT RECOMMENDED): `git push --no-verify`
 
 ### NEVER
 
-- Manually create `.git/validation-passed` marker - always run `./scripts/pre-push-validate.sh`
+- Manually create `.git/validation-passed` marker - always run `./scripts/ci/pre-push-validate.sh`
 - Skip validation by creating a fake marker - CI will catch issues and main will break
 - Claim "rustfmt isn't installed" or similar excuses to bypass validation
 
 ### Before Pushing
 
-1. Run `./scripts/pre-push-validate.sh` to create the validation marker
+1. Run `./scripts/ci/pre-push-validate.sh` to create the validation marker
 2. Check CI: `gh run list --branch main` to avoid queueing redundant workflows
 3. After push: `gh run watch` to monitor for CI failures
 
@@ -360,7 +360,7 @@ The pre-push hook uses a **marker-based validation** to avoid SSH timeout issues
 - Commit without AI assistant-related commit messages. Do not reference AI assistance in git commits.
 - Do not add AI-generated commit text in commit messages
 - Always create a branch when adding new features. Bug fixes go directly to main branch.
-- always run validation after making changes: cargo fmt, then ./scripts/architectural-validation.sh, then clippy strict mode, then TARGETED tests (see "Tiered Validation Approach")
+- always run validation after making changes: cargo fmt, then ./scripts/ci/architectural-validation.sh, then clippy strict mode, then TARGETED tests (see "Tiered Validation Approach")
 - avoid #[cfg(test)] in the src code. Only in tests
 
 ## Security Engineering Rules
@@ -449,7 +449,7 @@ Run before creating a commit:
 cargo fmt
 
 # 2. Architectural validation
-./scripts/architectural-validation.sh
+./scripts/ci/architectural-validation.sh
 
 # 3. Clippy — ONLY the crate(s) you actually changed
 # Cargo.toml defines all lint levels - no CLI flags needed
@@ -476,10 +476,10 @@ cargo test --test <test_file> <test_pattern> -- --nocapture
 #### Tier 3: Full Validation (before PR/merge only)
 Run the full suite only when preparing a PR or merging:
 ```bash
-./scripts/lint-and-test.sh
+./scripts/ci/lint-and-test.sh
 # OR manually:
 cargo fmt
-./scripts/architectural-validation.sh
+./scripts/ci/architectural-validation.sh
 cargo clippy --workspace --all-targets
 cargo test
 ```
@@ -695,12 +695,12 @@ Mocks are permitted ONLY in test code for:
 
 1. **Run Tiered Validation (see "Required Pre-Commit Validation" above):**
    - For normal commits: Use Tier 2 (targeted tests)
-   - For PRs/merges: Use Tier 3 (full suite via `./scripts/lint-and-test.sh`)
+   - For PRs/merges: Use Tier 3 (full suite via `./scripts/ci/lint-and-test.sh`)
 
    **Quick reference for targeted validation:**
    ```bash
    cargo fmt
-   ./scripts/architectural-validation.sh
+   ./scripts/ci/architectural-validation.sh
    cargo clippy -p <changed-crate>  # Add --all-targets if test files changed
    cargo test --test <test_file> <test_pattern> -- --nocapture
    ```

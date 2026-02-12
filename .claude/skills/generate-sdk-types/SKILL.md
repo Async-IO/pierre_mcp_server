@@ -50,7 +50,7 @@ cd ..
 ### One-Command Generation
 ```bash
 # Run from project root (handles server lifecycle)
-./scripts/generate-sdk-types.js
+./scripts/sdk/generate-sdk-types.js
 ```
 
 ### Manual Generation Process
@@ -217,7 +217,7 @@ git commit -m "feat: add my_new_feature tool with TypeScript types"
 - ✅ Git diff shows expected changes only
 
 ## Related Files
-- `scripts/generate-sdk-types.js` - Type generation script
+- `scripts/sdk/generate-sdk-types.js` - Type generation script
 - `sdk/src/types.ts` - Generated TypeScript types
 - `src/protocols/universal/tool_registry.rs` - Rust tool definitions
 - `sdk/TYPE_GENERATION.md` - Type generation documentation

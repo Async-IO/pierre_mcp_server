@@ -30,7 +30,7 @@ All workflows MUST enforce these zero-tolerance checks:
 - `cargo clippy -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings` (zero warnings allowed)
 - Banned pattern detection for: `unwrap()`, `expect()`, `panic!()`, `anyhow!()` macros, `#[allow(clippy::)]` attributes (except type conversion casts), underscore-prefixed names
 - Binary size limits (<50MB for pierre_mcp_server)
-- Full test suite execution via `./scripts/lint-and-test.sh`
+- Full test suite execution via `./scripts/ci/lint-and-test.sh`
 - No `--no-verify` flags in git commits
 
 ### Code Quality Standards

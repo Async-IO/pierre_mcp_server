@@ -6,14 +6,14 @@ on:
     paths:
       - 'src/mcp/**'
       - 'sdk/**'
-      - 'scripts/ensure_mcp_compliance.sh'
+      - 'scripts/ci/ensure-mcp-compliance.sh'
       - '.github/workflows/mcp-compliance.yml'
   pull_request:
     branches: [ main ]
     paths:
       - 'src/mcp/**'
       - 'sdk/**'
-      - 'scripts/ensure_mcp_compliance.sh'
+      - 'scripts/ci/ensure-mcp-compliance.sh'
       - '.github/workflows/mcp-compliance.yml'
   workflow_dispatch:
 
@@ -111,7 +111,7 @@ jobs:
           df -h
 
       - name: Run MCP compliance validation
-        run: ./scripts/ensure_mcp_compliance.sh
+        run: ./scripts/ci/ensure-mcp-compliance.sh
         env:
           # CI detection variables for bridge
           CI: "true"

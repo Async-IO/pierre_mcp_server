@@ -15,7 +15,7 @@ This guide explains how to release Pierre MCP Server (Rust binaries) and the SDK
 
 ```bash
 # 1. Prepare the release (runs validation, bumps versions, creates commit + tag)
-./scripts/prepare-release.sh 0.3.0
+./scripts/release/prepare-release.sh 0.3.0
 
 # 2. Push commit and tag
 git push origin main
@@ -47,22 +47,22 @@ Usage:
 
 ```bash
 # Stable release
-./scripts/prepare-release.sh 0.3.0
+./scripts/release/prepare-release.sh 0.3.0
 
 # Pre-release (beta)
-./scripts/prepare-release.sh 0.3.0 --pre-release beta
+./scripts/release/prepare-release.sh 0.3.0 --pre-release beta
 
 # Pre-release (release candidate)
-./scripts/prepare-release.sh 0.4.0 --pre-release rc.1
+./scripts/release/prepare-release.sh 0.4.0 --pre-release rc.1
 
 # Dry run (preview changes without modifying files)
-./scripts/prepare-release.sh 0.3.0 --dry-run
+./scripts/release/prepare-release.sh 0.3.0 --dry-run
 
 # Update files but don't create git commit/tag
-./scripts/prepare-release.sh 0.3.0 --no-commit
+./scripts/release/prepare-release.sh 0.3.0 --no-commit
 
 # Skip validation (not recommended, for emergencies only)
-./scripts/prepare-release.sh 0.3.0 --skip-validation
+./scripts/release/prepare-release.sh 0.3.0 --skip-validation
 ```
 
 ### Step 2: Push to GitHub
@@ -122,7 +122,7 @@ For testing before a stable release:
 
 ```bash
 # 1. Create beta release
-./scripts/prepare-release.sh 0.3.0 --pre-release beta
+./scripts/release/prepare-release.sh 0.3.0 --pre-release beta
 git push origin main
 git push origin v0.3.0-beta
 
@@ -130,7 +130,7 @@ git push origin v0.3.0-beta
 # The SDK will be published with `npm install pierre-mcp-client@beta`
 
 # 3. After testing, create stable release
-./scripts/prepare-release.sh 0.3.0
+./scripts/release/prepare-release.sh 0.3.0
 git push origin main
 git push origin v0.3.0
 # Create GitHub Release (not marked as pre-release)

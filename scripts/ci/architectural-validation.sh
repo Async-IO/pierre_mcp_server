@@ -885,13 +885,13 @@ if [ "$APPLY_SKILLS" = true ]; then
     if [ -x "$SCRIPT_DIR/security-review.sh" ]; then
         "$SCRIPT_DIR/security-review.sh" || VALIDATION_FAILED=true
     else
-        echo -e "${YELLOW}⚠️  scripts/security-review.sh not found or not executable${NC}"
+        echo -e "${YELLOW}⚠️  scripts/ci/security-review.sh not found or not executable${NC}"
     fi
 
     if [ -x "$SCRIPT_DIR/check-input-validation.sh" ]; then
         "$SCRIPT_DIR/check-input-validation.sh" || VALIDATION_FAILED=true
     else
-        echo -e "${YELLOW}⚠️  scripts/check-input-validation.sh not found or not executable${NC}"
+        echo -e "${YELLOW}⚠️  scripts/ci/check-input-validation.sh not found or not executable${NC}"
     fi
 fi
 

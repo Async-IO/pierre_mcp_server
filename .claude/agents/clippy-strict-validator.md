@@ -55,7 +55,7 @@ Execute all validations simultaneously using background tasks:
 
 4. **Architecture Validation** (Background):
    ```bash
-   ./scripts/architectural-validation.sh
+   ./scripts/ci/architectural-validation.sh
    ```
 
 5. **Report Results Clearly**:
@@ -71,7 +71,7 @@ Execute all validations simultaneously using background tasks:
    Task A: cargo clippy --tests -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings
    Task B: cargo test --release
    Task C: rg "unwrap\(\)|expect\(\)|panic!|anyhow!" src/ --type rust
-   Task D: ./scripts/architectural-validation.sh
+   Task D: ./scripts/ci/architectural-validation.sh
    ```
    Store shell_id for each task.
 

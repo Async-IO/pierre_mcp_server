@@ -4,7 +4,7 @@
 // ABOUTME: TypeScript type definitions for Pierre MCP tools
 // ABOUTME: Re-exports from @pierre/mcp-types shared package
 //
-// Types are auto-generated into @pierre/mcp-types by scripts/generate-sdk-types.js
+// Types are auto-generated into @pierre/mcp-types by scripts/sdk/generate-sdk-types.js
 // To regenerate: bun run generate-types
 
 export * from '@pierre/mcp-types';

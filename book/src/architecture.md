@@ -209,7 +209,7 @@ let user = user_repo.get_by_id(user_id).await?;
 let activities = provider.fetch_activities().await?;
 ```
 
-**no blanket anyhow conversions**: the codebase enforces zero-tolerance for `impl From<anyhow::Error>` via static analysis (`scripts/lint-and-test.sh`) to prevent loss of type information.
+**no blanket anyhow conversions**: the codebase enforces zero-tolerance for `impl From<anyhow::Error>` via static analysis (`scripts/ci/lint-and-test.sh`) to prevent loss of type information.
 
 ### Error Responses
 
@@ -563,7 +563,7 @@ Defaults optimized for balanced accuracy vs data requirements.
 Automated validation ensures no hardcoded algorithms bypass the enum system.
 
 Validation script: `scripts/validate-algorithm-di.sh`
-Patterns defined: `scripts/validation-patterns.toml`
+Patterns defined: `scripts/ci/validation-patterns.toml`
 
 Checks for:
 - hardcoded formulas (e.g., `220 - age`)

@@ -354,7 +354,7 @@ workspace = true
 [workspace.lints.rust]
 # STRICT UNSAFE CODE POLICY: Zero tolerance with whitelisted exceptions
 # - "deny" level: Unsafe code is an ERROR by default everywhere
-# - scripts/architectural-validation.sh: Enforces ONLY src/health.rs can use unsafe (Windows FFI)
+# - scripts/ci/architectural-validation.sh: Enforces ONLY src/health.rs can use unsafe (Windows FFI)
 # - Any unsafe usage outside approved locations FAILS build immediately
 # - Approved: Windows health monitoring FFI (GlobalMemoryStatusEx, GetDiskFreeSpaceExW)
 unsafe_code = "deny"

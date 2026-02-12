@@ -230,7 +230,7 @@ Skills are focused, single-purpose tasks with clear commands. They're faster tha
 
 | Skill | Purpose | Quick Command |
 |-------|---------|---------------|
-| `test-mcp-compliance.md` | MCP protocol validation | `./scripts/ensure_mcp_compliance.sh` |
+| `test-mcp-compliance.md` | MCP protocol validation | `./scripts/ci/ensure-mcp-compliance.sh` |
 | `test-multitenant-isolation.md` | Tenant isolation security | `cargo test --test mcp_multitenant_complete_test` |
 | `run-full-test-suite.md` | All tests (unit+integration+E2E) | `cargo test --all-features` |
 | `test-intelligence-algorithms.md` | Sports science algorithm validation | `cargo test intelligence -- --nocapture` |
@@ -240,8 +240,8 @@ Skills are focused, single-purpose tasks with clear commands. They're faster tha
 | Skill | Purpose | Quick Command |
 |-------|---------|---------------|
 | `strict-clippy-check.md` | Zero-tolerance linting | `cargo clippy --all-targets --all-features -- -D warnings` |
-| `validate-architecture.md` | Pattern and architecture validation | `./scripts/architectural-validation.sh` |
-| `check-no-secrets.md` | Secret detection | `./scripts/validate-no-secrets.sh` |
+| `validate-architecture.md` | Pattern and architecture validation | `./scripts/ci/architectural-validation.sh` |
+| `check-no-secrets.md` | Secret detection | `./scripts/ci/validate-no-secrets.sh` |
 | `check-error-handling.md` 🆕 | Anyhow regression detection | `rg "use anyhow" src/ --type rust` |
 | `check-repository-pattern.md` 🆕 | Repository pattern validation | `rg "trait DatabaseProvider" src/ --type rust` |
 
@@ -350,18 +350,18 @@ All agents and skills enforce Pierre's coding standards from `.claude/CLAUDE.md`
 ```bash
 # Pre-commit validation
 cargo clippy --all-targets --all-features -- -D warnings
-./scripts/architectural-validation.sh
-./scripts/validate-no-secrets.sh
+./scripts/ci/architectural-validation.sh
+./scripts/ci/validate-no-secrets.sh
 
 # Full test suite
 cargo test --all-features
 
 # Security validation
 cargo test --test mcp_multitenant_complete_test
-./scripts/architectural-validation.sh
+./scripts/ci/architectural-validation.sh
 
 # Protocol validation
-./scripts/ensure_mcp_compliance.sh
+./scripts/ci/ensure-mcp-compliance.sh
 
 # Algorithm validation
 cargo test intelligence -- --nocapture
@@ -492,7 +492,7 @@ When adding new agents or skills:
 
 - `CONTRIBUTING.md` - Contribution guidelines
 - `.claude/CLAUDE.md` - CLAUDE.md compliance checklist
-- `scripts/validation-patterns.toml` - Architectural validation patterns
+- `scripts/ci/validation-patterns.toml` - Architectural validation patterns
 - `book/src/ci-cd.md` - CI/CD workflow documentation
 
 ## 💡 Tips for Claude Code Users

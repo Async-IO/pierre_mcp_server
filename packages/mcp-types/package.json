@@ -24,7 +24,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
     "test": "vitest run",
-    "generate": "node ../../scripts/generate-sdk-types.js"
+    "generate": "node ../../scripts/sdk/generate-sdk-types.js"
   },
   "devDependencies": {
     "typescript": "~5.8.3",

@@ -97,7 +97,7 @@ curl http://localhost:8081/health
 **Run this at the START OF EVERY Claude Code session:**
 
 ```bash
-./scripts/setup-claude-code-mcp.sh
+./scripts/setup/setup-claude-code-mcp.sh
 ```
 
 This script automatically:
@@ -151,7 +151,7 @@ The pre-push hook uses marker-based validation to avoid SSH timeouts:
 
 ```bash
 # 1. Run validation (creates marker valid for 15 minutes)
-./scripts/pre-push-validate.sh
+./scripts/ci/pre-push-validate.sh
 
 # 2. Push (hook checks marker)
 git push
@@ -171,7 +171,7 @@ cargo test <test_name_pattern> -- --nocapture
 
 ```bash
 cargo fmt
-./scripts/architectural-validation.sh
+./scripts/ci/architectural-validation.sh
 cargo clippy --all-targets -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
 cargo test <module_pattern> -- --nocapture
 ```
@@ -181,7 +181,7 @@ cargo test <module_pattern> -- --nocapture
 #### Tier 3: Full Validation (before PR/merge)
 
 ```bash
-./scripts/lint-and-test.sh
+./scripts/ci/lint-and-test.sh
 ```
 
 ### Test Targeting Patterns
@@ -218,14 +218,14 @@ cargo test --test store_routes_test test_browse -- --nocapture
 ### Pre-Push Validation
 
 ```bash
-./scripts/pre-push-validate.sh    # Tiered validation (~1-5 min)
+./scripts/ci/pre-push-validate.sh    # Tiered validation (~1-5 min)
 ```
 
 ### Full Test Suite
 
 ```bash
 cargo test                        # All tests (~13 min, 647 tests)
-./scripts/lint-and-test.sh        # Full CI suite
+./scripts/ci/lint-and-test.sh        # Full CI suite
 ```
 
 ### Finding Related Tests
@@ -277,7 +277,7 @@ bun run lint
 bun test
 
 # All tiers
-../scripts/pre-push-mobile-tests.sh
+../scripts/ci/pre-push-mobile-tests.sh
 
 # E2E tests (requires iOS Simulator)
 bun run e2e:build && bun run e2e:test
@@ -327,7 +327,7 @@ bun run lint
 bun run test -- --run
 
 # All tiers
-../scripts/pre-push-frontend-tests.sh
+../scripts/ci/pre-push-frontend-tests.sh
 
 # E2E tests
 bun run test:e2e
@@ -397,7 +397,7 @@ source .workflow_test_env
 
 ```bash
 # Test PostgreSQL integration
-./scripts/test-postgres.sh
+./scripts/testing/test-postgres.sh
 ```
 
 See [configuration.md](configuration.md) for database configuration.
@@ -420,7 +420,7 @@ See [configuration.md](configuration.md) for database configuration.
 
 | Script | Description |
 |--------|-------------|
-| `setup-claude-code-mcp.sh` | **MANDATORY** session setup |
+| `setup/setup-claude-code-mcp.sh` | **MANDATORY** session setup |
 | `fresh-start.sh` | Clean database and start fresh |
 | `complete-user-workflow.sh` | Create admin, user, tenant |
 | `dev-start.sh` | Development startup |
@@ -430,20 +430,19 @@ See [configuration.md](configuration.md) for database configuration.
 
 | Script | Description |
 |--------|-------------|
-| `pre-push-validate.sh` | Marker-based pre-push validation |
-| `architectural-validation.sh` | Check architectural patterns |
-| `lint-and-test.sh` | Full CI validation suite |
-| `pre-push-frontend-tests.sh` | Frontend-specific validation |
-| `pre-push-mobile-tests.sh` | Mobile-specific validation |
+| `ci/pre-push-validate.sh` | Marker-based pre-push validation |
+| `ci/architectural-validation.sh` | Check architectural patterns |
+| `ci/lint-and-test.sh` | Full CI validation suite |
+| `ci/pre-push-frontend-tests.sh` | Frontend-specific validation |
+| `ci/pre-push-mobile-tests.sh` | Mobile-specific validation |
 
 ### Testing Scripts
 
 | Script | Description |
 |--------|-------------|
-| `test-postgres.sh` | PostgreSQL integration tests (Docker) |
-| `run_bridge_tests.sh` | SDK/Bridge test suite |
-| `ensure_mcp_compliance.sh` | MCP protocol compliance |
-| `test_trial_keys.sh` | API key provisioning workflow |
+| `testing/test-postgres.sh` | PostgreSQL integration tests (Docker) |
+| `testing/run-bridge-tests.sh` | SDK/Bridge test suite |
+| `ci/ensure-mcp-compliance.sh` | MCP protocol compliance |
 
 See `scripts/README.md` for complete documentation.
 

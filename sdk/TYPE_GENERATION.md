@@ -199,12 +199,12 @@ To run type generation in CI:
 ## Manual Generation (Without bun script)
 
 ```bash
-node ../scripts/generate-sdk-types.js
+node ../scripts/sdk/generate-sdk-types.js
 ```
 
 ## Files
 
-- **Generator Script**: `scripts/generate-sdk-types.js`
+- **Generator Script**: `scripts/sdk/generate-sdk-types.js`
 - **Output File**: `sdk/src/types.ts`
 - **bun Script**: `bun run generate-types` (defined in `sdk/package.json`)
 
