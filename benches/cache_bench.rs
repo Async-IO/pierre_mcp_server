@@ -21,7 +21,7 @@ use common::fixtures::{generate_activities, ActivityBatchSize};
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use pierre_mcp_server::cache::memory::InMemoryCache;
 use pierre_mcp_server::cache::{CacheConfig, CacheKey, CacheProvider, CacheResource};
-use pierre_mcp_server::models::Activity;
+use pierre_mcp_server::models::{Activity, TenantId};
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
@@ -76,7 +76,7 @@ fn generate_payload(size: PayloadSize) -> TestPayload {
 #[allow(clippy::cast_possible_truncation)]
 fn make_cache_key(index: usize) -> CacheKey {
     CacheKey::new(
-        Uuid::from_u128(1000),
+        TenantId::from(Uuid::from_u128(1000)),
         Uuid::from_u128(index as u128),
         "benchmark".to_owned(),
         CacheResource::ActivityList {
@@ -220,7 +220,7 @@ fn bench_cache_invalidate(c: &mut Criterion) {
                 .block_on(async { InMemoryCache::new(config).await })
                 .unwrap();
             let payload = generate_payload(PayloadSize::Small);
-            let tenant_id = Uuid::from_u128(1000);
+            let tenant_id = TenantId::from(Uuid::from_u128(1000));
 
             // Pre-populate with 100 entries per iteration
             rt.block_on(async {

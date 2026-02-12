@@ -20,7 +20,7 @@ use pierre_mcp_server::{
     constants::system_config::STARTER_MONTHLY_LIMIT,
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::ToolSelectionService,
-    models::{User, UserStatus, UserTier},
+    models::{TenantId, User, UserStatus, UserTier},
     permissions::UserRole,
     routes::admin::{AdminApiContext, AdminRoutes},
 };
@@ -515,7 +515,7 @@ async fn create_test_pending_user(database: &Database) -> Result<uuid::Uuid> {
 /// Helper: Verify tenant and user linkage
 async fn verify_tenant_user_linkage(
     database: &Database,
-    tenant_id: uuid::Uuid,
+    tenant_id: TenantId,
     test_user_id: uuid::Uuid,
     expected_tenant_name: &str,
     expected_tenant_slug: &str,
@@ -616,7 +616,8 @@ async fn test_user_approval_with_tenant_creation() -> Result<()> {
     assert_eq!(tenant_created["plan"].as_str().unwrap(), "starter");
 
     let tenant_id_str = tenant_created["tenant_id"].as_str().unwrap();
-    let tenant_id = uuid::Uuid::parse_str(tenant_id_str)?;
+    let tenant_id_uuid = uuid::Uuid::parse_str(tenant_id_str)?;
+    let tenant_id = TenantId::from_uuid(tenant_id_uuid);
 
     println!(
         " Tenant created: {} ({})",

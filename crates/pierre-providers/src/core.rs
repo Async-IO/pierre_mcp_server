@@ -124,6 +124,7 @@
 
 use crate::errors::provider::ProviderError;
 use crate::errors::AppResult;
+use crate::models::TenantId;
 use crate::models::{
     Activity, Athlete, HealthMetrics, PersonalRecord, RecoveryMetrics, SleepSession, Stats,
 };
@@ -492,14 +493,14 @@ pub trait ProviderFactory: Send + Sync {
 /// Tenant-aware provider wrapper that handles multi-tenancy
 pub struct TenantProvider {
     inner: Box<dyn FitnessProvider>,
-    tenant_id: Uuid,
+    tenant_id: TenantId,
     user_id: Uuid,
 }
 
 impl TenantProvider {
     /// Create a new tenant-aware provider
     #[must_use]
-    pub fn new(inner: Box<dyn FitnessProvider>, tenant_id: Uuid, user_id: Uuid) -> Self {
+    pub fn new(inner: Box<dyn FitnessProvider>, tenant_id: TenantId, user_id: Uuid) -> Self {
         Self {
             inner,
             tenant_id,
@@ -509,7 +510,7 @@ impl TenantProvider {
 
     /// Get tenant ID
     #[must_use]
-    pub const fn tenant_id(&self) -> Uuid {
+    pub const fn tenant_id(&self) -> TenantId {
         self.tenant_id
     }
 

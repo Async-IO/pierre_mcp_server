@@ -10,6 +10,7 @@ use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult};
 use crate::mcp::resources::ServerResources;
 use crate::middleware::require_admin;
+use crate::models::TenantId;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Instant;
@@ -115,7 +116,7 @@ impl FitnessConfigurationRoutes {
     /// Returns an error if:
     /// - User is not found in database
     /// - User has no tenant assigned
-    async fn get_user_tenant(&self, user_id: Uuid) -> AppResult<Uuid> {
+    async fn get_user_tenant(&self, user_id: Uuid) -> AppResult<TenantId> {
         // Verify user exists
         self.resources
             .database

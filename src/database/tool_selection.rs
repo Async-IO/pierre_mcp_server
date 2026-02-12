@@ -7,6 +7,7 @@
 use crate::errors::{AppError, AppResult};
 use crate::models::{TenantPlan, TenantToolOverride, ToolCatalogEntry, ToolCategory};
 use chrono::{DateTime, Utc};
+use pierre_core::models::TenantId;
 use sqlx::sqlite::SqliteRow;
 use sqlx::Row;
 use std::collections::HashMap;
@@ -142,7 +143,7 @@ impl Database {
     /// Returns an error if the database query fails
     pub async fn get_tenant_tool_overrides_impl(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
     ) -> AppResult<Vec<TenantToolOverride>> {
         let rows = sqlx::query(
             r"
@@ -168,7 +169,7 @@ impl Database {
     /// Returns an error if the database query fails
     pub async fn get_tenant_tool_override_impl(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         tool_name: &str,
     ) -> AppResult<Option<TenantToolOverride>> {
         let row = sqlx::query(
@@ -195,7 +196,7 @@ impl Database {
     /// Returns an error if the database query fails or the upserted row cannot be retrieved
     pub async fn upsert_tenant_tool_override_impl(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         tool_name: &str,
         is_enabled: bool,
         enabled_by_user_id: Option<Uuid>,
@@ -241,7 +242,7 @@ impl Database {
     /// Returns an error if the database query fails
     pub async fn delete_tenant_tool_override_impl(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         tool_name: &str,
     ) -> AppResult<bool> {
         let result = sqlx::query(
@@ -266,7 +267,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails or the tenant plan is invalid
-    pub async fn count_enabled_tools_impl(&self, tenant_id: Uuid) -> AppResult<usize> {
+    pub async fn count_enabled_tools_impl(&self, tenant_id: TenantId) -> AppResult<usize> {
         // Get tenant's plan to filter by plan restrictions
         let tenant = self.get_tenant_by_id_impl(tenant_id).await?;
         let plan = TenantPlan::parse_str(&tenant.plan)
@@ -335,7 +336,8 @@ fn map_tenant_tool_override_row(row: &SqliteRow) -> AppResult<TenantToolOverride
         id: Uuid::parse_str(&id_str).map_err(|e| {
             AppError::internal(format!("Invalid UUID in tenant_tool_overrides: {e}"))
         })?,
-        tenant_id: Uuid::parse_str(&tenant_id_str)
+        tenant_id: tenant_id_str
+            .parse::<TenantId>()
             .map_err(|e| AppError::internal(format!("Invalid tenant_id UUID: {e}")))?,
         tool_name: row.get("tool_name"),
         is_enabled: row.get::<i32, _>("is_enabled") != 0,

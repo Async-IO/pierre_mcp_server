@@ -10,6 +10,7 @@
 mod common;
 
 use pierre_mcp_server::constants::oauth_providers;
+use pierre_mcp_server::models::TenantId;
 use pierre_mcp_server::providers::core::FitnessProvider;
 use pierre_mcp_server::providers::registry::{
     create_provider, create_tenant_provider, global_registry, ProviderRegistry,
@@ -42,7 +43,7 @@ fn test_create_provider() {
 #[tokio::test]
 async fn test_create_tenant_provider() {
     common::init_test_http_clients();
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = Uuid::new_v4();
 
     let tenant_provider = create_tenant_provider(oauth_providers::STRAVA, tenant_id, user_id);

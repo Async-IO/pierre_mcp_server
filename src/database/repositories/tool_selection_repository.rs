@@ -5,6 +5,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use super::ToolSelectionRepository;
+use pierre_core::models::TenantId;
 use crate::database::DatabaseError;
 use crate::database_plugins::factory::Database;
 use crate::models::{TenantPlan, TenantToolOverride, ToolCatalogEntry, ToolCategory};
@@ -73,7 +74,7 @@ impl ToolSelectionRepository for ToolSelectionRepositoryImpl {
 
     async fn get_tenant_tool_overrides(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
     ) -> Result<Vec<TenantToolOverride>, DatabaseError> {
         self.db
             .get_tenant_tool_overrides(tenant_id)
@@ -85,7 +86,7 @@ impl ToolSelectionRepository for ToolSelectionRepositoryImpl {
 
     async fn get_tenant_tool_override(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         tool_name: &str,
     ) -> Result<Option<TenantToolOverride>, DatabaseError> {
         self.db
@@ -98,7 +99,7 @@ impl ToolSelectionRepository for ToolSelectionRepositoryImpl {
 
     async fn upsert_tenant_tool_override(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         tool_name: &str,
         is_enabled: bool,
         enabled_by_user_id: Option<Uuid>,
@@ -114,7 +115,7 @@ impl ToolSelectionRepository for ToolSelectionRepositoryImpl {
 
     async fn delete_tenant_tool_override(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         tool_name: &str,
     ) -> Result<bool, DatabaseError> {
         self.db
@@ -125,7 +126,7 @@ impl ToolSelectionRepository for ToolSelectionRepositoryImpl {
             })
     }
 
-    async fn count_enabled_tools(&self, tenant_id: Uuid) -> Result<usize, DatabaseError> {
+    async fn count_enabled_tools(&self, tenant_id: TenantId) -> Result<usize, DatabaseError> {
         self.db
             .count_enabled_tools(tenant_id)
             .await

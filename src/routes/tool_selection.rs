@@ -20,6 +20,7 @@ use axum::{
     routing::{delete, get, post},
     Extension, Json, Router,
 };
+use pierre_core::models::TenantId;
 use serde::{Deserialize, Serialize};
 use tokio::task::yield_now;
 use tracing::info;
@@ -170,7 +171,7 @@ impl ToolSelectionRoutes {
     async fn handle_get_tenant_tools(
         State(context): State<Arc<ToolSelectionContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
-        Path(tenant_id): Path<Uuid>,
+        Path(tenant_id): Path<TenantId>,
     ) -> AppResult<impl IntoResponse> {
         admin_token.require_permission(&AdminPermission::ViewConfiguration)?;
         // Admin API tokens have no tenant binding; require super-admin for tenant-scoped access
@@ -197,7 +198,7 @@ impl ToolSelectionRoutes {
     async fn handle_set_override(
         State(context): State<Arc<ToolSelectionContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
-        Path(tenant_id): Path<Uuid>,
+        Path(tenant_id): Path<TenantId>,
         Json(request): Json<SetOverrideRequest>,
     ) -> AppResult<impl IntoResponse> {
         admin_token.require_permission(&AdminPermission::ManageConfiguration)?;
@@ -245,7 +246,7 @@ impl ToolSelectionRoutes {
     async fn handle_remove_override(
         State(context): State<Arc<ToolSelectionContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
-        Path((tenant_id, tool_name)): Path<(Uuid, String)>,
+        Path((tenant_id, tool_name)): Path<(TenantId, String)>,
     ) -> AppResult<impl IntoResponse> {
         admin_token.require_permission(&AdminPermission::ManageConfiguration)?;
         // Admin API tokens have no tenant binding; require super-admin for tenant-scoped access
@@ -280,7 +281,7 @@ impl ToolSelectionRoutes {
     async fn handle_get_summary(
         State(context): State<Arc<ToolSelectionContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
-        Path(tenant_id): Path<Uuid>,
+        Path(tenant_id): Path<TenantId>,
     ) -> AppResult<impl IntoResponse> {
         admin_token.require_permission(&AdminPermission::ViewConfiguration)?;
         // Admin API tokens have no tenant binding; require super-admin for tenant-scoped access

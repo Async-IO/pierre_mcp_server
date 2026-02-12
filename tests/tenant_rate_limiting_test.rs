@@ -10,7 +10,7 @@
 use chrono::Utc;
 use pierre_mcp_server::{
     api_keys::{ApiKey, ApiKeyTier},
-    models::{Tenant, User, UserStatus, UserTier},
+    models::{Tenant, TenantId, User, UserStatus, UserTier},
     permissions::UserRole,
     rate_limiting::{
         TenantRateLimitConfig, TenantRateLimitTier, UnifiedRateLimitCalculator,
@@ -21,7 +21,7 @@ use uuid::Uuid;
 
 fn create_test_tenant(plan: &str) -> Tenant {
     Tenant {
-        id: Uuid::new_v4(),
+        id: TenantId::new(),
         name: "Test Tenant".to_owned(),
         slug: "test-tenant".to_owned(),
         domain: None,
@@ -157,7 +157,7 @@ fn test_tenant_specific_rate_limiting() {
 fn test_tenant_rate_limiting_with_multiplier() {
     let mut calculator = UnifiedRateLimitCalculator::new();
     let tenant = create_test_tenant("professional");
-    let tenant_id = tenant.id;
+    let tenant_id = tenant.id.as_uuid();
 
     // Configure tenant based on plan first, then set multiplier
     calculator.configure_tenant_by_plan(tenant_id, &tenant.plan);

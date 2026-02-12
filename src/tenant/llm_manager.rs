@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use pierre_core::models::TenantId;
 use std::env;
 use std::fmt;
 
@@ -100,7 +101,7 @@ impl fmt::Display for LlmProvider {
 #[derive(Debug, Clone)]
 pub struct LlmCredentials {
     /// Tenant ID these credentials belong to
-    pub tenant_id: Uuid,
+    pub tenant_id: TenantId,
     /// User ID (None = tenant-level default)
     pub user_id: Option<Uuid>,
     /// LLM provider
@@ -158,7 +159,7 @@ pub struct LlmCredentialRecord {
     /// Record ID
     pub id: Uuid,
     /// Tenant ID
-    pub tenant_id: Uuid,
+    pub tenant_id: TenantId,
     /// User ID (None = tenant default)
     pub user_id: Option<Uuid>,
     /// Provider name
@@ -202,7 +203,7 @@ impl TenantLlmManager {
     /// Returns an error if no credentials are found at any level
     pub async fn get_credentials(
         user_id: Option<Uuid>,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         provider: LlmProvider,
         database: &Database,
     ) -> AppResult<LlmCredentials> {
@@ -253,7 +254,7 @@ impl TenantLlmManager {
     /// Returns an error if storage fails
     pub async fn store_credentials(
         user_id: Option<Uuid>,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         request: StoreLlmCredentialsRequest,
         created_by: Uuid,
         database: &Database,
@@ -301,7 +302,7 @@ impl TenantLlmManager {
     /// Returns an error if deletion fails
     pub async fn delete_credentials(
         user_id: Option<Uuid>,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         provider: LlmProvider,
         database: &Database,
     ) -> AppResult<bool> {
@@ -328,7 +329,7 @@ impl TenantLlmManager {
     ///
     /// Returns an error if listing fails
     pub async fn list_tenant_credentials(
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         database: &Database,
     ) -> AppResult<Vec<LlmCredentialSummary>> {
         database.list_llm_credentials(tenant_id).await
@@ -337,7 +338,7 @@ impl TenantLlmManager {
     /// Check if credentials exist for a provider (without decrypting)
     pub async fn has_credentials(
         user_id: Option<Uuid>,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         provider: LlmProvider,
         database: &Database,
     ) -> bool {
@@ -376,7 +377,7 @@ impl TenantLlmManager {
     /// Decrypt a credential record and build `LlmCredentials`
     fn decrypt_record(
         record: &LlmCredentialRecord,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         user_id: Option<Uuid>,
         provider: LlmProvider,
         source: CredentialSource,
@@ -403,7 +404,7 @@ impl TenantLlmManager {
     /// Try to load user-specific credentials
     async fn try_user_credentials(
         user_id: Uuid,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         provider: LlmProvider,
         database: &Database,
     ) -> Option<LlmCredentials> {
@@ -443,7 +444,7 @@ impl TenantLlmManager {
 
     /// Try to load tenant-level default credentials
     async fn try_tenant_credentials(
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         provider: LlmProvider,
         database: &Database,
     ) -> Option<LlmCredentials> {
@@ -479,7 +480,7 @@ impl TenantLlmManager {
 
     /// Try to load from system-wide admin config override
     async fn try_system_override(
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         provider: LlmProvider,
         database: &Database,
     ) -> Option<LlmCredentials> {
@@ -534,7 +535,7 @@ impl TenantLlmManager {
 
     /// Try to load from environment variables (final fallback)
     fn try_environment_credentials(
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         provider: LlmProvider,
     ) -> Option<LlmCredentials> {
         let api_key = env::var(provider.env_var_name()).ok()?;
@@ -569,7 +570,11 @@ impl TenantLlmManager {
     /// Create AAD context for encryption/decryption
     ///
     /// Format: `"{tenant_id}|{user_id}|{provider}|user_llm_credentials"`
-    fn create_aad_context(tenant_id: Uuid, user_id: Option<Uuid>, provider: LlmProvider) -> String {
+    fn create_aad_context(
+        tenant_id: TenantId,
+        user_id: Option<Uuid>,
+        provider: LlmProvider,
+    ) -> String {
         let user_part = user_id.map_or_else(|| "tenant-default".to_owned(), |u| u.to_string());
         format!(
             "{}|{}|{}|user_llm_credentials",

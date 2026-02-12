@@ -15,6 +15,7 @@
 //! This design eliminates the need to pass multiple parameters through
 //! tool execution chains and provides consistent access to resources.
 
+use pierre_core::models::TenantId;
 use std::fmt;
 use std::sync::Arc;
 
@@ -117,8 +118,8 @@ impl ToolExecutionContext {
 
     /// Set tenant ID
     #[must_use]
-    pub const fn with_tenant(mut self, tenant_id: Uuid) -> Self {
-        self.tenant_id = Some(tenant_id);
+    pub fn with_tenant(mut self, tenant_id: TenantId) -> Self {
+        self.tenant_id = Some(tenant_id.as_uuid());
         self
     }
 

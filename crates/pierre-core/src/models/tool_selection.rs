@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use super::TenantId;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -142,7 +143,7 @@ pub struct TenantToolOverride {
     /// Unique identifier for this override
     pub id: Uuid,
     /// Tenant this override applies to
-    pub tenant_id: Uuid,
+    pub tenant_id: TenantId,
     /// Tool name being overridden
     pub tool_name: String,
     /// Whether the tool is enabled (overrides catalog default)

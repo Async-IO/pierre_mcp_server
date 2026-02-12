@@ -9,7 +9,7 @@ use crate::constants::oauth_providers;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::AppError;
 use crate::mcp::resources::ServerResources;
-use crate::models::UserOAuthToken;
+use crate::models::{TenantId, UserOAuthToken};
 use crate::oauth2_client::client::fitbit::refresh_fitbit_token;
 use crate::oauth2_client::client::strava::refresh_strava_token;
 use crate::protocols::universal::UniversalResponse;
@@ -117,7 +117,7 @@ impl AuthService {
         tenant_id_str: &str,
         provider: &str,
     ) {
-        let Ok(tenant_uuid) = Uuid::parse_str(tenant_id_str) else {
+        let Ok(tenant_uuid) = tenant_id_str.parse::<TenantId>() else {
             return;
         };
 
@@ -370,7 +370,7 @@ impl AuthService {
         tenant_id_str: &str,
         provider_name: &str,
     ) -> Result<(String, String), Box<UniversalResponse>> {
-        let tenant_uuid = Uuid::parse_str(tenant_id_str).map_err(|e| {
+        let tenant_uuid: TenantId = tenant_id_str.parse().map_err(|e| {
             warn!(tenant_id = %tenant_id_str, error = %e, "Invalid tenant ID format in OAuth credentials request");
             Box::new(UniversalResponse {
                 success: false,

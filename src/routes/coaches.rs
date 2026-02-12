@@ -30,6 +30,7 @@ use crate::{
     errors::{AppError, ErrorCode},
     llm::{get_coach_generation_prompt, ChatMessage, ChatProvider, ChatRequest},
     mcp::resources::ServerResources,
+    models::TenantId,
     permissions::UserRole,
     security::cookies::get_cookie_value,
 };
@@ -1311,8 +1312,9 @@ impl CoachesRoutes {
             .ok_or_else(|| AppError::not_found(format!("System coach {id}")))?;
 
         // Assign to each user after verifying tenant membership
-        let tenant_uuid =
-            Uuid::parse_str(&tenant_id).map_err(|_| AppError::internal("Invalid tenant UUID"))?;
+        let tenant_id: TenantId = tenant_id
+            .parse()
+            .map_err(|_| AppError::internal("Invalid tenant UUID"))?;
         let mut assigned_count = 0;
         for user_id_str in &body.user_ids {
             let user_id = Uuid::parse_str(user_id_str)
@@ -1328,7 +1330,7 @@ impl CoachesRoutes {
                         "Failed to verify tenant membership for user {user_id}: {e}"
                     ))
                 })?;
-            if !user_tenants.iter().any(|t| t.id == tenant_uuid) {
+            if !user_tenants.iter().any(|t| t.id == tenant_id) {
                 return Err(AppError::auth_invalid(format!(
                     "User {user_id} does not belong to this tenant"
                 )));
@@ -1370,8 +1372,9 @@ impl CoachesRoutes {
             .ok_or_else(|| AppError::not_found(format!("System coach {id}")))?;
 
         // Unassign from each user after verifying tenant membership
-        let tenant_uuid =
-            Uuid::parse_str(&tenant_id).map_err(|_| AppError::internal("Invalid tenant UUID"))?;
+        let tenant_id: TenantId = tenant_id
+            .parse()
+            .map_err(|_| AppError::internal("Invalid tenant UUID"))?;
         let mut removed_count = 0;
         for user_id_str in &body.user_ids {
             let user_id = Uuid::parse_str(user_id_str)
@@ -1387,7 +1390,7 @@ impl CoachesRoutes {
                         "Failed to verify tenant membership for user {user_id}: {e}"
                     ))
                 })?;
-            if !user_tenants.iter().any(|t| t.id == tenant_uuid) {
+            if !user_tenants.iter().any(|t| t.id == tenant_id) {
                 return Err(AppError::auth_invalid(format!(
                     "User {user_id} does not belong to this tenant"
                 )));

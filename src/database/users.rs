@@ -8,7 +8,7 @@ use super::Database;
 use crate::database_plugins::shared;
 use crate::errors::{AppError, AppResult};
 use crate::intelligence::{FitnessLevel, TimeAvailability, UserFitnessProfile, UserPreferences};
-use crate::models::{User, UserStatus};
+use crate::models::{TenantId, User, UserStatus};
 use crate::pagination::{Cursor, CursorPage, PaginationParams};
 use crate::permissions::UserRole;
 use sqlx::sqlite::SqliteRow;
@@ -448,7 +448,7 @@ impl Database {
     pub async fn get_users_by_status_impl(
         &self,
         status: &str,
-        tenant_id: Option<Uuid>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Vec<User>> {
         let rows = if let Some(tid) = tenant_id {
             sqlx::query(
@@ -761,7 +761,7 @@ impl Database {
     pub async fn get_users_by_status(
         &self,
         status: &str,
-        tenant_id: Option<Uuid>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Vec<User>> {
         self.get_users_by_status_impl(status, tenant_id).await
     }

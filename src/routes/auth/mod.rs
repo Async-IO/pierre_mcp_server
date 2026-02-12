@@ -55,7 +55,7 @@ use crate::{
     database_plugins::{factory::Database, DatabaseProvider},
     errors::{AppError, AppResult, ErrorCode},
     mcp::{resources::ServerResources, schema::OAuthCompletedNotification},
-    models::{ConnectionType, Tenant, User, UserOAuthToken, UserStatus, UserTier},
+    models::{ConnectionType, Tenant, TenantId, User, UserOAuthToken, UserStatus, UserTier},
     oauth2_client::{OAuth2Client, OAuth2Config, OAuth2Token, OAuthClientState, PkceParams},
     permissions::UserRole,
     providers::ProviderDescriptor,
@@ -312,8 +312,8 @@ impl AuthService {
         user_id: uuid::Uuid,
         display_name: &str,
         plan: &str,
-    ) -> AppResult<uuid::Uuid> {
-        let tenant_id = uuid::Uuid::new_v4();
+    ) -> AppResult<TenantId> {
+        let tenant_id = TenantId::new();
         let tenant_name = format!("{display_name}'s Workspace");
         let tenant_slug = format!("user-{}", user_id.as_simple());
         let now = Utc::now();
@@ -950,6 +950,7 @@ impl OAuthService {
     ) -> AppResult<OAuth2Config> {
         // Try tenant-specific credentials first
         if let Some(tid) = tenant_id {
+            let tid = TenantId::from(tid);
             let tenant_creds = self
                 .data
                 .database()
@@ -1276,7 +1277,7 @@ impl OAuthService {
     pub async fn get_auth_url(
         &self,
         user_id: uuid::Uuid,
-        tenant_id: uuid::Uuid,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<OAuthAuthorizationResponse> {
         // Get provider descriptor from registry
@@ -2595,7 +2596,7 @@ impl AuthRoutes {
     async fn extract_tenant_id_from_database(
         database: &Database,
         user_id: uuid::Uuid,
-    ) -> Result<uuid::Uuid, AppError> {
+    ) -> Result<TenantId, AppError> {
         let tenants = database
             .list_tenants_for_user(user_id)
             .await
@@ -2604,7 +2605,7 @@ impl AuthRoutes {
         tenants.first().map_or_else(
             || {
                 debug!(user_id = %user_id, "User has no tenants - using user_id as tenant");
-                Ok(user_id)
+                Ok(TenantId::from(user_id))
             },
             |tenant| Ok(tenant.id),
         )

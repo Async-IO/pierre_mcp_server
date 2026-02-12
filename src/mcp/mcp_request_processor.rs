@@ -21,6 +21,7 @@ use crate::constants::errors::{ERROR_INTERNAL_ERROR, ERROR_METHOD_NOT_FOUND};
 use crate::constants::protocol::{mcp_protocol_version, JSONRPC_VERSION};
 use crate::constants::tools::PUBLIC_DISCOVERY_TOOLS;
 use crate::errors::{AppError, AppResult};
+use crate::models::TenantId;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
@@ -243,7 +244,7 @@ impl McpRequestProcessor {
                 );
                 self.resolve_tools_for_authenticated_user(
                     auth_result.user_id,
-                    auth_result.active_tenant_id,
+                    auth_result.active_tenant_id.map(TenantId::from),
                 )
                 .await
             }
@@ -261,7 +262,7 @@ impl McpRequestProcessor {
     async fn resolve_tools_for_authenticated_user(
         &self,
         user_id: uuid::Uuid,
-        active_tenant_id: Option<uuid::Uuid>,
+        active_tenant_id: Option<TenantId>,
     ) -> Vec<ToolSchema> {
         if let Ok(Some(tenant_ctx)) = extract_tenant_context_internal(
             &self.resources.database,
@@ -307,7 +308,7 @@ impl McpRequestProcessor {
     ///
     /// Admin-only tools are excluded in both paths to prevent non-admin users
     /// from seeing them even if they appear in the catalog.
-    async fn tenant_filtered_tools(&self, tenant_id: uuid::Uuid) -> Vec<ToolSchema> {
+    async fn tenant_filtered_tools(&self, tenant_id: TenantId) -> Vec<ToolSchema> {
         match self
             .resources
             .tool_selection

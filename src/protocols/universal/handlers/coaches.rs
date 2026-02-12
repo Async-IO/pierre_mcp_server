@@ -9,6 +9,7 @@ use crate::database::coaches::{
     ListCoachesFilter, UpdateCoachRequest,
 };
 use crate::database_plugins::DatabaseProvider;
+use crate::models::TenantId;
 use crate::permissions::UserRole;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalToolExecutor};
 use crate::protocols::ProtocolError;
@@ -1008,7 +1009,8 @@ async fn verify_user_tenant_membership(
     target_user_id: Uuid,
     tenant_id_str: &str,
 ) -> Result<(), ProtocolError> {
-    let tenant_uuid = Uuid::parse_str(tenant_id_str)
+    let tenant_id: TenantId = tenant_id_str
+        .parse()
         .map_err(|_| ProtocolError::InternalError("Invalid tenant UUID in context".to_owned()))?;
 
     let user_tenants = executor
@@ -1022,7 +1024,7 @@ async fn verify_user_tenant_membership(
             ))
         })?;
 
-    if !user_tenants.iter().any(|t| t.id == tenant_uuid) {
+    if !user_tenants.iter().any(|t| t.id == tenant_id) {
         return Err(ProtocolError::InvalidRequest(format!(
             "User {target_user_id} does not belong to this tenant"
         )));

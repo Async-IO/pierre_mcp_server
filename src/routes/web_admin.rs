@@ -29,6 +29,7 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
+use pierre_core::models::TenantId;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
@@ -246,7 +247,7 @@ async fn assign_user_to_admin_tenant(
 async fn get_admin_tenant_scope(
     resources: &Arc<ServerResources>,
     admin_user_id: Uuid,
-) -> Result<Option<Uuid>, AppError> {
+) -> Result<Option<TenantId>, AppError> {
     let user = resources
         .database
         .get_user(admin_user_id)
@@ -276,7 +277,7 @@ async fn get_admin_tenant_scope(
 async fn verify_admin_tenant_access(
     resources: &Arc<ServerResources>,
     admin_user_id: Uuid,
-    target_tenant_id: Uuid,
+    target_tenant_id: TenantId,
 ) -> Result<(), AppError> {
     let user = resources
         .database
@@ -1329,7 +1330,7 @@ impl WebAdminRoutes {
     async fn handle_get_tenant_tools(
         State(resources): State<Arc<ServerResources>>,
         headers: HeaderMap,
-        Path(tenant_id): Path<uuid::Uuid>,
+        Path(tenant_id): Path<TenantId>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate_admin(&headers, &resources).await?;
         verify_admin_tenant_access(&resources, auth.user_id, tenant_id).await?;
@@ -1354,7 +1355,7 @@ impl WebAdminRoutes {
     async fn handle_set_tool_override(
         State(resources): State<Arc<ServerResources>>,
         headers: HeaderMap,
-        Path(tenant_id): Path<uuid::Uuid>,
+        Path(tenant_id): Path<TenantId>,
         Json(request): Json<SetToolOverrideRequest>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate_admin(&headers, &resources).await?;
@@ -1397,7 +1398,7 @@ impl WebAdminRoutes {
     async fn handle_remove_tool_override(
         State(resources): State<Arc<ServerResources>>,
         headers: HeaderMap,
-        Path((tenant_id, tool_name)): Path<(uuid::Uuid, String)>,
+        Path((tenant_id, tool_name)): Path<(TenantId, String)>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate_admin(&headers, &resources).await?;
         verify_admin_tenant_access(&resources, auth.user_id, tenant_id).await?;
@@ -1432,7 +1433,7 @@ impl WebAdminRoutes {
     async fn handle_get_tool_summary(
         State(resources): State<Arc<ServerResources>>,
         headers: HeaderMap,
-        Path(tenant_id): Path<uuid::Uuid>,
+        Path(tenant_id): Path<TenantId>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate_admin(&headers, &resources).await?;
         verify_admin_tenant_access(&resources, auth.user_id, tenant_id).await?;

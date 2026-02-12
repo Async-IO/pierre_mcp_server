@@ -457,9 +457,9 @@ impl UnifiedRateLimitCalculator {
         current_usage: u32,
     ) -> UnifiedRateLimitInfo {
         // Get tenant config, auto-configuring based on plan if not already configured
-        let tenant_config = if self.tenant_config.is_tenant_configured(tenant.id) {
+        let tenant_config = if self.tenant_config.is_tenant_configured(tenant.id.as_uuid()) {
             // Use existing configuration
-            self.tenant_config.get_tenant_config(tenant.id)
+            self.tenant_config.get_tenant_config(tenant.id.as_uuid())
         } else {
             // Auto-configure based on plan
             match tenant.plan.to_lowercase().as_str() {

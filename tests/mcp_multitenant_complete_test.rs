@@ -30,7 +30,7 @@ use pierre_mcp_server::{
         multitenant::MultiTenantMcpServer,
         resources::{ServerResources, ServerResourcesOptions},
     },
-    models::{Tenant, User, UserStatus, UserTier},
+    models::{Tenant, TenantId, User, UserStatus, UserTier},
     permissions::UserRole,
     tenant::TenantOAuthCredentials,
 };
@@ -212,7 +212,7 @@ impl MultiTenantMcpClient {
         display_name: &str,
     ) -> Result<String> {
         // Store tenant OAuth credentials for testing
-        let tenant_uuid = Uuid::new_v4();
+        let tenant_uuid = TenantId::new();
 
         // Create the actual test user first (will be tenant owner)
         let user_id = uuid::Uuid::new_v4();

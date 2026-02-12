@@ -73,7 +73,7 @@ pub use oauth::{
 };
 
 // Tenant domain
-pub use tenant::{AuthorizationCode, OAuthApp, OAuthAppParams, Tenant};
+pub use tenant::{AuthorizationCode, OAuthApp, OAuthAppParams, Tenant, TenantId};
 
 // Tool selection domain
 pub use tool_selection::{

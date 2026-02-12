@@ -26,7 +26,7 @@ use pierre_mcp_server::{
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::resources::{ServerResources, ServerResourcesOptions},
-    models::{Tenant, User, UserStatus, UserTier},
+    models::{Tenant, TenantId, User, UserStatus, UserTier},
     permissions::UserRole,
     routes::{
         auth::{AuthService, OAuthService},
@@ -257,7 +257,7 @@ async fn test_oauth_authorization_url_generation() {
     let admin_id = database.create_user(&admin_user).await.unwrap();
 
     // Create tenant
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let tenant = Tenant {
         id: tenant_id,
         name: "Test Tenant".to_owned(),
@@ -963,7 +963,7 @@ async fn test_invalid_provider_error() {
     );
 
     let user_id = Uuid::new_v4();
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let result = oauth_routes
         .get_auth_url(user_id, tenant_id, "invalid_provider")
         .await;
@@ -1191,7 +1191,7 @@ async fn test_disconnect_provider() {
 
     // Create tenant so disconnect_provider can resolve user's tenant
     let tenant = Tenant {
-        id: Uuid::new_v4(),
+        id: TenantId::new(),
         name: "Test Tenant".to_owned(),
         slug: "test-disconnect".to_owned(),
         domain: None,
@@ -1265,7 +1265,7 @@ async fn test_oauth_urls_contain_required_parameters() {
     let admin_id = database.create_user(&admin_user).await.unwrap();
 
     // Create tenant
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let tenant = Tenant {
         id: tenant_id,
         name: "Test Tenant".to_owned(),

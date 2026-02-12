@@ -28,8 +28,9 @@ pub use llm_manager::{
 };
 pub use oauth_client::{StoreCredentialsRequest, TenantOAuthClient};
 pub use oauth_manager::{CredentialConfig, TenantOAuthCredentials, TenantOAuthManager};
-pub use schema::{Tenant, TenantRole, TenantUser};
+pub use schema::{Tenant, TenantProviderUsage, TenantRole, TenantUser};
 
+use pierre_core::models::TenantId;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -37,7 +38,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TenantContext {
     /// Tenant ID
-    pub tenant_id: Uuid,
+    pub tenant_id: TenantId,
     /// Tenant name for display
     pub tenant_name: String,
     /// User ID within tenant context
@@ -50,7 +51,7 @@ impl TenantContext {
     /// Create new tenant context
     #[must_use]
     pub const fn new(
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         tenant_name: String,
         user_id: Uuid,
         user_role: TenantRole,

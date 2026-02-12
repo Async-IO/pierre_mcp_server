@@ -7,6 +7,7 @@
 use super::Database;
 use crate::dashboard_routes::ToolUsage;
 use crate::errors::{AppError, AppResult};
+use crate::models::TenantId;
 use crate::rate_limiting::JwtUsage;
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
@@ -495,7 +496,10 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails.
-    pub async fn get_system_stats_impl(&self, tenant_id: Option<Uuid>) -> AppResult<(u64, u64)> {
+    pub async fn get_system_stats_impl(
+        &self,
+        tenant_id: Option<TenantId>,
+    ) -> AppResult<(u64, u64)> {
         // Get total users (optionally scoped to tenant)
         let user_count: i64 = if let Some(tid) = tenant_id {
             sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE tenant_id = ?1")
@@ -613,7 +617,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn get_system_stats(&self, tenant_id: Option<Uuid>) -> AppResult<(u64, u64)> {
+    pub async fn get_system_stats(&self, tenant_id: Option<TenantId>) -> AppResult<(u64, u64)> {
         self.get_system_stats_impl(tenant_id).await
     }
 

@@ -221,23 +221,22 @@ impl OAuth2AuthorizationServer {
 
         // Generate authorization code with tenant isolation and state binding
         // Resolve tenant_id from JWT claims (active_tenant_id) or database lookup
-        let tenant_id = match tenant_id {
-            Some(tid) => tid,
-            None => {
-                // Resolve actual tenant from database - use first tenant user belongs to
-                let tenants = self
-                    .database
-                    .list_tenants_for_user(user_id)
-                    .await
-                    .map_err(|e| {
-                        error!("Failed to get tenants for user {}: {:#}", user_id, e);
-                        OAuth2Error::invalid_request("Failed to resolve user tenant")
-                    })?;
-                tenants.first().map(|t| t.id.to_string()).ok_or_else(|| {
-                    error!("User {} has no tenant memberships", user_id);
-                    OAuth2Error::invalid_request("User does not belong to any tenant")
-                })?
-            }
+        let tenant_id = if let Some(tid) = tenant_id {
+            tid
+        } else {
+            // Resolve actual tenant from database - use first tenant user belongs to
+            let tenants = self
+                .database
+                .list_tenants_for_user(user_id)
+                .await
+                .map_err(|e| {
+                    error!("Failed to get tenants for user {}: {:#}", user_id, e);
+                    OAuth2Error::invalid_request("Failed to resolve user tenant")
+                })?;
+            tenants.first().map(|t| t.id.to_string()).ok_or_else(|| {
+                error!("User {} has no tenant memberships", user_id);
+                OAuth2Error::invalid_request("User does not belong to any tenant")
+            })?
         };
         let auth_code = self
             .generate_authorization_code(AuthCodeParams {

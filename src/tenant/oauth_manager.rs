@@ -13,6 +13,7 @@ use crate::constants::rate_limits::{
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::errors::{AppError, AppResult};
 use chrono::Utc;
+use pierre_core::models::TenantId;
 use std::collections::HashMap;
 use std::env;
 use std::sync::Arc;
@@ -38,7 +39,7 @@ pub struct CredentialConfig {
 #[derive(Debug, Clone)]
 pub struct TenantOAuthCredentials {
     /// Tenant ID that owns these credentials
-    pub tenant_id: Uuid,
+    pub tenant_id: TenantId,
     /// OAuth provider name
     pub provider: String,
     /// OAuth client ID (public)
@@ -59,8 +60,8 @@ pub struct TenantOAuthCredentials {
 /// In production, credentials would be encrypted and stored in the database.
 pub struct TenantOAuthManager {
     // In-memory storage for now - would be database-backed in production
-    credentials: HashMap<(Uuid, String), TenantOAuthCredentials>,
-    usage_tracking: HashMap<(Uuid, String, chrono::NaiveDate), u32>,
+    credentials: HashMap<(TenantId, String), TenantOAuthCredentials>,
+    usage_tracking: HashMap<(TenantId, String, chrono::NaiveDate), u32>,
     // Server-level OAuth configuration (read once at startup)
     oauth_config: Arc<OAuthConfig>,
 }
@@ -83,7 +84,7 @@ impl TenantOAuthManager {
     /// Returns an error if no credentials are found for the tenant/provider combination
     pub async fn get_credentials(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         provider: &str,
         database: &Database,
     ) -> AppResult<TenantOAuthCredentials> {
@@ -104,7 +105,7 @@ impl TenantOAuthManager {
     pub async fn get_credentials_for_user(
         &self,
         user_id: Option<Uuid>,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         provider: &str,
         database: &Database,
     ) -> AppResult<TenantOAuthCredentials> {
@@ -145,7 +146,7 @@ impl TenantOAuthManager {
     /// Returns an error if credential storage fails
     pub fn store_credentials(
         &mut self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         provider: &str,
         config: CredentialConfig,
     ) -> AppResult<()> {
@@ -169,7 +170,7 @@ impl TenantOAuthManager {
     /// # Errors
     ///
     /// Returns an error if rate limit check fails
-    pub fn check_rate_limit(&self, tenant_id: Uuid, provider: &str) -> AppResult<(u32, u32)> {
+    pub fn check_rate_limit(&self, tenant_id: TenantId, provider: &str) -> AppResult<(u32, u32)> {
         let today = Utc::now().date_naive();
         let usage = self
             .usage_tracking
@@ -196,7 +197,7 @@ impl TenantOAuthManager {
     /// Returns an error if usage increment fails
     pub fn increment_usage(
         &mut self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         provider: &str,
         successful_requests: u32,
         _failed_requests: u32,
@@ -212,7 +213,7 @@ impl TenantOAuthManager {
     /// Try to load server-level OAuth credentials from `ServerConfig`
     fn try_server_level_credentials(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         provider: &str,
     ) -> Option<TenantOAuthCredentials> {
         match provider.to_lowercase().as_str() {
@@ -229,7 +230,7 @@ impl TenantOAuthManager {
     }
 
     /// Try to load Strava credentials from `ServerConfig`
-    fn try_strava_config_credentials(&self, tenant_id: Uuid) -> Option<TenantOAuthCredentials> {
+    fn try_strava_config_credentials(&self, tenant_id: TenantId) -> Option<TenantOAuthCredentials> {
         let strava_config = &self.oauth_config.strava;
 
         if let (Some(client_id), Some(client_secret)) =
@@ -265,7 +266,7 @@ impl TenantOAuthManager {
     }
 
     /// Try to load Fitbit credentials from `ServerConfig`
-    fn try_fitbit_config_credentials(&self, tenant_id: Uuid) -> Option<TenantOAuthCredentials> {
+    fn try_fitbit_config_credentials(&self, tenant_id: TenantId) -> Option<TenantOAuthCredentials> {
         let fitbit_config = &self.oauth_config.fitbit;
 
         if let (Some(client_id), Some(client_secret)) =
@@ -311,7 +312,7 @@ impl TenantOAuthManager {
     }
 
     /// Try to load Garmin credentials from `ServerConfig`
-    fn try_garmin_config_credentials(&self, tenant_id: Uuid) -> Option<TenantOAuthCredentials> {
+    fn try_garmin_config_credentials(&self, tenant_id: TenantId) -> Option<TenantOAuthCredentials> {
         let garmin_config = &self.oauth_config.garmin;
 
         if let (Some(client_id), Some(client_secret)) =
@@ -347,7 +348,7 @@ impl TenantOAuthManager {
     }
 
     /// Try to load WHOOP credentials from `ServerConfig`
-    fn try_whoop_config_credentials(&self, tenant_id: Uuid) -> Option<TenantOAuthCredentials> {
+    fn try_whoop_config_credentials(&self, tenant_id: TenantId) -> Option<TenantOAuthCredentials> {
         let whoop_config = &self.oauth_config.whoop;
 
         if let (Some(client_id), Some(client_secret)) =
@@ -391,7 +392,7 @@ impl TenantOAuthManager {
     }
 
     /// Try to load Terra credentials from `ServerConfig`
-    fn try_terra_config_credentials(&self, tenant_id: Uuid) -> Option<TenantOAuthCredentials> {
+    fn try_terra_config_credentials(&self, tenant_id: TenantId) -> Option<TenantOAuthCredentials> {
         let terra_config = &self.oauth_config.terra;
 
         if let (Some(client_id), Some(client_secret)) =
@@ -439,7 +440,7 @@ impl TenantOAuthManager {
     async fn try_user_specific_credentials(
         &self,
         user_id: Uuid,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         provider: &str,
         database: &Database,
     ) -> Option<TenantOAuthCredentials> {
@@ -536,7 +537,7 @@ impl TenantOAuthManager {
     /// Try to load tenant-specific OAuth credentials from memory cache and database
     async fn try_tenant_specific_credentials(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         provider: &str,
         database: &Database,
     ) -> Option<TenantOAuthCredentials> {

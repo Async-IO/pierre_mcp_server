@@ -15,7 +15,7 @@
 
 use crate::{
     auth::AuthResult, database_plugins::DatabaseProvider, errors::AppError,
-    mcp::resources::ServerResources, tenant_routes, utils::uuid::parse_uuid,
+    mcp::resources::ServerResources, models::TenantId, tenant_routes,
 };
 use axum::{
     extract::State,
@@ -149,7 +149,7 @@ impl TenantRoutes {
         );
 
         // Parse the target tenant ID
-        let tenant_id = parse_uuid(&request.tenant_id).map_err(|e| {
+        let tenant_id: TenantId = request.tenant_id.parse().map_err(|e| {
             warn!(tenant_id = %request.tenant_id, error = %e, "Invalid tenant ID format");
             AppError::invalid_input(format!("Invalid tenant ID format: {e}"))
         })?;
@@ -268,7 +268,7 @@ impl TenantRoutes {
     fn extract_active_tenant_from_header(
         headers: &HeaderMap,
         resources: &Arc<ServerResources>,
-    ) -> Option<uuid::Uuid> {
+    ) -> Option<TenantId> {
         let auth_header = headers.get("authorization")?.to_str().ok()?;
         let token = auth_header.strip_prefix("Bearer ")?;
 

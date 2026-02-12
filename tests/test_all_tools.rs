@@ -27,7 +27,7 @@ use pierre_mcp_server::{
         TimeOfDay, TrendDirection, TrendIndicators,
     },
     mcp::resources::{ServerResources, ServerResourcesOptions},
-    models::{DecryptedToken, Tenant, User, UserOAuthToken, UserStatus, UserTier},
+    models::{DecryptedToken, Tenant, TenantId, User, UserOAuthToken, UserStatus, UserTier},
     permissions::UserRole,
     protocols::universal::{UniversalRequest, UniversalToolExecutor},
     tenant::TenantOAuthCredentials,
@@ -312,7 +312,7 @@ async fn find_or_create_test_user_with_token(
 async fn create_test_user(executor: &UniversalToolExecutor) -> Result<(User, Tenant)> {
     // Create a unique test user and tenant for this test run
     let user_id = Uuid::new_v4();
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     let user = User {
         id: user_id,
@@ -406,7 +406,7 @@ async fn create_test_user(executor: &UniversalToolExecutor) -> Result<(User, Ten
 
 async fn setup_tenant_oauth_credentials(
     executor: &UniversalToolExecutor,
-    tenant_id: Uuid,
+    tenant_id: TenantId,
 ) -> Result<()> {
     // Get Strava credentials from environment
     let client_id = env::var("STRAVA_CLIENT_ID").unwrap_or_else(|_| "163846".to_owned());

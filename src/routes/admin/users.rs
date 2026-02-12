@@ -24,7 +24,7 @@ use crate::{
     constants::tiers,
     database_plugins::{factory::Database, DatabaseProvider},
     errors::{AppError, AppResult},
-    models::{Tenant, UserStatus},
+    models::{Tenant, TenantId, UserStatus},
     rate_limiting::UnifiedRateLimitCalculator,
 };
 
@@ -284,7 +284,7 @@ async fn create_default_tenant_for_user(
         "assets",
     ];
 
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let slug = tenant_slug.trim().to_lowercase();
 
     if slug.is_empty() {

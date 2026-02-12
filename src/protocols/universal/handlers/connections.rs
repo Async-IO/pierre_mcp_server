@@ -6,6 +6,7 @@
 
 use crate::constants::oauth_config::AUTHORIZATION_EXPIRES_MINUTES;
 use crate::database_plugins::DatabaseProvider;
+use crate::models::TenantId;
 use crate::oauth2_client::OAuthClientState;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalToolExecutor};
 use crate::protocols::ProtocolError;
@@ -372,20 +373,26 @@ pub fn handle_connect_provider(
             .list_tenants_for_user(user_uuid)
             .await
             .unwrap_or_default();
-        let tenant_id = request
+        let tenant_id: TenantId = request
             .tenant_id
             .as_ref()
-            .and_then(|t| uuid::Uuid::parse_str(t).ok())
+            .and_then(|t| t.parse::<TenantId>().ok())
             .map_or_else(
                 // No tenant_id in request; use first membership or user_uuid
-                || tenants.first().map_or(user_uuid, |t| t.id),
+                || {
+                    tenants
+                        .first()
+                        .map_or_else(|| TenantId::from(user_uuid), |t| t.id)
+                },
                 |requested_tid| {
                     // Verify the user is a member of the requested tenant
                     if tenants.iter().any(|t| t.id == requested_tid) {
                         requested_tid
                     } else {
                         // User is not a member of the requested tenant
-                        tenants.first().map_or(user_uuid, |t| t.id)
+                        tenants
+                            .first()
+                            .map_or_else(|| TenantId::from(user_uuid), |t| t.id)
                     }
                 },
             );
@@ -446,7 +453,11 @@ pub fn handle_connect_provider(
                     user_uuid, provider, flow_type
                 );
                 Ok(build_oauth_success_response(
-                    user_uuid, tenant_id, provider, &url, &state,
+                    user_uuid,
+                    tenant_id.as_uuid(),
+                    provider,
+                    &url,
+                    &state,
                 ))
             }
             Err(e) => {

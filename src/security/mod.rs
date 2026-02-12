@@ -16,6 +16,7 @@ use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult};
 use crate::security::key_rotation::KeyVersion;
+use pierre_core::models::TenantId;
 use ring::{
     aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM},
     hkdf::{Salt, HKDF_SHA256},
@@ -214,14 +215,14 @@ impl TenantEncryptionManager {
     /// # Errors
     ///
     /// Returns an error if the key cache `RwLock` is poisoned
-    pub fn derive_tenant_key(&self, tenant_id: Uuid) -> AppResult<[u8; 32]> {
+    pub fn derive_tenant_key(&self, tenant_id: TenantId) -> AppResult<[u8; 32]> {
         // Check cache first
         {
             let cache = self.derived_keys_cache.read().map_err(|e| {
                 error!(error = ?e, "Security cache RwLock poisoned - key derivation unavailable (CRITICAL SYSTEM FAILURE)");
                 AppError::internal("Security cache lock poisoned - key derivation unavailable")
             })?;
-            if let Some(cached_key) = cache.get(&tenant_id) {
+            if let Some(cached_key) = cache.get(&tenant_id.as_uuid()) {
                 return Ok(*cached_key);
             }
         }
@@ -248,7 +249,7 @@ impl TenantEncryptionManager {
                 error!(tenant_id = %tenant_id, error = ?e, "Security cache RwLock write poisoned - cannot cache derived key (CRITICAL)");
                 AppError::internal("Security cache lock poisoned - cannot cache derived key")
             })?;
-            cache.insert(tenant_id, derived_key);
+            cache.insert(tenant_id.as_uuid(), derived_key);
         }
 
         Ok(derived_key)
@@ -287,9 +288,9 @@ impl TenantEncryptionManager {
     /// # Errors
     ///
     /// Returns an error if encryption fails
-    pub fn encrypt_tenant_data(&self, tenant_id: Uuid, data: &str) -> AppResult<EncryptedData> {
+    pub fn encrypt_tenant_data(&self, tenant_id: TenantId, data: &str) -> AppResult<EncryptedData> {
         let derived_key = self.derive_tenant_key(tenant_id)?;
-        self.encrypt_with_key(&derived_key, data, Some(tenant_id))
+        self.encrypt_with_key(&derived_key, data, Some(tenant_id.as_uuid()))
     }
 
     /// Decrypt data with tenant-specific key
@@ -299,11 +300,11 @@ impl TenantEncryptionManager {
     /// Returns an error if decryption fails or metadata is invalid
     pub fn decrypt_tenant_data(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         encrypted_data: &EncryptedData,
     ) -> AppResult<String> {
         // Verify tenant ID matches
-        if encrypted_data.metadata.tenant_id != Some(tenant_id) {
+        if encrypted_data.metadata.tenant_id != Some(tenant_id.as_uuid()) {
             return Err(AppError::invalid_input(
                 "Tenant ID mismatch in encrypted data",
             ));
@@ -423,7 +424,7 @@ impl TenantEncryptionManager {
     /// # Errors
     ///
     /// Returns an error if key rotation fails, database operations fail, or re-encryption fails
-    pub async fn rotate_tenant_key(&self, tenant_id: Uuid) -> AppResult<()> {
+    pub async fn rotate_tenant_key(&self, tenant_id: TenantId) -> AppResult<()> {
         // Get current version and increment for new key
         let old_version = self.get_current_version()?;
         let new_version = old_version + 1;
@@ -432,7 +433,7 @@ impl TenantEncryptionManager {
         if let Some(database) = &self.database {
             // Create new key version record
             let key_version = KeyVersion {
-                tenant_id: Some(tenant_id),
+                tenant_id: Some(tenant_id.as_uuid()),
                 version: new_version,
                 created_at: chrono::Utc::now(),
                 expires_at: chrono::Utc::now() + chrono::Duration::days(365), // 1 year expiry
@@ -467,7 +468,7 @@ impl TenantEncryptionManager {
                 error!(tenant_id = %tenant_id, error = ?e, "Security cache RwLock write poisoned during key rotation (CRITICAL)");
                 AppError::internal("Security cache lock poisoned - cannot rotate tenant key")
             })?;
-            cache.remove(&tenant_id);
+            cache.remove(&tenant_id.as_uuid());
         }
 
         // Update current version
@@ -553,7 +554,7 @@ impl EnhancedEncryptedToken {
     /// Returns an error if encryption fails
     pub fn encrypt_oauth_token(
         encryption_manager: &TenantEncryptionManager,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         access_token: &str,
         refresh_token: &str,
         expires_at: chrono::DateTime<chrono::Utc>,
@@ -576,7 +577,7 @@ impl EnhancedEncryptedToken {
     pub fn decrypt_oauth_token(
         &self,
         encryption_manager: &TenantEncryptionManager,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
     ) -> AppResult<(String, String)> {
         let access_token = encryption_manager.decrypt_tenant_data(tenant_id, &self.access_token)?;
         let refresh_token =

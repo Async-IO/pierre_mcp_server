@@ -36,7 +36,7 @@ use uuid::Uuid;
 
 /// Require admin privileges for a user
 ///
-/// Verifies that the authenticated user has admin role (admin or super_admin).
+/// Verifies that the authenticated user has admin role (admin or `super_admin`).
 /// Returns the User record if authorized, or 403 Forbidden if not.
 ///
 /// # Arguments
@@ -78,12 +78,4 @@ pub async fn require_admin(user_id: Uuid, database: &Arc<Database>) -> Result<Us
     }
 
     Ok(user)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    // Unit tests would go here, but require integration test setup
-    // The functionality is tested via integration tests in tests/admin_test.rs
 }

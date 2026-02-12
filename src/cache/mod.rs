@@ -18,6 +18,7 @@ use crate::constants::cache::{
     TTL_ACTIVITY_SECS, TTL_PROFILE_SECS, TTL_STATS_SECS,
 };
 use crate::errors::AppResult;
+use pierre_core::models::TenantId;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::time::Duration;
@@ -50,7 +51,7 @@ use uuid::Uuid;
 ///
 /// // Create a cache key for an athlete profile
 /// let key = CacheKey {
-///     tenant_id: Uuid::new_v4(),
+///     tenant_id: TenantId::new_v4(),
 ///     user_id: Uuid::new_v4(),
 ///     provider: "strava".to_owned(),
 ///     resource: CacheResource::AthleteProfile,
@@ -100,7 +101,7 @@ pub trait CacheProvider: Send + Sync + Clone {
     /// # use uuid::Uuid;
     /// # async fn example() -> Result<(), pierre_mcp_server::errors::AppError> {
     /// # let cache: InMemoryCache = InMemoryCache::new(CacheConfig { enable_background_cleanup: false, ..Default::default() }).await?;
-    /// # let key = CacheKey { tenant_id: Uuid::new_v4(), user_id: Uuid::new_v4(), provider: "strava".to_owned(), resource: CacheResource::AthleteProfile };
+    /// # let key = CacheKey { tenant_id: TenantId::new_v4(), user_id: Uuid::new_v4(), provider: "strava".to_owned(), resource: CacheResource::AthleteProfile };
     /// // Store a string value with 1 hour TTL
     /// cache.set(&key, &"cached_value", Duration::from_secs(3600)).await?;
     /// # Ok(())
@@ -127,7 +128,7 @@ pub trait CacheProvider: Send + Sync + Clone {
     /// # use uuid::Uuid;
     /// # async fn example() -> Result<(), pierre_mcp_server::errors::AppError> {
     /// # let cache: InMemoryCache = InMemoryCache::new(CacheConfig { enable_background_cleanup: false, ..Default::default() }).await?;
-    /// # let key = CacheKey { tenant_id: Uuid::new_v4(), user_id: Uuid::new_v4(), provider: "strava".to_owned(), resource: CacheResource::AthleteProfile };
+    /// # let key = CacheKey { tenant_id: TenantId::new_v4(), user_id: Uuid::new_v4(), provider: "strava".to_owned(), resource: CacheResource::AthleteProfile };
     /// // Retrieve a cached value (returns None if not found or expired)
     /// let value: Option<String> = cache.get(&key).await?;
     /// match value {
@@ -153,7 +154,7 @@ pub trait CacheProvider: Send + Sync + Clone {
     /// # use uuid::Uuid;
     /// # async fn example() -> Result<(), pierre_mcp_server::errors::AppError> {
     /// # let cache: InMemoryCache = InMemoryCache::new(CacheConfig { enable_background_cleanup: false, ..Default::default() }).await?;
-    /// # let key = CacheKey { tenant_id: Uuid::new_v4(), user_id: Uuid::new_v4(), provider: "strava".to_owned(), resource: CacheResource::AthleteProfile };
+    /// # let key = CacheKey { tenant_id: TenantId::new_v4(), user_id: Uuid::new_v4(), provider: "strava".to_owned(), resource: CacheResource::AthleteProfile };
     /// // Invalidate a specific cache entry (e.g., after user updates their profile)
     /// cache.invalidate(&key).await?;
     /// # Ok(())
@@ -351,7 +352,7 @@ impl Default for CacheConfig {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CacheKey {
     /// Tenant ID for multi-tenant isolation
-    pub tenant_id: Uuid,
+    pub tenant_id: TenantId,
     /// User ID for per-user isolation
     pub user_id: Uuid,
     /// OAuth provider name
@@ -364,7 +365,7 @@ impl CacheKey {
     /// Create new cache key
     #[must_use]
     pub const fn new(
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         user_id: Uuid,
         provider: String,
         resource: CacheResource,
@@ -379,13 +380,13 @@ impl CacheKey {
 
     /// Create pattern for invalidating all entries for a user
     #[must_use]
-    pub fn user_pattern(tenant_id: Uuid, user_id: Uuid, provider: &str) -> String {
+    pub fn user_pattern(tenant_id: TenantId, user_id: Uuid, provider: &str) -> String {
         format!("tenant:{tenant_id}:user:{user_id}:provider:{provider}:*")
     }
 
     /// Create pattern for invalidating all entries for a tenant
     #[must_use]
-    pub fn tenant_pattern(tenant_id: Uuid, provider: &str) -> String {
+    pub fn tenant_pattern(tenant_id: TenantId, provider: &str) -> String {
         format!("tenant:{tenant_id}:*:provider:{provider}:*")
     }
 }

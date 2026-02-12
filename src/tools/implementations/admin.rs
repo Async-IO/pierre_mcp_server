@@ -32,6 +32,7 @@ use crate::database::coaches::{
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult};
 use crate::mcp::schema::{JsonSchema, PropertySchema};
+use crate::models::TenantId;
 use crate::tools::context::ToolExecutionContext;
 use crate::tools::result::ToolResult;
 use crate::tools::traits::{McpTool, ToolCapabilities};
@@ -64,7 +65,8 @@ async fn verify_user_in_tenant(
     target_user_id: Uuid,
     tenant_id_str: &str,
 ) -> AppResult<()> {
-    let tenant_uuid = Uuid::parse_str(tenant_id_str)
+    let tenant_id: TenantId = tenant_id_str
+        .parse()
         .map_err(|_| AppError::internal("Invalid tenant UUID in context"))?;
 
     let user_tenants = ctx
@@ -78,7 +80,7 @@ async fn verify_user_in_tenant(
             ))
         })?;
 
-    if !user_tenants.iter().any(|t| t.id == tenant_uuid) {
+    if !user_tenants.iter().any(|t| t.id == tenant_id) {
         return Err(AppError::auth_invalid(format!(
             "User {target_user_id} does not belong to this tenant"
         )));

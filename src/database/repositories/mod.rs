@@ -5,6 +5,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::a2a::auth::A2AClient;
+use pierre_core::models::TenantId;
 use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
 use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
@@ -578,13 +579,13 @@ pub trait TenantRepository: Send + Sync {
     /// Get tenant OAuth providers
     async fn get_oauth_providers(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
     ) -> Result<Vec<crate::tenant::TenantOAuthCredentials>, DatabaseError>;
 
     /// Get tenant OAuth credentials for specific provider
     async fn get_oauth_credentials(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         provider: &str,
     ) -> Result<Option<crate::tenant::TenantOAuthCredentials>, DatabaseError>;
 
@@ -991,20 +992,20 @@ pub trait ToolSelectionRepository: Send + Sync {
     /// Get all tool overrides for a tenant
     async fn get_tenant_tool_overrides(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
     ) -> Result<Vec<crate::models::TenantToolOverride>, DatabaseError>;
 
     /// Get a specific tool override for a tenant
     async fn get_tenant_tool_override(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         tool_name: &str,
     ) -> Result<Option<crate::models::TenantToolOverride>, DatabaseError>;
 
     /// Create or update a tool override for a tenant
     async fn upsert_tenant_tool_override(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         tool_name: &str,
         is_enabled: bool,
         enabled_by_user_id: Option<Uuid>,
@@ -1014,12 +1015,12 @@ pub trait ToolSelectionRepository: Send + Sync {
     /// Delete a tool override (revert to catalog default)
     async fn delete_tenant_tool_override(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         tool_name: &str,
     ) -> Result<bool, DatabaseError>;
 
     /// Count enabled tools for a tenant (for summary)
-    async fn count_enabled_tools(&self, tenant_id: Uuid) -> Result<usize, DatabaseError>;
+    async fn count_enabled_tools(&self, tenant_id: TenantId) -> Result<usize, DatabaseError>;
 }
 
 /// Coaches (custom AI personas) storage and management repository (tenant-scoped)

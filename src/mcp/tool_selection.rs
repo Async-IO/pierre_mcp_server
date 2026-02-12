@@ -13,6 +13,7 @@ use crate::models::{
     ToolCatalogEntry, ToolCategory, ToolEnablementSource,
 };
 use lru::LruCache;
+use pierre_core::models::TenantId;
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
@@ -39,7 +40,7 @@ struct CacheEntry {
 /// 4. **Catalog Default** - Default enablement from `tool_catalog` table
 pub struct ToolSelectionService {
     database: Arc<Database>,
-    cache: Arc<RwLock<LruCache<Uuid, CacheEntry>>>,
+    cache: Arc<RwLock<LruCache<TenantId, CacheEntry>>>,
     cache_ttl: Duration,
     /// Global tool selection configuration from environment
     config: ToolSelectionConfig,
@@ -108,7 +109,7 @@ impl ToolSelectionService {
     /// # Errors
     ///
     /// Returns an error if database operations fail
-    pub async fn get_effective_tools(&self, tenant_id: Uuid) -> AppResult<Vec<EffectiveTool>> {
+    pub async fn get_effective_tools(&self, tenant_id: TenantId) -> AppResult<Vec<EffectiveTool>> {
         // Check cache first
         {
             let cache = self.cache.read().await;
@@ -144,7 +145,7 @@ impl ToolSelectionService {
     /// # Errors
     ///
     /// Returns an error if database operations fail
-    pub async fn get_enabled_tools(&self, tenant_id: Uuid) -> AppResult<Vec<EffectiveTool>> {
+    pub async fn get_enabled_tools(&self, tenant_id: TenantId) -> AppResult<Vec<EffectiveTool>> {
         let all_tools = self.get_effective_tools(tenant_id).await?;
         Ok(all_tools.into_iter().filter(|t| t.is_enabled).collect())
     }
@@ -156,7 +157,7 @@ impl ToolSelectionService {
     /// Returns an error if:
     /// - The tool doesn't exist in the catalog
     /// - Database operations fail
-    pub async fn is_tool_enabled(&self, tenant_id: Uuid, tool_name: &str) -> AppResult<bool> {
+    pub async fn is_tool_enabled(&self, tenant_id: TenantId, tool_name: &str) -> AppResult<bool> {
         // Check global disabled first (highest precedence)
         if self.config.is_globally_disabled(tool_name) {
             return Ok(false);
@@ -215,7 +216,7 @@ impl ToolSelectionService {
     /// - Database operations fail
     pub async fn set_tool_override(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         tool_name: &str,
         is_enabled: bool,
         admin_user_id: Uuid,
@@ -250,7 +251,11 @@ impl ToolSelectionService {
     /// # Errors
     ///
     /// Returns an error if database operations fail
-    pub async fn remove_tool_override(&self, tenant_id: Uuid, tool_name: &str) -> AppResult<bool> {
+    pub async fn remove_tool_override(
+        &self,
+        tenant_id: TenantId,
+        tool_name: &str,
+    ) -> AppResult<bool> {
         let deleted = self
             .database
             .delete_tenant_tool_override(tenant_id, tool_name)
@@ -269,7 +274,7 @@ impl ToolSelectionService {
     /// Returns an error if database operations fail
     pub async fn get_availability_summary(
         &self,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
     ) -> AppResult<ToolAvailabilitySummary> {
         let tools = self.get_effective_tools(tenant_id).await?;
 
@@ -313,7 +318,7 @@ impl ToolSelectionService {
     }
 
     /// Invalidate cache for a specific tenant
-    pub async fn invalidate_tenant(&self, tenant_id: Uuid) {
+    pub async fn invalidate_tenant(&self, tenant_id: TenantId) {
         self.cache.write().await.pop(&tenant_id);
         debug!("Invalidated tool selection cache for tenant {tenant_id}");
     }
@@ -337,7 +342,7 @@ impl ToolSelectionService {
     ///
     /// If the tenant doesn't exist in the database, falls back to catalog defaults
     /// with Enterprise plan (no plan restrictions, all tools available by default).
-    async fn compute_effective_tools(&self, tenant_id: Uuid) -> AppResult<Vec<EffectiveTool>> {
+    async fn compute_effective_tools(&self, tenant_id: TenantId) -> AppResult<Vec<EffectiveTool>> {
         // Try to get tenant; fall back to Enterprise plan if tenant doesn't exist
         let (tenant_plan, override_map) = match self.database.get_tenant_by_id(tenant_id).await {
             Ok(tenant) => {

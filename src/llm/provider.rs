@@ -32,6 +32,7 @@
 //! }
 //! ```
 
+use pierre_core::models::TenantId;
 use std::fmt;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -203,7 +204,7 @@ impl ChatProvider {
     /// Returns an error if no credentials are found for the provider.
     pub async fn from_tenant(
         user_id: Option<Uuid>,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         provider: TenantLlmProvider,
         database: &Database,
     ) -> Result<Self, AppError> {
