@@ -24,6 +24,7 @@
 //! use pierre_mcp_server::providers::core::FitnessProvider;
 //! use pierre_mcp_server::cache::{CacheConfig, CacheProvider};
 //! use pierre_mcp_server::cache::memory::InMemoryCache;
+//! use pierre_mcp_server::models::TenantId;
 //! use uuid::Uuid;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
@@ -38,7 +39,7 @@
 //! let cached_provider = CachingFitnessProvider::new(
 //!     provider,
 //!     cache,
-//!     Uuid::new_v4(), // tenant_id
+//!     TenantId::new(), // tenant_id
 //!     Uuid::new_v4(), // user_id
 //! );
 //!

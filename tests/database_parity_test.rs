@@ -11,7 +11,7 @@
 use chrono::Utc;
 use pierre_mcp_server::{
     database_plugins::{factory::Database, DatabaseProvider},
-    models::{Tenant, TenantPlan, ToolCategory, User, UserStatus, UserTier},
+    models::{Tenant, TenantId, TenantPlan, ToolCategory, User, UserStatus, UserTier},
     permissions::UserRole,
 };
 use std::sync::Arc;
@@ -190,7 +190,7 @@ async fn test_parity_tenant_tool_overrides() {
     };
 
     // Create identical tenants and users in both databases
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let sqlite_user_id = create_test_user(&sqlite_db).await;
     let pg_user_id = create_test_user(&pg_db).await;
 
@@ -546,7 +546,7 @@ async fn create_test_user(db: &Database) -> Uuid {
     user_id
 }
 
-async fn create_test_tenant(db: &Database, tenant_id: Uuid, owner_id: Uuid) {
+async fn create_test_tenant(db: &Database, tenant_id: TenantId, owner_id: Uuid) {
     let tenant = Tenant {
         id: tenant_id,
         name: "Parity Test Tenant".to_owned(),
