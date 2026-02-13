@@ -11,7 +11,7 @@
 use chrono::Utc;
 use pierre_mcp_server::{
     database_plugins::{factory::Database, DatabaseProvider},
-    models::{Tenant, TenantPlan, ToolCategory, User, UserStatus, UserTier},
+    models::{Tenant, TenantId, TenantPlan, ToolCategory, User, UserStatus, UserTier},
     permissions::UserRole,
 };
 use uuid::Uuid;
@@ -174,7 +174,7 @@ async fn test_pg_tenant_tool_overrides() {
         .expect("Failed to get database");
 
     // Create a test tenant
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = create_pg_test_user(&db).await;
     create_pg_test_tenant(&db, tenant_id, user_id).await;
 
@@ -245,7 +245,7 @@ async fn test_pg_count_enabled_tools() {
         .expect("Failed to get database");
 
     // Create a test tenant with starter plan
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = create_pg_test_user(&db).await;
     create_pg_test_tenant(&db, tenant_id, user_id).await;
 
@@ -661,7 +661,7 @@ async fn create_pg_test_user(db: &Database) -> Uuid {
     user_id
 }
 
-async fn create_pg_test_tenant(db: &Database, tenant_id: Uuid, owner_id: Uuid) {
+async fn create_pg_test_tenant(db: &Database, tenant_id: TenantId, owner_id: Uuid) {
     let tenant = Tenant {
         id: tenant_id,
         name: "Test Tenant".to_owned(),

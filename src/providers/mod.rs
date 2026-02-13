@@ -21,8 +21,9 @@
 //! ```rust,no_run
 //! use pierre_mcp_server::providers::{create_provider, create_tenant_provider};
 //! use pierre_mcp_server::constants::oauth_providers;
+//! use pierre_mcp_server::models::TenantId;
 //! # use uuid::Uuid;
-//! # let tenant_id = Uuid::new_v4();
+//! # let tenant_id = TenantId::new();
 //! # let user_id = Uuid::new_v4();
 //!
 //! // Create a basic provider
