@@ -189,6 +189,7 @@ impl ToolRegistry {
                 name: tool.name().to_owned(),
                 description: tool.description().to_owned(),
                 input_schema: tool.input_schema(),
+                annotations: None,
             })
             .collect()
     }
@@ -209,6 +210,7 @@ impl ToolRegistry {
                 name: tool.name().to_owned(),
                 description: tool.description().to_owned(),
                 input_schema: tool.input_schema(),
+                annotations: None,
             })
             .collect()
     }
@@ -232,6 +234,7 @@ impl ToolRegistry {
                 name: tool.name().to_owned(),
                 description: tool.description().to_owned(),
                 input_schema: tool.input_schema(),
+                annotations: None,
             })
             .collect()
     }
@@ -251,6 +254,7 @@ impl ToolRegistry {
                 name: tool.name().to_owned(),
                 description: tool.description().to_owned(),
                 input_schema: tool.input_schema(),
+                annotations: None,
             })
             .collect()
     }
@@ -273,6 +277,7 @@ impl ToolRegistry {
                 name: tool.name().to_owned(),
                 description: tool.description().to_owned(),
                 input_schema: tool.input_schema(),
+                annotations: None,
             })
             .collect()
     }

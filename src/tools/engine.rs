@@ -255,6 +255,7 @@ impl ToolEngine {
                             .get("required")
                             .and_then(|req| serde_json::from_value(req.clone()).ok()), // Safe: JSON value ownership for schema parsing
                     },
+                    annotations: None,
                 })
             })
             .collect()

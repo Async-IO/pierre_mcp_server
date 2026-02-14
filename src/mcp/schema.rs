@@ -47,13 +47,22 @@ pub struct ProtocolInfo {
     pub protocol_version: String,
 }
 
-/// Server Information
+/// Server Information per MCP spec
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerInfo {
-    /// Server name identifier
+    /// Server name identifier (machine-readable)
     pub name: String,
     /// Server version string
     pub version: String,
+    /// Human-readable display title (MCP 2025-11-25)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// Human-readable server description (MCP 2025-11-25)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Server website URL (MCP 2025-11-25)
+    #[serde(rename = "websiteUrl", skip_serializing_if = "Option::is_none")]
+    pub website_url: Option<String>,
 }
 
 /// MCP Tool Schema Definition
@@ -66,6 +75,65 @@ pub struct ToolSchema {
     /// JSON Schema for tool input parameters
     #[serde(rename = "inputSchema")]
     pub input_schema: JsonSchema,
+    /// Behavioral annotations for the tool (MCP 2025-11-25)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub annotations: Option<ToolAnnotations>,
+}
+
+impl ToolSchema {
+    /// Create a tool schema without annotations
+    #[must_use]
+    pub fn without_annotations(
+        name: String,
+        description: String,
+        input_schema: JsonSchema,
+    ) -> Self {
+        Self {
+            name,
+            description,
+            input_schema,
+            annotations: None,
+        }
+    }
+
+    /// Create a tool schema with behavioral annotations (MCP 2025-11-25)
+    #[must_use]
+    pub fn with_annotations(
+        name: String,
+        description: String,
+        input_schema: JsonSchema,
+        annotations: ToolAnnotations,
+    ) -> Self {
+        Self {
+            name,
+            description,
+            input_schema,
+            annotations: Some(annotations),
+        }
+    }
+}
+
+/// Behavioral annotations for MCP tools (MCP 2025-11-25)
+///
+/// Provides hints to clients about tool behavior, enabling better UX decisions
+/// such as confirmation prompts for destructive operations.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ToolAnnotations {
+    /// Human-readable display title
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// Whether the tool only reads data without side effects
+    #[serde(rename = "readOnlyHint", skip_serializing_if = "Option::is_none")]
+    pub read_only_hint: Option<bool>,
+    /// Whether the tool may perform destructive operations (delete, overwrite)
+    #[serde(rename = "destructiveHint", skip_serializing_if = "Option::is_none")]
+    pub destructive_hint: Option<bool>,
+    /// Whether calling the tool repeatedly with the same args has no additional effect
+    #[serde(rename = "idempotentHint", skip_serializing_if = "Option::is_none")]
+    pub idempotent_hint: Option<bool>,
+    /// Whether the tool interacts with external entities beyond the server
+    #[serde(rename = "openWorldHint", skip_serializing_if = "Option::is_none")]
+    pub open_world_hint: Option<bool>,
 }
 
 /// JSON Schema Definition
@@ -335,13 +403,26 @@ pub struct OAuthAppCredentials {
     pub client_secret: String,
 }
 
-/// Client Information
+/// Client Information per MCP spec
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientInfo {
-    /// Client name identifier
+    /// Client name identifier (machine-readable)
     pub name: String,
     /// Client version string
     pub version: String,
+    /// Human-readable display title (MCP 2025-11-25)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// Human-readable client description (MCP 2025-11-25)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Client website URL (MCP 2025-11-25)
+    #[serde(
+        default,
+        rename = "websiteUrl",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub website_url: Option<String>,
 }
 
 impl InitializeResponse {
@@ -364,6 +445,12 @@ impl InitializeResponse {
             server_info: ServerInfo {
                 name: server_name,
                 version: server_version,
+                title: Some("Pierre Fitness Intelligence".to_owned()),
+                description: Some(
+                    "MCP server for fitness data analytics, coaching, and nutrition planning"
+                        .to_owned(),
+                ),
+                website_url: None,
             },
             capabilities: ServerCapabilities {
                 experimental: None,
@@ -696,10 +783,104 @@ pub struct Root {
     pub name: String,
 }
 
+/// Annotations for read-only tools that fetch data without side effects
+fn read_only_annotations() -> ToolAnnotations {
+    ToolAnnotations {
+        read_only_hint: Some(true),
+        destructive_hint: Some(false),
+        idempotent_hint: Some(true),
+        ..ToolAnnotations::default()
+    }
+}
+
+/// Annotations for tools that create or update data (idempotent writes)
+fn write_annotations() -> ToolAnnotations {
+    ToolAnnotations {
+        read_only_hint: Some(false),
+        destructive_hint: Some(false),
+        idempotent_hint: Some(true),
+        ..ToolAnnotations::default()
+    }
+}
+
+/// Annotations for tools that perform destructive operations (delete, disconnect)
+fn destructive_annotations() -> ToolAnnotations {
+    ToolAnnotations {
+        read_only_hint: Some(false),
+        destructive_hint: Some(true),
+        idempotent_hint: Some(true),
+        ..ToolAnnotations::default()
+    }
+}
+
+/// Annotations for tools that interact with external services (OAuth, providers)
+fn open_world_annotations() -> ToolAnnotations {
+    ToolAnnotations {
+        read_only_hint: Some(false),
+        open_world_hint: Some(true),
+        ..ToolAnnotations::default()
+    }
+}
+
 /// Get all available tools (public interface for tests)
 #[must_use]
 pub fn get_tools() -> Vec<ToolSchema> {
-    create_fitness_tools()
+    let mut tools = create_fitness_tools();
+    apply_tool_annotations(&mut tools);
+    tools
+}
+
+/// Apply behavioral annotations to tools based on their operation semantics
+fn apply_tool_annotations(tools: &mut [ToolSchema]) {
+    for tool in tools.iter_mut() {
+        tool.annotations = match tool.name.as_str() {
+            // Read-only data retrieval and analytics tools
+            GET_ACTIVITIES
+            | GET_ATHLETE
+            | GET_STATS
+            | GET_ACTIVITY_INTELLIGENCE
+            | GET_CONNECTION_STATUS
+            | GET_ACTIVE_COACH
+            | GET_COACH
+            | GET_RECIPE
+            | GET_RECIPE_CONSTRAINTS
+            | GET_FITNESS_CONFIG
+            | LIST_COACHES
+            | LIST_RECIPES
+            | LIST_FITNESS_CONFIGS
+            | LIST_HIDDEN_COACHES
+            | SEARCH_COACHES
+            | SEARCH_RECIPES
+            | ANALYZE_ACTIVITY
+            | ADMIN_LIST_SYSTEM_COACHES
+            | ADMIN_GET_SYSTEM_COACH
+            | ADMIN_LIST_COACH_ASSIGNMENTS => Some(read_only_annotations()),
+            // Destructive operations (delete, disconnect)
+            DELETE_COACH
+            | DELETE_RECIPE
+            | DELETE_FITNESS_CONFIG
+            | DISCONNECT_PROVIDER
+            | ADMIN_DELETE_SYSTEM_COACH => Some(destructive_annotations()),
+            // External service interactions
+            CONNECT_PROVIDER => Some(open_world_annotations()),
+            // Write/update operations (user and admin)
+            CREATE_COACH
+            | UPDATE_COACH
+            | SAVE_RECIPE
+            | SET_FITNESS_CONFIG
+            | ACTIVATE_COACH
+            | DEACTIVATE_COACH
+            | HIDE_COACH
+            | SHOW_COACH
+            | TOGGLE_COACH_FAVORITE
+            | ADMIN_CREATE_SYSTEM_COACH
+            | ADMIN_UPDATE_SYSTEM_COACH
+            | ADMIN_ASSIGN_COACH
+            | ADMIN_UNASSIGN_COACH => Some(write_annotations()),
+            // All other tools default to no annotations
+            _ => None,
+        };
+    }
 }
 
 /// Creates the standard format property for output serialization
@@ -878,6 +1059,7 @@ fn create_get_activities_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec![PROVIDER.to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -903,6 +1085,7 @@ fn create_get_athlete_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec![PROVIDER.to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -928,6 +1111,7 @@ fn create_get_stats_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec![PROVIDER.to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -977,6 +1161,7 @@ fn create_get_activity_intelligence_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec![PROVIDER.to_owned(), ACTIVITY_ID.to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -1014,6 +1199,7 @@ fn create_connect_provider_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["provider".to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -1069,6 +1255,7 @@ fn create_get_connection_status_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec![]),
         },
+        annotations: None,
     }
 }
 
@@ -1092,6 +1279,7 @@ fn create_disconnect_provider_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec![PROVIDER.to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -1127,6 +1315,7 @@ fn create_analyze_activity_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec![PROVIDER.to_owned(), ACTIVITY_ID.to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -1171,6 +1360,7 @@ fn create_calculate_metrics_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["provider".into(), "activity_id".into()]),
         },
+        annotations: None,
     }
 }
 
@@ -1221,6 +1411,7 @@ fn create_analyze_performance_trends_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["provider".into(), "timeframe".into(), "metric".into()]),
         },
+        annotations: None,
     }
 }
 
@@ -1271,6 +1462,7 @@ fn create_compare_activities_tool() -> ToolSchema {
                 "comparison_type".into(),
             ]),
         },
+        annotations: None,
     }
 }
 
@@ -1309,6 +1501,7 @@ fn create_detect_patterns_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["provider".into(), "pattern_type".into()]),
         },
+        annotations: None,
     }
 }
 
@@ -1381,6 +1574,7 @@ fn create_set_goal_tool() -> ToolSchema {
                 "target_date".into(),
             ]),
         },
+        annotations: None,
     }
 }
 
@@ -1404,6 +1598,7 @@ fn create_track_progress_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["goal_id".into()]),
         },
+        annotations: None,
     }
 }
 
@@ -1438,6 +1633,7 @@ fn create_suggest_goals_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["provider".into()]),
         },
+        annotations: None,
     }
 }
 
@@ -1461,6 +1657,7 @@ fn create_analyze_goal_feasibility_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["goal_id".into()]),
         },
+        annotations: None,
     }
 }
 
@@ -1507,6 +1704,7 @@ fn create_generate_recommendations_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["provider".into()]),
         },
+        annotations: None,
     }
 }
 
@@ -1554,6 +1752,7 @@ fn create_calculate_fitness_score_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["provider".into()]),
         },
+        annotations: None,
     }
 }
 
@@ -1603,6 +1802,7 @@ fn create_predict_performance_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["provider".into(), "target_sport".into(), "target_distance".into()]),
         },
+        annotations: None,
     }
 }
 
@@ -1650,6 +1850,7 @@ fn create_analyze_training_load_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["provider".into()]),
         },
+        annotations: None,
     }
 }
 
@@ -1663,6 +1864,7 @@ fn create_get_configuration_catalog_tool() -> ToolSchema {
             properties: Some(HashMap::new()),
             required: Some(vec![]),
         },
+        annotations: None,
     }
 }
 
@@ -1676,6 +1878,7 @@ fn create_get_configuration_profiles_tool() -> ToolSchema {
             properties: Some(HashMap::new()),
             required: Some(vec![]),
         },
+        annotations: None,
     }
 }
 
@@ -1691,6 +1894,7 @@ fn create_get_user_configuration_tool() -> ToolSchema {
             properties: Some(HashMap::new()),
             required: Some(vec![]),
         },
+        annotations: None,
     }
 }
 
@@ -1723,6 +1927,7 @@ fn create_update_user_configuration_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec![]),
         },
+        annotations: None,
     }
 }
 
@@ -1781,6 +1986,7 @@ fn create_calculate_personalized_zones_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["vo2_max".into()]),
         },
+        annotations: None,
     }
 }
 
@@ -1806,6 +2012,7 @@ fn create_validate_configuration_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["parameters".into()]),
         },
+        annotations: None,
     }
 }
 
@@ -1833,6 +2040,7 @@ fn create_get_fitness_config_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec![]), // configuration_name is optional
         },
+        annotations: None,
     }
 }
 
@@ -1866,6 +2074,7 @@ fn create_set_fitness_config_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["configuration".to_owned()]), // configuration is required
         },
+        annotations: None,
     }
 }
 
@@ -1879,6 +2088,7 @@ fn create_list_fitness_configs_tool() -> ToolSchema {
             properties: Some(HashMap::new()),
             required: Some(vec![]),
         },
+        annotations: None,
     }
 }
 
@@ -1902,6 +2112,7 @@ fn create_delete_fitness_config_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["configuration_name".to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -1976,6 +2187,7 @@ fn create_calculate_daily_nutrition_tool() -> ToolSchema {
                 "training_goal".to_owned(),
             ]),
         },
+        annotations: None,
     }
 }
 
@@ -2045,6 +2257,7 @@ fn create_get_nutrient_timing_tool() -> ToolSchema {
                 "daily_protein_g".to_owned(),
             ]),
         },
+        annotations: None,
     }
 }
 
@@ -2086,6 +2299,7 @@ fn create_search_food_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["query".to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -2113,6 +2327,7 @@ fn create_get_food_details_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["fdc_id".to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -2141,6 +2356,7 @@ fn create_analyze_meal_nutrition_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["foods".to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -2196,6 +2412,7 @@ fn create_analyze_sleep_quality_tool() -> ToolSchema {
             properties: Some(properties),
             required: None, // Either sleep_provider or sleep_data is required
         },
+        annotations: None,
     }
 }
 
@@ -2271,6 +2488,7 @@ fn create_calculate_recovery_score_tool() -> ToolSchema {
             properties: Some(properties),
             required: None, // Auto-selects providers, TSB-only fallback if no sleep data
         },
+        annotations: None,
     }
 }
 
@@ -2324,6 +2542,7 @@ fn create_suggest_rest_day_tool() -> ToolSchema {
             properties: Some(properties),
             required: None, // Auto-selects providers, TSB-only fallback if no sleep data
         },
+        annotations: None,
     }
 }
 
@@ -2371,6 +2590,7 @@ fn create_track_sleep_trends_tool() -> ToolSchema {
             properties: Some(properties),
             required: None, // Either sleep_provider or sleep_history is required
         },
+        annotations: None,
     }
 }
 
@@ -2425,6 +2645,7 @@ fn create_optimize_sleep_schedule_tool() -> ToolSchema {
             properties: Some(properties),
             required: None, // Auto-selects provider
         },
+        annotations: None,
     }
 }
 
@@ -2462,6 +2683,7 @@ fn create_get_recipe_constraints_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["meal_timing".to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -2518,6 +2740,7 @@ fn create_validate_recipe_tool() -> ToolSchema {
                 "ingredients".to_owned(),
             ]),
         },
+        annotations: None,
     }
 }
 
@@ -2627,6 +2850,7 @@ fn create_save_recipe_tool() -> ToolSchema {
                 "instructions".to_owned(),
             ]),
         },
+        annotations: None,
     }
 }
 
@@ -2670,6 +2894,7 @@ fn create_list_recipes_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec![]),
         },
+        annotations: None,
     }
 }
 
@@ -2695,6 +2920,7 @@ fn create_get_recipe_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["recipe_id".to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -2718,6 +2944,7 @@ fn create_delete_recipe_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["recipe_id".to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -2759,6 +2986,7 @@ fn create_search_recipes_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["query".to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -2827,6 +3055,7 @@ fn create_list_coaches_tool() -> ToolSchema {
             properties: Some(properties),
             required: None,
         },
+        annotations: None,
     }
 }
 
@@ -2889,6 +3118,7 @@ fn create_create_coach_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["title".to_owned(), "system_prompt".to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -2912,6 +3142,7 @@ fn create_get_coach_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["coach_id".to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -2975,6 +3206,7 @@ fn create_update_coach_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["coach_id".to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -2998,6 +3230,7 @@ fn create_delete_coach_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["coach_id".to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -3021,6 +3254,7 @@ fn create_toggle_coach_favorite_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["coach_id".to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -3052,6 +3286,7 @@ fn create_search_coaches_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["query".to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -3075,6 +3310,7 @@ fn create_activate_coach_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["coach_id".to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -3088,6 +3324,7 @@ fn create_deactivate_coach_tool() -> ToolSchema {
             properties: None,
             required: None,
         },
+        annotations: None,
     }
 }
 
@@ -3101,6 +3338,7 @@ fn create_get_active_coach_tool() -> ToolSchema {
             properties: None,
             required: None,
         },
+        annotations: None,
     }
 }
 
@@ -3124,6 +3362,7 @@ fn create_hide_coach_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["coach_id".to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -3147,6 +3386,7 @@ fn create_show_coach_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["coach_id".to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -3160,6 +3400,7 @@ fn create_list_hidden_coaches_tool() -> ToolSchema {
             properties: None,
             required: None,
         },
+        annotations: None,
     }
 }
 
@@ -3205,6 +3446,7 @@ fn create_admin_list_system_coaches_tool() -> ToolSchema {
             properties: Some(properties),
             required: None,
         },
+        annotations: None,
     }
 }
 
@@ -3276,6 +3518,7 @@ fn create_admin_create_system_coach_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["title".to_owned(), "system_prompt".to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -3299,6 +3542,7 @@ fn create_admin_get_system_coach_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["coach_id".to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -3370,6 +3614,7 @@ fn create_admin_update_system_coach_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["coach_id".to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -3394,6 +3639,7 @@ fn create_admin_delete_system_coach_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["coach_id".to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -3425,6 +3671,7 @@ fn create_admin_assign_coach_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["coach_id".to_owned(), "user_id".to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -3456,6 +3703,7 @@ fn create_admin_unassign_coach_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["coach_id".to_owned(), "user_id".to_owned()]),
         },
+        annotations: None,
     }
 }
 
@@ -3504,5 +3752,6 @@ fn create_admin_list_coach_assignments_tool() -> ToolSchema {
             properties: Some(properties),
             required: None,
         },
+        annotations: None,
     }
 }

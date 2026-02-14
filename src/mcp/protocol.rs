@@ -107,7 +107,7 @@ fn parse_resource_params(
 
 impl ProtocolHandler {
     /// Supported MCP protocol versions (in preference order)
-    const SUPPORTED_VERSIONS: &'static [&'static str] = &["2025-06-18", "2024-11-05"];
+    const SUPPORTED_VERSIONS: &'static [&'static str] = &["2025-11-25", "2025-06-18", "2024-11-05"];
 
     /// Handle initialize request with proper version negotiation
     #[must_use]
