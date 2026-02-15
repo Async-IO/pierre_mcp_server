@@ -21,11 +21,11 @@ use uuid::Uuid;
 
 use crate::{
     admin::{models::ValidatedAdminToken, AdminPermission as AdminPerm},
-    constants::tiers,
     database_plugins::{factory::Database, DatabaseProvider},
     errors::{AppError, AppResult},
-    models::{Tenant, TenantId, UserStatus},
+    models::UserStatus,
     rate_limiting::UnifiedRateLimitCalculator,
+    services::tenant_admin as tenant_admin_service,
 };
 
 use super::api_keys::json_response;
@@ -201,6 +201,8 @@ pub(super) async fn handle_pending_users(
 }
 
 /// Handle tenant creation and linking for user approval
+///
+/// Delegates to `TenantAdminService` for slug validation and tenant provisioning.
 async fn create_and_link_tenant(
     database: &Database,
     user_uuid: Uuid,
@@ -212,40 +214,15 @@ async fn create_and_link_tenant(
         return Ok(None);
     }
 
-    let tenant_name = request
-        .tenant_name
-        .clone()
-        .unwrap_or_else(|| format!("{}'s Organization", display_name.unwrap_or(user_email)));
-    let tenant_slug = request
-        .tenant_slug
-        .clone()
-        .unwrap_or_else(|| format!("user-{}", user_uuid.as_simple()));
-
-    let tenant = create_default_tenant_for_user(database, user_uuid, &tenant_name, &tenant_slug)
-        .await
-        .map_err(|e| {
-            error!(
-                "Failed to create default tenant for user {}: {}",
-                user_email, e
-            );
-            AppError::internal(format!("Failed to create tenant: {e}"))
-        })?;
-
-    info!(
-        "Created default tenant '{}' for user {}",
-        tenant.name, user_email
-    );
-
-    database
-        .update_user_tenant_id(user_uuid, tenant.id)
-        .await
-        .map_err(|e| {
-            error!(
-                "Failed to link user {} to tenant {}: {}",
-                user_email, tenant.id, e
-            );
-            AppError::internal(format!("Failed to link user to created tenant: {e}"))
-        })?;
+    let tenant = tenant_admin_service::provision_tenant_for_approval(
+        database,
+        user_uuid,
+        user_email,
+        display_name,
+        request.tenant_name.as_deref(),
+        request.tenant_slug.as_deref(),
+    )
+    .await?;
 
     Ok(Some(TenantCreatedInfo {
         tenant_id: tenant.id.to_string(),
@@ -253,90 +230,6 @@ async fn create_and_link_tenant(
         slug: tenant.slug,
         plan: tenant.plan,
     }))
-}
-
-/// Create default tenant for a user
-///
-/// # Errors
-/// Returns error if tenant slug is invalid, already exists, or database operation fails
-async fn create_default_tenant_for_user(
-    database: &Database,
-    owner_user_id: Uuid,
-    tenant_name: &str,
-    tenant_slug: &str,
-) -> AppResult<Tenant> {
-    const RESERVED_SLUGS: &[&str] = &[
-        "admin",
-        "api",
-        "www",
-        "app",
-        "dashboard",
-        "auth",
-        "oauth",
-        "login",
-        "logout",
-        "signup",
-        "system",
-        "root",
-        "public",
-        "static",
-        "assets",
-    ];
-
-    let tenant_id = TenantId::new();
-    let slug = tenant_slug.trim().to_lowercase();
-
-    if slug.is_empty() {
-        return Err(AppError::invalid_input("Tenant slug cannot be empty"));
-    }
-
-    if slug.len() > 63 {
-        return Err(AppError::invalid_input(
-            "Tenant slug must be 63 characters or less",
-        ));
-    }
-
-    if !slug.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
-        return Err(AppError::invalid_input(
-            "Tenant slug can only contain letters, numbers, and hyphens",
-        ));
-    }
-
-    if slug.starts_with('-') || slug.ends_with('-') {
-        return Err(AppError::invalid_input(
-            "Tenant slug cannot start or end with a hyphen",
-        ));
-    }
-
-    if RESERVED_SLUGS.contains(&slug.as_str()) {
-        return Err(AppError::invalid_input(format!(
-            "Tenant slug '{slug}' is reserved and cannot be used",
-        )));
-    }
-
-    if database.get_tenant_by_slug(&slug).await.is_ok() {
-        return Err(AppError::invalid_input(format!(
-            "Tenant slug '{slug}' is already in use",
-        )));
-    }
-
-    let tenant_data = Tenant {
-        id: tenant_id,
-        name: tenant_name.to_owned(),
-        slug,
-        domain: None,
-        plan: tiers::STARTER.to_owned(),
-        owner_user_id,
-        created_at: Utc::now(),
-        updated_at: Utc::now(),
-    };
-
-    database
-        .create_tenant(&tenant_data)
-        .await
-        .map_err(|e| AppError::database(format!("Failed to create tenant: {e}")))?;
-
-    Ok(tenant_data)
 }
 
 /// Handle user approval workflow

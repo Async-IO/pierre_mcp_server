@@ -47,6 +47,7 @@ use tracing::{debug, error, field::Empty, info, warn, Span};
 use urlencoding::encode;
 
 use crate::mcp::oauth_flow_manager::OAuthTemplateRenderer;
+use crate::services::oauth_flow as oauth_flow_service;
 use crate::{
     admin::{AdminAuthService, FirebaseAuth, FirebaseClaims},
     config::environment::get_oauth_config,
@@ -736,46 +737,9 @@ impl OAuthService {
     /// Extract mobile redirect URL from state string format
     ///
     /// State format: `{user_id}:{random}:{base64_redirect_url}`
+    /// Delegates to `services::oauth_flow::extract_mobile_redirect_from_state`.
     fn extract_mobile_redirect_from_state_str(state: &str) -> Option<String> {
-        let parts: Vec<&str> = state.splitn(3, ':').collect();
-        parts
-            .get(2)
-            .filter(|s| !s.is_empty())
-            .and_then(|encoded| Self::decode_mobile_redirect_url(encoded))
-    }
-
-    /// Decode and validate a base64-encoded mobile redirect URL
-    fn decode_mobile_redirect_url(encoded: &str) -> Option<String> {
-        use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
-
-        URL_SAFE_NO_PAD
-            .decode(encoded)
-            .map_err(|e| {
-                warn!("Failed to decode base64 redirect URL: {}", e);
-                e
-            })
-            .ok()
-            .and_then(|bytes| {
-                String::from_utf8(bytes)
-                    .map_err(|e| {
-                        warn!("Failed to decode redirect URL as UTF-8: {}", e);
-                        e
-                    })
-                    .ok()
-            })
-            .and_then(|url| {
-                // Validate URL scheme for security (only allow specific schemes)
-                if url.starts_with("pierre://")
-                    || url.starts_with("exp://")
-                    || url.starts_with("http://localhost")
-                    || url.starts_with("https://")
-                {
-                    Some(url)
-                } else {
-                    warn!("Invalid redirect URL scheme in OAuth state: {}", url);
-                    None
-                }
-            })
+        oauth_flow_service::extract_mobile_redirect_from_state(state)
     }
 
     /// Validate that provider is supported by checking the provider registry

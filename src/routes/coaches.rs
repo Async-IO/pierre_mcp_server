@@ -13,10 +13,7 @@ use std::collections::HashSet;
 
 use crate::{
     auth::AuthResult,
-    coaches::{
-        parse_coach_content, to_markdown, CoachDefinition, CoachFrontmatter, CoachPrerequisites,
-        CoachSections, CoachStartup,
-    },
+    coaches::{parse_coach_content, to_markdown, CoachDefinition, CoachPrerequisites},
     database::{
         coaches::{
             Coach, CoachAssignment as DbCoachAssignment, CoachCategory, CoachListItem,
@@ -33,6 +30,7 @@ use crate::{
     middleware::require_admin,
     models::TenantId,
     security::cookies::get_cookie_value,
+    services::{coaches as coaches_service, recipes as recipes_service},
 };
 use axum::{
     extract::{Path, Query, State},
@@ -46,7 +44,6 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 #[cfg(feature = "openapi")]
 use utoipa::ToSchema;
-use uuid::Uuid;
 
 /// Response for a coach
 #[derive(Debug, Serialize, Deserialize)]
@@ -625,34 +622,23 @@ impl CoachesRoutes {
     }
 
     /// Check if prerequisites are met given user's connected providers
+    ///
+    /// Delegates to `services::coaches::check_prerequisites` for the domain logic.
     fn check_prerequisites(
         prerequisites: &CoachPrerequisites,
         user_providers: &HashSet<String>,
     ) -> (bool, Vec<MissingPrerequisite>) {
-        let mut missing = Vec::new();
-
-        // Check required providers
-        for provider in &prerequisites.providers {
-            let provider_lower = provider.to_lowercase();
-            if !user_providers.contains(&provider_lower) {
-                missing.push(MissingPrerequisite {
-                    prerequisite_type: "provider".to_owned(),
-                    requirement: provider.clone(),
-                    message: format!(
-                        "Connect {} to unlock this coach",
-                        capitalize_provider(provider)
-                    ),
-                });
-            }
-        }
-
-        // Note: min_activities and activity_types checks would require
-        // fetching activity data, which could be expensive. For now,
-        // we only check providers. Activity-based checks can be added
-        // in a future iteration when needed.
-
-        let met = missing.is_empty();
-        (met, missing)
+        let result = coaches_service::check_prerequisites(prerequisites, user_providers);
+        let missing = result
+            .missing
+            .into_iter()
+            .map(|m| MissingPrerequisite {
+                prerequisite_type: m.prerequisite_type,
+                requirement: m.requirement,
+                message: m.message,
+            })
+            .collect();
+        (result.met, missing)
     }
 
     /// Handle POST /api/coaches - Create a new coach
@@ -1292,6 +1278,9 @@ impl CoachesRoutes {
     }
 
     /// Handle POST /admin/coaches/:id/assign - Assign coach to users
+    ///
+    /// Delegates tenant membership verification and bulk operations to
+    /// `services::coaches::bulk_assign_coach`.
     async fn handle_admin_assign(
         State(resources): State<Arc<ServerResources>>,
         headers: HeaderMap,
@@ -1305,50 +1294,33 @@ impl CoachesRoutes {
         let manager = Self::get_coaches_manager(&resources)?;
 
         // Verify the coach exists and is a system coach
-        let coach = manager
+        manager
             .get_system_coach(&id, tenant_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("System coach {id}")))?;
 
-        // Assign to each user after verifying tenant membership
-        let mut assigned_count = 0;
-        for user_id_str in &body.user_ids {
-            let user_id = Uuid::parse_str(user_id_str)
-                .map_err(|_| AppError::invalid_input(format!("Invalid user ID: {user_id_str}")))?;
-
-            // Verify target user belongs to the same tenant
-            let user_tenants = resources
-                .database
-                .list_tenants_for_user(user_id)
-                .await
-                .map_err(|e| {
-                    AppError::database(format!(
-                        "Failed to verify tenant membership for user {user_id}: {e}"
-                    ))
-                })?;
-            if !user_tenants.iter().any(|t| t.id == tenant_id) {
-                return Err(AppError::auth_invalid(format!(
-                    "User {user_id} does not belong to this tenant"
-                )));
-            }
-
-            if manager
-                .assign_coach(&coach.id.to_string(), user_id, auth.user_id)
-                .await?
-            {
-                assigned_count += 1;
-            }
-        }
+        let result = coaches_service::bulk_assign_coach(
+            &manager,
+            resources.database.as_ref(),
+            &id,
+            tenant_id,
+            auth.user_id,
+            &body.user_ids,
+        )
+        .await?;
 
         let response = AssignCoachResponse {
             coach_id: id,
-            assigned_count,
-            total_requested: body.user_ids.len(),
+            assigned_count: result.affected_count,
+            total_requested: result.total_requested,
         };
         Ok((StatusCode::OK, Json(response)).into_response())
     }
 
     /// Handle DELETE /admin/coaches/:id/assign - Remove coach assignment from users
+    ///
+    /// Delegates tenant membership verification and bulk operations to
+    /// `services::coaches::bulk_unassign_coach`.
     async fn handle_admin_unassign(
         State(resources): State<Arc<ServerResources>>,
         headers: HeaderMap,
@@ -1367,37 +1339,19 @@ impl CoachesRoutes {
             .await?
             .ok_or_else(|| AppError::not_found(format!("System coach {id}")))?;
 
-        // Unassign from each user after verifying tenant membership
-        let mut removed_count = 0;
-        for user_id_str in &body.user_ids {
-            let user_id = Uuid::parse_str(user_id_str)
-                .map_err(|_| AppError::invalid_input(format!("Invalid user ID: {user_id_str}")))?;
-
-            // Verify target user belongs to the same tenant
-            let user_tenants = resources
-                .database
-                .list_tenants_for_user(user_id)
-                .await
-                .map_err(|e| {
-                    AppError::database(format!(
-                        "Failed to verify tenant membership for user {user_id}: {e}"
-                    ))
-                })?;
-            if !user_tenants.iter().any(|t| t.id == tenant_id) {
-                return Err(AppError::auth_invalid(format!(
-                    "User {user_id} does not belong to this tenant"
-                )));
-            }
-
-            if manager.unassign_coach(&id, user_id).await? {
-                removed_count += 1;
-            }
-        }
+        let result = coaches_service::bulk_unassign_coach(
+            &manager,
+            resources.database.as_ref(),
+            &id,
+            tenant_id,
+            &body.user_ids,
+        )
+        .await?;
 
         let response = UnassignCoachResponse {
             coach_id: id,
-            removed_count,
-            total_requested: body.user_ids.len(),
+            removed_count: result.affected_count,
+            total_requested: result.total_requested,
         };
         Ok((StatusCode::OK, Json(response)).into_response())
     }
@@ -1578,16 +1532,8 @@ impl CoachesRoutes {
         require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
-        // Combine reason with optional notes
-        let rejection_reason = if let Some(notes) = &body.notes {
-            if notes.trim().is_empty() {
-                body.reason.clone()
-            } else {
-                format!("{}: {}", body.reason, notes.trim())
-            }
-        } else {
-            body.reason.clone()
-        };
+        let rejection_reason =
+            coaches_service::format_rejection_reason(&body.reason, body.notes.as_deref());
 
         let manager = Self::get_coaches_manager(&resources)?;
         manager
@@ -1764,79 +1710,17 @@ pub struct ImportCoachResponse {
 // ============================================
 
 /// Convert a Coach database model to `CoachDefinition` for export
+///
+/// Delegates to `services::recipes::coach_to_definition`.
 fn coach_to_definition(coach: &Coach) -> CoachDefinition {
-    let name = coach
-        .title
-        .to_lowercase()
-        .replace(' ', "-")
-        .chars()
-        .filter(|c| c.is_alphanumeric() || *c == '-')
-        .collect::<String>();
-
-    CoachDefinition {
-        frontmatter: CoachFrontmatter {
-            name,
-            title: coach.title.clone(),
-            category: coach.category,
-            tags: coach.tags.clone(),
-            prerequisites: CoachPrerequisites::default(),
-            visibility: coach.visibility,
-            startup: CoachStartup::default(),
-        },
-        sections: CoachSections {
-            purpose: coach.description.clone().unwrap_or_default(),
-            when_to_use: None,
-            instructions: coach.system_prompt.clone(),
-            example_inputs: if coach.sample_prompts.is_empty() {
-                None
-            } else {
-                Some(
-                    coach
-                        .sample_prompts
-                        .iter()
-                        .map(|p| format!("- {p}"))
-                        .collect::<Vec<_>>()
-                        .join("\n"),
-                )
-            },
-            example_outputs: None,
-            success_criteria: None,
-            related_coaches: Vec::new(),
-        },
-        source_file: format!("exported/{}.md", coach.id),
-        content_hash: String::new(),
-        token_count: coach.token_count,
-    }
+    recipes_service::coach_to_definition(coach)
 }
 
 /// Generate a safe filename from coach title
+///
+/// Delegates to `services::recipes::generate_coach_filename`.
 fn generate_coach_filename(title: &str) -> String {
-    let safe_name: String = title
-        .to_lowercase()
-        .replace(' ', "-")
-        .chars()
-        .filter(|c| c.is_alphanumeric() || *c == '-')
-        .collect();
-
-    format!("{safe_name}.md")
-}
-
-/// Capitalize provider name for user-friendly display
-fn capitalize_provider(provider: &str) -> String {
-    let provider_lower = provider.to_lowercase();
-    match provider_lower.as_str() {
-        "strava" => "Strava".to_owned(),
-        "garmin" => "Garmin".to_owned(),
-        "fitbit" => "Fitbit".to_owned(),
-        "terra" => "Terra".to_owned(),
-        _ => {
-            // Capitalize first letter
-            let mut chars = provider.chars();
-            chars.next().map_or_else(String::new, |first| {
-                first.to_uppercase().collect::<String>() + chars.as_str()
-            })
-        }
-    }
+    recipes_service::generate_coach_filename(title)
 }
 
 // ============================================
@@ -1844,51 +1728,17 @@ fn capitalize_provider(provider: &str) -> String {
 // ============================================
 
 /// Compute field-level differences between two JSON snapshots
+///
+/// Delegates to `services::recipes::compute_version_diff`.
 fn compute_diff(from: &serde_json::Value, to: &serde_json::Value) -> Vec<FieldChange> {
-    let mut changes = Vec::new();
-
-    // Fields we care about comparing
-    let fields = [
-        "title",
-        "description",
-        "system_prompt",
-        "category",
-        "tags",
-        "sample_prompts",
-        "visibility",
-    ];
-
-    for field in fields {
-        let old_val = from.get(field);
-        let new_val = to.get(field);
-
-        match (old_val, new_val) {
-            (Some(old), Some(new)) if old != new => {
-                changes.push(FieldChange {
-                    field: field.to_owned(),
-                    old_value: Some(old.clone()),
-                    new_value: Some(new.clone()),
-                });
-            }
-            (None, Some(new)) => {
-                changes.push(FieldChange {
-                    field: field.to_owned(),
-                    old_value: None,
-                    new_value: Some(new.clone()),
-                });
-            }
-            (Some(old), None) => {
-                changes.push(FieldChange {
-                    field: field.to_owned(),
-                    old_value: Some(old.clone()),
-                    new_value: None,
-                });
-            }
-            _ => {}
-        }
-    }
-
-    changes
+    recipes_service::compute_version_diff(from, to)
+        .into_iter()
+        .map(|c| FieldChange {
+            field: c.field,
+            old_value: c.old_value,
+            new_value: c.new_value,
+        })
+        .collect()
 }
 
 // ============================================
