@@ -210,10 +210,10 @@ pub mod test_utils;
 // They use `pub(crate)` to prevent external access.
 
 /// Plugin lifecycle management for deterministic initialization
-pub(crate) mod lifecycle;
+pub mod lifecycle;
 
 /// Domain service layer for protocol-agnostic business logic
 pub(crate) mod services;
 
 /// Multi-tenant management REST API routes
-pub(crate) mod tenant_routes;
+pub mod tenant_routes;
