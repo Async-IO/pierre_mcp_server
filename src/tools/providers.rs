@@ -8,6 +8,7 @@ use crate::{
     constants::oauth_providers::{FITBIT, STRAVA},
     database_plugins::{factory::Database, DatabaseProvider},
     errors::AppError,
+    models::TenantId,
     providers::CoreFitnessProvider,
 };
 use std::{
@@ -146,22 +147,22 @@ impl ProviderManager {
             .list_tenants_for_user(user_id)
             .await
             .map_err(|e| AppError::database(format!("Failed to get user tenants: {e}")))?;
-        let tenant_id = tenants
+        let tenant_id: TenantId = tenants
             .first()
-            .map(|t| t.id.to_string())
+            .map(|t| t.id)
             .ok_or_else(|| AppError::invalid_input("User has no tenant"))?;
 
         let token = match provider_type {
             ProviderType::Strava => self
                 .database
-                .get_user_oauth_token(user_id, &tenant_id, STRAVA)
+                .get_user_oauth_token(user_id, tenant_id, STRAVA)
                 .await
                 .map_err(|e| {
                     AppError::database(format!("Failed to get Strava OAuth token: {e}"))
                 })?,
             ProviderType::Fitbit => self
                 .database
-                .get_user_oauth_token(user_id, &tenant_id, FITBIT)
+                .get_user_oauth_token(user_id, tenant_id, FITBIT)
                 .await
                 .map_err(|e| {
                     AppError::database(format!("Failed to get Fitbit OAuth token: {e}"))
@@ -197,7 +198,7 @@ impl ProviderManager {
         // Get last sync timestamp (scoped to tenant for multi-tenant isolation)
         let last_sync = self
             .database
-            .get_provider_last_sync(user_id, &tenant_id, &provider_type.to_string())
+            .get_provider_last_sync(user_id, tenant_id, &provider_type.to_string())
             .await
             .unwrap_or(None);
 
@@ -226,16 +227,16 @@ impl ProviderManager {
             .list_tenants_for_user(user_id)
             .await
             .map_err(|e| AppError::database(format!("Failed to get user tenants: {e}")))?;
-        let tenant_id = tenants
+        let tenant_id: TenantId = tenants
             .first()
-            .map(|t| t.id.to_string())
+            .map(|t| t.id)
             .ok_or_else(|| AppError::invalid_input("User has no tenant"))?;
 
         // Remove from database
         match provider_type {
             ProviderType::Strava => {
                 self.database
-                    .delete_user_oauth_token(user_id, &tenant_id, STRAVA)
+                    .delete_user_oauth_token(user_id, tenant_id, STRAVA)
                     .await
                     .map_err(|e| {
                         AppError::database(format!("Failed to delete Strava OAuth token: {e}"))
@@ -243,7 +244,7 @@ impl ProviderManager {
             }
             ProviderType::Fitbit => {
                 self.database
-                    .delete_user_oauth_token(user_id, &tenant_id, FITBIT)
+                    .delete_user_oauth_token(user_id, tenant_id, FITBIT)
                     .await
                     .map_err(|e| {
                         AppError::database(format!("Failed to delete Fitbit OAuth token: {e}"))
@@ -330,14 +331,14 @@ impl ProviderManager {
             .list_tenants_for_user(user_id)
             .await
             .map_err(|e| AppError::database(format!("Failed to get user tenants: {e}")))?;
-        let tenant_id = tenants
+        let tenant_id: TenantId = tenants
             .first()
-            .map(|t| t.id.to_string())
+            .map(|t| t.id)
             .ok_or_else(|| AppError::invalid_input("User has no tenant"))?;
 
         let sync_time = chrono::Utc::now();
         self.database
-            .update_provider_last_sync(user_id, &tenant_id, &provider_type.to_string(), sync_time)
+            .update_provider_last_sync(user_id, tenant_id, &provider_type.to_string(), sync_time)
             .await
             .map_err(|e| AppError::internal(format!("Failed to update sync timestamp: {e}")))?;
         Ok(())

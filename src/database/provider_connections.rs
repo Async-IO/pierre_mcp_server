@@ -8,6 +8,7 @@ use crate::database::Database;
 use crate::errors::AppResult;
 use crate::models::{ConnectionType, ProviderConnection};
 use chrono::{DateTime, Utc};
+use pierre_core::models::TenantId;
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -23,7 +24,7 @@ impl Database {
     pub async fn register_provider_connection_impl(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
         connection_type: &ConnectionType,
         metadata: Option<&str>,
@@ -45,7 +46,7 @@ impl Database {
         )
         .bind(&id)
         .bind(&user_id_str)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(provider)
         .bind(conn_type_str)
         .bind(&now)
@@ -66,7 +67,7 @@ impl Database {
     pub async fn remove_provider_connection_impl(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<()> {
         let user_id_str = user_id.to_string();
@@ -75,7 +76,7 @@ impl Database {
             "DELETE FROM provider_connections WHERE user_id = ? AND tenant_id = ? AND provider = ?",
         )
         .bind(&user_id_str)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(provider)
         .execute(self.pool())
         .await?;
@@ -94,7 +95,7 @@ impl Database {
     pub async fn get_user_provider_connections_impl(
         &self,
         user_id: Uuid,
-        tenant_id: Option<&str>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Vec<ProviderConnection>> {
         let user_id_str = user_id.to_string();
 

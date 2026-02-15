@@ -174,7 +174,7 @@ impl SecurityAuditor {
             "access".to_owned(),
             "success".to_owned(),
         )
-        .with_tenant_id(tenant_id.as_uuid())
+        .with_tenant_id(tenant_id)
         .with_resource(format!("oauth_credentials:{tenant_id}:{provider}"))
         .with_metadata(serde_json::json!({
             "provider": provider,
@@ -220,7 +220,7 @@ impl SecurityAuditor {
             action.to_owned(),
             "success".to_owned(),
         )
-        .with_tenant_id(tenant_id.as_uuid())
+        .with_tenant_id(tenant_id)
         .with_user_id(user_id)
         .with_resource(format!("oauth_credentials:{tenant_id}:{provider}"))
         .with_metadata(serde_json::json!({
@@ -246,7 +246,7 @@ impl SecurityAuditor {
         &self,
         tool_name: &str,
         user_id: Uuid,
-        tenant_id: Option<Uuid>,
+        tenant_id: Option<TenantId>,
         success: bool,
         duration_ms: u64,
         source_ip: Option<String>,
@@ -348,7 +348,7 @@ impl SecurityAuditor {
     pub async fn log_encryption_event(
         &self,
         operation: &str, // "encrypt" or "decrypt"
-        tenant_id: Option<Uuid>,
+        tenant_id: Option<TenantId>,
         success: bool,
         error_details: Option<&str>,
     ) -> AppResult<()> {

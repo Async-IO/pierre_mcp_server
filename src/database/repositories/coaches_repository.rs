@@ -9,6 +9,7 @@ use crate::database::coaches::{Coach, CoachesManager, CreateCoachRequest, ListCo
 use crate::database::DatabaseError;
 use crate::database_plugins::factory::Database;
 use async_trait::async_trait;
+use pierre_core::models::TenantId;
 use uuid::Uuid;
 
 /// SQLite/PostgreSQL implementation of `CoachesRepository`
@@ -35,7 +36,7 @@ impl CoachesRepository for CoachesRepositoryImpl {
     async fn create(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         request: &CreateCoachRequest,
     ) -> Result<Coach, DatabaseError> {
         let manager = self.get_manager().ok_or_else(|| DatabaseError::QueryError {
@@ -54,7 +55,7 @@ impl CoachesRepository for CoachesRepositoryImpl {
         &self,
         coach_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> Result<Option<Coach>, DatabaseError> {
         let manager = self.get_manager().ok_or_else(|| DatabaseError::QueryError {
             context: "Coaches operations require SQLite backend".to_string(),
@@ -71,7 +72,7 @@ impl CoachesRepository for CoachesRepositoryImpl {
     async fn list(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         filter: &ListCoachesFilter,
     ) -> Result<Vec<Coach>, DatabaseError> {
         let manager = self.get_manager().ok_or_else(|| DatabaseError::QueryError {
@@ -90,7 +91,7 @@ impl CoachesRepository for CoachesRepositoryImpl {
         &self,
         coach_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         request: &UpdateCoachRequest,
     ) -> Result<Option<Coach>, DatabaseError> {
         let manager = self.get_manager().ok_or_else(|| DatabaseError::QueryError {
@@ -109,7 +110,7 @@ impl CoachesRepository for CoachesRepositoryImpl {
         &self,
         coach_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> Result<bool, DatabaseError> {
         let manager = self.get_manager().ok_or_else(|| DatabaseError::QueryError {
             context: "Coaches operations require SQLite backend".to_string(),
@@ -127,7 +128,7 @@ impl CoachesRepository for CoachesRepositoryImpl {
         &self,
         coach_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> Result<bool, DatabaseError> {
         let manager = self.get_manager().ok_or_else(|| DatabaseError::QueryError {
             context: "Coaches operations require SQLite backend".to_string(),
@@ -145,7 +146,7 @@ impl CoachesRepository for CoachesRepositoryImpl {
         &self,
         coach_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> Result<Option<bool>, DatabaseError> {
         let manager = self.get_manager().ok_or_else(|| DatabaseError::QueryError {
             context: "Coaches operations require SQLite backend".to_string(),
@@ -162,7 +163,7 @@ impl CoachesRepository for CoachesRepositoryImpl {
     async fn search(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         query: &str,
         limit: Option<u32>,
         offset: Option<u32>,
@@ -179,7 +180,7 @@ impl CoachesRepository for CoachesRepositoryImpl {
             })
     }
 
-    async fn count(&self, user_id: Uuid, tenant_id: &str) -> Result<u32, DatabaseError> {
+    async fn count(&self, user_id: Uuid, tenant_id: TenantId) -> Result<u32, DatabaseError> {
         let manager = self.get_manager().ok_or_else(|| DatabaseError::QueryError {
             context: "Coaches operations require SQLite backend".to_string(),
         })?;

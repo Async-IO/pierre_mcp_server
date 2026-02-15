@@ -9,7 +9,7 @@
 
 use pierre_mcp_server::constants::oauth_providers;
 use pierre_mcp_server::database::{user_oauth_tokens::OAuthTokenData, Database};
-use pierre_mcp_server::models::{DecryptedToken, User, UserStatus, UserTier};
+use pierre_mcp_server::models::{DecryptedToken, TenantId, User, UserStatus, UserTier};
 use pierre_mcp_server::permissions::UserRole;
 use uuid::Uuid;
 
@@ -58,7 +58,7 @@ async fn test_strava_token_storage() {
     let oauth_token_data = OAuthTokenData {
         id: &token_id,
         user_id: user.id,
-        tenant_id: "00000000-0000-0000-0000-000000000000",
+        tenant_id: TenantId::from_uuid(Uuid::nil()),
         provider: oauth_providers::STRAVA,
         access_token: &token.access_token,
         refresh_token: Some(&token.refresh_token),
@@ -74,7 +74,7 @@ async fn test_strava_token_storage() {
     let retrieved_oauth = db
         .get_user_oauth_token(
             user.id,
-            "00000000-0000-0000-0000-000000000000",
+            TenantId::from_uuid(Uuid::nil()),
             oauth_providers::STRAVA,
         )
         .await
@@ -96,7 +96,7 @@ async fn test_strava_token_storage() {
     // Clear token
     db.delete_user_oauth_token(
         user.id,
-        "00000000-0000-0000-0000-000000000000",
+        TenantId::from_uuid(Uuid::nil()),
         oauth_providers::STRAVA,
     )
     .await
@@ -106,7 +106,7 @@ async fn test_strava_token_storage() {
     let cleared = db
         .get_user_oauth_token(
             user.id,
-            "00000000-0000-0000-0000-000000000000",
+            TenantId::from_uuid(Uuid::nil()),
             oauth_providers::STRAVA,
         )
         .await
@@ -160,7 +160,7 @@ async fn test_fitbit_token_storage() {
     let oauth_token_data = OAuthTokenData {
         id: &token_id,
         user_id,
-        tenant_id: "00000000-0000-0000-0000-000000000000",
+        tenant_id: TenantId::from_uuid(Uuid::nil()),
         provider: oauth_providers::FITBIT,
         access_token: &token.access_token,
         refresh_token: Some(&token.refresh_token),
@@ -176,7 +176,7 @@ async fn test_fitbit_token_storage() {
     let retrieved_oauth = db
         .get_user_oauth_token(
             user_id,
-            "00000000-0000-0000-0000-000000000000",
+            TenantId::from_uuid(Uuid::nil()),
             oauth_providers::FITBIT,
         )
         .await

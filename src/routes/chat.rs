@@ -10,6 +10,7 @@
 //! sending messages, and streaming AI responses. All handlers require JWT authentication.
 
 use crate::models::ConnectionType;
+use crate::models::TenantId;
 use crate::{
     auth::AuthResult,
     config::LlmProviderType,
@@ -339,11 +340,11 @@ impl ChatRoutes {
     async fn get_tenant_id(
         user_id: Uuid,
         resources: &Arc<ServerResources>,
-    ) -> Result<String, AppError> {
+    ) -> Result<TenantId, AppError> {
         let tenants = resources.database.list_tenants_for_user(user_id).await?;
         Ok(tenants
             .first()
-            .map_or_else(|| user_id.to_string(), |t| t.id.to_string()))
+            .map_or_else(|| TenantId::from(user_id), |t| t.id))
     }
 
     /// Get the system prompt text for a conversation
@@ -423,7 +424,7 @@ impl ChatRoutes {
         resources: &Arc<ServerResources>,
         history_len: usize,
         system_prompt: Option<&String>,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> Option<String> {
         use crate::database::coaches::CoachesManager;
 
@@ -693,7 +694,7 @@ impl ChatRoutes {
         tools: &Tool,
         model: &str,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> Result<ToolLoopResult, AppError> {
         // Track activity list across iterations (to prepend to final response)
         let mut captured_activity_list: Option<String> = None;
@@ -762,7 +763,7 @@ impl ChatRoutes {
         executor: &UniversalExecutor,
         function_calls: &[FunctionCall],
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> Result<Vec<FunctionResponse>, AppError> {
         let mut responses = Vec::with_capacity(function_calls.len());
         for function_call in function_calls {
@@ -817,14 +818,14 @@ impl ChatRoutes {
         executor: &UniversalExecutor,
         function_call: &FunctionCall,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> UniversalResponse {
         let request = UniversalRequest {
             tool_name: function_call.name.clone(), // Ownership transfer for tool execution
             parameters: function_call.args.clone(), // Ownership transfer for parameters
             user_id: user_id.to_owned(),
             protocol: "chat".to_owned(),
-            tenant_id: Some(tenant_id.to_owned()),
+            tenant_id: Some(tenant_id.to_string()),
             progress_token: None,
             cancellation_token: None,
             progress_reporter: None,
@@ -894,7 +895,7 @@ impl ChatRoutes {
             .database
             .chat_create_conversation(
                 &auth.user_id.to_string(),
-                &tenant_id,
+                tenant_id,
                 &request.title,
                 &model,
                 request.system_prompt.as_deref(),
@@ -927,7 +928,7 @@ impl ChatRoutes {
             .database
             .chat_list_conversations(
                 &auth.user_id.to_string(),
-                &tenant_id,
+                tenant_id,
                 query.limit,
                 query.offset,
             )
@@ -964,7 +965,7 @@ impl ChatRoutes {
 
         let conv = resources
             .database
-            .chat_get_conversation(&conversation_id, &auth.user_id.to_string(), &tenant_id)
+            .chat_get_conversation(&conversation_id, &auth.user_id.to_string(), tenant_id)
             .await?
             .ok_or_else(|| AppError::not_found("Conversation not found"))?;
 
@@ -996,7 +997,7 @@ impl ChatRoutes {
             .chat_update_conversation_title(
                 &conversation_id,
                 &auth.user_id.to_string(),
-                &tenant_id,
+                tenant_id,
                 &request.title,
             )
             .await?;
@@ -1008,7 +1009,7 @@ impl ChatRoutes {
         // Fetch and return the updated conversation (proper REST response)
         let conv = resources
             .database
-            .chat_get_conversation(&conversation_id, &auth.user_id.to_string(), &tenant_id)
+            .chat_get_conversation(&conversation_id, &auth.user_id.to_string(), tenant_id)
             .await?
             .ok_or_else(|| AppError::internal("Conversation not found after update"))?;
 
@@ -1036,7 +1037,7 @@ impl ChatRoutes {
 
         let deleted = resources
             .database
-            .chat_delete_conversation(&conversation_id, &auth.user_id.to_string(), &tenant_id)
+            .chat_delete_conversation(&conversation_id, &auth.user_id.to_string(), tenant_id)
             .await?;
 
         if !deleted {
@@ -1062,7 +1063,7 @@ impl ChatRoutes {
         // Verify user owns this conversation
         resources
             .database
-            .chat_get_conversation(&conversation_id, &auth.user_id.to_string(), &tenant_id)
+            .chat_get_conversation(&conversation_id, &auth.user_id.to_string(), tenant_id)
             .await?
             .ok_or_else(|| AppError::not_found("Conversation not found"))?;
 
@@ -1102,7 +1103,7 @@ impl ChatRoutes {
         // Get conversation to verify ownership and get model/system prompt
         let conv = resources
             .database
-            .chat_get_conversation(&conversation_id, &auth.user_id.to_string(), &tenant_id)
+            .chat_get_conversation(&conversation_id, &auth.user_id.to_string(), tenant_id)
             .await?
             .ok_or_else(|| AppError::not_found("Conversation not found"))?;
 
@@ -1161,7 +1162,7 @@ impl ChatRoutes {
                 &resources,
                 history.len(),
                 conv.system_prompt.as_ref(),
-                &tenant_id,
+                tenant_id,
             )
             .await
             {
@@ -1191,7 +1192,7 @@ impl ChatRoutes {
             &tools,
             &conv.model,
             &auth.user_id.to_string(),
-            &tenant_id,
+            tenant_id,
         )
         .await?;
 
@@ -1236,7 +1237,7 @@ impl ChatRoutes {
         // Get updated conversation for timestamp
         let updated_conv = resources
             .database
-            .chat_get_conversation(&conversation_id, &auth.user_id.to_string(), &tenant_id)
+            .chat_get_conversation(&conversation_id, &auth.user_id.to_string(), tenant_id)
             .await?
             .ok_or_else(|| AppError::internal("Failed to get updated conversation"))?;
 

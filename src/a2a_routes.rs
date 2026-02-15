@@ -519,26 +519,17 @@ impl A2ARoutes {
             }
         };
 
-        // Resolve tenant context for the authenticated user
+        // Resolve tenant context — required for all A2A tool execution
         let user_uuid = Uuid::parse_str(&user_id).ok();
-        let tenant_id = match extract_tenant_context_internal(
-            &self.resources.database,
-            user_uuid,
-            None,
-            None,
-        )
-        .await
-        {
-            Ok(Some(ctx)) => Some(ctx.tenant_id.to_string()),
-            Ok(None) => {
-                warn!(user_id = %user_id, "No tenant context found for A2A user");
-                None
-            }
-            Err(e) => {
-                warn!(user_id = %user_id, error = %e, "Failed to resolve tenant context for A2A");
-                None
-            }
-        };
+        let tenant_context =
+            extract_tenant_context_internal(&self.resources.database, user_uuid, None, None)
+                .await
+                .map_err(|e| {
+                    A2AError::InternalError(format!("Failed to resolve tenant context: {e}"))
+                })?
+                .ok_or_else(|| {
+                    A2AError::AuthenticationFailed("User does not belong to any tenant".to_owned())
+                })?;
 
         // Create universal request
         let universal_request = UniversalRequest {
@@ -546,7 +537,7 @@ impl A2ARoutes {
             parameters,
             user_id,
             protocol: "a2a".into(),
-            tenant_id,
+            tenant_id: Some(tenant_context.tenant_id.to_string()),
             progress_token: None,
             cancellation_token: None,
             progress_reporter: None,

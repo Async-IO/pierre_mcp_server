@@ -141,7 +141,7 @@ impl AuthService {
         // Assign user to their personal tenant
         self.data
             .database()
-            .update_user_tenant_id(user_id, &tenant_id.to_string())
+            .update_user_tenant_id(user_id, tenant_id)
             .await
             .map_err(|e| {
                 error!("Failed to assign user to tenant: {}", e);
@@ -1043,11 +1043,17 @@ impl OAuthService {
             .map_err(|e| AppError::database(format!("Failed to upsert OAuth token: {e}")))?;
 
         // Register provider connection alongside the OAuth token
+        let connection_tenant_id: TenantId = user_oauth_token.tenant_id.parse().map_err(|_| {
+            AppError::internal(format!(
+                "Invalid tenant_id in OAuth token: {}",
+                user_oauth_token.tenant_id
+            ))
+        })?;
         self.data
             .database()
             .register_provider_connection(
                 user_id,
-                &user_oauth_token.tenant_id,
+                connection_tenant_id,
                 provider,
                 &ConnectionType::OAuth,
                 None,
@@ -1240,8 +1246,8 @@ impl OAuthService {
 
         // Get tenant_id: prefer active_tenant_id (user's selected tenant) when available,
         // falling back to user's first tenant for single-tenant users or tokens without active_tenant_id.
-        let tenant_id = if let Some(tid) = active_tenant_id {
-            tid.to_string()
+        let tenant_id: TenantId = if let Some(tid) = active_tenant_id {
+            TenantId::from(tid)
         } else {
             let tenants = self
                 .data
@@ -1249,7 +1255,7 @@ impl OAuthService {
                 .list_tenants_for_user(user_id)
                 .await
                 .map_err(|e| AppError::database(format!("Failed to get user tenants: {e}")))?;
-            tenants.first().map(|t| t.id.to_string()).ok_or_else(|| {
+            tenants.first().map(|t| t.id).ok_or_else(|| {
                 AppError::auth_invalid(
                     "User has no tenant association — cannot disconnect provider",
                 )
@@ -1259,14 +1265,14 @@ impl OAuthService {
         // Delete OAuth tokens from database
         self.data
             .database()
-            .delete_user_oauth_token(user_id, &tenant_id, provider)
+            .delete_user_oauth_token(user_id, tenant_id, provider)
             .await
             .map_err(|e| AppError::database(format!("Failed to delete OAuth token: {e}")))?;
 
         // Remove provider connection record
         self.data
             .database()
-            .remove_provider_connection(user_id, &tenant_id, provider)
+            .remove_provider_connection(user_id, tenant_id, provider)
             .await
             .map_err(|e| {
                 AppError::database(format!("Failed to remove provider connection: {e}"))
@@ -2622,13 +2628,10 @@ impl AuthRoutes {
             .await
             .map_err(|e| AppError::database(format!("Failed to get user tenants: {e}")))?;
 
-        tenants.first().map_or_else(
-            || {
-                debug!(user_id = %user_id, "User has no tenants - using user_id as tenant");
-                Ok(TenantId::from(user_id))
-            },
-            |tenant| Ok(tenant.id),
-        )
+        tenants.first().map(|t| t.id).ok_or_else(|| {
+            warn!(user_id = %user_id, "User has no tenant memberships for OAuth tenant resolution");
+            AppError::auth_invalid("User does not belong to any tenant")
+        })
     }
 
     /// Handle OAuth authorization initiation (Axum)

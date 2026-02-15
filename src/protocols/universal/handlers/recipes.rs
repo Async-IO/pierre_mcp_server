@@ -11,6 +11,7 @@ use crate::intelligence::recipes::{
     convert_to_grams, DietaryRestriction, IngredientUnit, MacroTargets, MealTiming, Recipe,
     RecipeConstraints, RecipeIngredient, SkillLevel,
 };
+use crate::models::TenantId;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalToolExecutor};
 use crate::protocols::ProtocolError;
 use crate::utils::uuid::parse_user_id_for_protocol;
@@ -534,7 +535,12 @@ pub fn handle_save_recipe(
 
         let user_id = parse_user_id_for_protocol(&request.user_id)?;
         let user_id_string = user_id.to_string();
-        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+        let tenant_id: TenantId = request
+            .tenant_id
+            .as_deref()
+            .unwrap_or(&user_id_string)
+            .parse()
+            .map_err(|_| ProtocolError::InvalidRequest("Invalid tenant_id format".to_owned()))?;
 
         // Parse recipe parameters
         let params: SaveRecipeParams =
@@ -631,7 +637,12 @@ pub fn handle_list_recipes(
 
         let user_id = parse_user_id_for_protocol(&request.user_id)?;
         let user_id_string = user_id.to_string();
-        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+        let tenant_id: TenantId = request
+            .tenant_id
+            .as_deref()
+            .unwrap_or(&user_id_string)
+            .parse()
+            .map_err(|_| ProtocolError::InvalidRequest("Invalid tenant_id format".to_owned()))?;
 
         let meal_timing = request
             .parameters
@@ -729,7 +740,12 @@ pub fn handle_get_recipe(
 
         let user_id = parse_user_id_for_protocol(&request.user_id)?;
         let user_id_string = user_id.to_string();
-        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+        let tenant_id: TenantId = request
+            .tenant_id
+            .as_deref()
+            .unwrap_or(&user_id_string)
+            .parse()
+            .map_err(|_| ProtocolError::InvalidRequest("Invalid tenant_id format".to_owned()))?;
 
         let recipe_id = request
             .parameters
@@ -818,7 +834,12 @@ pub fn handle_delete_recipe(
     Box::pin(async move {
         let user_id = parse_user_id_for_protocol(&request.user_id)?;
         let user_id_string = user_id.to_string();
-        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+        let tenant_id: TenantId = request
+            .tenant_id
+            .as_deref()
+            .unwrap_or(&user_id_string)
+            .parse()
+            .map_err(|_| ProtocolError::InvalidRequest("Invalid tenant_id format".to_owned()))?;
 
         let recipe_id = request
             .parameters
@@ -880,7 +901,12 @@ pub fn handle_search_recipes(
 
         let user_id = parse_user_id_for_protocol(&request.user_id)?;
         let user_id_string = user_id.to_string();
-        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+        let tenant_id: TenantId = request
+            .tenant_id
+            .as_deref()
+            .unwrap_or(&user_id_string)
+            .parse()
+            .map_err(|_| ProtocolError::InvalidRequest("Invalid tenant_id format".to_owned()))?;
 
         let query = request
             .parameters

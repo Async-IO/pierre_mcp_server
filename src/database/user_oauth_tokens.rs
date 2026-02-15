@@ -8,6 +8,7 @@ use super::Database;
 use crate::errors::{AppError, AppResult};
 use crate::models::UserOAuthToken;
 use chrono::{DateTime, Utc};
+use pierre_core::models::TenantId;
 use sqlx::sqlite::SqliteRow;
 use sqlx::Row;
 use uuid::Uuid;
@@ -19,7 +20,7 @@ pub struct OAuthTokenData<'a> {
     /// User ID this token belongs to
     pub user_id: Uuid,
     /// Tenant ID for multi-tenant isolation
-    pub tenant_id: &'a str,
+    pub tenant_id: TenantId,
     /// OAuth provider (e.g., "strava", "fitbit")
     pub provider: &'a str,
     /// OAuth access token
@@ -81,7 +82,7 @@ impl Database {
         )
         .bind(token_data.id)
         .bind(token_data.user_id.to_string())
-        .bind(token_data.tenant_id)
+        .bind(token_data.tenant_id.to_string())
         .bind(token_data.provider)
         .bind(&encrypted_access_token)
         .bind(encrypted_refresh_token.as_deref())
@@ -109,7 +110,7 @@ impl Database {
     pub async fn get_user_oauth_token(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<Option<UserOAuthToken>> {
         let row = sqlx::query(
@@ -121,7 +122,7 @@ impl Database {
             ",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(provider)
         .fetch_optional(&self.pool)
         .await
@@ -149,7 +150,7 @@ impl Database {
     pub async fn get_user_oauth_tokens_impl(
         &self,
         user_id: Uuid,
-        tenant_id: Option<&str>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Vec<UserOAuthToken>> {
         let rows = if let Some(tid) = tenant_id {
             sqlx::query(
@@ -162,7 +163,7 @@ impl Database {
                 ",
             )
             .bind(user_id.to_string())
-            .bind(tid)
+            .bind(tid.to_string())
             .fetch_all(&self.pool)
             .await
         } else {
@@ -200,7 +201,7 @@ impl Database {
     /// - Decryption fails for any token
     pub async fn get_tenant_provider_tokens(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<Vec<UserOAuthToken>> {
         let rows = sqlx::query(
@@ -212,7 +213,7 @@ impl Database {
             ORDER BY created_at DESC
             ",
         )
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(provider)
         .fetch_all(&self.pool)
         .await
@@ -233,7 +234,7 @@ impl Database {
     pub async fn delete_user_oauth_token(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<()> {
         sqlx::query(
@@ -243,7 +244,7 @@ impl Database {
             ",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(provider)
         .execute(&self.pool)
         .await
@@ -260,7 +261,7 @@ impl Database {
     pub async fn delete_user_oauth_tokens_impl(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<()> {
         sqlx::query(
             r"
@@ -269,7 +270,7 @@ impl Database {
             ",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to delete user OAuth tokens: {e}")))?;
@@ -289,7 +290,7 @@ impl Database {
     pub async fn refresh_user_oauth_token(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
         access_token: &str,
         refresh_token: Option<&str>,
@@ -317,7 +318,7 @@ impl Database {
             ",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(provider)
         .bind(&encrypted_access_token)
         .bind(encrypted_refresh_token.as_deref())
@@ -380,7 +381,7 @@ impl Database {
     pub async fn get_user_oauth_tokens(
         &self,
         user_id: Uuid,
-        tenant_id: Option<&str>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Vec<UserOAuthToken>> {
         self.get_user_oauth_tokens_impl(user_id, tenant_id).await
     }
@@ -389,7 +390,11 @@ impl Database {
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn delete_user_oauth_tokens(&self, user_id: Uuid, tenant_id: &str) -> AppResult<()> {
+    pub async fn delete_user_oauth_tokens(
+        &self,
+        user_id: Uuid,
+        tenant_id: TenantId,
+    ) -> AppResult<()> {
         self.delete_user_oauth_tokens_impl(user_id, tenant_id).await
     }
 }

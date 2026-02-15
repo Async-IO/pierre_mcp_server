@@ -16,7 +16,7 @@ use pierre_mcp_server::{
     admin::models::CreateAdminTokenRequest,
     database_plugins::{factory::Database, DatabaseProvider},
     key_management::KeyManager,
-    models::{User, UserStatus, UserTier},
+    models::{TenantId, User, UserStatus, UserTier},
     permissions::UserRole,
 };
 use serial_test::serial;
@@ -322,9 +322,9 @@ async fn test_approve_user_assigns_admin_tenant() -> Result<()> {
     let (database, _, admin_user_id) = setup_test_database().await?;
 
     // Set up admin user with a specific tenant_id
-    let admin_tenant_id = Uuid::new_v4().to_string();
+    let admin_tenant_id = TenantId::from(Uuid::new_v4());
     database
-        .update_user_tenant_id(admin_user_id, &admin_tenant_id)
+        .update_user_tenant_id(admin_user_id, admin_tenant_id)
         .await?;
 
     // Verify admin's tenant assignment happened (via update_user_tenant_id)
@@ -363,7 +363,7 @@ async fn test_approve_user_assigns_admin_tenant() -> Result<()> {
         .update_user_status(pending_user_id, UserStatus::Active, None)
         .await?;
     database
-        .update_user_tenant_id(pending_user_id, &admin_tenant_id)
+        .update_user_tenant_id(pending_user_id, admin_tenant_id)
         .await?;
 
     // Verify user is now active
@@ -383,9 +383,9 @@ async fn test_approved_users_share_tenant_with_admin() -> Result<()> {
     let (database, _, admin_user_id) = setup_test_database().await?;
 
     // Set up admin user with a specific tenant_id
-    let shared_tenant_id = Uuid::new_v4().to_string();
+    let shared_tenant_id = TenantId::from(Uuid::new_v4());
     database
-        .update_user_tenant_id(admin_user_id, &shared_tenant_id)
+        .update_user_tenant_id(admin_user_id, shared_tenant_id)
         .await?;
 
     // Create and approve multiple users
@@ -418,7 +418,7 @@ async fn test_approved_users_share_tenant_with_admin() -> Result<()> {
             .update_user_status(user_id, UserStatus::Active, None)
             .await?;
         database
-            .update_user_tenant_id(user_id, &shared_tenant_id)
+            .update_user_tenant_id(user_id, shared_tenant_id)
             .await?;
 
         approved_user_ids.push(user_id);

@@ -642,7 +642,7 @@ async fn test_concurrent_requests() -> Result<()> {
         // Link user to tenant via user_tenants table
         resources
             .database
-            .update_user_tenant_id(user.id, &tenant_slug)
+            .update_user_tenant_id(user.id, tenant.id)
             .await?;
 
         let token = resources

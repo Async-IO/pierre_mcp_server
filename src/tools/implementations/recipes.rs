@@ -31,6 +31,7 @@ use crate::intelligence::recipes::{
     RecipeConstraints, RecipeIngredient, SkillLevel,
 };
 use crate::mcp::schema::{JsonSchema, PropertySchema};
+use crate::models::TenantId;
 use crate::tools::context::ToolExecutionContext;
 use crate::tools::result::ToolResult;
 use crate::tools::traits::{McpTool, ToolCapabilities};
@@ -50,9 +51,9 @@ fn get_recipe_manager(ctx: &ToolExecutionContext) -> AppResult<RecipeManager> {
 }
 
 /// Get tenant ID from context
-fn get_tenant_id(ctx: &ToolExecutionContext) -> String {
+fn get_tenant_id(ctx: &ToolExecutionContext) -> TenantId {
     ctx.tenant_id
-        .map_or_else(|| ctx.user_id.to_string(), |id| id.to_string())
+        .map_or_else(|| TenantId::from(ctx.user_id), TenantId::from)
 }
 
 fn parse_meal_timing(s: &str) -> MealTiming {
@@ -649,7 +650,7 @@ impl McpTool for SaveRecipeTool {
 
         let manager = get_recipe_manager(ctx)?;
         let recipe_id = manager
-            .create_recipe(ctx.user_id, &tenant_id, &recipe)
+            .create_recipe(ctx.user_id, tenant_id, &recipe)
             .await?;
 
         Ok(ToolResult::ok(json!({
@@ -736,7 +737,7 @@ impl McpTool for ListRecipesTool {
 
         let manager = get_recipe_manager(ctx)?;
         let recipes = manager
-            .list_recipes(ctx.user_id, &tenant_id, meal_timing, Some(limit), offset)
+            .list_recipes(ctx.user_id, tenant_id, meal_timing, Some(limit), offset)
             .await?;
 
         let recipe_summaries: Vec<Value> = recipes
@@ -816,7 +817,7 @@ impl McpTool for GetRecipeTool {
         let tenant_id = get_tenant_id(ctx);
         let manager = get_recipe_manager(ctx)?;
         let recipe = manager
-            .get_recipe(recipe_id, ctx.user_id, &tenant_id)
+            .get_recipe(recipe_id, ctx.user_id, tenant_id)
             .await?;
 
         match recipe {
@@ -903,7 +904,7 @@ impl McpTool for DeleteRecipeTool {
         let tenant_id = get_tenant_id(ctx);
         let manager = get_recipe_manager(ctx)?;
         let deleted = manager
-            .delete_recipe(recipe_id, ctx.user_id, &tenant_id)
+            .delete_recipe(recipe_id, ctx.user_id, tenant_id)
             .await?;
 
         if deleted {
@@ -992,7 +993,7 @@ impl McpTool for SearchRecipesTool {
 
         let manager = get_recipe_manager(ctx)?;
         let recipes = manager
-            .search_recipes(ctx.user_id, &tenant_id, query, Some(limit), offset)
+            .search_recipes(ctx.user_id, tenant_id, query, Some(limit), offset)
             .await?;
 
         let results: Vec<Value> = recipes

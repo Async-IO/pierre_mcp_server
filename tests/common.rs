@@ -235,9 +235,7 @@ pub async fn create_test_user(database: &Database) -> Result<(Uuid, User)> {
     database.create_tenant(&tenant).await?;
 
     // Also update legacy tenant_id column for backward compatibility
-    database
-        .update_user_tenant_id(user_id, &tenant_id.to_string())
-        .await?;
+    database.update_user_tenant_id(user_id, tenant_id).await?;
 
     Ok((user_id, user))
 }
@@ -277,9 +275,7 @@ pub async fn create_test_user_with_email(database: &Database, email: &str) -> Re
     database.create_tenant(&tenant).await?;
 
     // Also update legacy tenant_id column for backward compatibility
-    database
-        .update_user_tenant_id(user_id, &tenant_id.to_string())
-        .await?;
+    database.update_user_tenant_id(user_id, tenant_id).await?;
 
     Ok((user_id, user))
 }

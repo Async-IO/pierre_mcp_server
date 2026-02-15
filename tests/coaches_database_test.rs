@@ -11,6 +11,7 @@ use pierre_mcp_server::database::coaches::{
     CoachCategory, CoachVisibility, CoachesManager, CreateCoachRequest, CreateSystemCoachRequest,
     ListCoachesFilter, UpdateCoachRequest,
 };
+use pierre_mcp_server::models::TenantId;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
@@ -212,8 +213,13 @@ fn other_user_id() -> Uuid {
     Uuid::parse_str("660e8400-e29b-41d4-a716-446655440000").unwrap()
 }
 
-const TEST_TENANT: &str = "test-tenant";
-const OTHER_TENANT: &str = "other-tenant";
+fn test_tenant() -> TenantId {
+    TenantId::from_uuid(Uuid::parse_str("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa").unwrap())
+}
+
+fn other_tenant() -> TenantId {
+    TenantId::from_uuid(Uuid::parse_str("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb").unwrap())
+}
 
 // ============================================================================
 // Create Tests
@@ -234,13 +240,13 @@ async fn test_create_coach() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
     assert!(!coach.id.is_nil());
     assert_eq!(coach.user_id, test_user_id());
-    assert_eq!(coach.tenant_id, TEST_TENANT);
+    assert_eq!(coach.tenant_id, test_tenant().to_string());
     assert_eq!(coach.title, "Marathon Coach");
     assert_eq!(
         coach.description,
@@ -272,7 +278,7 @@ async fn test_create_coach_minimal() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -301,12 +307,12 @@ async fn test_get_coach() {
     };
 
     let created = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
     let fetched = manager
-        .get(&created.id.to_string(), test_user_id(), TEST_TENANT)
+        .get(&created.id.to_string(), test_user_id(), test_tenant())
         .await
         .unwrap();
 
@@ -322,7 +328,7 @@ async fn test_get_coach_not_found() {
     let manager = CoachesManager::new(pool);
 
     let result = manager
-        .get("nonexistent-id", test_user_id(), TEST_TENANT)
+        .get("nonexistent-id", test_user_id(), test_tenant())
         .await
         .unwrap();
 
@@ -344,13 +350,13 @@ async fn test_get_coach_wrong_user() {
     };
 
     let created = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
     // Try to get with different user - should not find it
     let result = manager
-        .get(&created.id.to_string(), other_user_id(), TEST_TENANT)
+        .get(&created.id.to_string(), other_user_id(), test_tenant())
         .await
         .unwrap();
 
@@ -368,7 +374,7 @@ async fn test_list_coaches_empty() {
 
     let filter = ListCoachesFilter::default();
     let coaches = manager
-        .list(test_user_id(), TEST_TENANT, &filter)
+        .list(test_user_id(), test_tenant(), &filter)
         .await
         .unwrap();
 
@@ -391,14 +397,14 @@ async fn test_list_coaches() {
             sample_prompts: vec![],
         };
         manager
-            .create(test_user_id(), TEST_TENANT, &request)
+            .create(test_user_id(), test_tenant(), &request)
             .await
             .unwrap();
     }
 
     let filter = ListCoachesFilter::default();
     let coaches = manager
-        .list(test_user_id(), TEST_TENANT, &filter)
+        .list(test_user_id(), test_tenant(), &filter)
         .await
         .unwrap();
 
@@ -427,7 +433,7 @@ async fn test_list_coaches_by_category() {
             sample_prompts: vec![],
         };
         manager
-            .create(test_user_id(), TEST_TENANT, &request)
+            .create(test_user_id(), test_tenant(), &request)
             .await
             .unwrap();
     }
@@ -438,7 +444,7 @@ async fn test_list_coaches_by_category() {
         ..Default::default()
     };
     let coaches = manager
-        .list(test_user_id(), TEST_TENANT, &filter)
+        .list(test_user_id(), test_tenant(), &filter)
         .await
         .unwrap();
 
@@ -465,7 +471,7 @@ async fn test_list_coaches_favorites_only() {
             sample_prompts: vec![],
         };
         let coach = manager
-            .create(test_user_id(), TEST_TENANT, &request)
+            .create(test_user_id(), test_tenant(), &request)
             .await
             .unwrap();
         coach_ids.push(coach.id.to_string());
@@ -473,7 +479,7 @@ async fn test_list_coaches_favorites_only() {
 
     // Mark first coach as favorite
     manager
-        .toggle_favorite(&coach_ids[0], test_user_id(), TEST_TENANT)
+        .toggle_favorite(&coach_ids[0], test_user_id(), test_tenant())
         .await
         .unwrap();
 
@@ -483,7 +489,7 @@ async fn test_list_coaches_favorites_only() {
         ..Default::default()
     };
     let coaches = manager
-        .list(test_user_id(), TEST_TENANT, &filter)
+        .list(test_user_id(), test_tenant(), &filter)
         .await
         .unwrap();
 
@@ -507,7 +513,7 @@ async fn test_list_coaches_with_pagination() {
             sample_prompts: vec![],
         };
         manager
-            .create(test_user_id(), TEST_TENANT, &request)
+            .create(test_user_id(), test_tenant(), &request)
             .await
             .unwrap();
     }
@@ -519,7 +525,7 @@ async fn test_list_coaches_with_pagination() {
         ..Default::default()
     };
     let page1 = manager
-        .list(test_user_id(), TEST_TENANT, &filter)
+        .list(test_user_id(), test_tenant(), &filter)
         .await
         .unwrap();
     assert_eq!(page1.len(), 2);
@@ -531,7 +537,7 @@ async fn test_list_coaches_with_pagination() {
         ..Default::default()
     };
     let page2 = manager
-        .list(test_user_id(), TEST_TENANT, &filter)
+        .list(test_user_id(), test_tenant(), &filter)
         .await
         .unwrap();
     assert_eq!(page2.len(), 2);
@@ -543,7 +549,7 @@ async fn test_list_coaches_with_pagination() {
         ..Default::default()
     };
     let page3 = manager
-        .list(test_user_id(), TEST_TENANT, &filter)
+        .list(test_user_id(), test_tenant(), &filter)
         .await
         .unwrap();
     assert_eq!(page3.len(), 1);
@@ -564,7 +570,7 @@ async fn test_list_coaches_user_isolation() {
         sample_prompts: vec![],
     };
     manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -578,14 +584,14 @@ async fn test_list_coaches_user_isolation() {
         sample_prompts: vec![],
     };
     manager
-        .create(other_user_id(), TEST_TENANT, &request)
+        .create(other_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
     // User 1 should only see their coach
     let filter = ListCoachesFilter::default();
     let user1_coaches = manager
-        .list(test_user_id(), TEST_TENANT, &filter)
+        .list(test_user_id(), test_tenant(), &filter)
         .await
         .unwrap();
     assert_eq!(user1_coaches.len(), 1);
@@ -593,7 +599,7 @@ async fn test_list_coaches_user_isolation() {
 
     // User 2 should only see their coach
     let user2_coaches = manager
-        .list(other_user_id(), TEST_TENANT, &filter)
+        .list(other_user_id(), test_tenant(), &filter)
         .await
         .unwrap();
     assert_eq!(user2_coaches.len(), 1);
@@ -619,7 +625,7 @@ async fn test_update_coach() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -633,7 +639,12 @@ async fn test_update_coach() {
     };
 
     let updated = manager
-        .update(&coach.id.to_string(), test_user_id(), TEST_TENANT, &update)
+        .update(
+            &coach.id.to_string(),
+            test_user_id(),
+            test_tenant(),
+            &update,
+        )
         .await
         .unwrap();
 
@@ -661,7 +672,7 @@ async fn test_update_coach_partial() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -676,7 +687,12 @@ async fn test_update_coach_partial() {
     };
 
     let updated = manager
-        .update(&coach.id.to_string(), test_user_id(), TEST_TENANT, &update)
+        .update(
+            &coach.id.to_string(),
+            test_user_id(),
+            test_tenant(),
+            &update,
+        )
         .await
         .unwrap()
         .unwrap();
@@ -702,7 +718,7 @@ async fn test_update_coach_not_found() {
     };
 
     let result = manager
-        .update("nonexistent-id", test_user_id(), TEST_TENANT, &update)
+        .update("nonexistent-id", test_user_id(), test_tenant(), &update)
         .await
         .unwrap();
 
@@ -728,12 +744,12 @@ async fn test_delete_coach() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
     let deleted = manager
-        .delete(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .delete(&coach.id.to_string(), test_user_id(), test_tenant())
         .await
         .unwrap();
 
@@ -741,7 +757,7 @@ async fn test_delete_coach() {
 
     // Verify it's gone
     let result = manager
-        .get(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .get(&coach.id.to_string(), test_user_id(), test_tenant())
         .await
         .unwrap();
     assert!(result.is_none());
@@ -753,7 +769,7 @@ async fn test_delete_coach_not_found() {
     let manager = CoachesManager::new(pool);
 
     let deleted = manager
-        .delete("nonexistent-id", test_user_id(), TEST_TENANT)
+        .delete("nonexistent-id", test_user_id(), test_tenant())
         .await
         .unwrap();
 
@@ -775,13 +791,13 @@ async fn test_delete_coach_wrong_user() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
     // Try to delete with different user
     let deleted = manager
-        .delete(&coach.id.to_string(), other_user_id(), TEST_TENANT)
+        .delete(&coach.id.to_string(), other_user_id(), test_tenant())
         .await
         .unwrap();
 
@@ -789,7 +805,7 @@ async fn test_delete_coach_wrong_user() {
 
     // Verify it still exists for original user
     let result = manager
-        .get(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .get(&coach.id.to_string(), test_user_id(), test_tenant())
         .await
         .unwrap();
     assert!(result.is_some());
@@ -814,21 +830,21 @@ async fn test_toggle_favorite() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
     assert!(!coach.is_favorite);
 
     // Toggle to favorite
     let is_favorite = manager
-        .toggle_favorite(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .toggle_favorite(&coach.id.to_string(), test_user_id(), test_tenant())
         .await
         .unwrap();
     assert_eq!(is_favorite, Some(true));
 
     // Verify
     let fetched = manager
-        .get(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .get(&coach.id.to_string(), test_user_id(), test_tenant())
         .await
         .unwrap()
         .unwrap();
@@ -836,14 +852,14 @@ async fn test_toggle_favorite() {
 
     // Toggle back
     let is_favorite = manager
-        .toggle_favorite(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .toggle_favorite(&coach.id.to_string(), test_user_id(), test_tenant())
         .await
         .unwrap();
     assert_eq!(is_favorite, Some(false));
 
     // Verify
     let fetched = manager
-        .get(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .get(&coach.id.to_string(), test_user_id(), test_tenant())
         .await
         .unwrap()
         .unwrap();
@@ -856,7 +872,7 @@ async fn test_toggle_favorite_not_found() {
     let manager = CoachesManager::new(pool);
 
     let result = manager
-        .toggle_favorite("nonexistent-id", test_user_id(), TEST_TENANT)
+        .toggle_favorite("nonexistent-id", test_user_id(), test_tenant())
         .await
         .unwrap();
 
@@ -882,14 +898,14 @@ async fn test_activate_coach() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
     assert!(!coach.is_active);
 
     // Activate
     let activated = manager
-        .activate_coach(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .activate_coach(&coach.id.to_string(), test_user_id(), test_tenant())
         .await
         .unwrap();
 
@@ -913,7 +929,7 @@ async fn test_activate_coach_deactivates_others() {
         sample_prompts: vec![],
     };
     let coach1 = manager
-        .create(test_user_id(), TEST_TENANT, &request1)
+        .create(test_user_id(), test_tenant(), &request1)
         .await
         .unwrap();
 
@@ -926,19 +942,19 @@ async fn test_activate_coach_deactivates_others() {
         sample_prompts: vec![],
     };
     let coach2 = manager
-        .create(test_user_id(), TEST_TENANT, &request2)
+        .create(test_user_id(), test_tenant(), &request2)
         .await
         .unwrap();
 
     // Activate first coach
     manager
-        .activate_coach(&coach1.id.to_string(), test_user_id(), TEST_TENANT)
+        .activate_coach(&coach1.id.to_string(), test_user_id(), test_tenant())
         .await
         .unwrap();
 
     // Verify first is active
     let fetched1 = manager
-        .get(&coach1.id.to_string(), test_user_id(), TEST_TENANT)
+        .get(&coach1.id.to_string(), test_user_id(), test_tenant())
         .await
         .unwrap()
         .unwrap();
@@ -946,20 +962,20 @@ async fn test_activate_coach_deactivates_others() {
 
     // Activate second coach
     manager
-        .activate_coach(&coach2.id.to_string(), test_user_id(), TEST_TENANT)
+        .activate_coach(&coach2.id.to_string(), test_user_id(), test_tenant())
         .await
         .unwrap();
 
     // Verify second is active and first is not
     let fetched1 = manager
-        .get(&coach1.id.to_string(), test_user_id(), TEST_TENANT)
+        .get(&coach1.id.to_string(), test_user_id(), test_tenant())
         .await
         .unwrap()
         .unwrap();
     assert!(!fetched1.is_active);
 
     let fetched2 = manager
-        .get(&coach2.id.to_string(), test_user_id(), TEST_TENANT)
+        .get(&coach2.id.to_string(), test_user_id(), test_tenant())
         .await
         .unwrap()
         .unwrap();
@@ -981,26 +997,26 @@ async fn test_deactivate_coach() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
     // Activate
     manager
-        .activate_coach(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .activate_coach(&coach.id.to_string(), test_user_id(), test_tenant())
         .await
         .unwrap();
 
     // Deactivate
     let deactivated = manager
-        .deactivate_coach(test_user_id(), TEST_TENANT)
+        .deactivate_coach(test_user_id(), test_tenant())
         .await
         .unwrap();
     assert!(deactivated);
 
     // Verify
     let fetched = manager
-        .get(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .get(&coach.id.to_string(), test_user_id(), test_tenant())
         .await
         .unwrap()
         .unwrap();
@@ -1014,7 +1030,7 @@ async fn test_deactivate_when_none_active() {
 
     // Deactivate when nothing is active
     let deactivated = manager
-        .deactivate_coach(test_user_id(), TEST_TENANT)
+        .deactivate_coach(test_user_id(), test_tenant())
         .await
         .unwrap();
     assert!(!deactivated);
@@ -1027,7 +1043,7 @@ async fn test_get_active_coach() {
 
     // No active coach initially
     let active = manager
-        .get_active_coach(test_user_id(), TEST_TENANT)
+        .get_active_coach(test_user_id(), test_tenant())
         .await
         .unwrap();
     assert!(active.is_none());
@@ -1043,18 +1059,18 @@ async fn test_get_active_coach() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
     manager
-        .activate_coach(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .activate_coach(&coach.id.to_string(), test_user_id(), test_tenant())
         .await
         .unwrap();
 
     // Now should have active coach
     let active = manager
-        .get_active_coach(test_user_id(), TEST_TENANT)
+        .get_active_coach(test_user_id(), test_tenant())
         .await
         .unwrap();
     assert!(active.is_some());
@@ -1078,24 +1094,24 @@ async fn test_active_coach_user_isolation() {
         sample_prompts: vec![],
     };
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
     manager
-        .activate_coach(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .activate_coach(&coach.id.to_string(), test_user_id(), test_tenant())
         .await
         .unwrap();
 
     // User 1 should see active coach
     let active = manager
-        .get_active_coach(test_user_id(), TEST_TENANT)
+        .get_active_coach(test_user_id(), test_tenant())
         .await
         .unwrap();
     assert!(active.is_some());
 
     // User 2 should not see active coach
     let active = manager
-        .get_active_coach(other_user_id(), TEST_TENANT)
+        .get_active_coach(other_user_id(), test_tenant())
         .await
         .unwrap();
     assert!(active.is_none());
@@ -1120,7 +1136,7 @@ async fn test_record_usage() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
     assert_eq!(coach.use_count, 0);
@@ -1128,14 +1144,14 @@ async fn test_record_usage() {
 
     // Record usage
     let recorded = manager
-        .record_usage(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .record_usage(&coach.id.to_string(), test_user_id(), test_tenant())
         .await
         .unwrap();
     assert!(recorded);
 
     // Verify
     let fetched = manager
-        .get(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .get(&coach.id.to_string(), test_user_id(), test_tenant())
         .await
         .unwrap()
         .unwrap();
@@ -1144,12 +1160,12 @@ async fn test_record_usage() {
 
     // Record again
     manager
-        .record_usage(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .record_usage(&coach.id.to_string(), test_user_id(), test_tenant())
         .await
         .unwrap();
 
     let fetched = manager
-        .get(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .get(&coach.id.to_string(), test_user_id(), test_tenant())
         .await
         .unwrap()
         .unwrap();
@@ -1195,14 +1211,14 @@ async fn test_search_coaches() {
 
     for request in &requests {
         manager
-            .create(test_user_id(), TEST_TENANT, request)
+            .create(test_user_id(), test_tenant(), request)
             .await
             .unwrap();
     }
 
     // Search by title
     let results = manager
-        .search(test_user_id(), TEST_TENANT, "Marathon", None, None)
+        .search(test_user_id(), test_tenant(), "Marathon", None, None)
         .await
         .unwrap();
     assert_eq!(results.len(), 1);
@@ -1210,7 +1226,7 @@ async fn test_search_coaches() {
 
     // Search by description
     let results = manager
-        .search(test_user_id(), TEST_TENANT, "nutrition", None, None)
+        .search(test_user_id(), test_tenant(), "nutrition", None, None)
         .await
         .unwrap();
     assert_eq!(results.len(), 1);
@@ -1218,7 +1234,7 @@ async fn test_search_coaches() {
 
     // Search by tags
     let results = manager
-        .search(test_user_id(), TEST_TENANT, "running", None, None)
+        .search(test_user_id(), test_tenant(), "running", None, None)
         .await
         .unwrap();
     assert_eq!(results.len(), 1);
@@ -1226,7 +1242,7 @@ async fn test_search_coaches() {
 
     // Search with no results
     let results = manager
-        .search(test_user_id(), TEST_TENANT, "swimming", None, None)
+        .search(test_user_id(), test_tenant(), "swimming", None, None)
         .await
         .unwrap();
     assert!(results.is_empty());
@@ -1248,14 +1264,14 @@ async fn test_search_coaches_with_limit() {
             sample_prompts: vec![],
         };
         manager
-            .create(test_user_id(), TEST_TENANT, &request)
+            .create(test_user_id(), test_tenant(), &request)
             .await
             .unwrap();
     }
 
     // Search with limit
     let results = manager
-        .search(test_user_id(), TEST_TENANT, "Coach", Some(2), None)
+        .search(test_user_id(), test_tenant(), "Coach", Some(2), None)
         .await
         .unwrap();
     assert_eq!(results.len(), 2);
@@ -1271,7 +1287,7 @@ async fn test_count_coaches() {
     let manager = CoachesManager::new(pool);
 
     // Initially zero
-    let count = manager.count(test_user_id(), TEST_TENANT).await.unwrap();
+    let count = manager.count(test_user_id(), test_tenant()).await.unwrap();
     assert_eq!(count, 0);
 
     // Create coaches
@@ -1285,12 +1301,12 @@ async fn test_count_coaches() {
             sample_prompts: vec![],
         };
         manager
-            .create(test_user_id(), TEST_TENANT, &request)
+            .create(test_user_id(), test_tenant(), &request)
             .await
             .unwrap();
     }
 
-    let count = manager.count(test_user_id(), TEST_TENANT).await.unwrap();
+    let count = manager.count(test_user_id(), test_tenant()).await.unwrap();
     assert_eq!(count, 3);
 }
 
@@ -1403,12 +1419,12 @@ async fn test_create_system_coach() {
     };
 
     let coach = manager
-        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .create_system_coach(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
     assert!(!coach.id.is_nil());
-    assert_eq!(coach.tenant_id, TEST_TENANT);
+    assert_eq!(coach.tenant_id, test_tenant().to_string());
     assert_eq!(coach.title, "Pierre Default Coach");
     assert!(coach.is_system);
     assert_eq!(coach.visibility, CoachVisibility::Tenant);
@@ -1431,12 +1447,12 @@ async fn test_list_system_coaches() {
             sample_prompts: vec![],
         };
         manager
-            .create_system_coach(test_user_id(), TEST_TENANT, &request)
+            .create_system_coach(test_user_id(), test_tenant(), &request)
             .await
             .unwrap();
     }
 
-    let coaches = manager.list_system_coaches(TEST_TENANT).await.unwrap();
+    let coaches = manager.list_system_coaches(test_tenant()).await.unwrap();
     assert_eq!(coaches.len(), 2);
     assert!(coaches.iter().all(|c| c.is_system));
 }
@@ -1457,12 +1473,12 @@ async fn test_get_system_coach() {
     };
 
     let created = manager
-        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .create_system_coach(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
     let fetched = manager
-        .get_system_coach(&created.id.to_string(), TEST_TENANT)
+        .get_system_coach(&created.id.to_string(), test_tenant())
         .await
         .unwrap();
 
@@ -1489,7 +1505,7 @@ async fn test_update_system_coach() {
     };
 
     let coach = manager
-        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .create_system_coach(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -1503,7 +1519,7 @@ async fn test_update_system_coach() {
     };
 
     let updated = manager
-        .update_system_coach(&coach.id.to_string(), TEST_TENANT, &update)
+        .update_system_coach(&coach.id.to_string(), test_tenant(), &update)
         .await
         .unwrap();
 
@@ -1531,12 +1547,12 @@ async fn test_delete_system_coach() {
     };
 
     let coach = manager
-        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .create_system_coach(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
     let deleted = manager
-        .delete_system_coach(&coach.id.to_string(), TEST_TENANT)
+        .delete_system_coach(&coach.id.to_string(), test_tenant())
         .await
         .unwrap();
 
@@ -1544,7 +1560,7 @@ async fn test_delete_system_coach() {
 
     // Verify it's gone
     let result = manager
-        .get_system_coach(&coach.id.to_string(), TEST_TENANT)
+        .get_system_coach(&coach.id.to_string(), test_tenant())
         .await
         .unwrap();
     assert!(result.is_none());
@@ -1570,7 +1586,7 @@ async fn test_assign_coach_to_user() {
         sample_prompts: vec![],
     };
     let coach = manager
-        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .create_system_coach(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -1607,7 +1623,7 @@ async fn test_unassign_coach_from_user() {
         sample_prompts: vec![],
     };
     let coach = manager
-        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .create_system_coach(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -1648,7 +1664,7 @@ async fn test_list_assignments() {
         sample_prompts: vec![],
     };
     let coach = manager
-        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .create_system_coach(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -1684,7 +1700,7 @@ async fn test_list_coaches_includes_assigned_system_coaches() {
         sample_prompts: vec![],
     };
     manager
-        .create(test_user_id(), TEST_TENANT, &personal_request)
+        .create(test_user_id(), test_tenant(), &personal_request)
         .await
         .unwrap();
 
@@ -1699,7 +1715,7 @@ async fn test_list_coaches_includes_assigned_system_coaches() {
         sample_prompts: vec![],
     };
     let system_coach = manager
-        .create_system_coach(test_user_id(), TEST_TENANT, &system_request)
+        .create_system_coach(test_user_id(), test_tenant(), &system_request)
         .await
         .unwrap();
 
@@ -1711,7 +1727,7 @@ async fn test_list_coaches_includes_assigned_system_coaches() {
     // User 1 should see both coaches
     let filter = ListCoachesFilter::default();
     let coaches = manager
-        .list(test_user_id(), TEST_TENANT, &filter)
+        .list(test_user_id(), test_tenant(), &filter)
         .await
         .unwrap();
 
@@ -1743,7 +1759,7 @@ async fn test_hide_coach() {
         sample_prompts: vec![],
     };
     let coach = manager
-        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .create_system_coach(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -1788,7 +1804,7 @@ async fn test_show_coach() {
         sample_prompts: vec![],
     };
     let coach = manager
-        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .create_system_coach(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -1830,7 +1846,7 @@ async fn test_list_hidden_coaches() {
             sample_prompts: vec![],
         };
         let coach = manager
-            .create_system_coach(test_user_id(), TEST_TENANT, &request)
+            .create_system_coach(test_user_id(), test_tenant(), &request)
             .await
             .unwrap();
         coach_ids.push(coach.id.to_string());
@@ -1852,7 +1868,7 @@ async fn test_list_hidden_coaches() {
 
     // List hidden coaches
     let hidden = manager
-        .list_hidden_coaches(test_user_id(), TEST_TENANT)
+        .list_hidden_coaches(test_user_id(), test_tenant())
         .await
         .unwrap();
 
@@ -1877,7 +1893,7 @@ async fn test_hidden_coach_excluded_from_list() {
         sample_prompts: vec![],
     };
     let coach = manager
-        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .create_system_coach(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -1889,7 +1905,7 @@ async fn test_hidden_coach_excluded_from_list() {
     // Should see 1 coach
     let filter = ListCoachesFilter::default();
     let coaches = manager
-        .list(test_user_id(), TEST_TENANT, &filter)
+        .list(test_user_id(), test_tenant(), &filter)
         .await
         .unwrap();
     assert_eq!(coaches.len(), 1);
@@ -1902,7 +1918,7 @@ async fn test_hidden_coach_excluded_from_list() {
 
     // Should see 0 coaches now
     let coaches = manager
-        .list(test_user_id(), TEST_TENANT, &filter)
+        .list(test_user_id(), test_tenant(), &filter)
         .await
         .unwrap();
     assert_eq!(coaches.len(), 0);
@@ -1924,7 +1940,7 @@ async fn test_unhidden_coach_appears_in_list() {
         sample_prompts: vec![],
     };
     let coach = manager
-        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .create_system_coach(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -1942,7 +1958,7 @@ async fn test_unhidden_coach_appears_in_list() {
     // Should see 0 coaches
     let filter = ListCoachesFilter::default();
     let coaches = manager
-        .list(test_user_id(), TEST_TENANT, &filter)
+        .list(test_user_id(), test_tenant(), &filter)
         .await
         .unwrap();
     assert_eq!(coaches.len(), 0);
@@ -1955,7 +1971,7 @@ async fn test_unhidden_coach_appears_in_list() {
 
     // Should see 1 coach again
     let coaches = manager
-        .list(test_user_id(), TEST_TENANT, &filter)
+        .list(test_user_id(), test_tenant(), &filter)
         .await
         .unwrap();
     assert_eq!(coaches.len(), 1);
@@ -1977,7 +1993,7 @@ async fn test_hide_coach_user_isolation() {
         sample_prompts: vec![],
     };
     let coach = manager
-        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .create_system_coach(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -1999,14 +2015,14 @@ async fn test_hide_coach_user_isolation() {
     // User 1 should not see the coach
     let filter = ListCoachesFilter::default();
     let user1_coaches = manager
-        .list(test_user_id(), TEST_TENANT, &filter)
+        .list(test_user_id(), test_tenant(), &filter)
         .await
         .unwrap();
     assert_eq!(user1_coaches.len(), 0);
 
     // User 2 should still see the coach
     let user2_coaches = manager
-        .list(other_user_id(), TEST_TENANT, &filter)
+        .list(other_user_id(), test_tenant(), &filter)
         .await
         .unwrap();
     assert_eq!(user2_coaches.len(), 1);
@@ -2023,7 +2039,7 @@ async fn test_system_coach_visible_across_tenants() {
     let pool = create_test_db().await;
     let manager = CoachesManager::new(pool);
 
-    // Create a system coach in TEST_TENANT (tenant A)
+    // Create a system coach in test_tenant() (tenant A)
     let request = CreateSystemCoachRequest {
         title: "Global System Coach".to_owned(),
         description: Some("Visible to all tenants".to_owned()),
@@ -2035,14 +2051,14 @@ async fn test_system_coach_visible_across_tenants() {
     };
 
     let system_coach = manager
-        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .create_system_coach(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
     assert!(system_coach.is_system);
-    assert_eq!(system_coach.tenant_id, TEST_TENANT);
+    assert_eq!(system_coach.tenant_id, test_tenant().to_string());
 
-    // User from OTHER_TENANT (tenant B) should see the system coach
+    // User from other_tenant() (tenant B) should see the system coach
     // when include_system filter is enabled
     let filter = ListCoachesFilter {
         include_system: true,
@@ -2050,7 +2066,7 @@ async fn test_system_coach_visible_across_tenants() {
     };
 
     let coaches = manager
-        .list(other_user_id(), OTHER_TENANT, &filter)
+        .list(other_user_id(), other_tenant(), &filter)
         .await
         .unwrap();
 
@@ -2066,7 +2082,7 @@ async fn test_system_coach_hidden_when_include_system_false() {
     let pool = create_test_db().await;
     let manager = CoachesManager::new(pool);
 
-    // Create a system coach in TEST_TENANT
+    // Create a system coach in test_tenant()
     let request = CreateSystemCoachRequest {
         title: "System Coach".to_owned(),
         description: None,
@@ -2078,11 +2094,11 @@ async fn test_system_coach_hidden_when_include_system_false() {
     };
 
     manager
-        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .create_system_coach(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
-    // User from OTHER_TENANT should NOT see the system coach
+    // User from other_tenant() should NOT see the system coach
     // when include_system is false (default)
     let filter = ListCoachesFilter {
         include_system: false,
@@ -2090,7 +2106,7 @@ async fn test_system_coach_hidden_when_include_system_false() {
     };
 
     let coaches = manager
-        .list(other_user_id(), OTHER_TENANT, &filter)
+        .list(other_user_id(), other_tenant(), &filter)
         .await
         .unwrap();
 
@@ -2105,7 +2121,7 @@ async fn test_multiple_system_coaches_visible_across_tenants() {
     let pool = create_test_db().await;
     let manager = CoachesManager::new(pool);
 
-    // Create system coach in TEST_TENANT
+    // Create system coach in test_tenant()
     let request1 = CreateSystemCoachRequest {
         title: "System Coach From Tenant A".to_owned(),
         description: None,
@@ -2116,11 +2132,11 @@ async fn test_multiple_system_coaches_visible_across_tenants() {
         sample_prompts: vec![],
     };
     manager
-        .create_system_coach(test_user_id(), TEST_TENANT, &request1)
+        .create_system_coach(test_user_id(), test_tenant(), &request1)
         .await
         .unwrap();
 
-    // Create system coach in OTHER_TENANT
+    // Create system coach in other_tenant()
     let request2 = CreateSystemCoachRequest {
         title: "System Coach From Tenant B".to_owned(),
         description: None,
@@ -2131,18 +2147,18 @@ async fn test_multiple_system_coaches_visible_across_tenants() {
         sample_prompts: vec![],
     };
     manager
-        .create_system_coach(other_user_id(), OTHER_TENANT, &request2)
+        .create_system_coach(other_user_id(), other_tenant(), &request2)
         .await
         .unwrap();
 
-    // User from TEST_TENANT should see both system coaches
+    // User from test_tenant() should see both system coaches
     let filter = ListCoachesFilter {
         include_system: true,
         ..Default::default()
     };
 
     let coaches = manager
-        .list(test_user_id(), TEST_TENANT, &filter)
+        .list(test_user_id(), test_tenant(), &filter)
         .await
         .unwrap();
 
@@ -2151,9 +2167,9 @@ async fn test_multiple_system_coaches_visible_across_tenants() {
     assert!(titles.contains(&"System Coach From Tenant A"));
     assert!(titles.contains(&"System Coach From Tenant B"));
 
-    // User from OTHER_TENANT should also see both system coaches
+    // User from other_tenant() should also see both system coaches
     let coaches = manager
-        .list(other_user_id(), OTHER_TENANT, &filter)
+        .list(other_user_id(), other_tenant(), &filter)
         .await
         .unwrap();
 
@@ -2166,7 +2182,7 @@ async fn test_personal_coaches_remain_isolated_with_system_coaches() {
     let pool = create_test_db().await;
     let manager = CoachesManager::new(pool);
 
-    // Create a personal coach in TEST_TENANT
+    // Create a personal coach in test_tenant()
     let personal_request = CreateCoachRequest {
         title: "Personal Coach".to_owned(),
         description: None,
@@ -2176,11 +2192,11 @@ async fn test_personal_coaches_remain_isolated_with_system_coaches() {
         sample_prompts: vec![],
     };
     manager
-        .create(test_user_id(), TEST_TENANT, &personal_request)
+        .create(test_user_id(), test_tenant(), &personal_request)
         .await
         .unwrap();
 
-    // Create a system coach in TEST_TENANT
+    // Create a system coach in test_tenant()
     let system_request = CreateSystemCoachRequest {
         title: "System Coach".to_owned(),
         description: None,
@@ -2191,19 +2207,19 @@ async fn test_personal_coaches_remain_isolated_with_system_coaches() {
         sample_prompts: vec![],
     };
     manager
-        .create_system_coach(test_user_id(), TEST_TENANT, &system_request)
+        .create_system_coach(test_user_id(), test_tenant(), &system_request)
         .await
         .unwrap();
 
-    // User from OTHER_TENANT with include_system should see ONLY the system coach
-    // NOT the personal coach from TEST_TENANT
+    // User from other_tenant() with include_system should see ONLY the system coach
+    // NOT the personal coach from test_tenant()
     let filter = ListCoachesFilter {
         include_system: true,
         ..Default::default()
     };
 
     let coaches = manager
-        .list(other_user_id(), OTHER_TENANT, &filter)
+        .list(other_user_id(), other_tenant(), &filter)
         .await
         .unwrap();
 
@@ -2211,9 +2227,9 @@ async fn test_personal_coaches_remain_isolated_with_system_coaches() {
     assert_eq!(coaches[0].coach.title, "System Coach");
     assert!(coaches[0].coach.is_system);
 
-    // User from TEST_TENANT should see both their personal coach and the system coach
+    // User from test_tenant() should see both their personal coach and the system coach
     let coaches = manager
-        .list(test_user_id(), TEST_TENANT, &filter)
+        .list(test_user_id(), test_tenant(), &filter)
         .await
         .unwrap();
 
@@ -2227,7 +2243,7 @@ async fn test_hide_system_coach_cross_tenant() {
     let pool = create_test_db().await;
     let manager = CoachesManager::new(pool);
 
-    // Create a system coach in TEST_TENANT (tenant A)
+    // Create a system coach in test_tenant() (tenant A)
     let request = CreateSystemCoachRequest {
         title: "Global System Coach".to_owned(),
         description: None,
@@ -2239,15 +2255,15 @@ async fn test_hide_system_coach_cross_tenant() {
     };
 
     let system_coach = manager
-        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .create_system_coach(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
     assert!(system_coach.is_system);
-    assert_eq!(system_coach.tenant_id, TEST_TENANT);
+    assert_eq!(system_coach.tenant_id, test_tenant().to_string());
 
-    // User from OTHER_TENANT (tenant B) should be able to hide this system coach
-    // Even though the coach was created by TEST_TENANT
+    // User from other_tenant() (tenant B) should be able to hide this system coach
+    // Even though the coach was created by test_tenant()
     let hidden = manager
         .hide_coach(&system_coach.id.to_string(), other_user_id())
         .await
@@ -2263,7 +2279,7 @@ async fn test_hide_system_coach_cross_tenant() {
     };
 
     let coaches = manager
-        .list(other_user_id(), OTHER_TENANT, &filter)
+        .list(other_user_id(), other_tenant(), &filter)
         .await
         .unwrap();
 
@@ -2272,7 +2288,7 @@ async fn test_hide_system_coach_cross_tenant() {
 
     // But the original tenant user should still see it
     let coaches = manager
-        .list(test_user_id(), TEST_TENANT, &filter)
+        .list(test_user_id(), test_tenant(), &filter)
         .await
         .unwrap();
 
@@ -2286,7 +2302,7 @@ async fn test_show_system_coach_cross_tenant() {
     let pool = create_test_db().await;
     let manager = CoachesManager::new(pool);
 
-    // Create a system coach in TEST_TENANT
+    // Create a system coach in test_tenant()
     let request = CreateSystemCoachRequest {
         title: "Global System Coach".to_owned(),
         description: None,
@@ -2298,11 +2314,11 @@ async fn test_show_system_coach_cross_tenant() {
     };
 
     let system_coach = manager
-        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .create_system_coach(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
-    // User from OTHER_TENANT hides the coach
+    // User from other_tenant() hides the coach
     manager
         .hide_coach(&system_coach.id.to_string(), other_user_id())
         .await
@@ -2316,7 +2332,7 @@ async fn test_show_system_coach_cross_tenant() {
     };
 
     let coaches = manager
-        .list(other_user_id(), OTHER_TENANT, &filter)
+        .list(other_user_id(), other_tenant(), &filter)
         .await
         .unwrap();
     assert!(coaches.is_empty());
@@ -2331,7 +2347,7 @@ async fn test_show_system_coach_cross_tenant() {
 
     // Should now see the coach again
     let coaches = manager
-        .list(other_user_id(), OTHER_TENANT, &filter)
+        .list(other_user_id(), other_tenant(), &filter)
         .await
         .unwrap();
 

@@ -61,9 +61,7 @@ async fn create_authenticated_user(
     database.create_tenant(&tenant).await?;
 
     // Finally, update the user to associate with the tenant via the database
-    database
-        .update_user_tenant_id(user_id, &tenant_uuid.to_string())
-        .await?;
+    database.update_user_tenant_id(user_id, tenant_uuid).await?;
 
     let token = auth_manager.generate_token(&user, jwks_manager)?;
     Ok((user_id, token))
@@ -102,9 +100,7 @@ async fn create_authenticated_user_with_different_tenant(
     database.create_tenant(&tenant).await?;
 
     // Finally, update the user to associate with the tenant via the database
-    database
-        .update_user_tenant_id(user_id, &tenant_uuid.to_string())
-        .await?;
+    database.update_user_tenant_id(user_id, tenant_uuid).await?;
 
     let token = auth_manager.generate_token(&user, jwks_manager)?;
     Ok((user_id, token))

@@ -6,7 +6,8 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+
+use super::TenantId;
 
 /// Key rotation configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,7 +48,7 @@ pub struct KeyVersion {
     /// Whether this version is currently active
     pub is_active: bool,
     /// Tenant ID (None for global keys)
-    pub tenant_id: Option<Uuid>,
+    pub tenant_id: Option<TenantId>,
     /// Algorithm used for this key
     pub algorithm: String,
 }

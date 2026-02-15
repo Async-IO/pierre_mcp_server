@@ -271,12 +271,12 @@ async fn test_parity_chat_create_conversation() {
 
     let sqlite_user_id = create_test_user(&sqlite_db).await;
     let pg_user_id = create_test_user(&pg_db).await;
-    let tenant_id = Uuid::new_v4().to_string();
+    let tenant_id = TenantId::new();
 
     let sqlite_conv = sqlite_db
         .chat_create_conversation(
             &sqlite_user_id.to_string(),
-            &tenant_id,
+            tenant_id,
             "Test Chat",
             "gpt-4",
             Some("System prompt"),
@@ -287,7 +287,7 @@ async fn test_parity_chat_create_conversation() {
     let pg_conv = pg_db
         .chat_create_conversation(
             &pg_user_id.to_string(),
-            &tenant_id,
+            tenant_id,
             "Test Chat",
             "gpt-4",
             Some("System prompt"),
@@ -318,13 +318,13 @@ async fn test_parity_chat_messages() {
 
     let sqlite_user_id = create_test_user(&sqlite_db).await;
     let pg_user_id = create_test_user(&pg_db).await;
-    let tenant_id = Uuid::new_v4().to_string();
+    let tenant_id = TenantId::new();
 
     // Create conversations
     let sqlite_conv = sqlite_db
         .chat_create_conversation(
             &sqlite_user_id.to_string(),
-            &tenant_id,
+            tenant_id,
             "Message Test",
             "gpt-4",
             None,
@@ -335,7 +335,7 @@ async fn test_parity_chat_messages() {
     let pg_conv = pg_db
         .chat_create_conversation(
             &pg_user_id.to_string(),
-            &tenant_id,
+            tenant_id,
             "Message Test",
             "gpt-4",
             None,
@@ -427,14 +427,14 @@ async fn test_parity_chat_list_conversations() {
 
     let sqlite_user_id = create_test_user(&sqlite_db).await;
     let pg_user_id = create_test_user(&pg_db).await;
-    let tenant_id = Uuid::new_v4().to_string();
+    let tenant_id = TenantId::new();
 
     // Create same conversations in both
     for i in 1..=5 {
         sqlite_db
             .chat_create_conversation(
                 &sqlite_user_id.to_string(),
-                &tenant_id,
+                tenant_id,
                 &format!("Chat {i}"),
                 "gpt-4",
                 None,
@@ -445,7 +445,7 @@ async fn test_parity_chat_list_conversations() {
         pg_db
             .chat_create_conversation(
                 &pg_user_id.to_string(),
-                &tenant_id,
+                tenant_id,
                 &format!("Chat {i}"),
                 "gpt-4",
                 None,
@@ -456,12 +456,12 @@ async fn test_parity_chat_list_conversations() {
 
     // Test pagination works the same
     let sqlite_list = sqlite_db
-        .chat_list_conversations(&sqlite_user_id.to_string(), &tenant_id, 3, 0)
+        .chat_list_conversations(&sqlite_user_id.to_string(), tenant_id, 3, 0)
         .await
         .expect("SQLite: Failed to list");
 
     let pg_list = pg_db
-        .chat_list_conversations(&pg_user_id.to_string(), &tenant_id, 3, 0)
+        .chat_list_conversations(&pg_user_id.to_string(), tenant_id, 3, 0)
         .await
         .expect("PostgreSQL: Failed to list");
 
@@ -473,12 +473,12 @@ async fn test_parity_chat_list_conversations() {
 
     // Test delete all works the same
     let sqlite_deleted = sqlite_db
-        .chat_delete_all_user_conversations(&sqlite_user_id.to_string(), &tenant_id)
+        .chat_delete_all_user_conversations(&sqlite_user_id.to_string(), tenant_id)
         .await
         .expect("SQLite: Failed to delete all");
 
     let pg_deleted = pg_db
-        .chat_delete_all_user_conversations(&pg_user_id.to_string(), &tenant_id)
+        .chat_delete_all_user_conversations(&pg_user_id.to_string(), tenant_id)
         .await
         .expect("PostgreSQL: Failed to delete all");
 

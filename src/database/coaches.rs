@@ -8,6 +8,7 @@ use crate::coaches::CoachPrerequisites;
 use crate::errors::{AppError, AppResult};
 use crate::pagination::{Cursor, CursorPage, StoreCursor, StoreSortOrder};
 use chrono::{DateTime, Utc};
+use pierre_core::models::TenantId;
 use serde::{Deserialize, Serialize};
 use sqlx::{sqlite::SqliteRow, Row, SqlitePool};
 use std::collections::HashMap;
@@ -345,7 +346,7 @@ impl CoachesManager {
     pub async fn create(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         request: &CreateCoachRequest,
     ) -> AppResult<Coach> {
         let now = Utc::now();
@@ -367,7 +368,7 @@ impl CoachesManager {
         )
         .bind(id.to_string())
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(&request.title)
         .bind(&request.description)
         .bind(&request.system_prompt)
@@ -399,7 +400,7 @@ impl CoachesManager {
         Ok(Coach {
             id,
             user_id,
-            tenant_id: tenant_id.to_owned(),
+            tenant_id: tenant_id.to_string(),
             title: request.title.clone(),
             description: request.description.clone(),
             system_prompt: request.system_prompt.clone(),
@@ -438,7 +439,7 @@ impl CoachesManager {
         &self,
         coach_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<Option<Coach>> {
         let row = sqlx::query(
             r"
@@ -453,7 +454,7 @@ impl CoachesManager {
         )
         .bind(coach_id)
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get coach: {e}")))?;
@@ -476,7 +477,7 @@ impl CoachesManager {
     pub async fn list(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         filter: &ListCoachesFilter,
     ) -> AppResult<Vec<CoachListItem>> {
         let limit_val = i32::try_from(filter.limit.unwrap_or(50)).unwrap_or(50);
@@ -537,7 +538,7 @@ impl CoachesManager {
 
         let rows = sqlx::query(&query)
             .bind(&user_id_str)
-            .bind(tenant_id)
+            .bind(tenant_id.to_string())
             .bind(limit_val)
             .bind(offset_val)
             .fetch_all(&self.pool)
@@ -558,7 +559,7 @@ impl CoachesManager {
         &self,
         coach_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         request: &UpdateCoachRequest,
     ) -> AppResult<Option<Coach>> {
         self.update_with_summary(coach_id, user_id, tenant_id, request, None)
@@ -576,7 +577,7 @@ impl CoachesManager {
         &self,
         coach_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         request: &UpdateCoachRequest,
         change_summary: Option<&str>,
     ) -> AppResult<Option<Coach>> {
@@ -625,7 +626,7 @@ impl CoachesManager {
         .bind(now.to_rfc3339())
         .bind(coach_id)
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to update coach: {e}")))?;
@@ -643,7 +644,12 @@ impl CoachesManager {
     /// # Errors
     ///
     /// Returns an error if database operation fails
-    pub async fn delete(&self, coach_id: &str, user_id: Uuid, tenant_id: &str) -> AppResult<bool> {
+    pub async fn delete(
+        &self,
+        coach_id: &str,
+        user_id: Uuid,
+        tenant_id: TenantId,
+    ) -> AppResult<bool> {
         let result = sqlx::query(
             r"
             DELETE FROM coaches
@@ -652,7 +658,7 @@ impl CoachesManager {
         )
         .bind(coach_id)
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to delete coach: {e}")))?;
@@ -672,7 +678,7 @@ impl CoachesManager {
         &self,
         source_coach_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<Coach> {
         // Get the source coach (must be a system coach)
         // System coaches are platform-wide, so no tenant filter — any user can fork them
@@ -706,7 +712,7 @@ impl CoachesManager {
         )
         .bind(id.to_string())
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(&source.title)
         .bind(&source.description)
         .bind(&source.system_prompt)
@@ -738,7 +744,7 @@ impl CoachesManager {
         Ok(Coach {
             id,
             user_id,
-            tenant_id: tenant_id.to_owned(),
+            tenant_id: tenant_id.to_string(),
             title: source.title,
             description: source.description,
             system_prompt: source.system_prompt,
@@ -777,7 +783,7 @@ impl CoachesManager {
         &self,
         coach_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<bool> {
         let now = Utc::now().to_rfc3339();
         let result = sqlx::query(
@@ -792,7 +798,7 @@ impl CoachesManager {
         .bind(&now)
         .bind(coach_id)
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to record coach usage: {e}")))?;
@@ -809,7 +815,7 @@ impl CoachesManager {
         &self,
         coach_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<Option<bool>> {
         // Get current favorite status
         let row = sqlx::query(
@@ -820,7 +826,7 @@ impl CoachesManager {
         )
         .bind(coach_id)
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get coach: {e}")))?;
@@ -843,7 +849,7 @@ impl CoachesManager {
         .bind(&now)
         .bind(coach_id)
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to toggle favorite: {e}")))?;
@@ -856,7 +862,7 @@ impl CoachesManager {
     /// # Errors
     ///
     /// Returns an error if database operation fails
-    pub async fn count(&self, user_id: Uuid, tenant_id: &str) -> AppResult<u32> {
+    pub async fn count(&self, user_id: Uuid, tenant_id: TenantId) -> AppResult<u32> {
         let row = sqlx::query(
             r"
             SELECT COUNT(*) as count FROM coaches
@@ -864,7 +870,7 @@ impl CoachesManager {
             ",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_one(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to count coaches: {e}")))?;
@@ -882,7 +888,7 @@ impl CoachesManager {
     pub async fn search(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         query: &str,
         limit: Option<u32>,
         offset: Option<u32>,
@@ -907,7 +913,7 @@ impl CoachesManager {
             ",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(&search_pattern)
         .bind(limit_val)
         .bind(offset_val)
@@ -930,7 +936,7 @@ impl CoachesManager {
         &self,
         coach_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<Option<Coach>> {
         let now = Utc::now().to_rfc3339();
 
@@ -943,7 +949,7 @@ impl CoachesManager {
         )
         .bind(&now)
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to deactivate coaches: {e}")))?;
@@ -958,7 +964,7 @@ impl CoachesManager {
         .bind(&now)
         .bind(coach_id)
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to activate coach: {e}")))?;
@@ -976,7 +982,7 @@ impl CoachesManager {
     /// # Errors
     ///
     /// Returns an error if database operation fails
-    pub async fn deactivate_coach(&self, user_id: Uuid, tenant_id: &str) -> AppResult<bool> {
+    pub async fn deactivate_coach(&self, user_id: Uuid, tenant_id: TenantId) -> AppResult<bool> {
         let now = Utc::now().to_rfc3339();
 
         let result = sqlx::query(
@@ -987,7 +993,7 @@ impl CoachesManager {
         )
         .bind(&now)
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to deactivate coach: {e}")))?;
@@ -1003,7 +1009,7 @@ impl CoachesManager {
     pub async fn get_active_coach(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<Option<Coach>> {
         let row = sqlx::query(
             r"
@@ -1017,7 +1023,7 @@ impl CoachesManager {
             ",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get active coach: {e}")))?;
@@ -1037,7 +1043,7 @@ impl CoachesManager {
     pub async fn create_system_coach(
         &self,
         admin_user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         request: &CreateSystemCoachRequest,
     ) -> AppResult<Coach> {
         let now = Utc::now();
@@ -1059,7 +1065,7 @@ impl CoachesManager {
         )
         .bind(id.to_string())
         .bind(admin_user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(&request.title)
         .bind(&request.description)
         .bind(&request.system_prompt)
@@ -1091,7 +1097,7 @@ impl CoachesManager {
         Ok(Coach {
             id,
             user_id: admin_user_id,
-            tenant_id: tenant_id.to_owned(),
+            tenant_id: tenant_id.to_string(),
             title: request.title.clone(),
             description: request.description.clone(),
             system_prompt: request.system_prompt.clone(),
@@ -1126,7 +1132,7 @@ impl CoachesManager {
     /// # Errors
     ///
     /// Returns an error if database operation fails
-    pub async fn list_system_coaches(&self, tenant_id: &str) -> AppResult<Vec<Coach>> {
+    pub async fn list_system_coaches(&self, tenant_id: TenantId) -> AppResult<Vec<Coach>> {
         let rows = sqlx::query(
             r"
             SELECT id, user_id, tenant_id, title, description, system_prompt,
@@ -1139,7 +1145,7 @@ impl CoachesManager {
             ORDER BY created_at DESC
             ",
         )
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to list system coaches: {e}")))?;
@@ -1155,7 +1161,7 @@ impl CoachesManager {
     pub async fn get_system_coach(
         &self,
         coach_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<Option<Coach>> {
         let row = sqlx::query(
             r"
@@ -1169,7 +1175,7 @@ impl CoachesManager {
             ",
         )
         .bind(coach_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get system coach: {e}")))?;
@@ -1215,7 +1221,7 @@ impl CoachesManager {
     pub async fn update_system_coach(
         &self,
         coach_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
         request: &UpdateCoachRequest,
     ) -> AppResult<Option<Coach>> {
         self.update_system_coach_with_summary(coach_id, tenant_id, request, None)
@@ -1232,7 +1238,7 @@ impl CoachesManager {
     pub async fn update_system_coach_with_summary(
         &self,
         coach_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
         request: &UpdateCoachRequest,
         change_summary: Option<&str>,
     ) -> AppResult<Option<Coach>> {
@@ -1281,7 +1287,7 @@ impl CoachesManager {
         .bind(i64::from(token_count))
         .bind(now.to_rfc3339())
         .bind(coach_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to update system coach: {e}")))?;
@@ -1299,7 +1305,11 @@ impl CoachesManager {
     /// # Errors
     ///
     /// Returns an error if database operation fails
-    pub async fn delete_system_coach(&self, coach_id: &str, tenant_id: &str) -> AppResult<bool> {
+    pub async fn delete_system_coach(
+        &self,
+        coach_id: &str,
+        tenant_id: TenantId,
+    ) -> AppResult<bool> {
         let result = sqlx::query(
             r"
             DELETE FROM coaches
@@ -1307,7 +1317,7 @@ impl CoachesManager {
             ",
         )
         .bind(coach_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to delete system coach: {e}")))?;
@@ -1420,7 +1430,7 @@ impl CoachesManager {
     pub async fn list_assignments_for_tenant(
         &self,
         coach_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<Vec<CoachAssignment>> {
         let rows = sqlx::query(
             r"
@@ -1433,7 +1443,7 @@ impl CoachesManager {
             ",
         )
         .bind(coach_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to list assignments: {e}")))?;
@@ -1525,7 +1535,7 @@ impl CoachesManager {
     pub async fn list_hidden_coaches(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<Vec<Coach>> {
         let rows = sqlx::query(
             r"
@@ -1539,7 +1549,7 @@ impl CoachesManager {
             ",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to list hidden coaches: {e}")))?;
@@ -1692,7 +1702,7 @@ impl CoachesManager {
     pub async fn get_versions(
         &self,
         coach_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
         limit: u32,
     ) -> AppResult<Vec<CoachVersion>> {
         // Verify the coach exists and belongs to the tenant
@@ -1702,7 +1712,7 @@ impl CoachesManager {
             ",
         )
         .bind(coach_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to verify coach: {e}")))?;
@@ -1741,7 +1751,7 @@ impl CoachesManager {
         &self,
         coach_id: &str,
         version: i32,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<Option<CoachVersion>> {
         // Verify the coach exists and belongs to the tenant
         let exists = sqlx::query(
@@ -1750,7 +1760,7 @@ impl CoachesManager {
             ",
         )
         .bind(coach_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to verify coach: {e}")))?;
@@ -1789,7 +1799,7 @@ impl CoachesManager {
         coach_id: &str,
         version: i32,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<Coach> {
         // Get the target version
         let target_version = self
@@ -1855,7 +1865,7 @@ impl CoachesManager {
         .bind(i64::from(token_count))
         .bind(now.to_rfc3339())
         .bind(coach_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to revert coach: {e}")))?;
@@ -1881,7 +1891,7 @@ impl CoachesManager {
             ",
         )
         .bind(coach_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get reverted coach: {e}")))?
@@ -1931,7 +1941,7 @@ impl CoachesManager {
         &self,
         coach_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<Coach> {
         let now = Utc::now();
 
@@ -1948,7 +1958,7 @@ impl CoachesManager {
         .bind(now.to_rfc3339())
         .bind(coach_id)
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to submit coach for review: {e}")))?;
@@ -1974,7 +1984,7 @@ impl CoachesManager {
     /// Returns an error if database operation fails
     pub async fn get_pending_review_coaches(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> AppResult<Vec<Coach>> {
@@ -1994,7 +2004,7 @@ impl CoachesManager {
             LIMIT $2 OFFSET $3
             ",
         )
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(limit_val)
         .bind(offset_val)
         .fetch_all(&self.pool)
@@ -2017,7 +2027,7 @@ impl CoachesManager {
     pub async fn approve_coach(
         &self,
         coach_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
         admin_user_id: impl Into<Option<Uuid>>,
     ) -> AppResult<Coach> {
         let admin_user_id = admin_user_id.into();
@@ -2039,7 +2049,7 @@ impl CoachesManager {
         .bind(now.to_rfc3339())
         .bind(admin_user_id.map(|id| id.to_string()))
         .bind(coach_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to approve coach: {e}")))?;
@@ -2061,7 +2071,7 @@ impl CoachesManager {
             ",
         )
         .bind(coach_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_one(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get approved coach: {e}")))?;
@@ -2082,7 +2092,7 @@ impl CoachesManager {
     pub async fn reject_coach(
         &self,
         coach_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
         admin_user_id: impl Into<Option<Uuid>>,
         reason: &str,
     ) -> AppResult<Coach> {
@@ -2105,7 +2115,7 @@ impl CoachesManager {
         .bind(admin_user_id.map(|id| id.to_string()))
         .bind(reason)
         .bind(coach_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to reject coach: {e}")))?;
@@ -2127,7 +2137,7 @@ impl CoachesManager {
             ",
         )
         .bind(coach_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_one(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get rejected coach: {e}")))?;
@@ -2145,7 +2155,7 @@ impl CoachesManager {
     /// Returns an error if database operation fails
     pub async fn get_rejected_coaches(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> AppResult<Vec<Coach>> {
@@ -2165,7 +2175,7 @@ impl CoachesManager {
             LIMIT $2 OFFSET $3
             ",
         )
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(limit_val)
         .bind(offset_val)
         .fetch_all(&self.pool)
@@ -2185,7 +2195,7 @@ impl CoachesManager {
     /// Returns an error if:
     /// - Coach not found or not published
     /// - Database operation fails
-    pub async fn unpublish_coach(&self, coach_id: &str, tenant_id: &str) -> AppResult<Coach> {
+    pub async fn unpublish_coach(&self, coach_id: &str, tenant_id: TenantId) -> AppResult<Coach> {
         let now = Utc::now();
 
         let result = sqlx::query(
@@ -2200,7 +2210,7 @@ impl CoachesManager {
         .bind(PublishStatus::Draft.as_str())
         .bind(now.to_rfc3339())
         .bind(coach_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to unpublish coach: {e}")))?;
@@ -2220,7 +2230,7 @@ impl CoachesManager {
             ",
         )
         .bind(coach_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_one(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get unpublished coach: {e}")))?;
@@ -2236,7 +2246,7 @@ impl CoachesManager {
     /// # Errors
     ///
     /// Returns an error if database operation fails
-    pub async fn get_store_admin_stats(&self, tenant_id: &str) -> AppResult<StoreAdminStats> {
+    pub async fn get_store_admin_stats(&self, tenant_id: TenantId) -> AppResult<StoreAdminStats> {
         let row = sqlx::query(
             r"
             SELECT
@@ -2248,7 +2258,7 @@ impl CoachesManager {
             WHERE tenant_id = $1
             ",
         )
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_one(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get store stats: {e}")))?;
@@ -2792,7 +2802,7 @@ impl CoachesManager {
         &self,
         source_coach_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<Coach> {
         // Get the source coach (must be published, cross-tenant lookup)
         let source = self
@@ -2822,7 +2832,7 @@ impl CoachesManager {
     async fn check_not_already_installed(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         source_coach_id: &str,
         title: &str,
     ) -> AppResult<()> {
@@ -2830,7 +2840,7 @@ impl CoachesManager {
             "SELECT id FROM coaches WHERE user_id = $1 AND tenant_id = $2 AND forked_from = $3",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(source_coach_id)
         .fetch_optional(&self.pool)
         .await
@@ -2849,7 +2859,7 @@ impl CoachesManager {
         &self,
         source: &Coach,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         source_coach_id: &str,
     ) -> AppResult<Uuid> {
         let now = Utc::now();
@@ -2870,7 +2880,7 @@ impl CoachesManager {
         )
         .bind(id.to_string())
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(&source.title)
         .bind(&source.description)
         .bind(&source.system_prompt)
@@ -2901,7 +2911,7 @@ impl CoachesManager {
     pub async fn get_installed_coaches(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<Vec<Coach>> {
         let rows = sqlx::query(
             r"
@@ -2916,7 +2926,7 @@ impl CoachesManager {
             ",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get installed coaches: {e}")))?;
@@ -2938,7 +2948,7 @@ impl CoachesManager {
         &self,
         coach_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<String> {
         // Get the coach to verify ownership and get forked_from
         let coach = self
@@ -2959,7 +2969,7 @@ impl CoachesManager {
         )
         .bind(coach_id)
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to uninstall coach: {e}")))?;
@@ -2995,7 +3005,7 @@ impl CoachesManager {
     pub async fn get_startup_query_by_system_prompt(
         &self,
         system_prompt: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<Option<String>> {
         // First try to find a coach matching the tenant (custom coaches)
         // Then fall back to system coaches (is_system = 1) which are shared across tenants
@@ -3010,7 +3020,7 @@ impl CoachesManager {
             ",
         )
         .bind(system_prompt)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get startup query: {e}")))?;

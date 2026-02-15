@@ -8,6 +8,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use super::TenantId;
+
 /// Types of audit events tracked by the system
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -103,7 +105,7 @@ pub struct AuditEvent {
     /// User ID who performed the action (if applicable)
     pub user_id: Option<Uuid>,
     /// Tenant ID associated with the event (if applicable)
-    pub tenant_id: Option<Uuid>,
+    pub tenant_id: Option<TenantId>,
     /// Source IP address (if available)
     pub source_ip: Option<String>,
     /// User agent string (if available)
@@ -159,7 +161,7 @@ impl AuditEvent {
 
     /// Set tenant ID for the event
     #[must_use]
-    pub const fn with_tenant_id(mut self, tenant_id: Uuid) -> Self {
+    pub const fn with_tenant_id(mut self, tenant_id: TenantId) -> Self {
         self.tenant_id = Some(tenant_id);
         self
     }

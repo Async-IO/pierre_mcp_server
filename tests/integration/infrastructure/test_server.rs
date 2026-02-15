@@ -205,7 +205,7 @@ impl IntegrationTestServer {
         // Update user with tenant ID
         self.resources
             .database
-            .update_user_tenant_id(user_id, &tenant_id.to_string())
+            .update_user_tenant_id(user_id, tenant_id)
             .await?;
 
         // Generate JWT token

@@ -81,10 +81,12 @@ impl McpAuthMiddleware {
             tracing::Span::current().record("auth_method", "JWT_COOKIE");
             match self.authenticate_jwt_token(&jwt_token).await {
                 Ok(result) => {
-                    tracing::Span::current()
-                        .record("user_id", result.user_id.to_string())
-                        .record("tenant_id", result.user_id.to_string())
+                    let span = tracing::Span::current();
+                    span.record("user_id", result.user_id.to_string())
                         .record("success", true);
+                    if let Some(tid) = result.active_tenant_id {
+                        span.record("tenant_id", tid.to_string());
+                    }
                     info!(
                         "JWT cookie authentication successful for user: {}",
                         result.user_id
@@ -158,10 +160,12 @@ impl McpAuthMiddleware {
             debug!("Attempting API key authentication");
             match self.authenticate_api_key(auth_str).await {
                 Ok(result) => {
-                    tracing::Span::current()
-                        .record("user_id", result.user_id.to_string())
-                        .record("tenant_id", result.user_id.to_string()) // Use user_id as tenant_id for now
+                    let span = tracing::Span::current();
+                    span.record("user_id", result.user_id.to_string())
                         .record("success", true);
+                    if let Some(tid) = result.active_tenant_id {
+                        span.record("tenant_id", tid.to_string());
+                    }
                     info!(
                         "API key authentication successful for user: {}",
                         result.user_id
@@ -181,10 +185,12 @@ impl McpAuthMiddleware {
             debug!("Attempting JWT token authentication");
             match self.authenticate_jwt_token(token).await {
                 Ok(result) => {
-                    tracing::Span::current()
-                        .record("user_id", result.user_id.to_string())
-                        .record("tenant_id", result.user_id.to_string()) // Use user_id as tenant_id for now
+                    let span = tracing::Span::current();
+                    span.record("user_id", result.user_id.to_string())
                         .record("success", true);
+                    if let Some(tid) = result.active_tenant_id {
+                        span.record("tenant_id", tid.to_string());
+                    }
                     info!("JWT authentication successful for user: {}", result.user_id);
                     Ok(result)
                 }

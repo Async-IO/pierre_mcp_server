@@ -9,6 +9,7 @@ use crate::database::DatabaseError;
 use crate::database_plugins::factory::Database;
 use crate::models::{UserOAuthApp, UserOAuthToken};
 use async_trait::async_trait;
+use pierre_core::models::TenantId;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
@@ -39,7 +40,7 @@ impl OAuthTokenRepository for OAuthTokenRepositoryImpl {
     async fn get(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> Result<Option<UserOAuthToken>, DatabaseError> {
         self.db
@@ -53,7 +54,7 @@ impl OAuthTokenRepository for OAuthTokenRepositoryImpl {
     async fn list_by_user(
         &self,
         user_id: Uuid,
-        tenant_id: Option<&str>,
+        tenant_id: Option<TenantId>,
     ) -> Result<Vec<UserOAuthToken>, DatabaseError> {
         self.db
             .get_user_oauth_tokens(user_id, tenant_id)
@@ -65,7 +66,7 @@ impl OAuthTokenRepository for OAuthTokenRepositoryImpl {
 
     async fn list_by_tenant_provider(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> Result<Vec<UserOAuthToken>, DatabaseError> {
         self.db
@@ -79,7 +80,7 @@ impl OAuthTokenRepository for OAuthTokenRepositoryImpl {
     async fn delete(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> Result<(), DatabaseError> {
         self.db
@@ -93,7 +94,7 @@ impl OAuthTokenRepository for OAuthTokenRepositoryImpl {
     async fn delete_all_for_user(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> Result<(), DatabaseError> {
         self.db
             .delete_user_oauth_tokens(user_id, tenant_id)
@@ -106,7 +107,7 @@ impl OAuthTokenRepository for OAuthTokenRepositoryImpl {
     async fn refresh(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
         access_token: &str,
         refresh_token: Option<&str>,
@@ -177,7 +178,7 @@ impl OAuthTokenRepository for OAuthTokenRepositoryImpl {
     async fn get_last_sync(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> Result<Option<DateTime<Utc>>, DatabaseError> {
         self.db
@@ -191,7 +192,7 @@ impl OAuthTokenRepository for OAuthTokenRepositoryImpl {
     async fn update_last_sync(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
         sync_time: DateTime<Utc>,
     ) -> Result<(), DatabaseError> {

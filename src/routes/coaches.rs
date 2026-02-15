@@ -27,11 +27,11 @@ use crate::{
         ChatManager,
     },
     database_plugins::DatabaseProvider,
-    errors::{AppError, ErrorCode},
+    errors::AppError,
     llm::{get_coach_generation_prompt, ChatMessage, ChatProvider, ChatRequest},
     mcp::resources::ServerResources,
+    middleware::require_admin,
     models::TenantId,
-    permissions::UserRole,
     security::cookies::get_cookie_value,
 };
 use axum::{
@@ -518,10 +518,10 @@ impl CoachesRoutes {
     async fn get_user_tenant(
         auth: &AuthResult,
         resources: &Arc<ServerResources>,
-    ) -> Result<String, AppError> {
+    ) -> Result<TenantId, AppError> {
         // Prefer active_tenant_id from JWT claims (user's selected tenant)
         if let Some(tenant_id) = auth.active_tenant_id {
-            return Ok(tenant_id.to_string());
+            return Ok(TenantId::from(tenant_id));
         }
         // Fall back to user's first tenant (single-tenant users or tokens without active_tenant_id)
         let tenants = resources
@@ -535,7 +535,7 @@ impl CoachesRoutes {
                 ))
             })?;
 
-        tenants.first().map(|t| t.id.to_string()).ok_or_else(|| {
+        tenants.first().map(|t| t.id).ok_or_else(|| {
             AppError::invalid_input(format!("User {} has no tenant assigned", auth.user_id))
         })
     }
@@ -577,8 +577,8 @@ impl CoachesRoutes {
             include_hidden: query.include_hidden.unwrap_or(false),
         };
 
-        let coaches = manager.list(auth.user_id, &tenant_id, &filter).await?;
-        let total = manager.count(auth.user_id, &tenant_id).await?;
+        let coaches = manager.list(auth.user_id, tenant_id, &filter).await?;
+        let total = manager.count(auth.user_id, tenant_id).await?;
 
         // Check prerequisites if requested
         let check_prereqs = query.check_prerequisites.unwrap_or(false);
@@ -670,7 +670,7 @@ impl CoachesRoutes {
 
         let manager = Self::get_coaches_manager(&resources)?;
         let request: CreateCoachRequest = body.into();
-        let coach = manager.create(auth.user_id, &tenant_id, &request).await?;
+        let coach = manager.create(auth.user_id, tenant_id, &request).await?;
 
         let response: CoachResponse = coach.into();
         Ok((StatusCode::CREATED, Json(response)).into_response())
@@ -687,13 +687,7 @@ impl CoachesRoutes {
 
         let manager = Self::get_coaches_manager(&resources)?;
         let coaches = manager
-            .search(
-                auth.user_id,
-                &tenant_id,
-                &query.q,
-                query.limit,
-                query.offset,
-            )
+            .search(auth.user_id, tenant_id, &query.q, query.limit, query.offset)
             .await?;
 
         let response = ListCoachesResponse {
@@ -716,7 +710,7 @@ impl CoachesRoutes {
 
         let manager = Self::get_coaches_manager(&resources)?;
         let coach = manager
-            .get(&id, auth.user_id, &tenant_id)
+            .get(&id, auth.user_id, tenant_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("Coach {id}")))?;
 
@@ -735,7 +729,7 @@ impl CoachesRoutes {
 
         let manager = Self::get_coaches_manager(&resources)?;
         let coach = manager
-            .get(&id, auth.user_id, &tenant_id)
+            .get(&id, auth.user_id, tenant_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("Coach {id}")))?;
 
@@ -797,7 +791,7 @@ impl CoachesRoutes {
         };
 
         let manager = Self::get_coaches_manager(&resources)?;
-        let coach = manager.create(auth.user_id, &tenant_id, &request).await?;
+        let coach = manager.create(auth.user_id, tenant_id, &request).await?;
 
         let response = ImportCoachResponse {
             coach: coach.into(),
@@ -829,7 +823,7 @@ impl CoachesRoutes {
 
         // Verify user owns the conversation (get_conversation returns None if not found or not owned)
         chat_manager
-            .get_conversation(&body.conversation_id, &auth.user_id.to_string(), &tenant_id)
+            .get_conversation(&body.conversation_id, &auth.user_id.to_string(), tenant_id)
             .await?
             .ok_or_else(|| AppError::not_found("Conversation"))?;
 
@@ -915,7 +909,7 @@ impl CoachesRoutes {
         let manager = Self::get_coaches_manager(&resources)?;
         let request: UpdateCoachRequest = body.into();
         let coach = manager
-            .update(&id, auth.user_id, &tenant_id, &request)
+            .update(&id, auth.user_id, tenant_id, &request)
             .await?
             .ok_or_else(|| AppError::not_found(format!("Coach {id}")))?;
 
@@ -933,7 +927,7 @@ impl CoachesRoutes {
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
-        let deleted = manager.delete(&id, auth.user_id, &tenant_id).await?;
+        let deleted = manager.delete(&id, auth.user_id, tenant_id).await?;
 
         if !deleted {
             return Err(AppError::not_found(format!("Coach {id}")));
@@ -953,7 +947,7 @@ impl CoachesRoutes {
 
         let manager = Self::get_coaches_manager(&resources)?;
         let is_favorite = manager
-            .toggle_favorite(&id, auth.user_id, &tenant_id)
+            .toggle_favorite(&id, auth.user_id, tenant_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("Coach {id}")))?;
 
@@ -971,7 +965,7 @@ impl CoachesRoutes {
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
-        let success = manager.record_usage(&id, auth.user_id, &tenant_id).await?;
+        let success = manager.record_usage(&id, auth.user_id, tenant_id).await?;
 
         if !success {
             return Err(AppError::not_found(format!("Coach {id}")));
@@ -1027,7 +1021,7 @@ impl CoachesRoutes {
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
-        let forked_coach = manager.fork_coach(&id, auth.user_id, &tenant_id).await?;
+        let forked_coach = manager.fork_coach(&id, auth.user_id, tenant_id).await?;
 
         let response = ForkCoachResponse {
             coach: forked_coach.into(),
@@ -1045,9 +1039,7 @@ impl CoachesRoutes {
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
-        let coaches = manager
-            .list_hidden_coaches(auth.user_id, &tenant_id)
-            .await?;
+        let coaches = manager.list_hidden_coaches(auth.user_id, tenant_id).await?;
 
         let response = ListCoachesResponse {
             total: u32::try_from(coaches.len()).unwrap_or(0),
@@ -1074,7 +1066,7 @@ impl CoachesRoutes {
 
         let manager = Self::get_coaches_manager(&resources)?;
         let limit = query.limit.unwrap_or(50).clamp(1, 100);
-        let versions = manager.get_versions(&id, &tenant_id, limit).await?;
+        let versions = manager.get_versions(&id, tenant_id, limit).await?;
         let current_version = manager.get_current_version(&id).await?;
 
         let version_responses: Vec<CoachVersionResponse> =
@@ -1100,7 +1092,7 @@ impl CoachesRoutes {
 
         let manager = Self::get_coaches_manager(&resources)?;
         let version_data = manager
-            .get_version(&id, version, &tenant_id)
+            .get_version(&id, version, tenant_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("Version {version} for coach {id}")))?;
 
@@ -1119,7 +1111,7 @@ impl CoachesRoutes {
 
         let manager = Self::get_coaches_manager(&resources)?;
         let coach = manager
-            .revert_to_version(&id, version, auth.user_id, &tenant_id)
+            .revert_to_version(&id, version, auth.user_id, tenant_id)
             .await?;
 
         let new_version = manager.get_current_version(&id).await?;
@@ -1145,12 +1137,12 @@ impl CoachesRoutes {
         let manager = Self::get_coaches_manager(&resources)?;
 
         let version1 = manager
-            .get_version(&id, v1, &tenant_id)
+            .get_version(&id, v1, tenant_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("Version {v1} for coach {id}")))?;
 
         let version2 = manager
-            .get_version(&id, v2, &tenant_id)
+            .get_version(&id, v2, tenant_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("Version {v2} for coach {id}")))?;
 
@@ -1207,11 +1199,11 @@ impl CoachesRoutes {
         headers: HeaderMap,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
-        let coaches = manager.list_system_coaches(&tenant_id).await?;
+        let coaches = manager.list_system_coaches(tenant_id).await?;
 
         let response = ListCoachesResponse {
             total: u32::try_from(coaches.len()).unwrap_or(0),
@@ -1229,12 +1221,12 @@ impl CoachesRoutes {
         Json(body): Json<AdminCreateCoachBody>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
         let coach = manager
-            .create_system_coach(auth.user_id, &tenant_id, &body.into())
+            .create_system_coach(auth.user_id, tenant_id, &body.into())
             .await?;
 
         let response: CoachResponse = coach.into();
@@ -1248,12 +1240,12 @@ impl CoachesRoutes {
         Path(id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
         let coach = manager
-            .get_system_coach(&id, &tenant_id)
+            .get_system_coach(&id, tenant_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("System coach {id}")))?;
 
@@ -1269,13 +1261,13 @@ impl CoachesRoutes {
         Json(body): Json<UpdateCoachBody>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
         let request: UpdateCoachRequest = body.into();
         let coach = manager
-            .update_system_coach(&id, &tenant_id, &request)
+            .update_system_coach(&id, tenant_id, &request)
             .await?
             .ok_or_else(|| AppError::not_found(format!("System coach {id}")))?;
 
@@ -1290,11 +1282,11 @@ impl CoachesRoutes {
         Path(id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
-        let deleted = manager.delete_system_coach(&id, &tenant_id).await?;
+        let deleted = manager.delete_system_coach(&id, tenant_id).await?;
 
         if !deleted {
             return Err(AppError::not_found(format!("System coach {id}")));
@@ -1311,21 +1303,18 @@ impl CoachesRoutes {
         Json(body): Json<AssignCoachBody>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
 
         // Verify the coach exists and is a system coach
         let coach = manager
-            .get_system_coach(&id, &tenant_id)
+            .get_system_coach(&id, tenant_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("System coach {id}")))?;
 
         // Assign to each user after verifying tenant membership
-        let tenant_id: TenantId = tenant_id
-            .parse()
-            .map_err(|_| AppError::internal("Invalid tenant UUID"))?;
         let mut assigned_count = 0;
         for user_id_str in &body.user_ids {
             let user_id = Uuid::parse_str(user_id_str)
@@ -1371,21 +1360,18 @@ impl CoachesRoutes {
         Json(body): Json<AssignCoachBody>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
 
         // Verify the coach exists
         manager
-            .get_system_coach(&id, &tenant_id)
+            .get_system_coach(&id, tenant_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("System coach {id}")))?;
 
         // Unassign from each user after verifying tenant membership
-        let tenant_id: TenantId = tenant_id
-            .parse()
-            .map_err(|_| AppError::internal("Invalid tenant UUID"))?;
         let mut removed_count = 0;
         for user_id_str in &body.user_ids {
             let user_id = Uuid::parse_str(user_id_str)
@@ -1427,18 +1413,18 @@ impl CoachesRoutes {
         Path(id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
 
         // Verify the coach exists
         manager
-            .get_system_coach(&id, &tenant_id)
+            .get_system_coach(&id, tenant_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("System coach {id}")))?;
 
-        let db_assignments = manager.list_assignments_for_tenant(&id, &tenant_id).await?;
+        let db_assignments = manager.list_assignments_for_tenant(&id, tenant_id).await?;
         let assignments: Vec<CoachAssignment> =
             db_assignments.into_iter().map(Into::into).collect();
 
@@ -1459,11 +1445,11 @@ impl CoachesRoutes {
         headers: HeaderMap,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
-        let stats = manager.get_store_admin_stats(&tenant_id).await?;
+        let stats = manager.get_store_admin_stats(tenant_id).await?;
 
         let response = StoreAdminStatsResponse {
             pending_count: stats.pending_count,
@@ -1483,12 +1469,12 @@ impl CoachesRoutes {
         Query(params): Query<StoreListParams>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
         let coaches = manager
-            .get_pending_review_coaches(&tenant_id, params.limit, params.offset)
+            .get_pending_review_coaches(tenant_id, params.limit, params.offset)
             .await?;
 
         let coaches_with_email = Self::enrich_coaches_with_email(&manager, coaches).await?;
@@ -1512,7 +1498,7 @@ impl CoachesRoutes {
         Query(params): Query<StoreListParams>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
         let sort_by = params.sort_by.as_deref();
@@ -1541,12 +1527,12 @@ impl CoachesRoutes {
         Query(params): Query<StoreListParams>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
         let coaches = manager
-            .get_rejected_coaches(&tenant_id, params.limit, params.offset)
+            .get_rejected_coaches(tenant_id, params.limit, params.offset)
             .await?;
 
         let coaches_with_email = Self::enrich_coaches_with_email(&manager, coaches).await?;
@@ -1570,11 +1556,11 @@ impl CoachesRoutes {
         Path(id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
-        manager.approve_coach(&id, &tenant_id, auth.user_id).await?;
+        manager.approve_coach(&id, tenant_id, auth.user_id).await?;
 
         let response = StoreActionResponse {
             success: true,
@@ -1593,7 +1579,7 @@ impl CoachesRoutes {
         Json(body): Json<RejectCoachBody>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         // Combine reason with optional notes
@@ -1609,7 +1595,7 @@ impl CoachesRoutes {
 
         let manager = Self::get_coaches_manager(&resources)?;
         manager
-            .reject_coach(&id, &tenant_id, auth.user_id, &rejection_reason)
+            .reject_coach(&id, tenant_id, auth.user_id, &rejection_reason)
             .await?;
 
         let response = StoreActionResponse {
@@ -1628,11 +1614,11 @@ impl CoachesRoutes {
         Path(id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
-        manager.unpublish_coach(&id, &tenant_id).await?;
+        manager.unpublish_coach(&id, tenant_id).await?;
 
         let response = StoreActionResponse {
             success: true,
@@ -1656,29 +1642,6 @@ impl CoachesRoutes {
         }
 
         Ok(result)
-    }
-
-    /// Check if user has admin role
-    async fn require_admin(
-        resources: &Arc<ServerResources>,
-        user_id: Uuid,
-    ) -> Result<(), AppError> {
-        let user = resources
-            .database
-            .get_user(user_id)
-            .await
-            .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
-            .ok_or_else(|| AppError::not_found(format!("User {user_id}")))?;
-
-        // Check if user has admin role
-        if !matches!(user.role, UserRole::Admin | UserRole::SuperAdmin) {
-            return Err(AppError::new(
-                ErrorCode::PermissionDenied,
-                "Admin role required for this operation",
-            ));
-        }
-
-        Ok(())
     }
 }
 

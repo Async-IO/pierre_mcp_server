@@ -24,6 +24,7 @@ use crate::config::fitness::FitnessConfig;
 use crate::database::fitness_configurations::FitnessConfigurationManager;
 use crate::errors::{AppError, AppResult};
 use crate::mcp::schema::{JsonSchema, PropertySchema};
+use crate::models::TenantId;
 use crate::tools::context::ToolExecutionContext;
 use crate::tools::result::ToolResult;
 use crate::tools::traits::{McpTool, ToolCapabilities};
@@ -41,10 +42,10 @@ fn get_manager(ctx: &ToolExecutionContext) -> AppResult<FitnessConfigurationMana
     Ok(FitnessConfigurationManager::new(pool.clone()))
 }
 
-/// Get tenant ID string (falls back to `user_id` if no tenant)
-fn get_tenant_id(ctx: &ToolExecutionContext) -> String {
+/// Get tenant ID (falls back to `user_id` if no tenant)
+fn get_tenant_id(ctx: &ToolExecutionContext) -> TenantId {
     ctx.tenant_id
-        .map_or_else(|| ctx.user_id.to_string(), |id| id.to_string())
+        .map_or_else(|| TenantId::from(ctx.user_id), TenantId::from)
 }
 
 // ============================================================================
@@ -102,10 +103,10 @@ impl McpTool for GetFitnessConfigTool {
 
         let manager = get_manager(ctx)?;
         let user_id_str = ctx.user_id.to_string();
-        let tenant_id_str = get_tenant_id(ctx);
+        let tenant_id = get_tenant_id(ctx);
 
         let config = manager
-            .get_user_config(&tenant_id_str, &user_id_str, configuration_name)
+            .get_user_config(tenant_id, &user_id_str, configuration_name)
             .await?;
 
         config.map_or_else(
@@ -214,22 +215,17 @@ impl McpTool for SetFitnessConfigTool {
 
         let manager = get_manager(ctx)?;
         let user_id_str = ctx.user_id.to_string();
-        let tenant_id_str = get_tenant_id(ctx);
+        let tenant_id = get_tenant_id(ctx);
 
         let config_id: String = if user_level {
             manager
-                .save_user_config(
-                    &tenant_id_str,
-                    &user_id_str,
-                    configuration_name,
-                    &fitness_config,
-                )
+                .save_user_config(tenant_id, &user_id_str, configuration_name, &fitness_config)
                 .await?
         } else {
             // Tenant-level config requires admin privileges
             ctx.require_admin().await?;
             manager
-                .save_tenant_config(&tenant_id_str, configuration_name, &fitness_config)
+                .save_tenant_config(tenant_id, configuration_name, &fitness_config)
                 .await?
         };
 
@@ -295,16 +291,16 @@ impl McpTool for ListFitnessConfigsTool {
 
         let manager = get_manager(ctx)?;
         let user_id_str = ctx.user_id.to_string();
-        let tenant_id_str = get_tenant_id(ctx);
+        let tenant_id = get_tenant_id(ctx);
 
         // Get user-specific configurations
         let user_configs: Vec<String> = manager
-            .list_user_configurations(&tenant_id_str, &user_id_str)
+            .list_user_configurations(tenant_id, &user_id_str)
             .await?;
 
         // Get tenant-level configurations if requested
         let tenant_configs: Vec<String> = if include_tenant {
-            manager.list_tenant_configurations(&tenant_id_str).await?
+            manager.list_tenant_configurations(tenant_id).await?
         } else {
             Vec::new()
         };
@@ -394,7 +390,7 @@ impl McpTool for DeleteFitnessConfigTool {
 
         let manager = get_manager(ctx)?;
         let user_id_str = ctx.user_id.to_string();
-        let tenant_id_str = get_tenant_id(ctx);
+        let tenant_id = get_tenant_id(ctx);
 
         let user_id_option = if user_level {
             Some(user_id_str.as_str())
@@ -405,7 +401,7 @@ impl McpTool for DeleteFitnessConfigTool {
         };
 
         let deleted = manager
-            .delete_config(&tenant_id_str, user_id_option, configuration_name)
+            .delete_config(tenant_id, user_id_option, configuration_name)
             .await?;
 
         if deleted {

@@ -116,7 +116,7 @@ fn test_tenant_rate_limit_tier_effective_limits() {
 #[test]
 fn test_tenant_config_management() {
     let mut config = TenantRateLimitConfig::new();
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     // Test default configuration
     let default_config = config.get_tenant_config(tenant_id);
@@ -157,7 +157,7 @@ fn test_tenant_specific_rate_limiting() {
 fn test_tenant_rate_limiting_with_multiplier() {
     let mut calculator = UnifiedRateLimitCalculator::new();
     let tenant = create_test_tenant("professional");
-    let tenant_id = tenant.id.as_uuid();
+    let tenant_id = tenant.id;
 
     // Configure tenant based on plan first, then set multiplier
     calculator.configure_tenant_by_plan(tenant_id, &tenant.plan);
@@ -179,7 +179,7 @@ fn test_tenant_rate_limiting_with_multiplier() {
 fn test_tenant_aware_api_key_rate_limiting() {
     let mut calculator = UnifiedRateLimitCalculator::new();
     let api_key = create_test_api_key(&ApiKeyTier::Professional);
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     // Configure tenant with 1.5x multiplier
     calculator.set_tenant_multiplier(tenant_id, 1.5);
@@ -202,7 +202,7 @@ fn test_tenant_aware_api_key_rate_limiting() {
 fn test_tenant_aware_jwt_rate_limiting() {
     let mut calculator = UnifiedRateLimitCalculator::new();
     let user = create_test_user(UserTier::Professional);
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     // Configure tenant with 0.5x multiplier (reduced limits)
     calculator.set_tenant_multiplier(tenant_id, 0.5);
@@ -240,7 +240,7 @@ fn test_enterprise_tenant_unlimited() {
 #[test]
 fn test_tenant_config_by_plan() {
     let mut calculator = UnifiedRateLimitCalculator::new();
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     // Test different plan configurations
     calculator.configure_tenant_by_plan(tenant_id, "starter");

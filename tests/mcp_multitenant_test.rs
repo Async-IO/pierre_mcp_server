@@ -159,7 +159,7 @@ use pierre_mcp_server::{
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::multitenant::MultiTenantMcpServer,
     middleware::McpAuthMiddleware,
-    models::{User, UserOAuthToken, UserTier},
+    models::{TenantId, User, UserOAuthToken, UserTier},
 };
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::RwLock;
@@ -357,7 +357,7 @@ async fn test_tenant_data_isolation() -> Result<()> {
         let strava_token = database
             .get_user_oauth_token(
                 *user_id,
-                "00000000-0000-0000-0000-000000000000",
+                TenantId::from_uuid(Uuid::nil()),
                 oauth_providers::STRAVA,
             )
             .await?
@@ -367,7 +367,7 @@ async fn test_tenant_data_isolation() -> Result<()> {
         let fitbit_token = database
             .get_user_oauth_token(
                 *user_id,
-                "00000000-0000-0000-0000-000000000000",
+                TenantId::from_uuid(Uuid::nil()),
                 oauth_providers::FITBIT,
             )
             .await?
@@ -379,7 +379,7 @@ async fn test_tenant_data_isolation() -> Result<()> {
     let user0_strava = database
         .get_user_oauth_token(
             users[0].0,
-            "00000000-0000-0000-0000-000000000000",
+            TenantId::from_uuid(Uuid::nil()),
             oauth_providers::STRAVA,
         )
         .await?
@@ -387,7 +387,7 @@ async fn test_tenant_data_isolation() -> Result<()> {
     let user1_strava = database
         .get_user_oauth_token(
             users[1].0,
-            "00000000-0000-0000-0000-000000000000",
+            TenantId::from_uuid(Uuid::nil()),
             oauth_providers::STRAVA,
         )
         .await?
@@ -446,7 +446,7 @@ async fn test_concurrent_user_operations() -> Result<()> {
             let token_data = db
                 .get_user_oauth_token(
                     user_id,
-                    "00000000-0000-0000-0000-000000000000",
+                    TenantId::from_uuid(Uuid::nil()),
                     oauth_providers::STRAVA,
                 )
                 .await?
@@ -642,7 +642,7 @@ async fn test_database_encryption_isolation() -> Result<()> {
     let user1_token_data = database
         .get_user_oauth_token(
             *user1_id,
-            "00000000-0000-0000-0000-000000000000",
+            TenantId::from_uuid(Uuid::nil()),
             oauth_providers::STRAVA,
         )
         .await?
@@ -650,7 +650,7 @@ async fn test_database_encryption_isolation() -> Result<()> {
     let user2_token_data = database
         .get_user_oauth_token(
             *user2_id,
-            "00000000-0000-0000-0000-000000000000",
+            TenantId::from_uuid(Uuid::nil()),
             oauth_providers::STRAVA,
         )
         .await?
@@ -808,7 +808,7 @@ async fn test_memory_safety_concurrent_access() -> Result<()> {
             let token_data = db
                 .get_user_oauth_token(
                     user_id,
-                    "00000000-0000-0000-0000-000000000000",
+                    TenantId::from_uuid(Uuid::nil()),
                     oauth_providers::STRAVA,
                 )
                 .await?
@@ -960,7 +960,7 @@ async fn test_large_scale_multitenant_operations() -> Result<()> {
             let token_data = db
                 .get_user_oauth_token(
                     user_id,
-                    "00000000-0000-0000-0000-000000000000",
+                    TenantId::from_uuid(Uuid::nil()),
                     oauth_providers::STRAVA,
                 )
                 .await?

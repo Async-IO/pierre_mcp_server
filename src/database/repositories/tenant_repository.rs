@@ -114,13 +114,12 @@ impl TenantRepository for TenantRepositoryImpl {
     async fn get_user_role(
         &self,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> Result<Option<String>, DatabaseError> {
         let user_uuid = Uuid::parse_str(user_id)?;
-        let tenant_uuid: TenantId = tenant_id.parse()?;
 
         self.db
-            .get_user_tenant_role(user_uuid, tenant_uuid)
+            .get_user_tenant_role(user_uuid, tenant_id)
             .await
             .map_err(|e| DatabaseError::QueryError {
                 context: e.to_string(),

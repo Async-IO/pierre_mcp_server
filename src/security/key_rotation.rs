@@ -26,7 +26,6 @@ use tokio::{
     time::{interval, Duration},
 };
 use tracing::{error, info, warn};
-use uuid::Uuid;
 
 // Re-export DTOs from pierre-core (canonical definitions)
 pub use pierre_core::models::{KeyRotationConfig, KeyVersion, RotationStatus};
@@ -42,9 +41,9 @@ pub struct KeyRotationManager {
     /// Rotation configuration
     config: KeyRotationConfig,
     /// Key version tracking
-    key_versions: RwLock<HashMap<Option<Uuid>, Vec<KeyVersion>>>,
+    key_versions: RwLock<HashMap<Option<TenantId>, Vec<KeyVersion>>>,
     /// Rotation status tracking
-    rotation_status: RwLock<HashMap<Option<Uuid>, RotationStatus>>,
+    rotation_status: RwLock<HashMap<Option<TenantId>, RotationStatus>>,
 }
 
 impl KeyRotationManager {
@@ -113,7 +112,7 @@ impl KeyRotationManager {
 
         // Check each tenant's keys
         for tenant in tenants {
-            if let Err(e) = self.check_key_rotation(Some(tenant.id.as_uuid())).await {
+            if let Err(e) = self.check_key_rotation(Some(tenant.id)).await {
                 error!(
                     "Failed to check key rotation for tenant {}: {}",
                     tenant.id, e
@@ -125,7 +124,7 @@ impl KeyRotationManager {
     }
 
     /// Check if a specific tenant/global key needs rotation
-    async fn check_key_rotation(&self, tenant_id: Option<Uuid>) -> AppResult<()> {
+    async fn check_key_rotation(&self, tenant_id: Option<TenantId>) -> AppResult<()> {
         let current_version = self.get_current_key_version(tenant_id).await?;
 
         if let Some(version) = current_version {
@@ -151,7 +150,7 @@ impl KeyRotationManager {
     }
 
     /// Schedule a key rotation
-    async fn schedule_key_rotation(&self, tenant_id: Option<Uuid>) -> AppResult<()> {
+    async fn schedule_key_rotation(&self, tenant_id: Option<TenantId>) -> AppResult<()> {
         let scheduled_at = Utc::now() + ChronoDuration::hours(1); // Schedule for 1 hour from now
 
         {
@@ -185,7 +184,7 @@ impl KeyRotationManager {
     }
 
     /// Update rotation status to in-progress
-    async fn set_rotation_in_progress(&self, tenant_id: Option<Uuid>) {
+    async fn set_rotation_in_progress(&self, tenant_id: Option<TenantId>) {
         let mut status = self.rotation_status.write().await;
         status.insert(
             tenant_id,
@@ -196,7 +195,7 @@ impl KeyRotationManager {
     }
 
     /// Update rotation status after completion or failure
-    async fn update_rotation_status(&self, tenant_id: Option<Uuid>, result: &AppResult<()>) {
+    async fn update_rotation_status(&self, tenant_id: Option<TenantId>, result: &AppResult<()>) {
         match result {
             Ok(()) => {
                 self.rotation_status.write().await.insert(
@@ -224,7 +223,7 @@ impl KeyRotationManager {
     }
 
     /// Perform actual key rotation
-    async fn perform_key_rotation(&self, tenant_id: Option<Uuid>) -> AppResult<()> {
+    async fn perform_key_rotation(&self, tenant_id: Option<TenantId>) -> AppResult<()> {
         info!("Starting key rotation for tenant {:?}", tenant_id);
 
         self.set_rotation_in_progress(tenant_id).await;
@@ -236,7 +235,7 @@ impl KeyRotationManager {
     }
 
     /// Execute the actual key rotation process
-    async fn execute_key_rotation(&self, tenant_id: Option<Uuid>) -> AppResult<()> {
+    async fn execute_key_rotation(&self, tenant_id: Option<TenantId>) -> AppResult<()> {
         // 1. Create new key version
         let new_version = self.create_new_key_version(tenant_id).await?;
 
@@ -250,9 +249,7 @@ impl KeyRotationManager {
 
         // 3. Rotate the key in the encryption manager
         if let Some(tid) = tenant_id {
-            self.encryption_manager
-                .rotate_tenant_key(TenantId::from(tid))
-                .await?;
+            self.encryption_manager.rotate_tenant_key(tid).await?;
         }
 
         // 4. Update key version status
@@ -266,7 +263,7 @@ impl KeyRotationManager {
     }
 
     /// Create a new key version
-    async fn create_new_key_version(&self, tenant_id: Option<Uuid>) -> AppResult<KeyVersion> {
+    async fn create_new_key_version(&self, tenant_id: Option<TenantId>) -> AppResult<KeyVersion> {
         let current_versions = self.get_key_versions(tenant_id).await?;
         let next_version = current_versions
             .iter()
@@ -300,10 +297,14 @@ impl KeyRotationManager {
     }
 
     /// Activate a specific key version
-    async fn activate_key_version(&self, tenant_id: Option<Uuid>, version: u32) -> AppResult<()> {
+    async fn activate_key_version(
+        &self,
+        tenant_id: Option<TenantId>,
+        version: u32,
+    ) -> AppResult<()> {
         // Update database first
         self.database
-            .update_key_version_status(tenant_id.map(TenantId::from), version, true)
+            .update_key_version_status(tenant_id, version, true)
             .await?;
 
         // Update in-memory cache
@@ -323,14 +324,11 @@ impl KeyRotationManager {
     }
 
     /// Clean up old key versions
-    async fn cleanup_old_key_versions(&self, tenant_id: Option<Uuid>) -> AppResult<()> {
+    async fn cleanup_old_key_versions(&self, tenant_id: Option<TenantId>) -> AppResult<()> {
         // Delete old key versions from database
         let deleted_count = self
             .database
-            .delete_old_key_versions(
-                tenant_id.map(TenantId::from),
-                self.config.key_versions_to_retain,
-            )
+            .delete_old_key_versions(tenant_id, self.config.key_versions_to_retain)
             .await?;
 
         if deleted_count > 0 {
@@ -340,10 +338,7 @@ impl KeyRotationManager {
             );
 
             // Update in-memory cache by reloading from database
-            let updated_versions = self
-                .database
-                .get_key_versions(tenant_id.map(TenantId::from))
-                .await?;
+            let updated_versions = self.database.get_key_versions(tenant_id).await?;
             {
                 let mut cache = self.key_versions.write().await;
                 cache.insert(tenant_id, updated_versions);
@@ -354,7 +349,7 @@ impl KeyRotationManager {
     }
 
     /// Initialize key version for new tenant
-    async fn initialize_key_version(&self, tenant_id: Option<Uuid>) -> AppResult<()> {
+    async fn initialize_key_version(&self, tenant_id: Option<TenantId>) -> AppResult<()> {
         let initial_version = KeyVersion {
             version: 1,
             created_at: Utc::now(),
@@ -377,20 +372,16 @@ impl KeyRotationManager {
     /// Get current active key version
     async fn get_current_key_version(
         &self,
-        tenant_id: Option<Uuid>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Option<KeyVersion>> {
         let versions = self.get_key_versions(tenant_id).await?;
         Ok(versions.into_iter().find(|v| v.is_active))
     }
 
     /// Get all key versions for a tenant
-    async fn get_key_versions(&self, tenant_id: Option<Uuid>) -> AppResult<Vec<KeyVersion>> {
+    async fn get_key_versions(&self, tenant_id: Option<TenantId>) -> AppResult<Vec<KeyVersion>> {
         // First try to get from database
-        if let Ok(versions) = self
-            .database
-            .get_key_versions(tenant_id.map(TenantId::from))
-            .await
-        {
+        if let Ok(versions) = self.database.get_key_versions(tenant_id).await {
             // Update in-memory cache
             {
                 let mut cache = self.key_versions.write().await;
@@ -412,7 +403,7 @@ impl KeyRotationManager {
     }
 
     /// Get rotation status for a tenant
-    pub async fn get_rotation_status(&self, tenant_id: Option<Uuid>) -> RotationStatus {
+    pub async fn get_rotation_status(&self, tenant_id: Option<TenantId>) -> RotationStatus {
         let status = self.rotation_status.read().await;
         status
             .get(&tenant_id)
@@ -422,7 +413,7 @@ impl KeyRotationManager {
 
     /// Build emergency key rotation audit event
     fn build_emergency_rotation_audit_event(
-        tenant_id: Option<Uuid>,
+        tenant_id: Option<TenantId>,
         reason: &str,
     ) -> super::audit::AuditEvent {
         let event = super::audit::AuditEvent::new(
@@ -447,7 +438,7 @@ impl KeyRotationManager {
     /// Returns an error if emergency rotation fails
     pub async fn emergency_key_rotation(
         &self,
-        tenant_id: Option<Uuid>,
+        tenant_id: Option<TenantId>,
         reason: &str,
     ) -> AppResult<()> {
         warn!(

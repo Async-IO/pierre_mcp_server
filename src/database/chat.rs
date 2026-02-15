@@ -9,6 +9,8 @@ use crate::llm::MessageRole;
 use sqlx::{Row, SqlitePool};
 use uuid::Uuid;
 
+use pierre_core::models::TenantId;
+
 // Re-export DTOs from pierre-core (canonical definitions)
 pub use pierre_core::models::{ConversationRecord, ConversationSummary, MessageRecord};
 
@@ -40,7 +42,7 @@ impl ChatManager {
     pub async fn create_conversation(
         &self,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
         title: &str,
         model: &str,
         system_prompt: Option<&str>,
@@ -56,7 +58,7 @@ impl ChatManager {
         )
         .bind(&id)
         .bind(user_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(title)
         .bind(model)
         .bind(system_prompt)
@@ -68,7 +70,7 @@ impl ChatManager {
         Ok(ConversationRecord {
             id,
             user_id: user_id.to_owned(),
-            tenant_id: tenant_id.to_owned(),
+            tenant_id: tenant_id.to_string(),
             title: title.to_owned(),
             model: model.to_owned(),
             system_prompt: system_prompt.map(ToOwned::to_owned),
@@ -87,7 +89,7 @@ impl ChatManager {
         &self,
         conversation_id: &str,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<Option<ConversationRecord>> {
         let row = sqlx::query(
             r"
@@ -98,7 +100,7 @@ impl ChatManager {
         )
         .bind(conversation_id)
         .bind(user_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get conversation: {e}")))?;
@@ -124,7 +126,7 @@ impl ChatManager {
     pub async fn list_conversations(
         &self,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
         limit: i64,
         offset: i64,
     ) -> AppResult<Vec<ConversationSummary>> {
@@ -141,7 +143,7 @@ impl ChatManager {
             ",
         )
         .bind(user_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(limit)
         .bind(offset)
         .fetch_all(&self.pool)
@@ -173,7 +175,7 @@ impl ChatManager {
         &self,
         conversation_id: &str,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
         title: &str,
     ) -> AppResult<bool> {
         let now = chrono::Utc::now().to_rfc3339();
@@ -189,7 +191,7 @@ impl ChatManager {
         .bind(&now)
         .bind(conversation_id)
         .bind(user_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to update conversation title: {e}")))?;
@@ -206,7 +208,7 @@ impl ChatManager {
         &self,
         conversation_id: &str,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<bool> {
         let result = sqlx::query(
             r"
@@ -216,7 +218,7 @@ impl ChatManager {
         )
         .bind(conversation_id)
         .bind(user_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to delete conversation: {e}")))?;
@@ -439,7 +441,7 @@ impl ChatManager {
     pub async fn delete_all_user_conversations(
         &self,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<i64> {
         let result = sqlx::query(
             r"
@@ -448,7 +450,7 @@ impl ChatManager {
             ",
         )
         .bind(user_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to delete user conversations: {e}")))?;

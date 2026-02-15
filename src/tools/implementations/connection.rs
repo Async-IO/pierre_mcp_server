@@ -63,25 +63,25 @@ fn build_oauth_state(user_id: Uuid, redirect_url: Option<&str>) -> String {
 async fn build_tenant_context(
     database: &Database,
     user_id: Uuid,
-    user_tenant_id: Option<&str>,
+    user_default_tenant_id: Option<TenantId>,
     context_tenant_id: Option<TenantId>,
-) -> TenantContext {
-    let tenant_id = user_tenant_id
-        .and_then(|t| t.parse::<TenantId>().ok())
-        .or(context_tenant_id)
-        .unwrap_or_else(|| TenantId::from(user_id));
+) -> AppResult<TenantContext> {
+    // Prefer context tenant (from JWT active_tenant_id), fall back to DB-resolved default
+    let tenant_id = context_tenant_id
+        .or(user_default_tenant_id)
+        .ok_or_else(|| AppError::auth_invalid("User does not belong to any tenant"))?;
 
     let tenant_name = database
         .get_tenant_by_id(tenant_id)
         .await
         .map_or_else(|_| "Unknown Tenant".to_owned(), |t| t.name);
 
-    TenantContext {
+    Ok(TenantContext {
         tenant_id,
         user_id,
         tenant_name,
         user_role: TenantRole::Member,
-    }
+    })
 }
 
 /// Build successful OAuth authorization response
@@ -210,17 +210,20 @@ impl McpTool for ConnectProviderTool {
             )
         })?;
 
-        // Get user's tenant from tenant_users junction table
-        let tenants = database.list_tenants_for_user(context.user_id).await.ok();
-        let user_tenant_id = tenants.and_then(|t| t.first().map(|tenant| tenant.id.to_string()));
+        // Resolve user's default tenant from tenant_users junction table (fallback)
+        let user_default_tenant_id = database
+            .list_tenants_for_user(context.user_id)
+            .await
+            .ok()
+            .and_then(|t| t.first().map(|tenant| tenant.id));
 
         let tenant_context = build_tenant_context(
             database,
             context.user_id,
-            user_tenant_id.as_deref(),
+            user_default_tenant_id,
             context.tenant_id.map(TenantId::from),
         )
-        .await;
+        .await?;
 
         // Build OAuth state and generate authorization URL
         let state = build_oauth_state(context.user_id, redirect_url);
@@ -435,13 +438,13 @@ impl McpTool for DisconnectProviderTool {
                 })?;
 
         // Require tenant_id to disconnect a provider — "default" fallback is invalid for UUID-based tenant IDs
-        let tenant_id_str = context.tenant_id.map(|id| id.to_string()).ok_or_else(|| {
+        let tenant_id = context.tenant_id.map(TenantId::from).ok_or_else(|| {
             AppError::auth_invalid("tenant_id is required to disconnect a provider")
         })?;
 
         // Disconnect by deleting the token directly
         match database
-            .delete_user_oauth_token(context.user_id, &tenant_id_str, provider)
+            .delete_user_oauth_token(context.user_id, tenant_id, provider)
             .await
         {
             Ok(()) => Ok(ToolResult::ok(json!({

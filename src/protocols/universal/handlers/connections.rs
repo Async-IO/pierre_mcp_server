@@ -161,8 +161,9 @@ pub fn handle_disconnect_provider(
 
         // Resolve tenant ID: prefer request.tenant_id (user's selected tenant from JWT),
         // falling back to user's first tenant for clients without active_tenant_id.
-        let tenant_id_str = if let Some(tid) = request.tenant_id.as_deref() {
-            tid.to_owned()
+        let tenant_id: TenantId = if let Some(tid) = request.tenant_id.as_deref() {
+            tid.parse::<TenantId>()
+                .map_err(|_| ProtocolError::InvalidRequest(format!("Invalid tenant_id: {tid}")))?
         } else {
             // No active tenant in request - fall back to user's first tenant
             let tenants = executor
@@ -172,7 +173,7 @@ pub fn handle_disconnect_provider(
                 .await
                 .unwrap_or_default();
             match tenants.first() {
-                Some(t) => t.id.to_string(),
+                Some(t) => t.id,
                 None => {
                     return Ok(connection_error(
                         "Cannot disconnect: user does not belong to any tenant",
@@ -183,7 +184,7 @@ pub fn handle_disconnect_provider(
 
         // Disconnect by deleting the token
         match (*executor.resources.database)
-            .delete_user_oauth_token(user_uuid, &tenant_id_str, provider)
+            .delete_user_oauth_token(user_uuid, tenant_id, provider)
             .await
         {
             Ok(()) => Ok(UniversalResponse {

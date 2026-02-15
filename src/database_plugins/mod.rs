@@ -126,7 +126,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     ) -> AppResult<User>;
 
     /// Update user's `tenant_id` to link them to a tenant (`tenant_id` should be UUID string)
-    async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> AppResult<()>;
+    async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: TenantId) -> AppResult<()>;
 
     /// Update user's password hash
     async fn update_user_password(&self, user_id: Uuid, password_hash: &str) -> AppResult<()>;
@@ -156,7 +156,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn get_user_oauth_token(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<Option<UserOAuthToken>>;
 
@@ -164,13 +164,13 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn get_user_oauth_tokens(
         &self,
         user_id: Uuid,
-        tenant_id: Option<&str>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Vec<UserOAuthToken>>;
 
     /// Get all OAuth tokens for a tenant-provider combination
     async fn get_tenant_provider_tokens(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<Vec<UserOAuthToken>>;
 
@@ -178,18 +178,18 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn delete_user_oauth_token(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<()>;
 
     /// Delete all OAuth tokens for a user within a tenant scope
-    async fn delete_user_oauth_tokens(&self, user_id: Uuid, tenant_id: &str) -> AppResult<()>;
+    async fn delete_user_oauth_tokens(&self, user_id: Uuid, tenant_id: TenantId) -> AppResult<()>;
 
     /// Update OAuth token expiration and refresh info
     async fn refresh_user_oauth_token(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
         access_token: &str,
         refresh_token: Option<&str>,
@@ -471,7 +471,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn get_provider_last_sync(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<Option<DateTime<Utc>>>;
 
@@ -479,7 +479,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn update_provider_last_sync(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
         sync_time: DateTime<Utc>,
     ) -> AppResult<()>;
@@ -906,7 +906,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Save tenant-level fitness configuration
     async fn save_tenant_fitness_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         configuration_name: &str,
         config: &FitnessConfig,
     ) -> AppResult<String>;
@@ -914,7 +914,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Save user-specific fitness configuration
     async fn save_user_fitness_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         user_id: &str,
         configuration_name: &str,
         config: &FitnessConfig,
@@ -923,32 +923,35 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Get tenant-level fitness configuration
     async fn get_tenant_fitness_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         configuration_name: &str,
     ) -> AppResult<Option<FitnessConfig>>;
 
     /// Get user-specific fitness configuration
     async fn get_user_fitness_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         user_id: &str,
         configuration_name: &str,
     ) -> AppResult<Option<FitnessConfig>>;
 
     /// List all tenant-level fitness configuration names
-    async fn list_tenant_fitness_configurations(&self, tenant_id: &str) -> AppResult<Vec<String>>;
+    async fn list_tenant_fitness_configurations(
+        &self,
+        tenant_id: TenantId,
+    ) -> AppResult<Vec<String>>;
 
     /// List all user-specific fitness configuration names
     async fn list_user_fitness_configurations(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         user_id: &str,
     ) -> AppResult<Vec<String>>;
 
     /// Delete fitness configuration (tenant or user-specific)
     async fn delete_fitness_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         user_id: Option<&str>,
         configuration_name: &str,
     ) -> AppResult<bool>;
@@ -1025,7 +1028,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn get_admin_config_override(
         &self,
         config_key: &str,
-        tenant_id: Option<&str>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Option<String>>;
 
     // ================================
@@ -1118,7 +1121,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn register_provider_connection(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
         connection_type: &ConnectionType,
         metadata: Option<&str>,
@@ -1128,7 +1131,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn remove_provider_connection(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<()>;
 
@@ -1139,7 +1142,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn get_user_provider_connections(
         &self,
         user_id: Uuid,
-        tenant_id: Option<&str>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Vec<ProviderConnection>>;
 
     /// Check if a specific provider is connected for a user (cross-tenant)
@@ -1153,7 +1156,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn chat_create_conversation(
         &self,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
         title: &str,
         model: &str,
         system_prompt: Option<&str>,
@@ -1164,14 +1167,14 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         &self,
         conversation_id: &str,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<Option<ConversationRecord>>;
 
     /// List conversations for a user with pagination
     async fn chat_list_conversations(
         &self,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
         limit: i64,
         offset: i64,
     ) -> AppResult<Vec<ConversationSummary>>;
@@ -1181,7 +1184,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         &self,
         conversation_id: &str,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
         title: &str,
     ) -> AppResult<bool>;
 
@@ -1190,7 +1193,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         &self,
         conversation_id: &str,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<bool>;
 
     /// Add a message to a conversation (verifies user owns the conversation)
@@ -1226,7 +1229,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn chat_delete_all_user_conversations(
         &self,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<i64>;
 
     // ================================

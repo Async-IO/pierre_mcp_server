@@ -411,10 +411,8 @@ impl TenantResources {
         user_id: Uuid,
         provider: &str,
     ) -> AppResult<Option<UserOAuthToken>> {
-        // Convert tenant_id to string for database query
-        let tenant_id_str = self.tenant_id.to_string();
         self.database
-            .get_user_oauth_token(user_id, &tenant_id_str, provider)
+            .get_user_oauth_token(user_id, self.tenant_id, provider)
             .await
             .map_err(|e| AppError::database(format!("Failed to get user OAuth token: {e}")))
     }

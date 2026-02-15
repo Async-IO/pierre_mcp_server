@@ -10,6 +10,7 @@ use crate::database_plugins::factory::Database;
 use crate::models::{User, UserStatus};
 use crate::pagination::{CursorPage, PaginationParams};
 use async_trait::async_trait;
+use pierre_core::models::TenantId;
 use uuid::Uuid;
 
 /// SQLite/PostgreSQL implementation of `UserRepository`
@@ -121,7 +122,7 @@ impl UserRepository for UserRepositoryImpl {
             })
     }
 
-    async fn update_tenant_id(&self, id: Uuid, tenant_id: &str) -> Result<(), DatabaseError> {
+    async fn update_tenant_id(&self, id: Uuid, tenant_id: TenantId) -> Result<(), DatabaseError> {
         self.db
             .update_user_tenant_id(id, tenant_id)
             .await

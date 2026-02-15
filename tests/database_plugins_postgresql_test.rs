@@ -278,10 +278,10 @@ async fn test_pg_chat_create_conversation() {
 
     let user_id = create_pg_test_user(&db).await;
     let user_id_str = user_id.to_string();
-    let tenant_id_str = Uuid::new_v4().to_string();
+    let tenant_id = TenantId::from(Uuid::new_v4());
 
     let conv = db
-        .chat_create_conversation(&user_id_str, &tenant_id_str, "Test Chat", "gpt-4", None)
+        .chat_create_conversation(&user_id_str, tenant_id, "Test Chat", "gpt-4", None)
         .await
         .expect("Failed to create conversation");
 
@@ -308,12 +308,12 @@ async fn test_pg_chat_create_conversation_with_system_prompt() {
 
     let user_id = create_pg_test_user(&db).await;
     let user_id_str = user_id.to_string();
-    let tenant_id_str = Uuid::new_v4().to_string();
+    let tenant_id = TenantId::from(Uuid::new_v4());
 
     let conv = db
         .chat_create_conversation(
             &user_id_str,
-            &tenant_id_str,
+            tenant_id,
             "Test with Prompt",
             "gpt-4",
             Some("You are a helpful assistant"),
@@ -344,17 +344,17 @@ async fn test_pg_chat_get_conversation() {
 
     let user_id = create_pg_test_user(&db).await;
     let user_id_str = user_id.to_string();
-    let tenant_id_str = Uuid::new_v4().to_string();
+    let tenant_id = TenantId::from(Uuid::new_v4());
 
     // Create a conversation first
     let created = db
-        .chat_create_conversation(&user_id_str, &tenant_id_str, "Retrieve Test", "gpt-4", None)
+        .chat_create_conversation(&user_id_str, tenant_id, "Retrieve Test", "gpt-4", None)
         .await
         .expect("Failed to create conversation");
 
     // Retrieve it
     let retrieved = db
-        .chat_get_conversation(&created.id, &user_id_str, &tenant_id_str)
+        .chat_get_conversation(&created.id, &user_id_str, tenant_id)
         .await
         .expect("Failed to get conversation");
 
@@ -365,7 +365,7 @@ async fn test_pg_chat_get_conversation() {
 
     // Try to get non-existent
     let missing = db
-        .chat_get_conversation("nonexistent", &user_id_str, &tenant_id_str)
+        .chat_get_conversation("nonexistent", &user_id_str, tenant_id)
         .await
         .expect("Query should not fail");
     assert!(
@@ -391,24 +391,18 @@ async fn test_pg_chat_list_conversations() {
 
     let user_id = create_pg_test_user(&db).await;
     let user_id_str = user_id.to_string();
-    let tenant_id_str = Uuid::new_v4().to_string();
+    let tenant_id = TenantId::from(Uuid::new_v4());
 
     // Create multiple conversations
     for i in 1..=5 {
-        db.chat_create_conversation(
-            &user_id_str,
-            &tenant_id_str,
-            &format!("Chat {i}"),
-            "gpt-4",
-            None,
-        )
-        .await
-        .expect("Failed to create conversation");
+        db.chat_create_conversation(&user_id_str, tenant_id, &format!("Chat {i}"), "gpt-4", None)
+            .await
+            .expect("Failed to create conversation");
     }
 
     // List with pagination
     let list = db
-        .chat_list_conversations(&user_id_str, &tenant_id_str, 3, 0)
+        .chat_list_conversations(&user_id_str, tenant_id, 3, 0)
         .await
         .expect("Failed to list conversations");
 
@@ -416,7 +410,7 @@ async fn test_pg_chat_list_conversations() {
 
     // List second page
     let page2 = db
-        .chat_list_conversations(&user_id_str, &tenant_id_str, 3, 3)
+        .chat_list_conversations(&user_id_str, tenant_id, 3, 3)
         .await
         .expect("Failed to list page 2");
 
@@ -440,28 +434,22 @@ async fn test_pg_chat_update_conversation_title() {
 
     let user_id = create_pg_test_user(&db).await;
     let user_id_str = user_id.to_string();
-    let tenant_id_str = Uuid::new_v4().to_string();
+    let tenant_id = TenantId::from(Uuid::new_v4());
 
     let conv = db
-        .chat_create_conversation(
-            &user_id_str,
-            &tenant_id_str,
-            "Original Title",
-            "gpt-4",
-            None,
-        )
+        .chat_create_conversation(&user_id_str, tenant_id, "Original Title", "gpt-4", None)
         .await
         .expect("Failed to create conversation");
 
     let updated = db
-        .chat_update_conversation_title(&conv.id, &user_id_str, &tenant_id_str, "Updated Title")
+        .chat_update_conversation_title(&conv.id, &user_id_str, tenant_id, "Updated Title")
         .await
         .expect("Failed to update title");
 
     assert!(updated, "Update should succeed");
 
     let retrieved = db
-        .chat_get_conversation(&conv.id, &user_id_str, &tenant_id_str)
+        .chat_get_conversation(&conv.id, &user_id_str, tenant_id)
         .await
         .expect("Failed to get conversation")
         .unwrap();
@@ -486,22 +474,22 @@ async fn test_pg_chat_delete_conversation() {
 
     let user_id = create_pg_test_user(&db).await;
     let user_id_str = user_id.to_string();
-    let tenant_id_str = Uuid::new_v4().to_string();
+    let tenant_id = TenantId::from(Uuid::new_v4());
 
     let conv = db
-        .chat_create_conversation(&user_id_str, &tenant_id_str, "To Delete", "gpt-4", None)
+        .chat_create_conversation(&user_id_str, tenant_id, "To Delete", "gpt-4", None)
         .await
         .expect("Failed to create conversation");
 
     let deleted = db
-        .chat_delete_conversation(&conv.id, &user_id_str, &tenant_id_str)
+        .chat_delete_conversation(&conv.id, &user_id_str, tenant_id)
         .await
         .expect("Failed to delete conversation");
 
     assert!(deleted, "Delete should succeed");
 
     let retrieved = db
-        .chat_get_conversation(&conv.id, &user_id_str, &tenant_id_str)
+        .chat_get_conversation(&conv.id, &user_id_str, tenant_id)
         .await
         .expect("Query should not fail");
 
@@ -525,10 +513,10 @@ async fn test_pg_chat_messages() {
 
     let user_id = create_pg_test_user(&db).await;
     let user_id_str = user_id.to_string();
-    let tenant_id_str = Uuid::new_v4().to_string();
+    let tenant_id = TenantId::from(Uuid::new_v4());
 
     let conv = db
-        .chat_create_conversation(&user_id_str, &tenant_id_str, "Message Test", "gpt-4", None)
+        .chat_create_conversation(&user_id_str, tenant_id, "Message Test", "gpt-4", None)
         .await
         .expect("Failed to create conversation");
 
@@ -599,24 +587,18 @@ async fn test_pg_chat_delete_all_user_conversations() {
 
     let user_id = create_pg_test_user(&db).await;
     let user_id_str = user_id.to_string();
-    let tenant_id_str = Uuid::new_v4().to_string();
+    let tenant_id = TenantId::from(Uuid::new_v4());
 
     // Create multiple conversations
     for i in 1..=3 {
-        db.chat_create_conversation(
-            &user_id_str,
-            &tenant_id_str,
-            &format!("Conv {i}"),
-            "gpt-4",
-            None,
-        )
-        .await
-        .expect("Failed to create conversation");
+        db.chat_create_conversation(&user_id_str, tenant_id, &format!("Conv {i}"), "gpt-4", None)
+            .await
+            .expect("Failed to create conversation");
     }
 
     // Delete all
     let deleted_count = db
-        .chat_delete_all_user_conversations(&user_id_str, &tenant_id_str)
+        .chat_delete_all_user_conversations(&user_id_str, tenant_id)
         .await
         .expect("Failed to delete all conversations");
 
@@ -624,7 +606,7 @@ async fn test_pg_chat_delete_all_user_conversations() {
 
     // Verify
     let remaining = db
-        .chat_list_conversations(&user_id_str, &tenant_id_str, 100, 0)
+        .chat_list_conversations(&user_id_str, tenant_id, 100, 0)
         .await
         .expect("Failed to list conversations");
 

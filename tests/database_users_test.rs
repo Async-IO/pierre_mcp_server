@@ -10,7 +10,7 @@
 use chrono::Utc;
 use pierre_mcp_server::{
     database::Database,
-    models::{User, UserStatus, UserTier},
+    models::{TenantId, User, UserStatus, UserTier},
     permissions::UserRole,
 };
 use uuid::Uuid;
@@ -443,10 +443,11 @@ async fn test_provider_last_sync() {
     let sync_time = Utc::now();
 
     // First, create an OAuth token record (last_sync lives in user_oauth_tokens)
+    let test_tenant_id = TenantId::new();
     let token_data = OAuthTokenData {
         id: &Uuid::new_v4().to_string(),
         user_id: user.id,
-        tenant_id: "test_tenant",
+        tenant_id: test_tenant_id,
         provider,
         access_token: "test_access_token",
         refresh_token: Some("test_refresh_token"),
@@ -458,13 +459,13 @@ async fn test_provider_last_sync() {
 
     // Update last sync (scoped to tenant)
     let update_result = db
-        .update_provider_last_sync(user.id, "test_tenant", provider, sync_time)
+        .update_provider_last_sync(user.id, test_tenant_id, provider, sync_time)
         .await;
     assert!(update_result.is_ok());
 
     // Get last sync (scoped to tenant)
     let retrieved_sync = db
-        .get_provider_last_sync(user.id, "test_tenant", provider)
+        .get_provider_last_sync(user.id, test_tenant_id, provider)
         .await
         .unwrap();
     assert!(retrieved_sync.is_some());
@@ -480,7 +481,7 @@ async fn test_get_provider_last_sync_nonexistent() {
     let non_existent_id = Uuid::new_v4();
 
     let result = db
-        .get_provider_last_sync(non_existent_id, "default", "strava")
+        .get_provider_last_sync(non_existent_id, TenantId::new(), "strava")
         .await
         .unwrap();
     assert!(result.is_none());
@@ -542,10 +543,11 @@ async fn test_user_with_encrypted_tokens() {
     db.create_user(&user).await.unwrap();
 
     // Tokens are stored in user_oauth_tokens table, not in users table
+    let test_tenant_id = TenantId::new();
     let token_data = OAuthTokenData {
         id: &Uuid::new_v4().to_string(),
         user_id: user.id,
-        tenant_id: "test_tenant",
+        tenant_id: test_tenant_id,
         provider: "strava",
         access_token: "encrypted_strava_access",
         refresh_token: Some("encrypted_strava_refresh"),
@@ -561,7 +563,7 @@ async fn test_user_with_encrypted_tokens() {
 
     // Verify token via dedicated OAuth token API
     let oauth_token = db
-        .get_user_oauth_token(user.id, "test_tenant", "strava")
+        .get_user_oauth_token(user.id, test_tenant_id, "strava")
         .await
         .unwrap();
     assert!(oauth_token.is_some());

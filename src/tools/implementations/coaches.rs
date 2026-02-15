@@ -32,6 +32,7 @@ use crate::database::coaches::{
 };
 use crate::errors::{AppError, AppResult};
 use crate::mcp::schema::{JsonSchema, PropertySchema};
+use crate::models::TenantId;
 use crate::tools::context::ToolExecutionContext;
 use crate::tools::result::ToolResult;
 use crate::tools::traits::{McpTool, ToolCapabilities};
@@ -50,10 +51,10 @@ fn get_coaches_manager(ctx: &ToolExecutionContext) -> AppResult<CoachesManager> 
     Ok(CoachesManager::new(pool.clone()))
 }
 
-/// Get tenant ID from context, defaulting to `user_id` as string
-fn get_tenant_id(ctx: &ToolExecutionContext) -> String {
+/// Get tenant ID from context, defaulting to `user_id` as `TenantId`
+fn get_tenant_id(ctx: &ToolExecutionContext) -> TenantId {
     ctx.tenant_id
-        .map_or_else(|| ctx.user_id.to_string(), |id| id.to_string())
+        .map_or_else(|| TenantId::from(ctx.user_id), TenantId::from)
 }
 
 /// Format a coach list item for JSON response
@@ -224,8 +225,8 @@ impl McpTool for ListCoachesTool {
             include_hidden,
         };
 
-        let coaches = manager.list(ctx.user_id, &tenant_id, &filter).await?;
-        let total = manager.count(ctx.user_id, &tenant_id).await?;
+        let coaches = manager.list(ctx.user_id, tenant_id, &filter).await?;
+        let total = manager.count(ctx.user_id, tenant_id).await?;
 
         let coach_summaries: Vec<Value> = coaches.iter().map(format_coach_summary).collect();
 
@@ -371,7 +372,7 @@ impl McpTool for CreateCoachTool {
             sample_prompts,
         };
 
-        let coach = manager.create(ctx.user_id, &tenant_id, &request).await?;
+        let coach = manager.create(ctx.user_id, tenant_id, &request).await?;
 
         Ok(ToolResult::ok(json!({
             "success": true,
@@ -428,7 +429,7 @@ impl McpTool for GetCoachTool {
         let tenant_id = get_tenant_id(ctx);
 
         let coach = manager
-            .get(coach_id, ctx.user_id, &tenant_id)
+            .get(coach_id, ctx.user_id, tenant_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("Coach {coach_id}")))?;
 
@@ -558,7 +559,7 @@ impl McpTool for UpdateCoachTool {
         };
 
         let coach = manager
-            .update(coach_id, ctx.user_id, &tenant_id, &request)
+            .update(coach_id, ctx.user_id, tenant_id, &request)
             .await?
             .ok_or_else(|| AppError::not_found(format!("Coach {coach_id}")))?;
 
@@ -616,7 +617,7 @@ impl McpTool for DeleteCoachTool {
         let manager = get_coaches_manager(ctx)?;
         let tenant_id = get_tenant_id(ctx);
 
-        let deleted = manager.delete(coach_id, ctx.user_id, &tenant_id).await?;
+        let deleted = manager.delete(coach_id, ctx.user_id, tenant_id).await?;
 
         if !deleted {
             return Err(AppError::not_found(format!("Coach {coach_id}")));
@@ -676,7 +677,7 @@ impl McpTool for ToggleCoachFavoriteTool {
         let tenant_id = get_tenant_id(ctx);
 
         let is_favorite = manager
-            .toggle_favorite(coach_id, ctx.user_id, &tenant_id)
+            .toggle_favorite(coach_id, ctx.user_id, tenant_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("Coach {coach_id}")))?;
 
@@ -770,7 +771,7 @@ impl McpTool for SearchCoachesTool {
         let tenant_id = get_tenant_id(ctx);
 
         let coaches = manager
-            .search(ctx.user_id, &tenant_id, query, limit, offset)
+            .search(ctx.user_id, tenant_id, query, limit, offset)
             .await?;
 
         let results: Vec<Value> = coaches.iter().map(format_coach_for_search).collect();
@@ -838,7 +839,7 @@ impl McpTool for ActivateCoachTool {
         let tenant_id = get_tenant_id(ctx);
 
         let coach = manager
-            .activate_coach(coach_id, ctx.user_id, &tenant_id)
+            .activate_coach(coach_id, ctx.user_id, tenant_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("Coach {coach_id}")))?;
 
@@ -883,7 +884,7 @@ impl McpTool for DeactivateCoachTool {
         let manager = get_coaches_manager(ctx)?;
         let tenant_id = get_tenant_id(ctx);
 
-        let deactivated = manager.deactivate_coach(ctx.user_id, &tenant_id).await?;
+        let deactivated = manager.deactivate_coach(ctx.user_id, tenant_id).await?;
 
         Ok(ToolResult::ok(json!({
             "success": true,
@@ -930,7 +931,7 @@ impl McpTool for GetActiveCoachTool {
         let manager = get_coaches_manager(ctx)?;
         let tenant_id = get_tenant_id(ctx);
 
-        let active_coach = manager.get_active_coach(ctx.user_id, &tenant_id).await?;
+        let active_coach = manager.get_active_coach(ctx.user_id, tenant_id).await?;
 
         Ok(active_coach.map_or_else(
             || {
@@ -1094,7 +1095,7 @@ impl McpTool for ListHiddenCoachesTool {
         let manager = get_coaches_manager(ctx)?;
         let tenant_id = get_tenant_id(ctx);
 
-        let hidden_coaches = manager.list_hidden_coaches(ctx.user_id, &tenant_id).await?;
+        let hidden_coaches = manager.list_hidden_coaches(ctx.user_id, tenant_id).await?;
 
         let coaches: Vec<Value> = hidden_coaches.iter().map(format_coach_for_search).collect();
 

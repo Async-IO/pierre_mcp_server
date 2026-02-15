@@ -571,7 +571,11 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn update_user_tenant_id(&self, user_id: uuid::Uuid, tenant_id: &str) -> AppResult<()> {
+    async fn update_user_tenant_id(
+        &self,
+        user_id: uuid::Uuid,
+        tenant_id: TenantId,
+    ) -> AppResult<()> {
         match self {
             Self::SQLite(db) => db.update_user_tenant_id(user_id, tenant_id).await,
             #[cfg(feature = "postgresql")]
@@ -1300,7 +1304,7 @@ impl DatabaseProvider for Database {
     async fn get_provider_last_sync(
         &self,
         user_id: uuid::Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<Option<chrono::DateTime<chrono::Utc>>> {
         match self {
@@ -1319,7 +1323,7 @@ impl DatabaseProvider for Database {
     async fn update_provider_last_sync(
         &self,
         user_id: uuid::Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
         sync_time: chrono::DateTime<chrono::Utc>,
     ) -> AppResult<()> {
@@ -1916,7 +1920,7 @@ impl DatabaseProvider for Database {
     async fn get_user_oauth_token(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<Option<UserOAuthToken>> {
         match self {
@@ -1929,7 +1933,7 @@ impl DatabaseProvider for Database {
     async fn get_user_oauth_tokens(
         &self,
         user_id: Uuid,
-        tenant_id: Option<&str>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Vec<UserOAuthToken>> {
         match self {
             Self::SQLite(db) => db.get_user_oauth_tokens(user_id, tenant_id).await,
@@ -1940,7 +1944,7 @@ impl DatabaseProvider for Database {
 
     async fn get_tenant_provider_tokens(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<Vec<UserOAuthToken>> {
         match self {
@@ -1953,7 +1957,7 @@ impl DatabaseProvider for Database {
     async fn delete_user_oauth_token(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<()> {
         match self {
@@ -1969,7 +1973,7 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn delete_user_oauth_tokens(&self, user_id: Uuid, tenant_id: &str) -> AppResult<()> {
+    async fn delete_user_oauth_tokens(&self, user_id: Uuid, tenant_id: TenantId) -> AppResult<()> {
         match self {
             Self::SQLite(db) => db.delete_user_oauth_tokens(user_id, tenant_id).await,
             #[cfg(feature = "postgresql")]
@@ -1980,7 +1984,7 @@ impl DatabaseProvider for Database {
     async fn refresh_user_oauth_token(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
         access_token: &str,
         refresh_token: Option<&str>,
@@ -2202,7 +2206,7 @@ impl DatabaseProvider for Database {
     /// Save tenant-level fitness configuration
     async fn save_tenant_fitness_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         configuration_name: &str,
         config: &FitnessConfig,
     ) -> AppResult<String> {
@@ -2222,7 +2226,7 @@ impl DatabaseProvider for Database {
     /// Save user-specific fitness configuration
     async fn save_user_fitness_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         user_id: &str,
         configuration_name: &str,
         config: &FitnessConfig,
@@ -2243,7 +2247,7 @@ impl DatabaseProvider for Database {
     /// Get tenant-level fitness configuration
     async fn get_tenant_fitness_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         configuration_name: &str,
     ) -> AppResult<Option<FitnessConfig>> {
         match self {
@@ -2262,7 +2266,7 @@ impl DatabaseProvider for Database {
     /// Get user-specific fitness configuration
     async fn get_user_fitness_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         user_id: &str,
         configuration_name: &str,
     ) -> AppResult<Option<FitnessConfig>> {
@@ -2280,7 +2284,10 @@ impl DatabaseProvider for Database {
     }
 
     /// List all tenant-level fitness configuration names
-    async fn list_tenant_fitness_configurations(&self, tenant_id: &str) -> AppResult<Vec<String>> {
+    async fn list_tenant_fitness_configurations(
+        &self,
+        tenant_id: TenantId,
+    ) -> AppResult<Vec<String>> {
         match self {
             Self::SQLite(db) => db.list_tenant_fitness_configurations(tenant_id).await,
             #[cfg(feature = "postgresql")]
@@ -2291,7 +2298,7 @@ impl DatabaseProvider for Database {
     /// List all user-specific fitness configuration names
     async fn list_user_fitness_configurations(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         user_id: &str,
     ) -> AppResult<Vec<String>> {
         match self {
@@ -2310,7 +2317,7 @@ impl DatabaseProvider for Database {
     /// Delete fitness configuration (tenant or user-specific)
     async fn delete_fitness_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         user_id: Option<&str>,
         configuration_name: &str,
     ) -> AppResult<bool> {
@@ -2584,7 +2591,7 @@ impl DatabaseProvider for Database {
     async fn get_admin_config_override(
         &self,
         config_key: &str,
-        tenant_id: Option<&str>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Option<String>> {
         match self {
             Self::SQLite(db) => db.get_admin_config_override(config_key, tenant_id).await,
@@ -2755,7 +2762,7 @@ impl DatabaseProvider for Database {
     async fn register_provider_connection(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
         connection_type: &ConnectionType,
         metadata: Option<&str>,
@@ -2788,7 +2795,7 @@ impl DatabaseProvider for Database {
     async fn remove_provider_connection(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<()> {
         match self {
@@ -2807,7 +2814,7 @@ impl DatabaseProvider for Database {
     async fn get_user_provider_connections(
         &self,
         user_id: Uuid,
-        tenant_id: Option<&str>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Vec<ProviderConnection>> {
         match self {
             Self::SQLite(db) => {
@@ -2834,7 +2841,7 @@ impl DatabaseProvider for Database {
     async fn chat_create_conversation(
         &self,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
         title: &str,
         model: &str,
         system_prompt: Option<&str>,
@@ -2856,7 +2863,7 @@ impl DatabaseProvider for Database {
         &self,
         conversation_id: &str,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<Option<ConversationRecord>> {
         match self {
             Self::SQLite(db) => {
@@ -2874,7 +2881,7 @@ impl DatabaseProvider for Database {
     async fn chat_list_conversations(
         &self,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
         limit: i64,
         offset: i64,
     ) -> AppResult<Vec<ConversationSummary>> {
@@ -2895,7 +2902,7 @@ impl DatabaseProvider for Database {
         &self,
         conversation_id: &str,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
         title: &str,
     ) -> AppResult<bool> {
         match self {
@@ -2915,7 +2922,7 @@ impl DatabaseProvider for Database {
         &self,
         conversation_id: &str,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<bool> {
         match self {
             Self::SQLite(db) => {
@@ -3011,7 +3018,7 @@ impl DatabaseProvider for Database {
     async fn chat_delete_all_user_conversations(
         &self,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<i64> {
         match self {
             Self::SQLite(db) => {

@@ -14,6 +14,7 @@ use crate::intelligence::weather::WeatherService;
 use crate::intelligence::ActivityAnalyzer;
 use crate::mcp::schema::{JsonSchema, ToolSchema};
 use crate::protocols::universal::{UniversalRequest, UniversalToolExecutor};
+use crate::types::TenantId;
 use serde_json::Value;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -27,8 +28,8 @@ pub struct UserContext {
     pub email: String,
     /// User's subscription tier (e.g., "trial", "professional")
     pub tier: String,
-    /// Tenant ID for multi-tenant isolation
-    pub tenant_id: Option<Uuid>,
+    /// Tenant ID for multi-tenant isolation — always required
+    pub tenant_id: TenantId,
 }
 
 /// Unified tool execution engine that provides multi-tenant server functionality
@@ -75,9 +76,7 @@ impl ToolEngine {
             protocol: "mcp".into(),
             user_id: user_context
                 .map_or_else(|| Uuid::new_v4().to_string(), |ctx| ctx.user_id.to_string()),
-            tenant_id: user_context
-                .and_then(|ctx| ctx.tenant_id)
-                .map(|id| id.to_string()),
+            tenant_id: user_context.map(|ctx| ctx.tenant_id.to_string()),
             progress_token: None,
             cancellation_token: None,
             progress_reporter: None,

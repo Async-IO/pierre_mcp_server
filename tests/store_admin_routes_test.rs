@@ -25,6 +25,7 @@ use pierre_mcp_server::{
     database::Coach,
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::ToolSelectionService,
+    models::TenantId,
     routes::admin::{AdminApiContext, AdminRoutes},
 };
 use serde_json::Value;
@@ -43,7 +44,7 @@ struct StoreAdminTestSetup {
     user_manager_token: GeneratedAdminToken,
     no_permission_token: GeneratedAdminToken,
     user_id: Uuid,
-    tenant_id: String,
+    tenant_id: TenantId,
 }
 
 impl StoreAdminTestSetup {
@@ -75,7 +76,7 @@ impl StoreAdminTestSetup {
         let tenants = database.list_tenants_for_user(user_id).await?;
         let tenant_id = tenants
             .first()
-            .map_or_else(|| user_id.to_string(), |t| t.id.to_string());
+            .map_or_else(|| TenantId::from(user_id), |t| t.id);
 
         // Create JWT manager
         let jwt_manager = AdminJwtManager::new();
@@ -187,16 +188,16 @@ impl StoreAdminTestSetup {
         };
 
         let coach = coaches_manager
-            .create_system_coach(self.user_id, &self.tenant_id, &system_request)
+            .create_system_coach(self.user_id, self.tenant_id, &system_request)
             .await?;
 
         // Submit for review
         coaches_manager
-            .submit_for_review(&coach.id.to_string(), self.user_id, &self.tenant_id)
+            .submit_for_review(&coach.id.to_string(), self.user_id, self.tenant_id)
             .await?;
 
         Ok(coaches_manager
-            .get(&coach.id.to_string(), self.user_id, &self.tenant_id)
+            .get(&coach.id.to_string(), self.user_id, self.tenant_id)
             .await?
             .unwrap())
     }
@@ -495,7 +496,7 @@ async fn test_approve_coach_not_pending_review() -> Result<()> {
         sample_prompts: vec![],
     };
     let coach = coaches_manager
-        .create_system_coach(setup.user_id, &setup.tenant_id, &system_request)
+        .create_system_coach(setup.user_id, setup.tenant_id, &system_request)
         .await?;
 
     let response = AxumTestRequest::post(&format!(

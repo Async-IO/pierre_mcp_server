@@ -10,6 +10,7 @@ use crate::database::DatabaseError;
 use crate::database_plugins::factory::Database;
 use crate::intelligence::recipes::{MealTiming, Recipe, ValidatedNutrition};
 use async_trait::async_trait;
+use pierre_core::models::TenantId;
 use uuid::Uuid;
 
 /// SQLite/PostgreSQL implementation of `RecipeRepository`
@@ -36,7 +37,7 @@ impl RecipeRepository for RecipeRepositoryImpl {
     async fn create(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         recipe: &Recipe,
     ) -> Result<String, DatabaseError> {
         let manager = self.get_manager().ok_or_else(|| DatabaseError::QueryError {
@@ -55,7 +56,7 @@ impl RecipeRepository for RecipeRepositoryImpl {
         &self,
         recipe_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> Result<Option<Recipe>, DatabaseError> {
         let manager = self.get_manager().ok_or_else(|| DatabaseError::QueryError {
             context: "Recipe operations require SQLite backend (enable postgresql feature for PostgreSQL)".to_string(),
@@ -72,7 +73,7 @@ impl RecipeRepository for RecipeRepositoryImpl {
     async fn list(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         meal_timing: Option<MealTiming>,
         limit: Option<u32>,
         offset: Option<u32>,
@@ -93,7 +94,7 @@ impl RecipeRepository for RecipeRepositoryImpl {
         &self,
         recipe_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         recipe: &Recipe,
     ) -> Result<bool, DatabaseError> {
         let manager = self.get_manager().ok_or_else(|| DatabaseError::QueryError {
@@ -112,7 +113,7 @@ impl RecipeRepository for RecipeRepositoryImpl {
         &self,
         recipe_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> Result<bool, DatabaseError> {
         let manager = self.get_manager().ok_or_else(|| DatabaseError::QueryError {
             context: "Recipe operations require SQLite backend (enable postgresql feature for PostgreSQL)".to_string(),
@@ -130,7 +131,7 @@ impl RecipeRepository for RecipeRepositoryImpl {
         &self,
         recipe_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         nutrition: &ValidatedNutrition,
     ) -> Result<bool, DatabaseError> {
         let manager = self.get_manager().ok_or_else(|| DatabaseError::QueryError {
@@ -148,7 +149,7 @@ impl RecipeRepository for RecipeRepositoryImpl {
     async fn search(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         query: &str,
         limit: Option<u32>,
     ) -> Result<Vec<Recipe>, DatabaseError> {
@@ -164,7 +165,7 @@ impl RecipeRepository for RecipeRepositoryImpl {
             })
     }
 
-    async fn count(&self, user_id: Uuid, tenant_id: &str) -> Result<u32, DatabaseError> {
+    async fn count(&self, user_id: Uuid, tenant_id: TenantId) -> Result<u32, DatabaseError> {
         let manager = self.get_manager().ok_or_else(|| DatabaseError::QueryError {
             context: "Recipe operations require SQLite backend (enable postgresql feature for PostgreSQL)".to_string(),
         })?;

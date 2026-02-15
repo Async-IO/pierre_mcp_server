@@ -181,9 +181,7 @@ async fn create_and_link_personal_tenant(
     database.create_tenant(&tenant).await?;
     info!("Created personal tenant: {} ({})", tenant.name, tenant_id);
 
-    database
-        .update_user_tenant_id(user_id, &tenant_id.to_string())
-        .await?;
+    database.update_user_tenant_id(user_id, tenant_id).await?;
 
     Ok(())
 }

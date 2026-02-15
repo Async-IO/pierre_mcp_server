@@ -20,6 +20,7 @@ use crate::{
     admin::models::{AdminPermission, ValidatedAdminToken},
     database::CoachesManager,
     errors::{AppError, AppResult},
+    models::TenantId,
 };
 
 use super::api_keys::json_response;
@@ -48,9 +49,13 @@ pub(super) async fn handle_list_pending_coaches(
         .sqlite_pool()
         .ok_or_else(|| AppError::internal("SQLite database required for coach store operations"))?;
     let coaches_manager = CoachesManager::new(pool.clone());
+    let tenant_id: TenantId = query
+        .tenant_id
+        .parse()
+        .map_err(|_| AppError::invalid_input(format!("Invalid tenant ID: {}", query.tenant_id)))?;
 
     let coaches = coaches_manager
-        .get_pending_review_coaches(&query.tenant_id, query.limit, query.offset)
+        .get_pending_review_coaches(tenant_id, query.limit, query.offset)
         .await?;
 
     info!(
@@ -92,9 +97,13 @@ pub(super) async fn handle_approve_coach(
         .sqlite_pool()
         .ok_or_else(|| AppError::internal("SQLite database required for coach store operations"))?;
     let coaches_manager = CoachesManager::new(pool.clone());
+    let tenant_id: TenantId = query
+        .tenant_id
+        .parse()
+        .map_err(|_| AppError::invalid_input(format!("Invalid tenant ID: {}", query.tenant_id)))?;
 
     let coach = coaches_manager
-        .approve_coach(&coach_id, &query.tenant_id, None::<Uuid>)
+        .approve_coach(&coach_id, tenant_id, None::<Uuid>)
         .await?;
 
     info!(
@@ -142,9 +151,13 @@ pub(super) async fn handle_reject_coach(
         .sqlite_pool()
         .ok_or_else(|| AppError::internal("SQLite database required for coach store operations"))?;
     let coaches_manager = CoachesManager::new(pool.clone());
+    let tenant_id: TenantId = query
+        .tenant_id
+        .parse()
+        .map_err(|_| AppError::invalid_input(format!("Invalid tenant ID: {}", query.tenant_id)))?;
 
     let coach = coaches_manager
-        .reject_coach(&coach_id, &query.tenant_id, None::<Uuid>, &request.reason)
+        .reject_coach(&coach_id, tenant_id, None::<Uuid>, &request.reason)
         .await?;
 
     info!(

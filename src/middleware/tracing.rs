@@ -35,9 +35,14 @@ impl RequestContext {
 
     /// Update context with authentication information
     #[must_use]
-    pub fn with_auth(mut self, user_id: Uuid, auth_method: String) -> Self {
+    pub fn with_auth(
+        mut self,
+        user_id: Uuid,
+        tenant_id: Option<Uuid>,
+        auth_method: String,
+    ) -> Self {
         self.user_id = Some(user_id);
-        self.tenant_id = Some(user_id); // For now, user_id serves as tenant_id
+        self.tenant_id = tenant_id;
         self.auth_method = Some(auth_method);
         self
     }

@@ -12,6 +12,7 @@ use crate::intelligence::recipes::{
     IngredientUnit, MealTiming, Recipe, RecipeIngredient, ValidatedNutrition,
 };
 use chrono::{DateTime, Utc};
+use pierre_core::models::TenantId;
 use sqlx::{sqlite::SqliteRow, Row, SqlitePool};
 use uuid::Uuid;
 
@@ -61,7 +62,7 @@ impl RecipeManager {
     pub async fn create_recipe(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         recipe: &Recipe,
     ) -> AppResult<String> {
         let now = Utc::now().to_rfc3339();
@@ -94,7 +95,7 @@ impl RecipeManager {
         )
         .bind(&recipe_id)
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(&recipe.name)
         .bind(&recipe.description)
         .bind(i32::from(recipe.servings))
@@ -163,7 +164,7 @@ impl RecipeManager {
         &self,
         recipe_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<Option<Recipe>> {
         let row = sqlx::query(
             r"
@@ -178,7 +179,7 @@ impl RecipeManager {
         )
         .bind(recipe_id)
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get recipe: {e}")))?;
@@ -200,7 +201,7 @@ impl RecipeManager {
     pub async fn list_recipes(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         meal_timing: Option<MealTiming>,
         limit: Option<u32>,
         offset: Option<u32>,
@@ -223,7 +224,7 @@ impl RecipeManager {
                 ",
             )
             .bind(user_id.to_string())
-            .bind(tenant_id)
+            .bind(tenant_id.to_string())
             .bind(meal_timing_to_string(timing))
             .bind(limit_val)
             .bind(offset_val)
@@ -245,7 +246,7 @@ impl RecipeManager {
                 ",
             )
             .bind(user_id.to_string())
-            .bind(tenant_id)
+            .bind(tenant_id.to_string())
             .bind(limit_val)
             .bind(offset_val)
             .fetch_all(&self.pool)
@@ -279,7 +280,7 @@ impl RecipeManager {
         &self,
         recipe_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         recipe: &Recipe,
     ) -> AppResult<bool> {
         let now = Utc::now().to_rfc3339();
@@ -332,7 +333,7 @@ impl RecipeManager {
         .bind(&now)
         .bind(recipe_id)
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(guard.executor()?)
         .await
         .map_err(|e| AppError::database(format!("Failed to update recipe: {e}")))?;
@@ -391,7 +392,7 @@ impl RecipeManager {
         &self,
         recipe_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<bool> {
         // Ingredients are deleted via CASCADE
         let result = sqlx::query(
@@ -402,7 +403,7 @@ impl RecipeManager {
         )
         .bind(recipe_id)
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to delete recipe: {e}")))?;
@@ -419,7 +420,7 @@ impl RecipeManager {
         &self,
         recipe_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         nutrition: &ValidatedNutrition,
     ) -> AppResult<bool> {
         let result = sqlx::query(
@@ -442,7 +443,7 @@ impl RecipeManager {
         .bind(Utc::now().to_rfc3339())
         .bind(recipe_id)
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to update nutrition cache: {e}")))?;
@@ -458,7 +459,7 @@ impl RecipeManager {
     pub async fn search_recipes(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         query: &str,
         limit: Option<u32>,
         offset: Option<u32>,
@@ -483,7 +484,7 @@ impl RecipeManager {
             ",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(&search_pattern)
         .bind(limit_val)
         .bind(offset_val)
@@ -510,7 +511,7 @@ impl RecipeManager {
     /// # Errors
     ///
     /// Returns an error if database operation fails
-    pub async fn count_recipes(&self, user_id: Uuid, tenant_id: &str) -> AppResult<u32> {
+    pub async fn count_recipes(&self, user_id: Uuid, tenant_id: TenantId) -> AppResult<u32> {
         let row = sqlx::query(
             r"
             SELECT COUNT(*) as count FROM recipes
@@ -518,7 +519,7 @@ impl RecipeManager {
             ",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_one(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to count recipes: {e}")))?;

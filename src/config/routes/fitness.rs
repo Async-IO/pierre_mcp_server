@@ -167,15 +167,13 @@ impl FitnessConfigurationRoutes {
         let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
 
-        // Convert UUIDs to strings for database queries
-        let tenant_id_str = tenant_id.to_string();
         let user_id_str = user_id.to_string();
 
         // Get both user-specific and tenant-level configurations
         let mut configurations = self
             .resources
             .database
-            .list_user_fitness_configurations(&tenant_id_str, &user_id_str)
+            .list_user_fitness_configurations(tenant_id, &user_id_str)
             .await
             .map_err(|e| {
                 AppError::database(format!("Failed to list user fitness configurations: {e}"))
@@ -184,7 +182,7 @@ impl FitnessConfigurationRoutes {
         let tenant_configs = self
             .resources
             .database
-            .list_tenant_fitness_configurations(&tenant_id_str)
+            .list_tenant_fitness_configurations(tenant_id)
             .await
             .map_err(|e| {
                 AppError::database(format!("Failed to list tenant fitness configurations: {e}"))
@@ -219,15 +217,13 @@ impl FitnessConfigurationRoutes {
         let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
 
-        // Convert UUIDs to strings for database queries
-        let tenant_id_str = tenant_id.to_string();
         let user_id_str = user_id.to_string();
 
         // Try user-specific first, then tenant-level, then default
         let config = match self
             .resources
             .database
-            .get_user_fitness_config(&tenant_id_str, &user_id_str, configuration_name)
+            .get_user_fitness_config(tenant_id, &user_id_str, configuration_name)
             .await
             .map_err(|e| AppError::database(format!("Failed to get user fitness config: {e}")))?
         {
@@ -236,7 +232,7 @@ impl FitnessConfigurationRoutes {
                 // If user-specific config not found, try tenant-level
                 self.resources
                     .database
-                    .get_tenant_fitness_config(&tenant_id_str, configuration_name)
+                    .get_tenant_fitness_config(tenant_id, configuration_name)
                     .await
                     .map_err(|e| {
                         AppError::database(format!("Failed to get tenant fitness config: {e}"))
@@ -279,15 +275,13 @@ impl FitnessConfigurationRoutes {
             .configuration_name
             .unwrap_or_else(|| "default".to_owned());
 
-        // Convert UUIDs to strings for database queries
-        let tenant_id_str = tenant_id.to_string();
         let user_id_str = user_id.to_string();
 
         let config_id = self
             .resources
             .database
             .save_user_fitness_config(
-                &tenant_id_str,
+                tenant_id,
                 &user_id_str,
                 &configuration_name,
                 &request.configuration,
@@ -327,13 +321,10 @@ impl FitnessConfigurationRoutes {
             .configuration_name
             .unwrap_or_else(|| "default".to_owned());
 
-        // Convert UUID to string for database query
-        let tenant_id_str = tenant_id.to_string();
-
         let config_id = self
             .resources
             .database
-            .save_tenant_fitness_config(&tenant_id_str, &configuration_name, &request.configuration)
+            .save_tenant_fitness_config(tenant_id, &configuration_name, &request.configuration)
             .await
             .map_err(|e| {
                 AppError::database(format!("Failed to save tenant fitness config: {e}"))
@@ -362,14 +353,12 @@ impl FitnessConfigurationRoutes {
         let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
 
-        // Convert UUIDs to strings for database query
-        let tenant_id_str = tenant_id.to_string();
         let user_id_str = user_id.to_string();
 
         let deleted = self
             .resources
             .database
-            .delete_fitness_config(&tenant_id_str, Some(&user_id_str), configuration_name)
+            .delete_fitness_config(tenant_id, Some(&user_id_str), configuration_name)
             .await
             .map_err(|e| AppError::database(format!("Failed to delete fitness config: {e}")))?;
 
@@ -406,13 +395,10 @@ impl FitnessConfigurationRoutes {
         // Verify admin privileges using centralized guard
         require_admin(user_id, &self.resources.database).await?;
 
-        // Convert UUID to string for database query
-        let tenant_id_str = tenant_id.to_string();
-
         let deleted = self
             .resources
             .database
-            .delete_fitness_config(&tenant_id_str, None, configuration_name)
+            .delete_fitness_config(tenant_id, None, configuration_name)
             .await
             .map_err(|e| {
                 AppError::database(format!("Failed to delete tenant fitness config: {e}"))

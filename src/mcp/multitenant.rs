@@ -446,7 +446,7 @@ impl MultiTenantMcpServer {
             user_id, tenant_id_str
         );
         let strava_connected = database
-            .get_user_oauth_token(user_id, &tenant_id_str, "strava")
+            .get_user_oauth_token(user_id, tenant_context.tenant_id, "strava")
             .await
             .map_or_else(
                 |e| {
@@ -462,7 +462,7 @@ impl MultiTenantMcpServer {
 
         // Check Fitbit connection status
         let fitbit_connected = database
-            .get_user_oauth_token(user_id, &tenant_id_str, "fitbit")
+            .get_user_oauth_token(user_id, tenant_context.tenant_id, "fitbit")
             .await
             .is_ok_and(|token| token.is_some());
 

@@ -6,6 +6,7 @@
 
 use crate::errors::{AppError, AppResult};
 use chrono::{DateTime, Utc};
+use pierre_core::models::TenantId;
 use serde::{Deserialize, Serialize};
 use sqlx::{sqlite::SqliteRow, Row, SqlitePool};
 use uuid::Uuid;
@@ -91,7 +92,7 @@ impl CoachAuthorsManager {
     pub async fn create(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         request: &CreateAuthorRequest,
     ) -> AppResult<CoachAuthor> {
         let now = Utc::now();
@@ -107,7 +108,7 @@ impl CoachAuthorsManager {
         )
         .bind(id.to_string())
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(&request.display_name)
         .bind(&request.bio)
         .bind(&request.avatar_url)
@@ -129,7 +130,7 @@ impl CoachAuthorsManager {
         Ok(CoachAuthor {
             id,
             user_id,
-            tenant_id: tenant_id.to_owned(),
+            tenant_id: tenant_id.to_string(),
             display_name: request.display_name.clone(),
             bio: request.bio.clone(),
             avatar_url: request.avatar_url.clone(),
@@ -152,7 +153,7 @@ impl CoachAuthorsManager {
     pub async fn get_by_user(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<Option<CoachAuthor>> {
         let row = sqlx::query(
             r"
@@ -164,7 +165,7 @@ impl CoachAuthorsManager {
             ",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get author profile: {e}")))?;
@@ -205,7 +206,7 @@ impl CoachAuthorsManager {
     pub async fn update(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         request: &UpdateAuthorRequest,
     ) -> AppResult<Option<CoachAuthor>> {
         let existing = self
@@ -238,7 +239,7 @@ impl CoachAuthorsManager {
         .bind(website_url)
         .bind(now.to_rfc3339())
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to update author profile: {e}")))?;
@@ -343,7 +344,7 @@ impl CoachAuthorsManager {
     /// Returns an error if database operation fails
     pub async fn list_popular(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         limit: Option<u32>,
     ) -> AppResult<Vec<CoachAuthor>> {
         let limit_val = i64::from(limit.unwrap_or(20).min(100));
@@ -359,7 +360,7 @@ impl CoachAuthorsManager {
             LIMIT $2
             ",
         )
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(limit_val)
         .fetch_all(&self.pool)
         .await
@@ -375,7 +376,7 @@ impl CoachAuthorsManager {
     /// Returns an error if database operation fails
     pub async fn list_verified(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         limit: Option<u32>,
     ) -> AppResult<Vec<CoachAuthor>> {
         let limit_val = i64::from(limit.unwrap_or(20).min(100));
@@ -391,7 +392,7 @@ impl CoachAuthorsManager {
             LIMIT $2
             ",
         )
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(limit_val)
         .fetch_all(&self.pool)
         .await
@@ -410,7 +411,7 @@ impl CoachAuthorsManager {
     pub async fn get_or_create(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         display_name: &str,
     ) -> AppResult<CoachAuthor> {
         if let Some(author) = self.get_by_user(user_id, tenant_id).await? {

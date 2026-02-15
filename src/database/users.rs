@@ -395,14 +395,14 @@ impl Database {
     pub async fn get_provider_last_sync(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<Option<chrono::DateTime<chrono::Utc>>> {
         let last_sync: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(
             "SELECT last_sync FROM user_oauth_tokens WHERE user_id = $1 AND tenant_id = $2 AND provider = $3",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(provider)
         .fetch_optional(&self.pool)
         .await
@@ -422,7 +422,7 @@ impl Database {
     pub async fn update_provider_last_sync(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
         sync_time: chrono::DateTime<chrono::Utc>,
     ) -> AppResult<()> {
@@ -431,7 +431,7 @@ impl Database {
         )
         .bind(sync_time)
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(provider)
         .execute(&self.pool)
         .await
@@ -650,16 +650,16 @@ impl Database {
     pub async fn update_user_tenant_id_impl(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<()> {
         let query = sqlx::query(
             r"
-            UPDATE users 
+            UPDATE users
             SET tenant_id = $1
             WHERE id = $2
             ",
         )
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(user_id.to_string());
 
         let result = query
@@ -794,7 +794,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> AppResult<()> {
+    pub async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: TenantId) -> AppResult<()> {
         self.update_user_tenant_id_impl(user_id, tenant_id).await
     }
 

@@ -29,6 +29,7 @@ use crate::{
     database_plugins::DatabaseProvider,
     errors::AppError,
     mcp::resources::ServerResources,
+    models::TenantId,
     pagination::StoreSortOrder,
     security::cookies::get_cookie_value,
 };
@@ -242,10 +243,10 @@ impl StoreRoutes {
     async fn get_user_tenant(
         auth: &AuthResult,
         resources: &Arc<ServerResources>,
-    ) -> Result<String, AppError> {
+    ) -> Result<TenantId, AppError> {
         // Prefer active_tenant_id from JWT claims (user's selected tenant)
         if let Some(tenant_id) = auth.active_tenant_id {
-            return Ok(tenant_id.to_string());
+            return Ok(TenantId::from(tenant_id));
         }
         // Fall back to user's first tenant (single-tenant users or tokens without active_tenant_id)
         let tenants = resources
@@ -259,7 +260,7 @@ impl StoreRoutes {
                 ))
             })?;
 
-        tenants.first().map(|t| t.id.to_string()).ok_or_else(|| {
+        tenants.first().map(|t| t.id).ok_or_else(|| {
             AppError::invalid_input(format!("User {} has no tenant assigned", auth.user_id))
         })
     }
@@ -464,7 +465,7 @@ impl StoreRoutes {
 
         // Install the coach (creates user's copy)
         let installed = manager
-            .install_from_store(&coach_id, auth.user_id, &tenant_id)
+            .install_from_store(&coach_id, auth.user_id, tenant_id)
             .await?;
 
         info!(
@@ -498,7 +499,7 @@ impl StoreRoutes {
 
         // Uninstall the coach (deletes user's copy)
         let source_id = manager
-            .uninstall_coach(&coach_id, auth.user_id, &tenant_id)
+            .uninstall_coach(&coach_id, auth.user_id, tenant_id)
             .await?;
 
         info!(
@@ -526,7 +527,7 @@ impl StoreRoutes {
         let manager = Self::get_coaches_manager(&resources)?;
 
         let coaches = manager
-            .get_installed_coaches(auth.user_id, &tenant_id)
+            .get_installed_coaches(auth.user_id, tenant_id)
             .await?;
 
         let store_coaches: Vec<StoreCoach> = coaches.into_iter().map(StoreCoach::from).collect();

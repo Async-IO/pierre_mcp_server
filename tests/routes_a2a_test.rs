@@ -151,6 +151,7 @@
 
 mod common;
 
+use chrono::Utc;
 #[cfg(feature = "postgresql")]
 use pierre_mcp_server::config::environment::PostgresPoolConfig;
 use pierre_mcp_server::{
@@ -165,7 +166,7 @@ use pierre_mcp_server::{
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::resources::{ServerResources, ServerResourcesOptions},
-    models::User,
+    models::{Tenant, TenantId, User},
 };
 use serde_json::json;
 use std::{
@@ -212,7 +213,7 @@ impl A2ATestSetup {
         // Create auth manager
         let auth_manager = Arc::new(AuthManager::new(24));
 
-        // Create test user
+        // Create test user with tenant for multi-tenant isolation
         let user = User::new(
             "test@example.com".to_owned(),
             "hashed_password".to_owned(),
@@ -222,6 +223,23 @@ impl A2ATestSetup {
             .create_user(&user)
             .await
             .expect("Failed to create test user");
+
+        // Provision a tenant so A2A handlers can resolve tenant context
+        let tenant_id = TenantId::new();
+        let tenant = Tenant {
+            id: tenant_id,
+            name: "A2A Test Tenant".to_owned(),
+            slug: format!("a2a-test-{tenant_id}"),
+            domain: None,
+            plan: "starter".to_owned(),
+            owner_user_id: user_id,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        database
+            .create_tenant(&tenant)
+            .await
+            .expect("Failed to create test tenant");
 
         // Create JWKS manager for RS256 token generation
         let jwks_manager = common::get_shared_test_jwks();

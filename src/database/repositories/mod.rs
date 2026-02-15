@@ -129,7 +129,7 @@ pub trait UserRepository: Send + Sync {
     ) -> Result<User, DatabaseError>;
 
     /// Update user's `tenant_id` to link them to a tenant
-    async fn update_tenant_id(&self, id: Uuid, tenant_id: &str) -> Result<(), DatabaseError>;
+    async fn update_tenant_id(&self, id: Uuid, tenant_id: TenantId) -> Result<(), DatabaseError>;
 }
 
 /// OAuth token storage repository (tenant-scoped)
@@ -142,7 +142,7 @@ pub trait OAuthTokenRepository: Send + Sync {
     async fn get(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> Result<Option<UserOAuthToken>, DatabaseError>;
 
@@ -150,13 +150,13 @@ pub trait OAuthTokenRepository: Send + Sync {
     async fn list_by_user(
         &self,
         user_id: Uuid,
-        tenant_id: Option<&str>,
+        tenant_id: Option<TenantId>,
     ) -> Result<Vec<UserOAuthToken>, DatabaseError>;
 
     /// Get all OAuth tokens for a tenant-provider combination
     async fn list_by_tenant_provider(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> Result<Vec<UserOAuthToken>, DatabaseError>;
 
@@ -164,7 +164,7 @@ pub trait OAuthTokenRepository: Send + Sync {
     async fn delete(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> Result<(), DatabaseError>;
 
@@ -172,14 +172,14 @@ pub trait OAuthTokenRepository: Send + Sync {
     async fn delete_all_for_user(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> Result<(), DatabaseError>;
 
     /// Update OAuth token expiration and refresh info
     async fn refresh(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
         access_token: &str,
         refresh_token: Option<&str>,
@@ -213,7 +213,7 @@ pub trait OAuthTokenRepository: Send + Sync {
     async fn get_last_sync(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> Result<Option<DateTime<Utc>>, DatabaseError>;
 
@@ -221,7 +221,7 @@ pub trait OAuthTokenRepository: Send + Sync {
     async fn update_last_sync(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
         sync_time: DateTime<Utc>,
     ) -> Result<(), DatabaseError>;
@@ -593,7 +593,7 @@ pub trait TenantRepository: Send + Sync {
     async fn get_user_role(
         &self,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> Result<Option<String>, DatabaseError>;
 
     /// Create OAuth application for MCP clients
@@ -849,7 +849,7 @@ pub trait FitnessConfigRepository: Send + Sync {
     /// Save tenant-level fitness configuration
     async fn save_tenant_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         configuration_name: &str,
         config: &crate::config::fitness::FitnessConfig,
     ) -> Result<String, DatabaseError>;
@@ -857,7 +857,7 @@ pub trait FitnessConfigRepository: Send + Sync {
     /// Save user-specific fitness configuration
     async fn save_user_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         user_id: &str,
         configuration_name: &str,
         config: &crate::config::fitness::FitnessConfig,
@@ -866,32 +866,32 @@ pub trait FitnessConfigRepository: Send + Sync {
     /// Get tenant-level fitness configuration
     async fn get_tenant_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         configuration_name: &str,
     ) -> Result<Option<crate::config::fitness::FitnessConfig>, DatabaseError>;
 
     /// Get user-specific fitness configuration
     async fn get_user_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         user_id: &str,
         configuration_name: &str,
     ) -> Result<Option<crate::config::fitness::FitnessConfig>, DatabaseError>;
 
     /// List all tenant-level fitness configuration names
-    async fn list_tenant_configs(&self, tenant_id: &str) -> Result<Vec<String>, DatabaseError>;
+    async fn list_tenant_configs(&self, tenant_id: TenantId) -> Result<Vec<String>, DatabaseError>;
 
     /// List all user-specific fitness configuration names
     async fn list_user_configs(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         user_id: &str,
     ) -> Result<Vec<String>, DatabaseError>;
 
     /// Delete fitness configuration (tenant or user-specific)
     async fn delete_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         user_id: Option<&str>,
         configuration_name: &str,
     ) -> Result<bool, DatabaseError>;
@@ -904,7 +904,7 @@ pub trait RecipeRepository: Send + Sync {
     async fn create(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         recipe: &crate::intelligence::recipes::Recipe,
     ) -> Result<String, DatabaseError>;
 
@@ -913,14 +913,14 @@ pub trait RecipeRepository: Send + Sync {
         &self,
         recipe_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> Result<Option<crate::intelligence::recipes::Recipe>, DatabaseError>;
 
     /// List recipes for a user with optional meal timing filter
     async fn list(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         meal_timing: Option<crate::intelligence::recipes::MealTiming>,
         limit: Option<u32>,
         offset: Option<u32>,
@@ -931,7 +931,7 @@ pub trait RecipeRepository: Send + Sync {
         &self,
         recipe_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         recipe: &crate::intelligence::recipes::Recipe,
     ) -> Result<bool, DatabaseError>;
 
@@ -940,7 +940,7 @@ pub trait RecipeRepository: Send + Sync {
         &self,
         recipe_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> Result<bool, DatabaseError>;
 
     /// Update cached nutrition for a recipe after USDA validation
@@ -948,7 +948,7 @@ pub trait RecipeRepository: Send + Sync {
         &self,
         recipe_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         nutrition: &crate::intelligence::recipes::ValidatedNutrition,
     ) -> Result<bool, DatabaseError>;
 
@@ -956,13 +956,13 @@ pub trait RecipeRepository: Send + Sync {
     async fn search(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         query: &str,
         limit: Option<u32>,
     ) -> Result<Vec<crate::intelligence::recipes::Recipe>, DatabaseError>;
 
     /// Count recipes for a user
-    async fn count(&self, user_id: Uuid, tenant_id: &str) -> Result<u32, DatabaseError>;
+    async fn count(&self, user_id: Uuid, tenant_id: TenantId) -> Result<u32, DatabaseError>;
 }
 
 /// Tool selection and per-tenant configuration repository
@@ -1030,7 +1030,7 @@ pub trait CoachesRepository: Send + Sync {
     async fn create(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         request: &crate::database::coaches::CreateCoachRequest,
     ) -> Result<crate::database::coaches::Coach, DatabaseError>;
 
@@ -1039,14 +1039,14 @@ pub trait CoachesRepository: Send + Sync {
         &self,
         coach_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> Result<Option<crate::database::coaches::Coach>, DatabaseError>;
 
     /// List coaches for a user with optional filtering
     async fn list(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         filter: &crate::database::coaches::ListCoachesFilter,
     ) -> Result<Vec<crate::database::coaches::Coach>, DatabaseError>;
 
@@ -1055,7 +1055,7 @@ pub trait CoachesRepository: Send + Sync {
         &self,
         coach_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         request: &crate::database::coaches::UpdateCoachRequest,
     ) -> Result<Option<crate::database::coaches::Coach>, DatabaseError>;
 
@@ -1064,7 +1064,7 @@ pub trait CoachesRepository: Send + Sync {
         &self,
         coach_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> Result<bool, DatabaseError>;
 
     /// Record coach usage (increment use_count and update last_used_at)
@@ -1072,7 +1072,7 @@ pub trait CoachesRepository: Send + Sync {
         &self,
         coach_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> Result<bool, DatabaseError>;
 
     /// Toggle favorite status for a coach
@@ -1080,21 +1080,21 @@ pub trait CoachesRepository: Send + Sync {
         &self,
         coach_id: &str,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> Result<Option<bool>, DatabaseError>;
 
     /// Search coaches by title, description, or tags
     async fn search(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         query: &str,
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> Result<Vec<crate::database::coaches::Coach>, DatabaseError>;
 
     /// Count coaches for a user
-    async fn count(&self, user_id: Uuid, tenant_id: &str) -> Result<u32, DatabaseError>;
+    async fn count(&self, user_id: Uuid, tenant_id: TenantId) -> Result<u32, DatabaseError>;
 }
 
 /// Mobility (stretching exercises and yoga poses) read-only repository

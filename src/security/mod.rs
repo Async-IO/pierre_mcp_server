@@ -433,7 +433,7 @@ impl TenantEncryptionManager {
         if let Some(database) = &self.database {
             // Create new key version record
             let key_version = KeyVersion {
-                tenant_id: Some(tenant_id.as_uuid()),
+                tenant_id: Some(tenant_id),
                 version: new_version,
                 created_at: chrono::Utc::now(),
                 expires_at: chrono::Utc::now() + chrono::Duration::days(365), // 1 year expiry

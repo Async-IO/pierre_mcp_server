@@ -58,8 +58,7 @@ async fn test_complete_multitenant_workflow() -> Result<(), Box<dyn Error>> {
     println!("   Testing with real Strava OAuth tokens\n");
 
     // Test all tools systematically
-    let test_results =
-        test_all_tools(&executor, &user.id.to_string(), &tenant.id.to_string()).await;
+    let test_results = test_all_tools(&executor, &user.id.to_string(), tenant.id).await;
 
     // Print comprehensive results
     print_test_summary(&test_results);
@@ -467,7 +466,7 @@ async fn setup_tenant_oauth_credentials(
 async fn test_all_tools(
     executor: &UniversalToolExecutor,
     user_id: &str,
-    tenant_id: &str,
+    tenant_id: TenantId,
 ) -> HashMap<String, TestResult> {
     let mut results = HashMap::new();
 
@@ -584,14 +583,14 @@ fn create_request(
     tool_name: &str,
     parameters: serde_json::Value,
     user_id: &str,
-    tenant_id: &str,
+    tenant_id: TenantId,
 ) -> UniversalRequest {
     UniversalRequest {
         tool_name: tool_name.to_owned(),
         parameters,
         user_id: user_id.to_owned(),
         protocol: "test".to_owned(),
-        tenant_id: Some(tenant_id.to_owned()),
+        tenant_id: Some(tenant_id.to_string()),
         progress_token: None,
         cancellation_token: None,
         progress_reporter: None,
@@ -602,7 +601,7 @@ fn create_request_with_client_credentials(
     tool_name: &str,
     mut parameters: serde_json::Value,
     user_id: &str,
-    tenant_id: &str,
+    tenant_id: TenantId,
 ) -> UniversalRequest {
     // Add client credentials to parameters for highest priority
     if let Some(params) = parameters.as_object_mut() {
@@ -618,7 +617,7 @@ fn create_request_with_client_credentials(
         parameters,
         user_id: user_id.to_owned(),
         protocol: "test".to_owned(),
-        tenant_id: Some(tenant_id.to_owned()),
+        tenant_id: Some(tenant_id.to_string()),
         progress_token: None,
         cancellation_token: None,
         progress_reporter: None,
@@ -629,7 +628,7 @@ fn create_request_with_client_credentials(
 async fn test_get_activities(
     executor: &UniversalToolExecutor,
     user_id: &str,
-    tenant_id: &str,
+    tenant_id: TenantId,
 ) -> TestResult {
     let request = create_request_with_client_credentials(
         "get_activities",
@@ -644,7 +643,7 @@ async fn test_get_activities(
 async fn test_get_athlete(
     executor: &UniversalToolExecutor,
     user_id: &str,
-    tenant_id: &str,
+    tenant_id: TenantId,
 ) -> TestResult {
     // Try both tenant-aware and direct user approaches
     let request_tenant = create_request(
@@ -683,7 +682,7 @@ async fn test_get_athlete(
 async fn test_get_stats(
     executor: &UniversalToolExecutor,
     user_id: &str,
-    tenant_id: &str,
+    tenant_id: TenantId,
 ) -> TestResult {
     // Try both tenant-aware and direct user approaches
     let request_tenant = create_request(
@@ -720,7 +719,7 @@ async fn test_get_stats(
 async fn test_get_activity_intelligence(
     executor: &UniversalToolExecutor,
     user_id: &str,
-    tenant_id: &str,
+    tenant_id: TenantId,
     activity_id: &str,
 ) -> TestResult {
     let request = create_request(
@@ -736,7 +735,7 @@ async fn test_get_activity_intelligence(
 async fn test_analyze_activity(
     executor: &UniversalToolExecutor,
     user_id: &str,
-    tenant_id: &str,
+    tenant_id: TenantId,
     activity_id: &str,
 ) -> TestResult {
     let request = create_request_with_client_credentials(
@@ -752,7 +751,7 @@ async fn test_analyze_activity(
 async fn test_calculate_metrics(
     executor: &UniversalToolExecutor,
     user_id: &str,
-    tenant_id: &str,
+    tenant_id: TenantId,
     activity_id: &str,
 ) -> TestResult {
     let request = create_request(
@@ -768,7 +767,7 @@ async fn test_calculate_metrics(
 async fn test_analyze_performance_trends(
     executor: &UniversalToolExecutor,
     user_id: &str,
-    tenant_id: &str,
+    tenant_id: TenantId,
 ) -> TestResult {
     // Try both tenant-aware and direct user approaches
     let request_tenant = create_request(
@@ -806,7 +805,7 @@ async fn test_analyze_performance_trends(
 async fn test_compare_activities(
     executor: &UniversalToolExecutor,
     user_id: &str,
-    tenant_id: &str,
+    tenant_id: TenantId,
     activity_id: &str,
 ) -> TestResult {
     // Try both tenant-aware and direct user approaches
@@ -844,7 +843,7 @@ async fn test_compare_activities(
 async fn test_detect_patterns(
     executor: &UniversalToolExecutor,
     user_id: &str,
-    tenant_id: &str,
+    tenant_id: TenantId,
 ) -> TestResult {
     let request = create_request_with_client_credentials(
         "detect_patterns",
@@ -859,7 +858,7 @@ async fn test_detect_patterns(
 async fn test_set_goal(
     executor: &UniversalToolExecutor,
     user_id: &str,
-    tenant_id: &str,
+    tenant_id: TenantId,
 ) -> TestResult {
     let request = create_request(
         "set_goal",
@@ -880,7 +879,7 @@ async fn test_set_goal(
 async fn test_suggest_goals(
     executor: &UniversalToolExecutor,
     user_id: &str,
-    tenant_id: &str,
+    tenant_id: TenantId,
 ) -> TestResult {
     let request = create_request(
         "suggest_goals",
@@ -895,7 +894,7 @@ async fn test_suggest_goals(
 async fn test_track_progress(
     executor: &UniversalToolExecutor,
     user_id: &str,
-    tenant_id: &str,
+    tenant_id: TenantId,
 ) -> TestResult {
     // Track progress requires a goal_id - using a test ID
     let request = create_request_with_client_credentials(
@@ -911,7 +910,7 @@ async fn test_track_progress(
 async fn test_predict_performance(
     executor: &UniversalToolExecutor,
     user_id: &str,
-    tenant_id: &str,
+    tenant_id: TenantId,
 ) -> TestResult {
     let request = create_request(
         "predict_performance",
@@ -926,7 +925,7 @@ async fn test_predict_performance(
 async fn test_generate_recommendations(
     executor: &UniversalToolExecutor,
     user_id: &str,
-    tenant_id: &str,
+    tenant_id: TenantId,
 ) -> TestResult {
     let request = create_request(
         "generate_recommendations",
@@ -941,7 +940,7 @@ async fn test_generate_recommendations(
 async fn test_calculate_recovery_score(
     executor: &UniversalToolExecutor,
     user_id: &str,
-    tenant_id: &str,
+    tenant_id: TenantId,
 ) -> TestResult {
     let request = create_request(
         "calculate_recovery_score",
@@ -956,7 +955,7 @@ async fn test_calculate_recovery_score(
 async fn test_get_connection_status(
     executor: &UniversalToolExecutor,
     user_id: &str,
-    tenant_id: &str,
+    tenant_id: TenantId,
 ) -> TestResult {
     let request = create_request("get_connection_status", json!({}), user_id, tenant_id);
     let result = execute_and_evaluate(executor, request, "get_connection_status").await;
@@ -966,7 +965,7 @@ async fn test_get_connection_status(
 async fn test_disconnect_provider(
     executor: &UniversalToolExecutor,
     user_id: &str,
-    tenant_id: &str,
+    tenant_id: TenantId,
 ) -> TestResult {
     // We'll skip actually disconnecting in tests
     let request = create_request(

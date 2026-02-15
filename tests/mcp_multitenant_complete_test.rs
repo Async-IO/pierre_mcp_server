@@ -173,7 +173,7 @@ fn create_test_config(port: u16) -> Arc<ServerConfig> {
             auto_approve_users: false,
             auto_approve_users_from_env: false,
             protocol: ProtocolConfig {
-                mcp_version: "2025-06-18".to_owned(),
+                mcp_version: "2025-11-25".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
                 server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
@@ -605,7 +605,7 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
     assert_eq!(init_response["jsonrpc"], "2.0");
     assert_eq!(init_response["id"], 1);
     assert!(!init_response["result"]["serverInfo"]["name"].is_null());
-    assert_eq!(init_response["result"]["protocolVersion"], "2025-06-18");
+    assert_eq!(init_response["result"]["protocolVersion"], "2025-11-25");
 
     // Test 5: MCP Protocol - List Tools
     let tools_response = client.list_tools().await?;
@@ -877,7 +877,7 @@ async fn test_mcp_initialization_no_auth() -> Result<()> {
     // Initialize should succeed without authentication (MCP discovery pattern)
     assert!(init_response["error"].is_null());
     assert!(!init_response["result"].is_null());
-    assert_eq!(init_response["result"]["protocolVersion"], "2025-06-18");
+    assert_eq!(init_response["result"]["protocolVersion"], "2025-11-25");
     assert_eq!(
         init_response["result"]["serverInfo"]["name"],
         "pierre-mcp-server"
@@ -1045,7 +1045,7 @@ async fn test_multitenant_server_config() -> Result<()> {
     assert!(config.http_port >= 30000 && config.http_port < 65535);
     assert!(config.oauth.strava.enabled);
     assert!(!config.oauth.fitbit.enabled);
-    assert_eq!(config.app_behavior.protocol.mcp_version, "2025-06-18");
+    assert_eq!(config.app_behavior.protocol.mcp_version, "2025-11-25");
     assert_eq!(
         config.app_behavior.protocol.server_name,
         "pierre-mcp-server-test"

@@ -20,7 +20,7 @@ use pierre_mcp_server::{
     constants::oauth_providers,
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
-    models::{User, UserOAuthToken, UserTier},
+    models::{TenantId, User, UserOAuthToken, UserTier},
     rate_limiting::JwtUsage,
 };
 use serial_test::serial;
@@ -213,7 +213,7 @@ async fn test_strava_token_operations() -> Result<()> {
     let initial_token = db
         .get_user_oauth_token(
             user_id,
-            "00000000-0000-0000-0000-000000000000",
+            TenantId::from_uuid(Uuid::nil()),
             oauth_providers::STRAVA,
         )
         .await?;
@@ -236,7 +236,7 @@ async fn test_strava_token_operations() -> Result<()> {
     let token = db
         .get_user_oauth_token(
             user_id,
-            "00000000-0000-0000-0000-000000000000",
+            TenantId::from_uuid(Uuid::nil()),
             oauth_providers::STRAVA,
         )
         .await?;
@@ -251,14 +251,14 @@ async fn test_strava_token_operations() -> Result<()> {
     // Clear token
     db.delete_user_oauth_token(
         user_id,
-        "00000000-0000-0000-0000-000000000000",
+        TenantId::from_uuid(Uuid::nil()),
         oauth_providers::STRAVA,
     )
     .await?;
     let cleared_token = db
         .get_user_oauth_token(
             user_id,
-            "00000000-0000-0000-0000-000000000000",
+            TenantId::from_uuid(Uuid::nil()),
             oauth_providers::STRAVA,
         )
         .await?;
@@ -293,7 +293,7 @@ async fn test_fitbit_token_operations() -> Result<()> {
     let initial_token = db
         .get_user_oauth_token(
             user_id,
-            "00000000-0000-0000-0000-000000000000",
+            TenantId::from_uuid(Uuid::nil()),
             oauth_providers::FITBIT,
         )
         .await?;
@@ -316,7 +316,7 @@ async fn test_fitbit_token_operations() -> Result<()> {
     let token = db
         .get_user_oauth_token(
             user_id,
-            "00000000-0000-0000-0000-000000000000",
+            TenantId::from_uuid(Uuid::nil()),
             oauth_providers::FITBIT,
         )
         .await?;
@@ -334,14 +334,14 @@ async fn test_fitbit_token_operations() -> Result<()> {
     // Clear token
     db.delete_user_oauth_token(
         user_id,
-        "00000000-0000-0000-0000-000000000000",
+        TenantId::from_uuid(Uuid::nil()),
         oauth_providers::FITBIT,
     )
     .await?;
     let cleared_token = db
         .get_user_oauth_token(
             user_id,
-            "00000000-0000-0000-0000-000000000000",
+            TenantId::from_uuid(Uuid::nil()),
             oauth_providers::FITBIT,
         )
         .await?;
@@ -643,7 +643,7 @@ async fn test_token_encryption_roundtrip() -> Result<()> {
         let retrieved = db
             .get_user_oauth_token(
                 user_id,
-                "00000000-0000-0000-0000-000000000000",
+                TenantId::from_uuid(Uuid::nil()),
                 oauth_providers::STRAVA,
             )
             .await?;
@@ -668,7 +668,7 @@ async fn test_token_encryption_roundtrip() -> Result<()> {
         let fitbit_token = db
             .get_user_oauth_token(
                 user_id,
-                "00000000-0000-0000-0000-000000000000",
+                TenantId::from_uuid(Uuid::nil()),
                 oauth_providers::FITBIT,
             )
             .await?;
@@ -903,7 +903,7 @@ async fn test_database_connection_reuse() -> Result<()> {
         let retrieved_token = db
             .get_user_oauth_token(
                 user_id,
-                "00000000-0000-0000-0000-000000000000",
+                TenantId::from_uuid(Uuid::nil()),
                 oauth_providers::STRAVA,
             )
             .await?;
@@ -1112,7 +1112,7 @@ mod postgres_tests {
         let strava_token = db
             .get_user_oauth_token(
                 user_id,
-                "00000000-0000-0000-0000-000000000000",
+                TenantId::from_uuid(Uuid::nil()),
                 oauth_providers::STRAVA,
             )
             .await?;
@@ -1139,7 +1139,7 @@ mod postgres_tests {
         let fitbit_token = db
             .get_user_oauth_token(
                 user_id,
-                "00000000-0000-0000-0000-000000000000",
+                TenantId::from_uuid(Uuid::nil()),
                 oauth_providers::FITBIT,
             )
             .await?;
@@ -1169,7 +1169,7 @@ mod postgres_tests {
         let retrieved = db
             .get_user_oauth_token(
                 user_id,
-                "00000000-0000-0000-0000-000000000000",
+                TenantId::from_uuid(Uuid::nil()),
                 oauth_providers::STRAVA,
             )
             .await?

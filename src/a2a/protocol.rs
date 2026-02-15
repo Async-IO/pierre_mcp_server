@@ -1073,32 +1073,41 @@ impl A2AServer {
         };
         let resources = resources.clone(); // Safe: Arc clone for server resources
 
-        // Resolve tenant context for the authenticated user
-        let tenant_id = match extract_tenant_context_internal(
-            &resources.database,
-            Some(user_id),
-            None,
-            None,
-        )
-        .await
-        {
-            Ok(Some(ctx)) => Some(ctx.tenant_id),
-            Ok(None) => {
-                warn!(user_id = %user_id, "No tenant context found for A2A user in protocol handler");
-                None
-            }
-            Err(e) => {
-                warn!(user_id = %user_id, error = %e, "Failed to resolve tenant context in A2A protocol");
-                None
-            }
-        };
+        // Resolve tenant context — required for all A2A tool execution
+        let tenant_context =
+            match extract_tenant_context_internal(&resources.database, Some(user_id), None, None)
+                .await
+            {
+                Ok(Some(ctx)) => ctx,
+                Ok(None) => {
+                    return A2AResponse {
+                        jsonrpc: "2.0".into(),
+                        result: None,
+                        error: Some(A2AErrorResponse {
+                            code: -32001,
+                            message: "User does not belong to any tenant".into(),
+                            data: None,
+                        }),
+                        id: request.id,
+                    };
+                }
+                Err(e) => {
+                    return A2AResponse {
+                        jsonrpc: "2.0".into(),
+                        result: None,
+                        error: Some(A2AErrorResponse {
+                            code: -32603,
+                            message: format!("Failed to resolve tenant context: {e}"),
+                            data: None,
+                        }),
+                        id: request.id,
+                    };
+                }
+            };
 
         // Build tool execution context from authenticated user identity with tenant
-        let mut tool_ctx =
-            ToolExecutionContext::new(user_id, resources.clone(), AuthMethod::ApiKey);
-        if let Some(tid) = tenant_id {
-            tool_ctx = tool_ctx.with_tenant(tid);
-        }
+        let tool_ctx = ToolExecutionContext::new(user_id, resources.clone(), AuthMethod::ApiKey)
+            .with_tenant(tenant_context.tenant_id);
 
         // Try the registry first, fall back to error for unregistered tools
         if resources.tool_registry.contains(tool_name) {

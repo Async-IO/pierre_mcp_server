@@ -71,7 +71,12 @@ pub fn handle_list_coaches(
         let output_format = extract_output_format(&request);
         let user_id = parse_user_id_for_protocol(&request.user_id)?;
         let user_id_string = user_id.to_string();
-        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+        let tenant_id: TenantId = request
+            .tenant_id
+            .as_deref()
+            .unwrap_or(&user_id_string)
+            .parse()
+            .map_err(|_| ProtocolError::InvalidRequest("Invalid tenant_id format".to_owned()))?;
 
         let category = request
             .parameters
@@ -200,7 +205,12 @@ pub fn handle_create_coach(
 
         let user_id = parse_user_id_for_protocol(&request.user_id)?;
         let user_id_string = user_id.to_string();
-        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+        let tenant_id: TenantId = request
+            .tenant_id
+            .as_deref()
+            .unwrap_or(&user_id_string)
+            .parse()
+            .map_err(|_| ProtocolError::InvalidRequest("Invalid tenant_id format".to_owned()))?;
 
         let params: CreateCoachParams = serde_json::from_value(request.parameters.clone())
             .map_err(|e| ProtocolError::InvalidRequest(format!("Invalid coach parameters: {e}")))?;
@@ -266,7 +276,12 @@ pub fn handle_get_coach(
         let output_format = extract_output_format(&request);
         let user_id = parse_user_id_for_protocol(&request.user_id)?;
         let user_id_string = user_id.to_string();
-        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+        let tenant_id: TenantId = request
+            .tenant_id
+            .as_deref()
+            .unwrap_or(&user_id_string)
+            .parse()
+            .map_err(|_| ProtocolError::InvalidRequest("Invalid tenant_id format".to_owned()))?;
 
         let coach_id = request
             .parameters
@@ -343,7 +358,12 @@ pub fn handle_update_coach(
 
         let user_id = parse_user_id_for_protocol(&request.user_id)?;
         let user_id_string = user_id.to_string();
-        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+        let tenant_id: TenantId = request
+            .tenant_id
+            .as_deref()
+            .unwrap_or(&user_id_string)
+            .parse()
+            .map_err(|_| ProtocolError::InvalidRequest("Invalid tenant_id format".to_owned()))?;
 
         let coach_id = request
             .parameters
@@ -453,7 +473,12 @@ pub fn handle_delete_coach(
 
         let user_id = parse_user_id_for_protocol(&request.user_id)?;
         let user_id_string = user_id.to_string();
-        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+        let tenant_id: TenantId = request
+            .tenant_id
+            .as_deref()
+            .unwrap_or(&user_id_string)
+            .parse()
+            .map_err(|_| ProtocolError::InvalidRequest("Invalid tenant_id format".to_owned()))?;
 
         let coach_id = request
             .parameters
@@ -513,7 +538,12 @@ pub fn handle_toggle_coach_favorite(
 
         let user_id = parse_user_id_for_protocol(&request.user_id)?;
         let user_id_string = user_id.to_string();
-        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+        let tenant_id: TenantId = request
+            .tenant_id
+            .as_deref()
+            .unwrap_or(&user_id_string)
+            .parse()
+            .map_err(|_| ProtocolError::InvalidRequest("Invalid tenant_id format".to_owned()))?;
 
         let coach_id = request
             .parameters
@@ -579,7 +609,12 @@ pub fn handle_search_coaches(
         let output_format = extract_output_format(&request);
         let user_id = parse_user_id_for_protocol(&request.user_id)?;
         let user_id_string = user_id.to_string();
-        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+        let tenant_id: TenantId = request
+            .tenant_id
+            .as_deref()
+            .unwrap_or(&user_id_string)
+            .parse()
+            .map_err(|_| ProtocolError::InvalidRequest("Invalid tenant_id format".to_owned()))?;
 
         let query = request
             .parameters
@@ -673,7 +708,12 @@ pub fn handle_activate_coach(
 
         let user_id = parse_user_id_for_protocol(&request.user_id)?;
         let user_id_string = user_id.to_string();
-        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+        let tenant_id: TenantId = request
+            .tenant_id
+            .as_deref()
+            .unwrap_or(&user_id_string)
+            .parse()
+            .map_err(|_| ProtocolError::InvalidRequest("Invalid tenant_id format".to_owned()))?;
 
         let coach_id = request
             .parameters
@@ -734,7 +774,12 @@ pub fn handle_deactivate_coach(
 
         let user_id = parse_user_id_for_protocol(&request.user_id)?;
         let user_id_string = user_id.to_string();
-        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+        let tenant_id: TenantId = request
+            .tenant_id
+            .as_deref()
+            .unwrap_or(&user_id_string)
+            .parse()
+            .map_err(|_| ProtocolError::InvalidRequest("Invalid tenant_id format".to_owned()))?;
 
         let manager = get_coaches_manager(executor)?;
         let deactivated = manager
@@ -779,7 +824,12 @@ pub fn handle_get_active_coach(
         let output_format = extract_output_format(&request);
         let user_id = parse_user_id_for_protocol(&request.user_id)?;
         let user_id_string = user_id.to_string();
-        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+        let tenant_id: TenantId = request
+            .tenant_id
+            .as_deref()
+            .unwrap_or(&user_id_string)
+            .parse()
+            .map_err(|_| ProtocolError::InvalidRequest("Invalid tenant_id format".to_owned()))?;
 
         let manager = get_coaches_manager(executor)?;
         let coach = manager
@@ -959,7 +1009,12 @@ pub fn handle_list_hidden_coaches(
         let output_format = extract_output_format(&request);
         let user_id = parse_user_id_for_protocol(&request.user_id)?;
         let user_id_string = user_id.to_string();
-        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+        let tenant_id: TenantId = request
+            .tenant_id
+            .as_deref()
+            .unwrap_or(&user_id_string)
+            .parse()
+            .map_err(|_| ProtocolError::InvalidRequest("Invalid tenant_id format".to_owned()))?;
 
         let manager = get_coaches_manager(executor)?;
         let coaches = manager
@@ -1007,12 +1062,8 @@ pub fn handle_list_hidden_coaches(
 async fn verify_user_tenant_membership(
     executor: &UniversalToolExecutor,
     target_user_id: Uuid,
-    tenant_id_str: &str,
+    tenant_id: TenantId,
 ) -> Result<(), ProtocolError> {
-    let tenant_id: TenantId = tenant_id_str
-        .parse()
-        .map_err(|_| ProtocolError::InternalError("Invalid tenant UUID in context".to_owned()))?;
-
     let user_tenants = executor
         .resources
         .database
@@ -1042,7 +1093,7 @@ async fn verify_admin_access(
     executor: &UniversalToolExecutor,
     user_uuid: Uuid,
     active_tenant_id: Option<&str>,
-) -> Result<String, ProtocolError> {
+) -> Result<TenantId, ProtocolError> {
     let user = executor
         .resources
         .database
@@ -1060,19 +1111,21 @@ async fn verify_admin_access(
 
     // Prefer active_tenant_id from request (user's selected tenant)
     if let Some(tid_str) = active_tenant_id {
-        // Verify user is a member of this tenant
-        let tenants = executor
-            .resources
-            .database
-            .list_tenants_for_user(user_uuid)
-            .await
-            .map_err(|e| {
-                ProtocolError::InternalError(format!("Failed to get user tenants: {e}"))
-            })?;
-        if tenants.iter().any(|t| t.id.to_string() == tid_str) {
-            return Ok(tid_str.to_owned());
+        if let Ok(requested_tid) = tid_str.parse::<TenantId>() {
+            // Verify user is a member of this tenant
+            let tenants = executor
+                .resources
+                .database
+                .list_tenants_for_user(user_uuid)
+                .await
+                .map_err(|e| {
+                    ProtocolError::InternalError(format!("Failed to get user tenants: {e}"))
+                })?;
+            if tenants.iter().any(|t| t.id == requested_tid) {
+                return Ok(requested_tid);
+            }
         }
-        // Fall through if user is not a member (use default tenant)
+        // Fall through if user is not a member or invalid tenant_id (use default tenant)
     }
 
     // Fall back to user's first tenant (single-tenant users or tokens without active_tenant_id)
@@ -1083,7 +1136,7 @@ async fn verify_admin_access(
         .await
         .map_err(|e| ProtocolError::InternalError(format!("Failed to get user tenants: {e}")))?;
 
-    tenants.first().map(|t| t.id.to_string()).ok_or_else(|| {
+    tenants.first().map(|t| t.id).ok_or_else(|| {
         ProtocolError::InvalidRequest("User not associated with a tenant".to_owned())
     })
 }
@@ -1120,7 +1173,7 @@ pub fn handle_admin_list_system_coaches(
             verify_admin_access(executor, user_id, request.tenant_id.as_deref()).await?;
 
         let manager = get_coaches_manager(executor)?;
-        let coaches = manager.list_system_coaches(&tenant_id).await.map_err(|e| {
+        let coaches = manager.list_system_coaches(tenant_id).await.map_err(|e| {
             ProtocolError::InternalError(format!("Failed to list system coaches: {e}"))
         })?;
 
@@ -1228,7 +1281,7 @@ pub fn handle_admin_create_system_coach(
 
         let manager = get_coaches_manager(executor)?;
         let coach = manager
-            .create_system_coach(user_id, &tenant_id, &create_request)
+            .create_system_coach(user_id, tenant_id, &create_request)
             .await
             .map_err(|e| {
                 ProtocolError::InternalError(format!("Failed to create system coach: {e}"))
@@ -1292,7 +1345,7 @@ pub fn handle_admin_get_system_coach(
 
         let manager = get_coaches_manager(executor)?;
         let coach = manager
-            .get_system_coach(coach_id, &tenant_id)
+            .get_system_coach(coach_id, tenant_id)
             .await
             .map_err(|e| {
                 ProtocolError::InternalError(format!("Failed to get system coach: {e}"))
@@ -1417,7 +1470,7 @@ pub fn handle_admin_update_system_coach(
 
         let manager = get_coaches_manager(executor)?;
         let coach = manager
-            .update_system_coach(coach_id, &tenant_id, &update_request)
+            .update_system_coach(coach_id, tenant_id, &update_request)
             .await
             .map_err(|e| {
                 ProtocolError::InternalError(format!("Failed to update system coach: {e}"))
@@ -1488,7 +1541,7 @@ pub fn handle_admin_delete_system_coach(
 
         let manager = get_coaches_manager(executor)?;
         let deleted = manager
-            .delete_system_coach(coach_id, &tenant_id)
+            .delete_system_coach(coach_id, tenant_id)
             .await
             .map_err(|e| {
                 ProtocolError::InternalError(format!("Failed to delete system coach: {e}"))
@@ -1567,7 +1620,7 @@ pub fn handle_admin_assign_coach(
 
         // First verify the coach exists and is a system coach in this tenant
         let coach = manager
-            .get_system_coach(coach_id, &tenant_id)
+            .get_system_coach(coach_id, tenant_id)
             .await
             .map_err(|e| ProtocolError::InternalError(format!("Failed to get coach: {e}")))?
             .ok_or_else(|| {
@@ -1575,7 +1628,7 @@ pub fn handle_admin_assign_coach(
             })?;
 
         // Verify target user belongs to the same tenant as the admin
-        verify_user_tenant_membership(executor, target_user_id, &tenant_id).await?;
+        verify_user_tenant_membership(executor, target_user_id, tenant_id).await?;
 
         // Assign to specific user
         manager
@@ -1649,7 +1702,7 @@ pub fn handle_admin_unassign_coach(
         let manager = get_coaches_manager(executor)?;
 
         // Verify target user belongs to the same tenant as the admin
-        verify_user_tenant_membership(executor, target_user_id, &tenant_id).await?;
+        verify_user_tenant_membership(executor, target_user_id, tenant_id).await?;
 
         let unassigned = manager
             .unassign_coach(coach_id, target_user_id)
@@ -1727,7 +1780,7 @@ pub fn handle_admin_list_coach_assignments(
 
         // Verify the coach belongs to the admin's tenant
         manager
-            .get_system_coach(coach_id, &tenant_id)
+            .get_system_coach(coach_id, tenant_id)
             .await
             .map_err(|e| {
                 ProtocolError::InternalError(format!("Failed to verify coach tenant: {e}"))
@@ -1738,7 +1791,7 @@ pub fn handle_admin_list_coach_assignments(
 
         // List assignments scoped to the admin's tenant
         let assignments = manager
-            .list_assignments_for_tenant(coach_id, &tenant_id)
+            .list_assignments_for_tenant(coach_id, tenant_id)
             .await
             .map_err(|e| {
                 ProtocolError::InternalError(format!("Failed to list assignments: {e}"))

@@ -611,8 +611,7 @@ async fn test_system_coaches_visible_in_list() {
         .iter()
         .find(|t| t.owner_user_id == user_id)
         .unwrap();
-    let tenant_id = user_tenant.id.to_string();
-    let tenant_id = tenant_id.as_str();
+    let tenant_id = user_tenant.id;
 
     // Create a system coach directly in the database
     let sqlite_pool = resources.database.sqlite_pool().unwrap().clone();
@@ -679,8 +678,7 @@ async fn test_get_system_coach_by_id() {
         .iter()
         .find(|t| t.owner_user_id == user_id)
         .unwrap();
-    let tenant_id = user_tenant.id.to_string();
-    let tenant_id = tenant_id.as_str();
+    let tenant_id = user_tenant.id;
 
     // Create a system coach
     let sqlite_pool = resources.database.sqlite_pool().unwrap().clone();
@@ -738,8 +736,7 @@ async fn test_hide_system_coach_via_api() {
         .iter()
         .find(|t| t.owner_user_id == user_id)
         .unwrap();
-    let tenant_id = user_tenant.id.to_string();
-    let tenant_id = tenant_id.as_str();
+    let tenant_id = user_tenant.id;
 
     // Create a system coach
     let sqlite_pool = resources.database.sqlite_pool().unwrap().clone();
@@ -804,8 +801,7 @@ async fn test_show_hidden_coach_via_api() {
         .iter()
         .find(|t| t.owner_user_id == user_id)
         .unwrap();
-    let tenant_id = user_tenant.id.to_string();
-    let tenant_id = tenant_id.as_str();
+    let tenant_id = user_tenant.id;
 
     // Create a system coach
     let sqlite_pool = resources.database.sqlite_pool().unwrap().clone();
@@ -876,8 +872,7 @@ async fn test_list_with_include_hidden() {
         .iter()
         .find(|t| t.owner_user_id == user_id)
         .unwrap();
-    let tenant_id = user_tenant.id.to_string();
-    let tenant_id = tenant_id.as_str();
+    let tenant_id = user_tenant.id;
 
     // Create a system coach
     let sqlite_pool = resources.database.sqlite_pool().unwrap().clone();

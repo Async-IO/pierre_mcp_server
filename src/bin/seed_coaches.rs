@@ -39,6 +39,7 @@ use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 use pierre_mcp_server::coaches::{parse_coach_file, CoachDefinition, RelatedCoach, RelationType};
+use pierre_mcp_server::models::TenantId;
 
 /// CLI-specific error type for the seed binary
 #[derive(Error, Debug)]
@@ -382,7 +383,7 @@ fn discover_coaches(coaches_dir: &Path) -> SeedResult<Vec<CoachDefinition>> {
 struct AdminUser {
     id: Uuid,
     email: String,
-    tenant_id: Uuid,
+    tenant_id: TenantId,
 }
 
 /// Find the first admin user and their tenant
@@ -407,7 +408,7 @@ async fn find_admin_user(pool: &SqlitePool) -> SeedResult<AdminUser> {
     let id = Uuid::parse_str(&id_str)?;
     let tenant_id = tenant_id_str
         .as_ref()
-        .map(|s| Uuid::parse_str(s))
+        .map(|s| Uuid::parse_str(s).map(TenantId::from_uuid))
         .transpose()?
         .ok_or_else(|| {
             SeedError::Validation(

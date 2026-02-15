@@ -329,11 +329,13 @@ async fn test_real_server_mcp_http_post() -> Result<()> {
     assert_eq!(init_response["jsonrpc"], "2.0");
     assert_eq!(init_response["id"], 1);
     assert!(init_response["result"].is_object());
-    // Protocol version can be either 2025-06-18 or 2024-11-05 (backward compat)
+    // Protocol version can be any supported version (backward compat)
     let protocol_version = init_response["result"]["protocolVersion"].as_str().unwrap();
     assert!(
-        protocol_version == "2025-06-18" || protocol_version == "2024-11-05",
-        "Expected MCP protocol version 2025-06-18 or 2024-11-05, got: {protocol_version}"
+        protocol_version == "2025-11-25"
+            || protocol_version == "2025-06-18"
+            || protocol_version == "2024-11-05",
+        "Expected supported MCP protocol version, got: {protocol_version}"
     );
 
     // Test 2: List tools

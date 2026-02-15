@@ -11,6 +11,7 @@ use pierre_mcp_server::database::coaches::{
     CoachCategory, CoachVisibility, CoachesManager, CreateCoachRequest, CreateSystemCoachRequest,
     UpdateCoachRequest,
 };
+use pierre_mcp_server::models::TenantId;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
@@ -151,7 +152,9 @@ fn other_user_id() -> Uuid {
     Uuid::parse_str("660e8400-e29b-41d4-a716-446655440000").unwrap()
 }
 
-const TEST_TENANT: &str = "test-tenant";
+fn test_tenant() -> TenantId {
+    TenantId::from_uuid(Uuid::parse_str("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa").unwrap())
+}
 
 // ============================================================================
 // Version Creation Tests
@@ -173,7 +176,7 @@ async fn test_create_version_manually() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -218,7 +221,7 @@ async fn test_auto_version_on_update() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -240,7 +243,12 @@ async fn test_auto_version_on_update() {
     };
 
     manager
-        .update(&coach.id.to_string(), test_user_id(), TEST_TENANT, &update)
+        .update(
+            &coach.id.to_string(),
+            test_user_id(),
+            test_tenant(),
+            &update,
+        )
         .await
         .unwrap();
 
@@ -262,7 +270,12 @@ async fn test_auto_version_on_update() {
     };
 
     manager
-        .update(&coach.id.to_string(), test_user_id(), TEST_TENANT, &update2)
+        .update(
+            &coach.id.to_string(),
+            test_user_id(),
+            test_tenant(),
+            &update2,
+        )
         .await
         .unwrap();
 
@@ -294,7 +307,7 @@ async fn test_get_versions() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -308,7 +321,12 @@ async fn test_get_versions() {
         sample_prompts: None,
     };
     manager
-        .update(&coach.id.to_string(), test_user_id(), TEST_TENANT, &update1)
+        .update(
+            &coach.id.to_string(),
+            test_user_id(),
+            test_tenant(),
+            &update1,
+        )
         .await
         .unwrap();
 
@@ -322,13 +340,18 @@ async fn test_get_versions() {
         sample_prompts: None,
     };
     manager
-        .update(&coach.id.to_string(), test_user_id(), TEST_TENANT, &update2)
+        .update(
+            &coach.id.to_string(),
+            test_user_id(),
+            test_tenant(),
+            &update2,
+        )
         .await
         .unwrap();
 
     // Get versions
     let versions = manager
-        .get_versions(&coach.id.to_string(), TEST_TENANT, 50)
+        .get_versions(&coach.id.to_string(), test_tenant(), 50)
         .await
         .unwrap();
 
@@ -353,7 +376,7 @@ async fn test_get_versions_with_limit() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -368,14 +391,19 @@ async fn test_get_versions_with_limit() {
             sample_prompts: None,
         };
         manager
-            .update(&coach.id.to_string(), test_user_id(), TEST_TENANT, &update)
+            .update(
+                &coach.id.to_string(),
+                test_user_id(),
+                test_tenant(),
+                &update,
+            )
             .await
             .unwrap();
     }
 
     // Get only 2 versions
     let versions = manager
-        .get_versions(&coach.id.to_string(), TEST_TENANT, 2)
+        .get_versions(&coach.id.to_string(), test_tenant(), 2)
         .await
         .unwrap();
 
@@ -400,7 +428,7 @@ async fn test_get_specific_version() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -414,13 +442,18 @@ async fn test_get_specific_version() {
         sample_prompts: None,
     };
     manager
-        .update(&coach.id.to_string(), test_user_id(), TEST_TENANT, &update)
+        .update(
+            &coach.id.to_string(),
+            test_user_id(),
+            test_tenant(),
+            &update,
+        )
         .await
         .unwrap();
 
     // Get version 1
     let version = manager
-        .get_version(&coach.id.to_string(), 1, TEST_TENANT)
+        .get_version(&coach.id.to_string(), 1, test_tenant())
         .await
         .unwrap();
 
@@ -448,13 +481,13 @@ async fn test_get_version_not_found() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
     // Try to get non-existent version
     let version = manager
-        .get_version(&coach.id.to_string(), 999, TEST_TENANT)
+        .get_version(&coach.id.to_string(), 999, test_tenant())
         .await
         .unwrap();
 
@@ -476,7 +509,7 @@ async fn test_get_version_wrong_tenant() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -487,8 +520,10 @@ async fn test_get_version_wrong_tenant() {
         .unwrap();
 
     // Try to get version with wrong tenant
+    let wrong_tenant =
+        TenantId::from_uuid(Uuid::parse_str("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb").unwrap());
     let result = manager
-        .get_version(&coach.id.to_string(), 1, "wrong-tenant")
+        .get_version(&coach.id.to_string(), 1, wrong_tenant)
         .await;
 
     // Should fail because coach not found in wrong tenant
@@ -515,7 +550,7 @@ async fn test_revert_to_version() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -529,13 +564,18 @@ async fn test_revert_to_version() {
         sample_prompts: None,
     };
     manager
-        .update(&coach.id.to_string(), test_user_id(), TEST_TENANT, &update1)
+        .update(
+            &coach.id.to_string(),
+            test_user_id(),
+            test_tenant(),
+            &update1,
+        )
         .await
         .unwrap();
 
     // Verify current state is updated
     let current = manager
-        .get(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .get(&coach.id.to_string(), test_user_id(), test_tenant())
         .await
         .unwrap()
         .unwrap();
@@ -543,7 +583,7 @@ async fn test_revert_to_version() {
 
     // Revert to version 1 (the original state)
     let reverted = manager
-        .revert_to_version(&coach.id.to_string(), 1, test_user_id(), TEST_TENANT)
+        .revert_to_version(&coach.id.to_string(), 1, test_user_id(), test_tenant())
         .await
         .unwrap();
 
@@ -573,7 +613,7 @@ async fn test_revert_creates_new_version() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -587,7 +627,12 @@ async fn test_revert_creates_new_version() {
         sample_prompts: None,
     };
     manager
-        .update(&coach.id.to_string(), test_user_id(), TEST_TENANT, &update)
+        .update(
+            &coach.id.to_string(),
+            test_user_id(),
+            test_tenant(),
+            &update,
+        )
         .await
         .unwrap();
 
@@ -600,7 +645,7 @@ async fn test_revert_creates_new_version() {
 
     // Revert to version 1 -> should create version 2
     manager
-        .revert_to_version(&coach.id.to_string(), 1, test_user_id(), TEST_TENANT)
+        .revert_to_version(&coach.id.to_string(), 1, test_user_id(), test_tenant())
         .await
         .unwrap();
 
@@ -613,7 +658,7 @@ async fn test_revert_creates_new_version() {
 
     // Get version 2 and verify it has the revert summary
     let versions = manager
-        .get_versions(&coach.id.to_string(), TEST_TENANT, 50)
+        .get_versions(&coach.id.to_string(), test_tenant(), 50)
         .await
         .unwrap();
 
@@ -640,13 +685,13 @@ async fn test_revert_to_nonexistent_version() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
     // Try to revert to non-existent version
     let result = manager
-        .revert_to_version(&coach.id.to_string(), 999, test_user_id(), TEST_TENANT)
+        .revert_to_version(&coach.id.to_string(), 999, test_user_id(), test_tenant())
         .await;
 
     assert!(result.is_err());
@@ -671,7 +716,7 @@ async fn test_version_snapshot_contains_all_fields() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -683,7 +728,7 @@ async fn test_version_snapshot_contains_all_fields() {
 
     // Get the version
     let version = manager
-        .get_version(&coach.id.to_string(), 1, TEST_TENANT)
+        .get_version(&coach.id.to_string(), 1, test_tenant())
         .await
         .unwrap()
         .unwrap();
@@ -717,7 +762,7 @@ async fn test_version_has_content_hash() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -727,7 +772,7 @@ async fn test_version_has_content_hash() {
         .unwrap();
 
     let version = manager
-        .get_version(&coach.id.to_string(), 1, TEST_TENANT)
+        .get_version(&coach.id.to_string(), 1, test_tenant())
         .await
         .unwrap()
         .unwrap();
@@ -753,7 +798,7 @@ async fn test_different_content_different_hash() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -767,7 +812,12 @@ async fn test_different_content_different_hash() {
         sample_prompts: None,
     };
     manager
-        .update(&coach.id.to_string(), test_user_id(), TEST_TENANT, &update1)
+        .update(
+            &coach.id.to_string(),
+            test_user_id(),
+            test_tenant(),
+            &update1,
+        )
         .await
         .unwrap();
 
@@ -781,13 +831,18 @@ async fn test_different_content_different_hash() {
         sample_prompts: None,
     };
     manager
-        .update(&coach.id.to_string(), test_user_id(), TEST_TENANT, &update2)
+        .update(
+            &coach.id.to_string(),
+            test_user_id(),
+            test_tenant(),
+            &update2,
+        )
         .await
         .unwrap();
 
     // Get both versions
     let versions = manager
-        .get_versions(&coach.id.to_string(), TEST_TENANT, 50)
+        .get_versions(&coach.id.to_string(), test_tenant(), 50)
         .await
         .unwrap();
 
@@ -818,7 +873,7 @@ async fn test_system_coach_version_on_update() {
     };
 
     let coach = manager
-        .create_system_coach(test_user_id(), TEST_TENANT, &request)
+        .create_system_coach(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -832,7 +887,7 @@ async fn test_system_coach_version_on_update() {
         sample_prompts: None,
     };
     manager
-        .update_system_coach(&coach.id.to_string(), TEST_TENANT, &update)
+        .update_system_coach(&coach.id.to_string(), test_tenant(), &update)
         .await
         .unwrap();
 
@@ -845,7 +900,7 @@ async fn test_system_coach_version_on_update() {
 
     // Get the version and verify it captured original state
     let version_data = manager
-        .get_version(&coach.id.to_string(), 1, TEST_TENANT)
+        .get_version(&coach.id.to_string(), 1, test_tenant())
         .await
         .unwrap()
         .unwrap();
@@ -872,7 +927,7 @@ async fn test_update_with_change_summary() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -889,7 +944,7 @@ async fn test_update_with_change_summary() {
         .update_with_summary(
             &coach.id.to_string(),
             test_user_id(),
-            TEST_TENANT,
+            test_tenant(),
             &update,
             Some("Changed title for clarity"),
         )
@@ -898,7 +953,7 @@ async fn test_update_with_change_summary() {
 
     // Get version and check summary
     let version = manager
-        .get_version(&coach.id.to_string(), 1, TEST_TENANT)
+        .get_version(&coach.id.to_string(), 1, test_tenant())
         .await
         .unwrap()
         .unwrap();
@@ -924,7 +979,7 @@ async fn test_version_tracks_created_by() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -939,7 +994,7 @@ async fn test_version_tracks_created_by() {
         .unwrap();
 
     let version = manager
-        .get_version(&coach.id.to_string(), 1, TEST_TENANT)
+        .get_version(&coach.id.to_string(), 1, test_tenant())
         .await
         .unwrap()
         .unwrap();
@@ -966,13 +1021,13 @@ async fn test_get_versions_empty() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
     // Get versions for coach with no versions
     let versions = manager
-        .get_versions(&coach.id.to_string(), TEST_TENANT, 50)
+        .get_versions(&coach.id.to_string(), test_tenant(), 50)
         .await
         .unwrap();
 
@@ -994,7 +1049,7 @@ async fn test_get_current_version_no_versions() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -1022,7 +1077,7 @@ async fn test_version_deleted_with_coach() {
     };
 
     let coach = manager
-        .create(test_user_id(), TEST_TENANT, &request)
+        .create(test_user_id(), test_tenant(), &request)
         .await
         .unwrap();
 
@@ -1038,7 +1093,7 @@ async fn test_version_deleted_with_coach() {
 
     // Delete coach
     manager
-        .delete(&coach.id.to_string(), test_user_id(), TEST_TENANT)
+        .delete(&coach.id.to_string(), test_user_id(), test_tenant())
         .await
         .unwrap();
 
@@ -1046,7 +1101,7 @@ async fn test_version_deleted_with_coach() {
     // We can't directly check this since the coach doesn't exist,
     // but the cascade delete should have cleaned up the versions
     let result = manager
-        .get_versions(&coach.id.to_string(), TEST_TENANT, 50)
+        .get_versions(&coach.id.to_string(), test_tenant(), 50)
         .await;
 
     // Should fail because coach no longer exists

@@ -163,7 +163,7 @@ use pierre_mcp_server::{
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::resources::{ServerResources, ServerResourcesOptions},
-    models::{User, UserOAuthToken, UserStatus, UserTier},
+    models::{TenantId, User, UserOAuthToken, UserStatus, UserTier},
     permissions::UserRole,
     routes::{auth::AuthService, LoginRequest, RegisterRequest},
 };
@@ -528,7 +528,7 @@ async fn test_database_encryption() -> Result<()> {
     let decrypted_token = database
         .get_user_oauth_token(
             user_id,
-            "00000000-0000-0000-0000-000000000000",
+            TenantId::from_uuid(Uuid::nil()),
             oauth_providers::STRAVA,
         )
         .await?
@@ -645,7 +645,7 @@ async fn test_user_isolation() -> Result<()> {
     let user1_token = database
         .get_user_oauth_token(
             user1_id,
-            "00000000-0000-0000-0000-000000000000",
+            TenantId::from_uuid(Uuid::nil()),
             oauth_providers::STRAVA,
         )
         .await?
@@ -655,7 +655,7 @@ async fn test_user_isolation() -> Result<()> {
     let user2_token = database
         .get_user_oauth_token(
             user2_id,
-            "00000000-0000-0000-0000-000000000000",
+            TenantId::from_uuid(Uuid::nil()),
             oauth_providers::STRAVA,
         )
         .await?

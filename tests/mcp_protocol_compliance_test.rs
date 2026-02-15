@@ -487,7 +487,8 @@ async fn test_protocol_version_backward_compatibility() {
     // Should succeed with older supported version
     if let Some(result) = response.result {
         // Server should respond with the negotiated version
-        assert!(["2024-11-05", "2025-06-18"].contains(&result["protocolVersion"].as_str().unwrap()));
+        assert!(["2024-11-05", "2025-06-18", "2025-11-25"]
+            .contains(&result["protocolVersion"].as_str().unwrap()));
     } else {
         panic!("Initialize should succeed with supported older version");
     }

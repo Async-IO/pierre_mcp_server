@@ -35,7 +35,7 @@
 //!     tenant_id,
 //!     user_id
 //! )?;
-//! # Ok::<(), anyhow::Error>(())
+//! # Ok::<(), pierre_mcp_server::errors::AppError>(())
 //! ```
 
 // Re-export all types and modules from pierre-providers

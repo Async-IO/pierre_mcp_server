@@ -95,8 +95,11 @@ impl AuthService {
         };
 
         // Direct database lookup with tenant_id
+        let tenant_id_parsed: TenantId = tenant_id_str.parse().map_err(|_| {
+            OAuthError::DatabaseError(format!("Invalid tenant_id format: {tenant_id_str}"))
+        })?;
         let token_result = (*self.resources.database)
-            .get_user_oauth_token(user_id, tenant_id_str, provider)
+            .get_user_oauth_token(user_id, tenant_id_parsed, provider)
             .await;
 
         Self::log_token_lookup_result(&token_result, user_id, tenant_id_str, provider);
@@ -486,10 +489,13 @@ impl AuthService {
         let new_expires_at = new_token.expires_at;
 
         // Update the token in the database
+        let tenant_id_parsed: TenantId = tenant_id.parse().map_err(|_| {
+            OAuthError::DatabaseError(format!("Invalid tenant_id format: {tenant_id}"))
+        })?;
         (*self.resources.database)
             .refresh_user_oauth_token(
                 user_id,
-                tenant_id,
+                tenant_id_parsed,
                 provider,
                 &new_access_token,
                 new_refresh_token.as_deref(),
@@ -535,8 +541,11 @@ impl AuthService {
         let tenant_id_str = tenant_id.ok_or_else(|| {
             OAuthError::DatabaseError("tenant_id is required to disconnect a provider".to_owned())
         })?;
+        let tenant_id_parsed: TenantId = tenant_id_str.parse().map_err(|_| {
+            OAuthError::DatabaseError(format!("Invalid tenant_id format: {tenant_id_str}"))
+        })?;
         (*self.resources.database)
-            .delete_user_oauth_token(user_id, tenant_id_str, provider)
+            .delete_user_oauth_token(user_id, tenant_id_parsed, provider)
             .await
             .map_err(|e| OAuthError::DatabaseError(format!("Failed to delete token: {e}")))
     }

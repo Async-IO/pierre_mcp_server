@@ -12,7 +12,7 @@ use pierre_mcp_server::config::environment::PostgresPoolConfig;
 use pierre_mcp_server::{
     constants::oauth_providers,
     database_plugins::{factory::Database, DatabaseProvider},
-    models::{User, UserOAuthToken, UserStatus, UserTier},
+    models::{TenantId, User, UserOAuthToken, UserStatus, UserTier},
     permissions::UserRole,
 };
 use serde_json::json;
@@ -130,10 +130,11 @@ async fn test_oauth_token_management() {
     let user_id = create_test_user(&db).await;
 
     // Test storing Strava token
+    let test_tenant_id = TenantId::from_uuid(Uuid::nil());
     let expires_at = Utc::now() + chrono::Duration::hours(1);
     let oauth_token = UserOAuthToken::new(
         user_id,
-        "00000000-0000-0000-0000-000000000000".to_owned(),
+        test_tenant_id.to_string(),
         oauth_providers::STRAVA.to_owned(),
         "test_access_token".to_owned(),
         Some("test_refresh_token".to_owned()),
@@ -146,11 +147,7 @@ async fn test_oauth_token_management() {
 
     // Test retrieving Strava token
     let token = db
-        .get_user_oauth_token(
-            user_id,
-            "00000000-0000-0000-0000-000000000000",
-            oauth_providers::STRAVA,
-        )
+        .get_user_oauth_token(user_id, test_tenant_id, oauth_providers::STRAVA)
         .await
         .expect("Failed to get Strava token");
     assert!(token.is_some(), "Strava token should exist");
@@ -161,20 +158,12 @@ async fn test_oauth_token_management() {
     assert_eq!(token.scope, Some("read,activity:read_all".to_owned()));
 
     // Test clearing Strava token
-    db.delete_user_oauth_token(
-        user_id,
-        "00000000-0000-0000-0000-000000000000",
-        oauth_providers::STRAVA,
-    )
-    .await
-    .expect("Failed to clear Strava token");
+    db.delete_user_oauth_token(user_id, test_tenant_id, oauth_providers::STRAVA)
+        .await
+        .expect("Failed to clear Strava token");
 
     let cleared_token = db
-        .get_user_oauth_token(
-            user_id,
-            "00000000-0000-0000-0000-000000000000",
-            oauth_providers::STRAVA,
-        )
+        .get_user_oauth_token(user_id, test_tenant_id, oauth_providers::STRAVA)
         .await
         .expect("Failed to get Strava token after clear");
     assert!(cleared_token.is_none(), "Strava token should be cleared");

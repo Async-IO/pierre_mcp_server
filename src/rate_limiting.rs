@@ -20,6 +20,7 @@ use uuid::Uuid;
 use crate::api_keys::{ApiKey, ApiKeyTier};
 use crate::config::environment::RateLimitConfig;
 use crate::constants::tiers;
+use crate::models::TenantId;
 use crate::models::{Tenant, User, UserTier};
 
 /// JWT token usage record for tracking
@@ -222,7 +223,7 @@ impl Default for TenantRateLimitTier {
 #[derive(Debug, Clone)]
 pub struct TenantRateLimitConfig {
     /// Per-tenant rate limit configurations
-    tenant_configs: HashMap<Uuid, TenantRateLimitTier>,
+    tenant_configs: HashMap<TenantId, TenantRateLimitTier>,
     /// Default configuration for new tenants
     default_config: TenantRateLimitTier,
     /// Rate limit configuration source (optional)
@@ -251,20 +252,20 @@ impl TenantRateLimitConfig {
     }
 
     /// Set rate limit configuration for a tenant
-    pub fn set_tenant_config(&mut self, tenant_id: Uuid, config: TenantRateLimitTier) {
+    pub fn set_tenant_config(&mut self, tenant_id: TenantId, config: TenantRateLimitTier) {
         self.tenant_configs.insert(tenant_id, config);
     }
 
     /// Get rate limit configuration for a tenant
     #[must_use]
-    pub fn get_tenant_config(&self, tenant_id: Uuid) -> &TenantRateLimitTier {
+    pub fn get_tenant_config(&self, tenant_id: TenantId) -> &TenantRateLimitTier {
         self.tenant_configs
             .get(&tenant_id)
             .unwrap_or(&self.default_config)
     }
 
     /// Configure tenant based on their plan
-    pub fn configure_tenant_by_plan(&mut self, tenant_id: Uuid, plan: &str) {
+    pub fn configure_tenant_by_plan(&mut self, tenant_id: TenantId, plan: &str) {
         let config = self.rate_limit_config.as_ref().map_or_else(
             || {
                 // Fall back to constant-based constructors
@@ -289,26 +290,26 @@ impl TenantRateLimitConfig {
     }
 
     /// Set custom multiplier for a tenant (for temporary adjustments)
-    pub fn set_tenant_multiplier(&mut self, tenant_id: Uuid, multiplier: f32) {
+    pub fn set_tenant_multiplier(&mut self, tenant_id: TenantId, multiplier: f32) {
         let mut config = self.get_tenant_config(tenant_id).clone(); // Safe: TenantConfig ownership for modification
         config.multiplier = multiplier;
         self.set_tenant_config(tenant_id, config);
     }
 
     /// Remove tenant configuration (falls back to default)
-    pub fn remove_tenant_config(&mut self, tenant_id: &Uuid) {
+    pub fn remove_tenant_config(&mut self, tenant_id: &TenantId) {
         self.tenant_configs.remove(tenant_id);
     }
 
     /// Get all configured tenant IDs
     #[must_use]
-    pub fn get_configured_tenants(&self) -> Vec<Uuid> {
+    pub fn get_configured_tenants(&self) -> Vec<TenantId> {
         self.tenant_configs.keys().copied().collect()
     }
 
     /// Check if tenant is already configured
     #[must_use]
-    pub fn is_tenant_configured(&self, tenant_id: Uuid) -> bool {
+    pub fn is_tenant_configured(&self, tenant_id: TenantId) -> bool {
         self.tenant_configs.contains_key(&tenant_id)
     }
 }
@@ -457,9 +458,9 @@ impl UnifiedRateLimitCalculator {
         current_usage: u32,
     ) -> UnifiedRateLimitInfo {
         // Get tenant config, auto-configuring based on plan if not already configured
-        let tenant_config = if self.tenant_config.is_tenant_configured(tenant.id.as_uuid()) {
+        let tenant_config = if self.tenant_config.is_tenant_configured(tenant.id) {
             // Use existing configuration
-            self.tenant_config.get_tenant_config(tenant.id.as_uuid())
+            self.tenant_config.get_tenant_config(tenant.id)
         } else {
             // Auto-configure based on plan
             match tenant.plan.to_lowercase().as_str() {
@@ -499,7 +500,7 @@ impl UnifiedRateLimitCalculator {
     pub fn calculate_tenant_api_key_rate_limit(
         &self,
         api_key: &ApiKey,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         current_usage: u32,
     ) -> UnifiedRateLimitInfo {
         let mut base_info = self.calculate_api_key_rate_limit(api_key, current_usage);
@@ -529,7 +530,7 @@ impl UnifiedRateLimitCalculator {
     pub fn calculate_tenant_jwt_rate_limit(
         &self,
         user: &User,
-        tenant_id: Uuid,
+        tenant_id: TenantId,
         current_usage: u32,
     ) -> UnifiedRateLimitInfo {
         let mut base_info = self.calculate_jwt_rate_limit(user, current_usage);
@@ -555,30 +556,30 @@ impl UnifiedRateLimitCalculator {
     }
 
     /// Configure tenant rate limits
-    pub fn configure_tenant(&mut self, tenant_id: Uuid, config: TenantRateLimitTier) {
+    pub fn configure_tenant(&mut self, tenant_id: TenantId, config: TenantRateLimitTier) {
         self.tenant_config.set_tenant_config(tenant_id, config);
     }
 
     /// Configure tenant by plan name
-    pub fn configure_tenant_by_plan(&mut self, tenant_id: Uuid, plan: &str) {
+    pub fn configure_tenant_by_plan(&mut self, tenant_id: TenantId, plan: &str) {
         self.tenant_config.configure_tenant_by_plan(tenant_id, plan);
     }
 
     /// Set tenant rate limit multiplier for temporary adjustments
-    pub fn set_tenant_multiplier(&mut self, tenant_id: Uuid, multiplier: f32) {
+    pub fn set_tenant_multiplier(&mut self, tenant_id: TenantId, multiplier: f32) {
         self.tenant_config
             .set_tenant_multiplier(tenant_id, multiplier);
     }
 
     /// Get tenant configuration
     #[must_use]
-    pub fn get_tenant_config(&self, tenant_id: Uuid) -> &TenantRateLimitTier {
+    pub fn get_tenant_config(&self, tenant_id: TenantId) -> &TenantRateLimitTier {
         self.tenant_config.get_tenant_config(tenant_id)
     }
 
     /// Get all configured tenants
     #[must_use]
-    pub fn get_configured_tenants(&self) -> Vec<Uuid> {
+    pub fn get_configured_tenants(&self) -> Vec<TenantId> {
         self.tenant_config.get_configured_tenants()
     }
 

@@ -35,7 +35,7 @@ impl McpConfig {
     #[must_use]
     pub fn from_env() -> Self {
         Self {
-            protocol_version: env_var_or("MCP_PROTOCOL_VERSION", "2025-06-18"),
+            protocol_version: env_var_or("MCP_PROTOCOL_VERSION", "2025-11-25"),
             server_name: env_var_or("SERVER_NAME", "pierre-mcp-server"),
             session_cache_size: env::var("MCP_SESSION_CACHE_SIZE")
                 .ok()
@@ -81,7 +81,7 @@ impl ProtocolConfig {
     #[must_use]
     pub fn from_env() -> Self {
         Self {
-            mcp_version: env_var_or("MCP_PROTOCOL_VERSION", "2025-06-18"),
+            mcp_version: env_var_or("MCP_PROTOCOL_VERSION", "2025-11-25"),
             server_name: env_var_or("SERVER_NAME", "pierre-mcp-server"),
             server_version: env!("CARGO_PKG_VERSION").to_owned(),
         }

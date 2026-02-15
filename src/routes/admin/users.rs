@@ -236,9 +236,8 @@ async fn create_and_link_tenant(
         tenant.name, user_email
     );
 
-    let tenant_id_str = tenant.id.to_string();
     database
-        .update_user_tenant_id(user_uuid, &tenant_id_str)
+        .update_user_tenant_id(user_uuid, tenant.id)
         .await
         .map_err(|e| {
             error!(

@@ -426,13 +426,13 @@ impl Database {
     pub async fn get_user_tenant_role(
         &self,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<Option<String>> {
         let row = sqlx::query_as::<_, (String,)>(
             "SELECT role FROM tenant_users WHERE user_id = ? AND tenant_id = ?",
         )
         .bind(user_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
@@ -2349,7 +2349,7 @@ impl Database {
     pub async fn chat_create_conversation_impl(
         &self,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
         title: &str,
         model: &str,
         system_prompt: Option<&str>,
@@ -2368,7 +2368,7 @@ impl Database {
         &self,
         conversation_id: &str,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<Option<ConversationRecord>> {
         let chat_manager = ChatManager::new(self.pool.clone());
         chat_manager
@@ -2383,7 +2383,7 @@ impl Database {
     pub async fn chat_list_conversations_impl(
         &self,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
         limit: i64,
         offset: i64,
     ) -> AppResult<Vec<ConversationSummary>> {
@@ -2401,7 +2401,7 @@ impl Database {
         &self,
         conversation_id: &str,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
         title: &str,
     ) -> AppResult<bool> {
         let chat_manager = ChatManager::new(self.pool.clone());
@@ -2418,7 +2418,7 @@ impl Database {
         &self,
         conversation_id: &str,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<bool> {
         let chat_manager = ChatManager::new(self.pool.clone());
         chat_manager
@@ -2512,7 +2512,7 @@ impl Database {
     pub async fn chat_delete_all_user_conversations_impl(
         &self,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<i64> {
         let chat_manager = ChatManager::new(self.pool.clone());
         chat_manager
@@ -2606,7 +2606,7 @@ impl DatabaseProvider for Database {
         Self::update_user_status(self, user_id, new_status, approved_by).await
     }
 
-    async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> AppResult<()> {
+    async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: TenantId) -> AppResult<()> {
         Self::update_user_tenant_id_impl(self, user_id, tenant_id).await
     }
 
@@ -2969,7 +2969,7 @@ impl DatabaseProvider for Database {
     async fn get_provider_last_sync(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<Option<DateTime<Utc>>> {
         Self::get_provider_last_sync(self, user_id, tenant_id, provider).await
@@ -2978,7 +2978,7 @@ impl DatabaseProvider for Database {
     async fn update_provider_last_sync(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
         sync_time: DateTime<Utc>,
     ) -> AppResult<()> {
@@ -3403,7 +3403,7 @@ impl DatabaseProvider for Database {
 
     async fn save_tenant_fitness_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         configuration_name: &str,
         config: &FitnessConfig,
     ) -> AppResult<String> {
@@ -3415,7 +3415,7 @@ impl DatabaseProvider for Database {
 
     async fn save_user_fitness_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         user_id: &str,
         configuration_name: &str,
         config: &FitnessConfig,
@@ -3428,7 +3428,7 @@ impl DatabaseProvider for Database {
 
     async fn get_tenant_fitness_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         configuration_name: &str,
     ) -> AppResult<Option<FitnessConfig>> {
         let manager = self.fitness_configurations();
@@ -3439,7 +3439,7 @@ impl DatabaseProvider for Database {
 
     async fn get_user_fitness_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         user_id: &str,
         configuration_name: &str,
     ) -> AppResult<Option<FitnessConfig>> {
@@ -3449,14 +3449,17 @@ impl DatabaseProvider for Database {
             .await
     }
 
-    async fn list_tenant_fitness_configurations(&self, tenant_id: &str) -> AppResult<Vec<String>> {
+    async fn list_tenant_fitness_configurations(
+        &self,
+        tenant_id: TenantId,
+    ) -> AppResult<Vec<String>> {
         let manager = self.fitness_configurations();
         manager.list_tenant_configurations(tenant_id).await
     }
 
     async fn list_user_fitness_configurations(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         user_id: &str,
     ) -> AppResult<Vec<String>> {
         let manager = self.fitness_configurations();
@@ -3465,7 +3468,7 @@ impl DatabaseProvider for Database {
 
     async fn delete_fitness_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         user_id: Option<&str>,
         configuration_name: &str,
     ) -> AppResult<bool> {
@@ -3479,10 +3482,15 @@ impl DatabaseProvider for Database {
     async fn upsert_user_oauth_token(&self, token: &UserOAuthToken) -> AppResult<()> {
         use user_oauth_tokens::OAuthTokenData;
 
+        let tenant_id: TenantId = token
+            .tenant_id
+            .parse()
+            .map_err(|e| AppError::internal(format!("Invalid tenant_id in OAuth token: {e}")))?;
+
         let token_data = OAuthTokenData {
             id: &token.id,
             user_id: token.user_id,
-            tenant_id: &token.tenant_id,
+            tenant_id,
             provider: &token.provider,
             access_token: &token.access_token,
             refresh_token: token.refresh_token.as_deref(),
@@ -3497,7 +3505,7 @@ impl DatabaseProvider for Database {
     async fn get_user_oauth_token(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<Option<UserOAuthToken>> {
         Self::get_user_oauth_token(self, user_id, tenant_id, provider).await
@@ -3506,14 +3514,14 @@ impl DatabaseProvider for Database {
     async fn get_user_oauth_tokens(
         &self,
         user_id: Uuid,
-        tenant_id: Option<&str>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Vec<UserOAuthToken>> {
         Self::get_user_oauth_tokens_impl(self, user_id, tenant_id).await
     }
 
     async fn get_tenant_provider_tokens(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<Vec<UserOAuthToken>> {
         Self::get_tenant_provider_tokens(self, tenant_id, provider).await
@@ -3522,20 +3530,20 @@ impl DatabaseProvider for Database {
     async fn delete_user_oauth_token(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<()> {
         Self::delete_user_oauth_token(self, user_id, tenant_id, provider).await
     }
 
-    async fn delete_user_oauth_tokens(&self, user_id: Uuid, tenant_id: &str) -> AppResult<()> {
+    async fn delete_user_oauth_tokens(&self, user_id: Uuid, tenant_id: TenantId) -> AppResult<()> {
         Self::delete_user_oauth_tokens_impl(self, user_id, tenant_id).await
     }
 
     async fn refresh_user_oauth_token(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
         access_token: &str,
         refresh_token: Option<&str>,
@@ -3801,7 +3809,7 @@ impl DatabaseProvider for Database {
     async fn get_admin_config_override(
         &self,
         config_key: &str,
-        tenant_id: Option<&str>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Option<String>> {
         // Extract category from key (e.g., "llm.gemini_api_key" -> "llm_provider")
         let category = if config_key.starts_with("llm.") {
@@ -3933,7 +3941,7 @@ impl DatabaseProvider for Database {
     async fn register_provider_connection(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
         connection_type: &ConnectionType,
         metadata: Option<&str>,
@@ -3952,7 +3960,7 @@ impl DatabaseProvider for Database {
     async fn remove_provider_connection(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<()> {
         Self::remove_provider_connection_impl(self, user_id, tenant_id, provider).await
@@ -3961,7 +3969,7 @@ impl DatabaseProvider for Database {
     async fn get_user_provider_connections(
         &self,
         user_id: Uuid,
-        tenant_id: Option<&str>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Vec<ProviderConnection>> {
         Self::get_user_provider_connections_impl(self, user_id, tenant_id).await
     }
@@ -3977,7 +3985,7 @@ impl DatabaseProvider for Database {
     async fn chat_create_conversation(
         &self,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
         title: &str,
         model: &str,
         system_prompt: Option<&str>,
@@ -3990,7 +3998,7 @@ impl DatabaseProvider for Database {
         &self,
         conversation_id: &str,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<Option<ConversationRecord>> {
         Self::chat_get_conversation_impl(self, conversation_id, user_id, tenant_id).await
     }
@@ -3998,7 +4006,7 @@ impl DatabaseProvider for Database {
     async fn chat_list_conversations(
         &self,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
         limit: i64,
         offset: i64,
     ) -> AppResult<Vec<ConversationSummary>> {
@@ -4009,7 +4017,7 @@ impl DatabaseProvider for Database {
         &self,
         conversation_id: &str,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
         title: &str,
     ) -> AppResult<bool> {
         Self::chat_update_conversation_title_impl(self, conversation_id, user_id, tenant_id, title)
@@ -4020,7 +4028,7 @@ impl DatabaseProvider for Database {
         &self,
         conversation_id: &str,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<bool> {
         Self::chat_delete_conversation_impl(self, conversation_id, user_id, tenant_id).await
     }
@@ -4070,7 +4078,7 @@ impl DatabaseProvider for Database {
     async fn chat_delete_all_user_conversations(
         &self,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<i64> {
         Self::chat_delete_all_user_conversations_impl(self, user_id, tenant_id).await
     }

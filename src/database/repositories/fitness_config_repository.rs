@@ -8,6 +8,7 @@ use super::FitnessConfigRepository;
 use crate::database::DatabaseError;
 use crate::database_plugins::factory::Database;
 use async_trait::async_trait;
+use pierre_core::models::TenantId;
 
 /// SQLite/PostgreSQL implementation of `FitnessConfigRepository`
 pub struct FitnessConfigRepositoryImpl {
@@ -26,7 +27,7 @@ impl FitnessConfigRepositoryImpl {
 impl FitnessConfigRepository for FitnessConfigRepositoryImpl {
     async fn save_tenant_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         configuration_name: &str,
         config: &crate::config::fitness::FitnessConfig,
     ) -> Result<String, DatabaseError> {
@@ -40,7 +41,7 @@ impl FitnessConfigRepository for FitnessConfigRepositoryImpl {
 
     async fn save_user_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         user_id: &str,
         configuration_name: &str,
         config: &crate::config::fitness::FitnessConfig,
@@ -55,7 +56,7 @@ impl FitnessConfigRepository for FitnessConfigRepositoryImpl {
 
     async fn get_tenant_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         configuration_name: &str,
     ) -> Result<Option<crate::config::fitness::FitnessConfig>, DatabaseError> {
         self.db
@@ -68,7 +69,7 @@ impl FitnessConfigRepository for FitnessConfigRepositoryImpl {
 
     async fn get_user_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         user_id: &str,
         configuration_name: &str,
     ) -> Result<Option<crate::config::fitness::FitnessConfig>, DatabaseError> {
@@ -80,7 +81,7 @@ impl FitnessConfigRepository for FitnessConfigRepositoryImpl {
             })
     }
 
-    async fn list_tenant_configs(&self, tenant_id: &str) -> Result<Vec<String>, DatabaseError> {
+    async fn list_tenant_configs(&self, tenant_id: TenantId) -> Result<Vec<String>, DatabaseError> {
         self.db
             .list_tenant_fitness_configurations(tenant_id)
             .await
@@ -91,7 +92,7 @@ impl FitnessConfigRepository for FitnessConfigRepositoryImpl {
 
     async fn list_user_configs(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         user_id: &str,
     ) -> Result<Vec<String>, DatabaseError> {
         self.db
@@ -104,7 +105,7 @@ impl FitnessConfigRepository for FitnessConfigRepositoryImpl {
 
     async fn delete_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         user_id: Option<&str>,
         configuration_name: &str,
     ) -> Result<bool, DatabaseError> {

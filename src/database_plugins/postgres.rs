@@ -884,7 +884,7 @@ impl DatabaseProvider for PostgresDatabase {
             .ok_or_else(|| AppError::not_found("User after status update"))
     }
 
-    async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> AppResult<()> {
+    async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: TenantId) -> AppResult<()> {
         let result = sqlx::query(
             r"
             UPDATE users
@@ -892,7 +892,7 @@ impl DatabaseProvider for PostgresDatabase {
             WHERE id = $2
             ",
         )
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(user_id)
         .execute(&self.pool)
         .await
@@ -2700,14 +2700,14 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_provider_last_sync(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<Option<DateTime<Utc>>> {
         let last_sync: Option<DateTime<Utc>> = sqlx::query_scalar(
             "SELECT last_sync FROM user_oauth_tokens WHERE user_id = $1 AND tenant_id = $2 AND provider = $3",
         )
         .bind(user_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(provider)
         .fetch_optional(&self.pool)
         .await
@@ -2719,7 +2719,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn update_provider_last_sync(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
         sync_time: DateTime<Utc>,
     ) -> AppResult<()> {
@@ -2728,7 +2728,7 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(sync_time)
         .bind(user_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(provider)
         .execute(&self.pool)
         .await
@@ -3322,7 +3322,7 @@ impl DatabaseProvider for PostgresDatabase {
             WHERE t.id = $1 AND t.is_active = true
             ",
         )
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_optional(&self.pool).await.map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
 
         match row {
@@ -3484,7 +3484,7 @@ impl DatabaseProvider for PostgresDatabase {
             ORDER BY provider
             ",
         )
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to fetch records: {e}")))?;
@@ -3532,7 +3532,7 @@ impl DatabaseProvider for PostgresDatabase {
             WHERE tenant_id = $1 AND provider = $2 AND is_active = true
             ",
         )
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(provider)
         .fetch_optional(&self.pool)
         .await
@@ -3884,7 +3884,7 @@ impl DatabaseProvider for PostgresDatabase {
         for row in rows {
             let tenant_id_str: Option<String> = row.get("tenant_id");
             let tenant_id = if let Some(tid) = tenant_id_str {
-                Some(parse_uuid(&tid)?)
+                Some(TenantId::from_uuid(parse_uuid(&tid)?))
             } else {
                 None
             };
@@ -3941,7 +3941,7 @@ impl DatabaseProvider for PostgresDatabase {
         if let Some(row) = row {
             let tenant_id_str: Option<String> = row.get("tenant_id");
             let tenant_id = if let Some(tid) = tenant_id_str {
-                Some(parse_uuid(&tid)?)
+                Some(TenantId::from_uuid(parse_uuid(&tid)?))
             } else {
                 None
             };
@@ -4272,7 +4272,7 @@ impl DatabaseProvider for PostgresDatabase {
 
             let tenant_id_str: Option<String> = row.get("tenant_id");
             let tenant_id = if let Some(tid) = tenant_id_str {
-                Some(parse_uuid(&tid)?)
+                Some(TenantId::from_uuid(parse_uuid(&tid)?))
             } else {
                 None
             };
@@ -4375,7 +4375,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_user_oauth_token(
         &self,
         user_id: uuid::Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<Option<UserOAuthToken>> {
         let row = sqlx::query(
@@ -4387,7 +4387,7 @@ impl DatabaseProvider for PostgresDatabase {
             ",
         )
         .bind(user_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(provider)
         .fetch_optional(&self.pool)
         .await
@@ -4402,7 +4402,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_user_oauth_tokens(
         &self,
         user_id: uuid::Uuid,
-        tenant_id: Option<&str>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Vec<UserOAuthToken>> {
         let rows = if let Some(tid) = tenant_id {
             sqlx::query(
@@ -4415,7 +4415,7 @@ impl DatabaseProvider for PostgresDatabase {
                 ",
             )
             .bind(user_id)
-            .bind(tid)
+            .bind(tid.to_string())
             .fetch_all(&self.pool)
             .await
         } else {
@@ -4444,7 +4444,7 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn get_tenant_provider_tokens(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<Vec<UserOAuthToken>> {
         let rows = sqlx::query(
@@ -4456,7 +4456,7 @@ impl DatabaseProvider for PostgresDatabase {
             ORDER BY created_at DESC
             ",
         )
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(provider)
         .fetch_all(&self.pool)
         .await
@@ -4472,7 +4472,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn delete_user_oauth_token(
         &self,
         user_id: uuid::Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<()> {
         sqlx::query(
@@ -4482,7 +4482,7 @@ impl DatabaseProvider for PostgresDatabase {
             ",
         )
         .bind(user_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(provider)
         .execute(&self.pool)
         .await
@@ -4494,7 +4494,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn delete_user_oauth_tokens(
         &self,
         user_id: uuid::Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<()> {
         sqlx::query(
             r"
@@ -4503,7 +4503,7 @@ impl DatabaseProvider for PostgresDatabase {
             ",
         )
         .bind(user_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
@@ -4514,25 +4514,19 @@ impl DatabaseProvider for PostgresDatabase {
     async fn refresh_user_oauth_token(
         &self,
         user_id: uuid::Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
         access_token: &str,
         refresh_token: Option<&str>,
         expires_at: Option<DateTime<Utc>>,
     ) -> AppResult<()> {
         // SECURITY: Encrypt OAuth tokens at rest with AAD binding (AES-256-GCM)
-        let encrypted_access_token = shared::encryption::encrypt_oauth_token(
-            self,
-            access_token,
-            tenant_id,
-            user_id,
-            provider,
-        )?;
+        let tid = tenant_id.to_string();
+        let encrypted_access_token =
+            shared::encryption::encrypt_oauth_token(self, access_token, &tid, user_id, provider)?;
 
         let encrypted_refresh_token = refresh_token
-            .map(|rt| {
-                shared::encryption::encrypt_oauth_token(self, rt, tenant_id, user_id, provider)
-            })
+            .map(|rt| shared::encryption::encrypt_oauth_token(self, rt, &tid, user_id, provider))
             .transpose()?;
 
         sqlx::query(
@@ -4546,7 +4540,7 @@ impl DatabaseProvider for PostgresDatabase {
             ",
         )
         .bind(user_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(provider)
         .bind(&encrypted_access_token)
         .bind(encrypted_refresh_token.as_deref())
@@ -4568,7 +4562,7 @@ impl DatabaseProvider for PostgresDatabase {
             "SELECT role FROM tenant_users WHERE user_id = $1 AND tenant_id = $2",
         )
         .bind(user_id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
@@ -4935,7 +4929,7 @@ impl DatabaseProvider for PostgresDatabase {
     /// Save tenant-level fitness configuration
     async fn save_tenant_fitness_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         configuration_name: &str,
         config: &FitnessConfig,
     ) -> AppResult<String> {
@@ -4953,7 +4947,7 @@ impl DatabaseProvider for PostgresDatabase {
             RETURNING id
             ",
         )
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(configuration_name)
         .bind(&config_json)
         .bind(&now)
@@ -4967,7 +4961,7 @@ impl DatabaseProvider for PostgresDatabase {
     /// Save user-specific fitness configuration
     async fn save_user_fitness_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         user_id: &str,
         configuration_name: &str,
         config: &FitnessConfig,
@@ -4986,7 +4980,7 @@ impl DatabaseProvider for PostgresDatabase {
             RETURNING id
             ",
         )
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(user_id)
         .bind(configuration_name)
         .bind(&config_json)
@@ -5001,7 +4995,7 @@ impl DatabaseProvider for PostgresDatabase {
     /// Get tenant-level fitness configuration
     async fn get_tenant_fitness_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         configuration_name: &str,
     ) -> AppResult<Option<FitnessConfig>> {
         let result = sqlx::query(
@@ -5010,7 +5004,7 @@ impl DatabaseProvider for PostgresDatabase {
             WHERE tenant_id = $1 AND user_id IS NULL AND configuration_name = $2
             ",
         )
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(configuration_name)
         .fetch_optional(&self.pool)
         .await
@@ -5028,7 +5022,7 @@ impl DatabaseProvider for PostgresDatabase {
     /// Get user-specific fitness configuration
     async fn get_user_fitness_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         user_id: &str,
         configuration_name: &str,
     ) -> AppResult<Option<FitnessConfig>> {
@@ -5039,7 +5033,7 @@ impl DatabaseProvider for PostgresDatabase {
             WHERE tenant_id = $1 AND user_id = $2 AND configuration_name = $3
             ",
         )
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(user_id)
         .bind(configuration_name)
         .fetch_optional(&self.pool)
@@ -5059,7 +5053,7 @@ impl DatabaseProvider for PostgresDatabase {
             WHERE tenant_id = $1 AND user_id IS NULL AND configuration_name = $2
             ",
         )
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(configuration_name)
         .fetch_optional(&self.pool)
         .await
@@ -5075,7 +5069,10 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     /// List all tenant-level fitness configuration names
-    async fn list_tenant_fitness_configurations(&self, tenant_id: &str) -> AppResult<Vec<String>> {
+    async fn list_tenant_fitness_configurations(
+        &self,
+        tenant_id: TenantId,
+    ) -> AppResult<Vec<String>> {
         let rows = sqlx::query(
             r"
             SELECT DISTINCT configuration_name FROM fitness_configurations
@@ -5083,7 +5080,7 @@ impl DatabaseProvider for PostgresDatabase {
             ORDER BY configuration_name
             ",
         )
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to fetch records: {e}")))?;
@@ -5099,7 +5096,7 @@ impl DatabaseProvider for PostgresDatabase {
     /// List all user-specific fitness configuration names
     async fn list_user_fitness_configurations(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         user_id: &str,
     ) -> AppResult<Vec<String>> {
         let rows = sqlx::query(
@@ -5109,7 +5106,7 @@ impl DatabaseProvider for PostgresDatabase {
             ORDER BY configuration_name
             ",
         )
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(user_id)
         .fetch_all(&self.pool)
         .await
@@ -5126,7 +5123,7 @@ impl DatabaseProvider for PostgresDatabase {
     /// Delete fitness configuration (tenant or user-specific)
     async fn delete_fitness_config(
         &self,
-        tenant_id: &str,
+        tenant_id: TenantId,
         user_id: Option<&str>,
         configuration_name: &str,
     ) -> AppResult<bool> {
@@ -5137,7 +5134,7 @@ impl DatabaseProvider for PostgresDatabase {
                 WHERE tenant_id = $1 AND user_id = $2 AND configuration_name = $3
                 ",
             )
-            .bind(tenant_id)
+            .bind(tenant_id.to_string())
             .bind(uid)
             .bind(configuration_name)
             .execute(&self.pool)
@@ -5150,7 +5147,7 @@ impl DatabaseProvider for PostgresDatabase {
                 WHERE tenant_id = $1 AND user_id IS NULL AND configuration_name = $2
                 ",
             )
-            .bind(tenant_id)
+            .bind(tenant_id.to_string())
             .bind(configuration_name)
             .execute(&self.pool)
             .await
@@ -6112,7 +6109,7 @@ impl DatabaseProvider for PostgresDatabase {
                 WHERE tenant_id = $1 AND user_id = $2 AND provider = $3 AND is_active = TRUE
                 ",
             )
-            .bind(tenant_id)
+            .bind(tenant_id.to_string())
             .bind(uid)
             .bind(provider)
             .fetch_optional(&self.pool)
@@ -6126,7 +6123,7 @@ impl DatabaseProvider for PostgresDatabase {
                 WHERE tenant_id = $1 AND user_id IS NULL AND provider = $2 AND is_active = TRUE
                 ",
             )
-            .bind(tenant_id)
+            .bind(tenant_id.to_string())
             .bind(provider)
             .fetch_optional(&self.pool)
             .await
@@ -6160,7 +6157,7 @@ impl DatabaseProvider for PostgresDatabase {
             ORDER BY provider, user_id
             ",
         )
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to list LLM credentials: {e}")))?;
@@ -6201,7 +6198,7 @@ impl DatabaseProvider for PostgresDatabase {
                 WHERE tenant_id = $1 AND user_id = $2 AND provider = $3
                 ",
             )
-            .bind(tenant_id)
+            .bind(tenant_id.to_string())
             .bind(uid)
             .bind(provider)
             .execute(&self.pool)
@@ -6213,7 +6210,7 @@ impl DatabaseProvider for PostgresDatabase {
                 WHERE tenant_id = $1 AND user_id IS NULL AND provider = $2
                 ",
             )
-            .bind(tenant_id)
+            .bind(tenant_id.to_string())
             .bind(provider)
             .execute(&self.pool)
             .await
@@ -6226,7 +6223,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_admin_config_override(
         &self,
         config_key: &str,
-        tenant_id: Option<&str>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Option<String>> {
         // Extract category from key (e.g., "llm.gemini_api_key" -> "llm_provider")
         let category = if config_key.starts_with("llm.") {
@@ -6245,7 +6242,7 @@ impl DatabaseProvider for PostgresDatabase {
             )
             .bind(category)
             .bind(config_key)
-            .bind(tid)
+            .bind(tid.to_string())
             .fetch_optional(&self.pool)
             .await
         } else {
@@ -6378,7 +6375,7 @@ impl DatabaseProvider for PostgresDatabase {
             ORDER BY tool_name
             ",
         )
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to fetch tenant tool overrides: {e}")))?;
@@ -6403,7 +6400,7 @@ impl DatabaseProvider for PostgresDatabase {
             WHERE tenant_id = $1 AND tool_name = $2
             ",
         )
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(tool_name)
         .fetch_optional(&self.pool)
         .await
@@ -6436,7 +6433,7 @@ impl DatabaseProvider for PostgresDatabase {
             ",
         )
         .bind(id)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(tool_name)
         .bind(is_enabled)
         .bind(enabled_by_user_id)
@@ -6463,7 +6460,7 @@ impl DatabaseProvider for PostgresDatabase {
             WHERE tenant_id = $1 AND tool_name = $2
             ",
         )
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(tool_name)
         .execute(&self.pool)
         .await
@@ -6520,7 +6517,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn register_provider_connection(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
         connection_type: &ConnectionType,
         metadata: Option<&str>,
@@ -6541,7 +6538,7 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(&id)
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(provider)
         .bind(conn_type_str)
         .bind(now.to_rfc3339())
@@ -6555,14 +6552,14 @@ impl DatabaseProvider for PostgresDatabase {
     async fn remove_provider_connection(
         &self,
         user_id: Uuid,
-        tenant_id: &str,
+        tenant_id: TenantId,
         provider: &str,
     ) -> AppResult<()> {
         sqlx::query(
             "DELETE FROM provider_connections WHERE user_id = $1 AND tenant_id = $2 AND provider = $3",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(provider)
         .execute(&self.pool)
         .await?;
@@ -6573,7 +6570,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_user_provider_connections(
         &self,
         user_id: Uuid,
-        tenant_id: Option<&str>,
+        tenant_id: Option<TenantId>,
     ) -> AppResult<Vec<ProviderConnection>> {
         let rows = if let Some(tid) = tenant_id {
             sqlx::query(
@@ -6585,7 +6582,7 @@ impl DatabaseProvider for PostgresDatabase {
                 ",
             )
             .bind(user_id.to_string())
-            .bind(tid)
+            .bind(tid.to_string())
             .fetch_all(&self.pool)
             .await?
         } else {
@@ -6646,7 +6643,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn chat_create_conversation(
         &self,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
         title: &str,
         model: &str,
         system_prompt: Option<&str>,
@@ -6662,7 +6659,7 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(&id)
         .bind(parse_uuid(user_id)?)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(title)
         .bind(model)
         .bind(system_prompt)
@@ -6674,7 +6671,7 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(ConversationRecord {
             id,
             user_id: user_id.to_owned(),
-            tenant_id: tenant_id.to_owned(),
+            tenant_id: tenant_id.to_string(),
             title: title.to_owned(),
             model: model.to_owned(),
             system_prompt: system_prompt.map(ToOwned::to_owned),
@@ -6688,7 +6685,7 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         conversation_id: &str,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<Option<ConversationRecord>> {
         let row = sqlx::query(
             r"
@@ -6699,7 +6696,7 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(conversation_id)
         .bind(parse_uuid(user_id)?)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get conversation: {e}")))?;
@@ -6726,7 +6723,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn chat_list_conversations(
         &self,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
         limit: i64,
         offset: i64,
     ) -> AppResult<Vec<ConversationSummary>> {
@@ -6743,7 +6740,7 @@ impl DatabaseProvider for PostgresDatabase {
             ",
         )
         .bind(parse_uuid(user_id)?)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .bind(limit)
         .bind(offset)
         .fetch_all(&self.pool)
@@ -6775,7 +6772,7 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         conversation_id: &str,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
         title: &str,
     ) -> AppResult<bool> {
         let now = Utc::now();
@@ -6791,7 +6788,7 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(now)
         .bind(conversation_id)
         .bind(parse_uuid(user_id)?)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to update conversation title: {e}")))?;
@@ -6803,7 +6800,7 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         conversation_id: &str,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<bool> {
         let result = sqlx::query(
             r"
@@ -6813,7 +6810,7 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(conversation_id)
         .bind(parse_uuid(user_id)?)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to delete conversation: {e}")))?;
@@ -7015,7 +7012,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn chat_delete_all_user_conversations(
         &self,
         user_id: &str,
-        tenant_id: &str,
+        tenant_id: TenantId,
     ) -> AppResult<i64> {
         let result = sqlx::query(
             r"
@@ -7024,7 +7021,7 @@ impl DatabaseProvider for PostgresDatabase {
             ",
         )
         .bind(parse_uuid(user_id)?)
-        .bind(tenant_id)
+        .bind(tenant_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to delete user conversations: {e}")))?;

@@ -9,7 +9,25 @@
 
 use pierre_mcp_server::database::ChatManager;
 use pierre_mcp_server::llm::MessageRole;
+use pierre_mcp_server::models::TenantId;
 use sqlx::SqlitePool;
+use uuid::Uuid;
+
+/// Deterministic tenant ID for tests (fixed bytes representing "tenant-1")
+fn test_tenant_id() -> TenantId {
+    TenantId::from_uuid(Uuid::from_bytes([
+        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+        0x01,
+    ]))
+}
+
+/// Second deterministic tenant ID for multi-tenant isolation tests (fixed bytes representing "tenant-2")
+fn test_tenant_id_2() -> TenantId {
+    TenantId::from_uuid(Uuid::from_bytes([
+        0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+        0x02,
+    ]))
+}
 
 /// Create a test database with chat schema
 async fn create_test_db() -> SqlitePool {
@@ -94,14 +112,15 @@ async fn test_create_conversation() {
     let pool = create_test_db().await;
     let manager = ChatManager::new(pool);
 
+    let tenant_id = test_tenant_id();
     let conv = manager
-        .create_conversation("user-1", "tenant-1", "Test Chat", "gemini-1.5-flash", None)
+        .create_conversation("user-1", tenant_id, "Test Chat", "gemini-1.5-flash", None)
         .await
         .unwrap();
 
     assert!(!conv.id.is_empty());
     assert_eq!(conv.user_id, "user-1");
-    assert_eq!(conv.tenant_id, "tenant-1");
+    assert_eq!(conv.tenant_id, tenant_id.to_string());
     assert_eq!(conv.title, "Test Chat");
     assert_eq!(conv.model, "gemini-1.5-flash");
     assert!(conv.system_prompt.is_none());
@@ -113,11 +132,12 @@ async fn test_create_conversation_with_system_prompt() {
     let pool = create_test_db().await;
     let manager = ChatManager::new(pool);
 
+    let tenant_id = test_tenant_id();
     let system_prompt = "You are a helpful fitness assistant.";
     let conv = manager
         .create_conversation(
             "user-1",
-            "tenant-1",
+            tenant_id,
             "Fitness Chat",
             "gemini-1.5-pro",
             Some(system_prompt),
@@ -134,13 +154,14 @@ async fn test_get_conversation() {
     let pool = create_test_db().await;
     let manager = ChatManager::new(pool);
 
+    let tenant_id = test_tenant_id();
     let created = manager
-        .create_conversation("user-1", "tenant-1", "Test Chat", "gemini-1.5-flash", None)
+        .create_conversation("user-1", tenant_id, "Test Chat", "gemini-1.5-flash", None)
         .await
         .unwrap();
 
     let fetched = manager
-        .get_conversation(&created.id, "user-1", "tenant-1")
+        .get_conversation(&created.id, "user-1", tenant_id)
         .await
         .unwrap();
 
@@ -155,14 +176,16 @@ async fn test_get_conversation_tenant_isolation() {
     let pool = create_test_db().await;
     let manager = ChatManager::new(pool);
 
+    let tenant_id = test_tenant_id();
+    let different_tenant = test_tenant_id_2();
     let conv = manager
-        .create_conversation("user-1", "tenant-1", "Test Chat", "gemini-1.5-flash", None)
+        .create_conversation("user-1", tenant_id, "Test Chat", "gemini-1.5-flash", None)
         .await
         .unwrap();
 
     // Try to access from different tenant - should return None
     let result = manager
-        .get_conversation(&conv.id, "user-1", "different-tenant")
+        .get_conversation(&conv.id, "user-1", different_tenant)
         .await
         .unwrap();
 
@@ -174,22 +197,23 @@ async fn test_list_conversations() {
     let pool = create_test_db().await;
     let manager = ChatManager::new(pool);
 
+    let tenant_id = test_tenant_id();
     // Create multiple conversations
     manager
-        .create_conversation("user-1", "tenant-1", "Chat 1", "gemini-1.5-flash", None)
+        .create_conversation("user-1", tenant_id, "Chat 1", "gemini-1.5-flash", None)
         .await
         .unwrap();
     manager
-        .create_conversation("user-1", "tenant-1", "Chat 2", "gemini-1.5-flash", None)
+        .create_conversation("user-1", tenant_id, "Chat 2", "gemini-1.5-flash", None)
         .await
         .unwrap();
     manager
-        .create_conversation("user-1", "tenant-1", "Chat 3", "gemini-1.5-flash", None)
+        .create_conversation("user-1", tenant_id, "Chat 3", "gemini-1.5-flash", None)
         .await
         .unwrap();
 
     let list = manager
-        .list_conversations("user-1", "tenant-1", 10, 0)
+        .list_conversations("user-1", tenant_id, 10, 0)
         .await
         .unwrap();
 
@@ -201,12 +225,13 @@ async fn test_list_conversations_pagination() {
     let pool = create_test_db().await;
     let manager = ChatManager::new(pool);
 
+    let tenant_id = test_tenant_id();
     // Create multiple conversations
     for i in 1..=5 {
         manager
             .create_conversation(
                 "user-1",
-                "tenant-1",
+                tenant_id,
                 &format!("Chat {i}"),
                 "gemini-1.5-flash",
                 None,
@@ -217,21 +242,21 @@ async fn test_list_conversations_pagination() {
 
     // Get first 2
     let page1 = manager
-        .list_conversations("user-1", "tenant-1", 2, 0)
+        .list_conversations("user-1", tenant_id, 2, 0)
         .await
         .unwrap();
     assert_eq!(page1.len(), 2);
 
     // Get next 2
     let page2 = manager
-        .list_conversations("user-1", "tenant-1", 2, 2)
+        .list_conversations("user-1", tenant_id, 2, 2)
         .await
         .unwrap();
     assert_eq!(page2.len(), 2);
 
     // Get remaining
     let page3 = manager
-        .list_conversations("user-1", "tenant-1", 2, 4)
+        .list_conversations("user-1", tenant_id, 2, 4)
         .await
         .unwrap();
     assert_eq!(page3.len(), 1);
@@ -242,10 +267,11 @@ async fn test_update_conversation_title() {
     let pool = create_test_db().await;
     let manager = ChatManager::new(pool);
 
+    let tenant_id = test_tenant_id();
     let conv = manager
         .create_conversation(
             "user-1",
-            "tenant-1",
+            tenant_id,
             "Original Title",
             "gemini-1.5-flash",
             None,
@@ -254,14 +280,14 @@ async fn test_update_conversation_title() {
         .unwrap();
 
     let updated = manager
-        .update_conversation_title(&conv.id, "user-1", "tenant-1", "New Title")
+        .update_conversation_title(&conv.id, "user-1", tenant_id, "New Title")
         .await
         .unwrap();
 
     assert!(updated);
 
     let fetched = manager
-        .get_conversation(&conv.id, "user-1", "tenant-1")
+        .get_conversation(&conv.id, "user-1", tenant_id)
         .await
         .unwrap()
         .unwrap();
@@ -274,20 +300,21 @@ async fn test_delete_conversation() {
     let pool = create_test_db().await;
     let manager = ChatManager::new(pool);
 
+    let tenant_id = test_tenant_id();
     let conv = manager
-        .create_conversation("user-1", "tenant-1", "To Delete", "gemini-1.5-flash", None)
+        .create_conversation("user-1", tenant_id, "To Delete", "gemini-1.5-flash", None)
         .await
         .unwrap();
 
     let deleted = manager
-        .delete_conversation(&conv.id, "user-1", "tenant-1")
+        .delete_conversation(&conv.id, "user-1", tenant_id)
         .await
         .unwrap();
 
     assert!(deleted);
 
     let fetched = manager
-        .get_conversation(&conv.id, "user-1", "tenant-1")
+        .get_conversation(&conv.id, "user-1", tenant_id)
         .await
         .unwrap();
 
@@ -303,8 +330,9 @@ async fn test_add_message() {
     let pool = create_test_db().await;
     let manager = ChatManager::new(pool);
 
+    let tenant_id = test_tenant_id();
     let conv = manager
-        .create_conversation("user-1", "tenant-1", "Test Chat", "gemini-1.5-flash", None)
+        .create_conversation("user-1", tenant_id, "Test Chat", "gemini-1.5-flash", None)
         .await
         .unwrap();
 
@@ -332,8 +360,9 @@ async fn test_add_assistant_message_with_finish_reason() {
     let pool = create_test_db().await;
     let manager = ChatManager::new(pool);
 
+    let tenant_id = test_tenant_id();
     let conv = manager
-        .create_conversation("user-1", "tenant-1", "Test Chat", "gemini-1.5-flash", None)
+        .create_conversation("user-1", tenant_id, "Test Chat", "gemini-1.5-flash", None)
         .await
         .unwrap();
 
@@ -358,8 +387,9 @@ async fn test_get_messages() {
     let pool = create_test_db().await;
     let manager = ChatManager::new(pool);
 
+    let tenant_id = test_tenant_id();
     let conv = manager
-        .create_conversation("user-1", "tenant-1", "Test Chat", "gemini-1.5-flash", None)
+        .create_conversation("user-1", tenant_id, "Test Chat", "gemini-1.5-flash", None)
         .await
         .unwrap();
 
@@ -411,8 +441,9 @@ async fn test_get_recent_messages() {
     let pool = create_test_db().await;
     let manager = ChatManager::new(pool);
 
+    let tenant_id = test_tenant_id();
     let conv = manager
-        .create_conversation("user-1", "tenant-1", "Test Chat", "gemini-1.5-flash", None)
+        .create_conversation("user-1", tenant_id, "Test Chat", "gemini-1.5-flash", None)
         .await
         .unwrap();
 
@@ -449,8 +480,9 @@ async fn test_message_updates_conversation_tokens() {
     let pool = create_test_db().await;
     let manager = ChatManager::new(pool);
 
+    let tenant_id = test_tenant_id();
     let conv = manager
-        .create_conversation("user-1", "tenant-1", "Test Chat", "gemini-1.5-flash", None)
+        .create_conversation("user-1", tenant_id, "Test Chat", "gemini-1.5-flash", None)
         .await
         .unwrap();
 
@@ -482,7 +514,7 @@ async fn test_message_updates_conversation_tokens() {
 
     // Check total tokens updated
     let updated = manager
-        .get_conversation(&conv.id, "user-1", "tenant-1")
+        .get_conversation(&conv.id, "user-1", tenant_id)
         .await
         .unwrap()
         .unwrap();
@@ -495,8 +527,9 @@ async fn test_get_message_count() {
     let pool = create_test_db().await;
     let manager = ChatManager::new(pool);
 
+    let tenant_id = test_tenant_id();
     let conv = manager
-        .create_conversation("user-1", "tenant-1", "Test Chat", "gemini-1.5-flash", None)
+        .create_conversation("user-1", tenant_id, "Test Chat", "gemini-1.5-flash", None)
         .await
         .unwrap();
 
@@ -523,8 +556,9 @@ async fn test_cascade_delete_messages() {
     let pool = create_test_db().await;
     let manager = ChatManager::new(pool);
 
+    let tenant_id = test_tenant_id();
     let conv = manager
-        .create_conversation("user-1", "tenant-1", "Test Chat", "gemini-1.5-flash", None)
+        .create_conversation("user-1", tenant_id, "Test Chat", "gemini-1.5-flash", None)
         .await
         .unwrap();
 
@@ -551,7 +585,7 @@ async fn test_cascade_delete_messages() {
 
     // Delete conversation (should cascade delete messages)
     manager
-        .delete_conversation(&conv.id, "user-1", "tenant-1")
+        .delete_conversation(&conv.id, "user-1", tenant_id)
         .await
         .unwrap();
 
@@ -565,29 +599,30 @@ async fn test_delete_all_user_conversations() {
     let pool = create_test_db().await;
     let manager = ChatManager::new(pool);
 
+    let tenant_id = test_tenant_id();
     // Create multiple conversations
     manager
-        .create_conversation("user-1", "tenant-1", "Chat 1", "gemini-1.5-flash", None)
+        .create_conversation("user-1", tenant_id, "Chat 1", "gemini-1.5-flash", None)
         .await
         .unwrap();
     manager
-        .create_conversation("user-1", "tenant-1", "Chat 2", "gemini-1.5-flash", None)
+        .create_conversation("user-1", tenant_id, "Chat 2", "gemini-1.5-flash", None)
         .await
         .unwrap();
     manager
-        .create_conversation("user-1", "tenant-1", "Chat 3", "gemini-1.5-flash", None)
+        .create_conversation("user-1", tenant_id, "Chat 3", "gemini-1.5-flash", None)
         .await
         .unwrap();
 
     let deleted = manager
-        .delete_all_user_conversations("user-1", "tenant-1")
+        .delete_all_user_conversations("user-1", tenant_id)
         .await
         .unwrap();
 
     assert_eq!(deleted, 3);
 
     let remaining = manager
-        .list_conversations("user-1", "tenant-1", 10, 0)
+        .list_conversations("user-1", tenant_id, 10, 0)
         .await
         .unwrap();
 

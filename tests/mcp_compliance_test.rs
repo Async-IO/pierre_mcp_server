@@ -161,7 +161,7 @@ fn test_initialize_response_format() {
     common::init_server_config();
 
     let response = InitializeResponse::new(
-        "2025-06-18".to_owned(),
+        "2025-11-25".to_owned(),
         "pierre-mcp-server".to_owned(),
         "1.0.0".to_owned(),
     );
@@ -170,7 +170,7 @@ fn test_initialize_response_format() {
     let json_value = serde_json::to_value(&response).expect("Should serialize");
 
     // Check required fields
-    assert_eq!(json_value["protocolVersion"], "2025-06-18");
+    assert_eq!(json_value["protocolVersion"], "2025-11-25");
     assert_eq!(json_value["serverInfo"]["name"], "pierre-mcp-server");
     assert_eq!(json_value["serverInfo"]["version"], "1.0.0");
 
@@ -362,7 +362,7 @@ fn test_server_capabilities() {
 #[test]
 fn test_client_capabilities_parsing() {
     let client_request = json!({
-        "protocolVersion": "2025-06-18",
+        "protocolVersion": "2025-11-25",
         "clientInfo": {
             "name": "test-client",
             "version": "1.0.0"
@@ -379,7 +379,7 @@ fn test_client_capabilities_parsing() {
     let parsed: InitializeRequest =
         serde_json::from_value(client_request).expect("Should parse client request");
 
-    assert_eq!(parsed.protocol_version, "2025-06-18");
+    assert_eq!(parsed.protocol_version, "2025-11-25");
     assert_eq!(parsed.client_info.name, "test-client");
     assert_eq!(parsed.client_info.version, "1.0.0");
     assert!(parsed.capabilities.experimental.is_some());
@@ -393,7 +393,7 @@ fn test_round_trip_serialization() {
     common::init_server_config();
 
     let original_response = InitializeResponse::new(
-        "2025-06-18".to_owned(),
+        "2025-11-25".to_owned(),
         "pierre-mcp-server".to_owned(),
         "1.0.0".to_owned(),
     );
@@ -453,12 +453,12 @@ fn test_protocol_version_compliance() {
     // Verify we're using the latest protocol version
     let version = protocol::mcp_protocol_version();
     assert_eq!(
-        version, "2025-06-18",
+        version, "2025-11-25",
         "Should use latest MCP protocol version"
     );
 
     // Verify function version returns the expected default
-    assert_eq!(protocol::mcp_protocol_version(), "2025-06-18");
+    assert_eq!(protocol::mcp_protocol_version(), "2025-11-25");
 }
 
 /// Test JSON-RPC version compliance

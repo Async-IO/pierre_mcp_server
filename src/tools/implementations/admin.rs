@@ -50,10 +50,10 @@ fn get_coaches_manager(ctx: &ToolExecutionContext) -> AppResult<CoachesManager> 
     Ok(CoachesManager::new(pool.clone()))
 }
 
-/// Get tenant ID from context, defaulting to `user_id` as string
-fn get_tenant_id(ctx: &ToolExecutionContext) -> String {
+/// Get tenant ID from context, defaulting to `user_id` as `TenantId`
+fn get_tenant_id(ctx: &ToolExecutionContext) -> TenantId {
     ctx.tenant_id
-        .map_or_else(|| ctx.user_id.to_string(), |id| id.to_string())
+        .map_or_else(|| TenantId::from(ctx.user_id), TenantId::from)
 }
 
 /// Verify that a target user belongs to the same tenant as the admin.
@@ -63,12 +63,8 @@ fn get_tenant_id(ctx: &ToolExecutionContext) -> String {
 async fn verify_user_in_tenant(
     ctx: &ToolExecutionContext,
     target_user_id: Uuid,
-    tenant_id_str: &str,
+    tenant_id: TenantId,
 ) -> AppResult<()> {
-    let tenant_id: TenantId = tenant_id_str
-        .parse()
-        .map_err(|_| AppError::internal("Invalid tenant UUID in context"))?;
-
     let user_tenants = ctx
         .resources
         .database
@@ -210,7 +206,7 @@ impl McpTool for AdminListSystemCoachesTool {
         let manager = get_coaches_manager(ctx)?;
         let tenant_id = get_tenant_id(ctx);
 
-        let coaches = manager.list_system_coaches(&tenant_id).await?;
+        let coaches = manager.list_system_coaches(tenant_id).await?;
 
         // Apply pagination (manager returns all, we slice here)
         #[allow(clippy::cast_possible_truncation)]
@@ -367,7 +363,7 @@ impl McpTool for AdminCreateSystemCoachTool {
         let tenant_id = get_tenant_id(ctx);
 
         let coach = manager
-            .create_system_coach(ctx.user_id, &tenant_id, &request)
+            .create_system_coach(ctx.user_id, tenant_id, &request)
             .await?;
 
         Ok(ToolResult::ok(json!({
@@ -429,7 +425,7 @@ impl McpTool for AdminGetSystemCoachTool {
         let tenant_id = get_tenant_id(ctx);
 
         manager
-            .get_system_coach(coach_id, &tenant_id)
+            .get_system_coach(coach_id, tenant_id)
             .await?
             .map_or_else(
                 || {
@@ -566,7 +562,7 @@ impl McpTool for AdminUpdateSystemCoachTool {
         let tenant_id = get_tenant_id(ctx);
 
         manager
-            .update_system_coach(coach_id, &tenant_id, &request)
+            .update_system_coach(coach_id, tenant_id, &request)
             .await?
             .map_or_else(
                 || {
@@ -636,7 +632,7 @@ impl McpTool for AdminDeleteSystemCoachTool {
         let manager = get_coaches_manager(ctx)?;
         let tenant_id = get_tenant_id(ctx);
 
-        let deleted = manager.delete_system_coach(coach_id, &tenant_id).await?;
+        let deleted = manager.delete_system_coach(coach_id, tenant_id).await?;
 
         if deleted {
             Ok(ToolResult::ok(json!({
@@ -726,10 +722,10 @@ impl McpTool for AdminAssignCoachTool {
         let tenant_id = get_tenant_id(ctx);
 
         // Verify target user belongs to the same tenant as the admin
-        verify_user_in_tenant(ctx, target_user_id, &tenant_id).await?;
+        verify_user_in_tenant(ctx, target_user_id, tenant_id).await?;
 
         // Verify the coach belongs to this tenant before assigning
-        let coach = manager.get_system_coach(coach_id, &tenant_id).await?;
+        let coach = manager.get_system_coach(coach_id, tenant_id).await?;
         if coach.is_none() {
             return Err(AppError::not_found(format!(
                 "Coach '{coach_id}' not found in this tenant"
@@ -830,10 +826,10 @@ impl McpTool for AdminUnassignCoachTool {
         let tenant_id = get_tenant_id(ctx);
 
         // Verify target user belongs to the same tenant as the admin
-        verify_user_in_tenant(ctx, target_user_id, &tenant_id).await?;
+        verify_user_in_tenant(ctx, target_user_id, tenant_id).await?;
 
         // Verify the coach belongs to this tenant before unassigning
-        let coach = manager.get_system_coach(coach_id, &tenant_id).await?;
+        let coach = manager.get_system_coach(coach_id, tenant_id).await?;
         if coach.is_none() {
             return Err(AppError::not_found(format!(
                 "Coach '{coach_id}' not found in this tenant"
@@ -917,13 +913,13 @@ impl McpTool for AdminListCoachAssignmentsTool {
 
         // Verify the coach belongs to the admin's tenant
         manager
-            .get_system_coach(coach_id, &tenant_id)
+            .get_system_coach(coach_id, tenant_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("System coach {coach_id}")))?;
 
         // List assignments scoped to the admin's tenant
         let assignments = manager
-            .list_assignments_for_tenant(coach_id, &tenant_id)
+            .list_assignments_for_tenant(coach_id, tenant_id)
             .await?;
 
         let formatted: Vec<_> = assignments.iter().map(format_assignment).collect();

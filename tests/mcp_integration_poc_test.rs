@@ -58,8 +58,10 @@ async fn test_mcp_initialize() -> Result<()> {
 
     // Verify protocol compliance
     assert!(
-        result.protocol_version == "2025-06-18" || result.protocol_version == "2024-11-05",
-        "Protocol version should be 2025-06-18 or 2024-11-05, got: {}",
+        result.protocol_version == "2025-11-25"
+            || result.protocol_version == "2025-06-18"
+            || result.protocol_version == "2024-11-05",
+        "Protocol version should be 2025-11-25, 2025-06-18 or 2024-11-05, got: {}",
         result.protocol_version
     );
     assert!(
