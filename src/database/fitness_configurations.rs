@@ -66,7 +66,7 @@ impl FitnessConfigurationManager {
             RETURNING id
             ",
         )
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(configuration_name)
         .bind(&config_json)
         .bind(&now)
@@ -103,7 +103,7 @@ impl FitnessConfigurationManager {
             RETURNING id
             ",
         )
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(user_id)
         .bind(configuration_name)
         .bind(&config_json)
@@ -167,7 +167,7 @@ impl FitnessConfigurationManager {
                 WHERE tenant_id = $1 AND user_id = $2 AND configuration_name = $3
                 ",
             )
-            .bind(tenant_id.to_string())
+            .bind(tenant_id)
             .bind(uid)
             .bind(configuration_name)
             .fetch_optional(&self.pool)
@@ -180,7 +180,7 @@ impl FitnessConfigurationManager {
                 WHERE tenant_id = $1 AND user_id IS NULL AND configuration_name = $2
                 ",
             )
-            .bind(tenant_id.to_string())
+            .bind(tenant_id)
             .bind(configuration_name)
             .fetch_optional(&self.pool)
             .await
@@ -211,7 +211,7 @@ impl FitnessConfigurationManager {
             ORDER BY configuration_name
             ",
         )
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| {
@@ -243,7 +243,7 @@ impl FitnessConfigurationManager {
             ORDER BY configuration_name
             ",
         )
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(user_id)
         .fetch_all(&self.pool)
         .await
@@ -277,7 +277,7 @@ impl FitnessConfigurationManager {
                 WHERE tenant_id = $1 AND user_id = $2 AND configuration_name = $3
                 ",
             )
-            .bind(tenant_id.to_string())
+            .bind(tenant_id)
             .bind(uid)
             .bind(configuration_name)
             .execute(&self.pool)
@@ -290,7 +290,7 @@ impl FitnessConfigurationManager {
                 WHERE tenant_id = $1 AND user_id IS NULL AND configuration_name = $2
                 ",
             )
-            .bind(tenant_id.to_string())
+            .bind(tenant_id)
             .bind(configuration_name)
             .execute(&self.pool)
             .await
@@ -319,7 +319,7 @@ impl FitnessConfigurationManager {
             ORDER BY user_id, configuration_name
             ",
         )
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| {

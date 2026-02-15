@@ -368,7 +368,7 @@ impl CoachesManager {
         )
         .bind(id.to_string())
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(&request.title)
         .bind(&request.description)
         .bind(&request.system_prompt)
@@ -454,7 +454,7 @@ impl CoachesManager {
         )
         .bind(coach_id)
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get coach: {e}")))?;
@@ -538,7 +538,7 @@ impl CoachesManager {
 
         let rows = sqlx::query(&query)
             .bind(&user_id_str)
-            .bind(tenant_id.to_string())
+            .bind(tenant_id)
             .bind(limit_val)
             .bind(offset_val)
             .fetch_all(&self.pool)
@@ -626,7 +626,7 @@ impl CoachesManager {
         .bind(now.to_rfc3339())
         .bind(coach_id)
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to update coach: {e}")))?;
@@ -658,7 +658,7 @@ impl CoachesManager {
         )
         .bind(coach_id)
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to delete coach: {e}")))?;
@@ -712,7 +712,7 @@ impl CoachesManager {
         )
         .bind(id.to_string())
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(&source.title)
         .bind(&source.description)
         .bind(&source.system_prompt)
@@ -798,7 +798,7 @@ impl CoachesManager {
         .bind(&now)
         .bind(coach_id)
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to record coach usage: {e}")))?;
@@ -826,7 +826,7 @@ impl CoachesManager {
         )
         .bind(coach_id)
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get coach: {e}")))?;
@@ -849,7 +849,7 @@ impl CoachesManager {
         .bind(&now)
         .bind(coach_id)
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to toggle favorite: {e}")))?;
@@ -870,7 +870,7 @@ impl CoachesManager {
             ",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_one(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to count coaches: {e}")))?;
@@ -913,7 +913,7 @@ impl CoachesManager {
             ",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(&search_pattern)
         .bind(limit_val)
         .bind(offset_val)
@@ -949,7 +949,7 @@ impl CoachesManager {
         )
         .bind(&now)
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to deactivate coaches: {e}")))?;
@@ -964,7 +964,7 @@ impl CoachesManager {
         .bind(&now)
         .bind(coach_id)
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to activate coach: {e}")))?;
@@ -993,7 +993,7 @@ impl CoachesManager {
         )
         .bind(&now)
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to deactivate coach: {e}")))?;
@@ -1023,7 +1023,7 @@ impl CoachesManager {
             ",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get active coach: {e}")))?;
@@ -1065,7 +1065,7 @@ impl CoachesManager {
         )
         .bind(id.to_string())
         .bind(admin_user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(&request.title)
         .bind(&request.description)
         .bind(&request.system_prompt)
@@ -1145,7 +1145,7 @@ impl CoachesManager {
             ORDER BY created_at DESC
             ",
         )
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to list system coaches: {e}")))?;
@@ -1175,7 +1175,7 @@ impl CoachesManager {
             ",
         )
         .bind(coach_id)
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get system coach: {e}")))?;
@@ -1287,7 +1287,7 @@ impl CoachesManager {
         .bind(i64::from(token_count))
         .bind(now.to_rfc3339())
         .bind(coach_id)
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to update system coach: {e}")))?;
@@ -1317,7 +1317,7 @@ impl CoachesManager {
             ",
         )
         .bind(coach_id)
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to delete system coach: {e}")))?;
@@ -1443,7 +1443,7 @@ impl CoachesManager {
             ",
         )
         .bind(coach_id)
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to list assignments: {e}")))?;
@@ -1549,7 +1549,7 @@ impl CoachesManager {
             ",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to list hidden coaches: {e}")))?;
@@ -1712,7 +1712,7 @@ impl CoachesManager {
             ",
         )
         .bind(coach_id)
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to verify coach: {e}")))?;
@@ -1760,7 +1760,7 @@ impl CoachesManager {
             ",
         )
         .bind(coach_id)
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to verify coach: {e}")))?;
@@ -1865,7 +1865,7 @@ impl CoachesManager {
         .bind(i64::from(token_count))
         .bind(now.to_rfc3339())
         .bind(coach_id)
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to revert coach: {e}")))?;
@@ -1891,7 +1891,7 @@ impl CoachesManager {
             ",
         )
         .bind(coach_id)
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get reverted coach: {e}")))?
@@ -1958,7 +1958,7 @@ impl CoachesManager {
         .bind(now.to_rfc3339())
         .bind(coach_id)
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to submit coach for review: {e}")))?;
@@ -2004,7 +2004,7 @@ impl CoachesManager {
             LIMIT $2 OFFSET $3
             ",
         )
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(limit_val)
         .bind(offset_val)
         .fetch_all(&self.pool)
@@ -2049,7 +2049,7 @@ impl CoachesManager {
         .bind(now.to_rfc3339())
         .bind(admin_user_id.map(|id| id.to_string()))
         .bind(coach_id)
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to approve coach: {e}")))?;
@@ -2071,7 +2071,7 @@ impl CoachesManager {
             ",
         )
         .bind(coach_id)
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_one(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get approved coach: {e}")))?;
@@ -2115,7 +2115,7 @@ impl CoachesManager {
         .bind(admin_user_id.map(|id| id.to_string()))
         .bind(reason)
         .bind(coach_id)
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to reject coach: {e}")))?;
@@ -2137,7 +2137,7 @@ impl CoachesManager {
             ",
         )
         .bind(coach_id)
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_one(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get rejected coach: {e}")))?;
@@ -2175,7 +2175,7 @@ impl CoachesManager {
             LIMIT $2 OFFSET $3
             ",
         )
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(limit_val)
         .bind(offset_val)
         .fetch_all(&self.pool)
@@ -2210,7 +2210,7 @@ impl CoachesManager {
         .bind(PublishStatus::Draft.as_str())
         .bind(now.to_rfc3339())
         .bind(coach_id)
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to unpublish coach: {e}")))?;
@@ -2230,7 +2230,7 @@ impl CoachesManager {
             ",
         )
         .bind(coach_id)
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_one(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get unpublished coach: {e}")))?;
@@ -2258,7 +2258,7 @@ impl CoachesManager {
             WHERE tenant_id = $1
             ",
         )
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_one(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get store stats: {e}")))?;
@@ -2840,7 +2840,7 @@ impl CoachesManager {
             "SELECT id FROM coaches WHERE user_id = $1 AND tenant_id = $2 AND forked_from = $3",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(source_coach_id)
         .fetch_optional(&self.pool)
         .await
@@ -2880,7 +2880,7 @@ impl CoachesManager {
         )
         .bind(id.to_string())
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(&source.title)
         .bind(&source.description)
         .bind(&source.system_prompt)
@@ -2926,7 +2926,7 @@ impl CoachesManager {
             ",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get installed coaches: {e}")))?;
@@ -2969,7 +2969,7 @@ impl CoachesManager {
         )
         .bind(coach_id)
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to uninstall coach: {e}")))?;
@@ -3020,7 +3020,7 @@ impl CoachesManager {
             ",
         )
         .bind(system_prompt)
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get startup query: {e}")))?;

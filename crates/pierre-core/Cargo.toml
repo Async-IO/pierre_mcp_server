@@ -22,6 +22,9 @@ database-errors = ["dep:sqlx"]
 # sqlx Type/Encode/Decode derives for domain types (TenantId, etc.)
 sqlx-types = ["dep:sqlx", "sqlx/derive"]
 
+# SQLite-specific Encode/Type for domain types (TenantId as TEXT, not BLOB)
+sqlx-sqlite = ["sqlx-types", "sqlx/sqlite"]
+
 # Provider error types (ProviderError with reqwest::Error)
 provider-errors = ["dep:reqwest"]
 

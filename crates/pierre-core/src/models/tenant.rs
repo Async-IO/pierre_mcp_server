@@ -14,8 +14,6 @@ use uuid::Uuid;
 ///
 /// Provides compile-time distinction between tenant IDs and other UUIDs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "sqlx-types", derive(sqlx::Type))]
-#[cfg_attr(feature = "sqlx-types", sqlx(transparent))]
 #[serde(transparent)]
 pub struct TenantId(pub Uuid);
 
@@ -86,6 +84,44 @@ impl FromStr for TenantId {
 impl AsRef<Uuid> for TenantId {
     fn as_ref(&self) -> &Uuid {
         &self.0
+    }
+}
+
+// SQLite stores UUIDs as TEXT. The default sqlx transparent derive delegates to Uuid
+// which encodes as BLOB for SQLite. These manual implementations ensure TenantId
+// serializes as a hyphenated TEXT string, matching the database schema.
+#[cfg(feature = "sqlx-sqlite")]
+mod sqlite_impl {
+    use sqlx::encode::IsNull;
+    use sqlx::error::BoxDynError;
+    use sqlx::sqlite::{Sqlite, SqliteArgumentValue, SqliteTypeInfo, SqliteValueRef};
+    use sqlx::{Decode, Encode, Type};
+    use uuid::Uuid;
+
+    use super::TenantId;
+
+    impl Type<Sqlite> for TenantId {
+        fn type_info() -> SqliteTypeInfo {
+            <String as Type<Sqlite>>::type_info()
+        }
+    }
+
+    impl<'q> Encode<'q, Sqlite> for TenantId {
+        fn encode_by_ref(
+            &self,
+            buf: &mut Vec<SqliteArgumentValue<'q>>,
+        ) -> Result<IsNull, BoxDynError> {
+            let text = self.0.to_string();
+            <String as Encode<'q, Sqlite>>::encode(text, buf)
+        }
+    }
+
+    impl<'r> Decode<'r, Sqlite> for TenantId {
+        fn decode(value: SqliteValueRef<'r>) -> Result<Self, BoxDynError> {
+            let text = <String as Decode<'r, Sqlite>>::decode(value)?;
+            let uuid = Uuid::parse_str(&text)?;
+            Ok(Self(uuid))
+        }
     }
 }
 

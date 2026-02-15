@@ -108,7 +108,7 @@ impl CoachAuthorsManager {
         )
         .bind(id.to_string())
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(&request.display_name)
         .bind(&request.bio)
         .bind(&request.avatar_url)
@@ -165,7 +165,7 @@ impl CoachAuthorsManager {
             ",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get author profile: {e}")))?;
@@ -239,7 +239,7 @@ impl CoachAuthorsManager {
         .bind(website_url)
         .bind(now.to_rfc3339())
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to update author profile: {e}")))?;
@@ -360,7 +360,7 @@ impl CoachAuthorsManager {
             LIMIT $2
             ",
         )
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(limit_val)
         .fetch_all(&self.pool)
         .await
@@ -392,7 +392,7 @@ impl CoachAuthorsManager {
             LIMIT $2
             ",
         )
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(limit_val)
         .fetch_all(&self.pool)
         .await

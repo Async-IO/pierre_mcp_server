@@ -154,7 +154,7 @@ impl Database {
             ORDER BY tool_name
             ",
         )
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to fetch tenant tool overrides: {e}")))?;
@@ -180,7 +180,7 @@ impl Database {
             WHERE tenant_id = ? AND tool_name = ?
             ",
         )
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(tool_name)
         .fetch_optional(&self.pool)
         .await
@@ -218,7 +218,7 @@ impl Database {
             ",
         )
         .bind(id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(tool_name)
         .bind(is_enabled)
         .bind(enabled_by_user_id.map(|u| u.to_string()))
@@ -251,7 +251,7 @@ impl Database {
             WHERE tenant_id = ? AND tool_name = ?
             ",
         )
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(tool_name)
         .execute(&self.pool)
         .await

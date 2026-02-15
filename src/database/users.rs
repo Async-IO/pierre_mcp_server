@@ -123,7 +123,7 @@ impl Database {
 
         let row = sqlx::query(query)
             .bind(user_id.to_string())
-            .bind(tenant_id.to_string())
+            .bind(tenant_id)
             .fetch_optional(&self.pool)
             .await
             .map_err(|e| AppError::database(format!("Failed to get user by id+tenant: {e}")))?;
@@ -434,7 +434,7 @@ impl Database {
             "SELECT last_sync FROM user_oauth_tokens WHERE user_id = $1 AND tenant_id = $2 AND provider = $3",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(provider)
         .fetch_optional(&self.pool)
         .await
@@ -463,7 +463,7 @@ impl Database {
         )
         .bind(sync_time)
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(provider)
         .execute(&self.pool)
         .await
@@ -691,7 +691,7 @@ impl Database {
             WHERE id = $2
             ",
         )
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(user_id.to_string());
 
         let result = query

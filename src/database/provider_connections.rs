@@ -46,7 +46,7 @@ impl Database {
         )
         .bind(&id)
         .bind(&user_id_str)
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(provider)
         .bind(conn_type_str)
         .bind(&now)
@@ -76,7 +76,7 @@ impl Database {
             "DELETE FROM provider_connections WHERE user_id = ? AND tenant_id = ? AND provider = ?",
         )
         .bind(&user_id_str)
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(provider)
         .execute(self.pool())
         .await?;

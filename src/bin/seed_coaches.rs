@@ -444,7 +444,7 @@ async fn upsert_coach(
     let existing: Option<(String, Option<String>)> =
         sqlx::query_as("SELECT id, content_hash FROM coaches WHERE slug = $1 AND tenant_id = $2")
             .bind(slug)
-            .bind(admin.tenant_id.to_string())
+            .bind(admin.tenant_id)
             .fetch_optional(pool)
             .await?;
 
@@ -517,7 +517,7 @@ async fn insert_coach(
     )
     .bind(id)
     .bind(admin.id.to_string())
-    .bind(admin.tenant_id.to_string())
+    .bind(admin.tenant_id)
     .bind(&coach.frontmatter.title)
     .bind(&coach.sections.purpose)
     .bind(&coach.sections.instructions) // system_prompt = instructions for compatibility

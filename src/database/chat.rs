@@ -58,7 +58,7 @@ impl ChatManager {
         )
         .bind(&id)
         .bind(user_id)
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(title)
         .bind(model)
         .bind(system_prompt)
@@ -100,7 +100,7 @@ impl ChatManager {
         )
         .bind(conversation_id)
         .bind(user_id)
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get conversation: {e}")))?;
@@ -143,7 +143,7 @@ impl ChatManager {
             ",
         )
         .bind(user_id)
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(limit)
         .bind(offset)
         .fetch_all(&self.pool)
@@ -191,7 +191,7 @@ impl ChatManager {
         .bind(&now)
         .bind(conversation_id)
         .bind(user_id)
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to update conversation title: {e}")))?;
@@ -218,7 +218,7 @@ impl ChatManager {
         )
         .bind(conversation_id)
         .bind(user_id)
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to delete conversation: {e}")))?;
@@ -450,7 +450,7 @@ impl ChatManager {
             ",
         )
         .bind(user_id)
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to delete user conversations: {e}")))?;

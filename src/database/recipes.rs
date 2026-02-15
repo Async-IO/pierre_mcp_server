@@ -95,7 +95,7 @@ impl RecipeManager {
         )
         .bind(&recipe_id)
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(&recipe.name)
         .bind(&recipe.description)
         .bind(i32::from(recipe.servings))
@@ -179,7 +179,7 @@ impl RecipeManager {
         )
         .bind(recipe_id)
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to get recipe: {e}")))?;
@@ -224,7 +224,7 @@ impl RecipeManager {
                 ",
             )
             .bind(user_id.to_string())
-            .bind(tenant_id.to_string())
+            .bind(tenant_id)
             .bind(meal_timing_to_string(timing))
             .bind(limit_val)
             .bind(offset_val)
@@ -246,7 +246,7 @@ impl RecipeManager {
                 ",
             )
             .bind(user_id.to_string())
-            .bind(tenant_id.to_string())
+            .bind(tenant_id)
             .bind(limit_val)
             .bind(offset_val)
             .fetch_all(&self.pool)
@@ -333,7 +333,7 @@ impl RecipeManager {
         .bind(&now)
         .bind(recipe_id)
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .execute(guard.executor()?)
         .await
         .map_err(|e| AppError::database(format!("Failed to update recipe: {e}")))?;
@@ -403,7 +403,7 @@ impl RecipeManager {
         )
         .bind(recipe_id)
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to delete recipe: {e}")))?;
@@ -443,7 +443,7 @@ impl RecipeManager {
         .bind(Utc::now().to_rfc3339())
         .bind(recipe_id)
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to update nutrition cache: {e}")))?;
@@ -484,7 +484,7 @@ impl RecipeManager {
             ",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(&search_pattern)
         .bind(limit_val)
         .bind(offset_val)
@@ -519,7 +519,7 @@ impl RecipeManager {
             ",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_one(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to count recipes: {e}")))?;

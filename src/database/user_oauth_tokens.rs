@@ -82,7 +82,7 @@ impl Database {
         )
         .bind(token_data.id)
         .bind(token_data.user_id.to_string())
-        .bind(token_data.tenant_id.to_string())
+        .bind(token_data.tenant_id)
         .bind(token_data.provider)
         .bind(&encrypted_access_token)
         .bind(encrypted_refresh_token.as_deref())
@@ -122,7 +122,7 @@ impl Database {
             ",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(provider)
         .fetch_optional(&self.pool)
         .await
@@ -213,7 +213,7 @@ impl Database {
             ORDER BY created_at DESC
             ",
         )
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(provider)
         .fetch_all(&self.pool)
         .await
@@ -244,7 +244,7 @@ impl Database {
             ",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(provider)
         .execute(&self.pool)
         .await
@@ -270,7 +270,7 @@ impl Database {
             ",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to delete user OAuth tokens: {e}")))?;
@@ -318,7 +318,7 @@ impl Database {
             ",
         )
         .bind(user_id.to_string())
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(provider)
         .bind(&encrypted_access_token)
         .bind(encrypted_refresh_token.as_deref())

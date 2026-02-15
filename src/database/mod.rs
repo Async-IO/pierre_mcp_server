@@ -432,7 +432,7 @@ impl Database {
             "SELECT role FROM tenant_users WHERE user_id = ? AND tenant_id = ?",
         )
         .bind(user_id)
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
@@ -711,7 +711,7 @@ impl Database {
             WHERE t.id = ? AND t.is_active = 1
             ",
         )
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
@@ -961,7 +961,7 @@ impl Database {
                 updated_at = excluded.updated_at
             ",
         )
-        .bind(credentials.tenant_id.to_string())
+        .bind(credentials.tenant_id)
         .bind(&credentials.provider)
         .bind(&credentials.client_id)
         .bind(&encrypted_secret)
@@ -995,7 +995,7 @@ impl Database {
             ORDER BY provider
             ",
         )
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
@@ -1063,7 +1063,7 @@ impl Database {
             WHERE tenant_id = ? AND provider = ? AND is_active = 1
             ",
         )
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .bind(provider)
         .fetch_optional(&self.pool)
         .await
@@ -2093,7 +2093,7 @@ impl Database {
         let row =
             sqlx::query("SELECT role FROM tenant_users WHERE user_id = ?1 AND tenant_id = ?2")
                 .bind(user_id.to_string())
-                .bind(tenant_id.to_string())
+                .bind(tenant_id)
                 .fetch_optional(&self.pool)
                 .await
                 .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
@@ -3662,7 +3662,7 @@ impl DatabaseProvider for Database {
             ",
         )
         .bind(record.id.to_string())
-        .bind(record.tenant_id.to_string())
+        .bind(record.tenant_id)
         .bind(record.user_id.map(|u| u.to_string()))
         .bind(&record.provider)
         .bind(&record.api_key_encrypted)
@@ -3694,7 +3694,7 @@ impl DatabaseProvider for Database {
                 WHERE tenant_id = ?1 AND user_id = ?2 AND provider = ?3 AND is_active = 1
                 ",
             )
-            .bind(tenant_id.to_string())
+            .bind(tenant_id)
             .bind(uid.to_string())
             .bind(provider)
             .fetch_optional(&self.pool)
@@ -3708,7 +3708,7 @@ impl DatabaseProvider for Database {
                 WHERE tenant_id = ?1 AND user_id IS NULL AND provider = ?2 AND is_active = 1
                 ",
             )
-            .bind(tenant_id.to_string())
+            .bind(tenant_id)
             .bind(provider)
             .fetch_optional(&self.pool)
             .await
@@ -3747,7 +3747,7 @@ impl DatabaseProvider for Database {
             ORDER BY provider, user_id
             ",
         )
-        .bind(tenant_id.to_string())
+        .bind(tenant_id)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to list LLM credentials: {e}")))?;
@@ -3788,7 +3788,7 @@ impl DatabaseProvider for Database {
                 WHERE tenant_id = ?1 AND user_id = ?2 AND provider = ?3
                 ",
             )
-            .bind(tenant_id.to_string())
+            .bind(tenant_id)
             .bind(uid.to_string())
             .bind(provider)
             .execute(&self.pool)
@@ -3800,7 +3800,7 @@ impl DatabaseProvider for Database {
                 WHERE tenant_id = ?1 AND user_id IS NULL AND provider = ?2
                 ",
             )
-            .bind(tenant_id.to_string())
+            .bind(tenant_id)
             .bind(provider)
             .execute(&self.pool)
             .await
