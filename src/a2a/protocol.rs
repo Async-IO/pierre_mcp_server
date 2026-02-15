@@ -1106,8 +1106,12 @@ impl A2AServer {
             };
 
         // Build tool execution context from authenticated user identity with tenant
-        let tool_ctx = ToolExecutionContext::new(user_id, resources.clone(), AuthMethod::ApiKey)
-            .with_tenant(tenant_context.tenant_id);
+        let tool_ctx = ToolExecutionContext::new(
+            user_id,
+            Some(tenant_context.tenant_id),
+            resources.clone(),
+            AuthMethod::ApiKey,
+        );
 
         // Try the registry first, fall back to error for unregistered tools
         if resources.tool_registry.contains(tool_name) {

@@ -39,13 +39,13 @@ fn create_test_context(
     tenant_id: Option<TenantId>,
     is_admin: bool,
 ) -> ToolExecutionContext {
-    let mut ctx = ToolExecutionContext::new(user_id, Arc::clone(resources), AuthMethod::JwtBearer);
-
-    if let Some(tid) = tenant_id {
-        ctx = ctx.with_tenant(tid);
-    }
-
-    ctx.with_admin_status(is_admin)
+    ToolExecutionContext::new(
+        user_id,
+        tenant_id,
+        Arc::clone(resources),
+        AuthMethod::JwtBearer,
+    )
+    .with_admin_status(is_admin)
 }
 
 // ============================================================================

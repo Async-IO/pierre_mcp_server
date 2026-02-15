@@ -260,6 +260,20 @@ impl McpAuthMiddleware {
         // Update last used timestamp
         self.database.update_api_key_last_used(&db_key.id).await?;
 
+        // Resolve user's default tenant — API keys are single-tenant by design
+        let active_tenant_id = self
+            .database
+            .list_tenants_for_user(db_key.user_id)
+            .await
+            .map_err(|e| {
+                AppError::database(format!(
+                    "Failed to resolve tenant for API key user {}: {e}",
+                    db_key.user_id
+                ))
+            })?
+            .first()
+            .map(|t| t.id.as_uuid());
+
         Ok(AuthResult {
             user_id: db_key.user_id,
             auth_method: AuthMethod::ApiKey {
@@ -267,8 +281,7 @@ impl McpAuthMiddleware {
                 tier: format!("{:?}", db_key.tier).to_lowercase(),
             },
             rate_limit,
-            // API keys don't carry active_tenant_id - tenant resolved from user's default
-            active_tenant_id: None,
+            active_tenant_id,
         })
     }
 

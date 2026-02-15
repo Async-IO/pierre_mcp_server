@@ -72,6 +72,7 @@ impl ProtocolConverter {
     pub fn a2a_to_universal(
         request: &A2ARequest,
         user_id: &str,
+        tenant_id: Option<String>,
     ) -> Result<UniversalRequest, ProtocolError> {
         // Extract tool name from A2A method
         let tool_name = match request.method.as_str() {
@@ -111,7 +112,7 @@ impl ProtocolConverter {
             parameters,
             user_id: user_id.to_owned(),
             protocol: "a2a".into(),
-            tenant_id: None,
+            tenant_id,
             progress_token: None,
             cancellation_token: None,
             progress_reporter: None,

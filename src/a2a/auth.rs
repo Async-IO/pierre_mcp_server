@@ -263,6 +263,21 @@ impl A2AAuthenticator {
         // Check scopes if present in token
         // Grant access based on A2A client permissions
 
+        // Resolve user's default tenant — A2A clients are single-tenant by design
+        let active_tenant_id = self
+            .resources
+            .database
+            .list_tenants_for_user(client.user_id)
+            .await
+            .map_err(|e| {
+                AppError::database(format!(
+                    "Failed to resolve tenant for A2A client user {}: {e}",
+                    client.user_id
+                ))
+            })?
+            .first()
+            .map(|t| t.id.as_uuid());
+
         Ok(AuthResult {
             user_id: client.user_id, // Use consistent A2A client user ID for session tracking
             auth_method: AuthMethod::ApiKey {
@@ -277,8 +292,7 @@ impl A2AAuthenticator {
                 tier: "A2A-OAuth2".into(),
                 auth_method: "oauth2".into(),
             },
-            // A2A clients don't carry active_tenant_id - tenant resolved from user's default
-            active_tenant_id: None,
+            active_tenant_id,
         })
     }
 

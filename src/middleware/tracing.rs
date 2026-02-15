@@ -28,7 +28,7 @@ impl RequestContext {
         Self {
             request_id: format!("req_{}", Uuid::new_v4().simple()),
             user_id: None,
-            tenant_id: None,
+            tenant_id: None, // Populated by auth middleware via with_auth() after authentication
             auth_method: None,
         }
     }

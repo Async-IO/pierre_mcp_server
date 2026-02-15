@@ -417,8 +417,12 @@ impl ToolHandlers {
             AuthResultMethod::ApiKey { .. } => AuthMethod::ApiKey,
         };
 
-        let mut tool_ctx = ToolExecutionContext::new(user_id, ctx.resources.clone(), auth_method)
-            .with_tenant(ctx.tenant_context.tenant_id);
+        let mut tool_ctx = ToolExecutionContext::new(
+            user_id,
+            Some(ctx.tenant_context.tenant_id),
+            ctx.resources.clone(),
+            auth_method,
+        );
 
         // Add request ID if available
         if let Some(req_id) = request_id {

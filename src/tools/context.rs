@@ -98,17 +98,19 @@ impl ToolExecutionContext {
     /// # Arguments
     ///
     /// * `user_id` - The authenticated user's ID
+    /// * `tenant_id` - The tenant context for multi-tenant isolation
     /// * `resources` - Arc-wrapped server resources
     /// * `auth_method` - How the user authenticated
     #[must_use]
-    pub const fn new(
+    pub fn new(
         user_id: Uuid,
+        tenant_id: Option<TenantId>,
         resources: Arc<ServerResources>,
         auth_method: AuthMethod,
     ) -> Self {
         Self {
             user_id,
-            tenant_id: None,
+            tenant_id: tenant_id.map(|t| t.as_uuid()),
             request_id: None,
             resources,
             auth_method,

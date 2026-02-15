@@ -181,7 +181,7 @@ impl OAuthFlow<Initial> {
             client_id: client_id.into(),
             redirect_uri: redirect_uri.into(),
             user_id: None,
-            tenant_id: None,
+            tenant_id: None, // Set during user authentication step via with_tenant()
             pkce: None,
             state: Initial,
             _marker: PhantomData,
@@ -208,7 +208,7 @@ impl OAuthFlow<Initial> {
             client_id: client_id.into(),
             redirect_uri: redirect_uri.into(),
             user_id: None,
-            tenant_id: None,
+            tenant_id: None, // Set during user authentication step via with_tenant()
             pkce: Some(pkce),
             state: Initial,
             _marker: PhantomData,

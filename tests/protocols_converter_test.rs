@@ -32,11 +32,14 @@ fn test_a2a_to_universal_conversion() {
         metadata: HashMap::new(),
     };
 
-    let universal = ProtocolConverter::a2a_to_universal(&a2a_request, "test_user").unwrap();
+    let tenant_id = Some("test-tenant-id".to_owned());
+    let universal =
+        ProtocolConverter::a2a_to_universal(&a2a_request, "test_user", tenant_id.clone()).unwrap();
 
     assert_eq!(universal.tool_name, "get_activities");
     assert_eq!(universal.user_id, "test_user");
     assert_eq!(universal.protocol, "a2a");
+    assert_eq!(universal.tenant_id, tenant_id);
     assert_eq!(
         universal.parameters.get("limit").unwrap().as_u64().unwrap(),
         10
