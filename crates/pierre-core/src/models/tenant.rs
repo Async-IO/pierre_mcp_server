@@ -125,6 +125,38 @@ mod sqlite_impl {
     }
 }
 
+// PostgreSQL stores UUIDs natively. These implementations delegate to Uuid's
+// built-in Postgres Type/Encode/Decode, wrapping/unwrapping the TenantId newtype.
+#[cfg(feature = "sqlx-postgres")]
+mod postgres_impl {
+    use sqlx::encode::IsNull;
+    use sqlx::error::BoxDynError;
+    use sqlx::postgres::{PgArgumentBuffer, PgTypeInfo, PgValueRef, Postgres};
+    use sqlx::{Decode, Encode, Type};
+    use uuid::Uuid;
+
+    use super::TenantId;
+
+    impl Type<Postgres> for TenantId {
+        fn type_info() -> PgTypeInfo {
+            <Uuid as Type<Postgres>>::type_info()
+        }
+    }
+
+    impl<'q> Encode<'q, Postgres> for TenantId {
+        fn encode_by_ref(&self, buf: &mut PgArgumentBuffer) -> Result<IsNull, BoxDynError> {
+            <Uuid as Encode<'q, Postgres>>::encode_by_ref(&self.0, buf)
+        }
+    }
+
+    impl<'r> Decode<'r, Postgres> for TenantId {
+        fn decode(value: PgValueRef<'r>) -> Result<Self, BoxDynError> {
+            let uuid = <Uuid as Decode<'r, Postgres>>::decode(value)?;
+            Ok(Self(uuid))
+        }
+    }
+}
+
 /// Tenant organization in multi-tenant setup
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Tenant {
